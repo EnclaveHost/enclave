@@ -1,0 +1,216 @@
+{
+  "at": "2026-10-23T20:04:42.823Z",
+  "readOnly": true,
+  "block": {
+    "number": "52998255",
+    "hash": "0xba608b77ad756242bec2740b1105c5199166c19a3caedb300d0b366032755cb7",
+    "timestamp": "1792785857",
+    "baseFeePerGas": "5000000"
+  },
+  "scope": "Nine recovered NucBox apps plus known original v2 canary, in configured v1 and v2 vaults",
+  "rows": [
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "beneficialOwner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "beneficialOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+      "policyOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+      "policyRev": "1",
+      "secretRev": "1",
+      "committeeId": "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "beneficialOwner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "policyOwner": "0x0000000000000000000000000000000000000000",
+      "policyRev": "0",
+      "secretRev": "0",
+      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "paused": false
+    },
+    {
+      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "beneficialOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+      "policyOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+      "policyRev": "2",
+      "secretRev": "2",
+      "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+      "paused": false
+    }
+  ],
+  "limits": [
+    "Known-ID reads only, not exhaustive policy event discovery. No secret rules or bundle bytes emitted. No policy or address-book change."
+  ]
+}

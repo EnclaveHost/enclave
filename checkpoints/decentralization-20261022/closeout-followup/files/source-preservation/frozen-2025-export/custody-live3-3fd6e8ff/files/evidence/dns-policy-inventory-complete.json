@@ -1,0 +1,72 @@
+{
+  "at": "2026-10-23T19:11:29.889647+00:00",
+  "readOnly": true,
+  "services": [
+    {
+      "unit": "enclave-api-relay.service",
+      "pid": 816,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-control-tls.service",
+      "pid": 777,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-control-tunnel-ap-southeast.service",
+      "pid": 11372,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-control-tunnel-ca-east.service",
+      "pid": 779,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-control-tunnel-eu-central.service",
+      "pid": 11373,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-control-tunnel-us-west.service",
+      "pid": 782,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-dns.service",
+      "pid": 783,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-native-discovery.service",
+      "pid": 828,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-policy-migration-bridge.service",
+      "pid": 839,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "enclave-provider-migration-mirror.service",
+      "pid": 840,
+      "policyPaths": {},
+      "policies": []
+    },
+    {
+      "unit": "process-783",
+      "pid": 783,
+      "policyPaths": {},
+      "policies": []
+    }
+  ]
+}

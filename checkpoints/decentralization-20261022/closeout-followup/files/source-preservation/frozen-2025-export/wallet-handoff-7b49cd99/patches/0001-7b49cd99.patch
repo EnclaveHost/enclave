@@ -1,0 +1,1762 @@
+From 7b49cd995414d3769a9b0c3cae8e189d6bbb87c7 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:11:22 -0700
+Subject: [PATCH] metal0 host-owner enrollment: loopback MetaMask handoff
+ (source only, inactive)
+
+Two administrator stages on the reviewed transport (handoff-server.mjs unchanged, sha256 fb189e46):
+optional fixed 0.000005 ETH transfer to the existing metal0 operator, then acceptOwner(metal0) with
+zero ETH only once the operator's proposal of exactly the administrator is two blocks deep. Frozen
+target/calldata/value; fresh two-provider state, simulation, estimate and fee checks per preparation;
+state-based refusals against early, duplicate and lost-response transactions; exact receipt and
+post-state verification. Read-only preflight for root. Book activation excluded. Nothing was served,
+signed, sent or funded; no live preflight has been run.
+
+Tests (fake two-provider Base, loopback only, via claude-test-queue.py):
+- test/stages.test.mjs 11/11 at 256 MiB (peak 222 MiB, logs/stages-5)
+- test/browser.test.mjs 3/3 at 512 MiB, headless Chromium + fake EIP-6963 MetaMask (peak 429 MiB, logs/browser-4)
+- gitleaks on the staged diff: no leaks (logs/gitleaks-1)
+---
+ .gitignore                                    |   6 +
+ README.md                                     | 143 +++++++++
+ app.css                                       |   1 +
+ app.js                                        |  98 ++++++
+ .../metal0-enrollment-unsigned-20261023.json  | 101 ++++++
+ handoff-server.mjs                            |  69 ++++
+ page.mjs                                      |  23 ++
+ preflight.mjs                                 |  25 ++
+ q.sh                                          |  17 +
+ rpc.mjs                                       |  65 ++++
+ run-tests.sh                                  |  10 +
+ scan-staged.sh                                |   5 +
+ serve.mjs                                     |  26 ++
+ stage-app.mjs                                 |  33 ++
+ stage.html                                    |  15 +
+ stages.mjs                                    | 302 ++++++++++++++++++
+ style.css                                     |   1 +
+ test/browser.test.mjs                         | 145 +++++++++
+ test/fake-base.mjs                            | 163 ++++++++++
+ test/stages.test.mjs                          | 288 +++++++++++++++++
+ trust.mjs                                     |  37 +++
+ 21 files changed, 1573 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 app.css
+ create mode 100644 app.js
+ create mode 100644 evidence/metal0-enrollment-unsigned-20261023.json
+ create mode 100644 handoff-server.mjs
+ create mode 100644 page.mjs
+ create mode 100644 preflight.mjs
+ create mode 100755 q.sh
+ create mode 100644 rpc.mjs
+ create mode 100755 run-tests.sh
+ create mode 100755 scan-staged.sh
+ create mode 100644 serve.mjs
+ create mode 100644 stage-app.mjs
+ create mode 100644 stage.html
+ create mode 100644 stages.mjs
+ create mode 100644 style.css
+ create mode 100644 test/browser.test.mjs
+ create mode 100644 test/fake-base.mjs
+ create mode 100644 test/stages.test.mjs
+ create mode 100644 trust.mjs
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5a77a4789639faf8b6d4e3713a751bc8a4d459e
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,6 @@
++TASK.txt
++progress.txt
++progress.err
++journals/
++logs/
++node_modules
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..891acdbd21d9c83154225026846ea6876d978dd0
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,143 @@
++# metal0 host-owner enrollment: loopback MetaMask handoff (SOURCE ONLY, INACTIVE)
++
++This repository holds source and tests only. Nothing here has been served, signed, sent or funded. No live preflight has been run
++from this repository yet. Root owns activation: root reviews the code, runs the read-only preflight, and serves one stage.
++
++## What it does
++
++There are two administrator stages for the **one-time host-owner enrollment** of metal0 on the active `EnclaveHostOwnership`
++`0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7` (Base 8453; this is not the 0xf5e9 variant). The host is metal0,
++`hostId 0x4dde6d1b…68be`. The Enclave administrator `0x0b2d009c0c9af05b12100d77f3c815fea822ee61` signs both stages in
++MetaMask.
++
++| stage | transaction (frozen in `stages.mjs` `frozen()`) | when it prepares |
++|---|---|---|
++| `fund` (optional) | admin → operator `0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab`; value exactly 5000000000000 wei (0.000005 ETH); data `0x`; gas 21000 | No proposal or owner exists yet. The operator has no code. Neither the operator nor the admin has a pending transaction. The operator holds less than 0.000005 ETH and cannot already pay for its proposal. The fixed amount would cover the proposal. The acceptance journal has not started. |
++| `accept` | admin → ownership `acceptOwner(hostId)` = `0x0d85eb49…68be` (evidence tx2, byte-identical); value 0 | `authority(hostId)` has owner 0 and pendingOwner **exactly the admin**, at an anchor two blocks below the head. The funding journal is `ready` or `confirmed`. |
++
++The operator's `proposeOwner(hostId, admin)` (evidence tx1) is **not** in this repository. Root sends it separately, after the
++optional funding. Until that proposal is two blocks deep, the accept stage answers `NOT READY…` and does not ask MetaMask for
++anything.
++
++The scope is narrow:
++
++- This is not recurring app lease gas.
++- metal0 is the single Enclave-operated custody seat (one seat, threshold 1). This is a bootstrap, not decentralized custody.
++- The custody vault, its committee, shares and policies, and the address book are untouched.
++- The book activation (`book-activation-unsigned-20261023.json`) is deliberately EXCLUDED until the hardware lifecycle and
++  dashboard checks pass. A test proves that no stage can target the book or the vault.
++
++## Start requirements and commands (for root)
++
++1. Review all the code. `handoff-server.mjs` is the reviewed transport, byte-identical to
++   `work/lease-enrollment-signing/handoff-server.mjs` and `work/lease-gas-wallet-signing/handoff-server.mjs` (sha256
++   `fb189e4610c8579739fb59fe385b91b461bc5bfb06d95780e94ec92e53d95b75`; a test asserts it).
++2. Run the fresh live preflight. It is read-only: no journal write, no browser, no key. It uses two public providers,
++   `mainnet.base.org` and `base.public.blockpi.network`:
++   `node preflight.mjs`
++   It prints the observed state at the agreed anchor, then for each stage either `ready: true` with the exact unsigned
++   request, or the reason it refuses. **The registry code hash** (`0x39911d6f…`, taken from
++   `work/lease-gas-wallet-signing/trust.mjs`) **is pinned here but is not in the enrollment evidence.** Confirm it on this run.
++   Also confirm that both providers answer `eth_estimateGas` with a block tag and `eth_maxPriorityFeePerGas`.
++3. Serve ONE stage, explicitly, in the foreground: `node serve.mjs --stage fund --serve`, then later
++   `node serve.mjs --stage accept --serve`. Both use 127.0.0.1:39671, so only one can run at a time. The journals are
++   `journals/fund.json` and `journals/accept.json` (mode 0600, gitignored). Each stage only reads the other stage's journal.
++4. The human opens `http://127.0.0.1:39671/` in the browser that has MetaMask, with the administrator account selected on
++   Base, and then:
++   1. clicks **Connect MetaMask** (`eth_requestAccounts`);
++   2. clicks **Review transaction in MetaMask**. The server re-checks everything on both providers, journals the attempt,
++      and only then does the page pass the exact transaction to `eth_sendTransaction`;
++   3. confirms in MetaMask without editing gas, fees or nonce.
++
++   The page then checks the pending transaction automatically for about 2 minutes. **Check pending transaction** repeats the
++   check on demand. A transaction counts only with two later blocks, canonical on both providers.
++5. Stop the server with Ctrl-C after `confirmed`.
++
++The sequence is: (optional) `fund` confirmed → root's operator proposal, two blocks deep → `accept` confirmed.
++
++## State rules (no early, duplicate or lost-response transactions)
++
++- MetaMask is asked only inside the Connect, Review and Check click handlers. A test checks this statically and in the
++  browser. Nothing signs automatically.
++- Transport rules (unchanged):
++  - The journal is written as `awaiting-wallet` before the transaction reaches the browser.
++  - There is one attempt per journal.
++  - Only the page's own explicit wallet 4001 resets an unsent attempt.
++  - A recorded hash is never replaced.
++  - Origin, Host, token, CSP, `no-store` and the 2 KiB body limit are enforced.
++- A hash is recorded only when at least one provider already returns that transaction, and every provider that returns it
++  shows exactly the request's sender, target, calldata, value, nonce, chain, type and gas, with fee caps no higher than the
++  request's. The other stage's hash is refused. A mistyped or altered hash therefore cannot lock the journal.
++- A journal left in `preparing` (process stopped mid-preparation) is reset to `ready` at startup. Nothing reaches the browser
++  before `awaiting-wallet` is on disk. Every other state is kept.
++- Chain-state guards hold even if a journal is lost:
++  - `fund` refuses while any admin or operator transaction is pending or was mined in the last two blocks (pending nonce ≠
++    anchor nonce).
++  - `fund` refuses once the operator holds 0.000005 ETH, and once any proposal or owner exists.
++  - `accept` refuses once the admin owns metal0.
++- Verification is exact:
++  - The receipt must be two blocks deep, canonical, and the same on both providers.
++  - Sender, destination, calldata, value, nonce, gas, type and chain must match. MetaMask must not have raised either fee
++    cap. Receipt status must be 1.
++  - `fund`: no logs; the operator still has no code; the operator's nonce is unchanged in that block; its balance rose by
++    exactly 5000000000000 wei in that block.
++  - `accept`: exactly one `OwnerAccepted(hostId, admin, 1)` from the ownership contract. After it, `authority` is owner =
++    admin, pendingOwner 0, revision 1 and policyHash 0. The owner is still the admin at the anchor, and the ownership code
++    hash is unchanged.
++  - The journaled request must still name the frozen target, calldata and value.
++- Bounds:
++  - Each RPC request times out after 10 s, with at most one retry.
++  - A whole preparation, verification or hash lookup times out after 60 s.
++  - The fee cap is 0.1 gwei maxFeePerGas. Gas limits: transfer exactly 21000; accept ≤ 120000; the operator's proposal
++    estimate ≤ 150000.
++  - The RPC layer refuses every method outside a read allowlist, and only https endpoints without credentials.
++
++## Tests (fake chain; no live access)
++
++- `test/stages.test.mjs` (11 tests, 256 MiB lane). These run against an in-memory Base model that follows
++  `EnclaveHostOwnership.sol`'s rules, served as two JSON-RPC providers on 127.0.0.1 and 127.0.0.2. They cover:
++  - evidence equality;
++  - the transport hash;
++  - the RPC read-only, https and two-host rules;
++  - fund and accept preparation;
++  - 14 fund refusal states;
++  - provider disagreement, wrong chain and a hanging provider (bounded);
++  - accept NOT READY at 0 and 1 later blocks, the wrong proposer, and an unresolved funding journal;
++  - full transport runs for both stages;
++  - restart, lost-journal and lost-response cases;
++  - verification negatives (re-gassed, fee raised, reverted, wrong nonce, non-canonical, tampered journal);
++  - the preflight and the serve usage refusal.
++- `test/browser.test.mjs` (3 tests, 512 MiB lane). Headless Chromium (playwright-core from `~/Projects/enclave`, single
++  process) runs the real page against the real server and fake chain, with a fake EIP-6963 MetaMask. It checks:
++  - no wallet request before clicks;
++  - MetaMask receives exactly the journaled transaction;
++  - pending → confirmed;
++  - accept NOT READY never calls `eth_sendTransaction`;
++  - a 4001 reset;
++  - the lost-response reload path (Review disabled, wrong hash refused, real hash confirmed, nothing re-sent);
++  - no CSP refusals or page errors.
++- Run both through the shared queue only:
++  `./q.sh 256 stages-N ./run-tests.sh stages` and `./q.sh 512 browser-N ./run-tests.sh browser` (logs in `logs/`).
++
++## Security limitations (read before serving)
++
++- **Providers:** two public RPC providers are agreement checks, not a light client. If both are wrong in the same way, the
++  checks pass.
++- **Local access:** any local process can reach the loopback port and read the page token (the same as the reviewed
++  transport). Such a process can trigger a preparation or report a hash, but it cannot sign. MetaMask confirmation by the
++  human is always required.
++- **Lost hash after a reload:** if the wallet's response is lost and the page reloads, the human pastes the hash from
++  MetaMask's activity tab. There is no nonce-to-hash recovery (no indexer).
++- **Rejection after a restart:** if the attempt really was rejected but the page was closed first, the journal stays
++  `awaiting-wallet`. Root must inspect the admin nonce and then reset the journal by hand.
++- **Wallet edits:** MetaMask lets the human edit gas, fees or nonce, and may choose its own nonce if it holds a local pending
++  transaction. Verification then refuses, the journal stays `submitted`, and root must resolve it manually.
++- **Request expiry:** a prepared request records `expiresAt` (2 min) but the open MetaMask prompt is not expired by the
++  page. The fee caps bound the cost.
++- **Funding duplicate guard:** the guard is state-based: no proposal or owner exists, and the operator holds less than
++  0.000005 ETH. If a proposal were later cancelled and the operator's ETH spent, `fund` could prepare again. That requires
++  another explicit click plus MetaMask confirmation.
++- **Registry code hash:** this pin comes from the lease-gas trust file, not from this evidence. Root's preflight must
++  confirm it.
++- **Test coverage:** the tests use a fake chain and a fake MetaMask provider. The real extension, the real providers and
++  real Base were not exercised.
+diff --git a/app.css b/app.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..7d83a6885c016891d4c5d261ce0da5dda7b02e0b
+--- /dev/null
++++ b/app.css
+@@ -0,0 +1 @@
++#status[data-kind=error]{background:#3a1d22;color:#ffd7dc}#status[data-kind=ok]{background:#173527}#status[data-kind=wait]{background:#2c2a17}.scope{font-size:14px;color:#c9d6e2}#recover{margin:16px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}#recover input{flex:1 1 420px;font-family:monospace;padding:12px;background:#1a2530;color:#edf2f8;border:1px solid #3b4b5b;border-radius:6px}
+diff --git a/app.js b/app.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..4039e82f1ae8d76debe3ffeab4becd8fdd7f1b01
+--- /dev/null
++++ b/app.js
+@@ -0,0 +1,98 @@
++'use strict';
++// Local page for one stage. MetaMask is asked for anything ONLY from a click handler: Connect -> eth_requestAccounts;
++// Review -> eth_accounts/eth_chainId (and a chain switch if needed), then the server's fresh preparation, then
++// the wallet's send request with exactly the prepared transaction. Nothing signs or sends automatically. The page refuses to
++// pass on a prepared transaction whose sender/target/calldata/value/chain differ from what it displayed.
++const el = (id) => document.getElementById(id);
++const HASH = /^0x[0-9a-fA-F]{64}$/, KEY = 'enclave-metal0-' + document.body.dataset.stage + '-hash';
++const lc = (x) => String(x || '').toLowerCase();
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++let provider, config, connected = false, busy = false, hash = null;
++
++function say(text, kind) { el('status').textContent = text; el('status').dataset.kind = kind || ''; }
++function eth(v) { const w = BigInt(v), s = (w % 10n ** 18n).toString().padStart(18, '0').replace(/0+$/, ''); return (w / 10n ** 18n) + (s ? '.' + s : '') + ' ETH (' + w + ' wei)'; }
++const stored = () => { try { const h = localStorage.getItem(KEY); return HASH.test(h || '') ? h : null; } catch { return null; } };
++const remember = (h) => { try { localStorage.setItem(KEY, h); } catch {} };
++const forget = () => { try { localStorage.removeItem(KEY); } catch {} };
++
++function found(p) { if (provider) return; provider = p; el('wallet').textContent = 'MetaMask detected.'; el('connect').disabled = false;
++  p.on?.('accountsChanged', (a) => { if (config && lc(a?.[0]) !== lc(config.request.transaction.from)) { connected = false; el('connect').disabled = false; el('wallet').textContent = 'MetaMask account changed; connect the administrator again.'; render(true); } }); }
++window.addEventListener('eip6963:announceProvider', (event) => { if (event.detail?.info?.rdns === 'io.metamask') found(event.detail.provider); });
++window.dispatchEvent(new Event('eip6963:requestProvider'));
++setTimeout(() => { if (!provider) { const p = window.ethereum?.providers?.find((x) => x.isMetaMask) || window.ethereum; if (p?.isMetaMask) found(p); else el('wallet').textContent = 'MetaMask was not detected. Enable the extension for this local page and reload.'; } }, 500);
++
++async function api(path, data) {
++  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Signing-Token': config.token }, body: JSON.stringify(data || {}) });
++  const j = await r.json(); if (!r.ok) throw Object.assign(Error(j.error || 'request failed'), { status: r.status }); return j;
++}
++function render(keep) {
++  const s = config.state, tx = config.request.transaction;
++  el('from').textContent = tx.from; el('to').textContent = tx.to; el('value').textContent = eth(tx.value);
++  el('transaction').textContent = JSON.stringify(s.request ? s.request.transaction : tx, null, 2);
++  hash = s.hash || hash || stored();
++  const open = s.status === 'awaiting-wallet' || s.status === 'submitted';
++  el('recover').hidden = !open;
++  if (hash && !el('hash').value) el('hash').value = hash;
++  el('hash').readOnly = !!s.hash;
++  el('check').disabled = busy || !open;
++  el('sign').disabled = busy || !connected || s.status !== 'ready';
++  if (keep) return;
++  const nonce = s.request?.transaction?.nonce ? ' (nonce ' + BigInt(s.request.transaction.nonce) + ')' : '';
++  if (s.status === 'ready') say(connected ? 'Administrator connected. Click Review transaction in MetaMask: the server rechecks Base first, then MetaMask opens with the exact transaction.'
++    : 'Ready. Connect MetaMask with the administrator account shown above. Nothing is requested until you click.');
++  else if (s.status === 'preparing') say('The server is preparing a request. Reload in a few seconds.', 'wait');
++  else if (s.status === 'awaiting-wallet') say('A transaction' + nonce + ' was handed to MetaMask. Do NOT send it again. If MetaMask sent it, enter its hash below (MetaMask activity tab) and click Check pending transaction. If it was never sent, ask root to inspect the administrator nonce before any reset.', 'wait');
++  else if (s.status === 'submitted') say('Submitted ' + s.hash + '. Click Check pending transaction; it counts after two later blocks on two providers.', 'wait');
++  else if (s.status === 'confirmed') { forget(); say('Confirmed: ' + s.hash + '. ' + document.body.dataset.done, 'ok'); }
++  else say('Unknown state ' + s.status + '; stop and ask root.', 'error');
++}
++async function load(keep) { config = await (await fetch('/request')).json(); render(keep); }
++load().catch((e) => say(e.message, 'error'));
++
++el('connect').onclick = async () => {
++  try {
++    if (!config) throw Error('The request is still loading.');
++    const accounts = await provider.request({ method: 'eth_requestAccounts' });
++    if (lc(accounts?.[0]) !== lc(config.request.transaction.from)) throw Error('Select the administrator account ' + config.request.transaction.from + ' in MetaMask, then Connect again.');
++    connected = true; el('connect').disabled = true; el('wallet').textContent = 'Connected: ' + accounts[0]; render();
++  } catch (e) { say(e.message, 'error'); }
++};
++
++el('sign').onclick = async () => {
++  if (busy) return; busy = true; render(true); let prepared = false, keep = true, after = null;
++  try {
++    const want = config.request.transaction;
++    if (lc((await provider.request({ method: 'eth_accounts' }))[0]) !== lc(want.from)) { connected = false; el('connect').disabled = false; throw Error('The MetaMask account changed; connect the administrator again.'); }
++    if (await provider.request({ method: 'eth_chainId' }) !== want.chainId) await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: want.chainId }] });
++    if (await provider.request({ method: 'eth_chainId' }) !== want.chainId) throw Error('Select Base in MetaMask before reviewing.');
++    say('The server is rechecking Base on two providers and simulating the exact transaction…', 'wait');
++    const tx = (await api('/prepare')).transaction; prepared = true;
++    for (const k of ['from', 'to', 'data', 'value', 'chainId']) if (lc(tx[k]) !== lc(want[k])) throw Error('The prepared transaction differs from the displayed one (' + k + '). It was NOT passed to MetaMask. Stop and ask root.');
++    el('transaction').textContent = JSON.stringify(tx, null, 2);
++    say('Review in MetaMask: to ' + tx.to + ', value ' + eth(tx.value) + ', nonce ' + BigInt(tx.nonce) + '. Do not edit gas or fees. Confirm only if it matches this page.', 'wait');
++    const h = await provider.request({ method: 'eth_sendTransaction', params: [tx] });
++    if (!HASH.test(h || '')) throw Error('MetaMask returned no transaction hash. Do NOT send again; check MetaMask activity and ask root.');
++    hash = h; remember(h); el('hash').value = h; busy = false; await load(true);
++    await settle(24);
++  } catch (e) {
++    if (e.code === 4001 && prepared) {
++      try { await api('/rejected', { code: 4001 }); after = 'You rejected the request in MetaMask; nothing was sent. You can review it again.'; } catch (x) { say(x.message, 'error'); }
++    } else say(e.message + (prepared ? ' The request stays open; do not send it again.' : ''), 'error');
++  } finally { busy = false; await load(keep).catch(() => {}); if (after) say(after); }
++};
++
++/** /result: records the hash (only if a provider returns it with exactly the request's fields) and verifies it. */
++async function settle(tries) {
++  for (let i = 0; i < tries; i++) {
++    try { const r = await api('/result', { hash }); forget(); await load(true); say('Confirmed: ' + r.transactionHash + '. ' + document.body.dataset.done, 'ok'); return true; }
++    catch (e) { say('Submitted ' + hash + '. Not verified yet: ' + e.message, e.status === 409 ? 'error' : 'wait'); if (e.status === 409 || e.status === 403) return false; }
++    if (i + 1 < tries) await sleep(5000);
++  }
++  return false;
++}
++el('check').onclick = async () => {
++  const h = el('hash').value.trim();
++  if (!HASH.test(h)) return say('Enter the 0x… transaction hash (66 characters) from MetaMask.', 'error');
++  if (busy) return; busy = true; render(true); hash = h;
++  try { await settle(1); } finally { busy = false; await load(true).catch(() => {}); }
++};
+diff --git a/evidence/metal0-enrollment-unsigned-20261023.json b/evidence/metal0-enrollment-unsigned-20261023.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4b0e57fa5e4c8d1d322ea40f8f9214cb98ab62d
+--- /dev/null
++++ b/evidence/metal0-enrollment-unsigned-20261023.json
+@@ -0,0 +1,101 @@
++{
++ "purpose": "pre-handover requirement: enroll accepted host-wallet ownership of the live custody seat's host (metal0) by the Enclave wallet; UNSIGNED, simulated only",
++ "block": "52997498",
++ "blockHash": "0x08af09c088faa85f94f4eef83a3a93fda6dfcf8e2c65e59b752384a5599c94aa",
++ "preconditions": {
++  "ownershipContract": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "ownershipCodeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++  "ownershipRegistry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++  "hostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  "hostEndpoint": "https://api.enclave.host/t/metal0",
++  "hostActive": true,
++  "hostOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++  "payoutIsEnclave": true,
++  "authorityNow": {
++   "owner": "0x0000000000000000000000000000000000000000",
++   "pendingOwner": "0x0000000000000000000000000000000000000000",
++   "revision": "0",
++   "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "pendingSlot": {
++   "slot": "0xa7a71f9446fc945d69f15a1c364bfae2b416217424c03364ed76cccc303285bd",
++   "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "liveCommittee": {
++   "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++   "epoch": 1,
++   "t": 1,
++   "W": 1
++  }
++ },
++ "unsigned": [
++  {
++   "chainId": 8453,
++   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "value": "0x0",
++   "data": "0x03ba33a44dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++   "signer": "the metal0 registry operator (the host operator key; it is not the Enclave admin wallet)",
++   "function": "proposeOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, 0x0b2d009c0c9af05b12100d77f3c815fea822ee61)"
++  },
++  {
++   "chainId": 8453,
++   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "value": "0x0",
++   "data": "0x0d85eb494dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++   "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "signer": "the Enclave admin wallet 0x0b2d… (the vault enclaveOwner and address-book owner)",
++   "function": "acceptOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be)",
++   "after": "tx1 is mined"
++  }
++ ],
++ "simulations": {
++  "tx1_from_operator": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "success",
++    "success"
++   ],
++   "agree": "success"
++  },
++  "tx1_from_enclave_wallet_must_revert": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "revert: not active operator",
++    "revert: not active operator"
++   ],
++   "agree": "revert: not active operator"
++  },
++  "tx2_before_tx1_must_revert": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "revert: not proposed owner",
++    "revert: not proposed owner"
++   ],
++   "agree": "revert: not proposed owner"
++  },
++  "tx2_after_tx1_state_override": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "success",
++    "success"
++   ],
++   "agree": "success"
++  }
++ },
++ "effect": "after both: authority(hostId).owner = Enclave wallet, revision 1, policyHash 0 (no local host policy). The vault is untouched: its seat flag stays payout-based (payout == Enclave wallet), so owner and seat flag AGREE and the candidate runtime admits the seat into a future epoch. The live epoch, its share, bundle and policy are unaffected by these two transactions.",
++ "notSent": true
++}
+diff --git a/handoff-server.mjs b/handoff-server.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c1a2f323baabbc7451b63569db0c9b6f9b7e6e6
+--- /dev/null
++++ b/handoff-server.mjs
+@@ -0,0 +1,69 @@
++// Local EIP-1193 handoff transport. The browser alone asks MetaMask to send a transaction.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { randomBytes } from 'node:crypto';
++export function fileJournal(file) {
++ const dir=path.dirname(file);fs.mkdirSync(dir,{recursive:true,mode:0o700});
++ return {
++  read:()=>fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{status:'ready'},
++  write(value){
++   const tmp=file+'.'+randomBytes(8).toString('hex');let fd;
++   try{fd=fs.openSync(tmp,'wx',0o600);fs.writeFileSync(fd,JSON.stringify(value,null,2)+'\n');fs.fsyncSync(fd);fs.closeSync(fd);fd=undefined;
++    fs.renameSync(tmp,file);const d=fs.openSync(dir,'r');try{fs.fsyncSync(d)}finally{fs.closeSync(d)}
++   }finally{if(fd!==undefined)fs.closeSync(fd);try{fs.unlinkSync(tmp)}catch(e){if(e.code!=='ENOENT')throw e}}
++  },
++ };
++}
++export function createHandoffServer({initialRequest,prepare,verify,journal,assets={},accept=async()=>{}}) {
++ let state=journal.read(),origin;
++ const token=randomBytes(24).toString('hex');
++ const set=value=>{journal.write(value);state=value;};
++ const reply=(res,code,value,type='application/json')=>{
++  res.writeHead(code,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
++   'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"});
++  res.end(typeof value==='string'?value:JSON.stringify(value));
++ };
++ const body=async req=>{let b='';for await(const c of req){b+=c;if(b.length>2048)throw Error('request too large')}return JSON.parse(b||'{}')};
++ const server=http.createServer(async(req,res)=>{try{
++  if(req.headers.host!==new URL(origin).host)return reply(res,403,{error:'host refused'});
++  if(req.headers.origin&&req.headers.origin!==origin)return reply(res,403,{error:'origin refused'});
++  if(req.headers['sec-fetch-site']==='cross-site'&&!(req.method==='GET'&&req.url==='/'&&req.headers['sec-fetch-mode']==='navigate'))return reply(res,403,{error:'cross-site refused'});
++  if(req.method==='GET'&&assets[req.url])return reply(res,200,assets[req.url].body,assets[req.url].type);
++  if(req.method==='GET'&&req.url==='/request')return reply(res,200,{request:state.request||initialRequest,token,state});
++  if(req.method!=='POST')return reply(res,404,{error:'not found'});
++  if(req.headers.origin!==origin||req.headers['x-signing-token']!==token)return reply(res,403,{error:'authorization refused'});
++  if(req.url==='/prepare'){
++   if(state.status!=='ready')return reply(res,409,{error:'An attempt already exists. Inspect its outcome before another request.'});
++   set({status:'preparing'});
++   let request;
++   try{request=await prepare();}catch(e){set({status:'ready'});throw e}
++   // A disk failure here MUST NOT return a transaction to the browser.
++   set({status:'awaiting-wallet',request,preparedAt:new Date().toISOString()});
++   return reply(res,200,{transaction:request.transaction});
++  }
++  if(req.url==='/rejected'){
++   const b=await body(req);
++   if(state.status!=='awaiting-wallet'||b.code!==4001)return reply(res,409,{error:'Only explicit wallet rejection can reset this attempt.'});
++   set({status:'ready'});return reply(res,200,state);
++  }
++  if(req.url==='/result'){
++   const b=await body(req);
++   if(!/^0x[0-9a-fA-F]{64}$/.test(b.hash||''))return reply(res,400,{error:'invalid transaction hash'});
++   if(!['awaiting-wallet','submitted'].includes(state.status))return reply(res,409,{error:'no pending request'});
++   if(state.hash&&state.hash.toLowerCase()!==b.hash.toLowerCase())return reply(res,409,{error:'different transaction already submitted'});
++   const request=state.request,hash=b.hash.toLowerCase();
++   // A hash that belongs to another stage is refused BEFORE it is recorded here.
++   if(!state.hash)await accept(hash,request);
++   set({...state,status:'submitted',hash});
++   const result=await verify(request,hash);
++   set({...state,status:'confirmed',verification:result});
++   return reply(res,200,result);
++  }
++  return reply(res,404,{error:'not found'});
++ }catch(e){reply(res,400,{error:[e.shortMessage||e.message,e.details].filter(Boolean).join(' ').slice(0,700)})}});
++ return {server,get state(){return state},get origin(){return origin},async listen(port=0){
++  await new Promise((ok,fail)=>{server.once('error',fail);server.listen(port,'127.0.0.1',ok)});
++  origin='http://127.0.0.1:'+server.address().port;return origin;
++ },async close(){server.closeAllConnections();await new Promise(ok=>server.close(ok))}};
++}
+diff --git a/page.mjs b/page.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f475404b9487083429fe62cf9d03328bc20f0eca
+--- /dev/null
++++ b/page.mjs
+@@ -0,0 +1,23 @@
++// Page assets for one stage (static text only; the CSP allows nothing inline).
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++const here = path.dirname(fileURLToPath(import.meta.url));
++export const TEXT = Object.freeze({
++  fund: { STEP: "OPTIONAL STEP 1 OF 2", TITLE: "Fund the metal0 operator's one proposal", CALL: "Plain ETH transfer to the existing metal0 registry operator (no calldata)",
++    LEDE: "Optional. Sends exactly 0.000005 ETH from the Enclave administrator to the existing metal0 registry operator, which currently holds too little ETH to pay for its single proposeOwner(metal0, administrator) transaction.",
++    SCOPE: "The server refuses to prepare this again once the operator holds 0.000005 ETH, once any proposal or owner exists, when the operator could already pay, or while any administrator or operator transaction is pending. The operator's proposal itself is sent separately by root.",
++    DONE: "The operator was funded exactly once. Root sends the operator's proposal separately; acceptance (step 2) becomes available only after that proposal is two blocks deep." },
++  accept: { STEP: "STEP 2 OF 2", TITLE: "Accept ownership of host metal0", CALL: "acceptOwner(metal0) on the active EnclaveHostOwnership contract",
++    LEDE: "Accepts the metal0 operator's proposal that names the Enclave administrator as metal0's host owner. Zero ETH. Available only after the operator has proposed exactly this administrator and the proposal is two blocks deep; root sends that proposal separately.",
++    SCOPE: "If the proposal does not exist yet, the review button reports NOT READY and MetaMask is not asked. After acceptance: owner = administrator, revision 1, no host policy.",
++    DONE: "The Enclave administrator owns host metal0 (revision 1, no host policy). Address-book activation remains a separate, later step." },
++});
++const read = (f) => fs.readFileSync(path.join(here, f), "utf8");
++export function assetsFor(stage) {
++  const text = { ...TEXT[stage], STAGE: stage };
++  for (const [k, v] of Object.entries(text)) if (/[<>&"]/.test(v)) throw Error("page text " + k + " must be plain text");
++  const html = read("stage.html").replace(/\{\{(\w+)\}\}/g, (_m, k) => { if (!(k in text)) throw Error("missing page text " + k); return text[k]; });
++  return { "/": { type: "text/html", body: html }, "/app.js": { type: "text/javascript", body: read("app.js") },
++    "/style.css": { type: "text/css", body: read("style.css") }, "/app.css": { type: "text/css", body: read("app.css") } };
++}
+diff --git a/preflight.mjs b/preflight.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3bf469e5d84bed29e6b6ccff585a208d882b7a76
+--- /dev/null
++++ b/preflight.mjs
+@@ -0,0 +1,25 @@
++// READ-ONLY live preflight for root, before anything is served: runs both stages' preparation against the two production
++// providers WITHOUT a journal write and WITHOUT a browser, and prints what each would request or why it refuses.
++//   node preflight.mjs
++// Journals (if present) are only read. Nothing is signed, sent, funded or written.
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { prepareFund, prepareAccept, observe } from "./stages.mjs";
++import { clientsFor, withDeadline } from "./rpc.mjs";
++import { PRODUCTION } from "./trust.mjs";
++
++const here = path.dirname(fileURLToPath(import.meta.url));
++const ro = (f) => ({ read: () => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : { status: "ready" }), write: () => { throw Error("read-only"); } });
++export async function preflight({ trust, clients, journals }) {
++  const out = { at: new Date().toISOString(), notSigned: true, notSent: true, providers: clients.map((c) => c.host), journals: { fund: journals.fund.read().status, accept: journals.accept.read().status } };
++  const run = async (fn) => { try { return { ready: true, request: await withDeadline(trust.deadlineMs, "preflight", fn) }; } catch (e) { return { ready: false, reason: e.message }; } };
++  out.observed = await run(async () => { const o = await observe(clients, trust); return { ...o, anchor: { number: String(o.anchor.number), hash: o.anchor.hash, baseFee: String(o.anchor.baseFee) } }; });
++  out.fund = await run(() => prepareFund({ trust, clients, journals }));
++  out.accept = await run(() => prepareAccept({ trust, clients, journals }));
++  return out;
++}
++if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  const journals = { fund: ro(path.join(here, "journals", "fund.json")), accept: ro(path.join(here, "journals", "accept.json")) };
++  console.log(JSON.stringify(await preflight({ trust: PRODUCTION, clients: clientsFor(PRODUCTION.rpcs, { timeoutMs: PRODUCTION.rpcTimeoutMs }), journals }), null, 2));
++}
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,17 @@
++#!/usr/bin/env bash
++# (copied from work/resume-20261021/reconciliation/q.sh, unchanged logic)
++# q.sh <MiB> <name> <command...>: ONE job through work/claude-test-queue.py, retried only while the queue answers 98
++# (NOT STARTED). The 256 lane refuses at once while held, so wait 30 s between tries (up to 120 tries) - same cap, no evasion.
++set -u
++mib="$1"; name="$2"; shift 2
++here="$(cd "$(dirname "$0")" && pwd)"; mkdir -p "$here/logs"; log="$here/logs/$name.log"; : > "$log"
++for i in $(seq 1 120); do
++  echo "[q] $(date -Is) try $i cmd: $*" >> "$log"
++  python3 /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$here/logs/$name.guard.log" -- "$@" >> "$log" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  sleep 30
++done
++echo "[q] $(date -Is) exit=$rc" >> "$log"
++echo "$rc" > "$here/logs/$name.rc"
++grep -E "^\[queue\] (START|EXIT)" "$log" | tail -3
++echo "exit=$rc"; exit $rc
+diff --git a/rpc.mjs b/rpc.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2ea7540555ccf20acefebbe96007fa8802d70eed
+--- /dev/null
++++ b/rpc.mjs
+@@ -0,0 +1,65 @@
++// READ-ONLY JSON-RPC to two public Base providers. There is no send, sign, personal_* or wallet path here: a method
++// outside READ is refused before any request is made, so this process cannot submit anything. Every request has a
++// bounded timeout and at most one retry; callers additionally bound the whole operation (withDeadline).
++const READ = new Set(["eth_chainId", "eth_blockNumber", "eth_getBlockByNumber", "eth_getCode", "eth_getBalance", "eth_getTransactionCount",
++  "eth_call", "eth_estimateGas", "eth_maxPriorityFeePerGas", "eth_getTransactionByHash", "eth_getTransactionReceipt"]);
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++/** Production endpoints: https, no credentials/query/fragment. Tests may pass loopback http explicitly. */
++export function checkUrl(u, { allowLoopback = false } = {}) {
++  const url = new URL(u);
++  if (url.username || url.password || url.search || url.hash) throw Error(`refused RPC ${url.host}: no credentials, query or fragment`);
++  const loop = allowLoopback && url.protocol === "http:" && /^127\.\d+\.\d+\.\d+$/.test(url.hostname);
++  if (url.protocol !== "https:" && !loop) throw Error(`refused RPC ${url.host}: https only`);
++  return url.href;
++}
++
++export function rpcClient(u, { timeoutMs, allowLoopback = false } = {}) {
++  const url = checkUrl(u, { allowLoopback }), host = new URL(url).host;
++  let id = 0;
++  async function request(method, params = []) {
++    if (!READ.has(method)) throw Error(`refused ${method}: this process only reads`);
++    let last;
++    for (let i = 0; i < 2; i++) {
++      try {
++        const r = await fetch(url, { method: "POST", redirect: "error", headers: { "content-type": "application/json" },
++          body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }), signal: AbortSignal.timeout(timeoutMs) });
++        const text = await r.text();
++        let j; try { j = JSON.parse(text); } catch { throw Object.assign(Error(`${host}: non-JSON HTTP ${r.status}`), { retry: true }); }
++        if (j.error) {
++          const m = String(j.error.message || "rpc error");
++          if (r.status === 429 || /rate|limit|too many|busy|capacity/i.test(m)) throw Object.assign(Error(`${host}: ${m}`), { retry: true });
++          throw Object.assign(Error(`${host} ${method}: ${m}`), { rpcError: j.error });
++        }
++        if (!("result" in j)) throw Error(`${host} ${method}: no result`);
++        return j.result;
++      } catch (e) {
++        last = e;
++        const transient = e.retry || e.name === "TimeoutError" || e.name === "AbortError" || /fetch failed|ECONN|socket/i.test(String(e.message));
++        if (!transient || i === 1) break;
++        await sleep(500);
++      }
++    }
++    if (last?.name === "TimeoutError" || last?.name === "AbortError") throw Error(`${host} ${method}: no answer within ${timeoutMs} ms`);
++    throw last;
++  }
++  return { url, host, request };
++}
++
++/** Exactly two clients on two different hosts. */
++export function pair(clients) {
++  if (clients.length !== 2) throw Error("requires two independently operated providers");
++  if (clients[0].host === clients[1].host || new URL(clients[0].url).hostname === new URL(clients[1].url).hostname) throw Error("duplicate RPC host");
++  return clients;
++}
++
++export function clientsFor(urls, { timeoutMs, allowLoopback = false }) {
++  return pair(urls.map((u) => rpcClient(u, { timeoutMs, allowLoopback })));
++}
++
++/** Rejects when `ms` elapses first; the work's own requests are bounded by their per-request timeouts. */
++export async function withDeadline(ms, what, work) {
++  let t;
++  const limit = new Promise((_, reject) => { t = setTimeout(() => reject(Error(`${what} did not finish within ${ms / 1000} s`)), ms); });
++  try { return await Promise.race([work(), limit]); } finally { clearTimeout(t); }
++}
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..a31720c391ab189772c2ef8b7afeaf3f7948af44
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,10 @@
++#!/usr/bin/env bash
++# Focused tests only (fake two-provider Base on loopback; memory journals; no external network). Run through q.sh:
++#   ./q.sh 256 stages-N ./run-tests.sh stages        ./q.sh 512 browser-N ./run-tests.sh browser
++set -u
++cd "$(dirname "$0")" && TMPDIR=$(mktemp -d) && trap 'rm -rf "$TMPDIR"' EXIT && export TMPDIR
++case "${1:-}" in
++  stages)  exec timeout -k 5 180 node --test --test-concurrency=1 --test-force-exit test/stages.test.mjs ;;
++  browser) exec timeout -k 5 240 node --test-reporter=tap test/browser.test.mjs ;;   # direct: no extra node --test parent (512 MiB budget)
++  *) echo "usage: run-tests.sh stages|browser" >&2; exit 2 ;;
++esac
+diff --git a/scan-staged.sh b/scan-staged.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..d1032c5ad48716124a765d49e9a247ad044473f2
+--- /dev/null
++++ b/scan-staged.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++# gitleaks over the staged diff of this repository only (run through q.sh)
++set -euo pipefail
++cd "$(dirname "$0")"
++git diff --cached --binary | /home/steven/.local/bin/gitleaks stdin --no-banner --redact --report-format json --report-path logs/staged-gitleaks.json
+diff --git a/serve.mjs b/serve.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..12d997ec5f11411252facc1fac77cedbb079fb16
+--- /dev/null
++++ b/serve.mjs
+@@ -0,0 +1,26 @@
++// INACTIVE until root's review and fresh live preflight (node preflight.mjs). Start ONE stage explicitly:
++//   node serve.mjs --stage fund --serve      (optional: 0.000005 ETH to the existing metal0 operator)
++//   node serve.mjs --stage accept --serve    (acceptOwner(metal0), only after the operator's proposal is two blocks deep)
++// Both use the same loopback port, so only one stage can be served at a time. This process prepares requests and
++// verifies receipts on two public providers; MetaMask in the user's browser signs and broadcasts. It never reads keys.
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { fileJournal } from "./handoff-server.mjs";
++import { stageApp } from "./stage-app.mjs";
++import { assetsFor } from "./page.mjs";
++import { clientsFor } from "./rpc.mjs";
++import { PRODUCTION } from "./trust.mjs";
++
++export const PORT = 39671;
++const args = process.argv.slice(2), stage = args[args.indexOf("--stage") + 1];
++if (args.length !== 3 || !args.includes("--serve") || !["fund", "accept"].includes(stage))
++  throw Error("usage: node serve.mjs --stage fund|accept --serve (explicit, after root's review; this command never signs or submits)");
++const here = path.dirname(fileURLToPath(import.meta.url));
++const journals = { fund: fileJournal(path.join(here, "journals", "fund.json")), accept: fileJournal(path.join(here, "journals", "accept.json")) };
++const other = journals[stage === "fund" ? "accept" : "fund"];
++journals[stage === "fund" ? "accept" : "fund"] = { read: other.read, write: () => { throw Error("read-only journal"); } };
++const clients = clientsFor(PRODUCTION.rpcs, { timeoutMs: PRODUCTION.rpcTimeoutMs });
++const app = stageApp({ stage, trust: PRODUCTION, clients, journals, assets: assetsFor(stage) });
++const stop = () => app.close().finally(() => process.exit(0));
++process.once("SIGINT", stop); process.once("SIGTERM", stop);
++console.log(JSON.stringify({ url: await app.listen(PORT), stage, status: app.state.status, purpose: app.state.request?.purpose ?? stage, wallet: "MetaMask confirmation required; nothing is sent by this process" }));
+diff --git a/stage-app.mjs b/stage-app.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ecc1bf5f9afe7c861fc110cc2f3e14200f01509
+--- /dev/null
++++ b/stage-app.mjs
+@@ -0,0 +1,33 @@
++// One stage per process on the reviewed transport (handoff-server.mjs, unchanged: one durable attempt per journal, the
++// journal written BEFORE a transaction reaches the browser, only an explicit 4001 resets an unsubmitted attempt, a recorded
++// hash is never replaced, origin/host/token/CSP/body-size limits). Here: the stage's prepare/verify (bounded by a
++// deadline), and an accept hook that records a hash only when a provider already returns it with exactly the request's
++// fields and it is not the other stage's hash. The other stage's journal is only READ.
++import { createHandoffServer } from "./handoff-server.mjs";
++import { withDeadline } from "./rpc.mjs";
++import { STAGES, frozen, prepareFund, prepareAccept, verifyFund, verifyAccept, acceptHook } from "./stages.mjs";
++
++/**
++ * A journal left in "preparing" belongs to a process that stopped mid-preparation. The transport hands a transaction to
++ * the browser only after "awaiting-wallet" is on disk, so nothing reached the wallet: it is safe to make it "ready".
++ * Every other state is kept exactly.
++ */
++export function recoverInterruptedPreparation(journal) {
++  const s = journal.read();
++  if (s.status !== "preparing") return false;
++  journal.write({ status: "ready", recoveredFrom: "preparing", recoveredAt: new Date().toISOString() });
++  return true;
++}
++
++/** stageApp({ stage: "fund" | "accept", trust, clients, journals: { fund, accept }, assets }) */
++export function stageApp({ stage, trust, clients, journals, assets = {} }) {
++  if (!STAGES[stage]) throw new Error("stage must be fund or accept");
++  const own = journals[stage], other = journals[stage === "fund" ? "accept" : "fund"];
++  recoverInterruptedPreparation(own);
++  const prepare = () => withDeadline(trust.deadlineMs, "the preparation", () => (stage === "fund" ? prepareFund : prepareAccept)({ trust, clients, journals }));
++  const verify = (request, hash) => withDeadline(trust.deadlineMs, "the verification", () => (stage === "fund" ? verifyFund : verifyAccept)({ trust, request, hash, clients }));
++  const hook = acceptHook({ trust, clients, otherJournal: other });
++  const accept = (hash, request) => withDeadline(trust.deadlineMs, "the transaction lookup", () => hook(hash, request));
++  const initialRequest = { stage, purpose: STAGES[stage], transaction: frozen(trust, stage) };
++  return createHandoffServer({ initialRequest, prepare, verify, accept, journal: own, assets });
++}
+diff --git a/stage.html b/stage.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..5cff161847b7f0c0218b63deee151fbba7f50554
+--- /dev/null
++++ b/stage.html
+@@ -0,0 +1,15 @@
++<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · {{TITLE}}</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head>
++<body data-stage="{{STAGE}}" data-done="{{DONE}}"><main>
++<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · METAL0 HOST-OWNER ENROLLMENT · {{STEP}}</p>
++<h1>{{TITLE}}</h1>
++<p>{{LEDE}}</p>
++<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Administrator (signs)</dt><dd id="from"></dd><dt>Destination</dt><dd id="to"></dd><dt>Call</dt><dd>{{CALL}}</dd><dt>Value</dt><dd id="value"></dd><dt>Network fee</dt><dd>Shown by MetaMask; capped by the server. Do not edit gas or fees.</dd></dl>
++<p class="scope">{{SCOPE}}</p>
++<p class="scope">This is a one-time host-owner enrollment for metal0, not recurring app lease gas. metal0 is the single Enclave-operated custody seat (one seat, threshold 1): a bootstrap, not decentralized custody. The custody vault, its committee, shares and policies, and the address book are not changed by this page. Address-book activation is a separate, later step.</p>
++<p id="wallet">Detecting MetaMask…</p>
++<div class="actions"><button id="connect" disabled>Connect MetaMask</button><button id="sign" disabled>Review transaction in MetaMask</button></div>
++<p id="status" role="status">Loading…</p>
++<div id="recover" hidden><label for="hash">Transaction hash</label><input id="hash" spellcheck="false" autocomplete="off" placeholder="0x… (from MetaMask's activity tab)"><button id="check" disabled>Check pending transaction</button></div>
++<details><summary>Inspect transaction data</summary><pre id="transaction"></pre></details>
++<p class="fine">Every request rechecks Base on two public providers at one agreed block and simulates the exact call before MetaMask is asked. MetaMask opens only when you click. The administrator key stays in MetaMask; this local server never signs or sends.</p>
++</main></body></html>
+diff --git a/stages.mjs b/stages.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..de8638d19fa671a2cbf5f575c32e2148dcd0e941
+--- /dev/null
++++ b/stages.mjs
+@@ -0,0 +1,302 @@
++// The two administrator stages of metal0's one-time host-owner enrollment, read-only: they prepare exact UNSIGNED
++// requests and verify what the wallet later returned. They never sign, broadcast or fund anything themselves.
++//   fund   (optional): administrator -> existing metal0 operator, exactly 0.000005 ETH, so that the operator can pay for its
++//          single proposeOwner(metal0, administrator). Refused once a proposal or owner exists, once the operator holds
++//          the amount (never funded twice, even with a lost journal), when the operator could already pay, or while any
++//          administrator or operator transaction is pending.
++//   accept: administrator -> EnclaveHostOwnership.acceptOwner(metal0), zero ETH. Refused unless the operator's proposal
++//          naming exactly this administrator is already two blocks deep; root sends that proposal separately.
++// Neither stage touches the custody vault, its committee, shares or policies, or the address book.
++// Every preparation reads, at one anchor block agreed by both providers (head - 2): chain id, both contracts' code hashes,
++// ownership.registry(), authority(metal0), the registry entry (active, operator, payout, endpoint), the administrator's
++// and operator's nonce at the anchor AND pending (all equal), balances and the operator's code; then simulates and
++// estimates the exact call on both providers, and refreshes fees and the L1 fee.
++import { encodeFunctionData, decodeFunctionResult, decodeEventLog, keccak256, parseAbi, serializeTransaction } from "../enclave/node_modules/viem/_esm/index.js";
++import { pair } from "./rpc.mjs";
++
++const ZERO = "0x" + "0".repeat(40), ZERO32 = "0x" + "0".repeat(64);
++const lc = (a) => String(a ?? "").toLowerCase();
++const eq = (a, b, what) => { if (lc(a) !== lc(b)) throw Error(`${what} (found ${a}, expected ${b})`); };
++const hex = (n) => "0x" + BigInt(n).toString(16);
++const max = (xs) => xs.reduce((m, x) => (x > m ? x : m), 0n);
++const stable = (o) => JSON.stringify(o, (_k, v) => (typeof v === "bigint" ? v.toString() : typeof v === "string" && /^0x[0-9a-fA-F]*$/.test(v) ? v.toLowerCase() : v));
++const eth = (wei) => { const w = BigInt(wei), s = (w % 10n ** 18n).toString().padStart(18, "0").replace(/0+$/, ""); return `${w / 10n ** 18n}${s ? "." + s : ""} ETH`; };
++
++export const OWNERSHIP_ABI = parseAbi([
++  "function authority(bytes32) view returns (address owner, address pendingOwner, uint64 revision, bytes32 policyHash)",
++  "function registry() view returns (address)",
++  "function proposeOwner(bytes32 hostId, address next)",
++  "function acceptOwner(bytes32 hostId)",
++  "event OwnerProposed(bytes32 indexed hostId, address indexed owner)",
++  "event OwnerAccepted(bytes32 indexed hostId, address indexed owner, uint64 revision)",
++  "event PolicySet(bytes32 indexed hostId, uint64 revision, bytes32 policyHash)",
++]);
++export const REGISTRY_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
++  { name: "endpoint", type: "string" }, { name: "repo", type: "string" }, { name: "measurement", type: "bytes32" }, { name: "operator", type: "address" },
++  { name: "registeredAt", type: "uint64" }, { name: "lastSeen", type: "uint64" }, { name: "active", type: "bool" },
++  { name: "cpuPricePerSec6", type: "uint64" }, { name: "gpuPricePerSec6", type: "uint64" }, { name: "proofKey", type: "address" }, { name: "payoutWallet", type: "address" }] }] }];
++export const ORACLE_ABI = parseAbi(["function getL1Fee(bytes) view returns (uint256)"]);
++
++export const STAGES = Object.freeze({
++  fund: "Optional: send exactly 0.000005 ETH to the existing metal0 operator for its one proposal transaction",
++  accept: "Accept ownership of host metal0 as the Enclave administrator; zero ETH",
++});
++
++/** The only target, calldata and value each stage can ever request. */
++export function frozen(trust, stage) {
++  if (stage === "fund") return { from: trust.admin, to: trust.operator, chainId: hex(trust.chainId), value: hex(trust.fundingWei), data: "0x" };
++  if (stage === "accept") return { from: trust.admin, to: trust.ownership, chainId: hex(trust.chainId), value: "0x0",
++    data: encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "acceptOwner", args: [trust.hostId] }) };
++  throw Error("stage must be fund or accept");
++}
++export const proposalCall = (trust) => ({ from: trust.operator, to: trust.ownership, value: "0x0",
++  data: encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "proposeOwner", args: [trust.hostId, trust.admin] }) });
++
++/** A journaled request must still name exactly the frozen sender, target, calldata, value and chain. */
++export function checkFrozen(request, trust) {
++  const f = frozen(trust, request?.stage), t = request.transaction;
++  eq(t.from, f.from, "the request's sender is not the administrator"); eq(t.to, f.to, "the request's destination changed");
++  eq(t.data, f.data, "the request's calldata changed"); eq(t.chainId, f.chainId, "the request's chain changed");
++  if (BigInt(t.value) !== BigInt(f.value)) throw Error("the request's value changed");
++}
++
++const tagOf = (n) => hex(n);
++const callRaw = (c, tx, tag) => c.request("eth_call", [tx, tag]);
++const read = async (c, address, abi, functionName, args, tag) =>
++  decodeFunctionResult({ abi, functionName, data: await callRaw(c, { to: address, data: encodeFunctionData({ abi, functionName, args }) }, tag) });
++const codeHash = (code) => (code && code !== "0x" ? keccak256(code) : null);
++
++/** The newest block both providers have, minus the confirmation depth, with the same hash on both. */
++export async function anchorOf(clients, trust) {
++  const heads = await Promise.all(clients.map(async (c) => BigInt(await c.request("eth_blockNumber"))));
++  const number = heads.reduce((a, b) => (a < b ? a : b)) - trust.confirmations;
++  const blocks = await Promise.all(clients.map((c) => c.request("eth_getBlockByNumber", [tagOf(number), false])));
++  if (blocks.some((b) => !b?.hash || lc(b.hash) !== lc(blocks[0].hash))) throw Error(`the providers disagree on block ${number}; check again shortly`);
++  return { number, tag: tagOf(number), hash: lc(blocks[0].hash), baseFee: BigInt(blocks[0].baseFeePerGas ?? 0) };
++}
++async function sameAnchor(clients, anchor) {
++  for (const c of clients) eq((await c.request("eth_getBlockByNumber", [anchor.tag, false]))?.hash, anchor.hash, `block ${anchor.number} changed during the check (reorg); check again`);
++}
++
++async function readView(c, trust, tag) {
++  const [chainId, ownCode, regCode, ownRegistry, auth, entry, aBal, aNonce, aPending, oBal, oNonce, oPending, oCode] = await Promise.all([
++    c.request("eth_chainId"), c.request("eth_getCode", [trust.ownership, tag]), c.request("eth_getCode", [trust.registry, tag]),
++    read(c, trust.ownership, OWNERSHIP_ABI, "registry", [], tag), read(c, trust.ownership, OWNERSHIP_ABI, "authority", [trust.hostId], tag),
++    read(c, trust.registry, REGISTRY_ABI, "get", [trust.hostId], tag),
++    c.request("eth_getBalance", [trust.admin, tag]), c.request("eth_getTransactionCount", [trust.admin, tag]), c.request("eth_getTransactionCount", [trust.admin, "pending"]),
++    c.request("eth_getBalance", [trust.operator, tag]), c.request("eth_getTransactionCount", [trust.operator, tag]), c.request("eth_getTransactionCount", [trust.operator, "pending"]),
++    c.request("eth_getCode", [trust.operator, tag])]);
++  return {
++    chainId: Number(BigInt(chainId)), ownershipCodeHash: codeHash(ownCode), registryCodeHash: codeHash(regCode), ownershipRegistry: lc(ownRegistry),
++    authority: { owner: lc(auth[0]), pendingOwner: lc(auth[1]), revision: String(auth[2]), policyHash: lc(auth[3]) },
++    host: { endpoint: entry.endpoint, operator: lc(entry.operator), active: entry.active, payoutWallet: lc(entry.payoutWallet) },
++    admin: { balance: String(BigInt(aBal)), nonce: Number(BigInt(aNonce)), pending: Number(BigInt(aPending)) },
++    operator: { balance: String(BigInt(oBal)), nonce: Number(BigInt(oNonce)), pending: Number(BigInt(oPending)), code: lc(oCode || "0x") },
++  };
++}
++
++/** Both providers' view at one anchor, identical, and the registry/ownership facts exactly as expected. */
++export async function observe(clients, trust) {
++  pair(clients);
++  const anchor = await anchorOf(clients, trust);
++  const views = await Promise.all(clients.map((c) => readView(c, trust, anchor.tag)));
++  if (stable(views[0]) !== stable(views[1])) throw Error(`the two providers disagree on chain state at block ${anchor.number}; check again shortly`);
++  const v = views[0];
++  if (v.chainId !== trust.chainId) throw Error(`wrong chain ${v.chainId}`);
++  if (v.ownershipCodeHash !== trust.codeHashes.ownership) throw Error("the host ownership contract's code is not the reviewed code");
++  if (v.registryCodeHash !== trust.codeHashes.registry) throw Error("the registry's code is not the reviewed code");
++  eq(v.ownershipRegistry, trust.registry, "the ownership contract reads another registry");
++  if (v.host.active !== true) throw Error("metal0 is not active in the registry");
++  eq(v.host.operator, trust.operator, "metal0's registry operator changed");
++  eq(v.host.payoutWallet, trust.admin, "metal0's payout wallet is not the administrator");
++  if (v.host.endpoint !== trust.hostEndpoint) throw Error(`metal0's endpoint changed (${v.host.endpoint})`);
++  if (v.admin.pending !== v.admin.nonce) throw Error("an administrator transaction is pending or was mined in the last two blocks; wait for it to settle and check again");
++  return { anchor, ...v };
++}
++
++async function onBoth(clients, what, fn) {
++  return Promise.all(clients.map(async (c) => { try { return await fn(c); } catch (e) { throw Error(`${what} failed on ${c.host}: ${e.message}`); } }));
++}
++const simulate = (clients, tx, tag, what) => onBoth(clients, `simulation of ${what}`, (c) => callRaw(c, tx, tag));
++const estimate = async (clients, tx, tag, what) => (await onBoth(clients, `gas estimate of ${what}`, (c) => c.request("eth_estimateGas", [tx, tag]))).map((g) => BigInt(g));
++
++async function feesOf(clients, trust, anchor) {
++  const tip = max((await Promise.all(clients.map((c) => c.request("eth_maxPriorityFeePerGas")))).map((x) => BigInt(x)));
++  const maxFeePerGas = anchor.baseFee * 2n + tip;
++  if (!(maxFeePerGas > 0n && maxFeePerGas <= trust.caps.maxFeePerGas)) throw Error(`network fee ${maxFeePerGas} wei/gas is above the reviewed cap ${trust.caps.maxFeePerGas}; wait and check again`);
++  return { tip, maxFeePerGas };
++}
++async function l1Fee(clients, trust, anchor, { nonce, to, data, value, gas, fees }) {
++  const raw = serializeTransaction({ type: "eip1559", chainId: trust.chainId, nonce, to, data, value: BigInt(value), gas, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.tip });
++  return max(await Promise.all(clients.map((c) => read(c, trust.oracle, ORACLE_ABI, "getL1Fee", [raw], anchor.tag))));
++}
++function requestOf(stage, trust, o, { nonce, gas, fees, l1, startedAt, extra = {} }) {
++  const f = frozen(trust, stage);
++  return { format: "enclave-metal0-owner-enrollment/v1", stage, status: "prepared; wallet approval required; nothing sent", purpose: STAGES[stage],
++    preparedAt: new Date().toISOString(), expiresAt: new Date(startedAt + trust.maxAgeMs).toISOString(),
++    transaction: { from: f.from, to: f.to, chainId: f.chainId, type: "0x2", nonce: hex(nonce), data: f.data, value: f.value, gas: hex(gas),
++      maxFeePerGas: hex(fees.maxFeePerGas), maxPriorityFeePerGas: hex(fees.tip) },
++    anchor: { blockNumber: String(o.anchor.number), blockHash: o.anchor.hash },
++    observed: { authority: o.authority, host: o.host, administratorBalanceWei: o.admin.balance, operatorBalanceWei: o.operator.balance },
++    estimatedFeeLimitWei: String(gas * fees.maxFeePerGas + l1), ...extra };
++}
++const fresh = (trust, startedAt) => { if (Date.now() - startedAt >= trust.maxAgeMs) throw Error("the preparation took too long; check again"); };
++
++/** prepareFund({ trust, clients, journals }) -> the exact unsigned transfer request, or throws why it is not prepared. */
++export async function prepareFund({ trust, clients, journals }) {
++  const startedAt = Date.now();
++  if (journals.accept.read().status !== "ready") throw Error("the acceptance stage has already started; the operator is not funded from here");
++  const o = await observe(clients, trust);
++  const a = o.authority;
++  if (a.owner === lc(trust.admin)) throw Error("the administrator already owns metal0; funding is not needed");
++  if (a.owner !== ZERO) throw Error(`metal0 already has another owner (${a.owner}); stop and review`);
++  if (a.pendingOwner !== ZERO) throw Error(`a proposal already exists (pending owner ${a.pendingOwner}); the operator needs no funding for it`);
++  if (o.operator.code !== "0x") throw Error("the operator address has code (for example an EIP-7702 delegation); a plain transfer is not prepared");
++  if (o.operator.pending !== o.operator.nonce) throw Error("an operator transaction is pending or was mined in the last two blocks; wait and check again");
++  const held = BigInt(o.operator.balance);
++  if (held >= trust.fundingWei) throw Error(`the operator already holds ${eth(held)} (at least ${eth(trust.fundingWei)}); it is not funded twice`);
++  // the operator's one proposal, simulated and estimated exactly as root will send it
++  const proposal = proposalCall(trust);
++  await simulate(clients, proposal, o.anchor.tag, "the operator's proposeOwner(metal0, administrator)");
++  const proposalUsed = max(await estimate(clients, proposal, o.anchor.tag, "the operator's proposal"));
++  if (proposalUsed <= 0n || proposalUsed > trust.caps.proposalGas) throw Error(`the operator's proposal estimate ${proposalUsed} gas is outside the reviewed cap`);
++  const transfer = { from: trust.admin, to: trust.operator, value: hex(trust.fundingWei), data: "0x" };
++  await simulate(clients, transfer, o.anchor.tag, "the transfer");
++  for (const g of await estimate(clients, transfer, o.anchor.tag, "the transfer")) if (g !== trust.caps.transferGas) throw Error(`the transfer is not a plain ${trust.caps.transferGas}-gas transfer (estimate ${g})`);
++  const fees = await feesOf(clients, trust, o.anchor), gas = trust.caps.transferGas;
++  const l1 = await l1Fee(clients, trust, o.anchor, { nonce: o.admin.nonce, to: trust.operator, data: "0x", value: trust.fundingWei, gas, fees });
++  const proposalGas = (proposalUsed * 125n + 99n) / 100n;
++  const proposalL1 = await l1Fee(clients, trust, o.anchor, { nonce: o.operator.nonce, to: trust.ownership, data: proposal.data, value: 0n, gas: proposalGas, fees });
++  const need = proposalGas * fees.maxFeePerGas + proposalL1;
++  if (held >= need) throw Error(`the operator can already pay for its proposal at current fees (needs ${need} wei, holds ${held}); funding is not needed`);
++  if (held + trust.fundingWei < need) throw Error(`${eth(trust.fundingWei)} would not cover the operator's proposal at current fees (needs ${need} wei); review the amount`);
++  const cost = trust.fundingWei + gas * fees.maxFeePerGas + l1;
++  if (BigInt(o.admin.balance) < cost) throw Error(`the administrator's balance ${o.admin.balance} wei does not cover ${cost} wei`);
++  await sameAnchor(clients, o.anchor); fresh(trust, startedAt);
++  return requestOf("fund", trust, o, { nonce: o.admin.nonce, gas, fees, l1, startedAt,
++    extra: { amountWei: String(trust.fundingWei), operatorProposal: { simulated: "success on both providers", gasEstimate: String(proposalUsed), costAtCurrentFeesWei: String(need),
++      operatorBalanceAfterWei: String(held + trust.fundingWei) } } });
++}
++
++/** prepareAccept({ trust, clients, journals }) -> the exact unsigned acceptOwner request, only after the proposal is two blocks deep. */
++export async function prepareAccept({ trust, clients, journals }) {
++  const startedAt = Date.now();
++  const funding = journals.fund.read().status;
++  if (!["ready", "confirmed"].includes(funding)) throw Error(`the funding attempt is unresolved (${funding}); finish or resolve it before accepting`);
++  const o = await observe(clients, trust);
++  const a = o.authority;
++  if (a.owner === lc(trust.admin)) throw Error(`the administrator already owns metal0 (revision ${a.revision}); there is nothing to sign`);
++  if (a.owner !== ZERO) throw Error(`metal0 already has another owner (${a.owner}); stop and review`);
++  if (a.pendingOwner === ZERO) throw Error(`NOT READY: the metal0 operator has not proposed the administrator yet (no pending owner at block ${o.anchor.number}). Root sends that proposal separately; nothing is requested from MetaMask until it is two blocks deep.`);
++  eq(a.pendingOwner, trust.admin, "the pending proposal names another wallet; do not accept it");
++  const tx = frozen(trust, "accept"), call = { from: tx.from, to: tx.to, data: tx.data, value: "0x0" };
++  await simulate(clients, call, o.anchor.tag, "acceptOwner(metal0)");
++  const used = max(await estimate(clients, call, o.anchor.tag, "acceptOwner(metal0)"));
++  const gas = (used * 120n + 99n) / 100n;
++  if (used <= 0n || gas > trust.caps.acceptGas) throw Error(`acceptOwner gas ${gas} is outside the reviewed cap ${trust.caps.acceptGas}`);
++  const fees = await feesOf(clients, trust, o.anchor);
++  const l1 = await l1Fee(clients, trust, o.anchor, { nonce: o.admin.nonce, to: tx.to, data: tx.data, value: 0n, gas, fees });
++  if (BigInt(o.admin.balance) < gas * fees.maxFeePerGas + l1) throw Error("the administrator's balance does not cover the network fee");
++  await sameAnchor(clients, o.anchor); fresh(trust, startedAt);
++  return requestOf("accept", trust, o, { nonce: o.admin.nonce, gas, fees, l1, startedAt, extra: { simulatedGasUsed: String(used) } });
++}
++
++/** A transaction (mined or pending) carries exactly the request's sender, target, calldata, value, nonce, gas and fee caps. */
++export function checkTransaction(request, tx, trust) {
++  checkFrozen(request, trust);
++  const w = request.transaction;
++  if (!tx) throw Error("no transaction");
++  eq(tx.from, w.from, "wrong sender"); eq(tx.to, w.to, "wrong destination"); eq(tx.input, w.data, "wrong calldata");
++  if (BigInt(tx.value) !== BigInt(w.value)) throw Error(`wrong value (${BigInt(tx.value)} wei)`);
++  if (BigInt(tx.nonce) !== BigInt(w.nonce)) throw Error(`wrong nonce (${BigInt(tx.nonce)}, expected ${BigInt(w.nonce)})`);
++  if (tx.chainId === undefined || BigInt(tx.chainId) !== BigInt(w.chainId)) throw Error("wrong chain");
++  if (BigInt(tx.type ?? 0) !== 2n) throw Error("not an EIP-1559 transaction");
++  if (BigInt(tx.gas) !== BigInt(w.gas)) throw Error("the gas limit was changed in the wallet");
++  if (BigInt(tx.maxFeePerGas) > BigInt(w.maxFeePerGas)) throw Error("the wallet raised the fee cap");
++  if (BigInt(tx.maxPriorityFeePerGas) > BigInt(w.maxPriorityFeePerGas)) throw Error("the wallet raised the priority fee");
++}
++
++/**
++ * Before a hash is recorded (the transport's accept hook): not the other stage's hash, and at least one provider already
++ * returns it with exactly the request's fields; a provider that returns it must agree. Nothing is recorded otherwise.
++ */
++export function acceptHook({ trust, clients, otherJournal }) {
++  return async (hash, request) => {
++    if (lc(otherJournal.read().hash) === lc(hash)) throw Error("that transaction belongs to the other stage; it is not recorded here");
++    checkFrozen(request, trust);
++    const seen = await Promise.all(clients.map((c) => c.request("eth_getTransactionByHash", [hash]).catch(() => null)));
++    const found = seen.filter(Boolean);
++    if (!found.length) throw Error("neither provider returns this transaction yet; it is not recorded. Check again in a few seconds (MetaMask's activity tab shows its hash).");
++    for (const tx of found) { eq(tx.hash, hash, "a provider returned another transaction"); checkTransaction(request, tx, trust); }
++  };
++}
++
++/** A receipt two blocks deep and canonical on both providers, checked by `check`, with identical results. */
++async function landed(clients, trust, hash, check) {
++  pair(clients);
++  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw Error("invalid transaction hash");
++  const anchor = await anchorOf(clients, trust);
++  const results = await Promise.all(clients.map(async (c) => {
++    if (Number(BigInt(await c.request("eth_chainId"))) !== trust.chainId) throw Error("wrong chain");
++    const [tx, receipt] = await Promise.all([c.request("eth_getTransactionByHash", [hash]), c.request("eth_getTransactionReceipt", [hash])]);
++    if (!tx || !receipt) throw Error(`${c.host} has no receipt for this transaction yet; it may still be pending. Check again shortly.`);
++    eq(tx.hash, hash, "a provider returned another transaction"); eq(receipt.transactionHash, hash, "the receipt is for another transaction");
++    const mined = BigInt(receipt.blockNumber);
++    if (mined > anchor.number) throw Error("the transaction is mined but lacks two later blocks; check again shortly");
++    eq((await c.request("eth_getBlockByNumber", [tagOf(mined), false]))?.hash, receipt.blockHash, "the receipt's block is not canonical");
++    eq(tx.blockHash, receipt.blockHash, "the transaction and receipt name different blocks");
++    const out = await check(c, tx, receipt, mined, anchor);
++    return { ...out, transactionHash: lc(hash), minedBlock: String(mined), minedBlockHash: lc(receipt.blockHash), anchorBlock: String(anchor.number), anchorBlockHash: anchor.hash };
++  }));
++  if (stable(results[0]) !== stable(results[1])) throw Error("the providers disagree on the confirmed transaction");
++  await sameAnchor(clients, anchor);
++  return results[0];
++}
++function checkLanding(request, tx, receipt, trust) {
++  checkTransaction(request, tx, trust);
++  if (receipt.status !== "0x1") throw Error("the transaction reverted");
++  eq(receipt.from, request.transaction.from, "the receipt's sender differs"); eq(receipt.to, request.transaction.to, "the receipt's destination differs");
++}
++
++/** verifyFund -> the operator received exactly the fixed amount from this exact transaction, or throws. */
++export async function verifyFund({ trust, request, hash, clients }) {
++  if (request.stage !== "fund") throw Error("not a funding request");
++  const r = await landed(clients, trust, hash, async (c, tx, receipt, mined, anchor) => {
++    checkLanding(request, tx, receipt, trust);
++    if ((receipt.logs || []).length) throw Error("a plain transfer emits no logs");
++    const before = tagOf(mined - 1n), at = tagOf(mined);
++    const [code, balBefore, balAt, nBefore, nAt, balNow] = await Promise.all([c.request("eth_getCode", [trust.operator, at]),
++      c.request("eth_getBalance", [trust.operator, before]), c.request("eth_getBalance", [trust.operator, at]),
++      c.request("eth_getTransactionCount", [trust.operator, before]), c.request("eth_getTransactionCount", [trust.operator, at]),
++      c.request("eth_getBalance", [trust.operator, anchor.tag])]);
++    if (lc(code || "0x") !== "0x") throw Error("the operator address has code");
++    if (BigInt(nBefore) !== BigInt(nAt)) throw Error("the operator also sent a transaction in the funding block; verify its balance by hand");
++    if (BigInt(balAt) - BigInt(balBefore) !== trust.fundingWei) throw Error("the operator's balance did not rise by exactly the fixed amount in that block; verify by hand");
++    return { operator: lc(trust.operator), amountWei: String(trust.fundingWei), operatorBalanceAfterWei: String(BigInt(balAt)), operatorBalanceNowWei: String(BigInt(balNow)) };
++  });
++  return { status: "funding verified: the operator received exactly 0.000005 ETH from the administrator", verifiedAt: new Date().toISOString(), providers: 2, ...r,
++    next: "Root sends the operator's proposeOwner(metal0, administrator) separately. The acceptance stage prepares only after that proposal is two blocks deep." };
++}
++
++/** verifyAccept -> exactly one OwnerAccepted(metal0, administrator, 1) and the authority state it implies, or throws. */
++export async function verifyAccept({ trust, request, hash, clients }) {
++  if (request.stage !== "accept") throw Error("not an acceptance request");
++  const r = await landed(clients, trust, hash, async (c, tx, receipt, mined, anchor) => {
++    checkLanding(request, tx, receipt, trust);
++    const events = (receipt.logs || []).filter((l) => lc(l.address) === lc(trust.ownership))
++      .map((l) => { try { return decodeEventLog({ abi: OWNERSHIP_ABI, data: l.data, topics: l.topics }); } catch { return null; } });
++    const accepted = events.filter((e) => e?.eventName === "OwnerAccepted");
++    if (accepted.length !== 1 || events.length !== 1) throw Error("expected exactly one OwnerAccepted event from the ownership contract");
++    eq(accepted[0].args.hostId, trust.hostId, "the event is for another host"); eq(accepted[0].args.owner, trust.admin, "the event names another owner");
++    const [after, nowAuth, code] = await Promise.all([read(c, trust.ownership, OWNERSHIP_ABI, "authority", [trust.hostId], tagOf(mined)),
++      read(c, trust.ownership, OWNERSHIP_ABI, "authority", [trust.hostId], anchor.tag), c.request("eth_getCode", [trust.ownership, anchor.tag])]);
++    if (codeHash(code) !== trust.codeHashes.ownership) throw Error("the host ownership contract's code changed");
++    eq(after[0], trust.admin, "the administrator is not metal0's owner after the transaction"); eq(after[1], ZERO, "a proposal is still pending after acceptance");
++    if (after[2] !== 1n || accepted[0].args.revision !== 1n) throw Error(`unexpected revision ${after[2]} (expected 1)`);
++    eq(after[3], ZERO32, "a host policy is set after acceptance");
++    eq(nowAuth[0], trust.admin, "the administrator no longer owns metal0 at the latest checked block");
++    return { hostId: lc(trust.hostId), owner: lc(after[0]), revision: String(after[2]), policyHash: lc(after[3]), ownerNow: lc(nowAuth[0]) };
++  });
++  return { status: "acceptance verified: the Enclave administrator owns host metal0 (revision 1, no host policy)", verifiedAt: new Date().toISOString(), providers: 2, ...r,
++    scope: "One-time host-owner enrollment of the single Enclave-operated custody seat. The vault, its committee, shares and policies, and the address book are unchanged." };
++}
+diff --git a/style.css b/style.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..20af0cb15aa6d00df2dc0783d300e84c637c6c90
+--- /dev/null
++++ b/style.css
+@@ -0,0 +1 @@
++:root{font-family:system-ui,sans-serif;color:#edf2f8;background:#111820}body{margin:0;padding:36px 24px}main{max-width:850px;margin:auto}h1{font-size:38px;margin:10px 0 18px}.eyebrow{letter-spacing:.13em;font-size:12px;color:#83d9ba}p{line-height:1.6}dl{display:grid;grid-template-columns:150px 1fr;background:#1a2530;padding:22px;gap:14px;font-size:14px;border-radius:10px}dt{color:#a5b5c5}dd{margin:0;overflow-wrap:anywhere;font-family:monospace}.actions{display:flex;gap:12px;flex-wrap:wrap}button{background:#9ce2c3;border:0;border-radius:6px;padding:14px 20px;color:#10231b;font-weight:650;cursor:pointer}button:disabled{opacity:.4;cursor:default}#status{padding:14px;background:#1a2530;border-radius:6px;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;max-height:230px;overflow:auto}.fine{font-size:13px;color:#a5b5c5}summary{cursor:pointer} [hidden]{display:none!important}
+diff --git a/test/browser.test.mjs b/test/browser.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa1402e58dbab8f385cc212b539cc499423486fe
+--- /dev/null
++++ b/test/browser.test.mjs
+@@ -0,0 +1,145 @@
++// Real-browser test: headless Chromium (playwright-core from the local enclave checkout) opens the real page served by the
++// real stage server on the fake two-provider Base. A fake MetaMask announces itself over EIP-6963 and records every
++// request; eth_sendTransaction hands the exact transaction to the fake chain's mempool. Loopback only.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import { FakeBase, providers, fixtureTrust, memoryJournal } from "./fake-base.mjs";
++import { clientsFor } from "../rpc.mjs";
++import { proposalCall } from "../stages.mjs";
++import { stageApp } from "../stage-app.mjs";
++import { assetsFor } from "../page.mjs";
++import { PRODUCTION } from "../trust.mjs";
++
++const PW = process.env.PLAYWRIGHT_CORE || "/home/steven/Projects/enclave/node_modules/playwright-core/index.mjs";
++const CHROME = process.env.CHROME_BIN || "/home/steven/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell";
++const available = fs.existsSync(PW) && fs.existsSync(CHROME);
++const T = { timeout: 60000, skip: available ? false : `playwright-core or Chromium missing (${PW}, ${CHROME})` };
++const until = async (cond, what, ms = 15000) => { const end = Date.now() + ms; for (;;) { const v = await cond(); if (v) return v; if (Date.now() > end) throw Error("timeout waiting for " + what); await new Promise((r) => setTimeout(r, 50)); } };
++
++// Single-process Chromium (the 512 MiB cap) cannot open a second context, so every test reuses ONE page; each test
++// navigates it to its own server and swaps in its own chain and recorders.
++let browser, page, cur;
++test.before(async () => { if (!available) return; const { chromium } = await import(PW);
++  browser = await chromium.launch({ executablePath: CHROME, headless: true,
++    // one process: the whole run (node + Chromium) must stay under the 512 MiB test cap
++    args: ["--single-process", "--no-zygote", "--disable-gpu", "--disable-dev-shm-usage", "--disable-extensions", "--disable-background-networking",
++      "--disable-component-update", "--js-flags=--max-old-space-size=96"] });
++  const ctx = await browser.newContext();
++  await ctx.exposeBinding("__walletLog", (_s, m) => { cur.calls.push(m); });
++  await ctx.exposeBinding("__walletSend", (_s, tx) => { cur.sent.push(tx); return cur.base.submit(tx); });
++  await ctx.addInitScript(({ admin }) => {
++    const provider = { isMetaMask: true, on() {}, async request({ method, params }) {
++      await window.__walletLog(method);
++      if (method === "eth_requestAccounts") { window.__connected = true; return [admin]; }
++      if (method === "eth_accounts") return window.__connected ? [admin] : [];
++      if (method === "eth_chainId") return "0x2105";
++      if (method === "eth_sendTransaction") {
++        if (window.__reject) throw Object.assign(new Error("MetaMask Tx Signature: User denied transaction signature."), { code: 4001 });
++        if (window.__hang) return new Promise(() => {});
++        return window.__walletSend(params[0]);
++      }
++      throw Object.assign(new Error("unsupported " + method), { code: 4200 });
++    } };
++    window.addEventListener("eip6963:requestProvider", () => window.dispatchEvent(new CustomEvent("eip6963:announceProvider",
++      { detail: Object.freeze({ info: { uuid: "test", name: "MetaMask", icon: "data:,", rdns: "io.metamask" }, provider }) })));
++  }, { admin: PRODUCTION.admin });
++  page = await ctx.newPage();
++  page.on("console", (m) => cur?.logs.push(m.type() + ": " + m.text())); page.on("pageerror", (e) => cur?.logs.push("pageerror: " + e.message));
++});
++test.after(async () => { await browser?.close(); });
++
++async function world(t) {
++  const base = new FakeBase(PRODUCTION), net = await providers(base), trust = fixtureTrust(net.urls);
++  const w = { base, net, trust, clients: clientsFor(net.urls, { timeoutMs: trust.rpcTimeoutMs, allowLoopback: true }), journals: { fund: memoryJournal(), accept: memoryJournal() } };
++  t.after(() => net.close());
++  return w;
++}
++async function open(t, w, stage) {
++  const app = stageApp({ stage, trust: w.trust, clients: w.clients, journals: w.journals, assets: assetsFor(stage) });
++  await app.listen(); t.after(async () => { await page.goto("about:blank"); await app.close(); });
++  cur = { calls: [], sent: [], logs: [], base: w.base };
++  await page.goto(app.origin + "/");
++  const status = () => page.textContent("#status");
++  await until(async () => (await page.textContent("#wallet")) === "MetaMask detected." && !/Loading/.test(await status()), "page ready");
++  return { app, page, ...cur, status, journal: w.journals[stage] };
++}
++// expected 4xx answers (NOT READY, pending) appear as "Failed to load resource"; CSP refusals and page errors may not appear at all
++const problems = (logs) => logs.filter((l) => /^pageerror|Content Security Policy|Refused to/.test(l));
++const disabled = (p, id) => p.page.$eval("#" + id, (e) => e.disabled);
++
++test("fund: nothing is asked of MetaMask before clicks; Connect, Review sends exactly the journaled transaction; pending then confirmed", T, async (t) => {
++  const w = await world(t), p = await open(t, w, "fund");
++  const text = await p.page.textContent("main");
++  assert.match(text, /not recurring app lease gas/); assert.match(text, /not decentralized custody/); assert.match(text, /0\.000005 ETH \(5000000000000 wei\)/);
++  await new Promise((r) => setTimeout(r, 800));
++  assert.deepEqual(p.calls, [], "no wallet request on load");
++  assert.equal(await disabled(p, "sign"), true); assert.equal(await disabled(p, "connect"), false);
++  await p.page.click("#connect");
++  await until(async () => !(await disabled(p, "sign")), "review enabled");
++  assert.deepEqual(p.calls, ["eth_requestAccounts"]); assert.match(await p.status(), /Administrator connected/);
++  await p.page.click("#sign");
++  await until(() => p.sent.length === 1, "eth_sendTransaction");
++  assert.deepEqual(p.sent[0], p.journal.read().request.transaction, "MetaMask received exactly the server-prepared transaction");
++  assert.deepEqual(p.calls, ["eth_requestAccounts", "eth_accounts", "eth_chainId", "eth_chainId", "eth_sendTransaction"]);
++  await until(async () => /Not verified yet/.test(await p.status()), "pending status");
++  assert.equal(p.journal.read().status, "submitted");
++  w.base.mine(3);
++  await until(async () => /^Confirmed: 0x[0-9a-f]{64}\. The operator was funded exactly once/.test(await p.status()), "confirmed", 20000);
++  assert.equal(p.journal.read().status, "confirmed"); assert.equal(await disabled(p, "sign"), true);
++  assert.deepEqual(problems(p.logs), []);
++});
++
++test("accept: NOT READY before the proposal (MetaMask never asked to send); a 4001 rejection resets; then exact acceptance confirmed", T, async (t) => {
++  const w = await world(t);
++  const p = await open(t, w, "accept");
++  await p.page.click("#connect"); await until(async () => !(await disabled(p, "sign")), "review enabled");
++  await p.page.click("#sign");
++  await until(async () => /NOT READY/.test(await p.status()), "not-ready error");
++  assert.equal(await p.page.$eval("#status", (e) => e.dataset.kind), "error");
++  assert.equal(p.sent.length, 0); assert.ok(!p.calls.includes("eth_sendTransaction")); assert.equal(p.journal.read().status, "ready");
++  await until(async () => !(await disabled(p, "sign")), "review re-enabled");
++  w.base.edit((s) => { s.balance[PRODUCTION.operator] += 5_000_000_000_000n; });
++  w.base.send({ ...proposalCall(w.trust), gas: 120000 }, 3);            // root's separate operator proposal
++  await p.page.evaluate(() => { window.__reject = true; });
++  await p.page.click("#sign");
++  await until(async () => /You rejected the request in MetaMask; nothing was sent/.test(await p.status()), "rejection text");
++  assert.equal(p.journal.read().status, "ready"); assert.equal(p.sent.length, 0);
++  await p.page.evaluate(() => { window.__reject = false; });
++  await until(async () => !(await disabled(p, "sign")), "review re-enabled after rejection");
++  await p.page.click("#sign");
++  await until(() => p.sent.length === 1, "eth_sendTransaction");
++  assert.equal(p.sent[0].data, "0x0d85eb49" + PRODUCTION.hostId.slice(2)); assert.equal(p.sent[0].value, "0x0"); assert.equal(p.sent[0].to, PRODUCTION.ownership);
++  w.base.mine(3);
++  await until(async () => /^Confirmed: .*owns host metal0/.test(await p.status()), "confirmed", 20000);
++  assert.equal(p.journal.read().verification.revision, "1");
++  assert.deepEqual(problems(p.logs), []);
++});
++
++test("lost wallet response: after reload the open attempt cannot be re-sent; a wrong hash is refused; the real hash is checked to confirmation", T, async (t) => {
++  const w = await world(t), p = await open(t, w, "fund");
++  await p.page.evaluate(() => { window.__hang = true; });
++  await p.page.click("#connect"); await until(async () => !(await disabled(p, "sign")), "review enabled");
++  await p.page.click("#sign");
++  await until(() => p.calls.includes("eth_sendTransaction"), "wallet asked");
++  const request = p.journal.read().request;
++  assert.equal(p.journal.read().status, "awaiting-wallet");
++  const hash = w.base.submit(request.transaction);          // MetaMask did send it; the page never learned the hash
++  await p.page.reload();
++  await until(async () => /Do NOT send it again/.test(await p.status()), "open-attempt text");
++  assert.equal(await p.page.$eval("#recover", (e) => e.hidden), false);
++  await p.page.click("#connect"); await until(() => p.calls.filter((c) => c === "eth_requestAccounts").length === 2, "reconnected");
++  assert.equal(await disabled(p, "sign"), true, "Review stays disabled while an attempt is open");
++  await p.page.fill("#hash", "0x" + "12".repeat(32)); await p.page.click("#check");
++  await until(async () => /neither provider returns this transaction/.test(await p.status()), "unknown hash refused");
++  assert.equal(p.journal.read().hash, undefined);
++  await p.page.fill("#hash", hash); await p.page.click("#check");
++  await until(async () => /Not verified yet/.test(await p.status()), "pending");
++  assert.equal(p.journal.read().hash, hash);
++  w.base.mine(3);
++  await until(async () => !(await disabled(p, "check")), "check enabled");
++  await p.page.click("#check");
++  await until(async () => /^Confirmed:/.test(await p.status()), "confirmed");
++  assert.equal(p.sent.length, 0, "the page never re-sent anything");
++  assert.equal(p.calls.filter((c) => c === "eth_sendTransaction").length, 1);
++});
+diff --git a/test/fake-base.mjs b/test/fake-base.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbd0719bb5d7f1b3d86ee4e392ed96a5d78294fb
+--- /dev/null
++++ b/test/fake-base.mjs
+@@ -0,0 +1,163 @@
++// In-memory Base model for tests: the metal0 registry entry, the host ownership contract (same rules as
++// EnclaveHostOwnership.sol), the GasPriceOracle, accounts, a mempool, blocks with per-block state, receipts and logs.
++// Served as JSON-RPC by two loopback "providers" (127.0.0.1 and 127.0.0.2) over the same chain; each provider can be
++// given overrides (disagreement), a hang (timeouts) or a wrong chain id. No network but loopback.
++import http from "node:http";
++import { encodeFunctionResult, decodeFunctionData, encodeEventTopics, encodeAbiParameters, keccak256, toHex } from "../../enclave/node_modules/viem/_esm/index.js";
++import { OWNERSHIP_ABI, REGISTRY_ABI, ORACLE_ABI } from "../stages.mjs";
++import { PRODUCTION } from "../trust.mjs";
++
++export const ZERO = "0x" + "0".repeat(40), ZERO32 = "0x" + "0".repeat(64);
++export const OWN_CODE = "0x6080604052ff01", REG_CODE = "0x6080604052ff02";
++const lc = (a) => String(a ?? "").toLowerCase();
++const hex = (n) => "0x" + BigInt(n).toString(16);
++const revert = (m) => Object.assign(Error("execution reverted: " + m), { rpc: { code: 3, message: "execution reverted: " + m } });
++
++/** The production trust with only the code hashes and RPC/timeouts replaced (the fake's code is not the real code). */
++export function fixtureTrust(urls, over = {}) {
++  return Object.freeze({ ...PRODUCTION, codeHashes: Object.freeze({ ownership: keccak256(OWN_CODE), registry: keccak256(REG_CODE) }), rpcs: Object.freeze(urls),
++    rpcTimeoutMs: 800, deadlineMs: 6000, ...over });
++}
++export const memoryJournal = (initial = { status: "ready" }) => { let v = structuredClone(initial); return { read: () => structuredClone(v), write: (x) => { v = structuredClone(x); } }; };
++
++export class FakeBase {
++  constructor(t = PRODUCTION) {
++    this.t = t; this.chainId = 8453; this.baseFee = 5_000_000n; this.tip = 1_000_000n; this.l1 = 40_000_000n;
++    const s = { balance: {}, nonce: {}, code: {}, authority: { owner: ZERO, pendingOwner: ZERO, revision: 0n, policyHash: ZERO32 },
++      entry: { endpoint: t.hostEndpoint, repo: "enclave", measurement: ZERO32, operator: t.operator, registeredAt: 1n, lastSeen: 2n, active: true,
++        cpuPricePerSec6: 0n, gpuPricePerSec6: 0n, proofKey: ZERO, payoutWallet: t.admin }, ownershipRegistry: t.registry };
++    s.balance[lc(t.admin)] = 10n ** 16n; s.nonce[lc(t.admin)] = 1141n;
++    s.balance[lc(t.operator)] = 376_132_087_579n; s.nonce[lc(t.operator)] = 7n;
++    s.code[lc(t.ownership)] = OWN_CODE; s.code[lc(t.registry)] = REG_CODE;
++    this.state = s; this.blocks = new Map(); this.head = 52_997_490n; this.pool = []; this.txs = new Map(); this.n = 0;
++    this.blocks.set(this.head, this.#block(this.head, []));
++    this.mine(10);
++  }
++  #block(number, txs) { return { number, hash: keccak256(toHex(`block-${number}-${this.n++}`)), baseFee: this.baseFee, state: structuredClone(this.state), txs }; }
++  /** Edits the CURRENT state (it applies to blocks mined afterwards). */
++  edit(fn) { fn(this.state); }
++  stateAt(tag) {
++    if (tag === "latest" || tag === "pending" || tag === undefined) return this.blocks.get(this.head).state;
++    const b = this.blocks.get(BigInt(tag)); if (!b) throw Object.assign(Error("unknown block"), { rpc: { code: -32000, message: "header not found" } }); return b.state;
++  }
++  pendingNonce(addr) { return (this.blocks.get(this.head).state.nonce[lc(addr)] ?? 0n) + BigInt(this.pool.filter((x) => lc(x.from) === lc(addr)).length); }
++  /** What a wallet does on eth_sendTransaction: accepts it into the pool and returns its hash. */
++  submit(tx) {
++    const from = lc(tx.from), nonce = tx.nonce !== undefined ? BigInt(tx.nonce) : this.pendingNonce(from);
++    if (nonce < this.pendingNonce(from)) throw Error("nonce too low");
++    const room = BigInt(tx.gas ?? 100000) * BigInt(tx.maxFeePerGas ?? this.baseFee * 2n) + BigInt(tx.value ?? 0);
++    if ((this.state.balance[from] ?? 0n) < room) throw Error("insufficient funds for gas * price + value");
++    const full = { from, to: tx.to ? lc(tx.to) : null, input: lc(tx.data ?? tx.input ?? "0x"), value: hex(tx.value ?? 0), nonce: hex(nonce), gas: hex(tx.gas ?? 100000),
++      maxFeePerGas: hex(tx.maxFeePerGas ?? this.baseFee * 2n), maxPriorityFeePerGas: hex(tx.maxPriorityFeePerGas ?? this.tip), type: "0x2", chainId: hex(tx.chainId ?? this.chainId) };
++    full.hash = keccak256(toHex(JSON.stringify(full) + "#" + this.n++));
++    this.pool.push(full); this.txs.set(full.hash, { tx: full, receipt: null });
++    return full.hash;
++  }
++  /** Executes a call against a state (mutating it). -> { output, gasUsed, logs } or throws a revert. */
++  exec(s, { from, to, data = "0x", value = "0x0" }) {
++    from = lc(from); to = lc(to); data = lc(data || "0x");
++    const v = BigInt(value || 0);
++    if (v > 0n) { if ((s.balance[from] ?? 0n) < v) throw revert("insufficient balance"); s.balance[from] -= v; s.balance[to] = (s.balance[to] ?? 0n) + v; }
++    const t = this.t;
++    if (to === lc(t.ownership)) {
++      const { functionName: fn, args } = decodeFunctionData({ abi: OWNERSHIP_ABI, data });
++      const a = s.authority, here = lc(args?.[0]) === lc(t.hostId);
++      if (fn === "authority") return { output: encodeFunctionResult({ abi: OWNERSHIP_ABI, functionName: fn, result: here ? [a.owner, a.pendingOwner, a.revision, a.policyHash] : [ZERO, ZERO, 0n, ZERO32] }), gasUsed: 30000n, logs: [] };
++      if (fn === "registry") return { output: encodeFunctionResult({ abi: OWNERSHIP_ABI, functionName: fn, result: s.ownershipRegistry }), gasUsed: 25000n, logs: [] };
++      if (!here) throw revert("unknown host");
++      if (fn === "proposeOwner") {
++        if (lc(args[1]) === ZERO) throw revert("owner required");
++        if (a.owner === ZERO) { if (!(s.entry.active && lc(s.entry.operator) === from)) throw revert("not active operator"); } else if (lc(a.owner) !== from) throw revert("not owner");
++        a.pendingOwner = lc(args[1]);
++        return { output: "0x", gasUsed: 94321n, logs: [this.#log("OwnerProposed", { hostId: t.hostId, owner: args[1] })] };
++      }
++      if (fn === "acceptOwner") {
++        if (lc(a.pendingOwner) !== from) throw revert("not proposed owner");
++        a.owner = from; a.pendingOwner = ZERO; a.policyHash = ZERO32; a.revision += 1n;
++        return { output: "0x", gasUsed: 52000n, logs: [this.#log("OwnerAccepted", { hostId: t.hostId, owner: from, revision: a.revision })] };
++      }
++      throw revert("unsupported");
++    }
++    if (to === lc(t.registry)) {
++      const { args } = decodeFunctionData({ abi: REGISTRY_ABI, data });
++      const e = lc(args[0]) === lc(t.hostId) ? s.entry : { endpoint: "", repo: "", measurement: ZERO32, operator: ZERO, registeredAt: 0n, lastSeen: 0n, active: false, cpuPricePerSec6: 0n, gpuPricePerSec6: 0n, proofKey: ZERO, payoutWallet: ZERO };
++      return { output: encodeFunctionResult({ abi: REGISTRY_ABI, functionName: "get", result: e }), gasUsed: 30000n, logs: [] };
++    }
++    if (to === lc(t.oracle)) { decodeFunctionData({ abi: ORACLE_ABI, data }); return { output: encodeFunctionResult({ abi: ORACLE_ABI, functionName: "getL1Fee", result: this.l1 }), gasUsed: 30000n, logs: [] }; }
++    if ((s.code[to] ?? "0x") === "0x") return { output: "0x", gasUsed: 21000n, logs: [] };
++    throw revert("unknown contract");
++  }
++  #log(name, args) {
++    const ev = OWNERSHIP_ABI.find((x) => x.type === "event" && x.name === name);
++    const topics = encodeEventTopics({ abi: OWNERSHIP_ABI, eventName: name, args });
++    const plain = ev.inputs.filter((i) => !i.indexed);
++    return { address: lc(this.t.ownership), topics, data: plain.length ? encodeAbiParameters(plain, plain.map((i) => args[i.name])) : "0x" };
++  }
++  /** Mines n blocks; the first includes every pool transaction in nonce order. */
++  mine(n = 1) {
++    for (let i = 0; i < n; i++) {
++      const number = this.head + 1n, included = i === 0 ? this.pool.splice(0) : [];
++      const receipts = [];
++      for (const tx of included) {
++        const s = this.state, before = structuredClone(s);
++        if (BigInt(tx.nonce) !== (s.nonce[tx.from] ?? 0n)) { this.txs.delete(tx.hash); continue; }   // dropped
++        let status = "0x1", logs = [], gasUsed = 21000n;
++        try { const r = this.exec(s, { from: tx.from, to: tx.to, data: tx.input, value: tx.value }); logs = r.logs; gasUsed = r.gasUsed; }
++        catch { Object.assign(s, before); status = "0x0"; }
++        const price = this.baseFee + (BigInt(tx.maxPriorityFeePerGas) < BigInt(tx.maxFeePerGas) - this.baseFee ? BigInt(tx.maxPriorityFeePerGas) : BigInt(tx.maxFeePerGas) - this.baseFee);
++        s.nonce[tx.from] = (s.nonce[tx.from] ?? 0n) + 1n; s.balance[tx.from] = (s.balance[tx.from] ?? 0n) - gasUsed * price;
++        receipts.push({ tx, receipt: { transactionHash: tx.hash, from: tx.from, to: tx.to, status, logs, gasUsed: hex(gasUsed), contractAddress: null } });
++      }
++      const block = this.#block(number, included.map((x) => x.hash));
++      for (const { tx, receipt } of receipts) {
++        Object.assign(tx, { blockHash: block.hash, blockNumber: hex(number) });
++        Object.assign(receipt, { blockHash: block.hash, blockNumber: hex(number) });
++        receipt.logs = receipt.logs.map((l) => ({ ...l, blockHash: block.hash, blockNumber: hex(number), transactionHash: tx.hash }));
++        this.txs.set(tx.hash, { tx, receipt });
++      }
++      this.blocks.set(number, block); this.head = number;
++    }
++  }
++  /** Mines a transaction sent by someone other than the page's wallet (e.g. root's operator proposal) and n more blocks. */
++  send(tx, depth = 3) { const h = this.submit(tx); this.mine(depth); return h; }
++
++  answer(method, params) {
++    switch (method) {
++      case "eth_chainId": return hex(this.chainId);
++      case "eth_blockNumber": return hex(this.head);
++      case "eth_getBlockByNumber": { const n = params[0] === "latest" ? this.head : BigInt(params[0]); const b = this.blocks.get(n); return b ? { number: hex(n), hash: b.hash, baseFeePerGas: hex(b.baseFee), timestamp: hex(1792784000n + n) } : null; }
++      case "eth_getCode": return this.stateAt(params[1]).code[lc(params[0])] ?? "0x";
++      case "eth_getBalance": return hex(this.stateAt(params[1]).balance[lc(params[0])] ?? 0n);
++      case "eth_getTransactionCount": return hex(params[1] === "pending" ? this.pendingNonce(params[0]) : (this.stateAt(params[1]).nonce[lc(params[0])] ?? 0n));
++      case "eth_call": return this.exec(structuredClone(this.stateAt(params[1])), params[0]).output;
++      case "eth_estimateGas": return hex(this.exec(structuredClone(this.stateAt(params[1])), params[0]).gasUsed);
++      case "eth_maxPriorityFeePerGas": return hex(this.tip);
++      case "eth_getTransactionByHash": { const x = this.txs.get(lc(params[0])); return x ? { ...x.tx, blockHash: x.tx.blockHash ?? null, blockNumber: x.tx.blockNumber ?? null } : null; }
++      case "eth_getTransactionReceipt": return this.txs.get(lc(params[0]))?.receipt ?? null;
++      default: throw Object.assign(Error("method not found"), { rpc: { code: -32601, message: `the method ${method} does not exist` } });
++    }
++  }
++}
++
++/** Two JSON-RPC providers over one FakeBase. provider.override[method] = (params, base) => result; provider.hang = true. */
++export async function providers(base) {
++  const make = async (host) => {
++    const p = { host, override: {}, hang: false, calls: [], sockets: new Set() };
++    p.server = http.createServer(async (req, res) => {
++      let b = ""; for await (const c of req) b += c;
++      const { id, method, params } = JSON.parse(b); p.calls.push(method);
++      if (p.hang) return;   // never answers; the client's timeout must bound it
++      let out;
++      try { out = { jsonrpc: "2.0", id, result: p.override[method] ? await p.override[method](params, base) : base.answer(method, params) }; }
++      catch (e) { out = { jsonrpc: "2.0", id, error: e.rpc ?? { code: -32603, message: e.message } }; }
++      res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(out));
++    });
++    p.server.on("connection", (s) => { p.sockets.add(s); s.on("close", () => p.sockets.delete(s)); });
++    await new Promise((ok, fail) => { p.server.once("error", fail); p.server.listen(0, host, ok); });
++    p.url = `http://${host}:${p.server.address().port}`;
++    p.close = () => { for (const s of p.sockets) s.destroy(); return new Promise((ok) => p.server.close(ok)); };
++    return p;
++  };
++  const list = [await make("127.0.0.1"), await make("127.0.0.2")];
++  return { list, urls: list.map((p) => p.url), close: () => Promise.all(list.map((p) => p.close())) };
++}
+diff --git a/test/stages.test.mjs b/test/stages.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..24308d943d53e5ed2e16b9b4b929117f3079195e
+--- /dev/null
++++ b/test/stages.test.mjs
+@@ -0,0 +1,288 @@
++// Focused tests: the two stages on the in-memory Base model served by two loopback providers, the reviewed transport
++// end to end over loopback HTTP (memory journals), restarts, lost responses, refusals, and static safety properties.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import { FakeBase, providers, fixtureTrust, memoryJournal, ZERO, OWN_CODE } from "./fake-base.mjs";
++import { clientsFor, rpcClient, checkUrl, pair } from "../rpc.mjs";
++import { frozen, proposalCall, prepareFund, prepareAccept, verifyFund, verifyAccept, checkFrozen } from "../stages.mjs";
++import { stageApp, recoverInterruptedPreparation } from "../stage-app.mjs";
++import { assetsFor } from "../page.mjs";
++import { PRODUCTION } from "../trust.mjs";
++import { preflight } from "../preflight.mjs";
++import { spawnSync } from "node:child_process";
++
++const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here, "..");
++const sha = (f) => createHash("sha256").update(fs.readFileSync(path.join(root, f))).digest("hex");
++const evidence = JSON.parse(fs.readFileSync(path.join(root, "evidence/metal0-enrollment-unsigned-20261023.json"), "utf8"));
++const T = { timeout: 30000 };
++
++async function world(t, { trust: over = {} } = {}) {
++  const base = new FakeBase(PRODUCTION), net = await providers(base);
++  const trust = fixtureTrust(net.urls, over), clients = clientsFor(net.urls, { timeoutMs: trust.rpcTimeoutMs, allowLoopback: true });
++  const journals = { fund: memoryJournal(), accept: memoryJournal() };
++  t.after(() => net.close());
++  return { base, net, trust, clients, journals };
++}
++// root's separate operator proposal (after the optional funding gave the operator enough ETH)
++const propose = (w, to = w.trust.admin, depth = 3) => (w.base.edit((s) => { s.balance[PRODUCTION.operator] += 5_000_000_000_000n; }), w.base.send({ ...proposalCall(w.trust), data: proposalCall({ ...w.trust, admin: to }).data, gas: 120000 }, depth));
++async function serve(t, w, stage, journals = w.journals) {
++  const app = stageApp({ stage, trust: w.trust, clients: w.clients, journals, assets: assetsFor(stage) });
++  await app.listen(); t.after(() => app.close());
++  const { token } = await (await fetch(app.origin + "/request")).json();
++  const post = async (url, data = {}) => { const r = await fetch(app.origin + url, { method: "POST", headers: { Origin: app.origin, "X-Signing-Token": token, "Content-Type": "application/json" }, body: JSON.stringify(data) }); return { status: r.status, body: await r.json() }; };
++  return { app, post };
++}
++
++test("frozen targets/calldata/values equal the public evidence; no stage can target the book or vault; transport unchanged", () => {
++  assert.equal(sha("evidence/metal0-enrollment-unsigned-20261023.json"), "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82");
++  assert.equal(sha("handoff-server.mjs"), "fb189e4610c8579739fb59fe385b91b461bc5bfb06d95780e94ec92e53d95b75", "the reviewed transport is byte-identical");
++  const p = evidence.preconditions, [tx1, tx2] = evidence.unsigned;
++  assert.deepEqual([p.ownershipContract, p.ownershipCodeHash, p.ownershipRegistry, p.hostId, p.hostEndpoint, p.hostOperator, p.payoutWallet],
++    [PRODUCTION.ownership, PRODUCTION.codeHashes.ownership, PRODUCTION.registry, PRODUCTION.hostId, PRODUCTION.hostEndpoint, PRODUCTION.operator, PRODUCTION.admin]);
++  const accept = frozen(PRODUCTION, "accept");
++  assert.deepEqual([accept.from, accept.to, accept.data, accept.value, accept.chainId], [tx2.from, tx2.to, tx2.data, "0x0", "0x2105"]);
++  const prop = proposalCall(PRODUCTION);
++  assert.deepEqual([prop.from, prop.to, prop.data], [tx1.from, tx1.to, tx1.data], "the proposal root will send is the evidence's tx1");
++  const fund = frozen(PRODUCTION, "fund");
++  assert.deepEqual(fund, { from: PRODUCTION.admin, to: PRODUCTION.operator, chainId: "0x2105", value: "0x48c27395000", data: "0x" });
++  assert.equal(BigInt(fund.value), 5_000_000_000_000n);
++  for (const s of ["fund", "accept"]) {
++    const f = frozen(PRODUCTION, s);
++    assert.ok(!Object.values(PRODUCTION.excluded).includes(f.to), `${s} targets an excluded contract`);
++    assert.ok(!f.data.startsWith("0xba44593c"), `${s} carries the address-book set selector`);
++  }
++  assert.throws(() => frozen(PRODUCTION, "book"), /stage must be/);
++  assert.throws(() => checkFrozen({ stage: "accept", transaction: { ...accept, to: PRODUCTION.excluded.book } }, PRODUCTION), /destination changed/);
++  assert.throws(() => checkFrozen({ stage: "fund", transaction: { ...fund, value: "0x48c27395001" } }, PRODUCTION), /value changed/);
++});
++
++test("the RPC layer only reads, only https in production, bounded, and needs two different hosts", async () => {
++  const c = rpcClient("https://mainnet.base.org", { timeoutMs: 1000 });
++  for (const m of ["eth_sendTransaction", "eth_sendRawTransaction", "eth_sign", "personal_sign", "eth_signTypedData_v4", "wallet_switchEthereumChain"])
++    await assert.rejects(c.request(m, []), /this process only reads/);
++  assert.throws(() => checkUrl("http://mainnet.base.org"), /https only/);
++  assert.throws(() => checkUrl("https://user:pw@mainnet.base.org"), /no credentials/);
++  assert.throws(() => checkUrl("https://mainnet.base.org/?key=1"), /no credentials/);
++  assert.throws(() => checkUrl("http://127.0.0.1:1"), /https only/, "loopback only when a test asks for it");
++  assert.throws(() => clientsFor(["https://mainnet.base.org", "https://mainnet.base.org/x"], { timeoutMs: 1 }), /duplicate RPC host/);
++  assert.throws(() => pair([c]), /two independently operated/);
++  for (const f of ["rpc.mjs", "stages.mjs", "stage-app.mjs", "serve.mjs", "preflight.mjs", "page.mjs", "trust.mjs"]) {
++    const src = fs.readFileSync(path.join(root, f), "utf8");
++    for (const bad of ["eth_sendRawTransaction", "privateKey", "registryKey", "config.json", "signTransaction", "mnemonic"]) assert.ok(!src.includes(bad), `${f} mentions ${bad}`);
++    if (f !== "rpc.mjs") assert.ok(!src.includes("eth_sendTransaction"), `${f} mentions eth_sendTransaction`);
++  }
++  const app = fs.readFileSync(path.join(root, "app.js"), "utf8").split("\n").filter((l) => !l.trimStart().startsWith("//")).join("\n");
++  assert.equal(app.match(/eth_sendTransaction/g).length, 1);
++  const sign = app.indexOf("el('sign').onclick"), end = app.indexOf("\n};", sign), send = app.indexOf("eth_sendTransaction");
++  assert.ok(sign > 0 && send > sign && send < end, "MetaMask is asked to send only inside the Review click handler");
++  const connect = app.indexOf("el('connect').onclick"), connectEnd = app.indexOf("\n};", connect);
++  assert.equal(app.match(/eth_requestAccounts/g).length, 1);
++  assert.ok(app.indexOf("eth_requestAccounts") > connect && app.indexOf("eth_requestAccounts") < connectEnd, "accounts are requested only inside the Connect click handler");
++  const handlers = [[connect, connectEnd], [sign, end], [app.indexOf("el('check').onclick"), app.length]];
++  for (const m of app.matchAll(/provider\.request\(/g)) assert.ok(handlers.some(([a, b]) => m.index > a && m.index < b), "every MetaMask request is inside a click handler");
++});
++
++test("fund: prepares exactly the fixed transfer from fresh two-provider state", T, async (t) => {
++  const w = await world(t);
++  const r = await prepareFund(w);
++  assert.equal(r.stage, "fund");
++  assert.deepEqual(r.transaction, { from: PRODUCTION.admin, to: PRODUCTION.operator, chainId: "0x2105", type: "0x2", nonce: "0x475", data: "0x", value: "0x48c27395000",
++    gas: "0x5208", maxFeePerGas: "0xa7d8c0", maxPriorityFeePerGas: "0xf4240" });
++  assert.equal(r.anchor.blockNumber, String(w.base.head - 2n));
++  assert.equal(r.operatorProposal.gasEstimate, "94321");
++  assert.equal(r.operatorProposal.operatorBalanceAfterWei, String(376_132_087_579n + 5_000_000_000_000n));
++  assert.equal(r.estimatedFeeLimitWei, String(21000n * 11_000_000n + w.base.l1));
++});
++
++test("fund: refused on every state that makes it unnecessary, duplicate, unsafe or unverifiable", T, async (t) => {
++  const w = await world(t), b = w.base, s = b.state, settle = () => b.mine(3);
++  const cases = [
++    ["operator already holds the amount", () => { s.balance[PRODUCTION.operator] = 5_000_000_000_000n; }, /not funded twice/],
++    ["operator can already pay", () => { s.balance[PRODUCTION.operator] = 4_000_000_000_000n; }, /can already pay/],
++    ["proposal exists", () => { s.authority.pendingOwner = PRODUCTION.admin; }, /proposal already exists/],
++    ["administrator already owns", () => { s.authority.owner = PRODUCTION.admin; }, /already owns metal0/],
++    ["another owner", () => { s.authority.owner = "0x" + "77".repeat(20); }, /another owner/],
++    ["operator has code (7702)", () => { s.code[PRODUCTION.operator] = "0xef0100" + "11".repeat(20); }, /has code/],
++    ["registry operator changed", () => { s.entry.operator = "0x" + "66".repeat(20); }, /operator changed/],
++    ["host inactive", () => { s.entry.active = false; }, /not active/],
++    ["payout changed", () => { s.entry.payoutWallet = "0x" + "55".repeat(20); }, /payout wallet/],
++    ["endpoint changed", () => { s.entry.endpoint = "https://evil.example/t/metal0"; }, /endpoint changed/],
++    ["ownership code changed", () => { s.code[PRODUCTION.ownership] = OWN_CODE + "00"; }, /not the reviewed code/],
++    ["ownership reads another registry", () => { s.ownershipRegistry = "0x" + "44".repeat(20); }, /another registry/],
++    ["fee above cap", () => { b.baseFee = 60_000_000n; }, /above the reviewed cap/],
++    ["administrator cannot pay", () => { s.balance[PRODUCTION.admin] = 5_000_000_000_000n; }, /does not cover/],
++  ];
++  for (const [name, edit, re] of cases) {
++    const saved = structuredClone(s), fee = b.baseFee;
++    edit(); settle();
++    await assert.rejects(prepareFund(w), re, name);
++    b.edit((x) => Object.assign(x, structuredClone(saved))); b.baseFee = fee; settle();
++  }
++  await prepareFund(w);   // and the restored state prepares again
++  b.submit({ from: PRODUCTION.admin, to: "0x" + "12".repeat(20), value: 1 });
++  await assert.rejects(prepareFund(w), /administrator transaction is pending/, "a pending administrator transaction (e.g. a lost-response funding) blocks preparation");
++  b.mine(1);
++  await assert.rejects(prepareFund(w), /administrator transaction is pending or was mined in the last two blocks/);
++  b.mine(2); await prepareFund(w);
++  b.submit({ from: PRODUCTION.operator, to: "0x" + "12".repeat(20), value: 1, gas: 21000, maxFeePerGas: 11_000_000 });
++  await assert.rejects(prepareFund(w), /operator transaction is pending/);
++  b.mine(3);
++  w.journals.accept.write({ status: "awaiting-wallet" });
++  await assert.rejects(prepareFund(w), /acceptance stage has already started/);
++});
++
++test("fund: provider disagreement, wrong chain and a hanging provider are refused within the bound", T, async (t) => {
++  const w = await world(t), [p0, p1] = w.net.list;
++  p1.override.eth_getBalance = (params, base) => (String(params[0]).toLowerCase() === PRODUCTION.operator ? "0x1" : base.answer("eth_getBalance", params));
++  await assert.rejects(prepareFund(w), /disagree/);
++  delete p1.override.eth_getBalance;
++  p1.override.eth_getBlockByNumber = (params, base) => ({ ...base.answer("eth_getBlockByNumber", params), hash: "0x" + "ab".repeat(32) });
++  await assert.rejects(prepareFund(w), /disagree on block/);
++  delete p1.override.eth_getBlockByNumber;
++  w.base.chainId = 1;
++  await assert.rejects(prepareFund(w), /wrong chain/);
++  w.base.chainId = 8453;
++  p0.hang = true;
++  const started = Date.now();
++  await assert.rejects(prepareFund(w), /no answer within 800 ms/);
++  assert.ok(Date.now() - started < 4000, "bounded by the per-request timeout and one retry");
++});
++
++test("accept: NOT READY until the operator's proposal of exactly this administrator is two blocks deep", T, async (t) => {
++  const w = await world(t);
++  await assert.rejects(prepareAccept(w), /NOT READY: the metal0 operator has not proposed/);
++  propose(w, PRODUCTION.admin, 1);
++  await assert.rejects(prepareAccept(w), /NOT READY/, "a proposal in the newest block is not accepted");
++  w.base.mine(1);
++  await assert.rejects(prepareAccept(w), /NOT READY/, "nor with one later block");
++  w.base.mine(1);
++  w.journals.fund.write({ status: "submitted", hash: "0x" + "12".repeat(32) });
++  await assert.rejects(prepareAccept(w), /funding attempt is unresolved \(submitted\)/);
++  w.journals.fund.write({ status: "ready" });
++  const r = await prepareAccept(w);
++  assert.deepEqual(r.transaction, { from: PRODUCTION.admin, to: PRODUCTION.ownership, chainId: "0x2105", type: "0x2", nonce: "0x475",
++    data: evidence.unsigned[1].data, value: "0x0", gas: "0xf3c0", maxFeePerGas: "0xa7d8c0", maxPriorityFeePerGas: "0xf4240" });
++  assert.equal(r.observed.authority.pendingOwner, PRODUCTION.admin);
++  const other = "0x" + "99".repeat(20);
++  w.base.edit((st) => { st.authority.pendingOwner = other; }); w.base.mine(3);
++  await assert.rejects(prepareAccept(w), /names another wallet/);
++  w.base.edit((st) => { st.authority.pendingOwner = PRODUCTION.admin; }); w.base.mine(3);
++  w.base.send({ from: PRODUCTION.admin, ...frozen(w.trust, "accept"), value: 0, gas: 70000 });
++  await assert.rejects(prepareAccept(w), /already owns metal0 \(revision 1\)/);
++});
++
++test("fund end to end on the reviewed transport: journal before wallet, exact hash recording, two-deep verification, no second funding after restart or lost journal", T, async (t) => {
++  const w = await world(t);
++  let { app, post } = await serve(t, w, "fund");
++  const prep = await post("/prepare");
++  assert.equal(prep.status, 200);
++  assert.equal(w.journals.fund.read().status, "awaiting-wallet", "journaled before the browser saw it");
++  assert.deepEqual(w.journals.fund.read().request.transaction, prep.body.transaction);
++  assert.equal((await post("/prepare")).status, 409, "one attempt");
++  const unknown = await post("/result", { hash: "0x" + "34".repeat(32) });
++  assert.equal(unknown.status, 400); assert.match(unknown.body.error, /neither provider returns this transaction/);
++  assert.equal(w.journals.fund.read().hash, undefined, "an unknown hash is not recorded");
++  // a wallet-altered transaction (value) is refused before it is recorded
++  const altered = w.base.submit({ ...prep.body.transaction, value: "0x48c27395001", nonce: "0x476" });
++  const bad = await post("/result", { hash: altered });
++  assert.equal(bad.status, 400); assert.match(bad.body.error, /wrong value/); assert.equal(w.journals.fund.read().hash, undefined);
++  w.base.pool = w.base.pool.filter((x) => x.hash !== altered); w.base.txs.delete(altered);
++  // the wallet sends the exact transaction; it is pending
++  const hash = w.base.submit(prep.body.transaction);
++  const pending = await post("/result", { hash });
++  assert.equal(pending.status, 400); assert.match(pending.body.error, /no receipt|pending/);
++  assert.equal(w.journals.fund.read().status, "submitted"); assert.equal(w.journals.fund.read().hash, hash);
++  w.base.mine(1);
++  assert.match((await post("/result", { hash })).body.error, /lacks two later blocks/);
++  assert.equal((await post("/result", { hash: "0x" + "56".repeat(32) })).status, 409, "a different hash never replaces the recorded one");
++  w.base.mine(2);
++  const done = await post("/result", { hash });
++  assert.equal(done.status, 200, JSON.stringify(done.body));
++  assert.equal(done.body.amountWei, "5000000000000"); assert.equal(done.body.operatorBalanceAfterWei, String(376_132_087_579n + 5_000_000_000_000n));
++  assert.equal(w.journals.fund.read().status, "confirmed");
++  await app.close();
++  ({ app, post } = await serve(t, w, "fund"));           // restart on the same journal
++  assert.equal(app.state.status, "confirmed"); assert.equal((await post("/prepare")).status, 409);
++  const lost = { fund: memoryJournal(), accept: w.journals.accept };   // even with the journal lost, chain state refuses
++  await assert.rejects(prepareFund({ ...w, journals: lost }), /not funded twice/);
++});
++
++test("lost wallet response and restarts never duplicate: open attempt kept, interrupted preparation recovered, pending tx blocks a fresh journal", T, async (t) => {
++  const w = await world(t);
++  let { app, post } = await serve(t, w, "fund");
++  const prep = await post("/prepare");
++  w.base.submit(prep.body.transaction);                 // the wallet sent it, but the page never reported the hash
++  await app.close();
++  ({ app, post } = await serve(t, w, "fund"));
++  assert.equal(app.state.status, "awaiting-wallet"); assert.equal((await post("/prepare")).status, 409);
++  assert.equal((await post("/rejected", { code: 4001 })).status, 200, "only the page's own explicit 4001 resets an open attempt (transport rule)");
++  await assert.rejects(prepareFund(w), /administrator transaction is pending/, "the in-flight transfer still blocks a new preparation");
++  w.base.mine(3);
++  await assert.rejects(prepareFund(w), /not funded twice/, "and once mined, the operator's balance does");
++  const j = memoryJournal({ status: "preparing" });
++  assert.equal(recoverInterruptedPreparation(j), true); assert.equal(j.read().status, "ready");
++  const open = memoryJournal({ status: "awaiting-wallet", request: prep.body });
++  assert.equal(recoverInterruptedPreparation(open), false); assert.equal(open.read().status, "awaiting-wallet");
++});
++
++test("accept end to end: refused early, exact acceptOwner verified with one OwnerAccepted at revision 1; the other stage's hash is refused", T, async (t) => {
++  const w = await world(t);
++  w.journals.fund.write({ status: "confirmed", hash: "0x" + "78".repeat(32) });
++  const { post } = await serve(t, w, "accept");
++  const early = await post("/prepare");
++  assert.equal(early.status, 400); assert.match(early.body.error, /NOT READY/); assert.equal(w.journals.accept.read().status, "ready", "nothing journaled or handed out");
++  propose(w);
++  const prep = await post("/prepare");
++  assert.equal(prep.status, 200, JSON.stringify(prep.body));
++  assert.equal(prep.body.transaction.data, evidence.unsigned[1].data); assert.equal(prep.body.transaction.value, "0x0");
++  assert.match((await post("/result", { hash: "0x" + "78".repeat(32) })).body.error, /belongs to the other stage/);
++  const hash = w.base.submit(prep.body.transaction); w.base.mine(3);
++  const done = await post("/result", { hash });
++  assert.equal(done.status, 200, JSON.stringify(done.body));
++  assert.deepEqual([done.body.owner, done.body.revision, done.body.policyHash, done.body.ownerNow], [PRODUCTION.admin, "1", "0x" + "0".repeat(64), PRODUCTION.admin]);
++  assert.equal(w.journals.accept.read().status, "confirmed");
++});
++
++test("verification rejects a reverted, re-gassed, fee-raised or wrong-nonce transaction and a non-canonical receipt", T, async (t) => {
++  const w = await world(t);
++  propose(w);
++  const request = await prepareAccept(w), tx = request.transaction;
++  const land = (over) => { const h = w.base.submit({ ...tx, ...over }); w.base.mine(3); return h; };
++  await assert.rejects(verifyAccept({ ...w, request, hash: land({ gas: "0xf3c1" }) }), /gas limit was changed/);
++  w.base.edit((s) => { s.authority.pendingOwner = PRODUCTION.admin; s.authority.owner = ZERO; s.authority.revision = 0n; });
++  w.base.mine(3);
++  const req2 = await prepareAccept(w);
++  await assert.rejects(verifyAccept({ ...w, request: req2, hash: land({ ...req2.transaction, maxFeePerGas: "0xa7d8c1" }) }), /raised the fee cap/);
++  w.base.edit((s) => { s.authority.pendingOwner = ZERO; s.authority.owner = ZERO; s.authority.revision = 0n; });
++  w.base.mine(3);
++  const req3 = { ...req2, transaction: { ...req2.transaction, nonce: "0x" + w.base.pendingNonce(PRODUCTION.admin).toString(16) } };
++  await assert.rejects(verifyAccept({ ...w, request: req3, hash: land(req3.transaction) }), /reverted/);
++  await assert.rejects(verifyAccept({ ...w, request: req2, hash: land({ ...req2.transaction, nonce: "0x" + w.base.pendingNonce(PRODUCTION.admin).toString(16) }) }), /wrong nonce/);
++  // fund: canonical check and exact amount
++  const w2 = await world(t), freq = await prepareFund(w2), fh = w2.base.submit(freq.transaction); w2.base.mine(4);
++  const mined = w2.base.txs.get(fh).receipt.blockNumber;
++  w2.net.list[1].override.eth_getBlockByNumber = (params, base) => { const b = base.answer("eth_getBlockByNumber", params); return params[0] === mined ? { ...b, hash: "0x" + "cd".repeat(32) } : b; };
++  await assert.rejects(verifyFund({ ...w2, request: freq, hash: fh }), /not canonical/);
++  delete w2.net.list[1].override.eth_getBlockByNumber;
++  assert.equal((await verifyFund({ ...w2, request: freq, hash: fh })).amountWei, "5000000000000");
++  await assert.rejects(verifyFund({ ...w2, request: { ...freq, transaction: { ...freq.transaction, to: PRODUCTION.excluded.book } }, hash: fh }), /destination changed/, "a tampered journal cannot redirect verification");
++});
++
++test("read-only preflight reports both stages without writing a journal; serve.mjs refuses to start without the explicit stage", T, async (t) => {
++  const w = await world(t);
++  const ro = { read: () => ({ status: "ready" }), write: () => { throw Error("journal written"); } };
++  const out = await preflight({ trust: w.trust, clients: w.clients, journals: { fund: ro, accept: ro } });
++  assert.equal(out.notSent, true); assert.equal(out.observed.ready, true); assert.equal(out.observed.request.authority.pendingOwner, ZERO);
++  assert.equal(out.fund.ready, true); assert.equal(out.fund.request.transaction.value, "0x48c27395000");
++  assert.equal(out.accept.ready, false); assert.match(out.accept.reason, /NOT READY/);
++  assert.doesNotThrow(() => JSON.stringify(out));
++  for (const args of [[], ["--stage", "fund"], ["--stage", "book", "--serve"], ["--stage", "fund", "--serve", "x"]]) {
++    const r = spawnSync(process.execPath, [path.join(root, "serve.mjs"), ...args], { encoding: "utf8", timeout: 10000 });
++    assert.notEqual(r.status, 0); assert.match(r.stderr, /usage: node serve\.mjs --stage fund\|accept --serve/);
++  }
++  for (const s of ["fund", "accept"]) { const html = assetsFor(s)["/"].body; assert.doesNotMatch(html, /\{\{|<script>|style=/); assert.match(html, /not recurring app lease gas/); }
++});
+diff --git a/trust.mjs b/trust.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..958e19d5c80e8869a64d7ddf9a97bf54a58aa386
+--- /dev/null
++++ b/trust.mjs
+@@ -0,0 +1,37 @@
++// Frozen public expectations for the metal0 host-owner enrollment handoff (two administrator stages). Every value is
++// public. The source is evidence/metal0-enrollment-unsigned-20261023.json (block 52997498) and root's task text; the
++// registry code hash is the one pinned for registry4 in work/lease-gas-wallet-signing/trust.mjs. Root's live preflight
++// (preflight.mjs) re-reads all of it before anything is served. Tests use a fixture trust with the SAME shape and only
++// the code hashes (and RPC URLs) replaced.
++//
++// Scope: these stages do NOT touch the custody vault, its committee, shares or policies, or the address book. The book
++// activation (book-activation-unsigned-20261023.json) is deliberately EXCLUDED until the hardware lifecycle and
++// dashboard checks pass; `excluded` exists only so tests can prove no stage can target it.
++export const PRODUCTION = Object.freeze({
++  chainId: 8453,
++  admin: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",             // Enclave administrator; signs both stages in MetaMask
++  operator: "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",          // existing metal0 registry operator (an EOA)
++  ownership: "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",         // ACTIVE EnclaveHostOwnership (not the 0xf5e9 variant)
++  registry: "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",          // registry4, ownership.registry()
++  oracle: "0x420000000000000000000000000000000000000f",            // Base GasPriceOracle predeploy (L1 fee estimate)
++  hostId: "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  hostEndpoint: "https://api.enclave.host/t/metal0",
++  codeHashes: Object.freeze({
++    ownership: "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++    registry: "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
++  }),
++  fundingWei: 5_000_000_000_000n,  // fixed 0.000005 ETH; the operator held 376132087579 wei vs ~660247000000 needed
++  caps: Object.freeze({
++    maxFeePerGas: 100_000_000n,    // 0.1 gwei (Base base fee was 0.005 gwei)
++    transferGas: 21_000n,          // exact: the operator must have no code
++    acceptGas: 120_000n,           // acceptOwner gas limit cap (limit = estimate * 1.2)
++    proposalGas: 150_000n,         // the operator's proposeOwner estimate must stay under this (it was 94321)
++  }),
++  confirmations: 2n,               // a receipt counts only with two later blocks, agreed on both providers
++  maxAgeMs: 120_000,               // a preparation must finish within two minutes of starting
++  rpcTimeoutMs: 10_000,            // per JSON-RPC request (one retry on transport errors / rate limits)
++  deadlineMs: 60_000,              // whole preparation or verification
++  rpcs: Object.freeze(["https://mainnet.base.org", "https://base.public.blockpi.network/v1/rpc/public"]),
++  // never targeted by these stages (tests only)
++  excluded: Object.freeze({ book: "0xab214342d5a490150a4a977063a2f88e21f80907", vault: "0xe48699b8401564aace7a814ae4569b67a3f7eef5" }),
++});

@@ -1,0 +1,5 @@
+    // CANARY-ONLY STATE-STORE FAULT INJECTION (unmeasured host copy; never deployed). Records method, path and status only.
+    { const m = String(req.method).slice(0, 8), u = String(req.url).slice(0, 64);
+      fs.appendFileSync(cfg.canaryEventLog, JSON.stringify({ ev: "req", at: new Date().toISOString(), method: m, url: u }) + "\n");
+      res.on("close", () => fs.appendFileSync(cfg.canaryEventLog, JSON.stringify({ ev: "res", at: new Date().toISOString(), method: m, url: u, status: res.statusCode, finished: res.writableFinished }) + "\n")); }
+    if (req.url === "/state" && req.method === "GET" && cfg.canaryStateFault === "get-503") return send(503, { error: "canary state-store outage" });

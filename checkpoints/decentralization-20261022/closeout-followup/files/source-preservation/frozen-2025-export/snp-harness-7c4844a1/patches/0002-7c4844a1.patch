@@ -1,0 +1,773 @@
+From 7c4844a17fecf870d4790ca8620cfd8c1e60780c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:24:28 -0700
+Subject: [PATCH] Record corrected custody SNP startup and outage recovery
+ evidence
+
+---
+ .gitignore                                    |   5 +
+ README.md                                     |   4 +
+ SCAN-REVIEW.md                                |   5 +
+ evidence/20261023T201449Z/attempt.json        |  54 ++
+ evidence/20261023T201449Z/memory.log          |   1 +
+ .../20261023T201449Z/protected-after.json     |   6 +
+ .../20261023T201449Z/protected-before.json    |   6 +
+ evidence/20261023T201449Z/result.json         | 501 ++++++++++++++++++
+ evidence/20261023T201449Z/terminal.json       |  11 +
+ evidence/20261023T201449Z/verdict-fresh.json  |  38 ++
+ evidence/20261023T201449Z/verdict-reopen.json |  38 ++
+ 11 files changed, 669 insertions(+)
+ create mode 100644 SCAN-REVIEW.md
+ create mode 100644 evidence/20261023T201449Z/attempt.json
+ create mode 100644 evidence/20261023T201449Z/memory.log
+ create mode 100644 evidence/20261023T201449Z/protected-after.json
+ create mode 100644 evidence/20261023T201449Z/protected-before.json
+ create mode 100644 evidence/20261023T201449Z/result.json
+ create mode 100644 evidence/20261023T201449Z/terminal.json
+ create mode 100644 evidence/20261023T201449Z/verdict-fresh.json
+ create mode 100644 evidence/20261023T201449Z/verdict-reopen.json
+
+diff --git a/.gitignore b/.gitignore
+index baa4c31e779d47dbbf1da79b7d96d76daad1e3e7..c22b2b3973aa5bca1e0c39f1d87c32700f09538e 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -4,3 +4,8 @@
+ __pycache__/
+ *.pyc
+ /progress.*
++
++/lifecycle-progress.txt
++/lifecycle.err
++/ROOT-*.txt
++/TASK.txt
+diff --git a/README.md b/README.md
+index d716c9cc51f0aa4a53f446804016b9fdb1f54cfd..afd877bc992ec06446d53d8670ef9cb74af41917 100644
+--- a/README.md
++++ b/README.md
+@@ -227,3 +227,7 @@
+ - gitleaks: no leaks. Crypto-key scan: clean.
+ 
+ The earlier job `t1` failed only on the then-unpinned `COPY_SHA` placeholder.
++
++## Root hardware execution, October 23 at 20:14–20:16 UTC
++
++Root ran the pinned harness on production SNP hardware using corrected image `70aadff5…` from source `ab589bf8`. All required checks passed. Fresh startup sealed a new canary identity; seven storage reads answered HTTP 503 over 45.9 seconds caused no state writes and no HTTP readiness; reopening the same sealed state retained the identity and encryption key and passed a new-nonce AMD quote. The two protected production QEMU identities remained unchanged. Cleanup found no surviving canary processes and removed private canary state. Selected public metadata is in `evidence/20261023T201449Z`; raw serial/quotes and sealed bytes are excluded. This verifies startup recovery only, not secret lifecycle or rollback resistance.
+diff --git a/SCAN-REVIEW.md b/SCAN-REVIEW.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..8758b412af13b0e534afa94f3fd0404a202da793
+--- /dev/null
++++ b/SCAN-REVIEW.md
+@@ -0,0 +1,5 @@
++# Root review of evidence scanner findings
++
++The 20:23 UTC staged evidence scan reported four `generic-api-key` matches, all the `encKey` field of the same disposable custodian's **public** X25519 encryption key. The value is served by `/v2/custody/info` and bound into the verified AMD report. It is not a private key or bearer credential. The four occurrences are the fresh/reopen machine records in `result.json` and the two verifier verdicts. Keeping those public records supports the same-key recovery claim.
++
++Root inspected all four reported locations and their source. No scanner configuration or allowlist was changed. Raw quotes, guest console logs, private configuration, sealed bytes and signing keys are excluded. The cryptographic-private-key scan is a separate check. This review does not waive findings in any other file.
+diff --git a/evidence/20261023T201449Z/attempt.json b/evidence/20261023T201449Z/attempt.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a276d0a33416ae96688a7fd5e02466409fd5b1c6
+--- /dev/null
++++ b/evidence/20261023T201449Z/attempt.json
+@@ -0,0 +1,54 @@
++{
++  "at": "2026-10-23T20:14:49.561669+00:00",
++  "pins": {
++    "dist": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian",
++    "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2",
++    "expected_commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
++    "expected_host_sha256": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
++    "expected_copy_sha256": "93c4030573aad84d826f8f5b62c0cc575d0266f65e8c59a9ee040b95b41893d1",
++    "expected_measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++    "expected_manifest_sha256": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b"
++  },
++  "guestMiB": 3072,
++  "memoryCapMiB": 5120,
++  "reserveMiB": 16384,
++  "marginMiB": 1024,
++  "exclusiveBothQueueLanes": true,
++  "ports": [
++    18970,
++    18971
++  ],
++  "baseConfig": {
++    "dist": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian",
++    "ovmf": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
++    "sevDevice": "/dev/sev",
++    "cpus": 2,
++    "memMiB": 3072,
++    "tunnelName": "custody-recovery-canary",
++    "endpoint": "https://custody-recovery-canary.invalid",
++    "registryEndpoint": "https://custody-recovery-canary.invalid",
++    "hostPort": 18970,
++    "mgmtPort": 18971,
++    "genesis": false,
++    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++    "rpc": "https://mainnet.base.org",
++    "submitterKeyEnv": "ENCLAVE_QUOTE_ONLY_NO_KEY"
++  },
++  "hostCopySha256": "93c4030573aad84d826f8f5b62c0cc575d0266f65e8c59a9ee040b95b41893d1",
++  "hashes": {
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/manifest.json": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/initramfs.cpio.gz": "bed627f6b471422ed1d66d27dc8652fa44f2f6241266b261dfafc1a2a3d41623",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/cmdline": "17a9bc3bc93234905381927cbbcf17522b85a3a2596f9a4b320966259d604827",
++    "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2/custody/v2/host.mjs": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/verify-custodian-quote.mjs": "5acfa74a659c95cf7706a783558f8d0bf392d7588d99940e05876d7e26050579",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/headroom-check.sh": "5ba4bf3ccdd30e8712b98e97cdbcec654bfbb48392919bce067be797aa7010f7",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/fault-inject.mjs.txt": "94e1abbee41c8f85494c111ed542ada41a3749fdfbea99e7fa704a1229f0ff94",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/resolve-register.mjs": "16deae35e7f1ccbb53969c762288e043c879e394c3018785c21f8ec0d475c29a",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/resolve-as-original.mjs": "30cd9f2cd53ecc82509bc8ade157a934c16dcd0dead7e717480f85c9dc353fe7",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/recovery_canary.py": "e9a82812f09ddf80792d52b7e91cd0b765f182c77061834988420e5ccc2a311c",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2/node_modules/viem/package.json": "e949a8d53708d253df522476d1ff2face4b05beee8099a90ed81934793455dfb"
++  }
++}
+\ No newline at end of file
+diff --git a/evidence/20261023T201449Z/memory.log b/evidence/20261023T201449Z/memory.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec410412fd628d55282c134e84dcd430c8642d69
+--- /dev/null
++++ b/evidence/20261023T201449Z/memory.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=860 minHostAvailableMiB=20985
+diff --git a/evidence/20261023T201449Z/protected-after.json b/evidence/20261023T201449Z/protected-after.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa7ec94f49672046aab4bba657699ccd6ce814c5
+--- /dev/null
++++ b/evidence/20261023T201449Z/protected-after.json
+@@ -0,0 +1,6 @@
++{
++ "2087833": "101999677",
++ "3483499": "87503396",
++ "3817658": "32598976",
++ "4061343": "107537939"
++}
+\ No newline at end of file
+diff --git a/evidence/20261023T201449Z/protected-before.json b/evidence/20261023T201449Z/protected-before.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa7ec94f49672046aab4bba657699ccd6ce814c5
+--- /dev/null
++++ b/evidence/20261023T201449Z/protected-before.json
+@@ -0,0 +1,6 @@
++{
++ "2087833": "101999677",
++ "3483499": "87503396",
++ "3817658": "32598976",
++ "4061343": "107537939"
++}
+\ No newline at end of file
+diff --git a/evidence/20261023T201449Z/result.json b/evidence/20261023T201449Z/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5f2261237710b0697192b353d2d4c2d2831c197
+--- /dev/null
++++ b/evidence/20261023T201449Z/result.json
+@@ -0,0 +1,501 @@
++{
++ "startedAt": "2026-10-23T20:14:49.907393+00:00",
++ "scope": "startup-recovery evidence only; quote-only; not secret release or lifecycle",
++ "quoteOnly": true,
++ "noRegistryKey": true,
++ "noSubmitterKey": true,
++ "noCommittee": true,
++ "genesis": false,
++ "productionActivated": false,
++ "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custody-snp-recovery-canary-20261023t201449z.scope",
++ "phases": {
++  "fresh": {
++   "phase": "fresh",
++   "startedAt": "2026-10-23T20:14:49.907408+00:00",
++   "pinsOk": true,
++   "cgroupExtraBefore": [],
++   "portsBefore": [],
++   "protectedBefore": true,
++   "stateDirMode": "0o700",
++   "launcher": {
++    "pid": 302779,
++    "starttime": 109160389,
++    "pgid": 302779,
++    "at": "2026-10-23T20:14:50.177675+00:00"
++   },
++   "readyAfterS": 16.1,
++   "verifierExit": 0,
++   "stop": {
++    "signals": [
++     "SIGTERM"
++    ],
++    "groupEmpty": true,
++    "left": []
++   },
++   "launcherReturncode": 0,
++   "qemuIdentities": [
++    [
++     302803,
++     109160447
++    ]
++   ],
++   "cgroupExtraAfter": [],
++   "portsAfter": [],
++   "protectedUnchanged": true,
++   "events": {
++    "stateGetRequests": 1,
++    "stateGetStatuses": [
++     404
++    ],
++    "stateGet404": 1,
++    "stateGet200": 0,
++    "stateGet503": 0,
++    "stateWriteRequests": 3,
++    "statePut200": 3,
++    "submitRequests": 0,
++    "otherRequests": [
++     "GET /receipts"
++    ],
++    "responses503": 0
++   },
++   "daemonRestartsSeen": 0,
++   "stoppedAt": "2026-10-23T20:15:10.523841+00:00",
++   "identity": {
++    "identity": "0x0fddad5f2d62a70d378b1a6336325574c2d980b4",
++    "encKey": "0xdf5ddb926f1ce516bbc51681bd6e69fa2f34c6201f27eedad2bc7bb3d4344617",
++    "endpoint": "https://custody-recovery-canary.invalid",
++    "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++    "registryId": "0x787108339ca67638b13914afbae4f33813b407abeb20756630c4e27704e4b0fa",
++    "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7"
++   },
++   "verdict": {
++    "ok": true,
++    "reasons": [],
++    "nonce": "5e97d20659e204b1f4bbffaa26666bef60a8e7a7227cf00c1e281af25fbed5d7",
++    "checkedAt": "2026-10-23T20:15:07.348Z",
++    "observed": {
++     "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++     "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
++     "policy": "0x30000",
++     "vmpl": 0,
++     "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186"
++    }
++   },
++   "stateBefore": {},
++   "stateAfter": {
++    "fwcfg.json": {
++     "size": 268,
++     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
++     "mode": "0o600"
++    },
++    "state.bin": {
++     "size": 360,
++     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
++     "mode": "0o600"
++    },
++    "state.bin.1792786500826": {
++     "size": 206,
++     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
++     "mode": "0o600"
++    },
++    "state.bin.1792786504985": {
++     "size": 360,
++     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
++     "mode": "0o600"
++    }
++   }
++  },
++  "fault": {
++   "phase": "fault",
++   "startedAt": "2026-10-23T20:15:10.524134+00:00",
++   "pinsOk": true,
++   "cgroupExtraBefore": [],
++   "portsBefore": [],
++   "protectedBefore": true,
++   "stateDirMode": "0o700",
++   "launcher": {
++    "pid": 303020,
++    "starttime": 109162452,
++    "pgid": 303020,
++    "at": "2026-10-23T20:15:10.805638+00:00"
++   },
++   "mgmtProbes": 49,
++   "mgmtResponses": [],
++   "first503AfterS": 9.1,
++   "heldS": 45.9,
++   "launcherExit": null,
++   "stop": {
++    "signals": [
++     "SIGTERM"
++    ],
++    "groupEmpty": true,
++    "left": []
++   },
++   "launcherReturncode": 0,
++   "qemuIdentities": [
++    [
++     303029,
++     109162490
++    ]
++   ],
++   "cgroupExtraAfter": [],
++   "portsAfter": [],
++   "protectedUnchanged": true,
++   "events": {
++    "stateGetRequests": 7,
++    "stateGetStatuses": [
++     503,
++     503,
++     503,
++     503,
++     503,
++     503,
++     503
++    ],
++    "stateGet404": 0,
++    "stateGet200": 0,
++    "stateGet503": 7,
++    "stateWriteRequests": 0,
++    "statePut200": 0,
++    "submitRequests": 0,
++    "otherRequests": [],
++    "responses503": 7
++   },
++   "daemonRestartsSeen": 7,
++   "stoppedAt": "2026-10-23T20:16:08.882974+00:00",
++   "stateBefore": {
++    "fwcfg.json": {
++     "size": 268,
++     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
++     "mode": "0o600"
++    },
++    "state.bin": {
++     "size": 360,
++     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
++     "mode": "0o600"
++    },
++    "state.bin.1792786500826": {
++     "size": 206,
++     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
++     "mode": "0o600"
++    },
++    "state.bin.1792786504985": {
++     "size": 360,
++     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
++     "mode": "0o600"
++    }
++   },
++   "stateAfter": {
++    "fwcfg.json": {
++     "size": 268,
++     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
++     "mode": "0o600"
++    },
++    "state.bin": {
++     "size": 360,
++     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
++     "mode": "0o600"
++    },
++    "state.bin.1792786500826": {
++     "size": 206,
++     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
++     "mode": "0o600"
++    },
++    "state.bin.1792786504985": {
++     "size": 360,
++     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
++     "mode": "0o600"
++    }
++   }
++  },
++  "reopen": {
++   "phase": "reopen",
++   "startedAt": "2026-10-23T20:16:08.883100+00:00",
++   "pinsOk": true,
++   "cgroupExtraBefore": [],
++   "portsBefore": [],
++   "protectedBefore": true,
++   "stateDirMode": "0o700",
++   "launcher": {
++    "pid": 303566,
++    "starttime": 109168288,
++    "pgid": 303566,
++    "at": "2026-10-23T20:16:09.166250+00:00"
++   },
++   "readyAfterS": 16.1,
++   "verifierExit": 0,
++   "stop": {
++    "signals": [
++     "SIGTERM"
++    ],
++    "groupEmpty": true,
++    "left": []
++   },
++   "launcherReturncode": 0,
++   "qemuIdentities": [
++    [
++     303575,
++     109168329
++    ]
++   ],
++   "cgroupExtraAfter": [],
++   "portsAfter": [],
++   "protectedUnchanged": true,
++   "events": {
++    "stateGetRequests": 1,
++    "stateGetStatuses": [
++     200
++    ],
++    "stateGet404": 0,
++    "stateGet200": 1,
++    "stateGet503": 0,
++    "stateWriteRequests": 3,
++    "statePut200": 3,
++    "submitRequests": 0,
++    "otherRequests": [
++     "GET /receipts"
++    ],
++    "responses503": 0
++   },
++   "daemonRestartsSeen": 0,
++   "stoppedAt": "2026-10-23T20:16:29.157652+00:00",
++   "identity": {
++    "identity": "0x0fddad5f2d62a70d378b1a6336325574c2d980b4",
++    "encKey": "0xdf5ddb926f1ce516bbc51681bd6e69fa2f34c6201f27eedad2bc7bb3d4344617",
++    "endpoint": "https://custody-recovery-canary.invalid",
++    "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++    "registryId": "0x787108339ca67638b13914afbae4f33813b407abeb20756630c4e27704e4b0fa",
++    "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7"
++   },
++   "verdict": {
++    "ok": true,
++    "reasons": [],
++    "nonce": "6e4c176c492a6f68b8aff5c543d41d125d4c09cb6cb4387d99cd6bc1e4ad0ab0",
++    "checkedAt": "2026-10-23T20:16:26.014Z",
++    "observed": {
++     "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++     "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
++     "policy": "0x30000",
++     "vmpl": 0,
++     "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186"
++    }
++   },
++   "stateBefore": {
++    "fwcfg.json": {
++     "size": 268,
++     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
++     "mode": "0o600"
++    },
++    "state.bin": {
++     "size": 360,
++     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
++     "mode": "0o600"
++    },
++    "state.bin.1792786500826": {
++     "size": 206,
++     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
++     "mode": "0o600"
++    },
++    "state.bin.1792786504985": {
++     "size": 360,
++     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
++     "mode": "0o600"
++    }
++   },
++   "stateAfter": {
++    "fwcfg.json": {
++     "size": 268,
++     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
++     "mode": "0o600"
++    },
++    "state.bin": {
++     "size": 360,
++     "sha256": "e8e483fdcfc7dee43ae3967d54151216ea24cbfd9db2ac7b91bcecbd968fd9a5",
++     "mode": "0o600"
++    },
++    "state.bin.1792786500826": {
++     "size": 206,
++     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
++     "mode": "0o600"
++    },
++    "state.bin.1792786504985": {
++     "size": 360,
++     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
++     "mode": "0o600"
++    },
++    "state.bin.1792786579533": {
++     "size": 360,
++     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
++     "mode": "0o600"
++    },
++    "state.bin.1792786580969": {
++     "size": 360,
++     "sha256": "369d7c824cac236432befdaa80de82c36dfe6bd7706a8ab078b60fffd6de4da2",
++     "mode": "0o600"
++    },
++    "state.bin.1792786583751": {
++     "size": 360,
++     "sha256": "e31d76ba4dc12587e008e11e679e56fb7a41067dc999bcce36888c983d903f71",
++     "mode": "0o600"
++    }
++   }
++  }
++ },
++ "required": {
++  "fresh.stateAbsentAtLaunch": true,
++  "fresh.firstStateGet404": true,
++  "fresh.identitySealedByPut": true,
++  "fresh.no503": true,
++  "fresh.noSubmit": true,
++  "fresh.serialNewIdentity": true,
++  "fresh.httpReady": true,
++  "fresh.infoIsQuoteOnlyCanary": true,
++  "fresh.stateModes": true,
++  "fresh.quote.verified": true,
++  "fresh.quote.measurementPinned": true,
++  "fresh.quote.bindsServedMachine": true,
++  "fresh.quote.freshNonce": true,
++  "fresh.stop.groupEmpty": true,
++  "fresh.stop.portsFree": true,
++  "fresh.stop.cgroupClean": true,
++  "fresh.stop.protectedQemusUnchanged": true,
++  "fresh.launch.pinsReverified": true,
++  "fresh.launch.portsFree": true,
++  "fresh.launch.cgroupClean": true,
++  "fault.stateMatchesSavedAtLaunch": true,
++  "fault.observed503": true,
++  "fault.everyStateGetAnswered503": true,
++  "fault.noStateWrite": true,
++  "fault.noSubmit": true,
++  "fault.neverHttpReady": true,
++  "fault.heldForWindow": true,
++  "fault.launcherAliveThroughout": true,
++  "fault.serialRefusal": true,
++  "fault.serialNoReplacement": true,
++  "fault.sealedStateUnchanged": true,
++  "fault.stop.groupEmpty": true,
++  "fault.stop.portsFree": true,
++  "fault.stop.cgroupClean": true,
++  "fault.stop.protectedQemusUnchanged": true,
++  "fault.launch.pinsReverified": true,
++  "fault.launch.portsFree": true,
++  "fault.launch.cgroupClean": true,
++  "reopen.stateMatchesSavedAtLaunch": true,
++  "reopen.firstStateGet200": true,
++  "reopen.no404or503": true,
++  "reopen.noSubmit": true,
++  "reopen.serialOpened": true,
++  "reopen.httpReady": true,
++  "reopen.infoIsQuoteOnlyCanary": true,
++  "reopen.sameIdentity": true,
++  "reopen.sameEncKey": true,
++  "reopen.sameMachineRecord": true,
++  "reopen.nonceDiffersFromFresh": true,
++  "reopen.quote.verified": true,
++  "reopen.quote.measurementPinned": true,
++  "reopen.quote.bindsServedMachine": true,
++  "reopen.quote.freshNonce": true,
++  "reopen.stop.groupEmpty": true,
++  "reopen.stop.portsFree": true,
++  "reopen.stop.cgroupClean": true,
++  "reopen.stop.protectedQemusUnchanged": true,
++  "reopen.launch.pinsReverified": true,
++  "reopen.launch.portsFree": true,
++  "reopen.launch.cgroupClean": true,
++  "end.protectedQemuIdentitiesUnchanged": true,
++  "end.cgroupClean": true,
++  "end.allPhasesRan": true
++ },
++ "diagnostic": {
++  "fresh": {
++   "readyAfterS": 16.1,
++   "first503AfterS": null,
++   "daemonRestartsSeen": 0,
++   "qemuIdentities": [
++    [
++     302803,
++     109160447
++    ]
++   ],
++   "launcherReturncode": 0,
++   "events": {
++    "stateGetRequests": 1,
++    "stateGetStatuses": [
++     404
++    ],
++    "stateGet404": 1,
++    "stateGet200": 0,
++    "stateGet503": 0,
++    "stateWriteRequests": 3,
++    "statePut200": 3,
++    "submitRequests": 0,
++    "otherRequests": [
++     "GET /receipts"
++    ],
++    "responses503": 0
++   }
++  },
++  "fault": {
++   "readyAfterS": null,
++   "first503AfterS": 9.1,
++   "daemonRestartsSeen": 7,
++   "qemuIdentities": [
++    [
++     303029,
++     109162490
++    ]
++   ],
++   "launcherReturncode": 0,
++   "events": {
++    "stateGetRequests": 7,
++    "stateGetStatuses": [
++     503,
++     503,
++     503,
++     503,
++     503,
++     503,
++     503
++    ],
++    "stateGet404": 0,
++    "stateGet200": 0,
++    "stateGet503": 7,
++    "stateWriteRequests": 0,
++    "statePut200": 0,
++    "submitRequests": 0,
++    "otherRequests": [],
++    "responses503": 7
++   }
++  },
++  "reopen": {
++   "readyAfterS": 16.1,
++   "first503AfterS": null,
++   "daemonRestartsSeen": 0,
++   "qemuIdentities": [
++    [
++     303575,
++     109168329
++    ]
++   ],
++   "launcherReturncode": 0,
++   "events": {
++    "stateGetRequests": 1,
++    "stateGetStatuses": [
++     200
++    ],
++    "stateGet404": 0,
++    "stateGet200": 1,
++    "stateGet503": 0,
++    "stateWriteRequests": 3,
++    "statePut200": 3,
++    "submitRequests": 0,
++    "otherRequests": [
++     "GET /receipts"
++    ],
++    "responses503": 0
++   }
++  }
++ },
++ "ok": true,
++ "finishedAt": "2026-10-23T20:16:29.170722+00:00"
++}
+\ No newline at end of file
+diff --git a/evidence/20261023T201449Z/terminal.json b/evidence/20261023T201449Z/terminal.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff8887ffd0d7bfe2388a79bab329bd9f2408a651
+--- /dev/null
++++ b/evidence/20261023T201449Z/terminal.json
+@@ -0,0 +1,11 @@
++{
++  "at": "2026-10-23T20:16:29.253441+00:00",
++  "childExit": 0,
++  "scopeStop": 5,
++  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custody-snp-recovery-canary-20261023t201449z.scope",
++  "cgroupLeftAtExit": [],
++  "cgroupEmpty": true,
++  "survivors": [],
++  "privateScrubbed": true,
++  "exitCode": 0
++}
+\ No newline at end of file
+diff --git a/evidence/20261023T201449Z/verdict-fresh.json b/evidence/20261023T201449Z/verdict-fresh.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..28fe23f2732c0d95ac6ae35fc66480e33d59d196
+--- /dev/null
++++ b/evidence/20261023T201449Z/verdict-fresh.json
+@@ -0,0 +1,38 @@
++{
++ "ok": true,
++ "reasons": [],
++ "expected": {
++  "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++  "measurementSha256": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
++  "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea"
++ },
++ "verifier": {
++  "ok": true,
++  "reasons": [
++   "report is from VMPL0 (full privilege inside the CVM)",
++   "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
++   "measurement on Metal release allowlist",
++   "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
++   "AMD signature chain verified (VCEK KDS/Turin → ASK → ARK, Turin)",
++   "VCEK chip ID and TCB extensions match the report",
++   "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
++  ]
++ },
++ "observed": {
++  "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++  "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
++  "policy": "0x30000",
++  "vmpl": 0,
++  "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++  "machine": {
++   "identity": "0x0fddad5f2d62a70d378b1a6336325574c2d980b4",
++   "encKey": "0xdf5ddb926f1ce516bbc51681bd6e69fa2f34c6201f27eedad2bc7bb3d4344617",
++   "endpoint": "https://custody-recovery-canary.invalid",
++   "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++   "registryId": "0x787108339ca67638b13914afbae4f33813b407abeb20756630c4e27704e4b0fa",
++   "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7"
++  }
++ },
++ "nonce": "5e97d20659e204b1f4bbffaa26666bef60a8e7a7227cf00c1e281af25fbed5d7",
++ "checkedAt": "2026-10-23T20:15:07.348Z"
++}
+diff --git a/evidence/20261023T201449Z/verdict-reopen.json b/evidence/20261023T201449Z/verdict-reopen.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f8d430c6684a6cc81a69d5689584ee73216e43e
+--- /dev/null
++++ b/evidence/20261023T201449Z/verdict-reopen.json
+@@ -0,0 +1,38 @@
++{
++ "ok": true,
++ "reasons": [],
++ "expected": {
++  "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++  "measurementSha256": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
++  "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea"
++ },
++ "verifier": {
++  "ok": true,
++  "reasons": [
++   "report is from VMPL0 (full privilege inside the CVM)",
++   "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
++   "measurement on Metal release allowlist",
++   "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
++   "AMD signature chain verified (VCEK KDS/Turin → ASK → ARK, Turin)",
++   "VCEK chip ID and TCB extensions match the report",
++   "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
++  ]
++ },
++ "observed": {
++  "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
++  "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
++  "policy": "0x30000",
++  "vmpl": 0,
++  "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++  "machine": {
++   "identity": "0x0fddad5f2d62a70d378b1a6336325574c2d980b4",
++   "encKey": "0xdf5ddb926f1ce516bbc51681bd6e69fa2f34c6201f27eedad2bc7bb3d4344617",
++   "endpoint": "https://custody-recovery-canary.invalid",
++   "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++   "registryId": "0x787108339ca67638b13914afbae4f33813b407abeb20756630c4e27704e4b0fa",
++   "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7"
++  }
++ },
++ "nonce": "6e4c176c492a6f68b8aff5c543d41d125d4c09cb6cb4387d99cd6bc1e4ad0ab0",
++ "checkedAt": "2026-10-23T20:16:26.014Z"
++}

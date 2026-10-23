@@ -1,0 +1,76 @@
+From 23f7e51aab5c6016035e73a1058ba33e64c0dcba Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:12:43 -0700
+Subject: [PATCH] Record reviewed r2 provenance and superseded image limits
+
+---
+ .gitignore          | 5 +++++
+ README.md           | 4 ++++
+ SCAN-REVIEW.txt     | 2 ++
+ review-r2-commit.sh | 8 ++++++++
+ scan-r2.sh          | 8 ++++++++
+ 5 files changed, 27 insertions(+)
+ create mode 100644 review-r2-commit.sh
+ create mode 100644 scan-r2.sh
+
+diff --git a/.gitignore b/.gitignore
+index d5cfcc3a87d7c1532bdc2879f11a1db1a7bc6945..808d94ac9019e1bbf6816d210e9a7143f46ae44c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -7,3 +7,8 @@
+ canary/root-hardware-20261023/
+ canary/*.out
+ __pycache__/
++repo-r2/
++repo-r2b/
++out-r2/
++*.guard.log
++scan-findings*.json
+diff --git a/README.md b/README.md
+index fa25a7dc4fce2786de3cbe04c31f3ed09faa6167..fc8b90ae4a9480d0b16c82b93dde63789a7731eb 100644
+--- a/README.md
++++ b/README.md
+@@ -7,3 +7,7 @@
+ This proves that the corrected image boots and attests on this hardware. It is NOT production activation, lifecycle testing, or decentralized custody. The old one-seat custodian remains untouched. Enrollment, new committee setup, owner policy migration, relay route configuration, dashboard activation, dedicated secret lifecycle and failure tests are still required.
+ 
+ The root hardware canary reuses the reviewed October21 exclusive hardware allocation (5120MiB capped,3072MiB guest,16GiB host reserve, both test lanes); ordinary build/test queue limits are unchanged. Source manifests and redacted verifier outcomes are versioned; images, raw logs, temporary sealed state and raw hardware quotes are excluded.
++
++Update: this c95 image is superseded for activation by root source a5eae96c, which fixes startup storage errors being treated as absent state and completes host authority selection and direct owner-read routing. The historical byte-identical builds and quote evidence above remain valid for c95 only. The new source must be rebuilt and hardware-tested separately; do not activate e012 as if it contained these later fixes.
++
++The replacement build is now available in out-r2 from ab589bf80b669c9671b53573d489b6c6c45779ea. Two independent builds are byte-identical, with launch measurement 70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429. RESULT-R2.md and evidence-r2 record the exact source, runtime closure and tests. This new image has not yet passed the hardware startup-recovery canary and is not activated.
+diff --git a/SCAN-REVIEW.txt b/SCAN-REVIEW.txt
+index bc7c070bd4376cf32b2e7ef9684878973cc6b61a..f76c461850eab72c55b931d685d81eadb5bc099a 100644
+--- a/SCAN-REVIEW.txt
++++ b/SCAN-REVIEW.txt
+@@ -1 +1,3 @@
+ Root review 2026-10-23: the seven redacted generic-api-key matches in the staged diff are public data, not credentials. Six are the SHA256 of the snpkey executable (1d0541fe...), repeated in reproducible manifests and verifier receipts; one is the disposable quote canary's public X25519 encryption key c6eac873..., bound in the SNP quote. The canary private key remained sealed inside its guest and its disposable state was deleted. Reviewed exact staged lines534/652/759/852/1486/1623/2257 before this note. No broad scanner allowlist was added. Raw hardware quotes, serial logs, and state are excluded.
++
++Root review 2026-10-23 20:11 UTC: r2 commit da6e349 scanner found six generic-api-key matches in the two image manifests and two verifier receipts. Every flagged line is the public SHA256 1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2 of /opt/custodian/snpkey, an executable in the image, not a derived sealing key or credential. Exact diff lines391,488,1131,1362,1459,2102 independently inspected. scan-crypto-keys passed. No blanket scanner allowlist was added. The root documentation/ignore delta separately scanned clean.
+diff --git a/review-r2-commit.sh b/review-r2-commit.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..80ba78a4186df691f6725f48308bd3581ca1dd89
+--- /dev/null
++++ b/review-r2-commit.sh
+@@ -0,0 +1,8 @@
++#!/bin/bash
++set -uo pipefail
++git -C work/custody-v2-release-20261023 diff 44bf8f4..da6e349 --binary | /home/steven/.local/bin/gitleaks stdin --no-banner --redact --report-format json --report-path work/custody-v2-release-20261023/scan-findings-r2-commit.json
++leak=$?
++git -C work/custody-v2-release-20261023 diff 44bf8f4..da6e349 --binary | python3 work/source-checkpoint-20261022/main-repo/.githooks/scan-crypto-keys.py --stdin
++crypto=$?
++printf 'gitleaks_exit=%s crypto_exit=%s\n' "$leak" "$crypto"
++exit "$crypto"
+diff --git a/scan-r2.sh b/scan-r2.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..298fee3ef6350db2aaa03b14b3b4b0009ad63981
+--- /dev/null
++++ b/scan-r2.sh
+@@ -0,0 +1,8 @@
++#!/bin/bash
++set -uo pipefail
++git -C work/custody-v2-release-20261023 diff --cached --binary | /home/steven/.local/bin/gitleaks stdin --no-banner --redact --report-format json --report-path work/custody-v2-release-20261023/scan-findings-r2.json
++leak=$?
++git -C work/custody-v2-release-20261023 diff --cached --binary | python3 work/source-checkpoint-20261022/main-repo/.githooks/scan-crypto-keys.py --stdin
++crypto=$?
++printf 'gitleaks_exit=%s crypto_exit=%s\n' "$leak" "$crypto"
++exit "$crypto"

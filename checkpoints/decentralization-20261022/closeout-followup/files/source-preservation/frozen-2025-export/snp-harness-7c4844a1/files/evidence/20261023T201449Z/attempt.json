@@ -1,0 +1,54 @@
+{
+  "at": "2026-10-23T20:14:49.561669+00:00",
+  "pins": {
+    "dist": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian",
+    "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2",
+    "expected_commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+    "expected_host_sha256": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
+    "expected_copy_sha256": "93c4030573aad84d826f8f5b62c0cc575d0266f65e8c59a9ee040b95b41893d1",
+    "expected_measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
+    "expected_manifest_sha256": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b"
+  },
+  "guestMiB": 3072,
+  "memoryCapMiB": 5120,
+  "reserveMiB": 16384,
+  "marginMiB": 1024,
+  "exclusiveBothQueueLanes": true,
+  "ports": [
+    18970,
+    18971
+  ],
+  "baseConfig": {
+    "dist": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian",
+    "ovmf": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+    "sevDevice": "/dev/sev",
+    "cpus": 2,
+    "memMiB": 3072,
+    "tunnelName": "custody-recovery-canary",
+    "endpoint": "https://custody-recovery-canary.invalid",
+    "registryEndpoint": "https://custody-recovery-canary.invalid",
+    "hostPort": 18970,
+    "mgmtPort": 18971,
+    "genesis": false,
+    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "rpc": "https://mainnet.base.org",
+    "submitterKeyEnv": "ENCLAVE_QUOTE_ONLY_NO_KEY"
+  },
+  "hostCopySha256": "93c4030573aad84d826f8f5b62c0cc575d0266f65e8c59a9ee040b95b41893d1",
+  "hashes": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/manifest.json": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/initramfs.cpio.gz": "bed627f6b471422ed1d66d27dc8652fa44f2f6241266b261dfafc1a2a3d41623",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/cmdline": "17a9bc3bc93234905381927cbbcf17522b85a3a2596f9a4b320966259d604827",
+    "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2/custody/v2/host.mjs": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/verify-custodian-quote.mjs": "5acfa74a659c95cf7706a783558f8d0bf392d7588d99940e05876d7e26050579",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/headroom-check.sh": "5ba4bf3ccdd30e8712b98e97cdbcec654bfbb48392919bce067be797aa7010f7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs": "cdd00af73bcd59040857f2b48a7170fa2303dfdf401152137cd8c35e7a100ca6",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/fault-inject.mjs.txt": "94e1abbee41c8f85494c111ed542ada41a3749fdfbea99e7fa704a1229f0ff94",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/resolve-register.mjs": "16deae35e7f1ccbb53969c762288e043c879e394c3018785c21f8ec0d475c29a",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/resolve-as-original.mjs": "30cd9f2cd53ecc82509bc8ade157a934c16dcd0dead7e717480f85c9dc353fe7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-snp-recovery-harness-20261023/canary/recovery_canary.py": "e9a82812f09ddf80792d52b7e91cd0b765f182c77061834988420e5ccc2a311c",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2/node_modules/viem/package.json": "e949a8d53708d253df522476d1ff2face4b05beee8099a90ed81934793455dfb"
+  }
+}

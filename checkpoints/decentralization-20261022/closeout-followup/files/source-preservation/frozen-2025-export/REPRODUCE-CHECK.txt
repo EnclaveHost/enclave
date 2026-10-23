@@ -1,0 +1,24 @@
+durability3 ab589bf80: 2 touched path blobs OK
+durability3: full tree 0a1f82e1a on base a5eae96cd NOT reproduced (base not in pushed material; see baseTreeNotReproduced)
+custody-release2 base rebuilt from empty + 1 stored patch(es) in dc551728a: tree afec64f0a7b8d4f0a76af4287833f4e1e3060c81 OK
+custody-release2 da6e34961: tree d317d5a7c64a0e778d96a135caa8e07bbb4e78b7 OK
+custody-release2 23f7e51aa: tree 62adfd03ffdd349a53354df7251f6d29405ef72a OK
+dashboard2 base rebuilt from dfe020abf + 26 stored patch(es) in dc551728a: tree cfaa8d49b8bdc9acc70477f51a7895b347507340 OK
+dashboard2 10cea38be: tree b00b2b4c1644d90706ac47f3126facecd86e85eb OK
+dashboard2 7f0320a4a: tree 99977bf9fbc0df477ce519511067d9bfd4ddb82a OK
+dashboard2 dd6cf94a7: tree 1eb923289d11732fece2a5829c77a1d8069e7917 OK
+dashboard2 e24a47fb2: tree 413e76ecc5386f4cd85935372996a30146c1a4d4 OK
+custody-live3 base rebuilt from empty + 2 stored patch(es) in dc551728a: tree bb19b19a251d290cbd31691adc6078c55d901879 OK
+custody-live3 574fdc975: tree ee02605879df8cf98b44e95b13aa1f0f8a35dbe6 OK
+custody-live3 3fd6e8ff9: tree b7857703265f1165cd41e3ea6a44f1c764ce092f OK
+wallet-handoff base rebuilt from empty + 0 stored patch(es) in dc551728a: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+wallet-handoff 7b49cd995: tree da50e5540f4c553b2694931b130bdb67c356c121 OK
+operator-proposal base rebuilt from empty + 0 stored patch(es) in dc551728a: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+operator-proposal f2a7b81ed: tree c02f94f9c3be6b8896bd564c62f6248c30370963 OK
+operator-proposal 1ac9ad2cb: tree e6a98714f2748afa812bb53155c46a1cf6401360 OK
+snp-harness base rebuilt from empty + 0 stored patch(es) in dc551728a: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+snp-harness e9b9709aa: tree 305ebb74ef30f0289e0a1e2824c3c62431c39d56 OK
+snp-harness 7c4844a17: tree 0fb8af49b99e6157092a9a79e9bdb43e8a8d96ab OK
+direct-route base rebuilt from empty + 0 stored patch(es) in dc551728a: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+direct-route fc7bff941: tree 474c9922af1e348e4a097902c53f1d04004bd8e2 OK
+RESULT durability3 reproduced: True (touched files only), custody-release2 reproduced: True, dashboard2 reproduced: True, custody-live3 reproduced: True, wallet-handoff reproduced: True, operator-proposal reproduced: True, snp-harness reproduced: True, direct-route reproduced: True

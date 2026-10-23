@@ -1,0 +1,501 @@
+{
+ "startedAt": "2026-10-23T20:14:49.907393+00:00",
+ "scope": "startup-recovery evidence only; quote-only; not secret release or lifecycle",
+ "quoteOnly": true,
+ "noRegistryKey": true,
+ "noSubmitterKey": true,
+ "noCommittee": true,
+ "genesis": false,
+ "productionActivated": false,
+ "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custody-snp-recovery-canary-20261023t201449z.scope",
+ "phases": {
+  "fresh": {
+   "phase": "fresh",
+   "startedAt": "2026-10-23T20:14:49.907408+00:00",
+   "pinsOk": true,
+   "cgroupExtraBefore": [],
+   "portsBefore": [],
+   "protectedBefore": true,
+   "stateDirMode": "0o700",
+   "launcher": {
+    "pid": 302779,
+    "starttime": 109160389,
+    "pgid": 302779,
+    "at": "2026-10-23T20:14:50.177675+00:00"
+   },
+   "readyAfterS": 16.1,
+   "verifierExit": 0,
+   "stop": {
+    "signals": [
+     "SIGTERM"
+    ],
+    "groupEmpty": true,
+    "left": []
+   },
+   "launcherReturncode": 0,
+   "qemuIdentities": [
+    [
+     302803,
+     109160447
+    ]
+   ],
+   "cgroupExtraAfter": [],
+   "portsAfter": [],
+   "protectedUnchanged": true,
+   "events": {
+    "stateGetRequests": 1,
+    "stateGetStatuses": [
+     404
+    ],
+    "stateGet404": 1,
+    "stateGet200": 0,
+    "stateGet503": 0,
+    "stateWriteRequests": 3,
+    "statePut200": 3,
+    "submitRequests": 0,
+    "otherRequests": [
+     "GET /receipts"
+    ],
+    "responses503": 0
+   },
+   "daemonRestartsSeen": 0,
+   "stoppedAt": "2026-10-23T20:15:10.523841+00:00",
+   "identity": {
+    "identity": "0x0fddad5f2d62a70d378b1a6336325574c2d980b4",
+    "encKey": "0xdf5ddb926f1ce516bbc51681bd6e69fa2f34c6201f27eedad2bc7bb3d4344617",
+    "endpoint": "https://custody-recovery-canary.invalid",
+    "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+    "registryId": "0x787108339ca67638b13914afbae4f33813b407abeb20756630c4e27704e4b0fa",
+    "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7"
+   },
+   "verdict": {
+    "ok": true,
+    "reasons": [],
+    "nonce": "5e97d20659e204b1f4bbffaa26666bef60a8e7a7227cf00c1e281af25fbed5d7",
+    "checkedAt": "2026-10-23T20:15:07.348Z",
+    "observed": {
+     "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
+     "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
+     "policy": "0x30000",
+     "vmpl": 0,
+     "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186"
+    }
+   },
+   "stateBefore": {},
+   "stateAfter": {
+    "fwcfg.json": {
+     "size": 268,
+     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
+     "mode": "0o600"
+    },
+    "state.bin": {
+     "size": 360,
+     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
+     "mode": "0o600"
+    },
+    "state.bin.1792786500826": {
+     "size": 206,
+     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
+     "mode": "0o600"
+    },
+    "state.bin.1792786504985": {
+     "size": 360,
+     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
+     "mode": "0o600"
+    }
+   }
+  },
+  "fault": {
+   "phase": "fault",
+   "startedAt": "2026-10-23T20:15:10.524134+00:00",
+   "pinsOk": true,
+   "cgroupExtraBefore": [],
+   "portsBefore": [],
+   "protectedBefore": true,
+   "stateDirMode": "0o700",
+   "launcher": {
+    "pid": 303020,
+    "starttime": 109162452,
+    "pgid": 303020,
+    "at": "2026-10-23T20:15:10.805638+00:00"
+   },
+   "mgmtProbes": 49,
+   "mgmtResponses": [],
+   "first503AfterS": 9.1,
+   "heldS": 45.9,
+   "launcherExit": null,
+   "stop": {
+    "signals": [
+     "SIGTERM"
+    ],
+    "groupEmpty": true,
+    "left": []
+   },
+   "launcherReturncode": 0,
+   "qemuIdentities": [
+    [
+     303029,
+     109162490
+    ]
+   ],
+   "cgroupExtraAfter": [],
+   "portsAfter": [],
+   "protectedUnchanged": true,
+   "events": {
+    "stateGetRequests": 7,
+    "stateGetStatuses": [
+     503,
+     503,
+     503,
+     503,
+     503,
+     503,
+     503
+    ],
+    "stateGet404": 0,
+    "stateGet200": 0,
+    "stateGet503": 7,
+    "stateWriteRequests": 0,
+    "statePut200": 0,
+    "submitRequests": 0,
+    "otherRequests": [],
+    "responses503": 7
+   },
+   "daemonRestartsSeen": 7,
+   "stoppedAt": "2026-10-23T20:16:08.882974+00:00",
+   "stateBefore": {
+    "fwcfg.json": {
+     "size": 268,
+     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
+     "mode": "0o600"
+    },
+    "state.bin": {
+     "size": 360,
+     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
+     "mode": "0o600"
+    },
+    "state.bin.1792786500826": {
+     "size": 206,
+     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
+     "mode": "0o600"
+    },
+    "state.bin.1792786504985": {
+     "size": 360,
+     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
+     "mode": "0o600"
+    }
+   },
+   "stateAfter": {
+    "fwcfg.json": {
+     "size": 268,
+     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
+     "mode": "0o600"
+    },
+    "state.bin": {
+     "size": 360,
+     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
+     "mode": "0o600"
+    },
+    "state.bin.1792786500826": {
+     "size": 206,
+     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
+     "mode": "0o600"
+    },
+    "state.bin.1792786504985": {
+     "size": 360,
+     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
+     "mode": "0o600"
+    }
+   }
+  },
+  "reopen": {
+   "phase": "reopen",
+   "startedAt": "2026-10-23T20:16:08.883100+00:00",
+   "pinsOk": true,
+   "cgroupExtraBefore": [],
+   "portsBefore": [],
+   "protectedBefore": true,
+   "stateDirMode": "0o700",
+   "launcher": {
+    "pid": 303566,
+    "starttime": 109168288,
+    "pgid": 303566,
+    "at": "2026-10-23T20:16:09.166250+00:00"
+   },
+   "readyAfterS": 16.1,
+   "verifierExit": 0,
+   "stop": {
+    "signals": [
+     "SIGTERM"
+    ],
+    "groupEmpty": true,
+    "left": []
+   },
+   "launcherReturncode": 0,
+   "qemuIdentities": [
+    [
+     303575,
+     109168329
+    ]
+   ],
+   "cgroupExtraAfter": [],
+   "portsAfter": [],
+   "protectedUnchanged": true,
+   "events": {
+    "stateGetRequests": 1,
+    "stateGetStatuses": [
+     200
+    ],
+    "stateGet404": 0,
+    "stateGet200": 1,
+    "stateGet503": 0,
+    "stateWriteRequests": 3,
+    "statePut200": 3,
+    "submitRequests": 0,
+    "otherRequests": [
+     "GET /receipts"
+    ],
+    "responses503": 0
+   },
+   "daemonRestartsSeen": 0,
+   "stoppedAt": "2026-10-23T20:16:29.157652+00:00",
+   "identity": {
+    "identity": "0x0fddad5f2d62a70d378b1a6336325574c2d980b4",
+    "encKey": "0xdf5ddb926f1ce516bbc51681bd6e69fa2f34c6201f27eedad2bc7bb3d4344617",
+    "endpoint": "https://custody-recovery-canary.invalid",
+    "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+    "registryId": "0x787108339ca67638b13914afbae4f33813b407abeb20756630c4e27704e4b0fa",
+    "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7"
+   },
+   "verdict": {
+    "ok": true,
+    "reasons": [],
+    "nonce": "6e4c176c492a6f68b8aff5c543d41d125d4c09cb6cb4387d99cd6bc1e4ad0ab0",
+    "checkedAt": "2026-10-23T20:16:26.014Z",
+    "observed": {
+     "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
+     "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
+     "policy": "0x30000",
+     "vmpl": 0,
+     "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186"
+    }
+   },
+   "stateBefore": {
+    "fwcfg.json": {
+     "size": 268,
+     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
+     "mode": "0o600"
+    },
+    "state.bin": {
+     "size": 360,
+     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
+     "mode": "0o600"
+    },
+    "state.bin.1792786500826": {
+     "size": 206,
+     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
+     "mode": "0o600"
+    },
+    "state.bin.1792786504985": {
+     "size": 360,
+     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
+     "mode": "0o600"
+    }
+   },
+   "stateAfter": {
+    "fwcfg.json": {
+     "size": 268,
+     "sha256": "65e5c0dbee69d17a8df5b46bf5dedb7aaff417867857a912079407129245e8e8",
+     "mode": "0o600"
+    },
+    "state.bin": {
+     "size": 360,
+     "sha256": "e8e483fdcfc7dee43ae3967d54151216ea24cbfd9db2ac7b91bcecbd968fd9a5",
+     "mode": "0o600"
+    },
+    "state.bin.1792786500826": {
+     "size": 206,
+     "sha256": "9f615b93eca13f553f865705f853da5ba01853ef7d5bb8ef9b54f33a4dee2fb9",
+     "mode": "0o600"
+    },
+    "state.bin.1792786504985": {
+     "size": 360,
+     "sha256": "a9330fa5da5001001a6f5e054a820d0839a9e3158db06e35f982031cb6be9b6a",
+     "mode": "0o600"
+    },
+    "state.bin.1792786579533": {
+     "size": 360,
+     "sha256": "d57bfefbd339d21ec99ffe0cafce7bf966d5e51e137e24837599bf4087bc76ad",
+     "mode": "0o600"
+    },
+    "state.bin.1792786580969": {
+     "size": 360,
+     "sha256": "369d7c824cac236432befdaa80de82c36dfe6bd7706a8ab078b60fffd6de4da2",
+     "mode": "0o600"
+    },
+    "state.bin.1792786583751": {
+     "size": 360,
+     "sha256": "e31d76ba4dc12587e008e11e679e56fb7a41067dc999bcce36888c983d903f71",
+     "mode": "0o600"
+    }
+   }
+  }
+ },
+ "required": {
+  "fresh.stateAbsentAtLaunch": true,
+  "fresh.firstStateGet404": true,
+  "fresh.identitySealedByPut": true,
+  "fresh.no503": true,
+  "fresh.noSubmit": true,
+  "fresh.serialNewIdentity": true,
+  "fresh.httpReady": true,
+  "fresh.infoIsQuoteOnlyCanary": true,
+  "fresh.stateModes": true,
+  "fresh.quote.verified": true,
+  "fresh.quote.measurementPinned": true,
+  "fresh.quote.bindsServedMachine": true,
+  "fresh.quote.freshNonce": true,
+  "fresh.stop.groupEmpty": true,
+  "fresh.stop.portsFree": true,
+  "fresh.stop.cgroupClean": true,
+  "fresh.stop.protectedQemusUnchanged": true,
+  "fresh.launch.pinsReverified": true,
+  "fresh.launch.portsFree": true,
+  "fresh.launch.cgroupClean": true,
+  "fault.stateMatchesSavedAtLaunch": true,
+  "fault.observed503": true,
+  "fault.everyStateGetAnswered503": true,
+  "fault.noStateWrite": true,
+  "fault.noSubmit": true,
+  "fault.neverHttpReady": true,
+  "fault.heldForWindow": true,
+  "fault.launcherAliveThroughout": true,
+  "fault.serialRefusal": true,
+  "fault.serialNoReplacement": true,
+  "fault.sealedStateUnchanged": true,
+  "fault.stop.groupEmpty": true,
+  "fault.stop.portsFree": true,
+  "fault.stop.cgroupClean": true,
+  "fault.stop.protectedQemusUnchanged": true,
+  "fault.launch.pinsReverified": true,
+  "fault.launch.portsFree": true,
+  "fault.launch.cgroupClean": true,
+  "reopen.stateMatchesSavedAtLaunch": true,
+  "reopen.firstStateGet200": true,
+  "reopen.no404or503": true,
+  "reopen.noSubmit": true,
+  "reopen.serialOpened": true,
+  "reopen.httpReady": true,
+  "reopen.infoIsQuoteOnlyCanary": true,
+  "reopen.sameIdentity": true,
+  "reopen.sameEncKey": true,
+  "reopen.sameMachineRecord": true,
+  "reopen.nonceDiffersFromFresh": true,
+  "reopen.quote.verified": true,
+  "reopen.quote.measurementPinned": true,
+  "reopen.quote.bindsServedMachine": true,
+  "reopen.quote.freshNonce": true,
+  "reopen.stop.groupEmpty": true,
+  "reopen.stop.portsFree": true,
+  "reopen.stop.cgroupClean": true,
+  "reopen.stop.protectedQemusUnchanged": true,
+  "reopen.launch.pinsReverified": true,
+  "reopen.launch.portsFree": true,
+  "reopen.launch.cgroupClean": true,
+  "end.protectedQemuIdentitiesUnchanged": true,
+  "end.cgroupClean": true,
+  "end.allPhasesRan": true
+ },
+ "diagnostic": {
+  "fresh": {
+   "readyAfterS": 16.1,
+   "first503AfterS": null,
+   "daemonRestartsSeen": 0,
+   "qemuIdentities": [
+    [
+     302803,
+     109160447
+    ]
+   ],
+   "launcherReturncode": 0,
+   "events": {
+    "stateGetRequests": 1,
+    "stateGetStatuses": [
+     404
+    ],
+    "stateGet404": 1,
+    "stateGet200": 0,
+    "stateGet503": 0,
+    "stateWriteRequests": 3,
+    "statePut200": 3,
+    "submitRequests": 0,
+    "otherRequests": [
+     "GET /receipts"
+    ],
+    "responses503": 0
+   }
+  },
+  "fault": {
+   "readyAfterS": null,
+   "first503AfterS": 9.1,
+   "daemonRestartsSeen": 7,
+   "qemuIdentities": [
+    [
+     303029,
+     109162490
+    ]
+   ],
+   "launcherReturncode": 0,
+   "events": {
+    "stateGetRequests": 7,
+    "stateGetStatuses": [
+     503,
+     503,
+     503,
+     503,
+     503,
+     503,
+     503
+    ],
+    "stateGet404": 0,
+    "stateGet200": 0,
+    "stateGet503": 7,
+    "stateWriteRequests": 0,
+    "statePut200": 0,
+    "submitRequests": 0,
+    "otherRequests": [],
+    "responses503": 7
+   }
+  },
+  "reopen": {
+   "readyAfterS": 16.1,
+   "first503AfterS": null,
+   "daemonRestartsSeen": 0,
+   "qemuIdentities": [
+    [
+     303575,
+     109168329
+    ]
+   ],
+   "launcherReturncode": 0,
+   "events": {
+    "stateGetRequests": 1,
+    "stateGetStatuses": [
+     200
+    ],
+    "stateGet404": 0,
+    "stateGet200": 1,
+    "stateGet503": 0,
+    "stateWriteRequests": 3,
+    "statePut200": 3,
+    "submitRequests": 0,
+    "otherRequests": [
+     "GET /receipts"
+    ],
+    "responses503": 0
+   }
+  }
+ },
+ "ok": true,
+ "finishedAt": "2026-10-23T20:16:29.170722+00:00"
+}

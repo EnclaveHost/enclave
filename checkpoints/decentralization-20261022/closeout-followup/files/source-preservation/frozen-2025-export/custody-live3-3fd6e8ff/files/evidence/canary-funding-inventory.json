@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-23T19:59:14.764Z",
+  "readOnly": true,
+  "configuredCustodySubmitter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+  "block": {
+    "number": "52998091",
+    "hash": "0x081d5937451512f8e7ff3c7e2d0f160dc8369c72153e8c25a78e0259aff064c5",
+    "timestamp": "1792785529",
+    "baseFeePerGas": "5000000"
+  },
+  "balances": [
+    {
+      "address": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+      "ethWei": "61654449641751",
+      "usdcBaseUnits": "189740"
+    },
+    {
+      "address": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+      "ethWei": "376132087579",
+      "usdcBaseUnits": "0"
+    }
+  ],
+  "limits": [
+    "Only public addresses and balances emitted. No signing, transfer or transaction submitted. Existing canary owner address does not establish current key availability."
+  ]
+}

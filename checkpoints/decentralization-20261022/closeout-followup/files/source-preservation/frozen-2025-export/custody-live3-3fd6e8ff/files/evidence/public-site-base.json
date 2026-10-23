@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-23T20:11:45.425276+00:00",
+  "readOnly": true,
+  "responses": [
+    {
+      "url": "https://enclave.host/.well-known/enclave-site-release.json",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://enclave.host/",
+      "status": 200,
+      "bytes": 41726,
+      "sha256": "d253ac834b95b211facdff6e45458983970ce1b71457731c262d658d663c7e25",
+      "headers": {
+        "etag": "\"dm9b1lj2aa1gw72\"",
+        "x-ipfs-path": null,
+        "x-ipfs-roots": null,
+        "x-enclave-release": null,
+        "content-type": "text/html; charset=utf-8"
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+From 1ac9ad2cb798d16cc060adb6a02f0272cef9976b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:19:30 -0700
+Subject: [PATCH] PROGRESS
+
+---
+ PROGRESS.txt | 6 ++++++
+ 1 file changed, 6 insertions(+)
+ create mode 100644 PROGRESS.txt
+
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..4b5fcc9f32f7e7ea1163518c229497ffce552e92
+--- /dev/null
++++ b/PROGRESS.txt
+@@ -0,0 +1,6 @@
++2026-10-23T20:19:30Z metal0 operator proposeOwner helper, source only.
++- Commit f2a7b81 (README.md has the commands and limits). Nothing signed, sent or read from a real key; no RPC.
++- Tests 15/15 (256 lane, peak ~200 MiB); all 9 safety mutants fail the suite.
++- Scans: scan-crypto-keys and gitleaks clean.
++- ROOT-FOLLOWUP 20:14 applied: the operator's EXACT EIP-7702 delegation (0xef0100+0x8900baca, keccak e2f1317f) and
++  the executor runtime (dd893cd4) are pinned. Plain EOA / other code refuses.

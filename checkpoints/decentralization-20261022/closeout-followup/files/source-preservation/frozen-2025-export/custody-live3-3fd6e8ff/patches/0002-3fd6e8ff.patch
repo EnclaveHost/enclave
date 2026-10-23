@@ -1,0 +1,1152 @@
+From 3fd6e8ff99dbda1a261d11be00beea3e6549cbe9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:24:47 -0700
+Subject: [PATCH] Reconcile custody activation dependencies and preserve live
+ read evidence
+
+---
+ .gitignore                                    |   3 +
+ README.md                                     |  34 +-
+ evidence/canary-funding-inventory.json        |  26 ++
+ evidence/direct-route-inventory.json          |  65 ++++
+ .../factory-activation-unsigned-20261023.json |  47 +++
+ evidence/factory-consumer-state.json          | 216 +++++++++++
+ evidence/factory-policy-discovery.json        |  75 ++++
+ evidence/local-network-inventory.json         | 350 ++++++++++++++++++
+ evidence/public-site-base.json                |  23 ++
+ evidence/session-factory-state.json           |  27 ++
+ probes/canary-funding-inventory.mjs           |  18 +
+ probes/direct-route-inventory.py              |  13 +
+ probes/factory-activation-plan.mjs            |  14 +
+ probes/factory-consumer-state.mjs             |   8 +
+ probes/factory-policy-discovery.mjs           |  22 ++
+ probes/local-network-inventory.py             |  23 ++
+ probes/public-site-base.py                    |  12 +
+ probes/session-factory-state.mjs              |   7 +
+ 18 files changed, 979 insertions(+), 4 deletions(-)
+ create mode 100644 evidence/canary-funding-inventory.json
+ create mode 100644 evidence/direct-route-inventory.json
+ create mode 100644 evidence/factory-activation-unsigned-20261023.json
+ create mode 100644 evidence/factory-consumer-state.json
+ create mode 100644 evidence/factory-policy-discovery.json
+ create mode 100644 evidence/local-network-inventory.json
+ create mode 100644 evidence/public-site-base.json
+ create mode 100644 evidence/session-factory-state.json
+ create mode 100644 probes/canary-funding-inventory.mjs
+ create mode 100644 probes/direct-route-inventory.py
+ create mode 100644 probes/factory-activation-plan.mjs
+ create mode 100644 probes/factory-consumer-state.mjs
+ create mode 100644 probes/factory-policy-discovery.mjs
+ create mode 100644 probes/local-network-inventory.py
+ create mode 100644 probes/public-site-base.py
+ create mode 100644 probes/session-factory-state.mjs
+
+diff --git a/.gitignore b/.gitignore
+index b959749058f04655ea6872f42e41635238d5595d..88159ad75cf3a348c35bd60adb24c22cc7a42cdd 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -5,3 +5,6 @@
+ *.err
+ *.guard.log
+ claude-*-progress.txt
++
++claude-*-task.txt
++staged-gitleaks.json
+diff --git a/README.md b/README.md
+index efc3bd96132d75c4ba27690dcbb5c23ccf839863..55f413c75d2f9546ca4139e9c0925e26dc8e7808 100644
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,6 @@
+ # Production custody v2 read-only reconciliation, 2026-10-23
+ 
+-Current evidence is limited to the existing bootstrap. No new secret, rotation, migration, outage, rollback, or corrected-image activation has been performed by these probes.
++The October 14 bootstrap remains live and unchanged. Its deployment record has been reconciled with live contracts, service files and a fresh AMD quote. A corrected candidate has now passed an isolated SNP startup/storage-outage/restart test. Secret lifecycle tests and production activation are still outstanding.
+ 
+ At 18:10 UTC, two Base RPC state providers agreed on block52994819 and the original vault's deployed code hash. The address-book entries secretVaultV2, secretVault, and hostOwnership were all zero. The previously inventoried committee remains epoch1 with one machine and threshold1. The known policy remains policyRev2/secretRev2, unpaused. These are known-ID reads, not an exhaustive current consumer inventory. At18:47 UTC, an additional event scan from block52849852 to a fresh agreed block found no new events on the original vault. Discovery uses one archive provider, so it is not independently exhaustive. Fresh quorum state reads also found the metal0 host active with no accepted or pending owner in the configured ownership registry; owner enrollment remains required for the corrected image.
+ 
+@@ -16,14 +16,40 @@
+ 
+ The original production service, committee and policy remain unchanged. Fresh two-provider simulations prepared operator `proposeOwner(hostId, admin)` followed by administrator `acceptOwner(hostId)` on the existing ownership contract `0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7`. The accepted and pending owner were both zero. This enrolls the existing Enclave wallet; it does not change the vault, committee, catalog controls or address-book ownership. The older alternate `0xf5e9…` ownership address is not the production authority.
+ 
+-Operator proposal preparation stopped before signing or submission: both providers reported 376132087579 wei, below the estimated maximum 660247000000 wei for 94321 gas at 7000000 wei/gas. A small, explicit wallet funding request and the subsequent admin acceptance are being prepared. No transaction or wallet prompt has been sent. This is one-time owner enrollment, separate from app lease funding.
++Operator proposal preparation stopped before signing or submission: both providers reported 376132087579 wei, below the estimated maximum 660247000000 wei for 94321 gas at 7000000 wei/gas. Later inspection found the operator has an EIP-7702 lease delegation that rejects ordinary ETH transfers; the ordinary funding plan must not be used. No transaction or wallet prompt has been sent. This is one-time owner enrollment, separate from app lease funding.
+ 
+ The address-book `secretVaultV2` update to the original vault was simulated successfully from the administrator and rejected from an unauthorized address. The unsigned plan includes a discovery rollback to zero. It must remain inactive until dedicated hardware lifecycle tests and dashboard integration pass. Removing discovery cannot undo policies or encrypted bundles already stored.
+ 
+ The host launcher now selects the original vault's address-book authority mode rather than calling getters absent from that deployed contract. A read-only live test of this exact reader passed against two providers, verified code and immutable bindings, and correctly found metal0 active with no accepted owner.
+ 
+-Two independent builds of source c95dcd3a produced the same corrected image. On production SNP hardware, a disposable quote-only guest passed fresh nonce, exact measurement, AMD signature/TCB, VMPL0 and debug-off checks at 19:31 UTC, without altering existing QEMU processes. This image is superseded for rollout by additional source fix a5eae96c: storage read failures now refuse startup rather than generating a new identity, the launcher uses the reviewed authority mode, and direct ingress includes owner-read routes. Eight focused HTTP/TLS tests passed; a deliberately unsafe catch-and-reset mutation failed. The additional source still needs rebuilt-image hardware verification.
++Two independent builds of source c95dcd3a produced the same corrected image. On production SNP hardware, a disposable quote-only guest passed fresh nonce, exact measurement, AMD signature/TCB, VMPL0 and debug-off checks at 19:31 UTC, without altering existing QEMU processes. This image is superseded for rollout by additional source fix a5eae96c: storage read failures now refuse startup rather than generating a new identity, the launcher uses the reviewed authority mode, and direct ingress includes owner-read routes. Eight focused HTTP/TLS tests passed; a deliberately unsafe catch-and-reset mutation failed. The additional source and test corrections were subsequently built twice at ab589bf8 and verified on hardware, as recorded below.
+ 
+-Outstanding production evidence: dedicated canary secret creation, migration and post-migration rotation; attestation-gated release; unauthorized access and stale revision rejection; outage and restart recovery on an isolated canary custodian; rollback experiments; instrumented relay plaintext checks and active-store deletion; and public dashboard activation. A successful quote or source test is not evidence these lifecycle cases passed.
++Outstanding production evidence: dedicated canary secret creation, migration and post-migration rotation; attestation-gated release; unauthorized access and stale revision rejection; outage and restart recovery with real canary shares/secrets (the startup-only test has passed); rollback experiments; instrumented relay plaintext checks and active-store deletion; and public dashboard activation. A successful quote or source test is not evidence these lifecycle cases passed.
+ 
+ The bootstrap remains one Enclave-operated seat on one chip. Quorum RPC reads still depend on public providers. Sealed state is not backed by a hardware monotonic counter: malicious missing-state responses or replay of an older valid sealed blob remain security limitations. Fresh-image isolation does not create independent operators or failure domains.
++
++
++## Reconciliation and rollout state at 20:25 UTC
++
++The corrected candidate is source `ab589bf80b669c9671b53573d489b6c6c45779ea`, with two byte-identical independent builds. Its full SNP measurement is `70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429`; manifest SHA-256 is `60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b`. This is a candidate, not the October 14 image currently serving the existing committee.
++
++At 20:14–20:16 UTC, the corrected image passed a three-boot, isolated test on the production SNP machine. Fresh startup sealed a canary identity. Seven HTTP 503 state-read responses over 45.9 seconds caused no writes and no HTTP readiness. Restoring state access recovered the same identity and encryption key, confirmed by a new-nonce AMD quote. Existing production QEMU processes remained unchanged; the canary was stopped and its private state removed. Fault refusal is host-observed; fresh/reopen identity binding is attested. No committee or secret was created, released, migrated or rotated by that test.
++
++The address book also has `sessionVaultFactory` unset. The existing factory `0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c`, its implementation and known administrator SessionVault were independently checked against two RPCs. Enabling this shared key changes custody's beneficial-owner interpretation. Real-contract tests show that a policy pinned to a SessionVault while the key is unset can become unusable after activation; claiming it under the new interpretation destroys its bundle. Therefore no SessionVault-owned v2 policy should be created before the consumer review and activation order are resolved. Nine existing apps plus the old canary were sampled in both vaults; only the old EOA-owned canary had a policy. The attempted full historical event scan hit RPC rate limits and was incomplete. Sampling does not establish global safety.
++
++A fresh operator proposal preflight at 20:21 UTC checked the existing delegation, executor code, authority, registry, nonce and exact calldata against two providers. It prepared no signature. The operator balance was 376132087579 wei; the conservatively estimated maximum cost was 1038860696719 wei. Ordinary funding reverts because the delegated lease executor has no payable receive/fallback. A proposed temporary-contract funding helper was rejected by Claude's automatic safety review and was not implemented or retried after that reason became known. The existing delegation and all lease operations are unchanged. No wallet request is ready yet.
++
++The dashboard implementation has source-level browser and real-contract coverage for save, migration, rotation and pause/resume, including address-book rollback and SessionVault ownership semantics. Its final production release is being prepared; it is not yet publicly deployed. Direct ingress for the corrected image is also not live. A temporary allowlisted canary transport is being prepared separately from the permanent host-role route. Neither changes the original custody service.
++
++### Rollback and preservation rules
++
++- Keep the original service, image, sealed state, committee and existing deployments intact during canaries. Canary teardown stops only its own processes and removes only its dedicated private state.
++- Before exposing new custody discovery, retain the previous site CID and release directory. A site rollback restores that release with its asset-retention metadata; it does not roll back policies.
++- Clearing `secretVaultV2` in the address book is an administrator-signed discovery rollback. The new dashboard rechecks discovery before each action. Existing encrypted bundles and on-chain revisions remain; users of already-created policies still need a reachable compatible custodian.
++- Do not clear or toggle `sessionVaultFactory` as a routine rollback after policies exist. Ownership interpretation changes can strand bundles. Resolve affected owners and policies first.
++- Do not overwrite newer sealed state with an old blob or launch old software against the new state without a separately tested compatibility/migration path. No hardware monotonic counter currently prevents an older valid sealed blob from being replayed.
++- Migrating a dedicated legacy canary must verify the v2 bundle and successful attested release before deleting its relay active-store copy. Deletion cannot retract historical plaintext copies or backups. Rotate real credentials at their issuers after migration; no existing deployment's credentials are being migrated automatically.
++
++### Signing authority still required
++
++The existing operator must first propose the Enclave admin as metal0's owner, then the admin wallet must accept. Operator gas funding remains unresolved without disturbing its lease delegation. After hardware lifecycle tests and consumer review pass, separate admin signatures activate `secretVaultV2` and, if safe, `sessionVaultFactory`. Owners sign their own policy changes/migrations. No admin controls are removed and no existing smart contract is modified by these proposed calls.
+diff --git a/evidence/canary-funding-inventory.json b/evidence/canary-funding-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c4493447155f423ee3b074b4d7ea8789c6898bc
+--- /dev/null
++++ b/evidence/canary-funding-inventory.json
+@@ -0,0 +1,26 @@
++{
++  "at": "2026-10-23T19:59:14.764Z",
++  "readOnly": true,
++  "configuredCustodySubmitter": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++  "block": {
++    "number": "52998091",
++    "hash": "0x081d5937451512f8e7ff3c7e2d0f160dc8369c72153e8c25a78e0259aff064c5",
++    "timestamp": "1792785529",
++    "baseFeePerGas": "5000000"
++  },
++  "balances": [
++    {
++      "address": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++      "ethWei": "61654449641751",
++      "usdcBaseUnits": "189740"
++    },
++    {
++      "address": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++      "ethWei": "376132087579",
++      "usdcBaseUnits": "0"
++    }
++  ],
++  "limits": [
++    "Only public addresses and balances emitted. No signing, transfer or transaction submitted. Existing canary owner address does not establish current key availability."
++  ]
++}
+diff --git a/evidence/direct-route-inventory.json b/evidence/direct-route-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ddc71fbe0c5136191423fcb83ff76d2d6b74d689
+--- /dev/null
++++ b/evidence/direct-route-inventory.json
+@@ -0,0 +1,65 @@
++{
++  "at": "2026-10-23T19:56:36.513533+00:00",
++  "readOnly": true,
++  "files": [
++    {
++      "path": "/home/steven/enclave-prod/enclave-network/metal0/config.json",
++      "topLevelKeys": [
++        "apps",
++        "chain",
++        "directory",
++        "dns",
++        "enclaveNetwork",
++        "endpoint",
++        "guestd",
++        "linux",
++        "mirrorNewApps",
++        "operatorConfigFile",
++        "runner",
++        "verifierModule",
++        "version"
++      ],
++      "enclaveNetworkKeys": [
++        "apps",
++        "checkers",
++        "control",
++        "directories",
++        "egressProbeUrls",
++        "nodeBinary",
++        "paceMbps",
++        "wgBinary",
++        "workerModule"
++      ],
++      "hostServicesPresent": false,
++      "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++      "endpoint": "https://api.enclave.host/t/metal0"
++    },
++    {
++      "path": "/home/steven/Projects/enclave/metal/config.json",
++      "topLevelKeys": [
++        "cpus",
++        "dist",
++        "gflopsCopies",
++        "hostfwd",
++        "isolation",
++        "leaseGas",
++        "memMiB",
++        "mode",
++        "name",
++        "ovmf",
++        "payoutAddress",
++        "publicUrl",
++        "registryKey",
++        "relayUrl",
++        "sevDevice",
++        "vcekFile",
++        "wasmtimeBin"
++      ],
++      "enclaveNetworkKeys": [],
++      "hostServicesPresent": false
++    }
++  ],
++  "limits": [
++    "Selected public metadata only; no private keys, token, environments or complete configuration emitted. No configuration changed."
++  ]
++}
+diff --git a/evidence/factory-activation-unsigned-20261023.json b/evidence/factory-activation-unsigned-20261023.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..64c25b4869b9371f726ed0311de8045420306d99
+--- /dev/null
++++ b/evidence/factory-activation-unsigned-20261023.json
+@@ -0,0 +1,47 @@
++{
++  "at": "2026-10-23T20:03:39.618Z",
++  "status": "UNSIGNED; consumer impact review required before requesting activation",
++  "readOnly": true,
++  "block": {
++    "number": "52998223",
++    "hash": "0x91fdab803e39c532a75ea9634f02aa0ba366ab0db01e31b2b75d48382b65fd66",
++    "timestamp": "1792785793",
++    "baseFeePerGas": "5000000"
++  },
++  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++  "factory": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++  "implementation": "0x66C76A47209f44612343dbEAb98b8Ef77AD01F65",
++  "codeHashes": {
++    "factory": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
++    "implementation": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e"
++  },
++  "sample": {
++    "deployment": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++    "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++    "vaultOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++    "recognizedByFactory": true,
++    "currentCustodyBeneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++    "sampleIsSessionVaultOwned": false
++  },
++  "expectedBefore": {
++    "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
++    "bookOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
++  },
++  "transaction": {
++    "chainId": "0x2105",
++    "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++    "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "value": "0x0",
++    "data": "0xba44593c73657373696f6e5661756c74466163746f7279000000000000000000000000000000000000000000000000001f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c"
++  },
++  "simulation": {
++    "adminSucceeded": true,
++    "unauthorizedRejected": [
++      true,
++      true
++    ]
++  },
++  "effect": "Enable the original custody vault to unwrap recognized SessionVault deployments to their wallet owner. Needed before creating policies intended to be owned by that wallet. Existing EOA-owned policies are unaffected.",
++  "risk": "A policy previously pinned to a SessionVault address could require claimPolicy after this change, which destroys its encrypted bundle. Review all v1/v2 consumers of this shared book key before activation. Do not blindly toggle back after creating wallet-owned policies.",
++  "notSent": true
++}
+diff --git a/evidence/factory-consumer-state.json b/evidence/factory-consumer-state.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..daf8c7152420a0f726ff550b730eb76709e2e655
+--- /dev/null
++++ b/evidence/factory-consumer-state.json
+@@ -0,0 +1,216 @@
++{
++  "at": "2026-10-23T20:04:42.823Z",
++  "readOnly": true,
++  "block": {
++    "number": "52998255",
++    "hash": "0xba608b77ad756242bec2740b1105c5199166c19a3caedb300d0b366032755cb7",
++    "timestamp": "1792785857",
++    "baseFeePerGas": "5000000"
++  },
++  "scope": "Nine recovered NucBox apps plus known original v2 canary, in configured v1 and v2 vaults",
++  "rows": [
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "beneficialOwner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "beneficialOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
++      "policyOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
++      "policyRev": "1",
++      "secretRev": "1",
++      "committeeId": "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "beneficialOwner": "0xB794C4DD0e1C5E6B72281799F282BfdE7654345D",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "beneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
++      "policyOwner": "0x0000000000000000000000000000000000000000",
++      "policyRev": "0",
++      "secretRev": "0",
++      "committeeId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++      "paused": false
++    },
++    {
++      "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "beneficialOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
++      "policyOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
++      "policyRev": "2",
++      "secretRev": "2",
++      "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++      "paused": false
++    }
++  ],
++  "limits": [
++    "Known-ID reads only, not exhaustive policy event discovery. No secret rules or bundle bytes emitted. No policy or address-book change."
++  ]
++}
+diff --git a/evidence/factory-policy-discovery.json b/evidence/factory-policy-discovery.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f2025a9a11e0804d59bb087e5d774da6586fb0a9
+--- /dev/null
++++ b/evidence/factory-policy-discovery.json
+@@ -0,0 +1,75 @@
++{
++  "at": "2026-10-23T20:08:11.510Z",
++  "readOnly": true,
++  "block": {
++    "number": "52998338",
++    "hash": "0xca2a1d4332b410d656ca1484d5261ae5e66ffc878f1f7773e3abe57905b2541f",
++    "timestamp": "1792786023",
++    "baseFeePerGas": "5000602"
++  },
++  "results": [
++    {
++      "vault": "0x08074300F75e78212Ae10eBd14984f78e17811A6",
++      "fromBlock": 52605914,
++      "toBlock": "52998338",
++      "byProvider": [
++        {
++          "provider": "mainnet.base.org",
++          "complete": false,
++          "error": "mainnet.base.org eth_getLogs: request limit reached",
++          "events": []
++        },
++        {
++          "provider": "base.public.blockpi.network",
++          "complete": false,
++          "error": "base.public.blockpi.network eth_getLogs: Due to the high consumption or frequency of RPC requests, you have exceeded the rate limit. To increase it, please consider purchasing a more advanced RU package at https://dashboard.blockpi.io",
++          "events": [
++            {
++              "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++              "block": "0x322bf02",
++              "tx": "0xa3ab30132c17412832e825bc97b94a208b0ebae5b9eb3278e613e12e1f3eed97",
++              "index": "0x12a",
++              "event": "PolicyUpdated"
++            }
++          ]
++        }
++      ],
++      "discoveryAgreed": false,
++      "policies": [
++        {
++          "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++          "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
++          "policyRev": "1",
++          "secretRev": "1",
++          "committeeId": "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c",
++          "paused": false,
++          "beneficialOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C"
++        }
++      ]
++    },
++    {
++      "vault": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
++      "fromBlock": 52613511,
++      "toBlock": "52998338",
++      "byProvider": [
++        {
++          "provider": "mainnet.base.org",
++          "complete": false,
++          "error": "mainnet.base.org eth_getLogs: request limit reached",
++          "events": []
++        },
++        {
++          "provider": "base.public.blockpi.network",
++          "complete": false,
++          "error": "base.public.blockpi.network eth_getLogs: Due to the high consumption or frequency of RPC requests, you have exceeded the rate limit. To increase it, please consider purchasing a more advanced RU package at https://dashboard.blockpi.io",
++          "events": []
++        }
++      ],
++      "discoveryAgreed": false,
++      "policies": []
++    }
++  ],
++  "limits": [
++    "Log completeness remains dependent on RPC providers even when two agree. Current policy state is independently quorum-read. No bundle/rule values emitted or chain state changed."
++  ]
++}
+diff --git a/evidence/local-network-inventory.json b/evidence/local-network-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1d481fd49cf6fa8ae9f7c84efec8f559dde4116
+--- /dev/null
++++ b/evidence/local-network-inventory.json
+@@ -0,0 +1,350 @@
++{
++  "at": "2026-10-23T19:54:42.655947+00:00",
++  "readOnly": true,
++  "units": [
++    {
++      "unit": "enclave-storage-multipart-review-20261020.scope",
++      "load": "loaded",
++      "active": "failed",
++      "sub": "failed"
++    },
++    {
++      "unit": "enclave-capacity-audit-shield.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-capacity-audit.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-custodian-v2.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-guestd.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-metal-iso.service",
++      "load": "loaded",
++      "active": "inactive",
++      "sub": "dead"
++    },
++    {
++      "unit": "enclave-metal.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-metal0-shield-v100-0.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-metal0-shield-v100-1.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-network-agent.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-network-checker.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-network-reconcile.service",
++      "load": "loaded",
++      "active": "inactive",
++      "sub": "dead"
++    },
++    {
++      "unit": "enclave-release-bootstrap-direct.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-risc-moonlight-refresh.service",
++      "load": "loaded",
++      "active": "inactive",
++      "sub": "dead"
++    },
++    {
++      "unit": "enclave-risc-moonlight.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-risc-nucbox-tunnel.service",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    },
++    {
++      "unit": "enclave-risc-viewer-refresh.service",
++      "load": "loaded",
++      "active": "activating",
++      "sub": "start"
++    },
++    {
++      "unit": "enclave-network-reconcile.timer",
++      "load": "loaded",
++      "active": "active",
++      "sub": "waiting"
++    },
++    {
++      "unit": "enclave-risc-moonlight-refresh.timer",
++      "load": "loaded",
++      "active": "active",
++      "sub": "waiting"
++    },
++    {
++      "unit": "enclave-risc-viewer-refresh.timer",
++      "load": "loaded",
++      "active": "active",
++      "sub": "running"
++    }
++  ],
++  "listenerAddresses": [
++    "127.0.0.1:40557",
++    "127.0.0.1:40655",
++    "127.0.0.1:40847",
++    "127.0.0.1:40353",
++    "127.0.0.1:39487",
++    "127.0.0.1:39655",
++    "127.0.0.1:39599",
++    "127.0.0.1:39719",
++    "127.0.0.1:39693",
++    "127.0.0.1:39691",
++    "127.0.0.1:39681",
++    "127.0.0.1:39825",
++    "127.0.0.1:39013",
++    "127.0.0.1:39349",
++    "127.0.0.1:38313",
++    "127.0.0.1:37697",
++    "127.0.0.1:37801",
++    "127.0.0.1:36907",
++    "127.0.0.1:37093",
++    "127.0.0.1:37233",
++    "127.0.0.1:35439",
++    "127.0.0.1:35673",
++    "127.0.0.1:35777",
++    "127.0.0.1:35761",
++    "127.0.0.1:34877",
++    "127.0.0.1:35255",
++    "127.0.0.1:34445",
++    "127.0.0.1:34459",
++    "127.0.0.1:34681",
++    "127.0.0.1:32811",
++    "127.0.0.1:32903",
++    "127.0.0.1:32899",
++    "127.0.0.1:33031",
++    "127.0.0.1:47989",
++    "127.0.0.1:47984",
++    "127.0.0.1:48010",
++    "127.0.0.1:46827",
++    "127.0.0.1:46309",
++    "127.0.0.1:46279",
++    "127.0.0.1:46255",
++    "127.0.0.1:46571",
++    "127.0.0.1:45679",
++    "127.0.0.1:45581",
++    "127.0.0.1:45715",
++    "127.0.0.1:45933",
++    "127.0.0.1:46001",
++    "127.0.0.1:45367",
++    "127.0.0.1:44695",
++    "127.0.0.1:44805",
++    "127.0.0.1:44819",
++    "127.0.0.1:44043",
++    "127.0.0.1:44506",
++    "127.0.0.1:43263",
++    "127.0.0.1:43303",
++    "127.0.0.1:43461",
++    "127.0.0.1:42571",
++    "127.0.0.1:42169",
++    "127.0.0.1:42349",
++    "127.0.0.1:42243",
++    "127.0.0.1:41851",
++    "127.0.0.1:41919",
++    "127.0.0.1:41327",
++    "127.0.0.1:41397",
++    "127.0.0.1:55432",
++    "10.0.100.1:53",
++    "127.0.0.1:7784",
++    "127.0.0.1:8096",
++    "127.0.0.1:8095",
++    "127.0.0.1:8081",
++    "127.0.0.1:5300",
++    "127.0.0.1:5037",
++    "127.0.0.1:5001",
++    "127.0.0.1:53",
++    "192.168.122.1:53",
++    "127.0.0.1:9502",
++    "127.0.0.1:9501",
++    "127.0.0.1:9611",
++    "127.0.0.1:8781",
++    "127.0.0.1:8777",
++    "127.0.0.1:8796",
++    "127.0.0.1:8791",
++    "127.0.0.1:8931",
++    "127.0.0.1:8530",
++    "127.0.0.1:8611",
++    "127.0.0.3:80",
++    "127.0.0.3:443",
++    "127.0.0.3:5380",
++    "127.0.0.1:18553",
++    "127.0.0.1:18658",
++    "127.0.0.1:18683",
++    "127.0.0.1:18635",
++    "0.0.0.0:22",
++    "127.0.0.1:18603",
++    "127.0.0.1:18610",
++    "127.0.0.1:18586",
++    "127.0.0.1:18787",
++    "127.0.0.1:18815",
++    "127.0.0.1:18776",
++    "127.0.0.1:18771",
++    "127.0.0.1:18722",
++    "127.0.0.1:18705",
++    "127.0.0.1:18934",
++    "127.0.0.1:18887",
++    "127.0.0.1:18841",
++    "127.0.0.1:18080",
++    "0.0.0.0:4001",
++    "127.0.0.1:32423",
++    "0.0.0.0:9993",
++    "[::1]:53",
++    "[::]:22",
++    "[::]:4001",
++    "*:9993"
++  ],
++  "selectedProcessPaths": [
++    {
++      "unit": "enclave-capacity-audit-shield.service",
++      "pid": 2921403,
++      "program": "node",
++      "paths": [
++        "/home/steven/enclave-prod/capacity-audit/src/scripts/availability/service.mjs",
++        "/home/steven/enclave-prod/capacity-audit-shield/config.json"
++      ],
++      "cwd": "/home/steven/enclave-prod/capacity-audit/src"
++    },
++    {
++      "unit": "enclave-capacity-audit.service",
++      "pid": 2762173,
++      "program": "node",
++      "paths": [
++        "/home/steven/enclave-prod/capacity-audit/src/scripts/availability/service.mjs",
++        "/home/steven/enclave-prod/capacity-audit/config.json"
++      ],
++      "cwd": "/home/steven/enclave-prod/capacity-audit/src"
++    },
++    {
++      "unit": "enclave-custodian-v2.service",
++      "pid": 3817646,
++      "program": "node",
++      "paths": [
++        "/home/steven/enclave-prod/custodian-v2/host.mjs",
++        "/home/steven/enclave-prod/custodian-v2/config.json"
++      ],
++      "cwd": "/home/steven/enclave-prod/custodian-v2"
++    },
++    {
++      "unit": "enclave-guestd.service",
++      "pid": 2223309,
++      "program": "guestd.sdshield-9d1562738cde",
++      "paths": [
++        "/home/steven/enclave-prod/enclave-network/metal0/state/egress-routes.json",
++        "/home/steven/enclave-prod/enclave-network/metal0/state/release-bootstrap-routes.json"
++      ],
++      "cwd": "/home/steven"
++    },
++    {
++      "unit": "enclave-metal.service",
++      "pid": 3480942,
++      "program": "node",
++      "paths": [
++        "/home/steven/Projects/enclave/metal/config.json"
++      ],
++      "cwd": "/home/steven/enclave-prod/metal-deabf8f90"
++    },
++    {
++      "unit": "enclave-metal0-shield-v100-0.service",
++      "pid": 5685,
++      "program": "shielded-worker",
++      "paths": [],
++      "cwd": "/home/steven"
++    },
++    {
++      "unit": "enclave-metal0-shield-v100-1.service",
++      "pid": 5683,
++      "program": "shielded-worker",
++      "paths": [],
++      "cwd": "/home/steven"
++    },
++    {
++      "unit": "enclave-network-agent.service",
++      "pid": 2276329,
++      "program": "node",
++      "paths": [
++        "/home/steven/enclave-prod/enclave-network/relay-free-0b326889/privacy-agent.mjs",
++        "/home/steven/enclave-prod/enclave-network/metal0/config.json"
++      ],
++      "cwd": "/home/steven/enclave-prod/enclave-network"
++    },
++    {
++      "unit": "enclave-network-checker.service",
++      "pid": 3934626,
++      "program": "node",
++      "paths": [
++        "/home/steven/enclave-prod/network-checker/nan-retirement-2d848c8/wg-qualify.mjs"
++      ],
++      "cwd": "/home/steven/enclave-prod/network-checker"
++    },
++    {
++      "unit": "enclave-release-bootstrap-direct.service",
++      "pid": 1766513,
++      "program": "node",
++      "paths": [
++        "/home/steven/enclave-prod/enclave-network/bootstrap/release-bootstrap-direct.mjs"
++      ],
++      "cwd": "/home/steven"
++    },
++    {
++      "unit": "enclave-risc-moonlight.service",
++      "pid": 225377,
++      "program": "enclave-risc-gs-bridge",
++      "paths": [],
++      "cwd": "/home/steven"
++    },
++    {
++      "unit": "enclave-risc-nucbox-tunnel.service",
++      "pid": 225346,
++      "program": "ssh",
++      "paths": [],
++      "cwd": "/home/steven"
++    }
++  ],
++  "limits": [
++    "Metadata only, no secret/config/environment values or full argv. No service changed."
++  ]
++}
+diff --git a/evidence/public-site-base.json b/evidence/public-site-base.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..4caa6c0c24721a2eff35f09cc34f98d1c032f48b
+--- /dev/null
++++ b/evidence/public-site-base.json
+@@ -0,0 +1,23 @@
++{
++  "at": "2026-10-23T20:11:45.425276+00:00",
++  "readOnly": true,
++  "responses": [
++    {
++      "url": "https://enclave.host/.well-known/enclave-site-release.json",
++      "error": "HTTP Error 404: Not Found"
++    },
++    {
++      "url": "https://enclave.host/",
++      "status": 200,
++      "bytes": 41726,
++      "sha256": "d253ac834b95b211facdff6e45458983970ce1b71457731c262d658d663c7e25",
++      "headers": {
++        "etag": "\"dm9b1lj2aa1gw72\"",
++        "x-ipfs-path": null,
++        "x-ipfs-roots": null,
++        "x-enclave-release": null,
++        "content-type": "text/html; charset=utf-8"
++      }
++    }
++  ]
++}
+diff --git a/evidence/session-factory-state.json b/evidence/session-factory-state.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ab24545416c777bea5909709bf267290f147235c
+--- /dev/null
++++ b/evidence/session-factory-state.json
+@@ -0,0 +1,27 @@
++{
++  "at": "2026-10-23T20:00:48.085Z",
++  "readOnly": true,
++  "block": {
++    "number": "52998138",
++    "hash": "0x2007fd1632dcd298301521e33f660960ae76afa3e0b2e6afbffd1ebc0d694d32",
++    "timestamp": "1792785623",
++    "baseFeePerGas": "5000000"
++  },
++  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++  "keys": {
++    "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
++    "sessionFactory": "0x0000000000000000000000000000000000000000",
++    "hostRegistry": "0x0000000000000000000000000000000000000000",
++    "deploymentLedger": "0x0000000000000000000000000000000000000000",
++    "secretVaultV2": "0x0000000000000000000000000000000000000000"
++  },
++  "knownPolicyOwners": [
++    {
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C"
++    }
++  ],
++  "limits": [
++    "Known-ID metadata only. No configuration or contract changed."
++  ]
++}
+diff --git a/probes/canary-funding-inventory.mjs b/probes/canary-funding-inventory.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..106eb4f937ba8633a8616e67064d2d7ae89130ff
+--- /dev/null
++++ b/probes/canary-funding-inventory.mjs
+@@ -0,0 +1,18 @@
++// Read-only: derive only the configured custodian submitter's public address; never sign or emit secret material.
++import fs from 'node:fs';
++import {execFileSync} from 'node:child_process';
++import assert from 'node:assert/strict';
++import {privateKeyToAccount} from 'viem/accounts';
++import {parseAbi} from 'viem';
++import {pinBlock,agree,readMany} from '../lib/live.mjs';
++const pid=execFileSync('systemctl',['--user','show','enclave-custodian-v2.service','-p','MainPID','--value'],{encoding:'utf8',timeout:10000}).trim();assert.ok(/^\d+$/.test(pid)&&Number(pid)>1);
++const env=fs.readFileSync(`/proc/${pid}/environ`).toString().split('\0');
++const value=env.find(v=>v.startsWith('CUSTODY_SUBMITTER_KEY='));
++assert.ok(value,'Expected submitter environment unavailable');
++const account=privateKeyToAccount(value.slice(value.indexOf('=')+1));
++const addresses=[...new Set([account.address.toLowerCase(),'0x29479bf04ed889d46a7afb7f292b9bb26e12647c','0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab'])];
++const block=await pinBlock();const tag='0x'+block.number.toString(16);
++const tokens=await readMany(block,addresses.map(a=>({address:'0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',abi:parseAbi(['function balanceOf(address) view returns(uint256)']),functionName:'balanceOf',args:[a]})));
++const views=[];for(let i=0;i<addresses.length;i++)views.push({address:addresses[i],ethWei:BigInt(await agree('eth_getBalance',[addresses[i],tag])).toString(),usdcBaseUnits:tokens[i].value.toString()});
++const out={at:new Date().toISOString(),readOnly:true,configuredCustodySubmitter:account.address.toLowerCase(),block,balances:views,limits:['Only public addresses and balances emitted. No signing, transfer or transaction submitted. Existing canary owner address does not establish current key availability.']};
++const text=JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n';fs.writeFileSync(new URL('../evidence/canary-funding-inventory.json',import.meta.url),text);console.log(text);
+diff --git a/probes/direct-route-inventory.py b/probes/direct-route-inventory.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..63576bc1086d9a8cb17d39f946a163ff83b90e91
+--- /dev/null
++++ b/probes/direct-route-inventory.py
+@@ -0,0 +1,13 @@
++import pathlib,json,datetime,subprocess
++paths=['/home/steven/enclave-prod/enclave-network/metal0/config.json','/home/steven/Projects/enclave/metal/config.json']
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'files':[]}
++for raw in paths:
++ p=pathlib.Path(raw);d=json.loads(p.read_text());n=d.get('enclaveNetwork',{})
++ selected={'path':raw,'topLevelKeys':sorted(d),'enclaveNetworkKeys':sorted(n) if isinstance(n,dict) else [],'hostServicesPresent':bool(d.get('hostServices') or n.get('hostServices'))}
++ for k in ['runner','endpoint','zone','registryEndpoint']:
++  if isinstance(d.get(k),str):selected[k]=d[k]
++ for label,obj in [('topHostServices',d.get('hostServices')),('networkHostServices',n.get('hostServices'))]:
++  if isinstance(obj,dict):selected[label]={'keys':sorted(obj),'zone':obj.get('zone'),'ports':obj.get('ports'),'tls':obj.get('tls')}
++ out['files'].append(selected)
++out['limits']=['Selected public metadata only; no private keys, token, environments or complete configuration emitted. No configuration changed.']
++pathlib.Path('work/custody-v2-live-20261023/evidence/direct-route-inventory.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/factory-activation-plan.mjs b/probes/factory-activation-plan.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..b275728dc2a17dd710c5593e90254970b860f971
+--- /dev/null
++++ b/probes/factory-activation-plan.mjs
+@@ -0,0 +1,14 @@
++// Read-only factory identity and unsigned plan. No signing/broadcast capability.
++import fs from 'node:fs';import assert from 'node:assert/strict';import {parseAbi,encodeFunctionData,stringToHex,keccak256} from 'viem';import {pinBlock,codeAt,readMany,agree,rpc,LIVE} from '../lib/live.mjs';
++const prior=JSON.parse(fs.readFileSync(new URL('../../existing-custody-audit/evidence/session-factory-identity.json',import.meta.url)));
++const book='0xab214342d5a490150a4a977063a2f88e21f80907',factory='0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c',admin='0x0b2d009c0c9af05b12100d77f3c815fea822ee61',sv='0xb794c4dd0e1c5e6b72281799f282bfde7654345d',vault='0xe48699b8401564aace7a814ae4569b67a3f7eef5',zero='0x'+'00'.repeat(20),id='0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77';
++const abi=parseAbi(['function owner() view returns(address)','function addr(bytes32) view returns(address)','function set(bytes32,address)','function implementation() view returns(address)','function book() view returns(address)','function isVault(address) view returns(bool)','function beneficialOwnerOf(bytes32) view returns(address)']);
++const block=await pinBlock(),tag='0x'+block.number.toString(16),key=stringToHex('sessionVaultFactory',{size:32});
++const r=await readMany(block,[{address:book,abi,functionName:'owner'},{address:book,abi,functionName:'addr',args:[key]},{address:factory,abi,functionName:'implementation'},{address:factory,abi,functionName:'isVault',args:[sv]},{address:sv,abi,functionName:'owner'},{address:vault,abi,functionName:'beneficialOwnerOf',args:[id]}]);
++assert.equal(r[0].value.toLowerCase(),admin);assert.equal(r[1].value.toLowerCase(),zero);assert.equal(r[2].value.toLowerCase(),prior.factories[factory].implementation);assert.equal(r[3].value,true);assert.equal(r[4].value.toLowerCase(),admin);assert.ok([sv,admin].includes(r[5].value.toLowerCase()),'Unexpected sample owner');
++const impl=r[2].value;const [bc]=await readMany(block,[{address:impl,abi,functionName:'book'}]);assert.equal(bc.value.toLowerCase(),book);
++const hashes={factory:keccak256(await codeAt(block,factory)),implementation:keccak256(await codeAt(block,impl))};assert.equal(hashes.factory,prior.factories[factory].codeHash);assert.equal(hashes.implementation,prior.factories[factory].implementationCodeHash);
++const transaction={chainId:'0x2105',from:admin,to:book,value:'0x0',data:encodeFunctionData({abi,functionName:'set',args:[key,factory]})};assert.equal(await agree('eth_call',[transaction,tag]),'0x');
++const rejected=await Promise.all(LIVE.state.map(async url=>{try{await rpc(url,'eth_call',[{...transaction,from:'0x'+'19'.repeat(20)},tag]);return false}catch(e){return /revert/i.test(e.message)}}));assert.ok(rejected.every(Boolean));
++const out={at:new Date().toISOString(),status:'UNSIGNED; consumer impact review required before requesting activation',readOnly:true,block,book,factory,implementation:impl,codeHashes:hashes,sample:{deployment:id,sessionVault:sv,vaultOwner:r[4].value,recognizedByFactory:r[3].value,currentCustodyBeneficialOwner:r[5].value,sampleIsSessionVaultOwned:r[5].value.toLowerCase()===sv},expectedBefore:{sessionVaultFactory:zero,bookOwner:admin},transaction,simulation:{adminSucceeded:true,unauthorizedRejected:rejected},effect:'Enable the original custody vault to unwrap recognized SessionVault deployments to their wallet owner. Needed before creating policies intended to be owned by that wallet. Existing EOA-owned policies are unaffected.',risk:'A policy previously pinned to a SessionVault address could require claimPolicy after this change, which destroys its encrypted bundle. Review all v1/v2 consumers of this shared book key before activation. Do not blindly toggle back after creating wallet-owned policies.',notSent:true};
++const txt=JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n';fs.writeFileSync(new URL('../evidence/factory-activation-unsigned-20261023.json',import.meta.url),txt);console.log(txt);
+diff --git a/probes/factory-consumer-state.mjs b/probes/factory-consumer-state.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff00db54221d20c1e1bcf9ec16933ed8090b0c27
+--- /dev/null
++++ b/probes/factory-consumer-state.mjs
+@@ -0,0 +1,8 @@
++import fs from 'node:fs';import {parseAbi,stringToHex} from 'viem';import {pinBlock,readMany} from '../lib/live.mjs';
++const ids=JSON.parse(fs.readFileSync(new URL('../../../outputs/decentralization-audit/nucbox-coupled-shares-production-20261023.json',import.meta.url))).shares.map(v=>v.deployment);
++ids.push('0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e');
++const vaults=['0x0807c71768b458ca6de85f78ed71c17cfe8eb3ee','0xe48699b8401564aace7a814ae4569b67a3f7eef5'];
++const old=JSON.parse(fs.readFileSync(new URL('../evidence/relay-public-config.json',import.meta.url)));vaults[0]=old.publicEnvironment.CUSTODY_VAULT;
++const abi=parseAbi(['function beneficialOwnerOf(bytes32) view returns(address)','function policyOf(bytes32) view returns(address owner,uint64 policyRev,uint64 secretRev,bytes32 committeeId,bool paused,bytes rules)']);
++const block=await pinBlock(),rows=[];for(const vault of vaults){const r=await readMany(block,ids.flatMap(id=>[{address:vault,abi,functionName:'beneficialOwnerOf',args:[id]},{address:vault,abi,functionName:'policyOf',args:[id]}]));for(let i=0;i<ids.length;i++){const [owner,policyRev,secretRev,committeeId,paused]=r[2*i+1].value;rows.push({vault,id:ids[i],beneficialOwner:r[2*i].value,policyOwner:owner,policyRev,secretRev,committeeId,paused});}}
++const out={at:new Date().toISOString(),readOnly:true,block,scope:'Nine recovered NucBox apps plus known original v2 canary, in configured v1 and v2 vaults',rows,limits:['Known-ID reads only, not exhaustive policy event discovery. No secret rules or bundle bytes emitted. No policy or address-book change.']};const text=JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n';fs.writeFileSync(new URL('../evidence/factory-consumer-state.json',import.meta.url),text);console.log(JSON.stringify({at:out.at,checked:rows.length,nonzeroPolicies:rows.filter(r=>r.policyRev>0).map(({vault,id,policyOwner,policyRev})=>({vault,id,policyOwner,policyRev:String(policyRev)}))}));
+diff --git a/probes/factory-policy-discovery.mjs b/probes/factory-policy-discovery.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..b5192c33a8fd33f537fbef1a8302863235667ae7
+--- /dev/null
++++ b/probes/factory-policy-discovery.mjs
+@@ -0,0 +1,22 @@
++// Read-only discovery from both original vault deployment blocks; emits policy metadata, never bundle bodies.
++import fs from 'node:fs';import {decodeEventLog,parseAbi} from 'viem';import {pinBlock,rpc,LIVE,readMany} from '../lib/live.mjs';
++const root=new URL('../../custody-v2-durability-20261023/repo/contracts/deployments/',import.meta.url);
++const files=['secret-vault-base.json','secret-vault-v2-base.json'];
++const contracts=files.map(f=>JSON.parse(fs.readFileSync(new URL(f,root))));
++const eventsAbi=parseAbi(['event PolicyUpdated(bytes32 indexed id,address indexed owner,uint64 policyRev,bytes32 committeeId,bool paused)','event PolicyClaimed(bytes32 indexed id,address indexed previousOwner,address indexed newOwner,uint64 policyRev)']);
++const abi=parseAbi(['function policyOf(bytes32) view returns(address owner,uint64 policyRev,uint64 secretRev,bytes32 committeeId,bool paused,bytes rules)','function beneficialOwnerOf(bytes32) view returns(address)']);
++const block=await pinBlock(),results=[];const deadline=Date.now()+360000;
++for(const c of contracts){
++ const byProvider=[];
++ for(const url of LIVE.state){const seen=[];let complete=true,error=null;try{for(let from=BigInt(c.block);from<=block.number;from+=5000n){if(Date.now()>deadline)throw Error('bounded discovery deadline reached');let to=from+4999n;if(to>block.number)to=block.number;
++  const raw=await rpc(url,'eth_getLogs',[{address:c.address,fromBlock:'0x'+from.toString(16),toBlock:'0x'+to.toString(16)}],{tries:1});
++  for(const l of raw){try{const e=decodeEventLog({abi:eventsAbi,topics:l.topics,data:l.data});seen.push({id:e.args.id,block:l.blockNumber,tx:l.transactionHash,index:l.logIndex,event:e.eventName});}catch{}}
++ }}catch(e){complete=false;error=e.message.slice(0,250);}byProvider.push({provider:new URL(url).host,complete,error,events:seen});}
++ const ids=[...new Set(byProvider.flatMap(p=>p.events.map(e=>e.id)))];const rows=[];
++ for(const id of ids){const r=await readMany(block,[{address:c.address,abi,functionName:'policyOf',args:[id]},{address:c.address,abi,functionName:'beneficialOwnerOf',args:[id]}]);const [owner,policyRev,secretRev,committeeId,paused]=r[0].value;rows.push({id,owner,policyRev,secretRev,committeeId,paused,beneficialOwner:r[1].value});}
++ const agreed=byProvider.every(p=>p.complete)&&JSON.stringify(byProvider[0].events)===JSON.stringify(byProvider[1].events);
++ results.push({vault:c.address,fromBlock:c.block,toBlock:block.number,byProvider,discoveryAgreed:agreed,policies:rows});console.log(JSON.stringify({vault:c.address,complete:byProvider.map(p=>p.complete),agreed,policies:rows.length}));
++}
++const out={at:new Date().toISOString(),readOnly:true,block,results,limits:['Log completeness remains dependent on RPC providers even when two agree. Current policy state is independently quorum-read. No bundle/rule values emitted or chain state changed.']};
++fs.writeFileSync(new URL('../evidence/factory-policy-discovery.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');
++if(results.some(r=>!r.discoveryAgreed))process.exitCode=2;
+diff --git a/probes/local-network-inventory.py b/probes/local-network-inventory.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..974c3330add2a683c1e50c5720bae852d51604c1
+--- /dev/null
++++ b/probes/local-network-inventory.py
+@@ -0,0 +1,23 @@
++"""Read only service names, selected public paths/addresses and listeners; no full argv or environments."""
++import subprocess, pathlib, json, datetime
++units=subprocess.run(['systemctl','--user','list-units','--all','--no-legend','--plain'],capture_output=True,text=True,timeout=10,check=True).stdout.splitlines()
++selected=[]
++for line in units:
++ cols=line.split()
++ if cols and any(x in cols[0].lower() for x in ['enclave','caddy','custody']):selected.append({'unit':cols[0],'load':cols[1],'active':cols[2],'sub':cols[3]})
++listeners=subprocess.run(['ss','-ltnH'],capture_output=True,text=True,timeout=10,check=True).stdout.splitlines()
++ports=[]
++for line in listeners:
++ cols=line.split()
++ if len(cols)>3:ports.append(cols[3])
++commands=[]
++for unit in selected:
++ if unit['active']!='active' or not unit['unit'].endswith('.service'):continue
++ p=subprocess.run(['systemctl','--user','show',unit['unit'],'-p','MainPID','--value'],capture_output=True,text=True,timeout=10,check=True).stdout.strip()
++ if not p.isdigit() or int(p)<2:continue
++ try:
++  args=pathlib.Path(f'/proc/{p}/cmdline').read_bytes().decode().split('\0')
++  commands.append({'unit':unit['unit'],'pid':int(p),'program':pathlib.Path(args[0]).name,'paths':[v for v in args[1:] if v.startswith('/') and v.endswith(('.mjs','.js','.json','.sh'))],'cwd':str(pathlib.Path(f'/proc/{p}/cwd').resolve())})
++ except OSError:pass
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'units':selected,'listenerAddresses':ports,'selectedProcessPaths':commands,'limits':['Metadata only, no secret/config/environment values or full argv. No service changed.']}
++pathlib.Path('work/custody-v2-live-20261023/evidence/local-network-inventory.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/public-site-base.py b/probes/public-site-base.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..11bd674b01c052b51eaa9e491ba1ca238c889a53
+--- /dev/null
++++ b/probes/public-site-base.py
+@@ -0,0 +1,12 @@
++import urllib.request,hashlib,json,datetime,pathlib
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'responses':[]}
++for url in ['https://enclave.host/.well-known/enclave-site-release.json','https://enclave.host/']:
++ try:
++  with urllib.request.urlopen(url,timeout=15) as r:
++   b=r.read(2<<20);v={'url':url,'status':r.status,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest(),'headers':{k:r.headers.get(k) for k in ['etag','x-ipfs-path','x-ipfs-roots','x-enclave-release','content-type']}}
++   if url.endswith('.json'):
++    try:v['releaseMetadata']=json.loads(b)
++    except ValueError:v['error']='not JSON'
++   out['responses'].append(v)
++ except Exception as e:out['responses'].append({'url':url,'error':str(e)[:300]})
++p=pathlib.Path('work/custody-v2-live-20261023/evidence/public-site-base.json');p.write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/session-factory-state.mjs b/probes/session-factory-state.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6ab23075e9f24de54ed9e571f44975b68a95f956
+--- /dev/null
++++ b/probes/session-factory-state.mjs
+@@ -0,0 +1,7 @@
++import fs from 'node:fs';import {parseAbi,stringToHex} from 'viem';import {pinBlock,readMany} from '../lib/live.mjs';
++const block=await pinBlock(),book='0xab214342d5a490150a4a977063a2f88e21f80907',vault='0xe48699b8401564aace7a814ae4569b67a3f7eef5';
++const keys=['sessionVaultFactory','sessionFactory','hostRegistry','deploymentLedger','secretVaultV2'];
++const rows=await readMany(block,keys.map(k=>({address:book,abi:parseAbi(['function addr(bytes32) view returns(address)']),functionName:'addr',args:[stringToHex(k,{size:32})]})));
++const ids=['0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e'];
++const owners=await readMany(block,ids.map(id=>({address:vault,abi:parseAbi(['function beneficialOwnerOf(bytes32) view returns(address)']),functionName:'beneficialOwnerOf',args:[id]})));
++const out={at:new Date().toISOString(),readOnly:true,block,book,keys:Object.fromEntries(keys.map((k,i)=>[k,rows[i].value])),knownPolicyOwners:ids.map((id,i)=>({id,owner:owners[i].value})),limits:['Known-ID metadata only. No configuration or contract changed.']};const text=JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n';fs.writeFileSync(new URL('../evidence/session-factory-state.json',import.meta.url),text);console.log(text);

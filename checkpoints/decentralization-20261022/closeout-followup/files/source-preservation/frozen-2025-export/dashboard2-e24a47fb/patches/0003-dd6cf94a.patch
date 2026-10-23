@@ -1,0 +1,47 @@
+From dd6cf94a7b218fe6be5a2ebd30ac28691668410a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:03:54 -0700
+Subject: [PATCH] Docs: custody v2 panel - seat counting, who signs
+ (SessionVault semantics), activation/rollback
+
+---
+ docs/security/secret-custody-v2.md | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 5c665cead1dbb4d4300ff1a86d2eff8c04ccc7d4..2183a2dc5c2eb840cb5573a84fefed4b6456f38e 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -370,8 +370,21 @@
+   - A book-named vault must still be named by the book at that block.
+   - Otherwise the panel says `unset`, `unreviewed`, `unreadable` or `mismatch`, and offers no v2 action. It never falls back
+     to v1.
+-- **Committee.** It is shown as its exact t of W, its seats and how many seats are Enclave-operated. One seat, or every seat
+-  Enclave-operated, is labelled a BOOTSTRAP, never "decentralized".
++- **Committee.** It is shown as its exact n seats and t of W shares, counted as the vault counts them: every Enclave-flagged
++  machine is ONE Enclave seat (replicas hold the same shares), and each other machine is its own seat.
++  - n = 1 is labelled a SINGLE-SEAT BOOTSTRAP. That is the production committee 0x4774… today: n = 1, t = 1, W = 1, one
++    Enclave machine.
++  - More seats are stated exactly and never called decentralized or independent. Distinct hosts or operator addresses do not
++    prove distinct operators or failure domains.
++- **Who signs.** The vault's own rule: the policy owner, or at the first write `beneficialOwnerOf`.
++  - The ledger owner, or for a deployment held by a SessionVault from the book's `sessionVaultFactory`, that SessionVault's
++    owner.
++  - The dashboard sends the update from that wallet DIRECTLY (`wallet.js` sendTx). It never routes through
++    `SessionVault.ownerCall`: the vault would then see the SessionVault as the sender and revert `NotOwner`.
++  - A session key is refused.
++  - When the book names no `sessionVaultFactory`, the vault treats the SessionVault itself as the owner. No wallet can then
++    authorize, and the panel names that case.
++  - A Safe or passkey owner needs the EIP-712 `updateBySig` (ERC-1271). The panel does not sign that yet and says so.
+ - **Save / rotate.** The complete set is encrypted IN THE PAGE to the committee key. One owner `update` stores it, and the
+   vault is read back.
+   - A first policy needs the owner's explicit admit of the relay's predicted images.
+@@ -386,6 +399,8 @@
+     custody-held.
+   - The panel reports only what the relay answered. Backups, logs or replicas outside its live store are not verifiable
+     there, so the owner is told to rotate those credentials.
++- **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
++  that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
+ - **Not in the panel:**
+   - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
+   - owner read of stored values;

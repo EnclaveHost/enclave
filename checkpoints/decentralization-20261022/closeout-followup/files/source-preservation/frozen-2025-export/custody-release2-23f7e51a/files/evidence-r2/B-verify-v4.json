@@ -1,0 +1,846 @@
+{
+ "releaseCommit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+ "clean": true,
+ "lineage": {
+  "from": "c635fd68515b46c53935ef344e3b4c4779d8067c",
+  "commits": [
+   "ed0c536dde2bab4de8414fee74f7c45f94adfc87",
+   "415483ff9784c38a88b273363a7efd0c227b95ce",
+   "3ccd4333c99b5e486215e69d13aafdcb55e9d8ca",
+   "0a6b108eeb43202be4903a1385636a18ac4c537e",
+   "c95dcd3aee901b503751c02918a687c83b227511",
+   "a5eae96cdaa9f916266c9ee101908e14e75ad085",
+   "ab589bf80b669c9671b53573d489b6c6c45779ea"
+  ],
+  "changed": [
+   "custody/v2/daemon.mjs",
+   "custody/v2/host-binding.mjs",
+   "custody/v2/host.mjs",
+   "custody/v2/ingress.mjs",
+   "custody/v2/member.mjs",
+   "custody/v2/sealed-state.mjs",
+   "custody/v2/startup-state.mjs",
+   "docs/security/secret-custody-v2.md",
+   "test/custody-direct-host.test.mjs",
+   "test/custody-direct-ingress-paths.test.mjs",
+   "test/custody-direct-ingress.test.mjs",
+   "test/custody-v2-daemon-startup.test.mjs",
+   "test/custody-v2-e2e.test.mjs",
+   "test/custody-v2-genesis-intent.test.mjs",
+   "test/custody-v2-persist-barrier.test.mjs",
+   "test/custody-v2-startup-state.test.mjs",
+   "test/fixtures/EnclaveRegistry.schema4.sol",
+   "test/helpers/original-vault-rig.mjs"
+  ],
+  "patches": [
+   {
+    "range": "c635fd68515b46c53935ef344e3b4c4779d8067c..415483ff",
+    "file": "custody-v2-durability.patch",
+    "sha256": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17",
+    "frozenFile": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17",
+    "reviewed": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17"
+   },
+   {
+    "range": "415483ff..0a6b108e",
+    "file": "custody-v2-durability-followup.patch",
+    "sha256": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09",
+    "frozenFile": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09",
+    "reviewed": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09"
+   },
+   {
+    "range": "0a6b108e..c95dcd3a",
+    "file": "custody-v2-genesis-intent.patch",
+    "sha256": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263",
+    "frozenFile": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263",
+    "reviewed": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263"
+   },
+   {
+    "range": "c95dcd3a..ab589bf8",
+    "file": "custody-v2-rollout-closure.patch",
+    "sha256": "f427865db38e6ab1093fab35b1fc383b0c954a3e7d0b7690aa7ad9d1c08bec2f",
+    "frozenFile": "f427865db38e6ab1093fab35b1fc383b0c954a3e7d0b7690aa7ad9d1c08bec2f",
+    "reviewed": "f427865db38e6ab1093fab35b1fc383b0c954a3e7d0b7690aa7ad9d1c08bec2f"
+   }
+  ]
+ },
+ "image": {
+  "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+  "measurement": "70aadff5455fd65f752c1dcec2d6f1ac4984bebf6c63b284d15fcf47851fb96def231af40c39a3bca6fbf9748f01c429",
+  "measurementSha256": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
+  "initramfs": {
+   "sha256": "bed627f6b471422ed1d66d27dc8652fa44f2f6241266b261dfafc1a2a3d41623",
+   "bytes": 280104720
+  },
+  "files": {
+   "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
+   "/opt/custodian/custodian.mjs": "33951330673e6ad99ef7bd026c5a934f54b344ce11c639164cb0445bd096d81b",
+   "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
+  },
+  "base": {
+   "dir": "dist-custody-9e5fb2028",
+   "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
+   "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
+  "vcpus": 2,
+  "bundler": "esbuild@0.28.1",
+  "role": "enclave-custodian-v2",
+  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+  "transport": "direct",
+  "dkgBuild": null,
+  "independentPolicy": null,
+  "shieldRecipients": null,
+  "trustedProxies": null,
+  "inputs": [
+   {
+    "path": "availability/evidence.mjs",
+    "sha256": "a17da0461510f08726a8c00843b70d7c42da682de2c65f46ad0891df48c905cb",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/chain.mjs",
+    "sha256": "f0349c4f36e73e4e10e10d0a0a22da695383ec8db702e9a96246ed9adc1c689b",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/custodian.mjs",
+    "sha256": "46563b843ba4dd0c4e753dc1da7f60a1b0146fb018fc30cee5f8426d7a85ab19",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/hpke.mjs",
+    "sha256": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/protocol.mjs",
+    "sha256": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/rules.mjs",
+    "sha256": "f35635aa4103f8075e3fcccc0be95b6c50f2d66240e95041509feeb17c7d694d",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/threshold.mjs",
+    "sha256": "9c7f912e7dc38e1bf58e196bce2eaf4292219aef7dfa91b8d7813b102919844a",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/admission.mjs",
+    "sha256": "77c5454ad1d459770e1ece7fc094f469de810e70cc525059df38be41272c9756",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/capacity.mjs",
+    "sha256": "198ed0e0c6a65eac89a9c743d70c9b821e87b6c59c0c41a3b9fe94f55633d6c3",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/chain.mjs",
+    "sha256": "c85d3d820fd91613422580857c12477ec211c10c6af6a9d233543edb447fead9",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/custodian.mjs",
+    "sha256": "320453fc802f4c9bf49058ab0219c60779b42df52de6fc5653f7228015bc285c",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/cvm-gsup.mjs",
+    "sha256": "a1d8528cc307b2aedaa0bbfaee6960a1100ad57327d1fb84e34c27028eb82562",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/daemon.mjs",
+    "sha256": "63b8a85c78e83f9209f0825c2d923b7d65eb2c360b8bdda95ff6bba887fde7f6",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": false,
+    "reviewedChange": true
+   },
+   {
+    "path": "custody/v2/digests.mjs",
+    "sha256": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/governance.mjs",
+    "sha256": "54ffac99c67ec86e248d40e081e01080a11c630b6eae758e49d09ef724ef50d9",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/host-config.mjs",
+    "sha256": "05771b528710d7e51568106a70c54b7515ac8e2498735bca0fee74ed9ae2c93a",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/http.mjs",
+    "sha256": "541ba49b4b549ea974fb07c22c7bdca6ef0c04cde0992ce1ffa1623737e5a23c",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/independent-genesis.mjs",
+    "sha256": "004da08a92de8e75795b7e32e4a2212034b11a28dc54ea1fd023b835c399239e",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/independent-runtime.mjs",
+    "sha256": "3ae542d200a6c6aedd7afda2c7e9b6afd74b9a9b5d8f7e9a4018917df5566d2c",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/measured.mjs",
+    "sha256": "a9a758e6846bd61cab18ede279c6dc93ef099ebc51fde89b5e8ed72b0d8a060e",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/member.mjs",
+    "sha256": "1925b289405b7e083f630b0d70cceb8a73f23c09ebabdbddf6a2b3ef1d39e8ab",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": false,
+    "reviewedChange": true
+   },
+   {
+    "path": "custody/v2/process-plan.mjs",
+    "sha256": "2721f23d41b2942d5bfb52585bb1c7f5627673d70ba873b5ac88fd46df7d597e",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/protocol.mjs",
+    "sha256": "d30852c2b227760f95a900b2240355c507173e81f221b38219e34a3f8def38e4",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/quorum.mjs",
+    "sha256": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/sealed-state.mjs",
+    "sha256": "634809fee730b9acd69d2eaf426d8a3364f18abb5b95ae1270fa057e5da4e79e",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": false,
+    "reviewedChange": true
+   },
+   {
+    "path": "custody/v2/shield-evidence.mjs",
+    "sha256": "641b183f9b59044f826263c02cc031b2e4b0c9e84edfc373f9cb3a60d818e580",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/shield-operator.mjs",
+    "sha256": "0c146e20f3b288b9780ae9e26b51c1a9154b1c32d26cddef04b46011ef3fbcd9",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/shield-rules.mjs",
+    "sha256": "d3f857d1a75243c1262cb62b3fc44325246a7bcc35ec44ba388599f0c4c14ef9",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "custody/v2/startup-state.mjs",
+    "sha256": "086b28c3bddb912cdf95a3a96a4514eaada25b9be8851fce07f18e9458395a35",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": false,
+    "reviewedChange": true
+   },
+   {
+    "path": "custody/verifiers.mjs",
+    "sha256": "3c0553b58a18239213bfc43dbc8b78aa079270a0a6eaab793eb3eba3432ad873",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "isolation/contract/runtime.mjs",
+    "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "network/host-policy-mirrors.mjs",
+    "sha256": "d7295d3806f00304d1ebb596fd380857a0f6b4a2702cb5f8e04427cfb4207660",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "network/platform-host-policy.mjs",
+    "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "network/rpc-identity.mjs",
+    "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/avf-verify.mjs",
+    "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/hvnode-core.mjs",
+    "sha256": "a69967f96af7324f409745fec29f0697b90e9da49037b5f8ff74e7deb26cd970",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/hvnode-verify.mjs",
+    "sha256": "b0155ae296bb3e8cb3a9e54eaaed989d341253031f34b1c69576a6039d1334a7",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/shield-host-session.mjs",
+    "sha256": "60d9ad86522d1e48ffe7d4b83628c7ce7af2bda06338595018114d8bb1d7cdef",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/snp-verify.mjs",
+    "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-app-core.mjs",
+    "sha256": "4d6130154e61f994898df5b869f9d4e332eb2b437204a5c631c1ac53e9978f70",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-credential.mjs",
+    "sha256": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-policy.mjs",
+    "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-tcglog-core.mjs",
+    "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-tcglog.mjs",
+    "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-tpm.mjs",
+    "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-verify.mjs",
+    "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-vm-report-core.mjs",
+    "sha256": "5c0fca2992494d985c6ac83d44c6a185e71ac83d0b9c232320da77db9609e314",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "relay/vbs-vm-report.mjs",
+    "sha256": "974cbe2f5d2a37edfc4362b3f922d7e4ee178d309adfdd37584d159576e63775",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/collateral-cache.mjs",
+    "sha256": "eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/collateral.mjs",
+    "sha256": "c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/consumer.mjs",
+    "sha256": "907e40bfd42529aa907c3267b7ec0cb9652d9c250b196e00c1508a7e460608e1",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/der.mjs",
+    "sha256": "3606e988e4d340973c105fdc7fc0ee39db13034419561fbbe2e0ee396ade9775",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/envelope.mjs",
+    "sha256": "ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/metal-box.mjs",
+    "sha256": "6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/snp.mjs",
+    "sha256": "beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "verifier/tls-binding.mjs",
+    "sha256": "f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "windows/node/hvnode-evidence.mjs",
+    "sha256": "5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   },
+   {
+    "path": "windows/node/shield-verdict.mjs",
+    "sha256": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
+    "tracked": true,
+    "equalsCommit": true,
+    "equalsPrevRelease": true,
+    "reviewedChange": false
+   }
+  ],
+  "inputsAddedSincePrev": [
+   "custody/v2/sealed-state.mjs",
+   "custody/v2/startup-state.mjs"
+  ],
+  "inputsRemovedSincePrev": [],
+  "sourceCheck": {
+   "untracked": [],
+   "dirty": "",
+   "paths": 66
+  },
+  "packages": [
+   {
+    "package": "@noble/ciphers@1.3.0",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==",
+     "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw=="
+    ]
+   },
+   {
+    "package": "@noble/curves@1.9.1",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==",
+     "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA=="
+    ]
+   },
+   {
+    "package": "@noble/hashes@1.8.0",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==",
+     "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="
+    ]
+   },
+   {
+    "package": "@scure/base@1.2.6",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==",
+     "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg=="
+    ]
+   },
+   {
+    "package": "@scure/bip32@1.7.0",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==",
+     "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw=="
+    ]
+   },
+   {
+    "package": "@scure/bip39@1.6.0",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==",
+     "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A=="
+    ]
+   },
+   {
+    "package": "abitype@1.2.3",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==",
+     "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg=="
+    ]
+   },
+   {
+    "package": "isows@1.0.7",
+    "lockfiles": [
+     "package-lock.json",
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
+     "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg=="
+    ]
+   },
+   {
+    "package": "ox@0.14.29",
+    "lockfiles": [
+     "package-lock.json"
+    ],
+    "integrity": [
+     "sha512-M5j87Ec4V99MQdRct/g09eWXW60g6zhHTUs1lr4deUtrPDnezBdCJTgKd7pxqTpSZBFveV0ALi9jMMuT1qKyNg=="
+    ]
+   },
+   {
+    "package": "ox@0.14.30",
+    "lockfiles": [
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-LI11uu+8iiM1B3CLckgd++YF1a0A2k5wDoM9ZeQMiL21BOzQs6L//BLS6hb1HSEKCyycdDIQLsVQx9MjpcC0hA=="
+    ]
+   },
+   {
+    "package": "viem@2.53.1",
+    "lockfiles": [
+     "package-lock.json"
+    ],
+    "integrity": [
+     "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA=="
+    ]
+   },
+   {
+    "package": "viem@2.54.3",
+    "lockfiles": [
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-hHXV/MLeGx+A/kHwEejf4TBSmpq2rtpxR3qMH21+BL62CQBLfCoMxQ0RV3V3QLQ1mKC/sAFEci1u83JEq1TQ6g=="
+    ]
+   },
+   {
+    "package": "ws@8.21.0",
+    "lockfiles": [
+     "relay/package-lock.json"
+    ],
+    "integrity": [
+     "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="
+    ]
+   },
+   {
+    "package": "ws@8.21.1",
+    "lockfiles": [
+     "package-lock.json"
+    ],
+    "integrity": [
+     "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw=="
+    ]
+   }
+  ],
+  "extracted": {
+   "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
+   "/opt/custodian/custodian.mjs": "33951330673e6ad99ef7bd026c5a934f54b344ce11c639164cb0445bd096d81b",
+   "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
+  },
+  "measured": {
+   "chainId": 8453,
+   "transport": "direct",
+   "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+   "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+   "rpcs": [
+    "https://mainnet.base.org",
+    "https://base-rpc.publicnode.com",
+    "https://base.drpc.org",
+    "https://base.public.blockpi.network/v1/rpc/public"
+   ],
+   "vaultKind": "book",
+   "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+   "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
+   "hostPolicy": {
+    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+    "mirrors": [
+     "https://134.199.235.187/platform-policy",
+     "https://134.209.248.172/platform-policy",
+     "https://165.245.191.129/platform-policy",
+     "https://146.190.246.39/platform-policy"
+    ]
+   },
+   "minAgree": 3,
+   "confirmations": 2,
+   "maxAgeSec": 120,
+   "enclaveOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+   "independentOwners": null,
+   "capacityContract": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
+   "witnesses": {
+    "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap"
+   }
+  },
+  "measuredText": {
+   "sha256": "a7fc690aee2d891190ac7d9f877304a84c846a8b3a5211e4694c58b7712949c6",
+   "occurrences": 1
+  }
+ },
+ "hostPolicy": {
+  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+  "mirrors": [
+   "https://134.199.235.187/platform-policy",
+   "https://134.209.248.172/platform-policy",
+   "https://165.245.191.129/platform-policy",
+   "https://146.190.246.39/platform-policy"
+  ],
+  "sha256": "b22ed164444b5c4918ebd972a88a82f570906da571c1ea8c987058fe03be48a1"
+ },
+ "lockfiles": {
+  "package-lock.json": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20",
+  "relay/package-lock.json": "e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56"
+ },
+ "hostLauncher": {
+  "entry": "custody/v2/host.mjs",
+  "files": [
+   {
+    "path": "custody/v2/chain.mjs",
+    "sha256": "c85d3d820fd91613422580857c12477ec211c10c6af6a9d233543edb447fead9"
+   },
+   {
+    "path": "custody/v2/digests.mjs",
+    "sha256": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d"
+   },
+   {
+    "path": "custody/v2/host-binding.mjs",
+    "sha256": "d803cfc864f81ae7b69c59f9b59cb10b6f781c4899f6b5d9ed8e8086729d8c9e"
+   },
+   {
+    "path": "custody/v2/host.mjs",
+    "sha256": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f"
+   },
+   {
+    "path": "custody/v2/measured.mjs",
+    "sha256": "a9a758e6846bd61cab18ede279c6dc93ef099ebc51fde89b5e8ed72b0d8a060e"
+   },
+   {
+    "path": "custody/v2/quorum.mjs",
+    "sha256": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd"
+   },
+   {
+    "path": "network/custody-vaults.mjs",
+    "sha256": "8939a32af3ee41f4a9f172c74234f21ce0ae97ad7b97ed86856af3187c2c0da6"
+   },
+   {
+    "path": "network/platform-host-policy.mjs",
+    "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2"
+   },
+   {
+    "path": "network/rpc-identity.mjs",
+    "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+   }
+  ],
+  "packages": [
+   "@noble/curves@1.9.1",
+   "@noble/hashes@1.8.0",
+   "@scure/base@1.2.6",
+   "@scure/bip32@1.7.0",
+   "@scure/bip39@1.6.0",
+   "abitype@1.2.3",
+   "isows@1.0.7",
+   "ox@0.14.29",
+   "viem@2.53.1",
+   "ws@8.21.1"
+  ],
+  "note": "host.mjs runs OUTSIDE the measured image (untrusted for secrecy); this pins what the host operator runs from this checkout"
+ },
+ "rewrap": {
+  "reused": true,
+  "artifact": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-release/out/A-rewrap",
+  "commit": "c635fd68515b46c53935ef344e3b4c4779d8067c",
+  "measurement": "f01a7166376cb192d7dac2abf89057d92825fc88c8d204cfac35df60b36d92d4be023018e0629dcab7ad695d8f06eb8e",
+  "measurementSha256": "0xf825c9b2ed578664f46309ba76cca7d7bebda87ead341b344c21e04944b91ccf",
+  "initramfsSha256": "1b090c69f6df2ec794403dd5823696d776e6b9ca97e99d93cc4d04f5de9f448c",
+  "closurePaths": 33,
+  "changedSincePrev": [],
+  "base": {
+   "dir": "dist-custody-9e5fb2028",
+   "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
+   "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  }
+ },
+ "failures": []
+}

@@ -1,0 +1,11 @@
+# Run evidence, the raw fault host copy, private configs and canary sealed state never enter Git.
+/runs/
+/logs/
+__pycache__/
+*.pyc
+/progress.*
+
+/lifecycle-progress.txt
+/lifecycle.err
+/ROOT-*.txt
+/TASK.txt

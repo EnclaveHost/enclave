@@ -1,0 +1,1415 @@
+{
+ "format": "enclave-frozen-2025-export/v1",
+ "checkpointHeadAtExport": "dc551728a71e29adb8eda127f4607395a4d97b66",
+ "batch": "2025 = the batch start 2026-10-23T20:25Z (date -u): an identifier, not a publication time and not a year",
+ "label": "SOURCE + EVIDENCE ONLY. Custody v2: durability ab589bf8 (daemon-startup and ingress-path tests), ROOT corrected custodian r2 (reproducible build, NOT activated), R dashboard e24a47fb (source/test), ROOT live reconciliation 3fd6e8ff (read-only, unsigned plans), SNP startup-recovery harness and quote-only hardware evidence, direct-route assessment, metal0 operator-proposal helper and the metal0 MetaMask handoff (its plain-transfer fund stage refuses the delegated operator; not usable). Nothing signed, sent, funded, served or activated by this capture. Existing custody is the original single-seat bootstrap, NOT decentralized custody.",
+ "sides": {
+  "durability3": {
+   "repo": "work/custody-v2-durability-20261023/repo",
+   "branch": "root-custody-rollout-closure",
+   "headReachableFromBranch": true,
+   "base": "a5eae96cdaa9f916266c9ee101908e14e75ad085",
+   "baseProvenance": "a5eae96c = frozen-1951 durability2 head, itself touched-file-only (base not publishable): TOUCHED-FILE reproduction",
+   "head": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+   "headTree": "0a1f82e1a342a5582e55fb429f86c383070647d9",
+   "commits": [
+    {
+     "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+     "tree": "0a1f82e1a342a5582e55fb429f86c383070647d9",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:59:20-07:00",
+     "subject": "test: the real custodian daemon startup and direct-ingress path spellings",
+     "parent": "a5eae96cdaa9f916266c9ee101908e14e75ad085",
+     "emptyAfterExclusion": false,
+     "patch": "durability3-ab589bf8/patches/0001-ab589bf8.patch",
+     "touchedBlobs": [
+      {
+       "path": "test/custody-direct-ingress-paths.test.mjs",
+       "blob": "e718886066e9145c7d670a636bbffee0683785e0"
+      },
+      {
+       "path": "test/custody-v2-daemon-startup.test.mjs",
+       "blob": "55ef464bca31ceb1e6943610873fd3523a42b780"
+      }
+     ]
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "test/custody-direct-ingress-paths.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e718886066e9145c7d670a636bbffee0683785e0",
+     "sha256": "6de4c9883a795d2d75f78d66e56be22a42f94f9fa3e8265d8825d6ce79ded04b",
+     "bytes": 6726,
+     "baseBlob": null
+    },
+    {
+     "path": "test/custody-v2-daemon-startup.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "55ef464bca31ceb1e6943610873fd3523a42b780",
+     "sha256": "3f7302870d3f197e35d20ad6b531fdcdaa4b0be55051ddf80c1b4b7392291d87",
+     "bytes": 9220,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "durability3-ab589bf8/patches/0001-ab589bf8.patch",
+     "sha256": "fd3b8c87f03028ee78f2d5b51e9cfa83f64ccb0ecec5479c871221d070a21368"
+    }
+   ],
+   "baseFiles": [],
+   "baseTreeNotReproduced": {
+    "base": "a5eae96cdaa9f916266c9ee101908e14e75ad085",
+    "baseTree": "d8afe7ffbb751c0d277cdb24b6ccdf01b80f98bf",
+    "why": "continues frozen-1951 durability2 (and frozen-1852 m-durability), whose base descends from the unpublishable pre-rewrite c635fd68; full trees not claimed",
+    "verified": "base-files/ (empty when every touched path is new) + this side's patches reproduce every touched path's blob at every commit (verify-frozen-2025-export.py)"
+   },
+   "note": "custody v2 durability ab589bf8 on a5eae96c: tests that run the REAL custodian daemon startup against a host /state server (every read failure refuses to start and writes nothing; only an explicit 404 seals a fresh identity) and the REAL Caddy ingress in front of the REAL router (25 host-binding route spellings never reach the guest). Source/test only; the r2 image is built from it"
+  },
+  "custody-release2": {
+   "repo": "work/custody-v2-release-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "44bf8f4fb0b07ff8cbe7dc5cbf94819cc4377f6b",
+   "baseProvenance": "44bf8f4f preserved in dc551728 (frozen-1951 custody-release head)",
+   "head": "23f7e51aab5c6016035e73a1058ba33e64c0dcba",
+   "headTree": "62adfd03ffdd349a53354df7251f6d29405ef72a",
+   "commits": [
+    {
+     "commit": "da6e3496146577bc172ac15a6763d3ac46790187",
+     "tree": "d317d5a7c64a0e778d96a135caa8e07bbb4e78b7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:05:23-07:00",
+     "subject": "r2: corrected custodian from ab589bf8 built twice (measurement 70aadff5), v4 verification, SNP canary handoff",
+     "parent": "44bf8f4fb0b07ff8cbe7dc5cbf94819cc4377f6b",
+     "emptyAfterExclusion": false,
+     "patch": "custody-release2-23f7e51a/patches/0001-da6e3496.patch"
+    },
+    {
+     "commit": "23f7e51aab5c6016035e73a1058ba33e64c0dcba",
+     "tree": "62adfd03ffdd349a53354df7251f6d29405ef72a",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:12:43-07:00",
+     "subject": "Record reviewed r2 provenance and superseded image limits",
+     "parent": "da6e3496146577bc172ac15a6763d3ac46790187",
+     "emptyAfterExclusion": false,
+     "patch": "custody-release2-23f7e51a/patches/0002-23f7e51a.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "M",
+     "mode": "100644",
+     "blob": "808d94ac9019e1bbf6816d210e9a7143f46ae44c",
+     "sha256": "aff2523bee4da29e021810cf9f96a6fc555892df2eae986e71e39fe25e954de5",
+     "bytes": 159,
+     "baseBlob": "d5cfcc3a87d7c1532bdc2879f11a1db1a7bc6945"
+    },
+    {
+     "path": "README.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "fc8b90ae4a9480d0b16c82b93dde63789a7731eb",
+     "sha256": "78300e5eea6c60f4182c3c6aa0a5a1fe49ae187cd17fd5c98ffd79f1bb9178e6",
+     "bytes": 2429,
+     "baseBlob": "fa25a7dc4fce2786de3cbe04c31f3ed09faa6167"
+    },
+    {
+     "path": "RESULT-R2.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3f7fc8085b39ad445fc4da11bd6ecbc41fad33af",
+     "sha256": "f1e9a4d6452f2f1c47bcc8b0b863e617e97408c20ab40b214f8b907e7fe4bf43",
+     "bytes": 15878,
+     "baseBlob": null
+    },
+    {
+     "path": "SCAN-REVIEW.txt",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f76c461850eab72c55b931d685d81eadb5bc099a",
+     "sha256": "67a9971c1ea43dc5cd5fa96e7e27c1c87ba2134aa19c83f217037319cfa60ecb",
+     "bytes": 1151,
+     "baseBlob": "bc7c070bd4376cf32b2e7ef9684878973cc6b61a"
+    },
+    {
+     "path": "build-r2.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "ee37165a0aca8aa5e4975ae6b74d2bcbcafadc55",
+     "sha256": "93b636b9897c501be363eb0dcb5309a7d60b934fbaa131b63aa413306f32f41a",
+     "bytes": 4628,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence-r2/A-manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1eb91c5b167a8c36678e9088cb41976747f94ec9",
+     "sha256": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b",
+     "bytes": 3957,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence-r2/A-verify-v4.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7cc905aad132d4ecbc705c322f51ac191a104b87",
+     "sha256": "453ffdd949b2511ceae59d4405cb1baa5fe44929289acfdb936c65d5f173144d",
+     "bytes": 27218,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence-r2/B-manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1eb91c5b167a8c36678e9088cb41976747f94ec9",
+     "sha256": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b",
+     "bytes": 3957,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence-r2/B-verify-v4.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7cc905aad132d4ecbc705c322f51ac191a104b87",
+     "sha256": "453ffdd949b2511ceae59d4405cb1baa5fe44929289acfdb936c65d5f173144d",
+     "bytes": 27218,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence-r2/custody-v2-rollout-closure.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1dcd79c99d56acfa397a2098ef090cf3c621af9b",
+     "sha256": "f427865db38e6ab1093fab35b1fc383b0c954a3e7d0b7690aa7ad9d1c08bec2f",
+     "bytes": 35343,
+     "baseBlob": null
+    },
+    {
+     "path": "review-r2-commit.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "80ba78a4186df691f6725f48308bd3581ca1dd89",
+     "sha256": "c42e9a3131eda1f6db7c81087d2b7de840758b1ee6459ba264bfc0e74299d4bb",
+     "bytes": 514,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-r2.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "298fee3ef6350db2aaa03b14b3b4b0009ad63981",
+     "sha256": "34e26c27d47faba41768c969f8af067103b55f986e69398c9abc200e05439f19",
+     "bytes": 491,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-custodian-v4.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "339545908b1fd9e39011794b890300d7aeb46735",
+     "sha256": "c6af6f39921ad72d6a2e1d366d39e5bd233ab0cdef522ee1596f08838b1d67a0",
+     "bytes": 16443,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-release2-23f7e51a/patches/0001-da6e3496.patch",
+     "sha256": "761d4b1b93df41070ba2679a9bbc13fac58158ca35c0b92e12bc923f764c7e0b"
+    },
+    {
+     "file": "custody-release2-23f7e51a/patches/0002-23f7e51a.patch",
+     "sha256": "fbd26b26e2e04d7c330ca84ad6a75dc8ffe6ec02fb3ed6bb70e4361034b020eb"
+    }
+   ],
+   "note": "ROOT corrected custodian r2 from ab589bf8: two clean-clone byte-identical builds (measurement 70aadff5), v4 verification, SNP canary handoff (da6e3496), and the reviewed r2 provenance and superseded-image limits (23f7e51a). Committed SCAN-REVIEW.txt classifies the scanner hits (public snpkey executable SHA256, public canary X25519 encKey). Images, clones, raw quotes, serial logs and state are not versioned. NOT production activated"
+  },
+  "dashboard2": {
+   "repo": "work/custody-v2-dashboard-20261023/repo",
+   "branch": "custody-v2-dashboard",
+   "headReachableFromBranch": true,
+   "base": "4acad4a7a3d6858eae27c6c8573836f48395d9de",
+   "baseProvenance": "4acad4a7 preserved in dc551728 (frozen-1951 dashboard head)",
+   "head": "e24a47fb22399b220d25f4e3b8d544083b13fdb0",
+   "headTree": "413e76ecc5386f4cd85935372996a30146c1a4d4",
+   "commits": [
+    {
+     "commit": "10cea38be1b6a70d2dd99af13235c8246095b664",
+     "tree": "b00b2b4c1644d90706ac47f3126facecd86e85eb",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:03:54-07:00",
+     "subject": "Custody v2 panel: seats as the vault counts them, per-call book check, SessionVault refusal, agreed-read shape",
+     "parent": "4acad4a7a3d6858eae27c6c8573836f48395d9de",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard2-e24a47fb/patches/0001-10cea38b.patch"
+    },
+    {
+     "commit": "7f0320a4abac4a21ae651dc41918380119dd6aa0",
+     "tree": "99977bf9fbc0df477ce519511067d9bfd4ddb82a",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:03:54-07:00",
+     "subject": "Tests: custody v2 dashboard against the REAL original vault, book and SessionVault (anvil)",
+     "parent": "10cea38be1b6a70d2dd99af13235c8246095b664",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard2-e24a47fb/patches/0002-7f0320a4.patch"
+    },
+    {
+     "commit": "dd6cf94a7b218fe6be5a2ebd30ac28691668410a",
+     "tree": "1eb923289d11732fece2a5829c77a1d8069e7917",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:03:54-07:00",
+     "subject": "Docs: custody v2 panel - seat counting, who signs (SessionVault semantics), activation/rollback",
+     "parent": "7f0320a4abac4a21ae651dc41918380119dd6aa0",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard2-e24a47fb/patches/0003-dd6cf94a.patch"
+    },
+    {
+     "commit": "e24a47fb22399b220d25f4e3b8d544083b13fdb0",
+     "tree": "413e76ecc5386f4cd85935372996a30146c1a4d4",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:09:11-07:00",
+     "subject": "Custody v2 panel: correct the SessionVault refusal; prove both factory states on the real contracts",
+     "parent": "dd6cf94a7b218fe6be5a2ebd30ac28691668410a",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard2-e24a47fb/patches/0004-e24a47fb.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e1d4b5b190b11ece5e363838e51e9087f024e318",
+     "sha256": "d8abe250d006fc2aeeb2e058c3ea9eee98f01bfe575ec0a6cd7e9b5c2958c37c",
+     "bytes": 31648,
+     "baseBlob": "5c665cead1dbb4d4300ff1a86d2eff8c04ccc7d4"
+    },
+    {
+     "path": "site/components/deployments/deployments.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7f66639d57df0d479ad3566b6d460956a4c7e94e",
+     "sha256": "4cf14f01a0eb038d2aeea394ecb8fdd9628c1e527e3e25cb7d589ea54f69d626",
+     "bytes": 319296,
+     "baseBlob": "37fe58599f17e9a8e5ad0ef7be60e8b0c29408bd"
+    },
+    {
+     "path": "site/js/core/custody-v2.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9fdebb170c3f2106f039d5b5daaa8245027162a4",
+     "sha256": "8b18973cac0103953a9dd96672469107dfef9af3c84384c88729c5fe600e4bb1",
+     "bytes": 26666,
+     "baseBlob": "f94730dc6ced4effcf424a4f3e2a7951e3ea7ed2"
+    },
+    {
+     "path": "test/custody-v2-dashboard-browser.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2915660d713c4de4e76b69191afa873203236870",
+     "sha256": "16423634a601415fe05389fc07e8014754e9cd8e361a6d2390e7877459f10a3b",
+     "bytes": 15613,
+     "baseBlob": "8f6df47ba455ed8bf691ef61acdfe4ed6e4dbad7"
+    },
+    {
+     "path": "test/custody-v2-dashboard-contract.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b1ba6eaf850cc33f65ee2e475f253b494e889a96",
+     "sha256": "0f9f3167eaa692195279b68d6d66be5977ac6a1222b52fc5d05666ad05e21ced",
+     "bytes": 25322,
+     "baseBlob": null
+    },
+    {
+     "path": "test/custody-v2-dashboard.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1bf152ade6be705c9d138f9c1551c12e6b8de974",
+     "sha256": "44eedc939c3a25f37a4821eed78fadae7e22fac3fa89e71faa4f4bd534533526",
+     "bytes": 20847,
+     "baseBlob": "e33b869b55836a80d8cae61b78ec941a2e8fe787"
+    },
+    {
+     "path": "test/helpers/custody-v2-fake-vault.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "67699dd8c8ea924a5ab96fa542bb5e477d1c8004",
+     "sha256": "17a0ba54393960862bc49cee58aa1df99026c3726b01b85c6a3e5648be960628",
+     "bytes": 8113,
+     "baseBlob": "58e21f96b4e989c0be9b9d04d622ad7df4de7026"
+    }
+   ],
+   "patches": [
+    {
+     "file": "dashboard2-e24a47fb/patches/0001-10cea38b.patch",
+     "sha256": "9da3047f99c2c622451f0cc83b73acebd1aac3a7c0818f15f6c29ef2c60827a2"
+    },
+    {
+     "file": "dashboard2-e24a47fb/patches/0002-7f0320a4.patch",
+     "sha256": "0ce509af27ce5a4a4d608f13604392e9ec0e7084bbb1be32f7fc791a14909cfd"
+    },
+    {
+     "file": "dashboard2-e24a47fb/patches/0003-dd6cf94a.patch",
+     "sha256": "cb1bbc149bf5be3a82799bbde0c197d1c0c0f604e0e4acc684178f196ceb9fdf"
+    },
+    {
+     "file": "dashboard2-e24a47fb/patches/0004-e24a47fb.patch",
+     "sha256": "bbd48d747a3dad53b81c60478df2933b330142c307356efcd0b6525943ac6931"
+    }
+   ],
+   "note": "R custody v2 dashboard on 4acad4a7: seats counted as the vault counts them (single-seat bootstrap only when n = 1), per-call book re-read, precise SessionVault refusal, agreed-read snapshot fix; tests against the REAL original vault, book and SessionVault on anvil; docs. Source/test only; not deployed"
+  },
+  "custody-live3": {
+   "repo": "work/custody-v2-live-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "70019fdf9c7c4628cd852af7ac6ebae55843a610",
+   "baseProvenance": "70019fdf preserved in dc551728 (frozen-1951 custody-live2 head)",
+   "head": "3fd6e8ff99dbda1a261d11be00beea3e6549cbe9",
+   "headTree": "b7857703265f1165cd41e3ea6a44f1c764ce092f",
+   "commits": [
+    {
+     "commit": "574fdc9751d92fb2b8485cbe9cb937fb8b366bb1",
+     "tree": "ee02605879df8cf98b44e95b13aa1f0f8a35dbe6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:54:03-07:00",
+     "subject": "Reconcile custody authority and prepare unsigned enrollment and discovery plans",
+     "parent": "70019fdf9c7c4628cd852af7ac6ebae55843a610",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live3-3fd6e8ff/patches/0001-574fdc97.patch"
+    },
+    {
+     "commit": "3fd6e8ff99dbda1a261d11be00beea3e6549cbe9",
+     "tree": "b7857703265f1165cd41e3ea6a44f1c764ce092f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:24:47-07:00",
+     "subject": "Reconcile custody activation dependencies and preserve live read evidence",
+     "parent": "574fdc9751d92fb2b8485cbe9cb937fb8b366bb1",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live3-3fd6e8ff/patches/0002-3fd6e8ff.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "M",
+     "mode": "100644",
+     "blob": "88159ad75cf3a348c35bd60adb24c22cc7a42cdd",
+     "sha256": "f8153cf01b1fbd902cc3da2b6c8e406932f2080ddac9c83ec597bb9b0188107d",
+     "bytes": 143,
+     "baseBlob": "cd8d3b6e4bc369448fc7c02c9501dfe8471e628e"
+    },
+    {
+     "path": "README.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "55f413c75d2f9546ca4139e9c0925e26dc8e7808",
+     "sha256": "ee12ee4a66db3659b7fc123ab43ba27eb2be7cebad115190e52a8feb3630e64e",
+     "bytes": 11052,
+     "baseBlob": "87f2e89cec8f9339eccb82e93bc40c4ea8052916"
+    },
+    {
+     "path": "evidence/book-activation-unsigned-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bb4c884e4912980efe1e3f81f415a220e6331ee4",
+     "sha256": "fbd80b96c84afd79fda81e1068a15818a67cde098253f65720b4b3acb1a6adf4",
+     "bytes": 2003,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/canary-funding-inventory.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c4493447155f423ee3b074b4d7ea8789c6898bc",
+     "sha256": "73c2bfe4124b55cf7b184811d862ae53e836fffcbf42d8026f36579656ad6adf",
+     "bytes": 813,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/direct-route-inventory.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ddc71fbe0c5136191423fcb83ff76d2d6b74d689",
+     "sha256": "f9899524d63e3376195c36daf27765250bbb4292f03b01761e9020483d0a1517",
+     "bytes": 1546,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/dns-policy-inventory-complete.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f3e8e74f7444159871b79f853136cc66e83b9702",
+     "sha256": "6148a2413d40a3a6575452ac8ac47a122dd4835f41e2ba1d29a2b771cfb8ba49",
+     "bytes": 1490,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/factory-activation-unsigned-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "64c25b4869b9371f726ed0311de8045420306d99",
+     "sha256": "3b28b16ff5a10ae6968547f12cca456da522995737eb684a5d922fa3e8f5770b",
+     "bytes": 2246,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/factory-consumer-state.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "daf8c7152420a0f726ff550b730eb76709e2e655",
+     "sha256": "e506f4c83d3173c303da41500dddbd2b9622bcf51aecdda3db62d5f8cbc4779b",
+     "bytes": 9626,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/factory-policy-discovery.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f2025a9a11e0804d59bb087e5d774da6586fb0a9",
+     "sha256": "33e1a2bac6fee0b6fac7a7a318dbfdc466c68a99fcfad1820768e10d7d5207ed",
+     "bytes": 2799,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/host-reader-preflight.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7b4139859b5b4db257d93eb369be9557b4ebf2ba",
+     "sha256": "936226f5d61a62d44db646135fd90d4816184f3e3aace6e905267a2c8acdd52f",
+     "bytes": 1391,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/local-network-inventory.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a1d481fd49cf6fa8ae9f7c84efec8f559dde4116",
+     "sha256": "f333b2274fa7668fde13b5e71563adf1854255ef41245338aa1fd803e743997e",
+     "bytes": 8667,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/metal0-enrollment-unsigned-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4b0e57fa5e4c8d1d322ea40f8f9214cb98ab62d",
+     "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+     "bytes": 3801,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/provider-policy-inventory-complete.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "96cdc46e0f5f8161a37246d16653927cc97dffde",
+     "sha256": "dd8075446f23371b0c6abdc6426eedd8b19291bf960932383eed4d5388543603",
+     "bytes": 4520,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/public-site-base.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4caa6c0c24721a2eff35f09cc34f98d1c032f48b",
+     "sha256": "95ddd35dede6254174db75e35e704db4f3f90127def75d8c8d057c2962336950",
+     "bytes": 608,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/session-factory-state.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab24545416c777bea5909709bf267290f147235c",
+     "sha256": "6a8918aa8436a272bdf1c3ac8f96faae3e749353aecd9adf0b8838456b878259",
+     "bytes": 934,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/book-plan.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c86ee193a7ea645c110c5112720ae8d1f0c7be28",
+     "sha256": "576dfb01ab561645d8b867b6aeeac96aed1fbfccda599c015bb27ce9332056f7",
+     "bytes": 2778,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/canary-funding-inventory.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "106eb4f937ba8633a8616e67064d2d7ae89130ff",
+     "sha256": "2817e9f9dca4896e1d25881152888505c26e733c48b33464d5e70a3cfbab263e",
+     "bytes": 1976,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/direct-route-inventory.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "63576bc1086d9a8cb17d39f946a163ff83b90e91",
+     "sha256": "22dd7b0aa7f370a12872ca7a9c4ea7626670a5b57b81e1dca6c5affb947c9ac2",
+     "bytes": 1209,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/dns-policy-inventory-complete.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a7fc2ac15db31e03df6a823d5d49bb98adbd5a88",
+     "sha256": "c1a9687c1281e99e683e9ed7dac31d6af1cab127d47bee23344bb43ca3ad9faa",
+     "bytes": 2184,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/enrollment-plan.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "89969e8ef1f9b79f14595817906d6597b75587d4",
+     "sha256": "d5715c3dea06004c6486775f2dcdfe17e0d9426e5b76b1c29d82bdd9f8db7cdb",
+     "bytes": 8106,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/factory-activation-plan.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b275728dc2a17dd710c5593e90254970b860f971",
+     "sha256": "28d6f8a2acc6cc5eef0767ac720dfebeaa5a59be58dfc5d59305ac8eaa1e1691",
+     "bytes": 3960,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/factory-consumer-state.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff00db54221d20c1e1bcf9ec16933ed8090b0c27",
+     "sha256": "fddbe81fc3ef94d49173b1d1f0ce5dab44302e9d7b6b98b8fc4eff56f17dd28f",
+     "bytes": 1980,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/factory-policy-discovery.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b5192c33a8fd33f537fbef1a8302863235667ae7",
+     "sha256": "78df009ae49c8215fc1efeca8577a67d422047473121c86807c75bf6409d5701",
+     "bytes": 3078,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/host-reader-preflight.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3276f5e4071c57f182b34ed857cb8daead766727",
+     "sha256": "e71d55710ea8c4a8d3d61ca87559a101934edf942c31ca99201e3f2f1308182e",
+     "bytes": 1297,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/local-network-inventory.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "974c3330add2a683c1e50c5720bae852d51604c1",
+     "sha256": "7fda0266857c2be9a5e58359a6bd91525398c9b9566f7665026d828405f1771e",
+     "bytes": 1779,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/operator-paths.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7336106d0ca8b74550d654c4c8d6b820769bbe87",
+     "sha256": "7b1690b338229c88b00009ca590a5e2d7d8e8059f09513d0ea0557a946fd12be",
+     "bytes": 234,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/prepare-operator-proposal.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b99ac7f081c7490c535763823c31b0be4fa67e5c",
+     "sha256": "6f4877e15460c9852a0d0343472c0e747618a38da8c7ff2e19184b314024072e",
+     "bytes": 3298,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/provider-policy-inventory-complete.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "95596aa12b271bec85f3dc3a9a44e43d7cc9bacd",
+     "sha256": "b495283b6ecf6bd3114bb0c739530c948c08548885d770f9669c094b488d9c39",
+     "bytes": 1011,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/public-site-base.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "11bd674b01c052b51eaa9e491ba1ca238c889a53",
+     "sha256": "9a9ac101330513188940769a601bb63bab3b2bf17bee2b564aea4803309721b0",
+     "bytes": 899,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/session-factory-state.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ab23075e9f24de54ed9e571f44975b68a95f956",
+     "sha256": "f90064bd19bc5b33f89b888066dc9ca07e5433ac2b7bc89ed0e4b341789d2eca",
+     "bytes": 1249,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-live3-3fd6e8ff/patches/0001-574fdc97.patch",
+     "sha256": "5eea7c654978bc8aa4c9b71587277f6a4f585b46f61c7feeddfab6a67001420e"
+    },
+    {
+     "file": "custody-live3-3fd6e8ff/patches/0002-3fd6e8ff.patch",
+     "sha256": "4f6df9431db6a90eba635b47ab9cd00a65af4ff1ec42de51d8ae12af658344b0"
+    }
+   ],
+   "note": "ROOT live custody reconciliation on 70019fdf: custody authority reconciled, UNSIGNED enrollment/discovery/book/factory activation plans, activation-dependency reconciliation and preserved public live-read evidence. Read-only; nothing signed or sent; no secrets, sealed state or private config; existing single-seat bootstrap (NOT decentralized custody)"
+  },
+  "wallet-handoff": {
+   "repo": "work/custody-wallet-handoff-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "7b49cd995414d3769a9b0c3cae8e189d6bbb87c7",
+   "headTree": "da50e5540f4c553b2694931b130bdb67c356c121",
+   "commits": [
+    {
+     "commit": "7b49cd995414d3769a9b0c3cae8e189d6bbb87c7",
+     "tree": "da50e5540f4c553b2694931b130bdb67c356c121",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:11:22-07:00",
+     "subject": "metal0 host-owner enrollment: loopback MetaMask handoff (source only, inactive)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "wallet-handoff-7b49cd99/patches/0001-7b49cd99.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d5a77a4789639faf8b6d4e3713a751bc8a4d459e",
+     "sha256": "46391e195274b91e354a9538dd56bee086761929a21083a5b6e5234e76846eb9",
+     "bytes": 64,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "891acdbd21d9c83154225026846ea6876d978dd0",
+     "sha256": "8d60f93a800988af558fa0aa69d52a3fa67a5e63708719a67516a8475143cdda",
+     "bytes": 10550,
+     "baseBlob": null
+    },
+    {
+     "path": "app.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d83a6885c016891d4c5d261ce0da5dda7b02e0b",
+     "sha256": "e20ba2b9793af513baff2533cfa10f539688e0fa77bda525bbbb264824f1e4f9",
+     "bytes": 399,
+     "baseBlob": null
+    },
+    {
+     "path": "app.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4039e82f1ae8d76debe3ffeab4becd8fdd7f1b01",
+     "sha256": "3f2942ffa95ca6d477279c2d57aa80427c99a3dbd4a85f6d2d1e881ed75676fd",
+     "bytes": 8198,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/metal0-enrollment-unsigned-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4b0e57fa5e4c8d1d322ea40f8f9214cb98ab62d",
+     "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+     "bytes": 3801,
+     "baseBlob": null
+    },
+    {
+     "path": "handoff-server.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c1a2f323baabbc7451b63569db0c9b6f9b7e6e6",
+     "sha256": "fb189e4610c8579739fb59fe385b91b461bc5bfb06d95780e94ec92e53d95b75",
+     "bytes": 4586,
+     "baseBlob": null
+    },
+    {
+     "path": "page.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f475404b9487083429fe62cf9d03328bc20f0eca",
+     "sha256": "71d14ef067ee12ea541c77adbe849bb11e0d6c41c258f566d3c1f08d86258e93",
+     "bytes": 2556,
+     "baseBlob": null
+    },
+    {
+     "path": "preflight.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3bf469e5d84bed29e6b6ccff585a208d882b7a76",
+     "sha256": "07c7bdc2e68c5bccaca35779907df28138608784d78edd27bcfd52cc4d37dbc6",
+     "bytes": 2049,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154",
+     "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+     "bytes": 904,
+     "baseBlob": null
+    },
+    {
+     "path": "rpc.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ea7540555ccf20acefebbe96007fa8802d70eed",
+     "sha256": "df00a18b6c454acaa95f4634dcf64941447bc019dd16d61379ce94f8ff3a86aa",
+     "bytes": 3755,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a31720c391ab189772c2ef8b7afeaf3f7948af44",
+     "sha256": "6b34fb5e8de0980f7b4c3215e424af45dfd350cb29ba0e4387ad8024d1dcd779",
+     "bytes": 664,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-staged.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "d1032c5ad48716124a765d49e9a247ad044473f2",
+     "sha256": "d9d76195142bc41c73178ae6cf069a840e06f90e1e64775b7f3cca37845e4253",
+     "bytes": 276,
+     "baseBlob": null
+    },
+    {
+     "path": "serve.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "12d997ec5f11411252facc1fac77cedbb079fb16",
+     "sha256": "8553b37bfe89dea55b315311665f6939280e81cf7306a5efb0f62ea873cd880d",
+     "bytes": 2105,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-app.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0ecc1bf5f9afe7c861fc110cc2f3e14200f01509",
+     "sha256": "a66cc68da3b16890a59ffb2c0f002f356169db5723a1379b37bfbfe8d62f4c50",
+     "bytes": 2415,
+     "baseBlob": null
+    },
+    {
+     "path": "stage.html",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5cff161847b7f0c0218b63deee151fbba7f50554",
+     "sha256": "dbf19f2fbb7c833b0ad57b45bb07d671e5618a03b76aa310f57d25515b38db72",
+     "bytes": 2035,
+     "baseBlob": null
+    },
+    {
+     "path": "stages.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "de8638d19fa671a2cbf5f575c32e2148dcd0e941",
+     "sha256": "b6ab22427ce5184247f4dc2aa636e1e5df5663e7e09ca906de37b08f00b672e6",
+     "bytes": 25979,
+     "baseBlob": null
+    },
+    {
+     "path": "style.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "20af0cb15aa6d00df2dc0783d300e84c637c6c90",
+     "sha256": "b055f0427d9b28ef9d10b27593c532755f864413869d2b926136f526af82e3c6",
+     "bytes": 919,
+     "baseBlob": null
+    },
+    {
+     "path": "test/browser.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fa1402e58dbab8f385cc212b539cc499423486fe",
+     "sha256": "ec9764b1005b7a44a821377677513ee54971695b33a7d0055f03bf39d01e5391",
+     "bytes": 10390,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fake-base.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dbd0719bb5d7f1b3d86ee4e392ed96a5d78294fb",
+     "sha256": "46b73e2f0ae608b92b7bdddc1c238e0abc9eaaae0b7bce860d3cd526d32200ab",
+     "bytes": 12476,
+     "baseBlob": null
+    },
+    {
+     "path": "test/stages.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "24308d943d53e5ed2e16b9b4b929117f3079195e",
+     "sha256": "fb4c0055e660574984df6e16057513a008406fd9504beb36720491b2d7085cae",
+     "bytes": 22149,
+     "baseBlob": null
+    },
+    {
+     "path": "trust.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "958e19d5c80e8869a64d7ddf9a97bf54a58aa386",
+     "sha256": "c2b8e9004e5acb6ca5443f99ebc75fba304d620590ffa7d2cfc5e45ed5740d5a",
+     "bytes": 3000,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "wallet-handoff-7b49cd99/patches/0001-7b49cd99.patch",
+     "sha256": "88690a0267e102dabaa5f36b8d320943502484c8151f54da081798962ff7437b"
+    }
+   ],
+   "note": "D metal0 host-owner enrollment loopback MetaMask handoff 7b49cd99, source only, inactive. Its plain-transfer fund stage REFUSES the operator (root live preflight 20:12Z: the operator carries an EIP-7702 delegation) and is NOT usable for funding; the acceptOwner stage is unaffected. Nothing was served, signed, sent or funded"
+  },
+  "operator-proposal": {
+   "repo": "work/custody-operator-proposal-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "1ac9ad2cb798d16cc060adb6a02f0272cef9976b",
+   "headTree": "e6a98714f2748afa812bb53155c46a1cf6401360",
+   "commits": [
+    {
+     "commit": "f2a7b81eded88c6b799ece5f5caadee29ea62447",
+     "tree": "c02f94f9c3be6b8896bd564c62f6248c30370963",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:19:24-07:00",
+     "subject": "metal0 operator proposeOwner: prepare (default) and journaled, explicit send for root",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "operator-proposal-1ac9ad2c/patches/0001-f2a7b81e.patch"
+    },
+    {
+     "commit": "1ac9ad2cb798d16cc060adb6a02f0272cef9976b",
+     "tree": "e6a98714f2748afa812bb53155c46a1cf6401360",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:19:30-07:00",
+     "subject": "PROGRESS",
+     "parent": "f2a7b81eded88c6b799ece5f5caadee29ea62447",
+     "emptyAfterExclusion": false,
+     "patch": "operator-proposal-1ac9ad2c/patches/0002-1ac9ad2c.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bde247a6a65d5e877660d4ae48d463aa61363c29",
+     "sha256": "44627057929a49ea2d001cde3bdca903a2f8840b60c2baee83b2abb4a970d262",
+     "bytes": 50,
+     "baseBlob": null
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b5fcc9f32f7e7ea1163518c229497ffce552e92",
+     "sha256": "776cac107df7d3632948fdf686947da089a2d4cba5e7982b411967cd63430c11",
+     "bytes": 500,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8374f4886f210374d153184ecc2db791cdf93a91",
+     "sha256": "3d6e96c6c720328d9ed565b8af2248a972f89d1214ec071bf937280650668bfb",
+     "bytes": 8094,
+     "baseBlob": null
+    },
+    {
+     "path": "bin/operator-propose.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b204177cecb2de1ef501bfc7012dc635137fff7",
+     "sha256": "bd0458a00de28e1101fcc0f03d9bc51dfb8ce27f1e527050bc464b23737f0ea7",
+     "bytes": 3039,
+     "baseBlob": null
+    },
+    {
+     "path": "lib/proposer.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eb15314e3434307667d7dc12bdfa8aa099e1092d",
+     "sha256": "941a92f6d7f01e3876a99fea75f1d3b72f54943ed573e50db76d7d18dfade56a",
+     "bytes": 29333,
+     "baseBlob": null
+    },
+    {
+     "path": "package-lock.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0a5d07553367af160d20aca44977fd10255fec9",
+     "sha256": "bf7276af38c6a0da5537bf5d7c3212e9f095d10d25449aa8e169af8e7943a4de",
+     "bytes": 6916,
+     "baseBlob": null
+    },
+    {
+     "path": "package.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "285f8478a8d08a81ea61b492709660073c2efd46",
+     "sha256": "662477d0acf14e9a84c32f53d6d4a791388f033c443892e056e8a4e36219a687",
+     "bytes": 335,
+     "baseBlob": null
+    },
+    {
+     "path": "qrun.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3bb88b436186b3fb43b4da44c57c051beaa9033d",
+     "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+     "bytes": 515,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "cb1fa305cad0e9ab02b6099daedbd5a1c470f4e4",
+     "sha256": "ae758e569fa328df7ddb8b5201d8f43cb90522620987361fef5542efe748f692",
+     "bytes": 302,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/metal0-enrollment-unsigned-20261023.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4b0e57fa5e4c8d1d322ea40f8f9214cb98ab62d",
+     "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+     "bytes": 3801,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/fake-base.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1c7cca222ea8addaee2ee9fe325f82b452924dfe",
+     "sha256": "0b7cdce134c94ff121ad28507630d00ea33ca5326e72f6553919745a767e0f39",
+     "bytes": 7138,
+     "baseBlob": null
+    },
+    {
+     "path": "test/proposer.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6fed7e6aa034ee6c67667b976dace9ed68d9ced4",
+     "sha256": "98dd68796138c9cd24ad8b3ca981f00c270205c335e4b6414488cde92600332f",
+     "bytes": 17571,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "operator-proposal-1ac9ad2c/patches/0001-f2a7b81e.patch",
+     "sha256": "9455742bbeef0a46c5fd7767abf1bdb5a1a006490caea50e8491ca05abbe2c5f"
+    },
+    {
+     "file": "operator-proposal-1ac9ad2c/patches/0002-1ac9ad2c.patch",
+     "sha256": "0636f67a436ec643981d2c81a13bcd7cb9b15b482d01d8d0cb6116a795612b6d"
+    }
+   ],
+   "note": "metal0 operator proposeOwner(metal0, Enclave wallet) helper f2a7b81e: prepare by default, journaled explicit send for root, pinned exact EIP-7702 delegation and executor runtime; fake-chain tests with a test key; plus its committed PROGRESS note (1ac9ad2c). Nothing was signed or sent"
+  },
+  "snp-harness": {
+   "repo": "work/custody-snp-recovery-harness-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "7c4844a17fecf870d4790ca8620cfd8c1e60780c",
+   "headTree": "0fb8af49b99e6157092a9a79e9bdb43e8a8d96ab",
+   "commits": [
+    {
+     "commit": "e9b9709aaff57d415c5542bb0f165283ee74b436",
+     "tree": "305ebb74ef30f0289e0a1e2824c3c62431c39d56",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:11:07-07:00",
+     "subject": "SNP startup-recovery canary harness: fresh / GET-503 refusal / same-identity reopen (source only)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "snp-harness-7c4844a1/patches/0001-e9b9709a.patch"
+    },
+    {
+     "commit": "7c4844a17fecf870d4790ca8620cfd8c1e60780c",
+     "tree": "0fb8af49b99e6157092a9a79e9bdb43e8a8d96ab",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:24:28-07:00",
+     "subject": "Record corrected custody SNP startup and outage recovery evidence",
+     "parent": "e9b9709aaff57d415c5542bb0f165283ee74b436",
+     "emptyAfterExclusion": false,
+     "patch": "snp-harness-7c4844a1/patches/0002-7c4844a1.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c22b2b3973aa5bca1e0c39f1d87c32700f09538e",
+     "sha256": "d397a950e233be0964021ee50d1a6d33c251c37c059d5928fc6b8eb55b2ea8c9",
+     "bytes": 205,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "afd877bc992ec06446d53d8670ef9cb74af41917",
+     "sha256": "1a6e1b50470c8ee7937210e93820c5b465e4c8560a17dd429a1a3a67cd89de22",
+     "bytes": 17113,
+     "baseBlob": null
+    },
+    {
+     "path": "SCAN-REVIEW.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8758b412af13b0e534afa94f3fd0404a202da793",
+     "sha256": "2d84315044befc4631d7bf480469e24c086d17f06cb784721f6f22ede98b5be1",
+     "bytes": 836,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/fault-inject.mjs.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a480afde6f97307c4666c33212351681c9a5a9c8",
+     "sha256": "94e1abbee41c8f85494c111ed542ada41a3749fdfbea99e7fa704a1229f0ff94",
+     "bytes": 702,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/recovery_canary.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8addeaa0785f940134e2d19ed05617432b7d07aa",
+     "sha256": "e9a82812f09ddf80792d52b7e91cd0b765f182c77061834988420e5ccc2a311c",
+     "bytes": 36845,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/resolve-as-original.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9be9f062a1079954ba2b00167bb9823ff6554bb7",
+     "sha256": "30cd9f2cd53ecc82509bc8ade157a934c16dcd0dead7e717480f85c9dc353fe7",
+     "bytes": 741,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/resolve-register.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "543d12cd7486a7338521e488450febd6a1e079c8",
+     "sha256": "16deae35e7f1ccbb53969c762288e043c879e394c3018785c21f8ec0d475c29a",
+     "bytes": 1259,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/attempt.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a276d0a33416ae96688a7fd5e02466409fd5b1c6",
+     "sha256": "14208c6fc2062bbd352fc15c2066401dbd5dd97898d76d08a9d1b9d84d4fc613",
+     "bytes": 4199,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/memory.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec410412fd628d55282c134e84dcd430c8642d69",
+     "sha256": "053d822b331cb66135bc74f6a4fd6202c12e46fb9d5d076177c1f9510bf9ac7b",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/protected-after.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aa7ec94f49672046aab4bba657699ccd6ce814c5",
+     "sha256": "6d66bb323df506a5341cea4c9042c4adf8539892fc024f22cf978e7b6394de5e",
+     "bytes": 100,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/protected-before.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aa7ec94f49672046aab4bba657699ccd6ce814c5",
+     "sha256": "6d66bb323df506a5341cea4c9042c4adf8539892fc024f22cf978e7b6394de5e",
+     "bytes": 100,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a5f2261237710b0697192b353d2d4c2d2831c197",
+     "sha256": "362333f0df4d168f6b62fb65d7929824652e353230e3e3e895b1ce1dd4d17ef4",
+     "bytes": 13346,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/terminal.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff8887ffd0d7bfe2388a79bab329bd9f2408a651",
+     "sha256": "19f3e0716395093dd86bc8d3b72bed1a202652cf76ca96a5b8bce26a0b148cad",
+     "bytes": 338,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/verdict-fresh.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "28fe23f2732c0d95ac6ae35fc66480e33d59d196",
+     "sha256": "bb1b9cef582b5706faa644c98368569e3130d227ab2059e0177ce1b0d9587915",
+     "bytes": 1805,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/20261023T201449Z/verdict-reopen.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4f8d430c6684a6cc81a69d5689584ee73216e43e",
+     "sha256": "120ea5c01027af99b0f10cabbb5c7811d3360e98fd5de80fa6cc4655a8bb268b",
+     "bytes": 1805,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "286d0825d671f8316c94b7ffba21b977c7a64bc8",
+     "sha256": "09d987a5e87c895772f127d72c23cdf0498d2e52509c3930f3208b2e280c7be6",
+     "bytes": 497,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/canary-node.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c8734ba6460ff48a1966b45ee5bfbadf51b83fcb",
+     "sha256": "29882d74deb94a3ea5a5ab4a8307df1d357c5827c9ba7d58330d35f1806b0159",
+     "bytes": 8480,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/fixtures/host-a5eae96c.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c12cc58b473eb63c55817e19af07ac92c51557e",
+     "sha256": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
+     "bytes": 9698,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "09e6466aa66f7bd5f3647655c4925ee555f4af75",
+     "sha256": "395cbb7d32b9b53f7efa6d2278bca7402158233a027dbdc03b7fe25b148165cb",
+     "bytes": 1799,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/test_recovery_canary.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a7d079e75473f449847b4add3028013c3b627e29",
+     "sha256": "9af3943643045ea2be290dd179b8cda5d64b876094bbd12f98917150696702e5",
+     "bytes": 21413,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "snp-harness-7c4844a1/patches/0001-e9b9709a.patch",
+     "sha256": "b6a944e698006e4f771486e261c40c41c07b37bf827ee845c7990d4c0f0dccc6"
+    },
+    {
+     "file": "snp-harness-7c4844a1/patches/0002-7c4844a1.patch",
+     "sha256": "755c95de5bb0adb2d8d224cb8ca0db78c4e028529dba161d5f964325f59039f4"
+    }
+   ],
+   "note": "SNP startup-recovery canary harness e9b9709a (fresh / GET-503 refusal / same-identity reopen) and ROOT corrected-image hardware evidence 7c4844a1 (20261023T201449Z: quote-only startup and outage recovery; not secret release or lifecycle). Committed SCAN-REVIEW.md classifies the encKey hits (public X25519 key of a disposable custodian). Raw quotes, guest console logs, private configuration, sealed bytes and keys are excluded by the repository itself"
+  },
+  "direct-route": {
+   "repo": "work/custody-v2-direct-route-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "fc7bff941260a0b482b079aba3ec674cd5661acc",
+   "headTree": "474c9922af1e348e4a097902c53f1d04004bd8e2",
+   "commits": [
+    {
+     "commit": "fc7bff941260a0b482b079aba3ec674cd5661acc",
+     "tree": "474c9922af1e348e4a097902c53f1d04004bd8e2",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T13:09:50-07:00",
+     "subject": "Custody v2 direct public ingress on metal0: source-only routing assessment (canary and permanent host-role options)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "direct-route-fc7bff94/patches/0001-fc7bff94.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ce566e7e432cd7b12920a136e9c103dc75b06bc8",
+     "sha256": "f84bff18c8419a8a98583723cd2ed81eb3e93454c4062b39e077ea3fe0ba8dc6",
+     "bytes": 19,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9164528fda47557e8202c79c5a6c2be7e8f9db09",
+     "sha256": "94eeade92562df0b504320d79fd6e35bb322f223afba8e54a94c128e5189f17b",
+     "bytes": 13284,
+     "baseBlob": null
+    },
+    {
+     "path": "probe-tools.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "probe-tools.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e3529aa8277227046614054f94bd039363446e25",
+     "sha256": "5ba4bcdf8d2baca91ae8afe4f3820f4388e5b028885bb33bf5d6c80d2455b3f5",
+     "bytes": 282,
+     "baseBlob": null
+    },
+    {
+     "path": "probe-tools.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e860c960c98202d2f17e7df1b1ba25dcb9b3447a",
+     "sha256": "7e515a872e632033cfa558ee36e74559c89160e1b7a54dd1d1c9538087e23d63",
+     "bytes": 310,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2efe0f953dfa34b2e960f91c0f326794aa7a0baf",
+     "sha256": "74cd5524294d128b435dd6034026b6afcacdb7c5301f2605733ff5e1bcabb257",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "906913515502ab71add8efd0d190a2c39b1c99af",
+     "sha256": "fc0a8f6f30764074860c67c7e7abd5bf25b66f0f1dd5e4780516383e1b36af1b",
+     "bytes": 358,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "24c31b5ff6de32676b592eb80e43e959310efb34",
+     "sha256": "f4d7569d7aa91fa0cde9249ab5a359dea6aaddcccf7f7bafdd3324edc7bca9e6",
+     "bytes": 925,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "direct-route-fc7bff94/patches/0001-fc7bff94.patch",
+     "sha256": "180e7f8ba5000e78e30964abdec5d6767f3c2b55cb193748c3c44067624a9073"
+    }
+   ],
+   "note": "Custody v2 direct public ingress on metal0: source-only routing assessment (canary and permanent host-role options), with its committed probe/scan outputs. Nothing deployed"
+  }
+ },
+ "derivatives": {},
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-1951-checkpoint.md": "5170434bb73389d7f4b545066bb2aadc83cbe2160baca126e81dd221f0edf8bd",
+  "source-preservation/snapshots-2025/ROOT-CONTINUE-LATEST.snapshot-2025.txt": "a91b1aad7bde63c4d3dc81b61af72fdf4694538fbef365ded83a0206bbfab565",
+  "source-preservation/snapshots-2025/custody-v2-live-verification-20261023.snapshot-2025.md": "a033b002fffaaecd6734406a7e792ce29e189d62d283182536fc8b5c853638a2"
+ },
+ "rootEvidence": {
+  "../../outputs/decentralization-audit/custody-v2-snp-startup-recovery-20261023.json": "447a3cbfe1b6c2d6722c573d3693ad8ea054d6beb9f36beb7cdf111222206de5"
+ },
+ "snapshotsUnchangedSince1852": [
+  "ROOT-PENDING-LATEST.txt",
+  "effective-goal-requirements.txt"
+ ],
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "ignored/untracked files in every repo: images, binaries, node_modules, raw quotes, guest console logs, sealed state, private config, keys, canary run directories, task prompts and progress/err files of workers",
+  "commits after these heads and every worktree change",
+  "outer non-repo files of these work directories"
+ ]
+}

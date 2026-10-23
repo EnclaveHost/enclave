@@ -37104,6 +37104,1014 @@
       "stored": "files/source-preservation/make-frozen-1951-snapshots.py",
       "sha256": "b3222eb53775765b1c8135b86760dc274e7c87ca518bd764a8994fce1f319ff2",
       "bytes": 1016
+    },
+    {
+      "label": "FROZEN 2025 batch exported from Git objects (never worktrees; ignored/untracked files never read); bases rebuilt from pushed dc551728 material and every recorded tree reproduced (durability3: touched files only) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: this capture signs, sends, funds, serves, merges, images, activates or deploys nothing",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-2025-export/INVENTORY.json",
+      "sha256": "f4c131d44e8161dd4046ab4903c9525daa20683068627dae07ff09b4a1e30223",
+      "bytes": 52543
+    },
+    {
+      "label": "FROZEN 2025 batch exported from Git objects (never worktrees; ignored/untracked files never read); bases rebuilt from pushed dc551728 material and every recorded tree reproduced (durability3: touched files only) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: this capture signs, sends, funds, serves, merges, images, activates or deploys nothing",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-2025-export/REBUILD.md",
+      "sha256": "5e3cff52dfbcc281c85ae0883842eb68c92ec33edc5b4df28444cd4b8eb0da6f",
+      "bytes": 3488
+    },
+    {
+      "label": "FROZEN 2025 batch exported from Git objects (never worktrees; ignored/untracked files never read); bases rebuilt from pushed dc551728 material and every recorded tree reproduced (durability3: touched files only) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: this capture signs, sends, funds, serves, merges, images, activates or deploys nothing",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-2025-export/REPRODUCE-CHECK.txt",
+      "sha256": "f6dd8917e33444b26bb6722696087858d7528bf5935eb2cb0a3319996af0bc5c",
+      "bytes": 2348
+    },
+    {
+      "label": "custody v2 durability on a5eae96c -> ab589bf8: REAL custodian daemon startup tests against a host /state server and REAL Caddy ingress path-spelling tests; source/test only (r2 image source). Touched-file reproduction (base not publishable)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/durability3-ab589bf8/patches/0001-ab589bf8.patch",
+      "stored": "files/source-preservation/frozen-2025-export/durability3-ab589bf8/patches/0001-ab589bf8.patch",
+      "sha256": "fd3b8c87f03028ee78f2d5b51e9cfa83f64ccb0ecec5479c871221d070a21368",
+      "bytes": 18655
+    },
+    {
+      "label": "custody v2 durability on a5eae96c -> ab589bf8: REAL custodian daemon startup tests against a host /state server and REAL Caddy ingress path-spelling tests; source/test only (r2 image source). Touched-file reproduction (base not publishable)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/durability3-ab589bf8/files/test/custody-direct-ingress-paths.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/durability3-ab589bf8/files/test/custody-direct-ingress-paths.test.mjs",
+      "sha256": "6de4c9883a795d2d75f78d66e56be22a42f94f9fa3e8265d8825d6ce79ded04b",
+      "bytes": 6726
+    },
+    {
+      "label": "custody v2 durability on a5eae96c -> ab589bf8: REAL custodian daemon startup tests against a host /state server and REAL Caddy ingress path-spelling tests; source/test only (r2 image source). Touched-file reproduction (base not publishable)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/durability3-ab589bf8/files/test/custody-v2-daemon-startup.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/durability3-ab589bf8/files/test/custody-v2-daemon-startup.test.mjs",
+      "sha256": "3f7302870d3f197e35d20ad6b531fdcdaa4b0be55051ddf80c1b4b7392291d87",
+      "bytes": 9220
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/patches/0001-da6e3496.patch",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/patches/0001-da6e3496.patch",
+      "sha256": "761d4b1b93df41070ba2679a9bbc13fac58158ca35c0b92e12bc923f764c7e0b",
+      "bytes": 141263
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/patches/0002-23f7e51a.patch",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/patches/0002-23f7e51a.patch",
+      "sha256": "fbd26b26e2e04d7c330ca84ad6a75dc8ffe6ec02fb3ed6bb70e4361034b020eb",
+      "bytes": 5376
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/.gitignore",
+      "sha256": "aff2523bee4da29e021810cf9f96a6fc555892df2eae986e71e39fe25e954de5",
+      "bytes": 159
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/README.md",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/README.md",
+      "sha256": "78300e5eea6c60f4182c3c6aa0a5a1fe49ae187cd17fd5c98ffd79f1bb9178e6",
+      "bytes": 2429
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/RESULT-R2.md",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/RESULT-R2.md",
+      "sha256": "f1e9a4d6452f2f1c47bcc8b0b863e617e97408c20ab40b214f8b907e7fe4bf43",
+      "bytes": 15878
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/SCAN-REVIEW.txt",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/SCAN-REVIEW.txt",
+      "sha256": "67a9971c1ea43dc5cd5fa96e7e27c1c87ba2134aa19c83f217037319cfa60ecb",
+      "bytes": 1151
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/build-r2.sh",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/build-r2.sh",
+      "sha256": "93b636b9897c501be363eb0dcb5309a7d60b934fbaa131b63aa413306f32f41a",
+      "bytes": 4628
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/A-manifest.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/A-manifest.json",
+      "sha256": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b",
+      "bytes": 3957
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/A-verify-v4.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/A-verify-v4.json",
+      "sha256": "453ffdd949b2511ceae59d4405cb1baa5fe44929289acfdb936c65d5f173144d",
+      "bytes": 27218
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/B-manifest.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/B-manifest.json",
+      "sha256": "60bde3e90a9d9984def551c21c8815108272d57d2d37bf2e1eb9f2d209e1ad5b",
+      "bytes": 3957
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/B-verify-v4.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/B-verify-v4.json",
+      "sha256": "453ffdd949b2511ceae59d4405cb1baa5fe44929289acfdb936c65d5f173144d",
+      "bytes": 27218
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/custody-v2-rollout-closure.patch",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/evidence-r2/custody-v2-rollout-closure.patch",
+      "sha256": "f427865db38e6ab1093fab35b1fc383b0c954a3e7d0b7690aa7ad9d1c08bec2f",
+      "bytes": 35343
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/review-r2-commit.sh",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/review-r2-commit.sh",
+      "sha256": "c42e9a3131eda1f6db7c81087d2b7de840758b1ee6459ba264bfc0e74299d4bb",
+      "bytes": 514
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/scan-r2.sh",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/scan-r2.sh",
+      "sha256": "34e26c27d47faba41768c969f8af067103b55f986e69398c9abc200e05439f19",
+      "bytes": 491
+    },
+    {
+      "label": "ROOT corrected custodian r2 from ab589bf8: two byte-identical reproducible builds (measurement 70aadff5), v4 verification, SNP canary handoff, reviewed provenance/limits; SCAN-REVIEW.txt classifies public-hash scanner hits; NOT activated. Images/clones/raw quotes/logs not versioned",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/verify-custodian-v4.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-release2-23f7e51a/files/verify-custodian-v4.mjs",
+      "sha256": "c6af6f39921ad72d6a2e1d366d39e5bd233ab0cdef522ee1596f08838b1d67a0",
+      "bytes": 16443
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0001-10cea38b.patch",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0001-10cea38b.patch",
+      "sha256": "9da3047f99c2c622451f0cc83b73acebd1aac3a7c0818f15f6c29ef2c60827a2",
+      "bytes": 15990
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0002-7f0320a4.patch",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0002-7f0320a4.patch",
+      "sha256": "0ce509af27ce5a4a4d608f13604392e9ec0e7084bbb1be32f7fc791a14909cfd",
+      "bytes": 32729
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0003-dd6cf94a.patch",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0003-dd6cf94a.patch",
+      "sha256": "cb1bbc149bf5be3a82799bbde0c197d1c0c0f604e0e4acc684178f196ceb9fdf",
+      "bytes": 3292
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0004-e24a47fb.patch",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/patches/0004-e24a47fb.patch",
+      "sha256": "bbd48d747a3dad53b81c60478df2933b330142c307356efcd0b6525943ac6931",
+      "bytes": 21918
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/docs/security/secret-custody-v2.md",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/docs/security/secret-custody-v2.md",
+      "sha256": "d8abe250d006fc2aeeb2e058c3ea9eee98f01bfe575ec0a6cd7e9b5c2958c37c",
+      "bytes": 31648
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/site/components/deployments/deployments.js",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/site/components/deployments/deployments.js",
+      "sha256": "4cf14f01a0eb038d2aeea394ecb8fdd9628c1e527e3e25cb7d589ea54f69d626",
+      "bytes": 319296
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/site/js/core/custody-v2.js",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/site/js/core/custody-v2.js",
+      "sha256": "8b18973cac0103953a9dd96672469107dfef9af3c84384c88729c5fe600e4bb1",
+      "bytes": 26666
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/custody-v2-dashboard-browser.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/custody-v2-dashboard-browser.test.mjs",
+      "sha256": "16423634a601415fe05389fc07e8014754e9cd8e361a6d2390e7877459f10a3b",
+      "bytes": 15613
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/custody-v2-dashboard-contract.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/custody-v2-dashboard-contract.test.mjs",
+      "sha256": "0f9f3167eaa692195279b68d6d66be5977ac6a1222b52fc5d05666ad05e21ced",
+      "bytes": 25322
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/custody-v2-dashboard.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/custody-v2-dashboard.test.mjs",
+      "sha256": "44eedc939c3a25f37a4821eed78fadae7e22fac3fa89e71faa4f4bd534533526",
+      "bytes": 20847
+    },
+    {
+      "label": "R custody v2 dashboard on 4acad4a7: exact seat counting, per-call book re-read, SessionVault refusal, real original-vault/book/SessionVault anvil tests, docs; source/test only, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/helpers/custody-v2-fake-vault.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/dashboard2-e24a47fb/files/test/helpers/custody-v2-fake-vault.mjs",
+      "sha256": "17a0ba54393960862bc49cee58aa1df99026c3726b01b85c6a3e5648be960628",
+      "bytes": 8113
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/patches/0001-574fdc97.patch",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/patches/0001-574fdc97.patch",
+      "sha256": "5eea7c654978bc8aa4c9b71587277f6a4f585b46f61c7feeddfab6a67001420e",
+      "bytes": 42925
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/patches/0002-3fd6e8ff.patch",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/patches/0002-3fd6e8ff.patch",
+      "sha256": "4f6df9431db6a90eba635b47ab9cd00a65af4ff1ec42de51d8ae12af658344b0",
+      "bytes": 62670
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/.gitignore",
+      "sha256": "f8153cf01b1fbd902cc3da2b6c8e406932f2080ddac9c83ec597bb9b0188107d",
+      "bytes": 143
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/README.md",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/README.md",
+      "sha256": "ee12ee4a66db3659b7fc123ab43ba27eb2be7cebad115190e52a8feb3630e64e",
+      "bytes": 11052
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/book-activation-unsigned-20261023.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/book-activation-unsigned-20261023.json",
+      "sha256": "fbd80b96c84afd79fda81e1068a15818a67cde098253f65720b4b3acb1a6adf4",
+      "bytes": 2003
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/canary-funding-inventory.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/canary-funding-inventory.json",
+      "sha256": "73c2bfe4124b55cf7b184811d862ae53e836fffcbf42d8026f36579656ad6adf",
+      "bytes": 813
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/direct-route-inventory.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/direct-route-inventory.json",
+      "sha256": "f9899524d63e3376195c36daf27765250bbb4292f03b01761e9020483d0a1517",
+      "bytes": 1546
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/dns-policy-inventory-complete.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/dns-policy-inventory-complete.json",
+      "sha256": "6148a2413d40a3a6575452ac8ac47a122dd4835f41e2ba1d29a2b771cfb8ba49",
+      "bytes": 1490
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/factory-activation-unsigned-20261023.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/factory-activation-unsigned-20261023.json",
+      "sha256": "3b28b16ff5a10ae6968547f12cca456da522995737eb684a5d922fa3e8f5770b",
+      "bytes": 2246
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/factory-consumer-state.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/factory-consumer-state.json",
+      "sha256": "e506f4c83d3173c303da41500dddbd2b9622bcf51aecdda3db62d5f8cbc4779b",
+      "bytes": 9626
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/factory-policy-discovery.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/factory-policy-discovery.json",
+      "sha256": "33e1a2bac6fee0b6fac7a7a318dbfdc466c68a99fcfad1820768e10d7d5207ed",
+      "bytes": 2799
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/host-reader-preflight.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/host-reader-preflight.json",
+      "sha256": "936226f5d61a62d44db646135fd90d4816184f3e3aace6e905267a2c8acdd52f",
+      "bytes": 1391
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/local-network-inventory.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/local-network-inventory.json",
+      "sha256": "f333b2274fa7668fde13b5e71563adf1854255ef41245338aa1fd803e743997e",
+      "bytes": 8667
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/metal0-enrollment-unsigned-20261023.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/metal0-enrollment-unsigned-20261023.json",
+      "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+      "bytes": 3801
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/provider-policy-inventory-complete.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/provider-policy-inventory-complete.json",
+      "sha256": "dd8075446f23371b0c6abdc6426eedd8b19291bf960932383eed4d5388543603",
+      "bytes": 4520
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/public-site-base.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/public-site-base.json",
+      "sha256": "95ddd35dede6254174db75e35e704db4f3f90127def75d8c8d057c2962336950",
+      "bytes": 608
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/session-factory-state.json",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/evidence/session-factory-state.json",
+      "sha256": "6a8918aa8436a272bdf1c3ac8f96faae3e749353aecd9adf0b8838456b878259",
+      "bytes": 934
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/book-plan.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/book-plan.mjs",
+      "sha256": "576dfb01ab561645d8b867b6aeeac96aed1fbfccda599c015bb27ce9332056f7",
+      "bytes": 2778
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/canary-funding-inventory.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/canary-funding-inventory.mjs",
+      "sha256": "2817e9f9dca4896e1d25881152888505c26e733c48b33464d5e70a3cfbab263e",
+      "bytes": 1976
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/direct-route-inventory.py",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/direct-route-inventory.py",
+      "sha256": "22dd7b0aa7f370a12872ca7a9c4ea7626670a5b57b81e1dca6c5affb947c9ac2",
+      "bytes": 1209
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/dns-policy-inventory-complete.py",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/dns-policy-inventory-complete.py",
+      "sha256": "c1a9687c1281e99e683e9ed7dac31d6af1cab127d47bee23344bb43ca3ad9faa",
+      "bytes": 2184
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/enrollment-plan.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/enrollment-plan.mjs",
+      "sha256": "d5715c3dea06004c6486775f2dcdfe17e0d9426e5b76b1c29d82bdd9f8db7cdb",
+      "bytes": 8106
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/factory-activation-plan.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/factory-activation-plan.mjs",
+      "sha256": "28d6f8a2acc6cc5eef0767ac720dfebeaa5a59be58dfc5d59305ac8eaa1e1691",
+      "bytes": 3960
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/factory-consumer-state.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/factory-consumer-state.mjs",
+      "sha256": "fddbe81fc3ef94d49173b1d1f0ce5dab44302e9d7b6b98b8fc4eff56f17dd28f",
+      "bytes": 1980
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/factory-policy-discovery.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/factory-policy-discovery.mjs",
+      "sha256": "78df009ae49c8215fc1efeca8577a67d422047473121c86807c75bf6409d5701",
+      "bytes": 3078
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/host-reader-preflight.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/host-reader-preflight.mjs",
+      "sha256": "e71d55710ea8c4a8d3d61ca87559a101934edf942c31ca99201e3f2f1308182e",
+      "bytes": 1297
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/local-network-inventory.py",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/local-network-inventory.py",
+      "sha256": "7fda0266857c2be9a5e58359a6bd91525398c9b9566f7665026d828405f1771e",
+      "bytes": 1779
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/operator-paths.py",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/operator-paths.py",
+      "sha256": "7b1690b338229c88b00009ca590a5e2d7d8e8059f09513d0ea0557a946fd12be",
+      "bytes": 234
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/prepare-operator-proposal.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/prepare-operator-proposal.mjs",
+      "sha256": "6f4877e15460c9852a0d0343472c0e747618a38da8c7ff2e19184b314024072e",
+      "bytes": 3298
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/provider-policy-inventory-complete.py",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/provider-policy-inventory-complete.py",
+      "sha256": "b495283b6ecf6bd3114bb0c739530c948c08548885d770f9669c094b488d9c39",
+      "bytes": 1011
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/public-site-base.py",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/public-site-base.py",
+      "sha256": "9a9ac101330513188940769a601bb63bab3b2bf17bee2b564aea4803309721b0",
+      "bytes": 899
+    },
+    {
+      "label": "ROOT live custody reconciliation on 70019fdf: authority/activation-dependency reconciliation, UNSIGNED plans, public live-read evidence; read-only, nothing signed or sent; existing single-seat bootstrap (NOT decentralized)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/session-factory-state.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/custody-live3-3fd6e8ff/files/probes/session-factory-state.mjs",
+      "sha256": "f90064bd19bc5b33f89b888066dc9ca07e5433ac2b7bc89ed0e4b341789d2eca",
+      "bytes": 1249
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/patches/0001-7b49cd99.patch",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/patches/0001-7b49cd99.patch",
+      "sha256": "88690a0267e102dabaa5f36b8d320943502484c8151f54da081798962ff7437b",
+      "bytes": 128374
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/.gitignore",
+      "sha256": "46391e195274b91e354a9538dd56bee086761929a21083a5b6e5234e76846eb9",
+      "bytes": 64
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/README.md",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/README.md",
+      "sha256": "8d60f93a800988af558fa0aa69d52a3fa67a5e63708719a67516a8475143cdda",
+      "bytes": 10550
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/app.css",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/app.css",
+      "sha256": "e20ba2b9793af513baff2533cfa10f539688e0fa77bda525bbbb264824f1e4f9",
+      "bytes": 399
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/app.js",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/app.js",
+      "sha256": "3f2942ffa95ca6d477279c2d57aa80427c99a3dbd4a85f6d2d1e881ed75676fd",
+      "bytes": 8198
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/evidence/metal0-enrollment-unsigned-20261023.json",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/evidence/metal0-enrollment-unsigned-20261023.json",
+      "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+      "bytes": 3801
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/handoff-server.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/handoff-server.mjs",
+      "sha256": "fb189e4610c8579739fb59fe385b91b461bc5bfb06d95780e94ec92e53d95b75",
+      "bytes": 4586
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/page.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/page.mjs",
+      "sha256": "71d14ef067ee12ea541c77adbe849bb11e0d6c41c258f566d3c1f08d86258e93",
+      "bytes": 2556
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/preflight.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/preflight.mjs",
+      "sha256": "07c7bdc2e68c5bccaca35779907df28138608784d78edd27bcfd52cc4d37dbc6",
+      "bytes": 2049
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/q.sh",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/q.sh",
+      "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+      "bytes": 904
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/rpc.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/rpc.mjs",
+      "sha256": "df00a18b6c454acaa95f4634dcf64941447bc019dd16d61379ce94f8ff3a86aa",
+      "bytes": 3755
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/run-tests.sh",
+      "sha256": "6b34fb5e8de0980f7b4c3215e424af45dfd350cb29ba0e4387ad8024d1dcd779",
+      "bytes": 664
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/scan-staged.sh",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/scan-staged.sh",
+      "sha256": "d9d76195142bc41c73178ae6cf069a840e06f90e1e64775b7f3cca37845e4253",
+      "bytes": 276
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/serve.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/serve.mjs",
+      "sha256": "8553b37bfe89dea55b315311665f6939280e81cf7306a5efb0f62ea873cd880d",
+      "bytes": 2105
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/stage-app.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/stage-app.mjs",
+      "sha256": "a66cc68da3b16890a59ffb2c0f002f356169db5723a1379b37bfbfe8d62f4c50",
+      "bytes": 2415
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/stage.html",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/stage.html",
+      "sha256": "dbf19f2fbb7c833b0ad57b45bb07d671e5618a03b76aa310f57d25515b38db72",
+      "bytes": 2035
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/stages.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/stages.mjs",
+      "sha256": "b6ab22427ce5184247f4dc2aa636e1e5df5663e7e09ca906de37b08f00b672e6",
+      "bytes": 25979
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/style.css",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/style.css",
+      "sha256": "b055f0427d9b28ef9d10b27593c532755f864413869d2b926136f526af82e3c6",
+      "bytes": 919
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/test/browser.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/test/browser.test.mjs",
+      "sha256": "ec9764b1005b7a44a821377677513ee54971695b33a7d0055f03bf39d01e5391",
+      "bytes": 10390
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/test/fake-base.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/test/fake-base.mjs",
+      "sha256": "46b73e2f0ae608b92b7bdddc1c238e0abc9eaaae0b7bce860d3cd526d32200ab",
+      "bytes": 12476
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/test/stages.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/test/stages.test.mjs",
+      "sha256": "fb4c0055e660574984df6e16057513a008406fd9504beb36720491b2d7085cae",
+      "bytes": 22149
+    },
+    {
+      "label": "D metal0 host-owner enrollment loopback MetaMask handoff, source only, inactive; its plain-transfer fund stage REFUSES the EIP-7702-delegated operator (root preflight 20:12Z) and is NOT usable; acceptOwner stage unaffected; nothing served/signed/sent/funded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/trust.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/wallet-handoff-7b49cd99/files/trust.mjs",
+      "sha256": "c2b8e9004e5acb6ca5443f99ebc75fba304d620590ffa7d2cfc5e45ed5740d5a",
+      "bytes": 3000
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/patches/0001-f2a7b81e.patch",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/patches/0001-f2a7b81e.patch",
+      "sha256": "9455742bbeef0a46c5fd7767abf1bdb5a1a006490caea50e8491ca05abbe2c5f",
+      "bytes": 83182
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/patches/0002-1ac9ad2c.patch",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/patches/0002-1ac9ad2c.patch",
+      "sha256": "0636f67a436ec643981d2c81a13bcd7cb9b15b482d01d8d0cb6116a795612b6d",
+      "bytes": 1005
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/.gitignore",
+      "sha256": "44627057929a49ea2d001cde3bdca903a2f8840b60c2baee83b2abb4a970d262",
+      "bytes": 50
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/PROGRESS.txt",
+      "sha256": "776cac107df7d3632948fdf686947da089a2d4cba5e7982b411967cd63430c11",
+      "bytes": 500
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/README.md",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/README.md",
+      "sha256": "3d6e96c6c720328d9ed565b8af2248a972f89d1214ec071bf937280650668bfb",
+      "bytes": 8094
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/bin/operator-propose.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/bin/operator-propose.mjs",
+      "sha256": "bd0458a00de28e1101fcc0f03d9bc51dfb8ce27f1e527050bc464b23737f0ea7",
+      "bytes": 3039
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/lib/proposer.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/lib/proposer.mjs",
+      "sha256": "941a92f6d7f01e3876a99fea75f1d3b72f54943ed573e50db76d7d18dfade56a",
+      "bytes": 29333
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/package-lock.json",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/package-lock.json",
+      "sha256": "bf7276af38c6a0da5537bf5d7c3212e9f095d10d25449aa8e169af8e7943a4de",
+      "bytes": 6916
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/package.json",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/package.json",
+      "sha256": "662477d0acf14e9a84c32f53d6d4a791388f033c443892e056e8a4e36219a687",
+      "bytes": 335
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/qrun.sh",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/qrun.sh",
+      "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+      "bytes": 515
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/run-tests.sh",
+      "sha256": "ae758e569fa328df7ddb8b5201d8f43cb90522620987361fef5542efe748f692",
+      "bytes": 302
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/test/fixtures/metal0-enrollment-unsigned-20261023.json",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/test/fixtures/metal0-enrollment-unsigned-20261023.json",
+      "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+      "bytes": 3801
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/test/helpers/fake-base.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/test/helpers/fake-base.mjs",
+      "sha256": "0b7cdce134c94ff121ad28507630d00ea33ca5326e72f6553919745a767e0f39",
+      "bytes": 7138
+    },
+    {
+      "label": "metal0 operator proposeOwner helper (prepare default, journaled explicit send for root; exact 7702 delegation pinned), fake-chain tests with a test key, committed PROGRESS note; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/test/proposer.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/operator-proposal-1ac9ad2c/files/test/proposer.test.mjs",
+      "sha256": "98dd68796138c9cd24ad8b3ca981f00c270205c335e4b6414488cde92600332f",
+      "bytes": 17571
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/patches/0001-e9b9709a.patch",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/patches/0001-e9b9709a.patch",
+      "sha256": "b6a944e698006e4f771486e261c40c41c07b37bf827ee845c7990d4c0f0dccc6",
+      "bytes": 103317
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/patches/0002-7c4844a1.patch",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/patches/0002-7c4844a1.patch",
+      "sha256": "755c95de5bb0adb2d8d224cb8ca0db78c4e028529dba161d5f964325f59039f4",
+      "bytes": 28773
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/.gitignore",
+      "sha256": "d397a950e233be0964021ee50d1a6d33c251c37c059d5928fc6b8eb55b2ea8c9",
+      "bytes": 205
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/README.md",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/README.md",
+      "sha256": "1a6e1b50470c8ee7937210e93820c5b465e4c8560a17dd429a1a3a67cd89de22",
+      "bytes": 17113
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/SCAN-REVIEW.md",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/SCAN-REVIEW.md",
+      "sha256": "2d84315044befc4631d7bf480469e24c086d17f06cb784721f6f22ede98b5be1",
+      "bytes": 836
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/fault-inject.mjs.txt",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/fault-inject.mjs.txt",
+      "sha256": "94e1abbee41c8f85494c111ed542ada41a3749fdfbea99e7fa704a1229f0ff94",
+      "bytes": 702
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/recovery_canary.py",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/recovery_canary.py",
+      "sha256": "e9a82812f09ddf80792d52b7e91cd0b765f182c77061834988420e5ccc2a311c",
+      "bytes": 36845
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/resolve-as-original.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/resolve-as-original.mjs",
+      "sha256": "30cd9f2cd53ecc82509bc8ade157a934c16dcd0dead7e717480f85c9dc353fe7",
+      "bytes": 741
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/resolve-register.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/canary/resolve-register.mjs",
+      "sha256": "16deae35e7f1ccbb53969c762288e043c879e394c3018785c21f8ec0d475c29a",
+      "bytes": 1259
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/attempt.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/attempt.json",
+      "sha256": "14208c6fc2062bbd352fc15c2066401dbd5dd97898d76d08a9d1b9d84d4fc613",
+      "bytes": 4199
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/memory.log",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/memory.log",
+      "sha256": "053d822b331cb66135bc74f6a4fd6202c12e46fb9d5d076177c1f9510bf9ac7b",
+      "bytes": 67
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/protected-after.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/protected-after.json",
+      "sha256": "6d66bb323df506a5341cea4c9042c4adf8539892fc024f22cf978e7b6394de5e",
+      "bytes": 100
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/protected-before.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/protected-before.json",
+      "sha256": "6d66bb323df506a5341cea4c9042c4adf8539892fc024f22cf978e7b6394de5e",
+      "bytes": 100
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/result.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/result.json",
+      "sha256": "362333f0df4d168f6b62fb65d7929824652e353230e3e3e895b1ce1dd4d17ef4",
+      "bytes": 13346
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/terminal.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/terminal.json",
+      "sha256": "19f3e0716395093dd86bc8d3b72bed1a202652cf76ca96a5b8bce26a0b148cad",
+      "bytes": 338
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/verdict-fresh.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/verdict-fresh.json",
+      "sha256": "bb1b9cef582b5706faa644c98368569e3130d227ab2059e0177ce1b0d9587915",
+      "bytes": 1805
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/verdict-reopen.json",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/evidence/20261023T201449Z/verdict-reopen.json",
+      "sha256": "120ea5c01027af99b0f10cabbb5c7811d3360e98fd5de80fa6cc4655a8bb268b",
+      "bytes": 1805
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/q.sh",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/q.sh",
+      "sha256": "09d987a5e87c895772f127d72c23cdf0498d2e52509c3930f3208b2e280c7be6",
+      "bytes": 497
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/canary-node.test.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/canary-node.test.mjs",
+      "sha256": "29882d74deb94a3ea5a5ab4a8307df1d357c5827c9ba7d58330d35f1806b0159",
+      "bytes": 8480
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/fixtures/host-a5eae96c.mjs",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/fixtures/host-a5eae96c.mjs",
+      "sha256": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
+      "bytes": 9698
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/run-tests.sh",
+      "sha256": "395cbb7d32b9b53f7efa6d2278bca7402158233a027dbdc03b7fe25b148165cb",
+      "bytes": 1799
+    },
+    {
+      "label": "SNP startup-recovery canary harness + ROOT corrected-image hardware evidence (20261023T201449Z quote-only fresh / GET-503 refusal / same-identity reopen; not secret release or lifecycle); SCAN-REVIEW.md classifies public encKey hits; raw quotes, console logs, sealed bytes, keys excluded",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/test_recovery_canary.py",
+      "stored": "files/source-preservation/frozen-2025-export/snp-harness-7c4844a1/files/tests/test_recovery_canary.py",
+      "sha256": "9af3943643045ea2be290dd179b8cda5d64b876094bbd12f98917150696702e5",
+      "bytes": 21413
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/patches/0001-fc7bff94.patch",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/patches/0001-fc7bff94.patch",
+      "sha256": "180e7f8ba5000e78e30964abdec5d6767f3c2b55cb193748c3c44067624a9073",
+      "bytes": 18031
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/.gitignore",
+      "sha256": "f84bff18c8419a8a98583723cd2ed81eb3e93454c4062b39e077ea3fe0ba8dc6",
+      "bytes": 19
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/RESULT.md",
+      "sha256": "94eeade92562df0b504320d79fd6e35bb322f223afba8e54a94c128e5189f17b",
+      "bytes": 13284
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/probe-tools.guard.log",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/probe-tools.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/probe-tools.out",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/probe-tools.out",
+      "sha256": "5ba4bcdf8d2baca91ae8afe4f3820f4388e5b028885bb33bf5d6c80d2455b3f5",
+      "bytes": 282
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/probe-tools.sh",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/probe-tools.sh",
+      "sha256": "7e515a872e632033cfa558ee36e74559c89160e1b7a54dd1d1c9538087e23d63",
+      "bytes": 310
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/scan.guard.log",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/scan.guard.log",
+      "sha256": "74cd5524294d128b435dd6034026b6afcacdb7c5301f2605733ff5e1bcabb257",
+      "bytes": 66
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/scan.out",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/scan.out",
+      "sha256": "fc0a8f6f30764074860c67c7e7abd5bf25b66f0f1dd5e4780516383e1b36af1b",
+      "bytes": 358
+    },
+    {
+      "label": "custody v2 direct public ingress on metal0: source-only routing assessment and its committed probe/scan outputs; nothing deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/scan.sh",
+      "stored": "files/source-preservation/frozen-2025-export/direct-route-fc7bff94/files/scan.sh",
+      "sha256": "f4d7569d7aa91fa0cde9249ab5a359dea6aaddcccf7f7bafdd3324edc7bca9e6",
+      "bytes": 925
+    },
+    {
+      "label": "D receipt of the 1951 batch (dc551728, committed 19:57:36Z, pushed by 19:58:27Z; main 68b82926 unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-1951-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-1951-checkpoint.md",
+      "sha256": "5170434bb73389d7f4b545066bb2aadc83cbe2160baca126e81dd221f0edf8bd",
+      "bytes": 7299
+    },
+    {
+      "label": "Dated SNAPSHOT of root's journal ROOT-CONTINUE-LATEST.txt (20:23Z entry); ROOT-PENDING-LATEST and effective-goal-requirements unchanged since the 1852 snapshots",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-2025/ROOT-CONTINUE-LATEST.snapshot-2025.txt",
+      "stored": "files/source-preservation/snapshots-2025/ROOT-CONTINUE-LATEST.snapshot-2025.txt",
+      "sha256": "a91b1aad7bde63c4d3dc81b61af72fdf4694538fbef365ded83a0206bbfab565",
+      "bytes": 173770
+    },
+    {
+      "label": "Dated SNAPSHOT (2025 batch) of ROOT's living custody v2 live verification record outputs/decentralization-audit/custody-v2-live-verification-20261023.md; its earlier bytes (sha256 23c9aeba...) stay preserved unchanged under files/outputs/",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-2025/custody-v2-live-verification-20261023.snapshot-2025.md",
+      "stored": "files/source-preservation/snapshots-2025/custody-v2-live-verification-20261023.snapshot-2025.md",
+      "sha256": "a033b002fffaaecd6734406a7e792ce29e189d62d283182536fc8b5c853638a2",
+      "bytes": 11872
+    },
+    {
+      "label": "ROOT receipt: corrected custodian SNP startup-recovery evidence (20:16Z; quote-only; not secret release or lifecycle; NOT activated)",
+      "source": "outputs/decentralization-audit/custody-v2-snp-startup-recovery-20261023.json",
+      "stored": "files/outputs/decentralization-audit/custody-v2-snp-startup-recovery-20261023.json",
+      "sha256": "447a3cbfe1b6c2d6722c573d3693ad8ea054d6beb9f36beb7cdf111222206de5",
+      "bytes": 3479
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-2025.py",
+      "stored": "files/source-preservation/export-frozen-2025.py",
+      "sha256": "12932f0e1522c453b206fb2262d79a5c2600cdb16f13a7cace1d4a3e33e4c9e7",
+      "bytes": 23713
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-2025-export.py",
+      "stored": "files/source-preservation/verify-frozen-2025-export.py",
+      "sha256": "95238ed275d39814b82c1a624c91b49f37be6619e3fe8242c02d341000381675",
+      "bytes": 7555
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-2025.py",
+      "stored": "files/source-preservation/capture-frozen-2025.py",
+      "sha256": "4f999df0c9f3a8b53cede45449a4cfdb8fc9f305c21d12cc4f67ae4c6455c9f6",
+      "bytes": 8381
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-pins.json",
+      "stored": "files/source-preservation/frozen-2025-pins.json",
+      "sha256": "1cd6953bfba9c32f9ab39b6730bfa6ff24b57a6e4775fa8d7e2cfb2d5ea79ae2",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-q.sh",
+      "stored": "files/source-preservation/frozen-2025-q.sh",
+      "sha256": "a06231e9ab9c735996ec840ffd4f935a44db745ccb63b00083a51d75332c3509",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-export.sh",
+      "stored": "files/source-preservation/frozen-2025-export.sh",
+      "sha256": "8cb6b4dbafca9569b2ceb95aab5c27ce37bd6d050ffa9b9dd00aa7556d4f9bed",
+      "bytes": 2770
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-capture.sh",
+      "stored": "files/source-preservation/frozen-2025-capture.sh",
+      "sha256": "3cc7823001011858db3dfd474c10117bd8307f48f700a71282dfd33b460d8dd7",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2025-labels.json",
+      "stored": "files/source-preservation/frozen-2025-labels.json",
+      "sha256": "7c22261fbe8f632bfe9f3bb74e207cdda3707fa91ba47c47ec6da2c2d56cdda5",
+      "bytes": 3920
+    },
+    {
+      "label": "frozen-2025 checkpoint tooling (\"2025\" = batch start 2026-10-23T20:25Z, an identifier, not a year): first-parent Git-object export, touched-file verifier mode, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-2025-snapshots.py",
+      "stored": "files/source-preservation/make-frozen-2025-snapshots.py",
+      "sha256": "9a63e63361da4b263f5d5a39bc3b6708dbf34286a08caef2a44f6edd114606c8",
+      "bytes": 1715
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -37285,6 +38293,15 @@
       "added": 457,
       "bytes": 7370208,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1951\" is a batch identifier (start 19:51Z), not this time"
+    },
+    {
+      "at": "2026-10-23T20:33:49.073539+00:00",
+      "by": "source-preservation/capture-frozen-2025.py",
+      "onCheckpoint": "dc551728a71e29adb8eda127f4607395a4d97b66",
+      "entriesBefore": 5386,
+      "added": 144,
+      "bytes": 2036820,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2025\" is a batch identifier (start 20:25Z), not this time"
     }
   ]
 }

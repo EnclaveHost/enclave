@@ -1,0 +1,14 @@
+repo/
+repo-b/
+logs/
+*.out
+out/*/
+out/*.log
+canary/root-hardware-20261023/
+canary/*.out
+__pycache__/
+repo-r2/
+repo-r2b/
+out-r2/
+*.guard.log
+scan-findings*.json

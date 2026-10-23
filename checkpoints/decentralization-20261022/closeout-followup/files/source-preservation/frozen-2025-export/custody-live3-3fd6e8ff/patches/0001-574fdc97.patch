@@ -1,0 +1,790 @@
+From 574fdc9751d92fb2b8485cbe9cb937fb8b366bb1 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:54:03 -0700
+Subject: [PATCH] Reconcile custody authority and prepare unsigned enrollment
+ and discovery plans
+
+---
+ .gitignore                                    |   5 +
+ README.md                                     |  18 +-
+ .../book-activation-unsigned-20261023.json    |  43 ++++
+ evidence/dns-policy-inventory-complete.json   |  72 +++++++
+ evidence/host-reader-preflight.json           |  40 ++++
+ .../metal0-enrollment-unsigned-20261023.json  | 101 +++++++++
+ .../provider-policy-inventory-complete.json   | 204 ++++++++++++++++++
+ probes/book-plan.mjs                          |  15 ++
+ probes/dns-policy-inventory-complete.py       |  33 +++
+ probes/enrollment-plan.mjs                    |  81 +++++++
+ probes/host-reader-preflight.mjs              |  10 +
+ probes/operator-paths.py                      |   2 +
+ probes/prepare-operator-proposal.mjs          |  32 +++
+ probes/provider-policy-inventory-complete.py  |  10 +
+ 14 files changed, 665 insertions(+), 1 deletion(-)
+ create mode 100644 evidence/book-activation-unsigned-20261023.json
+ create mode 100644 evidence/dns-policy-inventory-complete.json
+ create mode 100644 evidence/host-reader-preflight.json
+ create mode 100644 evidence/metal0-enrollment-unsigned-20261023.json
+ create mode 100644 evidence/provider-policy-inventory-complete.json
+ create mode 100644 probes/book-plan.mjs
+ create mode 100644 probes/dns-policy-inventory-complete.py
+ create mode 100644 probes/enrollment-plan.mjs
+ create mode 100644 probes/host-reader-preflight.mjs
+ create mode 100644 probes/operator-paths.py
+ create mode 100644 probes/prepare-operator-proposal.mjs
+ create mode 100644 probes/provider-policy-inventory-complete.py
+
+diff --git a/.gitignore b/.gitignore
+index cd8d3b6e4bc369448fc7c02c9501dfe8471e628e..b959749058f04655ea6872f42e41635238d5595d 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,7 @@
+ node_modules/
+ evidence/fresh-quote-raw.json
++node_modules
++*.out
++*.err
++*.guard.log
++claude-*-progress.txt
+diff --git a/README.md b/README.md
+index 87f2e89cec8f9339eccb82e93bc40c4ea8052916..efc3bd96132d75c4ba27690dcbb5c23ccf839863 100644
+--- a/README.md
++++ b/README.md
+@@ -8,6 +8,22 @@
+ 
+ At 18:16 UTC, the local production enclave-custodian-v2 user service was active. QEMU PID3817658 and service PID3817646 still used the original custodian-v2-9d43e63e8 directory, started October14. The kernel/initrd hashes matched that directory's manifest. No sealed state, credentials, or private configuration were read by the runtime probe.
+ 
+-The running committee is one Enclave-operated seat, not decentralized custody. Current defects and rollout prerequisites are separately recorded in the source audit. The corrected image has not been activated. Address-book activation will require the administrator's signing authority; exact transactions are not yet prepared.
++The running committee is one Enclave-operated seat, not decentralized custody. Current defects and rollout prerequisites are separately recorded in the source audit. The corrected image has not been activated. Address-book activation will require the administrator's signing authority. Exact unsigned enrollment and book transactions are now prepared and simulated; none has been sent.
+ 
+ Public evidence JSON and read-only probe sources are preserved here. The raw hardware quote/collateral is excluded from source control to avoid unnecessarily publishing the raw chip identifier. Its digest and verifier verdict are retained. No canary secret values are present in this directory.
++
++## Rollout preparation at 19:54 UTC
++
++The original production service, committee and policy remain unchanged. Fresh two-provider simulations prepared operator `proposeOwner(hostId, admin)` followed by administrator `acceptOwner(hostId)` on the existing ownership contract `0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7`. The accepted and pending owner were both zero. This enrolls the existing Enclave wallet; it does not change the vault, committee, catalog controls or address-book ownership. The older alternate `0xf5e9…` ownership address is not the production authority.
++
++Operator proposal preparation stopped before signing or submission: both providers reported 376132087579 wei, below the estimated maximum 660247000000 wei for 94321 gas at 7000000 wei/gas. A small, explicit wallet funding request and the subsequent admin acceptance are being prepared. No transaction or wallet prompt has been sent. This is one-time owner enrollment, separate from app lease funding.
++
++The address-book `secretVaultV2` update to the original vault was simulated successfully from the administrator and rejected from an unauthorized address. The unsigned plan includes a discovery rollback to zero. It must remain inactive until dedicated hardware lifecycle tests and dashboard integration pass. Removing discovery cannot undo policies or encrypted bundles already stored.
++
++The host launcher now selects the original vault's address-book authority mode rather than calling getters absent from that deployed contract. A read-only live test of this exact reader passed against two providers, verified code and immutable bindings, and correctly found metal0 active with no accepted owner.
++
++Two independent builds of source c95dcd3a produced the same corrected image. On production SNP hardware, a disposable quote-only guest passed fresh nonce, exact measurement, AMD signature/TCB, VMPL0 and debug-off checks at 19:31 UTC, without altering existing QEMU processes. This image is superseded for rollout by additional source fix a5eae96c: storage read failures now refuse startup rather than generating a new identity, the launcher uses the reviewed authority mode, and direct ingress includes owner-read routes. Eight focused HTTP/TLS tests passed; a deliberately unsafe catch-and-reset mutation failed. The additional source still needs rebuilt-image hardware verification.
++
++Outstanding production evidence: dedicated canary secret creation, migration and post-migration rotation; attestation-gated release; unauthorized access and stale revision rejection; outage and restart recovery on an isolated canary custodian; rollback experiments; instrumented relay plaintext checks and active-store deletion; and public dashboard activation. A successful quote or source test is not evidence these lifecycle cases passed.
++
++The bootstrap remains one Enclave-operated seat on one chip. Quorum RPC reads still depend on public providers. Sealed state is not backed by a hardware monotonic counter: malicious missing-state responses or replay of an older valid sealed blob remain security limitations. Fresh-image isolation does not create independent operators or failure domains.
+diff --git a/evidence/book-activation-unsigned-20261023.json b/evidence/book-activation-unsigned-20261023.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..bb4c884e4912980efe1e3f81f415a220e6331ee4
+--- /dev/null
++++ b/evidence/book-activation-unsigned-20261023.json
+@@ -0,0 +1,43 @@
++{
++  "at": "2026-10-23T19:40:40.929Z",
++  "status": "UNSIGNED — do not activate until lifecycle canaries and dashboard integration pass",
++  "block": {
++    "number": "52997534",
++    "hash": "0x64c93bcdea1fc0dca91922a4fc12acfeb78daf274ec230170d18015c70f96818",
++    "timestamp": "1792784415",
++    "baseFeePerGas": "5000000"
++  },
++  "providers": [
++    "https://mainnet.base.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++  ],
++  "expectedBefore": {
++    "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++    "secretVaultV2": "0x0000000000000000000000000000000000000000",
++    "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b"
++  },
++  "effect": "Publish the existing original custody v2 vault through the administrator-controlled address book. No contract replacement, committee migration, secret transfer or change to administrator rights.",
++  "transaction": {
++    "chainId": "0x2105",
++    "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++    "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "value": "0x0",
++    "data": "0xba44593c7365637265745661756c74563200000000000000000000000000000000000000000000000000000000000000e48699b8401564aace7a814ae4569b67a3f7eef5"
++  },
++  "simulation": {
++    "adminSetSucceeded": true,
++    "unauthorizedSetRejected": [
++      true,
++      true
++    ]
++  },
++  "rollback": {
++    "chainId": "0x2105",
++    "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++    "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "value": "0x0",
++    "data": "0xba44593c7365637265745661756c745632000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "rollbackLimit": "Removing discovery does not undo policies or encrypted bundles already stored, and older clients with hardcoded vault defaults can still resolve it.",
++  "signing": "Administrator wallet signature and gas required; nonce, fees, simulation and current authority must be refreshed immediately before signing."
++}
+diff --git a/evidence/dns-policy-inventory-complete.json b/evidence/dns-policy-inventory-complete.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f3e8e74f7444159871b79f853136cc66e83b9702
+--- /dev/null
++++ b/evidence/dns-policy-inventory-complete.json
+@@ -0,0 +1,72 @@
++{
++  "at": "2026-10-23T19:11:29.889647+00:00",
++  "readOnly": true,
++  "services": [
++    {
++      "unit": "enclave-api-relay.service",
++      "pid": 816,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tls.service",
++      "pid": 777,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-ap-southeast.service",
++      "pid": 11372,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-ca-east.service",
++      "pid": 779,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-eu-central.service",
++      "pid": 11373,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-us-west.service",
++      "pid": 782,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-dns.service",
++      "pid": 783,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-native-discovery.service",
++      "pid": 828,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-policy-migration-bridge.service",
++      "pid": 839,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-provider-migration-mirror.service",
++      "pid": 840,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "process-783",
++      "pid": 783,
++      "policyPaths": {},
++      "policies": []
++    }
++  ]
++}
+diff --git a/evidence/host-reader-preflight.json b/evidence/host-reader-preflight.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7b4139859b5b4db257d93eb369be9557b4ebf2ba
+--- /dev/null
++++ b/evidence/host-reader-preflight.json
+@@ -0,0 +1,40 @@
++{
++  "at": "2026-10-23T19:43:23.957Z",
++  "readOnly": true,
++  "options": {
++    "rpcs": [
++      "https://mainnet.base.org",
++      "https://base.public.blockpi.network/v1/rpc/public"
++    ],
++    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++    "vaultKind": "book",
++    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++    "chainId": 8453,
++    "minAgree": 2,
++    "confirmations": 2
++  },
++  "identity": {
++    "codeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
++    "runtimeBytes": 19719,
++    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "enclaveOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++    "blockNumber": "52997624",
++    "blockHash": "0x0335d725941d1dce18e43690987855736714b7924563902ae93715168b3dc1fb",
++    "blockTimestamp": 1792784595
++  },
++  "entry": {
++    "entry": {
++      "endpoint": "https://api.enclave.host/t/metal0",
++      "active": true,
++      "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++      "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++      "owner": "0x0000000000000000000000000000000000000000",
++      "vaultEnclave": true,
++      "ownerConflict": false
++    },
++    "blockNumber": "52997625",
++    "blockHash": "0x658b1fd26a73480b299fa9b319493ba3bea5eea7926d3246912abf7685560e71",
++    "blockTimestamp": 1792784597
++  }
++}
+diff --git a/evidence/metal0-enrollment-unsigned-20261023.json b/evidence/metal0-enrollment-unsigned-20261023.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4b0e57fa5e4c8d1d322ea40f8f9214cb98ab62d
+--- /dev/null
++++ b/evidence/metal0-enrollment-unsigned-20261023.json
+@@ -0,0 +1,101 @@
++{
++ "purpose": "pre-handover requirement: enroll accepted host-wallet ownership of the live custody seat's host (metal0) by the Enclave wallet; UNSIGNED, simulated only",
++ "block": "52997498",
++ "blockHash": "0x08af09c088faa85f94f4eef83a3a93fda6dfcf8e2c65e59b752384a5599c94aa",
++ "preconditions": {
++  "ownershipContract": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "ownershipCodeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++  "ownershipRegistry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++  "hostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  "hostEndpoint": "https://api.enclave.host/t/metal0",
++  "hostActive": true,
++  "hostOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++  "payoutIsEnclave": true,
++  "authorityNow": {
++   "owner": "0x0000000000000000000000000000000000000000",
++   "pendingOwner": "0x0000000000000000000000000000000000000000",
++   "revision": "0",
++   "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "pendingSlot": {
++   "slot": "0xa7a71f9446fc945d69f15a1c364bfae2b416217424c03364ed76cccc303285bd",
++   "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "liveCommittee": {
++   "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++   "epoch": 1,
++   "t": 1,
++   "W": 1
++  }
++ },
++ "unsigned": [
++  {
++   "chainId": 8453,
++   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "value": "0x0",
++   "data": "0x03ba33a44dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++   "signer": "the metal0 registry operator (the host operator key; it is not the Enclave admin wallet)",
++   "function": "proposeOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, 0x0b2d009c0c9af05b12100d77f3c815fea822ee61)"
++  },
++  {
++   "chainId": 8453,
++   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "value": "0x0",
++   "data": "0x0d85eb494dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++   "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "signer": "the Enclave admin wallet 0x0b2d… (the vault enclaveOwner and address-book owner)",
++   "function": "acceptOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be)",
++   "after": "tx1 is mined"
++  }
++ ],
++ "simulations": {
++  "tx1_from_operator": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "success",
++    "success"
++   ],
++   "agree": "success"
++  },
++  "tx1_from_enclave_wallet_must_revert": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "revert: not active operator",
++    "revert: not active operator"
++   ],
++   "agree": "revert: not active operator"
++  },
++  "tx2_before_tx1_must_revert": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "revert: not proposed owner",
++    "revert: not proposed owner"
++   ],
++   "agree": "revert: not proposed owner"
++  },
++  "tx2_after_tx1_state_override": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "success",
++    "success"
++   ],
++   "agree": "success"
++  }
++ },
++ "effect": "after both: authority(hostId).owner = Enclave wallet, revision 1, policyHash 0 (no local host policy). The vault is untouched: its seat flag stays payout-based (payout == Enclave wallet), so owner and seat flag AGREE and the candidate runtime admits the seat into a future epoch. The live epoch, its share, bundle and policy are unaffected by these two transactions.",
++ "notSent": true
++}
+diff --git a/evidence/provider-policy-inventory-complete.json b/evidence/provider-policy-inventory-complete.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..96cdc46e0f5f8161a37246d16653927cc97dffde
+--- /dev/null
++++ b/evidence/provider-policy-inventory-complete.json
+@@ -0,0 +1,204 @@
++[
++  {
++    "at": "2026-10-23T19:11:39.204023+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 388529,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 242499,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 69964,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 297365,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 242641,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 323245,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 245726,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "us-west"
++  },
++  {
++    "at": "2026-10-23T19:11:39.623446+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 245258,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 220296,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 64792,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 314772,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-lease-relay.service",
++        "pid": 266988,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 220286,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 296254,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 223263,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "eu-central"
++  },
++  {
++    "at": "2026-10-23T19:11:39.492239+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 253047,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 227529,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 67654,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 322201,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 227519,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 303512,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 230360,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "ap-southeast"
++  },
++  {
++    "at": "2026-10-23T19:11:39.228519+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 243376,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 220071,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 64446,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 278729,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 302827,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 299190,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 222936,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "ca-east"
++  }
++]
+diff --git a/probes/book-plan.mjs b/probes/book-plan.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c86ee193a7ea645c110c5112720ae8d1f0c7be28
+--- /dev/null
++++ b/probes/book-plan.mjs
+@@ -0,0 +1,15 @@
++// Read-only simulations. No signing or broadcast capability.
++import fs from 'node:fs';
++import assert from 'node:assert/strict';
++import {parseAbi,encodeFunctionData,stringToHex,keccak256} from 'viem';
++import {pinBlock,codeAt,readMany,agree,rpc,LIVE} from '../lib/live.mjs';
++const book='0xab214342d5a490150a4a977063a2f88e21f80907',vault='0xe48699b8401564aace7a814ae4569b67a3f7eef5',admin='0x0b2d009c0c9af05b12100d77f3c815fea822ee61',zero='0x'+'00'.repeat(20);
++const abi=parseAbi(['function owner() view returns(address)','function addr(bytes32) view returns(address)','function set(bytes32,address)']);const key=stringToHex('secretVaultV2',{size:32});
++const block=await pinBlock();const tag='0x'+block.number.toString(16);
++const [owner,current]=await readMany(block,[{address:book,abi,functionName:'owner'},{address:book,abi,functionName:'addr',args:[key]}]);assert.equal(owner.value.toLowerCase(),admin);assert.equal(current.value.toLowerCase(),zero);
++const codeHash=keccak256(await codeAt(block,vault));assert.equal(codeHash,'0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b');
++const transaction={chainId:'0x2105',from:admin,to:book,value:'0x0',data:encodeFunctionData({abi,functionName:'set',args:[key,vault]})};
++assert.equal(await agree('eth_call',[transaction,tag]),'0x');
++const rejection=await Promise.all(LIVE.state.map(async u=>{try{await rpc(u,'eth_call',[{...transaction,from:'0x'+'19'.repeat(20)},tag]);return false}catch(e){return /revert/i.test(e.message)}}));assert.ok(rejection.every(Boolean));
++const out={at:new Date().toISOString(),status:'UNSIGNED — do not activate until lifecycle canaries and dashboard integration pass',block,providers:LIVE.state,expectedBefore:{owner:admin,secretVaultV2:zero,vaultCodeHash:codeHash},effect:'Publish the existing original custody v2 vault through the administrator-controlled address book. No contract replacement, committee migration, secret transfer or change to administrator rights.',transaction,simulation:{adminSetSucceeded:true,unauthorizedSetRejected:rejection},rollback:{chainId:'0x2105',from:admin,to:book,value:'0x0',data:encodeFunctionData({abi,functionName:'set',args:[key,zero]})},rollbackLimit:'Removing discovery does not undo policies or encrypted bundles already stored, and older clients with hardcoded vault defaults can still resolve it.',signing:'Administrator wallet signature and gas required; nonce, fees, simulation and current authority must be refreshed immediately before signing.'};
++fs.writeFileSync(new URL('../evidence/book-activation-unsigned-20261023.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');console.log(JSON.stringify({at:out.at,block:String(block.number),adminSetSucceeded:true,unauthorizedSetRejected:rejection}));
+diff --git a/probes/dns-policy-inventory-complete.py b/probes/dns-policy-inventory-complete.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a7fc2ac15db31e03df6a823d5d49bb98adbd5a88
+--- /dev/null
++++ b/probes/dns-policy-inventory-complete.py
+@@ -0,0 +1,33 @@
++"""Public policy metadata from running control-VM services; never print arbitrary environment."""
++import subprocess,json,pathlib
++ssh=['ssh','-p32423','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','UserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts','-i','/home/steven/.ssh/minipc','controladmin@127.0.0.1','sudo python3 -']
++src=r'''
++import subprocess,pathlib,json,hashlib,datetime
++lines=subprocess.check_output(['systemctl','list-units','--type=service','--state=running','--no-legend','--plain'],text=True).splitlines()
++rows=[]
++for proc in pathlib.Path('/proc').glob('[0-9]*'):
++ try:
++  a=(proc/'cmdline').read_bytes().split(b'\0')
++  if any(v.endswith(b'/dns-relay.js') or v==b'dns-relay.js' for v in a):lines.append('process-'+proc.name+' synthetic')
++ except (PermissionError,FileNotFoundError,ProcessLookupError):pass
++for line in lines:
++ unit=line.split()[0]
++ if not any(w in unit for w in ['enclave','dns','relay','process-']):continue
++ p=int(unit.split('-')[1]) if unit.startswith('process-') else int(subprocess.check_output(['systemctl','show',unit,'-p','MainPID','--value'],text=True).strip())
++ if p<2:continue
++ env={}
++ for v in pathlib.Path(f'/proc/{p}/environ').read_bytes().split(b'\0'):
++  if b'=' in v:
++   k,val=v.split(b'=',1)
++   if k in [b'ATTESTED_SHIELD_POLICY',b'APP_CHALLENGE_SHIELD_POLICY',b'ENCLAVE_NETWORK_SHIELD_POLICY']:env[k.decode()]=val.decode()
++ row={'unit':unit,'pid':p,'policyPaths':env,'policies':[]}
++ for path in env.values():
++  f=pathlib.Path(path);assert f.is_absolute()
++  if f.is_file():
++   b=f.read_bytes();j=json.loads(b);row['policies'].append({'path':path,'sha256':hashlib.sha256(b).hexdigest(),'schema':j.get('schema'),'images':j.get('images',[]),'cpu':j.get('cpu')})
++ rows.append(row)
++print(json.dumps({'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'services':rows}))
++'''
++r=subprocess.run(ssh,input=src,capture_output=True,text=True,timeout=40)
++if r.returncode:raise SystemExit(r.stderr[-350:])
++o=json.loads(r.stdout);pathlib.Path('work/custody-v2-live-20261023/evidence/dns-policy-inventory-complete.json').write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o))
+diff --git a/probes/enrollment-plan.mjs b/probes/enrollment-plan.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..89969e8ef1f9b79f14595817906d6597b75587d4
+--- /dev/null
++++ b/probes/enrollment-plan.mjs
+@@ -0,0 +1,81 @@
++// READ-ONLY. The pre-handover requirement for the live custody seat: host metal0 (registry id 0x4dde…, the host of
++// https://api.enclave.host/t/custody-metal0) enrolls accepted ownership by the Enclave wallet on the EXISTING
++// EnclaveHostOwnership 0xbbd885d3…. Prepares the two UNSIGNED transactions and simulates each with eth_call at one
++// agreed block (the second with a state override standing in for the first). No signature, no send.
++import fs from 'node:fs';
++import { encodeFunctionData, decodeFunctionResult, keccak256, encodeAbiParameters, pad } from 'viem';
++import { pinBlock, codeAt, agree, rpc, LIVE } from '../lib/live.mjs';
++
++const OWNERSHIP = '0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7';
++const REGISTRY = '0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac';
++const HOST_ID = '0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be';
++const ENCLAVE = '0x0b2d009c0c9af05b12100d77f3c815fea822ee61';
++const VAULT = '0xe48699b8401564aace7a814ae4569b67a3f7eef5', CID = '0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3';
++const OWN_ABI = [
++  { type: 'function', name: 'proposeOwner', stateMutability: 'nonpayable', inputs: [{ type: 'bytes32' }, { type: 'address' }], outputs: [] },
++  { type: 'function', name: 'acceptOwner', stateMutability: 'nonpayable', inputs: [{ type: 'bytes32' }], outputs: [] },
++  { type: 'function', name: 'authority', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'address' }, { type: 'address' }, { type: 'uint64' }, { type: 'bytes32' }] },
++  { type: 'function', name: 'registry', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
++];
++const REG_ABI = [{ type: 'function', name: 'get', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'tuple', components: [
++  { name: 'endpoint', type: 'string' }, { name: 'repo', type: 'string' }, { name: 'measurement', type: 'bytes32' }, { name: 'operator', type: 'address' },
++  { name: 'registeredAt', type: 'uint64' }, { name: 'lastSeen', type: 'uint64' }, { name: 'active', type: 'bool' },
++  { name: 'cpuPricePerSec6', type: 'uint64' }, { name: 'gpuPricePerSec6', type: 'uint64' }, { name: 'proofKey', type: 'address' }, { name: 'payoutWallet', type: 'address' }] }] }];
++const VAULT_ABI = [{ type: 'function', name: 'committeeOf', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'bytes' }, { type: 'uint32' }, { type: 'uint8' }, { type: 'uint8' }, { type: 'uint64' }] }];
++
++const block = await pinBlock();
++const tag = '0x' + block.number.toString(16);
++const call = (to, abi, fn, args = [], from) => agree('eth_call', [{ to, data: encodeFunctionData({ abi, functionName: fn, args }), ...(from ? { from } : {}) }, tag])
++  .then((r) => decodeFunctionResult({ abi, functionName: fn, data: r }));
++// a simulation: success or the revert reason, from EVERY live endpoint (they must agree)
++async function simulate(tx, override = null) {
++  const out = await Promise.all(LIVE.state.map(async (u) => {
++    try { await rpc(u, 'eth_call', override ? [tx, tag, override] : [tx, tag], { tries: 2 }); return 'success'; }
++    catch (e) { const m = String(e.message); return /not proposed owner|not active operator|not owner|owner required|revert/i.test(m) ? 'revert: ' + (m.match(/(not proposed owner|not active operator|not owner|owner required)/)?.[1] || 'reverted') : 'error: ' + m.slice(0, 160); }
++  }));
++  return { endpoints: LIVE.state.map((u) => new URL(u).host), results: out, agree: out.every((x) => x === out[0]) ? out[0] : null };
++}
++
++const ownCode = await codeAt(block, OWNERSHIP);
++if (keccak256(ownCode)!=='0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd') throw Error('Ownership runtime changed');
++const [ownRegistry] = [await call(OWNERSHIP, OWN_ABI, 'registry')];
++const authority = await call(OWNERSHIP, OWN_ABI, 'authority', [HOST_ID]);
++const [entry] = [await call(REGISTRY, REG_ABI, 'get', [HOST_ID])];
++const committee = await call(VAULT, VAULT_ABI, 'committeeOf', [CID]);
++const operator = entry.operator.toLowerCase();
++
++if(ownRegistry.toLowerCase()!==REGISTRY || !entry.active || operator!=='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab' || entry.payoutWallet.toLowerCase()!==ENCLAVE || authority[0]!== '0x0000000000000000000000000000000000000000' || authority[1]!== '0x0000000000000000000000000000000000000000') throw Error('Enrollment preconditions changed');
++const tx1 = { chainId: 8453, to: OWNERSHIP, value: '0x0', data: encodeFunctionData({ abi: OWN_ABI, functionName: 'proposeOwner', args: [HOST_ID, ENCLAVE] }), from: operator,
++  signer: 'the metal0 registry operator (the host operator key; it is not the Enclave admin wallet)', function: `proposeOwner(${HOST_ID}, ${ENCLAVE})` };
++const tx2 = { chainId: 8453, to: OWNERSHIP, value: '0x0', data: encodeFunctionData({ abi: OWN_ABI, functionName: 'acceptOwner', args: [HOST_ID] }), from: ENCLAVE,
++  signer: 'the Enclave admin wallet 0x0b2d… (the vault enclaveOwner and address-book owner)', function: `acceptOwner(${HOST_ID})`, after: 'tx1 is mined' };
++// authority mapping is slot 0; Authority{owner; pendingOwner, revision (packed); policyHash}: pendingOwner is the low 20 bytes of base+1
++const base = BigInt(keccak256(encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }], [HOST_ID, 0n])));
++const slot1 = '0x' + (base + 1n).toString(16).padStart(64, '0');
++const current1 = await agree('eth_getStorageAt', [OWNERSHIP, slot1, tag]);
++const override = { [OWNERSHIP]: { stateDiff: { [slot1]: pad(ENCLAVE, { size: 32 }) } } };
++
++const result = {
++  purpose: 'pre-handover requirement: enroll accepted host-wallet ownership of the live custody seat\'s host (metal0) by the Enclave wallet; UNSIGNED, simulated only',
++  block: String(block.number), blockHash: block.hash,
++  preconditions: {
++    ownershipContract: OWNERSHIP, ownershipCodeHash: keccak256(ownCode), ownershipRegistry: ownRegistry.toLowerCase(),
++    hostId: HOST_ID, hostEndpoint: entry.endpoint, hostActive: entry.active, hostOperator: operator, payoutWallet: entry.payoutWallet.toLowerCase(),
++    payoutIsEnclave: entry.payoutWallet.toLowerCase() === ENCLAVE,
++    authorityNow: { owner: authority[0].toLowerCase(), pendingOwner: authority[1].toLowerCase(), revision: String(authority[2]), policyHash: authority[3] },
++    pendingSlot: { slot: slot1, value: current1 },
++    liveCommittee: { committeeId: CID, epoch: Number(committee[1]), t: Number(committee[2]), W: Number(committee[3]) },
++  },
++  unsigned: [tx1, tx2],
++  simulations: {
++    tx1_from_operator: await simulate({ from: operator, to: OWNERSHIP, data: tx1.data }),
++    tx1_from_enclave_wallet_must_revert: await simulate({ from: ENCLAVE, to: OWNERSHIP, data: tx1.data }),
++    tx2_before_tx1_must_revert: await simulate({ from: ENCLAVE, to: OWNERSHIP, data: tx2.data }),
++    tx2_after_tx1_state_override: await simulate({ from: ENCLAVE, to: OWNERSHIP, data: tx2.data }, override),
++  },
++  effect: 'after both: authority(hostId).owner = Enclave wallet, revision 1, policyHash 0 (no local host policy). The vault is untouched: its seat flag stays payout-based (payout == Enclave wallet), so owner and seat flag AGREE and the candidate runtime admits the seat into a future epoch. The live epoch, its share, bundle and policy are unaffected by these two transactions.',
++  notSent: true,
++};
++if(result.simulations.tx1_from_operator.agree!=='success'||result.simulations.tx2_after_tx1_state_override.agree!=='success'||!result.simulations.tx1_from_enclave_wallet_must_revert.agree?.startsWith('revert:')||!result.simulations.tx2_before_tx1_must_revert.agree?.startsWith('revert:'))throw Error('Enrollment simulations did not agree');
++fs.writeFileSync(new URL('../evidence/metal0-enrollment-unsigned-20261023.json', import.meta.url), JSON.stringify(result, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 1) + '\n');
++console.log(JSON.stringify({ block: result.block, preconditions: { ...result.preconditions, ownershipCodeHash: result.preconditions.ownershipCodeHash.slice(0, 18) }, simulations: Object.fromEntries(Object.entries(result.simulations).map(([k, v]) => [k, v.agree ?? v.results])) }, null, 1));
+diff --git a/probes/host-reader-preflight.mjs b/probes/host-reader-preflight.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3276f5e4071c57f182b34ed857cb8daead766727
+--- /dev/null
++++ b/probes/host-reader-preflight.mjs
+@@ -0,0 +1,10 @@
++// Actual host reader options against the original live vault. Read only; no key or signature.
++import fs from 'node:fs';
++import {hostBindingReaderOptions} from '../../custody-v2-durability-20261023/repo/custody/v2/host-binding.mjs';
++import {createChainReaderV2} from '../../custody-v2-durability-20261023/repo/custody/v2/chain.mjs';
++import {checkCustodyVaultIdentity} from '../../custody-v2-durability-20261023/repo/network/custody-vaults.mjs';
++const manifest=JSON.parse(fs.readFileSync(new URL('../../custody-v2-release-20261023/evidence/A-manifest.json',import.meta.url)));
++const options=hostBindingReaderOptions(manifest,['https://mainnet.base.org','https://base.public.blockpi.network/v1/rpc/public']);
++const reader=createChainReaderV2(options);const identity=await reader.readVaultIdentity();checkCustodyVaultIdentity(manifest.vault,identity);
++const entry=await reader.readRegistryEntry({registryId:'0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be'});
++const out={at:new Date().toISOString(),readOnly:true,options,identity,entry};fs.writeFileSync(new URL('../evidence/host-reader-preflight.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');console.log(JSON.stringify({kind:options.vaultKind,book:options.book,entry:entry.entry}));
+diff --git a/probes/operator-paths.py b/probes/operator-paths.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7336106d0ca8b74550d654c4c8d6b820769bbe87
+--- /dev/null
++++ b/probes/operator-paths.py
+@@ -0,0 +1,2 @@
++import json,pathlib
++p=pathlib.Path('/home/steven/enclave-prod/custodian-v2/config.json');j=json.loads(p.read_text());print(json.dumps({k:j.get(k) for k in ['registryKeyFile','submitterKeyEnv','endpoint','registryEndpoint','vault']}))
+diff --git a/probes/prepare-operator-proposal.mjs b/probes/prepare-operator-proposal.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..b99ac7f081c7490c535763823c31b0be4fa67e5c
+--- /dev/null
++++ b/probes/prepare-operator-proposal.mjs
+@@ -0,0 +1,32 @@
++// Prepare only. Reads the local operator key to verify its public account; never signs or sends.
++import fs from 'node:fs';
++import assert from 'node:assert/strict';
++import {createPublicClient,http,parseAbi,keccak256} from 'viem';
++import {privateKeyToAccount} from 'viem/accounts';
++import {pinBlock,readMany,LIVE} from '../lib/live.mjs';
++const checked=JSON.parse(fs.readFileSync(new URL('../evidence/metal0-enrollment-unsigned-20261023.json',import.meta.url)));
++const tx=checked.unsigned[0], p=checked.preconditions;
++const cfg=JSON.parse(fs.readFileSync('/home/steven/Projects/enclave/metal/config.json','utf8'));
++assert.equal(typeof cfg.registryKey,'string');
++const account=privateKeyToAccount(cfg.registryKey.startsWith('0x')?cfg.registryKey:'0x'+cfg.registryKey);
++assert.equal(account.address.toLowerCase(),tx.from);
++const block=await pinBlock();
++const abi=parseAbi(['function authority(bytes32) view returns(address,address,uint64,bytes32)']);
++const [state]=await readMany(block,[{address:tx.to,abi,functionName:'authority',args:[p.hostId]}]);assert.equal(state.value[0],'0x'+'00'.repeat(20));assert.equal(state.value[1],'0x'+'00'.repeat(20));
++const clients=LIVE.state.map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const views=await Promise.all(clients.map(async c=>{
++ assert.equal(await c.getChainId(),8453);
++ assert.equal(keccak256(await c.getCode({address:tx.to,blockNumber:block.number})),p.ownershipCodeHash);
++ const nonce=await c.getTransactionCount({address:account.address});
++ assert.equal(await c.getTransactionCount({address:account.address,blockTag:'pending'}),nonce,'pending operator transaction');
++ const gas=await c.estimateGas({account:account.address,to:tx.to,data:tx.data,value:0n});
++ assert.ok(gas<150000n);
++ const balance=await c.getBalance({address:account.address});
++ const fee=await c.estimateFeesPerGas();assert.ok(fee.maxFeePerGas<=100000000n,'fee above budget');
++ return {nonce,gas,balance,maxFeePerGas:fee.maxFeePerGas,maxPriorityFeePerGas:fee.maxPriorityFeePerGas};
++}));assert.equal(views[0].nonce,views[1].nonce);
++const max=k=>views.reduce((a,b)=>a>b[k]?a:b[k],0n);const gas=max('gas')*125n/100n;const fee=max('maxFeePerGas');const funded=views.every(v=>v.balance>=gas*fee);
++console.log(JSON.stringify({at:new Date().toISOString(),from:tx.from,notSigned:true,notSent:true,funded,balancesWei:views.map(v=>String(v.balance)),gas:String(gas),maximumNetworkCostWei:String(gas*fee),maxFeePerGas:String(fee)}));
++assert.ok(funded,'operator balance below estimated maximum network cost');
++const out={at:new Date().toISOString(),notSigned:true,notSent:true,block,action:'Only propose the existing Enclave admin as accepted owner of metal0; admin must separately accept. No committee/policy/book changes.',transaction:{chainId:8453,from:tx.from,to:tx.to,data:tx.data,value:'0',nonce:views[0].nonce,gas:String(gas),maxFeePerGas:String(fee),maxPriorityFeePerGas:String(max('maxPriorityFeePerGas'))},maximumNetworkCostWei:String(gas*fee),views};
++fs.writeFileSync(new URL('../evidence/operator-proposal-prepared.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');console.log(JSON.stringify({at:out.at,from:tx.from,gas:String(gas),maximumNetworkCostWei:out.maximumNetworkCostWei,nonce:views[0].nonce}));
+diff --git a/probes/provider-policy-inventory-complete.py b/probes/provider-policy-inventory-complete.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..95596aa12b271bec85f3dc3a9a44e43d7cc9bacd
+--- /dev/null
++++ b/probes/provider-policy-inventory-complete.py
+@@ -0,0 +1,10 @@
++import ast,pathlib,subprocess,json,concurrent.futures
++p=pathlib.Path(__file__).parent
++mod=ast.parse((p/'dns-policy-inventory-complete.py').read_text());src=next(ast.literal_eval(x.value) for x in mod.body if isinstance(x,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='src' for t in x.targets))
++def check(host):
++ r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=10',host,'python3 -'],input=src,capture_output=True,text=True,timeout=45)
++ if r.returncode:return {'host':host,'error':r.stderr[-300:]}
++ o=json.loads(r.stdout);o['host']=host;return o
++with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:out=list(ex.map(check,['us-west','eu-central','ap-southeast','ca-east']))
++(p.parent/'evidence/provider-policy-inventory-complete.json').write_text(json.dumps(out,indent=2)+'\n')
++for r in out:print(json.dumps({'host':r['host'],'error':r.get('error'),'services':[{'unit':x['unit'],'policyPaths':x['policyPaths'],'policyCount':len(x['policies'])} for x in r.get('services',[])]}))

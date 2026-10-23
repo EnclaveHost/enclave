@@ -1,0 +1,197 @@
+From 10cea38be1b6a70d2dd99af13235c8246095b664 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:03:54 -0700
+Subject: [PATCH] Custody v2 panel: seats as the vault counts them, per-call
+ book check, SessionVault refusal, agreed-read shape
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Per root review (ROOT-REVIEW-STATUS.txt):
+- describeCommittee counts seats as custody/v2/protocol.mjs seatLayout does: all Enclave-flagged machines form ONE seat.
+  SINGLE-SEAT BOOTSTRAP is used only when n = 1 (production: n 1, t 1, W 1). More seats are stated exactly, with no claim
+  of independent operators or failure domains.
+- Only the vault's code identity is cached per page. The book's secretVaultV2 is re-read on every call, so the
+  administrator's rollback stops v2 actions at once.
+- A deployment held by a SessionVault the vault does not unwrap (the book names no sessionVaultFactory) is refused
+  precisely (session_vault_not_unwrapped). It is not mistaken for a Safe/passkey account. Neither routes through ownerCall.
+- Fix, found by the real-contract test: the agreed reader merges an OBJECT result with its block facts, so a scalar
+  snapshot result was lost (the book check read "[object Object]"). Snapshot callbacks now return objects; the fixture
+  vault mimics the real shape.
+- The first-policy committee comes from the page config (production: the live 0x4774… genesis constant).
+---
+ site/components/deployments/deployments.js |  2 +-
+ site/js/core/custody-v2.js                 | 81 ++++++++++++++--------
+ 2 files changed, 53 insertions(+), 30 deletions(-)
+
+diff --git a/site/components/deployments/deployments.js b/site/components/deployments/deployments.js
+index 37fe58599f17e9a8e5ad0ef7be60e8b0c29408bd..7f66639d57df0d479ad3566b6d460956a4c7e94e 100644
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -2978,7 +2978,7 @@
+         c2paint(pol.paused ? "warn" : "ok", "[" + (pol.paused ? "!" : "✓") + "] v2 policy rev " + pol.policyRev + " · secrets rev " + pol.secretRev
+           + (pol.hasBundle ? " · a set is stored (" + pol.bundleBytes + " bytes, unreadable here)" : " · no set stored") + (pol.paused ? " · PAUSED" : "")
+           + " · owner " + pol.owner + (pol.ownerMoved ? " (the ledger now names " + s2.beneficialOwner + ": use the CLI's claimPolicy)" : ""));
+-        if (c) c2paint(c.kind === "mixed" ? "info" : "warn", "// committee " + c.committeeId.slice(0, 10) + "… epoch " + c.epoch + ": " + c.label);
++        if (c) c2paint(c.kind === "multi-seat" ? "info" : "warn", "// committee " + c.committeeId.slice(0, 10) + "… epoch " + c.epoch + ": " + c.label);
+         if (pol.rulesError) c2paint("warn", "[x] its rules do not parse here: " + pol.rulesError);
+         if (s2.configNote) c2paint("dimln", "// config binding: " + s2.configNote + " - a save asks you for that exact JSON");
+         if (c2pause) { c2pause.hidden = false; c2pause.textContent = pol.paused ? "Resume custody v2" : "Pause custody v2"; }
+diff --git a/site/js/core/custody-v2.js b/site/js/core/custody-v2.js
+index f94730dc6ced4effcf424a4f3e2a7951e3ea7ed2..70be6c922abd848cfec8e9c8d8802841c9907187 100644
+--- a/site/js/core/custody-v2.js
++++ b/site/js/core/custody-v2.js
+@@ -37,6 +37,7 @@
+ const ADDR = /^0x[0-9a-f]{40}$/, ZERO_ADDR = "0x" + "00".repeat(20), ID32 = /^0x[0-9a-f]{64}$/;
+ const lc = (x) => String(x || "").toLowerCase();
+ const short = (e) => String((e && (e.shortMessage || e.message)) || e).slice(0, 240);
++const SESSION_OWNER_ABI = [{ type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
+ const BOOK_ADDR_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ name: "key", type: "bytes32" }], outputs: [{ type: "address" }] }];
+ 
+ export class CustodyV2Error extends Error {
+@@ -51,7 +52,7 @@
+ const sleep = (ms) => (_deps?.sleep || ((m) => new Promise((r) => setTimeout(r, m))))(ms);
+ function cfg(){
+   if (_deps?.config) return _deps.config;
+-  return { vault: SECRET_VAULT_V2_ADDRESS, book: ADDRESS_BOOK_ADDRESS, chainId: APP_CATALOG_CHAIN, rpcs: APP_CATALOG_RPCS, independent: INDEPENDENT };
++  return { vault: SECRET_VAULT_V2_ADDRESS, book: ADDRESS_BOOK_ADDRESS, chainId: APP_CATALOG_CHAIN, rpcs: APP_CATALOG_RPCS, independent: INDEPENDENT, committee: CUSTODY_COMMITTEE_V2 };
+ }
+ // the RPCs and agreement the reads use: an independent profile's own (never fewer routes or a weaker agreement than the
+ // rest of its dashboard), else up to three of the site's public RPCs, two of which must agree
+@@ -80,36 +81,40 @@
+   if (!vault || vault === ZERO_ADDR)
+     return { state: "unset", why: q.source === "profile" ? "your network profile pins no contracts.secretVaultV2" : "the EnclaveAddressBook names no " + BOOK_KEY_V2 + " (unset)" };
+   if (!ADDR.test(vault)) return { state: "unreviewed", vault, why: "the configured custody v2 address is malformed" };
+-  if (_vault && _vault.vault === vault && _vault.state === "verified") return _vault;
+   const L = await lib();
+   const reviewed = L.REVIEWED_CUSTODY_VAULTS[vault];
+   if (!reviewed || reviewed.production !== true || reviewed.kind !== "book" || Number(reviewed.chainId) !== Number(c.chainId))
+     return { state: "unreviewed", vault, why: reviewed ? "a reviewed non-production EnclaveSecretVaultV2 variant: no production committee or policy uses it"
+                                                      : "not a reviewed EnclaveSecretVaultV2 (network/custody-vaults.mjs)" };
+   if (q.minAgree < 2) return { state: "unreadable", vault, why: "custody needs at least two agreeing RPCs, and only " + q.rpcs.length + " is configured" };
+-  let reader;
+-  try {
++  // the code identity is judged once per page and vault; the book's naming of it (below) is re-read on EVERY call, so an
++  // administrator's rollback of secretVaultV2 stops this page's v2 actions at once
++  let reader = _vault && _vault.vault === vault ? _vault.reader : null, identity = _vault && _vault.vault === vault ? _vault.identity : null;
++  if (!reader) try {
+     reader = L.createChainReaderV2({ rpcs: q.rpcs, vault, chainId: c.chainId, minAgree: q.minAgree, confirmations: q.confirmations, maxAgeSec: q.maxAgeSec,
+                                      vaultKind: "book", book: reviewed.immutable.book, timeoutMs: 15000 });
+   } catch (e) { return { state: "unreadable", vault, why: short(e) }; }
+-  let identity;
+-  try { identity = await reader.readVaultIdentity(); }
+-  catch (e) { return { state: "unreadable", vault, why: "the RPCs did not agree on the vault's code: " + short(e) }; }
+-  try { L.checkCustodyVaultIdentity(vault, identity); }
+-  catch (e) { return { state: "mismatch", vault, why: short(e) }; }
++  if (!identity){
++    let seen;
++    try { seen = await reader.readVaultIdentity(); }
++    catch (e) { return { state: "unreadable", vault, why: "the RPCs did not agree on the vault's code: " + short(e) }; }
++    try { L.checkCustodyVaultIdentity(vault, seen); }
++    catch (e) { return { state: "mismatch", vault, why: short(e) }; }
++    identity = seen;
++    _vault = { vault, reader, identity };
++  }
+   // book-named: the book must still name THIS vault at an agreed block (the page's own book resolve is one RPC's word)
+   if (q.source === "book"){
+     const book = lc(c.book);
+     if (!ADDR.test(book) || book !== lc(reviewed.immutable.book))
+       return { state: "mismatch", vault, why: "the site's address book " + (book || "(none)") + " is not the book this vault reads" };
+     let named;
+-    try { named = lc(await reader.snapshot(({ call }) => call(book, BOOK_ADDR_ABI, "addr", [L.stringToHex(BOOK_KEY_V2, { size: 32 })]))); }
++    try { named = lc((await reader.snapshot(async ({ call }) => ({ named: await call(book, BOOK_ADDR_ABI, "addr", [L.stringToHex(BOOK_KEY_V2, { size: 32 })]) }))).named); }
+     catch (e) { return { state: "unreadable", vault, why: "the RPCs did not agree on the book's " + BOOK_KEY_V2 + ": " + short(e) }; }
+     if (named === ZERO_ADDR) return { state: "unset", why: "the EnclaveAddressBook names no " + BOOK_KEY_V2 + " at the agreed block" };
+     if (named !== vault) return { state: "mismatch", vault, why: "the book names " + named + " at the agreed block, not " + vault };
+   }
+-  _vault = { state: "verified", vault, reader, reviewed, source: q.source, rpcs: q.rpcs.length, minAgree: q.minAgree, codeHash: identity.codeHash };
+-  return _vault;
++  return { state: "verified", vault, reader, reviewed, source: q.source, rpcs: q.rpcs.length, minAgree: q.minAgree, codeHash: identity.codeHash };
+ }
+ 
+ async function verified(){
+@@ -118,19 +123,24 @@
+   return v;
+ }
+ 
+-/** What a committee is, exactly: never a badge. */
++/**
++ * What a committee is, exactly: never a badge. Seats are counted as the vault and custody/v2/protocol.mjs seatLayout count
++ * them: every Enclave-flagged machine is ONE Enclave seat (its replicas hold the same shares), each other machine its own
++ * seat. n = 1 is a SINGLE-SEAT bootstrap. More seats are stated as such and never called decentralized or independent:
++ * distinct registry hosts or operator addresses do not prove distinct operators or failure domains.
++ */
+ export function describeCommittee(committee){
+   if (!committee) return null;
+-  const seats = committee.machines.length, enclave = committee.machines.filter((m) => m.enclave).length;
+-  const hosts = new Set(committee.machines.map((m) => m.registryId)).size;
+-  const kind = seats === 1 ? "single-seat-bootstrap" : enclave === seats ? "enclave-operated" : "mixed";
+-  const label = kind === "single-seat-bootstrap"
+-    ? "SINGLE-SEAT BOOTSTRAP: one custodian machine (" + (enclave ? "Enclave-operated" : "not Enclave-operated") + "), " + committee.t + " of " + committee.W
+-      + " shares - protection rests on that one TEE and its software, not on distribution"
+-    : kind === "enclave-operated"
+-      ? "ENCLAVE-OPERATED BOOTSTRAP: all " + seats + " seats run by Enclave, " + committee.t + " of " + committee.W + " shares - not decentralized custody"
+-      : committee.t + " of " + committee.W + " shares over " + seats + " seats on " + hosts + " registered hosts, " + enclave + " Enclave-operated";
+-  return { committeeId: committee.committeeId, epoch: committee.epoch, t: committee.t, W: committee.W, seats, enclaveSeats: enclave, hosts,
++  const machines = committee.machines.length, enclaveMachines = committee.machines.filter((m) => m.enclave).length;
++  const otherSeats = machines - enclaveMachines, n = otherSeats + (enclaveMachines ? 1 : 0);
++  const shares = committee.t + " of " + committee.W + " shares";
++  const kind = n === 1 ? "single-seat-bootstrap" : "multi-seat";
++  const label = n === 1
++    ? "SINGLE-SEAT BOOTSTRAP: n = 1 seat (" + (enclaveMachines ? "the Enclave seat" : "one non-Enclave seat") + "), t = " + committee.t + " of W = " + committee.W + " shares, on "
++      + machines + " machine" + (machines === 1 ? "" : "s holding the same shares") + " - protection rests on that one seat's TEE, attestation and software; this is not decentralized custody"
++    : "n = " + n + " seats, t = " + committee.t + " of W = " + committee.W + " shares (" + (enclaveMachines ? "1 Enclave seat on " + enclaveMachines + " machine" + (enclaveMachines === 1 ? "" : "s") + " + " : "")
++      + otherSeats + " other seat" + (otherSeats === 1 ? "" : "s") + ") - the vault does not show that the other seats are independent operators or separate failure domains";
++  return { committeeId: committee.committeeId, epoch: committee.epoch, t: committee.t, W: committee.W, n, machines, enclaveMachines, otherSeats,
+            endpoints: committee.machines.map((m) => ({ endpoint: m.endpoint, enclave: !!m.enclave })), kind, label };
+ }
+ 
+@@ -163,12 +173,24 @@
+   if (!owner || owner === ZERO_ADDR) refuse("this deployment has no owner on the ledger the vault reads", "no_owner");
+   if (st.policy.policyRev && st.policy.owner !== st.beneficialOwner)
+     refuse("the ledger moved this deployment to " + st.beneficialOwner + ": only that owner's claimPolicy (which destroys the bundle) may follow - use the CLI", "owner_moved");
+-  const code = await v.reader.snapshot(({ code }) => code(owner));
+-  if (code && code !== "0x") refuse("the custody owner " + owner + " is a contract account (a Safe or passkey account): this dashboard does not sign custody updates for it yet. "
++  // (the agreed reader merges an OBJECT result with its block facts: a bare value would be lost)
++  const { code } = await v.reader.snapshot(async ({ code }) => ({ code: await code(owner) }));
++  if (code && code !== "0x") {
++    // a SessionVault the vault did NOT unwrap (its beneficialOwnerOf returned the SessionVault itself): the vault then needs
++    // msg.sender == that SessionVault, which no wallet here can be, and SessionVault has no ERC-1271 for updateBySig
++    let sessionOwner = null;
++    try { sessionOwner = lc((await v.reader.snapshot(async ({ call }) => ({ owner: await call(owner, SESSION_OWNER_ABI, "owner", []) }))).owner); } catch { sessionOwner = null; }
++    if (sessionOwner && ADDR.test(sessionOwner) && sessionOwner !== ZERO_ADDR)
++      refuse("this deployment is held by the contract " + owner + " (a SessionVault owned by " + sessionOwner + "?), and the custody vault does not unwrap it to its owner: "
++        + "the address book names no sessionVaultFactory that made it. The vault would accept only that contract itself as the sender, which no wallet can be "
++        + "(routing through SessionVault.ownerCall would not help: the custody owner is then still the SessionVault). Nothing was encrypted or sent", "session_vault_not_unwrapped", { owner, sessionOwner });
++    refuse("the custody owner " + owner + " is a contract account (a Safe or passkey account): this dashboard does not sign custody updates for it yet. "
+     + "That account must sign the vault's EIP-712 Update digest itself (updateBySig, custody/v2/owner.mjs updateTypedDataV2); nothing was encrypted or sent", "contract_owner", { owner });
++  }
+   const me = lc(signer && signer.address);
+   if (!ADDR.test(me)) refuse("connect the owner's wallet first", "no_wallet");
+-  if (me !== owner) refuse("the connected wallet " + me + " is not this deployment's custody owner " + owner + ": switch to that wallet", "not_owner", { owner });
++  // a session key, a delegate or any other wallet is refused here, as the vault refuses it: only the custody owner signs
++  if (me !== owner) refuse("the connected wallet " + me + " is not this deployment's custody owner " + owner + " (a session key never is): switch to that wallet", "not_owner", { owner });
+   return owner;
+ }
+ 
+@@ -189,8 +211,9 @@
+ export async function planFirstPolicy(id, prediction){
+   const v = await verified(), L = await lib();
+   const rules = L.rulesFromPrediction(prediction);
+-  const { committee } = await v.reader.readCommittee({ committeeId: CUSTODY_COMMITTEE_V2 });
+-  if (!committee) refuse("the vault has no committee " + CUSTODY_COMMITTEE_V2.slice(0, 10) + "…: no new v2 policy can be made", "no_committee");
++  const firstCommittee = lc(cfg().committee || CUSTODY_COMMITTEE_V2);
++  const { committee } = await v.reader.readCommittee({ committeeId: firstCommittee });
++  if (!committee) refuse("the vault has no committee " + firstCommittee.slice(0, 10) + "…: no new v2 policy can be made", "no_committee");
+   return { rules, committee: describeCommittee(committee) };
+ }
+ 
+@@ -226,7 +249,7 @@
+   const pol = st.policy;
+   await ownerCheck(v, st, signer);
+   const first = !pol.policyRev;
+-  const committeeId = first ? CUSTODY_COMMITTEE_V2 : pol.committeeId;
++  const committeeId = first ? lc(cfg().committee || CUSTODY_COMMITTEE_V2) : pol.committeeId;
+   let rules = null;
+   if (first){
+     if (!admittedRules) refuse("this deployment has no v2 custody rules yet: admit the predicted images first", "rules_not_admitted");

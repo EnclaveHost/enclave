@@ -1,0 +1,541 @@
+From a5eae96cdaa9f916266c9ee101908e14e75ad085 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:49:51 -0700
+Subject: [PATCH 1/2] Fail closed on custody startup storage errors and bind
+ reviewed vault authority
+
+---
+ custody/v2/daemon.mjs                  | 20 +++++-----
+ custody/v2/host-binding.mjs            | 11 +++++-
+ custody/v2/host.mjs                    |  7 ++--
+ custody/v2/ingress.mjs                 |  2 +-
+ custody/v2/startup-state.mjs           | 23 ++++++++++++
+ test/custody-direct-host.test.mjs      | 11 +++++-
+ test/custody-direct-ingress.test.mjs   |  4 +-
+ test/custody-v2-startup-state.test.mjs | 51 ++++++++++++++++++++++++++
+ 8 files changed, 111 insertions(+), 18 deletions(-)
+ create mode 100644 custody/v2/startup-state.mjs
+ create mode 100644 test/custody-v2-startup-state.test.mjs
+
+diff --git a/custody/v2/daemon.mjs b/custody/v2/daemon.mjs
+index 3ceba5c2..85c4816f 100644
+--- a/custody/v2/daemon.mjs
++++ b/custody/v2/daemon.mjs
+@@ -39,6 +39,7 @@ import { shieldCustodyFor, validateShieldOperator } from "./shield-operator.mjs"
+ import { createPlatformHostGate } from "../../network/platform-host-policy.mjs";
+ import { httpPolicyMirrors } from "../../network/host-policy-mirrors.mjs";
+ import { createSealedStateWriter } from "./sealed-state.mjs";
++import { readStartupState, loadStartupState } from "./startup-state.mjs";
+ 
+ const log = (...a) => console.log(new Date().toISOString(), ...a);
+ const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
+@@ -78,7 +79,6 @@ function unseal(key, blob) {
+   const d = createDecipheriv("aes-256-gcm", key, blob.subarray(0, 12)); d.setAAD(AAD); d.setAuthTag(blob.subarray(12, 28));
+   return JSON.parse(Buffer.concat([d.update(blob.subarray(28)), d.final()]).toString("utf8"));
+ }
+-async function hostGet(hostUrl, p) { const r = await fetch(hostUrl + p); if (r.status === 404) return null; if (!r.ok) throw new Error(`host ${p}: ${r.status}`); return Buffer.from(await r.arrayBuffer()); }
+ async function hostPut(hostUrl, p, body) { const r = await fetch(hostUrl + p, { method: "PUT", body }); if (!r.ok) throw new Error(`host ${p}: ${r.status}`); }
+ 
+ async function main() {
+@@ -89,15 +89,15 @@ async function main() {
+   const trustedProxies = validateTrustedProxies(MEASURED.trustedProxies ?? []);
+   const key = derivedKey();
+   // 1. the sealed state (keys + shares), or a fresh identity
+-  let state = null;
+-  const blob = await hostGet(hc.hostUrl, "/state").catch((e) => { log(`state fetch failed: ${e.message}`); return null; });
+-  if (blob) { try { state = unseal(key, blob); log("sealed state opened"); } catch { throw new Error("the host's sealed state does not open in this guest (another chip or another custodian build): refusing to start rather than overwrite it"); } }
+-  if (!state) {
+-    const kp = hpke.generateKeyPair();
+-    state = { identityKey: generatePrivateKey(), encPrivate: Buffer.from(kp.privateKey).toString("hex"), member: null };
+-    await hostPut(hc.hostUrl, "/state", seal(key, state));
+-    log("new custodian identity sealed");
+-  }
++  const state = await loadStartupState({
++    read: () => readStartupState(hc.hostUrl + "/state"),
++    unseal: (blob) => {
++      try { const s = unseal(key, blob); log("sealed state opened"); return s; }
++      catch { throw new Error("the host's sealed state does not open in this guest (another chip or another custodian build): refusing to start rather than overwrite it"); }
++    },
++    fresh: () => { const kp = hpke.generateKeyPair(); return { identityKey: generatePrivateKey(), encPrivate: Buffer.from(kp.privateKey).toString("hex"), member: null }; },
++    persist: async (s) => { await hostPut(hc.hostUrl, "/state", seal(key, s)); log("new custodian identity sealed"); },
++  });
+   const identity = privateKeyToAccount(state.identityKey);
+   const encPrivateKey = new Uint8Array(Buffer.from(state.encPrivate, "hex"));
+   const encKey = "0x" + Buffer.from(hpke.publicKeyOf(encPrivateKey)).toString("hex");
+diff --git a/custody/v2/host-binding.mjs b/custody/v2/host-binding.mjs
+index b664e738..4c07ab63 100644
+--- a/custody/v2/host-binding.mjs
++++ b/custody/v2/host-binding.mjs
+@@ -1,8 +1,17 @@
+ import * as D from './digests.mjs';
++import { custodyVaultKind, REVIEWED_CUSTODY_VAULTS } from '../../network/custody-vaults.mjs';
+ const lc=value=>String(value).toLowerCase();
++export function hostBindingReaderOptions(manifest, rpcs) {
++  const pin = REVIEWED_CUSTODY_VAULTS[lc(manifest.vault)];
++  if (!pin) throw Error('host binding requires a reviewed vault');
++  const authority = pin.hostOwnership || pin.immutable.hostOwnership;
++  if (lc(manifest.hostOwnership) !== lc(authority)) throw Error('host binding ownership differs from reviewed authority');
++  return { rpcs, vault:manifest.vault, ...custodyVaultKind(manifest.vault), hostOwnership:manifest.hostOwnership,
++    chainId:pin.chainId, minAgree:Math.floor(rpcs.length/2)+1, confirmations:2 };
++}
+ // The private operator key is used only after the guest's requested machine
+ // record matches this host's configured registry and endpoint. The reader uses
+-// the vault's immutable registry/ownership bindings, never the address book.
++// the reviewed vault's authority mode, including the original vault's admin book.
+ export async function prepareHostBinding({chain,operator,chainId,vault,registryId,registryEndpoint,endpoint,info}) {
+   const m=info?.machine;
+   if(info?.v!==2||!m||lc(m.registryId)!==lc(registryId)||m.endpoint!==endpoint||
+diff --git a/custody/v2/host.mjs b/custody/v2/host.mjs
+index b7969f3c..5c12cc58 100644
+--- a/custody/v2/host.mjs
++++ b/custody/v2/host.mjs
+@@ -19,7 +19,8 @@ import { createPublicClient, createWalletClient, http as viemHttp, keccak256, to
+ import { privateKeyToAccount } from "viem/accounts";
+ import { base } from "viem/chains";
+ import { VAULT_V2_ABI, createChainReaderV2 } from "./chain.mjs";
+-import { prepareHostBinding } from './host-binding.mjs';
++import { prepareHostBinding, hostBindingReaderOptions } from './host-binding.mjs';
++import { checkCustodyVaultIdentity } from '../../network/custody-vaults.mjs';
+ import { MEASURED } from './measured.mjs';
+ 
+ const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+@@ -28,8 +29,7 @@ if(manifest.role!=='enclave-custodian-v2'||String(manifest.vault).toLowerCase()!
+    !/^0x[0-9a-f]{40}$/i.test(manifest.hostOwnership||'')||/^0x0{40}$/i.test(manifest.hostOwnership)||
+    !['direct','tunnel'].includes(manifest.transport))throw Error('compatible measured custody manifest required');
+ const bindingRpcs=cfg.rpcs||MEASURED.rpcs;
+-const bindingChain=createChainReaderV2({rpcs:bindingRpcs,vault:cfg.vault,hostOwnership:manifest.hostOwnership,
+-  chainId:8453,minAgree:Math.floor(bindingRpcs.length/2)+1,confirmations:2});
++const bindingChain=createChainReaderV2(hostBindingReaderOptions(manifest,bindingRpcs));
+ const log = (...a) => console.log(new Date().toISOString(), "[custodian-host]", ...a);
+ const STATE = path.join(cfg.stateDir, "state.bin");
+ fs.mkdirSync(cfg.stateDir, { recursive: true, mode: 0o700 });
+@@ -96,6 +96,7 @@ async function bindLoop() {
+       const response=await fetch(`http://127.0.0.1:${cfg.mgmtPort}/v2/custody/info`,{signal:AbortSignal.timeout(10000)});
+       if(!response.ok)throw Error(`guest info HTTP ${response.status}`);
+       const i=await response.json();
++      checkCustodyVaultIdentity(cfg.vault,await bindingChain.readVaultIdentity());
+       const binding=await prepareHostBinding({chain:bindingChain,operator:op,chainId:8453,vault:cfg.vault,registryId,
+         registryEndpoint:cfg.registryEndpoint,endpoint:cfg.endpoint,info:i});
+       if(binding.alreadyBound){log(`guest ${i.identity} bound (${i.epochs?.length||0} epoch(s) held)`);return;}
+diff --git a/custody/v2/ingress.mjs b/custody/v2/ingress.mjs
+index 7660720e..ebacbcc6 100644
+--- a/custody/v2/ingress.mjs
++++ b/custody/v2/ingress.mjs
+@@ -15,7 +15,7 @@ export function directCustodyIngress({endpoint,mgmtPort}) {
+   }
+   @public_protocol {
+     method POST
+-    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/shield-session/challenge /v2/custody/shield-session/attest
++    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/owner-read/challenge /v2/custody/owner-read /v2/custody/shield-session/challenge /v2/custody/shield-session/attest
+   }
+   handle @public_info {
+     reverse_proxy 127.0.0.1:${mgmtPort}
+diff --git a/custody/v2/startup-state.mjs b/custody/v2/startup-state.mjs
+new file mode 100644
+index 00000000..ee1523f5
+--- /dev/null
++++ b/custody/v2/startup-state.mjs
+@@ -0,0 +1,23 @@
++// Only an explicit missing-state response permits a new identity. Transport,
++// storage and authentication failures must never overwrite an existing share.
++export async function readStartupState(url, { fetchImpl = fetch, timeoutMs = 10000, maxBytes = 4 << 20 } = {}) {
++  const r = await fetchImpl(url, { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
++  if (r.status === 404) { await r.body?.cancel(); return null; }
++  if (r.status !== 200) { await r.body?.cancel(); throw Error(`sealed state read failed: HTTP ${r.status}`); }
++  const chunks = []; let size = 0;
++  for await (const chunk of r.body || []) {
++    size += chunk.byteLength;
++    if (size > maxBytes) throw Error('sealed state exceeds its size limit');
++    chunks.push(Buffer.from(chunk));
++  }
++  if (size < 28) throw Error('sealed state response is empty or truncated');
++  return Buffer.concat(chunks);
++}
++
++export async function loadStartupState({ read, unseal, fresh, persist }) {
++  const blob = await read();
++  if (blob !== null) return unseal(blob);
++  const state = fresh();
++  await persist(state);
++  return state;
++}
+diff --git a/test/custody-direct-host.test.mjs b/test/custody-direct-host.test.mjs
+index 2aa0973f..4417609f 100644
+--- a/test/custody-direct-host.test.mjs
++++ b/test/custody-direct-host.test.mjs
+@@ -4,11 +4,20 @@ import vm from 'node:vm';
+ import {build} from 'esbuild';
+ import {EventEmitter} from 'node:events';
+ import {generatePrivateKey,privateKeyToAccount} from 'viem/accounts';
+-import {prepareHostBinding} from '../custody/v2/host-binding.mjs';
++import {prepareHostBinding,hostBindingReaderOptions} from '../custody/v2/host-binding.mjs';
+ import {directCustodyIngress} from '../custody/v2/ingress.mjs';
+ import * as D from '../custody/v2/digests.mjs';
+ const hex=(n,size=32)=>'0x'+n.toString(16).padStart(size*2,'0');
+ 
++test('the original vault launcher selects its admin book before any host signature, without RPC fallback',()=>{
++  const m={vault:'0xe48699b8401564aace7a814ae4569b67a3f7eef5',hostOwnership:'0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7'};
++  const o=hostBindingReaderOptions(m,['https://a.example','https://b.example']);
++  assert.equal(o.vaultKind,'book'); assert.equal(o.book,'0xab214342d5a490150a4a977063a2f88e21f80907');
++  assert.equal(o.hostOwnership,m.hostOwnership);assert.equal(o.minAgree,2);
++  assert.throws(()=>hostBindingReaderOptions({...m,vault:hex(42,20)},o.rpcs),/reviewed vault/);
++  assert.throws(()=>hostBindingReaderOptions({...m,hostOwnership:hex(43,20)},o.rpcs),/ownership differs/);
++});
++
+ test('actual bundled startup uses only the custodian in measured direct mode despite hostile host transport config',async()=>{
+   for(const transport of ['direct','tunnel','invalid']){
+     const {outputFiles}=await build({entryPoints:['custody/v2/cvm-gsup.mjs'],bundle:true,platform:'node',format:'cjs',write:false,
+diff --git a/test/custody-direct-ingress.test.mjs b/test/custody-direct-ingress.test.mjs
+index 4f6eaeba..06572e9b 100644
+--- a/test/custody-direct-ingress.test.mjs
++++ b/test/custody-direct-ingress.test.mjs
+@@ -45,7 +45,7 @@ test('operator HTTPS ingress forwards public custody ciphertext but never privat
+     }
+     assert.ok(ready,'direct TLS ingress becomes ready');seen.length=0;
+     const body=JSON.stringify({recipientKey:Buffer.from(keys.publicKey).toString('hex'),nonce:'test'});
+-    for(const route of ['evidence','challenge','release','join','approve','independent-genesis','code-approve']){
++    for(const route of ['evidence','challenge','release','join','approve','independent-genesis','code-approve','owner-read/challenge','owner-read']){
+       const response=await request(port,'/v2/custody/'+route,'POST',body);assert.equal(response.status,200);
+       const value=hpke.open(keys.privateKey,info,aad,Buffer.from(JSON.parse(response.body).sealed,'base64'));
+       assert.equal(Buffer.from(value).toString(),'recipient-only test value');
+@@ -53,7 +53,7 @@ test('operator HTTPS ingress forwards public custody ciphertext but never privat
+     }
+     const forwarded=seen.length;
+     for(const [route,method] of [['/state','GET'],['/state','PUT'],['/submit','POST'],['/receipts','GET'],
+-      ['/v2/custody/host-binding','POST'],['/v2/custody/%68ost-binding','POST'],['/v2/custody/release','GET'],['/v2/custody/info','POST']]){
++      ['/v2/custody/host-binding','POST'],['/v2/custody/%68ost-binding','POST'],['/v2/custody/release','GET'],['/v2/custody/info','POST'],['/v2/custody/owner-read','GET'],['/v2/custody/owner-read/challenge','PUT']]){
+       assert.equal((await request(port,route,method,'{}')).status,404,route+' '+method);
+     }
+     assert.equal(seen.length,forwarded,'private requests never reach the guest forwarding port');
+diff --git a/test/custody-v2-startup-state.test.mjs b/test/custody-v2-startup-state.test.mjs
+new file mode 100644
+index 00000000..9e406e9b
+--- /dev/null
++++ b/test/custody-v2-startup-state.test.mjs
+@@ -0,0 +1,51 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { readStartupState, loadStartupState } from '../custody/v2/startup-state.mjs';
++
++test('storage outage, malformed body and transport failures never create or overwrite an identity', async t => {
++  let mode = 'stored', created = 0, writes = 0;
++  const saved = Buffer.alloc(64, 7), identity = { identity: 'dedicated-test-only' };
++  const srv = http.createServer((req, res) => {
++    if (mode === 'disconnect') return req.socket.destroy();
++    if (mode === 'stall') return;
++    if (mode === 'redirect') { res.writeHead(302, {location:'/state'}); return res.end(); }
++    if (mode === 'missing') { res.writeHead(404); return res.end(); }
++    if (mode === 'unavailable') { res.writeHead(503); return res.end(); }
++    if (mode === 'forbidden') { res.writeHead(403); return res.end(); }
++    if (mode === 'empty') return res.end();
++    if (mode === 'short') return res.end(Buffer.alloc(27));
++    if (mode === 'oversize') return res.end(Buffer.alloc(129));
++    if (mode === 'bad-seal') return res.end(Buffer.alloc(64, 8));
++    res.end(saved);
++  });
++  await new Promise(r => srv.listen(0, '127.0.0.1', r));
++  t.after(() => { srv.closeAllConnections(); return new Promise(r => srv.close(r)); });
++  const options = {
++    read: () => readStartupState(`http://127.0.0.1:${srv.address().port}/state`, {timeoutMs:300,maxBytes:128}),
++    unseal: blob => { assert.deepEqual(blob, saved, 'authenticated blob only'); return identity; },
++    fresh: () => { created++; return { identity:'new-test-only' }; },
++    persist: async () => { writes++; },
++  };
++  assert.equal(await loadStartupState(options), identity);
++  for (mode of ['unavailable','forbidden','empty','short','oversize','bad-seal','redirect','disconnect','stall']) {
++    await assert.rejects(loadStartupState(options), undefined, mode);
++    assert.equal(created, 0, mode + ': no replacement identity');
++    assert.equal(writes, 0, mode + ': existing disk untouched');
++  }
++  mode = 'stored';
++  assert.equal(await loadStartupState(options), identity, 'recovery reopens the same state');
++  mode = 'missing';
++  assert.deepEqual(await loadStartupState(options), {identity:'new-test-only'});
++  assert.equal(created,1); assert.equal(writes,1);
++});
++
++test('initial persistence is a barrier; a failed save exposes no initialized state', async () => {
++  let release;
++  const pending = new Promise(r => { release = r; }); let done = false;
++  const opts = { read:async()=>null, unseal:()=>assert.fail(), fresh:()=>({identity:'canary'}), persist:()=>pending };
++  const load = loadStartupState(opts).then(v => {done=true;return v;});
++  await new Promise(r=>setImmediate(r)); assert.equal(done,false);
++  release(); assert.deepEqual(await load,{identity:'canary'});
++  await assert.rejects(loadStartupState({...opts,persist:async()=>{throw Error('disk unavailable');}}),/disk unavailable/);
++});
+-- 
+2.56.0
+
+
+From ab589bf80b669c9671b53573d489b6c6c45779ea Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:59:20 -0700
+Subject: [PATCH 2/2] test: the real custodian daemon startup and
+ direct-ingress path spellings
+
+custody-v2-daemon-startup runs the REAL custody/v2/daemon.mjs main, bundled
+the way the image bundles it with the original vault's production measured
+config. Only the chip is stubbed (snpkey derive returns a test key) and every
+fetch other than the host's is refused. Against a host /state server:
+- 503, 500, 403, 401, a disconnect, a redirect, an empty or truncated 200, a
+  blob sealed by another key, a tampered blob, an oversize body and a stall:
+  the daemon does not start and writes nothing; the stored state is untouched.
+- The stored state opens, and opens again after those failures.
+- An explicit 404 whose first write fails starts nothing.
+- An explicit 404 seals a fresh identity with the chip key before anything else.
+At c95dcd3a, and with a mutant of a5eae96c's wiring that maps read errors to
+"missing", a 503 writes a new identity over the stored state; both fail this
+test.
+
+custody-direct-ingress-paths puts the REAL Caddy (CADDY_BIN) and the generated
+ingress in front of the REAL custodian router. 25 spellings of the
+host-binding route (case, slashes, dot segments plain and %-encoded,
+backslashes, encoded separators, double encoding, ;params, query, absolute
+form) and the host's private routes never reach setHostSig or the guest port.
+A mutant ingress forwarding /v2/custody/* lets 11 spellings through and fails.
+---
+ test/custody-direct-ingress-paths.test.mjs |  85 +++++++++++++
+ test/custody-v2-daemon-startup.test.mjs    | 138 +++++++++++++++++++++
+ 2 files changed, 223 insertions(+)
+ create mode 100644 test/custody-direct-ingress-paths.test.mjs
+ create mode 100644 test/custody-v2-daemon-startup.test.mjs
+
+diff --git a/test/custody-direct-ingress-paths.test.mjs b/test/custody-direct-ingress-paths.test.mjs
+new file mode 100644
+index 00000000..e7188860
+--- /dev/null
++++ b/test/custody-direct-ingress-paths.test.mjs
+@@ -0,0 +1,85 @@
++// The direct custodian ingress (custody/v2/ingress.mjs, served by the REAL Caddy over TLS) in front of the REAL custodian
++// router (custody/v2/http.mjs). Caddy matches a cleaned, percent-decoded path; the guest resolves the forwarded URL with
++// WHATWG rules (dot segments, %2e, backslashes). No request through the ingress, however its path is spelled, may reach
++// the guest's host-binding route; and the host's private /state, /submit and /receipts never reach the guest port.
++//   run: CADDY_BIN=/path/to/caddy node --test test/custody-direct-ingress-paths.test.mjs
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import http from 'node:http';
++import https from 'node:https';
++import net from 'node:net';
++import {execFileSync,spawn} from 'node:child_process';
++import {once} from 'node:events';
++import {mintLocalCa} from './helpers/local-tls.mjs';
++import {directCustodyIngress} from '../custody/v2/ingress.mjs';
++import {createCustodyRouter} from '../custody/v2/http.mjs';
++const caddy=process.env.CADDY_BIN;
++const HB='host-binding';
++// spellings of the host-binding route: case, slashes, dot segments (plain, %-encoded, mixed), backslashes, encoded
++// separators, parameters, query and fragment confusion, and an absolute-form target
++const VARIANTS=[`/v2/custody/${HB}`,`/V2/CUSTODY/HOST-BINDING`,`/v2/custody/${HB}/`,`//v2/custody/${HB}`,`/v2//custody/${HB}`,`/v2/custody/./${HB}`,
++  `/v2/custody/release/../${HB}`,`/v2/custody/release/%2e%2e/${HB}`,`/v2/custody/release/%2E%2E/${HB}`,`/v2/custody/release/.%2e/${HB}`,
++  `/v2/custody/release/%2e./${HB}`,`/v2/custody/release\\..\\${HB}`,`/v2/custody/release/..\\${HB}`,`/v2/custody/release/..%5c${HB}`,
++  `/v2/custody/release%2f..%2f${HB}`,`/v2/custody/release/%252e%252e/${HB}`,`/v2/custody/${HB}?/v2/custody/release`,`/v2/custody/${HB};/v2/custody/release`,
++  `/v2/custody/release/..;/${HB}`,`/v2/custody/host%2Dbinding`,`/v2/custody/%68ost-binding`,`/v2/custody/release/%2e%2e%2f${HB}`,
++  `/v2/custody/x/../release/../${HB}`,`/v2/custody/release/../../custody/${HB}`,`http://localhost/v2/custody/${HB}`];
++const PRIVATE=[['/state','GET'],['/state','PUT'],['/submit','POST'],['/receipts','GET'],['/v2/custody/release/../../../state','GET'],
++  ['/v2/custody/release/%2e%2e/%2e%2e/%2e%2e/submit','POST']];
++
++test('no spelling of the host-binding route passes the direct ingress to the real custodian router',
++  {skip:!caddy?'set CADDY_BIN to run the real Caddy/TLS integration':false,timeout:30000},async()=>{
++  const ca=mintLocalCa(),seen=[];let bound=0,child,backend,diagnostics='';
++  const request=(port,route,method,body='{}')=>new Promise((resolve,reject)=>{
++    const req=https.request({hostname:'127.0.0.1',servername:'localhost',port,path:route,method,ca:ca.caPem,
++      headers:{host:'localhost','content-type':'application/json','content-length':Buffer.byteLength(body)},timeout:3000},res=>{
++      const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve({status:res.statusCode,body:Buffer.concat(chunks).toString()}));
++    });req.on('error',reject);req.on('timeout',()=>req.destroy(Error('timeout')));req.end(body);
++  });
++  // the real router; the member's host-binding entry point only counts (the private surface under test)
++  const member={info:()=>({v:2}),setHostSig:async()=>{bound++;return {ok:true};},evidence:async()=>({ok:true}),join:async()=>({ok:true}),approve:async()=>({ok:true}),
++    approveCode:async()=>({ok:true})};
++  const custodian={encKeyHex:'00',challenge:()=>({ok:true}),release:async()=>({ok:true})};
++  const route=createCustodyRouter({custodian,member,runIndependent:async()=>({ok:true}),servedCommittee:()=>null,chainId:8453,vault:'0x'+'00'.repeat(20),rate:()=>true});
++  try{
++    backend=http.createServer((req,res)=>{seen.push({path:req.url,method:req.method,resolved:new URL(req.url,'http://x').pathname});return route(req,res);});
++    backend.listen(0,'127.0.0.1');await once(backend,'listening');
++    const reservation=net.createServer();reservation.listen(0,'127.0.0.1');await once(reservation,'listening');
++    const port=reservation.address().port;await new Promise(r=>reservation.close(r));
++    const site=directCustodyIngress({endpoint:'https://localhost',mgmtPort:backend.address().port});
++    const config='{\n admin off\n auto_https off\n}\n'+site.replace('https://localhost {',`https://localhost:${port} {\n bind 127.0.0.1\n tls ${ca.dir}/leaf.pem ${ca.dir}/leaf.key`);
++    const configPath=path.join(ca.dir,'Caddyfile');fs.writeFileSync(configPath,config,{mode:0o600});
++    execFileSync(caddy,['adapt','--config',configPath,'--adapter','caddyfile'],{stdio:'pipe'});
++    child=spawn(caddy,['run','--config',configPath,'--adapter','caddyfile'],{env:{...process.env,XDG_CONFIG_HOME:ca.dir,XDG_DATA_HOME:ca.dir},stdio:['ignore','ignore','pipe']});
++    child.stderr.on('data',c=>{diagnostics=(diagnostics+c.toString()).slice(-3000);});
++    let ready=false;
++    for(let i=0;i<100&&!ready;i++){
++      if(child.exitCode!==null)throw Error('Caddy exited: '+diagnostics);
++      try{ready=(await request(port,'/v2/custody/info','GET','')).status===200;}catch{}
++      if(!ready)await new Promise(r=>setTimeout(r,50));
++    }
++    assert.ok(ready,'the ingress becomes ready');
++    // positive control: an allowlisted POST reaches the guest router
++    seen.length=0;
++    assert.equal((await request(port,'/v2/custody/challenge','POST')).status,200);
++    assert.equal(seen.length,1,'an allowlisted route is forwarded');
++    seen.length=0;
++    const outcomes=[];
++    for(const v of VARIANTS){
++      let status;try{status=(await request(port,v,'POST')).status;}catch(e){status='client:'+e.code;}
++      outcomes.push([v,status]);
++    }
++    for(const [r,m] of PRIVATE){let status;try{status=(await request(port,r,m)).status;}catch(e){status='client:'+e.code;}outcomes.push([`${m} ${r}`,status]);}
++    assert.equal(bound,0,`a host-binding spelling reached the guest's setHostSig: ${JSON.stringify(outcomes)} forwarded ${JSON.stringify(seen)}`);
++    for(const s of seen){
++      assert.notEqual(s.resolved.toLowerCase().replace(/\/+$/,''),'/v2/custody/host-binding',`forwarded and resolved to host-binding: ${s.path}`);
++      assert.ok(!['/state','/submit','/receipts'].includes(s.resolved),`a private host route reached the guest port: ${s.path}`);
++    }
++    for(const [v,status] of outcomes)assert.ok(status===404||status===400||String(status).startsWith('client:'),`${v}: ${status} (forwarded: ${JSON.stringify(seen)})`);
++  }finally{
++    if(child&&child.exitCode===null){const done=once(child,'exit');child.kill('SIGTERM');await done;}
++    if(backend){backend.closeAllConnections();await new Promise(r=>backend.close(r));}
++    ca.cleanup();
++  }
++});
+diff --git a/test/custody-v2-daemon-startup.test.mjs b/test/custody-v2-daemon-startup.test.mjs
+new file mode 100644
+index 00000000..55ef464b
+--- /dev/null
++++ b/test/custody-v2-daemon-startup.test.mjs
+@@ -0,0 +1,138 @@
++// The REAL custodian daemon's startup (custody/v2/daemon.mjs main, bundled as the image bundles it, with the production
++// measured config of the original vault) against a host /state server this test controls. Only the chip is stubbed: the
++// /opt/custodian/snpkey call returns a test-only key, and every fetch other than the host's is refused (no network).
++// Each case is a fresh daemon process. A host answer other than an explicit 404 must never create a new identity or
++// write over the stored state; a 404 creates one and seals it with the chip key before anything else.
++//   run: node --test test/custody-v2-daemon-startup.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { spawn } from "node:child_process";
++import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
++import { fileURLToPath } from "node:url";
++import { build, stop as stopEsbuild } from "esbuild";
++import { custodianMeasured, measuredModule, bundleOptions } from "../custody/v2/build-config.mjs";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const KEY = randomBytes(32);                                  // test-only stand-in for the chip-derived sealing key
++const AAD = Buffer.from("enclave-custody-v2 state");          // daemon.mjs seal/unseal
++const seal = (obj, key = KEY) => { const iv = randomBytes(12), c = createCipheriv("aes-256-gcm", key, iv); c.setAAD(AAD);
++  const ct = Buffer.concat([c.update(Buffer.from(JSON.stringify(obj))), c.final()]); return Buffer.concat([iv, c.getAuthTag(), ct]); };
++const unseal = (blob) => { const d = createDecipheriv("aes-256-gcm", KEY, blob.subarray(0, 12)); d.setAAD(AAD); d.setAuthTag(blob.subarray(12, 28));
++  return JSON.parse(Buffer.concat([d.update(blob.subarray(28)), d.final()]).toString("utf8")); };
++
++async function bundleDaemon(dir) {
++  const hp = JSON.parse(fs.readFileSync(path.join(ROOT, "release/host-policy-production.json"), "utf8"));
++  const { measured } = custodianMeasured({ vault: "0xe48699b8401564aace7a814ae4569b67a3f7eef5", hostOwnership: "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++    transport: "direct", book: "0xab214342d5a490150a4a977063a2f88e21f80907", hostPolicy: hp });
++  const options = bundleOptions(measuredModule(measured), { root: ROOT });
++  const stub = path.join(dir, "child-process-stub.mjs");
++  fs.writeFileSync(stub, `import { createRequire } from "node:module";
++const real = createRequire(import.meta.url)("child_process");
++export const { spawn, spawnSync, exec, execFile, execSync, fork } = real;
++export function execFileSync(cmd, args, o) {
++  if (cmd === "/opt/custodian/snpkey" && args && args[0] === "derive") return process.env.TEST_SNPKEY_HEX + "\\n";
++  throw new Error("test: unexpected execFileSync " + cmd);
++}
++export default { ...real, execFileSync };
++`);
++  const out = await build({ ...options, entryPoints: [path.join(ROOT, "custody/v2/daemon.mjs")],
++    plugins: [...options.plugins, { name: "chip-stub", setup(b) { b.onResolve({ filter: /^(node:)?child_process$/ }, (a) => (a.importer === stub ? undefined : { path: stub })); } }] });
++  stopEsbuild();                                              // as the image builder does: no resident esbuild service
++  const file = path.join(dir, "custodian.mjs");
++  fs.writeFileSync(file, out.outputFiles[0].contents);
++  return file;
++}
++
++// one daemon process against the host; resolves when it exits (startup always ends: after the state step the next
++// step reads the SNP report, which this host has no configfs for, or the chain, which the fetch guard refuses)
++function runDaemon(daemon, dir, hostUrl) {
++  const cfg = path.join(dir, `host-config-${randomBytes(4).toString("hex")}.json`);
++  fs.writeFileSync(cfg, JSON.stringify({ endpoint: "https://custody.test.example", registryId: "0x" + "ab".repeat(32), hostUrl, genesis: false }));
++  const guard = path.join(dir, "fetch-guard.mjs");
++  fs.writeFileSync(guard, `const real = globalThis.fetch, allow = process.env.TEST_HOST_URL;
++globalThis.fetch = (u, o) => { const s = String(u && u.url ? u.url : u); return s.startsWith(allow + "/") ? real(u, o) : Promise.reject(new Error("test: network refused " + s)); };
++`);
++  return new Promise((resolve) => {
++    const p = spawn(process.execPath, ["--import", guard, daemon], { env: { PATH: process.env.PATH, CUSTODY_HOST_CONFIG: cfg, TEST_HOST_URL: hostUrl, TEST_SNPKEY_HEX: KEY.toString("hex") },
++      stdio: ["ignore", "pipe", "pipe"] });
++    let out = ""; p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
++    const kill = setTimeout(() => p.kill("SIGKILL"), 60_000);
++    p.on("exit", (code) => { clearTimeout(kill); resolve({ code, out }); });
++  });
++}
++
++test("the real daemon startup: only an explicit 404 creates an identity; any other host answer leaves the stored state untouched", { timeout: 300_000 }, async (t) => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "custody-daemon-startup-"));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const daemon = await bundleDaemon(dir);
++  const stored = { identityKey: "0x" + "11".repeat(32), encPrivate: "22".repeat(32), member: { epochs: { [`0x${"cd".repeat(32)}:1`]: [{ k: 1, x: "33".repeat(32) }] }, pending: {}, hostSig: null, candidates: {} } };
++  let disk = seal(stored), mode = "stored", puts = 0, gets = 0, putFails = false;
++  const srv = http.createServer((req, res) => {
++    if (req.url === "/state" && req.method === "PUT") {
++      const chunks = []; req.on("data", (c) => chunks.push(c)); req.on("end", () => {
++        puts++;
++        if (putFails) { res.writeHead(500); return res.end(); }
++        disk = Buffer.concat(chunks); res.writeHead(200, { "content-type": "application/json" }); res.end('{"ok":true}');
++      }); return;
++    }
++    if (req.url !== "/state" || req.method !== "GET") { res.writeHead(404); return res.end(); }
++    gets++;
++    if (mode === "disconnect") return req.socket.destroy();
++    if (mode === "stall") return;                                         // never answers: the daemon's read deadline
++    if (mode === "redirect") { res.writeHead(302, { location: "/elsewhere" }); return res.end(); }
++    if (mode === "missing") { res.writeHead(404, { "content-type": "application/json" }); return res.end('{"error":"none"}'); }
++    if (/^\d{3}$/.test(mode)) { res.writeHead(Number(mode)); return res.end(); }
++    if (mode === "empty") { res.writeHead(200); return res.end(); }
++    if (mode === "truncated") { res.writeHead(200); return res.end(disk.subarray(0, 27)); }
++    if (mode === "foreign") { res.writeHead(200); return res.end(seal(stored, randomBytes(32))); }   // another chip's/build's blob
++    if (mode === "tampered") { const b = Buffer.from(disk); b[b.length - 1] ^= 1; res.writeHead(200); return res.end(b); }
++    if (mode === "oversize") { res.writeHead(200); return res.end(Buffer.alloc((4 << 20) + 1, 7)); }
++    res.writeHead(200, { "content-type": "application/octet-stream" }); res.end(disk);
++  });
++  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
++  t.after(() => { srv.closeAllConnections(); return new Promise((r) => srv.close(r)); });
++  const hostUrl = `http://127.0.0.1:${srv.address().port}`;
++  const original = Buffer.from(disk);
++
++  // the stored state opens; nothing is written
++  let r = await runDaemon(daemon, dir, hostUrl);
++  assert.match(r.out, /sealed state opened/, r.out);
++  assert.doesNotMatch(r.out, /new custodian identity/);
++  assert.equal(puts, 0);
++
++  for (mode of ["503", "500", "403", "401", "disconnect", "redirect", "empty", "truncated", "foreign", "tampered", "oversize", "stall"]) {
++    const g = gets;
++    r = await runDaemon(daemon, dir, hostUrl);
++    assert.ok(gets > g, `${mode}: the daemon asked the host for its state`);
++    assert.notEqual(r.code, 0, `${mode}: the daemon must not start`);
++    assert.match(r.out, /FATAL/, `${mode}: ${r.out}`);
++    assert.doesNotMatch(r.out, /new custodian identity|sealed state opened/, `${mode}: ${r.out}`);
++    assert.equal(puts, 0, `${mode}: no identity was written over the stored state`);
++    assert.deepEqual(disk, original, `${mode}: the stored state is untouched`);
++  }
++
++  // recovery: the same stored state opens again
++  mode = "stored";
++  r = await runDaemon(daemon, dir, hostUrl);
++  assert.match(r.out, /sealed state opened/); assert.equal(puts, 0);
++
++  // an explicit 404 whose first write fails: nothing is used, nothing logged as sealed
++  mode = "missing"; putFails = true;
++  r = await runDaemon(daemon, dir, hostUrl);
++  assert.equal(puts, 1); assert.notEqual(r.code, 0);
++  assert.doesNotMatch(r.out, /new custodian identity sealed/);
++  assert.deepEqual(disk, original);
++
++  // an explicit 404: a fresh identity, sealed with the chip key, written before anything else
++  putFails = false;
++  r = await runDaemon(daemon, dir, hostUrl);
++  assert.equal(puts, 2);
++  assert.match(r.out, /new custodian identity sealed/, r.out);
++  const fresh = unseal(disk);
++  assert.match(fresh.identityKey, /^0x[0-9a-f]{64}$/); assert.match(fresh.encPrivate, /^[0-9a-f]{64}$/); assert.equal(fresh.member, null);
++  assert.notEqual(fresh.identityKey, stored.identityKey);
++});
+-- 
+2.56.0
+

@@ -1,0 +1,241 @@
+From e24a47fb22399b220d25f4e3b8d544083b13fdb0 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:09:11 -0700
+Subject: [PATCH] Custody v2 panel: correct the SessionVault refusal; prove
+ both factory states on the real contracts
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Per root's 20:00-20:04 review:
+- With no sessionVaultFactory in the book, SessionVault.ownerCall WOULD satisfy the original vault (msg.sender = the
+  SessionVault). The earlier message claiming it would not help was wrong.
+- The dashboard still refuses SessionVault-held deployments in that state, for the real reason: a policy created that
+  way is pinned to the SessionVault. After the administrator configures the factory it cannot be updated by the wallet or
+  the SessionVault, and only claimPolicy (which destroys the bundle) follows. The administrator's factory entry is the gate.
+- test/custody-v2-dashboard-contract.test.mjs, on the real vault/book/SessionVault:
+  - with no factory: the EOA's direct update reverts NotOwner; ownerCall succeeds and pins the SessionVault;
+  - the factory activation is root's exact calldata shape (book.set(sessionVaultFactory, 0x1f5c…));
+  - after activation: the dashboard's direct EOA save works; ownerCall and session keys revert NotOwner; the pinned policy
+    is stranded (page: owner_moved), and claimPolicy destroys its bundle.
+- The SessionVault factory gets a real stand-in ERC-20 (its post-ownerCall balance check).
+- docs/security/secret-custody-v2.md:
+  - a dated "current proven state" (2026-10-23, root's read-only evidence) beside the preserved Oct-14 record;
+  - the ownerCall/factory semantics.
+---
+ docs/security/secret-custody-v2.md          | 44 +++++++++++---
+ site/js/core/custody-v2.js                  | 15 +++--
+ test/custody-v2-dashboard-contract.test.mjs | 67 +++++++++++++++------
+ 3 files changed, 96 insertions(+), 30 deletions(-)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 2183a2dc5c2eb840cb5573a84fefed4b6456f38e..e1d4b5b190b11ece5e363838e51e9087f024e318 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -26,7 +26,29 @@
+ | Supervisor | metal0 control image `dist-custody-v2-295650320` (measurement `5678855f…`): signs v2 releases for this vault only |
+ | CLI | `enclave custody set|migrate|status|pause|resume --v2` |
+ 
+-**Hardware verification (canary `0x4e62e60d`, agent wallet, hello-world, rules admitting one image `ab852fe5…`):**
++**Current proven state (2026-10-23, read-only public chain reads by root; `work/custody-v2-live-20261023/evidence`):**
++
++What is proven:
++- **Vault.** The vault code is unchanged: code hash `0x4b949b37…` at block 52994819 (`known-state.json`).
++- **Book.** The book `0xab214342…` (owner `0x0b2d…eE61`) names no `secretVaultV2` (zero at block 52997534) and no
++  `sessionVaultFactory` (zero at block 52998138). Clients that need a pin or the dashboard find no v2 vault through it.
++- **Committee.** The only committee is `0x4774…`: epoch 1, n = 1 seat, t = 1 of W = 1 shares, one machine (the Enclave
++  seat on the metal0 host).
++  - That host's accepted owner on `EnclaveHostOwnership` `0xbbd885…` is unset (`host-reader-preflight.json`).
++  - This is a SINGLE-SEAT BOOTSTRAP, not decentralized custody.
++- **Policies.** The only known policy is the canary `0x4e62…` (policyRev 2, secretRev 2, owner `0x29479Bf…`).
++
++Prepared, not done:
++- **Unsigned plans.** Root has unsigned admin transactions for `book.set("secretVaultV2", 0xE486…)` and
++  `book.set("sessionVaultFactory", 0x1f5c887c…)`, simulated. Neither is signed or sent. The factory change needs a consumer
++  review first: a policy already pinned to a SessionVault would then need `claimPolicy`, which destroys its bundle.
++- **Direct ingress.** Direct custodian endpoint ingress is not configured on metal0. The release path above is the relay
++  tunnel.
++- **Corrected image.** The corrected custodian release (`c635fd68`) has a quote-only hardware check. It is not running.
++- **Oct-14 verification.** The hardware verification below has no surviving receipt or log (rollout audit F9). It is the
++  2026-10-14 record, not re-proven.
++
++**Hardware verification, 2026-10-14 record (canary `0x4e62e60d`, agent wallet, hello-world, rules admitting one image `ab852fe5…`):**
+ - The guest logged `DOM custody: … secrets revision 1 from a v2 threshold of 1 over 1 custodian machines` and started
+   the app. The custodian logged `release … OK`.
+ - With the custodian stopped, the guest refused (`insufficient custodian quorum … need 1`) and did not start the app.
+@@ -47,7 +69,8 @@
+ - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+   the relay-signed release (v1 L3).
+ - **Site v2 panel: source only, not deployed.** It is in the dashboard's Secrets panel (`site/js/core/custody-v2.js`). It
+-  stays inert until the governance book entry `secretVaultV2` is set, which has not been done. §10.2 describes it.
++  stays inert until the governance book entry `secretVaultV2` is set, which has not been done. SessionVault-held deployments
++  also need the book's `sessionVaultFactory`, which is also not set. §10.2 describes it.
+ - **No external cryptographic review.**
+ 
+ ## 1. Why v1 is not enough
+@@ -379,11 +402,18 @@
+ - **Who signs.** The vault's own rule: the policy owner, or at the first write `beneficialOwnerOf`.
+   - The ledger owner, or for a deployment held by a SessionVault from the book's `sessionVaultFactory`, that SessionVault's
+     owner.
+-  - The dashboard sends the update from that wallet DIRECTLY (`wallet.js` sendTx). It never routes through
+-    `SessionVault.ownerCall`: the vault would then see the SessionVault as the sender and revert `NotOwner`.
+-  - A session key is refused.
+-  - When the book names no `sessionVaultFactory`, the vault treats the SessionVault itself as the owner. No wallet can then
+-    authorize, and the panel names that case.
++  - The dashboard sends the update from that wallet DIRECTLY (`wallet.js` sendTx). A session key is refused, by the page
++    and by the vault.
++  - **When the book names no `sessionVaultFactory`** (production today), the vault treats the SessionVault itself as the
++    owner.
++    - The contracts would accept an update sent through `SessionVault.ownerCall`, but that pins the SessionVault as the
++      policy owner.
++    - Once the factory is configured, that policy can no longer be updated by the wallet or the SessionVault. Only
++      `claimPolicy` follows, and it destroys the bundle.
++    - So the panel refuses SessionVault-held deployments until the administrator configures the factory, and says so.
++  - **With the factory configured,** the `ownerCall` route reverts `NotOwner` and the wallet's direct update is the one that
++    works.
++  - Both cases run on the real contracts in `test/custody-v2-dashboard-contract.test.mjs`.
+   - A Safe or passkey owner needs the EIP-712 `updateBySig` (ERC-1271). The panel does not sign that yet and says so.
+ - **Save / rotate.** The complete set is encrypted IN THE PAGE to the committee key. One owner `update` stores it, and the
+   vault is read back.
+diff --git a/site/js/core/custody-v2.js b/site/js/core/custody-v2.js
+index 70be6c922abd848cfec8e9c8d8802841c9907187..9fdebb170c3f2106f039d5b5daaa8245027162a4 100644
+--- a/site/js/core/custody-v2.js
++++ b/site/js/core/custody-v2.js
+@@ -176,14 +176,19 @@
+   // (the agreed reader merges an OBJECT result with its block facts: a bare value would be lost)
+   const { code } = await v.reader.snapshot(async ({ code }) => ({ code: await code(owner) }));
+   if (code && code !== "0x") {
+-    // a SessionVault the vault did NOT unwrap (its beneficialOwnerOf returned the SessionVault itself): the vault then needs
+-    // msg.sender == that SessionVault, which no wallet here can be, and SessionVault has no ERC-1271 for updateBySig
++    // A SessionVault the vault did NOT unwrap (the book names no sessionVaultFactory, so beneficialOwnerOf is the SessionVault
++    // itself). The contracts WOULD accept a policy sent through SessionVault.ownerCall (msg.sender = the SessionVault), but
++    // that pins the SessionVault as the policy owner: once the administrator configures the factory, the vault's owner
++    // becomes the wallet, the pinned policy can no longer be updated, and only claimPolicy follows - which destroys its
++    // bundle (test/custody-v2-dashboard-contract.test.mjs shows both). So the dashboard refuses and names the gate.
+     let sessionOwner = null;
+     try { sessionOwner = lc((await v.reader.snapshot(async ({ call }) => ({ owner: await call(owner, SESSION_OWNER_ABI, "owner", []) }))).owner); } catch { sessionOwner = null; }
+     if (sessionOwner && ADDR.test(sessionOwner) && sessionOwner !== ZERO_ADDR)
+-      refuse("this deployment is held by the contract " + owner + " (a SessionVault owned by " + sessionOwner + "?), and the custody vault does not unwrap it to its owner: "
+-        + "the address book names no sessionVaultFactory that made it. The vault would accept only that contract itself as the sender, which no wallet can be "
+-        + "(routing through SessionVault.ownerCall would not help: the custody owner is then still the SessionVault). Nothing was encrypted or sent", "session_vault_not_unwrapped", { owner, sessionOwner });
++      refuse("this deployment is held by the contract " + owner + " (it answers owner() = " + sessionOwner + ": a SessionVault?), and the address book names no "
++        + "sessionVaultFactory, so the custody vault treats that contract itself as the owner. This dashboard does not create a v2 policy pinned to it: "
++        + "after the administrator configures the factory the owner becomes " + sessionOwner + ", and a contract-pinned policy could then only be "
++        + "claimed, which destroys its encrypted bundle. The administrator's sessionVaultFactory book entry is required first. Nothing was encrypted or sent",
++        "session_vault_not_unwrapped", { owner, sessionOwner });
+     refuse("the custody owner " + owner + " is a contract account (a Safe or passkey account): this dashboard does not sign custody updates for it yet. "
+     + "That account must sign the vault's EIP-712 Update digest itself (updateBySig, custody/v2/owner.mjs updateTypedDataV2); nothing was encrypted or sent", "contract_owner", { owner });
+   }
+diff --git a/test/custody-v2-dashboard-contract.test.mjs b/test/custody-v2-dashboard-contract.test.mjs
+index c240250923523dc77b7a50db01472dc80f6cafc7..b1ba6eaf850cc33f65ee2e475f253b494e889a96 100644
+--- a/test/custody-v2-dashboard-contract.test.mjs
++++ b/test/custody-v2-dashboard-contract.test.mjs
+@@ -55,7 +55,10 @@
+   const C = originalVaultRig();
+   const SV = (() => { const out = leaseGasForgeOut();
+     const art = (n) => { const j = JSON.parse(fs.readFileSync(path.join(out, "SessionVault.sol", n + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, links: j.bytecode.linkReferences || {} }; };
+-    return { factory: art("SessionVaultFactory"), vault: art("SessionVault"), lib: fs.existsSync(path.join(out, "SessionVault.sol", "SessionVaultLib.json")) ? art("SessionVaultLib") : null }; })();
++    const usdc = JSON.parse(fs.readFileSync(path.join(out, "MockUSDC.sol", "MockUSDC.json"), "utf8"));
++    return { factory: art("SessionVaultFactory"), vault: art("SessionVault"), usdc: { abi: usdc.abi, bytecode: usdc.bytecode.object, links: {} },
++             lib: fs.existsSync(path.join(out, "SessionVault.sol", "SessionVaultLib.json")) ? art("SessionVaultLib") : null }; })();
++  const FACTORY_EVIDENCE = JSON.parse(fs.readFileSync(path.join(path.dirname(EVIDENCE), "factory-activation-unsigned-20261023.json"), "utf8"));
+   const evidence = JSON.parse(fs.readFileSync(EVIDENCE, "utf8"));
+ 
+   const port = await freePort();
+@@ -123,14 +126,20 @@
+     // ---- deployments: an EOA owner, and a REAL SessionVault (factory.createVault) owned by another EOA ----
+     const ownerA = await acct(), ownerB = await acct(), sessionKey = await acct();
+     const lib = SV.lib ? await deploy(deployer, SV.lib) : null;
+-    const factory = await deploy(deployer, SV.factory, [ZERO, BOOK, ZERO, ZERO, 10n ** 9n], lib ? { "contracts/SessionVault.sol:SessionVaultLib": lib } : {});
++    // the SessionVault's own USDC check after every ownerCall needs a real token (a stand-in ERC-20), never address(0)
++    const usdc = await deploy(deployer, SV.usdc);
++    const factory = await deploy(deployer, SV.factory, [usdc, BOOK, ZERO, ZERO, 10n ** 9n], lib ? { "contracts/SessionVault.sol:SessionVaultLib": lib } : {});
++    const ownerC = await acct();
+     await send(deployer, factory, SV.factory.abi, "createVault", [ownerB.address]);
++    await send(deployer, factory, SV.factory.abi, "createVault", [ownerC.address]);
+     const sv = getAddress(await read(factory, SV.factory.abi, "vaultFor", [ownerB.address]));
++    const svC = getAddress(await read(factory, SV.factory.abi, "vaultFor", [ownerC.address]));
+     assert.equal(await read(factory, SV.factory.abi, "isVault", [sv]), true);
+-    const idA = "0x" + randomBytes(32).toString("hex"), idB = "0x" + randomBytes(32).toString("hex");
++    const idA = "0x" + randomBytes(32).toString("hex"), idB = "0x" + randomBytes(32).toString("hex"), idC = "0x" + randomBytes(32).toString("hex");
+     const until = BigInt(Number((await pub.getBlock()).timestamp) + 7200);
+     await send(deployer, ledger, C.ledger.abi, "set", [idA, ownerA.address, "0x" + "00".repeat(32), ZERO, until]);
+     await send(deployer, ledger, C.ledger.abi, "set", [idB, sv, "0x" + "00".repeat(32), ZERO, until]);
++    await send(deployer, ledger, C.ledger.abi, "set", [idC, svC, "0x" + "00".repeat(32), ZERO, until]);
+ 
+     // ---- the page: its own module and bundle, the bundle's REAL reader over two origins ----
+     const C2 = await import(path.join(REPO, "site/js/core/custody-v2.js"));
+@@ -208,20 +217,33 @@
+     [, pRev, sRev] = await policyOf(idA);
+     assert.deepEqual([pRev, sRev], [4n, 2n], "nothing changed on chain");
+ 
+-    // 7. a SessionVault-held deployment while the book names NO sessionVaultFactory: the vault treats the SessionVault itself
+-    //    as owner. The page names that precisely and sends nothing; the vault rejects the EOA's direct update too.
++    // 7. SessionVault-held deployments while the book names NO sessionVaultFactory (production at block 52998138): the vault
++    //    treats each SessionVault itself as the owner. The page refuses and names the factory gate; nothing is sent.
+     assert.equal((await read(VAULT, C.vault.abi, "beneficialOwnerOf", [idB])).toLowerCase(), sv.toLowerCase());
+     const before = sent.length;
+-    assert.equal(await code(C2.saveV2({ id: idB, env: ENV_A, admittedRules: plan.rules, configOverride: none, signer: signer(ownerB) })), "session_vault_not_unwrapped");
++    const refusedB = await C2.saveV2({ id: idB, env: ENV_A, admittedRules: plan.rules, configOverride: none, signer: signer(ownerB) }).catch((e) => e);
++    assert.equal(refusedB.code, "session_vault_not_unwrapped");
++    assert.match(refusedB.message, /sessionVaultFactory book entry is required first/);
+     assert.equal(sent.length, before);
+-    const bundleB = V.buildBundleV2({ chainId: 8453, vault: VAULT, id: idB, secretRev: 1n, committeeId: cid.toLowerCase(), Y: g.Y, env: ENV_A, configText: "" });
+-    const updB = encodeFunctionData({ abi: V.UPDATE_V2_ABI, functionName: "update",
+-      args: [idB, V.makeUpdateV2({ expectPolicyRev: 0n, policy: { committeeId: cid.toLowerCase(), paused: false, rules: plan.rules }, bundle: bundleB })] });
+-    await assert.rejects(pub.call({ account: ownerB.address, to: VAULT, data: updB }), (e) => vaultErr(e) === "NotOwner");
++    const updateFor = (id, rev, extra = {}) => encodeFunctionData({ abi: V.UPDATE_V2_ABI, functionName: "update", args: [id, V.makeUpdateV2({ expectPolicyRev: rev,
++      ...extra, bundle: V.buildBundleV2({ chainId: 8453, vault: VAULT, id, secretRev: BigInt(rev) + 1n, committeeId: cid.toLowerCase(), Y: g.Y, env: ENV_A, configText: "" }) })] });
++    const firstPolicy = { policy: { committeeId: cid.toLowerCase(), paused: false, rules: plan.rules } };
++    //    the wallet's DIRECT update is rejected by the vault (msg.sender is the EOA, the owner is the SessionVault)...
++    await assert.rejects(pub.call({ account: ownerB.address, to: VAULT, data: updateFor(idB, 0n, firstPolicy) }), (e) => vaultErr(e) === "NotOwner");
++    //    ...while the SAME update through SessionVault.ownerCall IS accepted (msg.sender = the SessionVault): root's 20:02 reading
++    //    of the source is right. It PINS the SessionVault as the policy owner - why the dashboard does not offer it:
++    const viaOwnerCall = (who, svAddr, data) => wallet(who).sendTransaction({ to: svAddr, data: encodeFunctionData({ abi: SV.vault.abi, functionName: "ownerCall", args: [VAULT, data] }), gas: 3_000_000n });
++    await mined(await viaOwnerCall(ownerC, svC, updateFor(idC, 0n, firstPolicy)));
++    assert.equal((await policyOf(idC))[0].toLowerCase(), svC.toLowerCase(), "a policy pinned to the SessionVault");
++    assert.ok((await bundleOf(idC)).length > 0);
+ 
+-    // 8. the administrator names the real factory in the book: the vault unwraps the SessionVault to ownerB, and ownerB's
+-    //    DIRECT update (the dashboard's wallet send) is accepted
++    // 8. the administrator names the factory: root's unsigned activation is exactly book.set("sessionVaultFactory", <factory>); this
++    //    chain's factory differs, so the same encoding with this chain's address is sent
++    const activation = encodeFunctionData({ abi: C.book.abi, functionName: "set", args: [key("sessionVaultFactory"), FACTORY_EVIDENCE.factory] });
++    assert.equal(activation.toLowerCase(), FACTORY_EVIDENCE.transaction.data.toLowerCase(), "root's factory calldata is book.set(sessionVaultFactory, 0x1f5c…)");
++    assert.deepEqual([FACTORY_EVIDENCE.transaction.to, FACTORY_EVIDENCE.transaction.from], [BOOK, ADMIN]);
+     await adminSend(BOOK, encodeFunctionData({ abi: C.book.abi, functionName: "set", args: [key("sessionVaultFactory"), factory] }));
++    //    (a) idB: the vault now unwraps its SessionVault to ownerB, whose DIRECT update (the dashboard's wallet send) is accepted
+     assert.equal((await read(VAULT, C.vault.abi, "beneficialOwnerOf", [idB])).toLowerCase(), ownerB.address.toLowerCase());
+     st = await C2.statusV2(idB);
+     assert.equal(st.beneficialOwner, ownerB.address.toLowerCase());
+@@ -232,15 +254,24 @@
+     assert.equal((await policyOf(idB))[0].toLowerCase(), ownerB.address.toLowerCase(), "the policy owner is the beneficial EOA");
+     assert.equal(sent.at(-1).from, ownerB.address.toLowerCase());
+     assert.deepEqual(openBundle({ x, id: idB, secretRev: 1n, committeeId: cid.toLowerCase(), bundle: await bundleOf(idB) }).env, ENV_B);
+-    //    ...and the route that must NOT be used: the same update through SessionVault.ownerCall reverts (msg.sender = the
+-    //    SessionVault, not the beneficial owner); a session key is refused by the page and by the vault
+-    const updB2 = encodeFunctionData({ abi: V.UPDATE_V2_ABI, functionName: "update", args: [idB, V.makeUpdateV2({ expectPolicyRev: 1n,
+-      bundle: V.buildBundleV2({ chainId: 8453, vault: VAULT, id: idB, secretRev: 2n, committeeId: cid.toLowerCase(), Y: g.Y, env: ENV_B, configText: "" }) })] });
+-    await assert.rejects(pub.call({ account: ownerB.address, to: sv, data: encodeFunctionData({ abi: SV.vault.abi, functionName: "ownerCall", args: [VAULT, updB2] }) }),
+-      (e) => /NotOwner|0x30cd7471|revert/i.test(String(e.message) + String(e.cause?.data || "")));
++    //        with the factory set, the ownerCall route now FAILS (msg.sender = the SessionVault, not the beneficial owner),
++    //        and a session key is refused by the page and by the vault
++    const updB2 = updateFor(idB, 1n);
++    await assert.rejects(viaOwnerCall(ownerB, sv, updB2).then(mined), /reverted/);
++    await assert.rejects(pub.call({ account: sv, to: VAULT, data: updB2 }), (e) => vaultErr(e) === "NotOwner");
+     await assert.rejects(pub.call({ account: sessionKey.address, to: VAULT, data: updB2 }), (e) => vaultErr(e) === "NotOwner");
+     assert.equal(await code(C2.saveV2({ id: idB, env: ENV_B, configOverride: none, signer: signer(sessionKey) })), "not_owner");
+     await mined(await wallet(ownerB).sendTransaction({ to: VAULT, data: updB2, gas: 3_000_000n }));   // the direct route works
++    //    (b) idC, pinned to its SessionVault in step 7, is now STRANDED: neither the wallet nor the SessionVault may update it,
++    //        the page says so, and the only way on is claimPolicy - which destroys its bundle and pauses it
++    assert.equal((await read(VAULT, C.vault.abi, "beneficialOwnerOf", [idC])).toLowerCase(), ownerC.address.toLowerCase());
++    await assert.rejects(pub.call({ account: ownerC.address, to: VAULT, data: updateFor(idC, 1n) }), (e) => vaultErr(e) === "NotOwner");
++    await assert.rejects(pub.call({ account: svC, to: VAULT, data: updateFor(idC, 1n) }), (e) => vaultErr(e) === "NotOwner");
++    assert.equal(await code(C2.saveV2({ id: idC, env: ENV_A, configOverride: none, signer: signer(ownerC) })), "owner_moved");
++    await send(ownerC, VAULT, C.vault.abi, "claimPolicy", [idC]);
++    const claimed = await policyOf(idC);
++    assert.deepEqual([claimed[0].toLowerCase(), claimed[4]], [ownerC.address.toLowerCase(), true]);
++    assert.equal((await bundleOf(idC)).length, 0, "claimPolicy destroyed the bundle written through ownerCall");
+ 
+     // 9. root's EXACT rollback: the book stops naming the vault; the page stops at once (no cached verdict)
+     await adminSend(BOOK, evidence.rollback.data);

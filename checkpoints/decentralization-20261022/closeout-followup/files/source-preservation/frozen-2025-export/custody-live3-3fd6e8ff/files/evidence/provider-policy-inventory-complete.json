@@ -1,0 +1,204 @@
+[
+  {
+    "at": "2026-10-23T19:11:39.204023+00:00",
+    "readOnly": true,
+    "services": [
+      {
+        "unit": "enclave-bootstrap-gateway.service",
+        "pid": 388529,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-bootstrap-tls.service",
+        "pid": 242499,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-custodian.service",
+        "pid": 69964,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-dns-front.service",
+        "pid": 297365,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-network-provider.service",
+        "pid": 242641,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-public-directory.service",
+        "pid": 323245,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-route-dns.service",
+        "pid": 245726,
+        "policyPaths": {},
+        "policies": []
+      }
+    ],
+    "host": "us-west"
+  },
+  {
+    "at": "2026-10-23T19:11:39.623446+00:00",
+    "readOnly": true,
+    "services": [
+      {
+        "unit": "enclave-bootstrap-gateway.service",
+        "pid": 245258,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-bootstrap-tls.service",
+        "pid": 220296,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-custodian.service",
+        "pid": 64792,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-dns-front.service",
+        "pid": 314772,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-lease-relay.service",
+        "pid": 266988,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-network-provider.service",
+        "pid": 220286,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-public-directory.service",
+        "pid": 296254,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-route-dns.service",
+        "pid": 223263,
+        "policyPaths": {},
+        "policies": []
+      }
+    ],
+    "host": "eu-central"
+  },
+  {
+    "at": "2026-10-23T19:11:39.492239+00:00",
+    "readOnly": true,
+    "services": [
+      {
+        "unit": "enclave-bootstrap-gateway.service",
+        "pid": 253047,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-bootstrap-tls.service",
+        "pid": 227529,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-custodian.service",
+        "pid": 67654,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-dns-front.service",
+        "pid": 322201,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-network-provider.service",
+        "pid": 227519,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-public-directory.service",
+        "pid": 303512,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-route-dns.service",
+        "pid": 230360,
+        "policyPaths": {},
+        "policies": []
+      }
+    ],
+    "host": "ap-southeast"
+  },
+  {
+    "at": "2026-10-23T19:11:39.228519+00:00",
+    "readOnly": true,
+    "services": [
+      {
+        "unit": "enclave-bootstrap-gateway.service",
+        "pid": 243376,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-bootstrap-tls.service",
+        "pid": 220071,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-custodian.service",
+        "pid": 64446,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-dns-front.service",
+        "pid": 278729,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-network-provider.service",
+        "pid": 302827,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-public-directory.service",
+        "pid": 299190,
+        "policyPaths": {},
+        "policies": []
+      },
+      {
+        "unit": "enclave-route-dns.service",
+        "pid": 222936,
+        "policyPaths": {},
+        "policies": []
+      }
+    ],
+    "host": "ca-east"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T20:16:29.253441+00:00",
+  "childExit": 0,
+  "scopeStop": 5,
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-custody-snp-recovery-canary-20261023t201449z.scope",
+  "cgroupLeftAtExit": [],
+  "cgroupEmpty": true,
+  "survivors": [],
+  "privateScrubbed": true,
+  "exitCode": 0
+}

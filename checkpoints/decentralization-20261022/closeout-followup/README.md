@@ -45,6 +45,8 @@ Frozen 1852 append (2026-10-23; "1852" = the batch start 18:52Z, an identifier):
 
 Frozen 1951 append (2026-10-23; "1951" = the batch start 19:51Z, an identifier): ROOT CPU production activation 785f77af (all 9 apps on exact coupled shares, 18/18 TLS per root) with B manager 1bda7b79 and guest f6d5fbed source and ROOT native quota verification e859355e; custody v2 durability a5eae96c (source only, not built or activated), ROOT corrected-image release 44bf8f4f (e012 quote-only hardware canary, superseded for activation, not activated), R dashboard 4acad4a7 (source/test), ROOT live config 70019fdf; root receipts and journal snapshot. Existing custody remains the single-seat bootstrap. See `MANIFEST.json` `appends`.
 
+Frozen 2025 append (2026-10-23; "2025" = the batch start 20:25Z, an identifier): custody v2 durability ab589bf8 (daemon-startup and ingress-path tests), ROOT corrected custodian r2 23f7e51a (reproducible build, NOT activated), R dashboard e24a47fb (source/test), ROOT live reconciliation 3fd6e8ff (read-only, unsigned plans), SNP startup-recovery harness 7c4844a1 (quote-only hardware evidence), direct-route assessment fc7bff94, metal0 operator-proposal helper 1ac9ad2c and MetaMask handoff 7b49cd99 (its plain-transfer fund stage refuses the delegated operator; not usable); root receipts and journal snapshot. Nothing signed, sent or activated. Existing custody remains the single-seat bootstrap. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

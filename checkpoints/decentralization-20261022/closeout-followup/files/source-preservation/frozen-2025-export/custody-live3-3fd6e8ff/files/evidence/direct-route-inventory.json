@@ -1,0 +1,65 @@
+{
+  "at": "2026-10-23T19:56:36.513533+00:00",
+  "readOnly": true,
+  "files": [
+    {
+      "path": "/home/steven/enclave-prod/enclave-network/metal0/config.json",
+      "topLevelKeys": [
+        "apps",
+        "chain",
+        "directory",
+        "dns",
+        "enclaveNetwork",
+        "endpoint",
+        "guestd",
+        "linux",
+        "mirrorNewApps",
+        "operatorConfigFile",
+        "runner",
+        "verifierModule",
+        "version"
+      ],
+      "enclaveNetworkKeys": [
+        "apps",
+        "checkers",
+        "control",
+        "directories",
+        "egressProbeUrls",
+        "nodeBinary",
+        "paceMbps",
+        "wgBinary",
+        "workerModule"
+      ],
+      "hostServicesPresent": false,
+      "runner": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+      "endpoint": "https://api.enclave.host/t/metal0"
+    },
+    {
+      "path": "/home/steven/Projects/enclave/metal/config.json",
+      "topLevelKeys": [
+        "cpus",
+        "dist",
+        "gflopsCopies",
+        "hostfwd",
+        "isolation",
+        "leaseGas",
+        "memMiB",
+        "mode",
+        "name",
+        "ovmf",
+        "payoutAddress",
+        "publicUrl",
+        "registryKey",
+        "relayUrl",
+        "sevDevice",
+        "vcekFile",
+        "wasmtimeBin"
+      ],
+      "enclaveNetworkKeys": [],
+      "hostServicesPresent": false
+    }
+  ],
+  "limits": [
+    "Selected public metadata only; no private keys, token, environments or complete configuration emitted. No configuration changed."
+  ]
+}
