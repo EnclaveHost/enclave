@@ -84,17 +84,22 @@ export const ROLES = Object.freeze({
     serves: 'signed public network records: providers, checker qualifications, owner policies, app routes, host management records',
     state: { durable: true, what: 'accepted records and per-app replay floors (route-floors)', rebuild: 'records re-import from peers and re-publication; replay floors must persist (a corrupt store refuses startup, never resets)' },
     secrets: 'none',
-    cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook address (and optional authority pins)'],
+    cold: ['two or more Base RPC providers (the operator\'s quorum), or explicitly this host\'s local verifier (chainAuthority verifier)', 'the admin-controlled EnclaveAddressBook address (and optional authority pins)'],
     notCold: ['peers (optional; a replica starts empty and accepts signed submissions)', 'storage adapters', 'artifact replicas', 'lease relays', 'any app'],
     validate(c) {
-      only('directory-replica', c, ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'authorityPins', 'checkers', 'peers'], ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'checkers']);
-      port('directory-replica', c.port, 'port'); bind('directory-replica', c.bind); absDir('directory-replica', c.stateDir, 'stateDir'); rpcs('directory-replica', c.rpc);
+      // chainAuthority 'verifier' + chainVerifier (loopback): the replica's lease/registry/book reads come from the local
+      // proof-backed verifier (network/directory-server.mjs builds no provider client then); rpc is not needed
+      let verifier; try { verifier = chainVerifierOf({ chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier }, 'directory-replica'); } catch (e) { fail('directory-replica', e.message); }
+      only('directory-replica', c, ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'authorityPins', 'checkers', 'peers', 'chainAuthority', 'chainVerifier'],
+        ['port', 'bind', 'stateDir', ...(verifier ? [] : ['rpc']), 'addressBook', 'checkers']);
+      port('directory-replica', c.port, 'port'); bind('directory-replica', c.bind); absDir('directory-replica', c.stateDir, 'stateDir');
+      if (c.rpc !== undefined || !verifier) rpcs('directory-replica', c.rpc);
       if (!NONZERO(c.addressBook)) fail('directory-replica', 'addressBook must be the admin-controlled EnclaveAddressBook address');
       if (c.authorityPins !== undefined) { try { validateNetworkAuthorities(c.authorityPins); } catch (e) { fail('directory-replica', `authorityPins: ${e.message}`); } }
       if (!Array.isArray(c.checkers) || c.checkers.length < 1 || c.checkers.length > 16 || !c.checkers.every(NONZERO)) fail('directory-replica', 'checkers: 1 to 16 checker addresses the operator trusts');
       const peers = origins('directory-replica', c.peers ?? [], 'peers');
-      return { port: c.port, bind: c.bind, stateDir: c.stateDir, rpc: [...c.rpc], addressBook: c.addressBook, ...(c.authorityPins ? { authorityPins: c.authorityPins } : {}),
-        checkers: c.checkers.map((x) => x.toLowerCase()), peers };
+      return { port: c.port, bind: c.bind, stateDir: c.stateDir, ...(c.rpc ? { rpc: [...c.rpc] } : {}), addressBook: c.addressBook, ...(c.authorityPins ? { authorityPins: c.authorityPins } : {}),
+        checkers: c.checkers.map((x) => x.toLowerCase()), peers, ...(verifier ? { chainAuthority: 'verifier', chainVerifier: verifier } : {}) };
     },
     launch(c) { return { configFile: c, env: {} }; },
   }),
@@ -153,7 +158,7 @@ export const ROLES = Object.freeze({
     serves: 'the administrator\'s signed platform host policy documents by digest (GET /platform-policy/<digest>.json, POST /platform-policy): an untrusted carrier the platform host policy gate and clients verify',
     state: { durable: false, what: 'documents the address book\'s current owner signs at a fresh agreed block (public data)', rebuild: 'refilled by digest from importDir, peers or publication; every gate re-verifies' },
     secrets: 'none',
-    cold: ['two or more Base RPC providers (the operator\'s quorum)', 'the admin-controlled EnclaveAddressBook and the hostOwnership extension it binds', 'the anchored document from ANY carrier: importDir (an operator-imported copy), a peer, or a publication'],
+    cold: ['two or more Base RPC providers (the operator\'s quorum), or explicitly this host\'s local verifier (chainAuthority verifier)', 'the admin-controlled EnclaveAddressBook and the hostOwnership extension it binds', 'the anchored document from ANY carrier: importDir (an operator-imported copy), a peer, or a publication'],
     notCold: ['the fleet\'s /platform-policy routes', 'discovery', 'storage adapters', 'lease relays', 'any app', 'this host\'s own admission (its gate reads importDir and this role\'s store from disk)'],
     validate(c) {
       // chainAuthority 'verifier' + chainVerifier (loopback): candidates are verified against the local proof-backed

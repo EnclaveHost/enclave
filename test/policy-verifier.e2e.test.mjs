@@ -26,6 +26,8 @@ import { createHostPolicyRuntime, verifiedHostSnapshot } from '../network/host-p
 import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS } from '../network/platform-host-policy.mjs';
 import { createWitnessGateway } from '../network/witness-gateway.mjs';
 import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
+import { challengeReplicaConfig, challengeReplicaEnv } from '../network/challenge-replica-host.mjs';
+import { flatRelay } from './helpers/relay-flat.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { HELIOS_BASE_BIN } = process.env;
@@ -235,5 +237,48 @@ test('the measured host gate keeps its ORIGINAL grace under the verifier: servin
     clock += 6000;
     await gate.check().catch(() => {});
     assert.equal(gate.state().serving, false, 'no invented grace beyond the configured one');
+  } finally { proxyMode.value = 'ok'; }
+});
+
+// The REAL dns-relay process (flat relay directory, runtime bundle built from this source) started from the challenge
+// replica's own configuration -> child environment: its app-zone ledger index reads the REAL ledger through the verifier
+// (count + every id, proof-backed) and completes; under tampered witnesses a fresh process's index stays incomplete.
+test('dns-relay (challenge replica child, flat bundle) indexes the real ledger through the verifier; tampered witnesses leave it incomplete', T, async () => {
+  const dir = flatRelay(TMP);
+  // two owner-created deployments in the real ledger (the rig starts with none), then let the verifier pass that block
+  await rig.create(KEYS.owner); await settled(await rig.create(KEYS.owner));
+  const count = Number(await rig.pc.readContract({ address: rig.addresses.ledger, functionName: 'count',
+    abi: [{ type: 'function', name: 'count', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] }));
+  assert.ok(count >= 2, 'the rig ledger has the deployments');
+  const start = async () => {
+    const api = await freePort();
+    const cfg = challengeReplicaConfig({ role: 'app-zone-replica', release: { dir: '/opt/replica', dnsSha256: 'aa'.repeat(32), runtimeBundleSha256: 'bb'.repeat(32) },
+      zones: { app: 'app.policy-test.net', ip: 'ip.policy-test.net' }, ns: { name: 'ns1.policy-test.net' }, listen: { dns: `127.0.0.1:${await freePort()}`, api: `127.0.0.1:${api}` },
+      front: { listen: '127.0.0.1:8443', certFile: '/etc/c.pem', keyFile: '/etc/k.pem', origin: 'https://ns1.policy-test.net' }, routeMap: 'http://127.0.0.1:1/v1/network/routes',
+      snp: { measurements: ['77'.repeat(48)] }, chain: { pins: { addressBook: book.toLowerCase(), deployments: rig.addresses.ledger.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), catalog: rig.addresses.catalog.toLowerCase() } },
+      hostPolicy: { policy: 'off' }, ...V() });
+    let out = '';
+    const c = spawn(process.execPath, [path.join(dir, 'dns-relay.js')], { cwd: dir, env: challengeReplicaEnv(cfg, { basePath: process.env.PATH }), stdio: ['ignore', 'pipe', 'pipe'] });
+    c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
+    const health = async () => { try { return (await (await fetch(`http://127.0.0.1:${api}/health`, { signal: AbortSignal.timeout(3000) })).json()).appChallenge?.ledgerIndex; } catch { return null; } };
+    return { c, health, out: () => out };
+  };
+  const a = await start();
+  try {
+    let idx = null; const end = Date.now() + 90000;
+    while (Date.now() < end && !(idx = await a.health())?.complete) await sleep(500);
+    assert.deepEqual(idx, { complete: true, size: count }, a.out().slice(-1200));
+    assert.match(a.out(), /app-zone chain reads: local-verifier \(unsafe tier, proof-backed, no provider fallback\)/);
+  } finally { a.c.kill('SIGKILL'); }
+  proxyMode.value = 'tamper';
+  try {
+    await untilHelios(BigInt(await rpc(heliosUrl, 'eth_blockNumber')) + 2n);   // new blocks: their witnesses come from the tampering source
+    const b = await start();
+    try {
+      const end = Date.now() + 60000;
+      while (Date.now() < end && !/app-zone ledger index: /.test(b.out())) await sleep(500);
+      assert.match(b.out(), /app-zone ledger index: /, 'the refusal is reported');
+      assert.equal((await b.health())?.complete, false, 'a refused read never completes the index (no push could be judged unique)');
+    } finally { b.c.kill('SIGKILL'); }
   } finally { proxyMode.value = 'ok'; }
 });

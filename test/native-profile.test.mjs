@@ -16,7 +16,7 @@ test('measurement output cannot substitute a release, app, runtime or inspection
   const want={releaseId,appId,runtimeId:rid};assert.equal(parseMeasurement(output(),want).measurement,measurement);
   for(const text of [output().replace(appId,'ab'.repeat(32)),output().replace(releaseId,'cd'.repeat(32)),output().replace(rid,'ef'.repeat(32)),output()+'measurement '+measurement,'INSPECTION-ONLY '+output(),output().replace(measurement,'short')])assert.throws(()=>parseMeasurement(text,want));
 });
-for(const scenario of ['valid','wrong bundle','owner changes','runtime document changes','remote','remote wrong file','remote wrong bundle'])test('profile reproduction: '+scenario,async t=>{
+for(const scenario of ['valid','verifier','wrong bundle','owner changes','runtime document changes','remote','remote wrong file','remote wrong bundle'])test('profile reproduction: '+scenario,async t=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'native-profile-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
   const bundleFile=path.join(dir,'bundle');await fs.writeFile(bundleFile,scenario==='wrong bundle'?'bad':bytes);
   const pins={deployments:'0x'+'04'.repeat(20),registry:'0x'+'05'.repeat(20),connectivity:'0x'+'00'.repeat(20),sessionVaultFactory:'0x'+'00'.repeat(20)};
@@ -37,9 +37,11 @@ for(const scenario of ['valid','wrong bundle','owner changes','runtime document 
     if(remote)assert.equal((await fs.readFile(path.join(release,'kernel'))).toString(),'kernel');
     return {stdout:(scenario==='runtime document changes'?output().replace('"version":"test"','"version":"different"'):output()).replace(releaseId,pin)};
   };
-  const result=prepareNativeProfile(profile,{...(remote?{artifactGateways:['http://192.0.2.1/ipfs'],fetchImpl:async url=>new Response(objects.get(url.split('/').at(-1)))}:{releaseDir:dir,bundleFile}),releaseId:pin,vcpus:1,reader,measure});
-  if(scenario==='valid'||scenario==='remote'){
-    const r=await result;assert.equal(r.profile.expected,undefined);assert.equal(r.profile.linux.measurement,measurement);assert.deepEqual(r.profile.linux.runtime,runtime);
+  const result=prepareNativeProfile(profile,{...(remote?{artifactGateways:['http://192.0.2.1/ipfs'],fetchImpl:async url=>new Response(objects.get(url.split('/').at(-1)))}:{releaseDir:dir,bundleFile}),releaseId:pin,vcpus:1,reader,measure,...(scenario==='verifier'?{chainVerifier:'http://127.0.0.1:9/'}:{})});
+  if(scenario==='valid'||scenario==='remote'||scenario==='verifier'){
+    const r=await result;
+    if(scenario==='verifier'){assert.equal(r.profile.chainAuthority,'verifier');assert.equal(r.profile.chainVerifier,'http://127.0.0.1:9/');}
+    else{assert.equal(r.profile.chainAuthority,undefined);assert.equal(r.profile.chainVerifier,undefined);}assert.equal(r.profile.expected,undefined);assert.equal(r.profile.linux.measurement,measurement);assert.deepEqual(r.profile.linux.runtime,runtime);
     assert.equal(r.evidence.admissionVerified,false);assert.equal(r.evidence.active,false);assert.equal(r.evidence.source,'owner-committed-startup');assert.equal(reads,2);
     if(remote){assert.equal(r.evidence.artifacts.emptyInputCache,true);assert.equal(r.evidence.artifacts.receipts.length,8);}
   }else await assert.rejects(result,/AppID|commitment changed|runtimeId mismatch|no artifact source/);

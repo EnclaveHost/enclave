@@ -340,6 +340,8 @@ const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,6
 export const PLATFORM_API_ROLE_ENV = Object.freeze(['AUTH_DATA_DIR', 'API_RELAY_PORT', 'API_RELAY_BIND', 'STATE_DIRECTORY', 'PLATFORM_API_ROLE', 'PATH', 'NODE_OPTIONS', 'NODE_EXTRA_CA_CERTS']);
 // relayEnv is PUBLIC (bound, readable in every config): a secret-shaped name belongs in the sealed credentials instead
 const SECRET_NAME = /(^|_)(KEY|SECRET|TOKENS?|PASSWORD|PRIVATE|HMAC|SEED|MNEMONIC|EAB)(_|$)/;
+// the same local-URL rule network/platform-host-policy-config.mjs applies (that module stays dependency-free too)
+const LOOPBACK_URL = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?(\/|$)/;
 function directPlatformApi(raw, { controlPort }) {
   only(raw, PA_FIELDS, 'platformApi');
   const apiPort = intIn(raw.apiPort, 1024, 65535, 'platformApi.apiPort'), peerPort = intIn(raw.peerPort, 1024, 65535, 'platformApi.peerPort');
@@ -382,6 +384,13 @@ function directPlatformApi(raw, { controlPort }) {
     if (SECRET_NAME.test(k)) bad(`platformApi.relayEnv.${k} looks like a secret: secrets go in the sealed credentials, never in the bound (public) config`);
     if (typeof v !== 'string' || v.length > 4096) bad(`platformApi.relayEnv.${k} must be a string up to 4096 characters`);
   }
+  // The chain authority the relay child AND the native issuer's host policy read with (both get relayEnv): the provider
+  // quorum by default, or EXPLICITLY the local proof-backed verifier on this guest's loopback. Checked here so a bad or
+  // ambiguous pair refuses the config instead of a later read.
+  const chainAuthority = raw.relayEnv.ENCLAVE_CHAIN_AUTHORITY, chainVerifier = raw.relayEnv.ENCLAVE_CHAIN_VERIFIER;
+  if (chainAuthority !== undefined && chainAuthority !== 'verifier' && chainAuthority !== 'quorum') bad('platformApi.relayEnv.ENCLAVE_CHAIN_AUTHORITY must be verifier or quorum');
+  if (chainAuthority === 'verifier' && !LOOPBACK_URL.test(chainVerifier || '')) bad('platformApi.relayEnv.ENCLAVE_CHAIN_VERIFIER must be a local (loopback) http(s) URL: a remote server is not a verifier');
+  if (chainAuthority !== 'verifier' && chainVerifier !== undefined) bad('platformApi.relayEnv.ENCLAVE_CHAIN_VERIFIER is set but ENCLAVE_CHAIN_AUTHORITY is not verifier');
   const leaseMs = intIn(raw.leaseMs, 2000, 60000, 'platformApi.leaseMs');
   return { apiPort, peerPort, hostname: raw.hostname, members, measurements: [...raw.measurements], minTcb: raw.minTcb === null ? null : JSON.parse(canonicalJson(raw.minTcb)),
     admins, recovery: [...raw.recovery], archives, archiveMs, relayEnv: JSON.parse(canonicalJson(raw.relayEnv)), leaseMs };

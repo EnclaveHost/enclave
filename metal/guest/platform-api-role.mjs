@@ -38,10 +38,27 @@ export const CREDENTIALS_INFO = Buffer.from("enclave-platform-api credentials v1
 export const RECOVERY_INFO = Buffer.from("enclave-platform-api recovery v1");
 export const CREDENTIALS_FILE = "platform-credentials.json";
 export const CREDENTIALS_FORMAT = "enclave-platform-api-credentials/v1";
+// the chain-authority names (network/lease-reader.mjs chainAuthorityFromEnv): bound config only, never a credential
+export const CHAIN_AUTHORITY_ENV = Object.freeze(["ENCLAVE_CHAIN_AUTHORITY", "ENCLAVE_CHAIN_VERIFIER"]);
 /** the credentials document in the replicated state: { format, at (the admin package time, strictly increasing), credentials } */
 export function readCredentials(file) {
   try { const o = JSON.parse(fs.readFileSync(file, "utf8")); if (o && o.format === CREDENTIALS_FORMAT && o.credentials && typeof o.credentials === "object") return o; } catch {}
   return { format: CREDENTIALS_FORMAT, at: 0, credentials: {} };
+}
+/**
+ * The relay child's COMPLETE environment: PATH, the bound non-credential config (relayEnvBase + platformApi.relayEnv), the
+ * current credentials (credEnv: NAME_FILE ones already as RAM-fs paths) and the role's own names. The final boundary:
+ * whatever source a NATIVE_CA_* name came from (base, bound relayEnv, credentials), the relay never has it; and the chain
+ * authority (CHAIN_AUTHORITY_ENV) is exactly the BOUND one, validated at bind time and the one the native issuer's host
+ * policy reads with (productionWiring policyEnv) - a sealed credential can neither set nor change it.
+ */
+export function relayChildEnv({ cfg, credEnv = {}, dataDir }) {
+  const bound = { ...(cfg.relayEnvBase || {}), ...cfg.platformApi.relayEnv };
+  const env = { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", ...bound, ...credEnv, AUTH_DATA_DIR: dataDir,
+                API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
+  for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
+  for (const k of CHAIN_AUTHORITY_ENV) { if (bound[k] === undefined) delete env[k]; else env[k] = bound[k]; }
+  return env;
 }
 export const PEER_PATH = "/platform-api/peer", HANDOFF_PATH = "/platform-api/handoff", BOOTSTRAP_PATH = "/platform-api/bootstrap",
   CREDENTIALS_PATH = "/platform-api/credentials", STATUS_PATH = "/platform-api/status";
@@ -138,10 +155,7 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
       const f = path.join(dirs.root, "creds", k);
       fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 }); fs.writeFileSync(f, v, { mode: 0o600 }); credEnv[k] = f;
     }
-    const env = { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", ...(cfg.relayEnvBase || {}), ...pa.relayEnv, ...credEnv, AUTH_DATA_DIR: dataDir,
-                  API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
-    // the final boundary: whatever source a NATIVE_CA_* name came from (base, bound relayEnv, credentials), the relay never has it
-    for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
+    const env = relayChildEnv({ cfg, credEnv, dataDir });
     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
     child = c; childPort = 0;

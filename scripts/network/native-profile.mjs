@@ -9,7 +9,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {LeaseReader} from '../../network/lease-reader.mjs';
+import {LeaseReader,chainAuthorityOptions} from '../../network/lease-reader.mjs';
 import {validateNetworkAuthorities} from '../../network/network-authorities.mjs';
 import {bootstrapIntent,fetchPackage,verifyPackage} from '../../sdk/bootstrap/package.mjs';
 import {inlineStartupBytes,startupExpectation} from '../../network/startup-expectation.mjs';
@@ -29,15 +29,22 @@ export function parseMeasurement(text,{releaseId,appId,runtimeId}){
   return {measurement:fields.measurement,release:releaseId,runtime:JSON.parse(fields.runtime_identity_json)};
 }
 
-export async function prepareNativeProfile(input,{releaseDir,releaseId,bundleFile,artifactGateways,vcpus,reader,fetchImpl=fetch,measure}={}){
+// chainVerifier (optional): the local proof-backed verifier (loopback URL) for this tool's lease reads AND, written into
+// the emitted profile as chainAuthority 'verifier' + chainVerifier, for the NativeClient that later uses the profile. An
+// input profile may carry the same pair instead; anything ambiguous or remote is refused by the reader before any I/O.
+export async function prepareNativeProfile(input,{releaseDir,releaseId,bundleFile,artifactGateways,vcpus,reader,fetchImpl=fetch,measure,chainVerifier}={}){
   const profile=structuredClone(input);
+  if(chainVerifier!==undefined){
+    if(profile.chainAuthority!==undefined&&profile.chainAuthority!=='verifier'||profile.chainVerifier!==undefined&&profile.chainVerifier!==chainVerifier)throw Error('--chain-verifier conflicts with the input profile\'s chain authority');
+    Object.assign(profile,{chainAuthority:'verifier',chainVerifier});
+  }
   if(profile.expected!==undefined||!profile.startup||!profile.linux||!/^0x[0-9a-f]{64}$/.test(profile.deploymentId||'')||
     !/^[0-9a-f]{64}$/.test(releaseId||'')||!Number.isSafeInteger(vcpus)||vcpus<1||vcpus>256||
     (artifactGateways?(releaseDir!==undefined||bundleFile!==undefined):(!releaseDir||!bundleFile)))throw Error('owner startup profile, release pin, vCPU count and exactly one local/remote artifact source required');
   new NativeClient(profile); // validate literal discovery origins before any I/O
   const artifacts=artifactGateways?new RawArtifacts({gateways:artifactGateways,fetchImpl}):null;
   const pins=validateNetworkAuthorities(profile.authorityPins);
-  reader||=new LeaseReader({rpc:profile.rpc,chainId:profile.chainId,addressBook:'0x'+'0'.repeat(40),authorityPins:pins});
+  reader||=new LeaseReader({rpc:profile.rpc,chainId:profile.chainId,addressBook:'0x'+'0'.repeat(40),authorityPins:pins,...chainAuthorityOptions({chainAuthority:profile.chainAuthority,chainVerifier:profile.chainVerifier})});
   const [row]=await reader.refresh([profile.deploymentId]);
   if(!row||row.id!==profile.deploymentId||row.chainId!==(profile.chainId??8453)||row.deployments.toLowerCase()!==pins.deployments)throw Error('deployment scope not available');
   const intent=bootstrapIntent(row.configCid);if(!intent)throw Error('owner startup commitment required');
@@ -76,10 +83,10 @@ export async function prepareNativeProfile(input,{releaseDir,releaseId,bundleFil
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   try{
     const args=process.argv.slice(2),opts={};
-    for(let i=0;i<args.length;i+=2){if(!['--profile','--release','--release-id','--bundle','--artifact-gateways','--vcpus','--out'].includes(args[i])||opts[args[i]]!==undefined||!args[i+1])throw Error('usage: native-profile.mjs --profile BASE.json --release-id HEX --vcpus N --out NEW.json (--release DIR --bundle FILE | --artifact-gateways HTTP-IP/ipfs,…)');opts[args[i]]=args[i+1];}
+    for(let i=0;i<args.length;i+=2){if(!['--profile','--release','--release-id','--bundle','--artifact-gateways','--vcpus','--out','--chain-verifier'].includes(args[i])||opts[args[i]]!==undefined||!args[i+1])throw Error('usage: native-profile.mjs --profile BASE.json --release-id HEX --vcpus N --out NEW.json (--release DIR --bundle FILE | --artifact-gateways HTTP-IP/ipfs,…) [--chain-verifier http://127.0.0.1:PORT/]');opts[args[i]]=args[i+1];}
     if(!['--profile','--release-id','--vcpus','--out'].every(k=>opts[k]))throw Error('profile, release-id, vcpus and out are required');
     const input=JSON.parse(await fs.readFile(opts['--profile'],'utf8'));
-    const result=await prepareNativeProfile(input,{releaseDir:opts['--release'],releaseId:opts['--release-id'],bundleFile:opts['--bundle'],artifactGateways:opts['--artifact-gateways']?.split(','),vcpus:Number(opts['--vcpus'])});
+    const result=await prepareNativeProfile(input,{releaseDir:opts['--release'],releaseId:opts['--release-id'],bundleFile:opts['--bundle'],artifactGateways:opts['--artifact-gateways']?.split(','),vcpus:Number(opts['--vcpus']),chainVerifier:opts['--chain-verifier']});
     await fs.writeFile(opts['--out'],JSON.stringify(result.profile,null,2)+'\n',{flag:'wx',mode:0o600});
     console.log(JSON.stringify({profile:path.resolve(opts['--out']),...result.evidence}));
   }catch(e){console.error(e.message);process.exitCode=1;}

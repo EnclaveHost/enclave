@@ -86,6 +86,7 @@ export async function runDirectory(config,{reader:injected}={}){
   };
   const timer=setInterval(()=>void sync(),10000);timer.unref();void sync();
   log('public signed-record directory listening on '+JSON.stringify(server.address()));
+  {const a=reader.authorityInfo?.();if(a)log('chain reads: '+a.authority+' ('+a.tier+' tier'+(a.authority==='local-verifier'?', proof-backed, no provider fallback':'')+')');}
   return {server,directory,close:()=>{clearInterval(timer);server.close();}};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

@@ -33,9 +33,10 @@ import {SERVICE_KINDS, validateAdInput, publishTypedData} from './service-index.
 import {canonical as canonicalJson} from './route-record.mjs';
 import {createHostServiceGate, resolveHostPolicyConfig} from './host-service-gate.mjs';
 import {CARRIER_MIRROR} from './policy-carriers.mjs';
+import {chainVerifierOf} from './verified-chain.mjs';
 
 export const ROLES = Object.freeze(['app-zone-replica', 'owner-responder']);
-const KEYS = ['role', 'release', 'zones', 'ns', 'listen', 'front', 'routeMap', 'chain', 'snp', 'shield', 'peers', 'upstream', 'hostPolicy'];
+const KEYS = ['role', 'release', 'zones', 'ns', 'listen', 'front', 'routeMap', 'chain', 'snp', 'shield', 'peers', 'upstream', 'hostPolicy', 'chainAuthority', 'chainVerifier'];
 // inputs of the central relay era: refused by name so a migrated config never silently keeps one
 const LEGACY = ['relay', 'relayUrl', 'certsApi', 'certificateService', 'secret', 'fleetSecret', 'dnsTxtKey', 'enclaves', 'registryAddress',
   'addressBookAddress', 'baseRpc', 'domainsApi', 'judgeMode', 'eab', 'acmeAccount'];
@@ -81,7 +82,7 @@ function rpcList(list, where) {
 function runnerPolicyShape(h) {
   const pc = h.carriers ? {...(h.carriers.importDir ? {importDir: h.carriers.importDir} : {}), ...(h.carriers.peers ? {peers: h.carriers.peers} : {})} : null;
   return {platformHostPolicy: h.policy, ...(h.mirrors.length ? {platformHostPolicyMirrors: h.mirrors} : {}), ...(h.rpcs ? {platformHostPolicyRpcs: h.rpcs} : {}),
-    ...(pc && Object.keys(pc).length ? {platformHostPolicyCarriers: pc} : {}),
+    ...(pc && Object.keys(pc).length ? {platformHostPolicyCarriers: pc} : {}), ...(h.chainVerifier ? {chainAuthority: 'verifier', chainVerifier: h.chainVerifier} : {}),
     services: h.carriers?.policyMirrorStateDir ? [{role: 'policy-mirror', config: {stateDir: h.carriers.policyMirrorStateDir}}] : []};
 }
 /** The gate's environment for a normalized hostPolicy (with the reserved carrier origin when carriers are configured). */
@@ -91,6 +92,7 @@ export function hostPolicyGateEnv(h) {
   const mirrors = [...h.mirrors, ...(h.carriers ? [CARRIER_MIRROR] : [])];
   if (mirrors.length) env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS = mirrors.join(',');
   if (h.rpcs) env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS = h.rpcs.join(',');
+  if (h.chainVerifier) Object.assign(env, {ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: h.chainVerifier});
   return {env, shape};
 }
 
@@ -100,6 +102,10 @@ export function challengeReplicaConfig(c) {
   const legacy = Object.keys(c).filter((k) => LEGACY.includes(k));
   if (legacy.length) fail(`legacy central input(s) refused: ${legacy.join(', ')} (this service runs without the relay, its certificate service or the fleet secret)`);
   only(c, KEYS, 'challengeReplica');
+  // the chain authority of this service's chain reads (the app-zone lease/registry/catalog read, the Shield host-identity
+  // registry read and the host policy gate): the provider quorums by default, or EXPLICITLY the local proof-backed verifier
+  // (loopback; then no provider client is built for any of them, and chain.rpcs / shield.rpcs are not needed).
+  let chainVerifier; try { chainVerifier = chainVerifierOf({chainAuthority: c.chainAuthority, chainVerifier: c.chainVerifier}, 'challengeReplica'); } catch (e) { fail(e.message.replace(/^challengeReplica: /, '')); }
   if (!ROLES.includes(c.role)) fail(`role must be one of ${ROLES.join(', ')}`);
   only(c.release, ['dir', 'dnsSha256', 'runtimeBundleSha256'], 'release');
   const release = {dir: absFile(c.release.dir, 'release.dir'), dnsSha256: String(c.release.dnsSha256), runtimeBundleSha256: String(c.release.runtimeBundleSha256)};
@@ -135,14 +141,14 @@ export function challengeReplicaConfig(c) {
     only(c.shield, ['policyFile', 'profileFile', 'profileDigest', 'rpcs', 'pinsFile'], 'shield');
     if (!/^sha256:[0-9a-f]{64}$/.test(String(c.shield.profileDigest))) fail('shield.profileDigest must be sha256:<64 hex> of the reviewed authority profile');
     shield = {policyFile: absFile(c.shield.policyFile, 'shield.policyFile'), profileFile: absFile(c.shield.profileFile, 'shield.profileFile'),
-      profileDigest: c.shield.profileDigest, rpcs: rpcList(c.shield.rpcs, 'shield.rpcs'), ...(c.shield.pinsFile !== undefined ? {pinsFile: absFile(c.shield.pinsFile, 'shield.pinsFile')} : {})};
+      profileDigest: c.shield.profileDigest, rpcs: chainVerifier && c.shield.rpcs === undefined ? [] : rpcList(c.shield.rpcs, 'shield.rpcs'), ...(c.shield.pinsFile !== undefined ? {pinsFile: absFile(c.shield.pinsFile, 'shield.pinsFile')} : {})};
   }
   if (replica) {
     only(c.chain, ['rpcs', 'pins'], 'chain');
     only(c.chain.pins, ['addressBook', 'deployments', 'registry', 'catalog'], 'chain.pins');
     const pins = Object.fromEntries(['addressBook', 'deployments', 'registry', 'catalog'].map((k) => {
       const v = String(c.chain.pins[k] || '').toLowerCase(); if (!ADDR.test(v) || /^0x0{40}$/.test(v)) fail(`chain.pins.${k} must be a contract address`); return [k, v]; }));
-    chain = {rpcs: rpcList(c.chain.rpcs, 'chain.rpcs'), pins};
+    chain = {rpcs: chainVerifier && c.chain.rpcs === undefined ? [] : rpcList(c.chain.rpcs, 'chain.rpcs'), pins};
   } else if (c.chain !== undefined) fail('chain belongs to the app-zone-replica role (the owner responder reads only the registry, through shield.rpcs)');
   let peers = [];
   if (c.peers !== undefined) {
@@ -184,9 +190,10 @@ export function challengeReplicaConfig(c) {
       ...(k.peers !== undefined ? {peers: k.peers} : {})};
     if (!Object.keys(carriers).length) fail('hostPolicy.carriers names no carrier');
   }
-  const hostPolicy = {policy, endpoint, stateDir, mirrors, rpcs, carriers};
+  const hostPolicy = {policy, endpoint, stateDir, mirrors, rpcs, carriers, ...(chainVerifier && policy !== 'off' ? {chainVerifier} : {})};
+  if (chainVerifier && !replica && !shield && policy === 'off') fail('chainVerifier: no chain read of this configuration would use it (no shield registry read, and hostPolicy is off)');
   if (policy !== 'off') { try { const e = hostPolicyGateEnv(hostPolicy); resolveHostPolicyConfig({env: e.env, chainId: 8453}); } catch (e) { fail(`hostPolicy: ${e.message}`); } }
-  return Object.freeze({role: c.role, release, zones, nsName, nsNames, listen, front, routeMap, snp, shield, chain, peers, upstream, hostPolicy});
+  return Object.freeze({role: c.role, release, zones, nsName, nsNames, listen, front, routeMap, snp, shield, chain, peers, upstream, hostPolicy, chainVerifier: chainVerifier || null});
 }
 
 /** The child's COMPLETE environment for the normalized configuration (nothing inherited but PATH / SystemRoot). */
@@ -210,6 +217,8 @@ export function challengeReplicaEnv(cfg, {basePath = process.env.PATH || '', sys
       ATTESTED_SHIELD_PROFILE_DIGEST: cfg.shield.profileDigest, ATTESTED_SHIELD_RPCS: cfg.shield.rpcs.join(','),
       ...(cfg.shield.pinsFile ? {ATTESTED_SHIELD_PINS: cfg.shield.pinsFile} : {})});
   }
+  // the explicit local verifier for the child's chain reads (dns-relay then builds no provider client for them)
+  if (cfg.chainVerifier) Object.assign(env, {ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: cfg.chainVerifier});
   return env;
 }
 

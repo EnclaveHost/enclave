@@ -112,7 +112,7 @@ import { createLeaseGenerationReader, memoryStore, fileStore, startTracker } fro
 import { createRegistryLiveness } from "./registry-liveness.mjs";
 import { createReferrals } from "./referrals.mjs";
 import { withDetachGrace } from "./route-grace.mjs";
-import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi,
+import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi,networkReaderOptions,
         createHostPolicyRuntime,resolveHostPolicyConfig,leaseHostAdmission,freshAdmissions} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
@@ -2684,11 +2684,20 @@ async function sweepPlacement() {
   finally { placementSweeping = false; }
 }
 
-// Two of these must agree on every lease and registry answer. Measured from nan
-// 2026-10-04: mainnet.base.org and most free endpoints refuse a relay's rate.
-const networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,
-  rpc:(process.env.NETWORK_CHAIN_RPCS||'https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org').split(',').map(s=>s.trim()),
-  includeHostPayout:true,includeConnectivity:'auto'}):null;
+// The network lease reader (route leases, registry operators): a provider quorum (relay/chain-sources.mjs
+// networkReaderOptions: two must agree on every answer), or EXPLICITLY the local proof-backed verifier
+// (ENCLAVE_CHAIN_AUTHORITY=verifier, ENCLAVE_CHAIN_VERIFIER=<loopback URL>; then no provider client exists). An explicit
+// verifier that cannot be honoured stops the relay: no address book (its lease and registry reads would go to BASE_RPC
+// instead), a non-local URL, or a runtime bundle whose LeaseReader does not implement the verifier authority.
+let networkLeaseReader=null;
+try{
+  const networkChain=networkReaderOptions(process.env);
+  if(networkChain.authority==='verifier'&&!ADDRESS_BOOK)throw new Error('ENCLAVE_CHAIN_AUTHORITY=verifier needs ADDRESS_BOOK_ADDRESS: without the network lease reader its lease and registry reads would use BASE_RPC');
+  networkLeaseReader=ADDRESS_BOOK?new LeaseReader({addressBook:ADDRESS_BOOK,...networkChain,includeHostPayout:true,includeConnectivity:'auto'}):null;
+  if(networkChain.authority==='verifier'&&networkLeaseReader.authority!=='verifier')throw new Error('this runtime bundle\'s LeaseReader does not implement the verifier authority: rebuild network-runtime.bundle.mjs');
+  if(networkLeaseReader){const a=networkLeaseReader.authorityInfo?.()||{authority:'provider-quorum',tier:'provider-reported'};
+    console.log(`[chain] network lease reader: ${a.authority} (${a.tier} tier${a.authority==='local-verifier'?', proof-backed, no provider fallback':''})`);}
+}catch(e){console.error(`fatal: network chain authority: ${e.message}`);process.exit(1);}
 // WHO OWNS a registry id, from the same agreeing public RPCs as route leases
 // (relay/chain-sources.mjs), not the single metered BASE_RPC; a failed read
 // throws, so each caller keeps its own fail-closed rule.

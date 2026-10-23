@@ -38,6 +38,9 @@
 // DNS) merges the previous challenge source's TXT values during a transition; APP_CHALLENGE_PEERS (<= 8 origins)
 // forwards each accepted push once to peer replicas, which verify it again. APP_CHALLENGE_JUDGE_MODE=lab-unsigned is
 // an explicit lab diagnostic; APP_CHALLENGE_MIN_TCB / APP_CHALLENGE_KDS=0 as for the attested responder.
+// ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER=<loopback URL> make that app-zone chain read come from the
+// local proof-backed verifier instead (APP_CHALLENGE_RPCS is then unused; a verifier refusal refuses the push, never
+// retries on providers), and so do the Shield host-identity registry reads (*_SHIELD_RPCS then unused).
 // APP_CHALLENGE_SHIELD_POLICY (network/app-zone-shield.mjs) separately admits Enclave Shield (T0-hv, hostExcluded=false)
 // Shield-direct fronts: the operator's pinned enclave-shield-app-policy/1, with APP_CHALLENGE_SHIELD_PROFILE (+ _DIGEST,
 // the reviewed registry pin) and APP_CHALLENGE_SHIELD_RPCS (two or more distinct hosts) for host identity. A Shield push
@@ -53,7 +56,7 @@ import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fle
 import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions } from "./network-runtime.bundle.mjs";
 import { isBoxHost } from "./boxhost.js";
 import { authorizePush, parseMeasurements, createShieldChallengeAuth, isShieldPush, shieldRegistryBinding,
-  shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, createAppZoneShield, LeaseReader, judge as attestationJudge } from "./network-runtime.bundle.mjs";
+  shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, createAppZoneShield, LeaseReader, chainAuthorityFromEnv, judge as attestationJudge } from "./network-runtime.bundle.mjs";
 installProcessGuards("dns-relay");
 
 const need = (k) => { const v = (process.env[k] || "").trim(); if (!v) { console.error(`fatal: ${k} is required`); process.exit(1); } return v; };
@@ -107,8 +110,14 @@ if (APP_CHALLENGE) {
     const ZERO = "0x" + "0".repeat(40);
     // Explicit pins: the book is the platform's existing admin-owned book (the reader's policy anchor); deployments and
     // registry are read at their pinned addresses, never looked up through the book.
-    const reader = new LeaseReader({ rpc, addressBook: pins.addressBook,
+    // the chain authority: the APP_CHALLENGE_RPCS quorum, or explicitly the local verifier (then no provider client exists)
+    const chainAuthority = chainAuthorityFromEnv(process.env);
+    const reader = new LeaseReader({ rpc, addressBook: pins.addressBook, ...chainAuthority,
       authorityPins: { deployments: pins.deployments, registry: pins.registry, connectivity: ZERO, sessionVaultFactory: ZERO } });
+    if (chainAuthority.authority === "verifier" && reader.authority !== "verifier")
+      throw new Error("this runtime bundle's LeaseReader does not implement the verifier authority: rebuild network-runtime.bundle.mjs");
+    { const a = reader.authorityInfo?.() || { authority: "provider-quorum", tier: "provider-reported" };
+      console.log(`[dns-relay] app-zone chain reads: ${a.authority} (${a.tier} tier${a.authority === "local-verifier" ? ", proof-backed, no provider fallback" : ""})`); }
     const ledger = createLedgerIndex({ reader, deployments: pins?.deployments });
     const minTcbRaw = (process.env.APP_CHALLENGE_MIN_TCB || "").trim();
     const auth = createAppZoneAuthority({ zone: APP_ZONE, measurements, judge: attestationJudge, mode, reader, pins, ledger, shield: appShield?.shield || null,
@@ -178,7 +187,14 @@ async function shieldRegistryInputs(file, prefix) {
     const pins = validateContractPins(JSON.parse(fs.readFileSync(process.env[`${prefix}_PINS`], "utf8").replace(/^\uFEFF/, "")));
     if (pins.registry !== binding.address) throw new Error(`${prefix}_PINS names another registry than the reviewed profile`);
   }
-  const reader = quorumReader({ clients: await rpcClients(String(process.env[`${prefix}_RPCS`] || "").split(",").map((x) => x.trim()).filter(Boolean)) });
+  // the same agreed(fn) interface either way: the <prefix>_RPCS quorum, or explicitly the local verifier (one proof-backed
+  // block; its pinned client serves the getCode/readContract this read uses, and no provider client exists)
+  const chainAuthority = chainAuthorityFromEnv(process.env);
+  const reader = chainAuthority.authority === "verifier" ? new LeaseReader({ addressBook: "0x" + "0".repeat(40), ...chainAuthority })
+    : quorumReader({ clients: await rpcClients(String(process.env[`${prefix}_RPCS`] || "").split(",").map((x) => x.trim()).filter(Boolean)) });
+  if (chainAuthority.authority === "verifier" && reader.authority !== "verifier")
+    throw new Error("this runtime bundle's LeaseReader does not implement the verifier authority: rebuild network-runtime.bundle.mjs");
+  console.log(`[dns-relay] ${prefix} registry reads: ${chainAuthority.authority === "verifier" ? "local-verifier (unsafe tier, proof-backed, no provider fallback)" : "provider-quorum"}`);
   return { policy, registryEntry: shieldRegistryEntry({ reader, binding }), recoverSigner: (message, signature) => recoverMessageAddress({ message, signature }),
            shieldRegistry: { address: binding.address, schema: binding.schema, codeHash: binding.codeHash, profileDigest } };
 }
