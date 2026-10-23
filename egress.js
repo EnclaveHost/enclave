@@ -42,8 +42,11 @@ async function address(read, type) {
 export function createEgress({ secret, socksPort = 1080, upstream, isKnown, lookup = dns.lookup, log = () => {} }) {
   const target = new URL(upstream);
   if (target.protocol !== 'socks5:' || !target.hostname || !target.port || target.username || target.password) throw new Error('SOCKS upstream required');
-  const connections = new Set();
+  const connections = new Set(), byDeployment = new Map();
   const track = s => { connections.add(s); s.on('error', () => s.destroy()); s.once('close', () => connections.delete(s)); return s; };
+  // an admitted connection is named by its deployment, so closeDeployment(id) can end what is already open
+  const nameConnection = (id, s) => { let set = byDeployment.get(id); if (!set) byDeployment.set(id, set = new Set()); set.add(s);
+    s.once('close', () => { set.delete(s); if (!set.size && byDeployment.get(id) === set) byDeployment.delete(id); }); };
   async function connect(sock) {
     const input = reader(sock); let output, remote;
     sock.setTimeout(15000, () => sock.destroy(new Error('SOCKS handshake timed out')));
@@ -60,6 +63,7 @@ export function createEgress({ secret, socksPort = 1080, upstream, isKnown, look
         sock.end(Buffer.from([1, 1])); return;
       }
       sock.write(Buffer.from([1, 0]));
+      nameConnection(id, sock);
       const req = await input.take(4);
       if (req[0] !== 5 || req[1] !== 1 || req[2] !== 0) {sock.end(reply(7)); return;}
       const host = await address(input, req[3]), port = (await input.take(2)).readUInt16BE(0);
@@ -95,6 +99,8 @@ export function createEgress({ secret, socksPort = 1080, upstream, isKnown, look
   return {
     start() { return new Promise((resolve, reject) => {socks.once('error', reject); socks.listen(socksPort, '127.0.0.1', resolve);}); },
     stop() {socks.close(); for (const s of connections) s.destroy();},
+    // every connection this deployment opened ends now (its remote side follows: each side closes the other)
+    closeDeployment(id) {const set = byDeployment.get(String(id)); if (!set) return 0; const n = set.size; for (const s of [...set]) s.destroy(); return n;},
     socksPort: () => socks.address()?.port ?? socksPort,
     envFor(id) {return `socks5h://${id}:${egressToken(secret, id)}@127.0.0.1:${socks.address()?.port ?? socksPort}`;},
   };

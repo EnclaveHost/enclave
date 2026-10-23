@@ -20,7 +20,7 @@ function harness(spawnContainer) {
     const {deployments,spawnContainer,launchSpec,acmeReconcileSoon,releaseGpu,
            claimSigner,CLAIM_TERMINAL,console}=deps;
     const tenantProvisions = new WeakMap();
-    ${['provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
+    ${['revokeLeasePermits', 'provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
     return {provisionTenant,auditClaims,adopt,tenantProvisions};
   `)(deps);
   return { ...api, deployments, freed: () => freed };

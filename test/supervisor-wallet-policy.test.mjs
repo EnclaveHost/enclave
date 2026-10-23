@@ -25,6 +25,7 @@ function fixture(){
    sendLeaseTx:()=>{throw Error('denied work must not renew');},_yankBusy:false,
    HOST_POLICY_GATE:{serviceRefusal:()=>null},_stateCorrupt:null,leaseGasActive:()=>false,TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),
    lc:v=>String(v||'').toLowerCase(),releaseGpu:()=>{},releaseLease:async()=>{state.events.push('release');},
+   cutDeploymentStreams:()=>0,listBackendInstances:async()=>[],
  });
  vm.runInContext(between('let _hostWalletAdmission = null;', '\nconst hostCatalogAddress='),ctx);vm.runInContext('_hostWalletAdmission=__adm',ctx);
  vm.runInContext(between('async function gateAppReference(', '// A paid app is servable'),ctx);
