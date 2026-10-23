@@ -1,0 +1,536 @@
+{
+  "status": "deployed and all nine pre-existing apps recovered",
+  "at": "2026-10-23T19:41:01.182379+00:00",
+  "runtime": {
+    "imageSha256": "c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+    "measurement": "62ac7aab7700ea41ace82549751ee8797a8e087502bf04ad96c0003727a6b535"
+  },
+  "shares": [
+    {
+      "deployment": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.01,
+        "entitlementUnits": 16000,
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000,
+        "grantedUnits": 16000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 16,
+        "readback": {
+          "reservation": 16000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 16,
+          "limit": 16000,
+          "vcpus": 1,
+          "reserve": 16,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 16000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.02,
+        "appMiB": 1966,
+        "vmMiB": 2606
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.02,
+        "entitlementUnits": 32000,
+        "vcpus": 1,
+        "limit": 32000,
+        "reservation": 32000,
+        "grantedUnits": 32000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 32,
+        "readback": {
+          "reservation": 32000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 32,
+          "limit": 32000,
+          "vcpus": 1,
+          "reserve": 32,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 32000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.01,
+        "entitlementUnits": 16000,
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000,
+        "grantedUnits": 16000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 16,
+        "readback": {
+          "reservation": 16000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 16,
+          "limit": 16000,
+          "vcpus": 1,
+          "reserve": 16,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 16000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.25,
+        "appMiB": 24576,
+        "vmMiB": 25216
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.25,
+        "entitlementUnits": 400000,
+        "vcpus": 4,
+        "limit": 100000,
+        "reservation": 100000,
+        "grantedUnits": 400000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 400,
+        "readback": {
+          "reservation": 100000,
+          "weight": 100,
+          "count": 4,
+          "maximum": 100,
+          "limit": 100000,
+          "vcpus": 4,
+          "reserve": 100,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 4,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 400000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.01,
+        "entitlementUnits": 16000,
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000,
+        "grantedUnits": 16000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 16,
+        "readback": {
+          "reservation": 16000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 16,
+          "limit": 16000,
+          "vcpus": 1,
+          "reserve": 16,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 16000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.04,
+        "appMiB": 3932,
+        "vmMiB": 4572
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.04,
+        "entitlementUnits": 64000,
+        "vcpus": 1,
+        "limit": 64000,
+        "reservation": 64000,
+        "grantedUnits": 64000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 64,
+        "readback": {
+          "reservation": 64000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 64,
+          "limit": 64000,
+          "vcpus": 1,
+          "reserve": 64,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 64000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.21,
+        "appMiB": 20643,
+        "vmMiB": 21284
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.21,
+        "entitlementUnits": 336000,
+        "vcpus": 4,
+        "limit": 84000,
+        "reservation": 84000,
+        "grantedUnits": 336000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 336,
+        "readback": {
+          "reservation": 84000,
+          "weight": 100,
+          "count": 4,
+          "maximum": 84,
+          "limit": 84000,
+          "vcpus": 4,
+          "reserve": 84,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 4,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 336000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.01,
+        "appMiB": 983,
+        "vmMiB": 2048
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.01,
+        "entitlementUnits": 16000,
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000,
+        "grantedUnits": 16000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 16,
+        "readback": {
+          "reservation": 16000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 16,
+          "limit": 16000,
+          "vcpus": 1,
+          "reserve": 16,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 16000,
+        "blocker": null
+      }
+    },
+    {
+      "deployment": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304,
+        "cpuShare": 0.02,
+        "appMiB": 1966,
+        "vmMiB": 2606
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "cpuShare": 0.02,
+        "entitlementUnits": 32000,
+        "vcpus": 1,
+        "limit": 32000,
+        "reservation": 32000,
+        "grantedUnits": 32000,
+        "policy": {
+          "vcpus": 1,
+          "cpuPercent": 100
+        },
+        "appCpuPercent": 32,
+        "readback": {
+          "reservation": 32000,
+          "weight": 100,
+          "count": 1,
+          "maximum": 32,
+          "limit": 32000,
+          "vcpus": 1,
+          "reserve": 32,
+          "units": "percent / 1000"
+        },
+        "guestOnlineVcpus": 1,
+        "enforcement": "guest-app-cgroup",
+        "enforcedUnits": 32000,
+        "blocker": null
+      }
+    }
+  ],
+  "tls": {
+    "at": "2026-10-23T19:41:01.182379+00:00",
+    "results": [
+      {
+        "host": "7ae476a3.app.enclave.host",
+        "address": "134.209.248.172",
+        "tlsVerified": true,
+        "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "7ae476a3.app.enclave.host",
+        "address": "146.190.246.39",
+        "tlsVerified": true,
+        "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "38f368d6.app.enclave.host",
+        "address": "134.209.248.172",
+        "tlsVerified": true,
+        "serial": "4C4242587AEA045006C0A8FD2446CA69",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "38f368d6.app.enclave.host",
+        "address": "146.190.246.39",
+        "tlsVerified": true,
+        "serial": "4C4242587AEA045006C0A8FD2446CA69",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "e64f7cba.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "5B6DE8969B6061F8E2593A352795C749",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "e64f7cba.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "5B6DE8969B6061F8E2593A352795C749",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "d9798e4c.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "D5557DC04EAE8AAF8EC5D01E7718AB57",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "d9798e4c.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "D5557DC04EAE8AAF8EC5D01E7718AB57",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "a77d0c57.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "460657A5E811CFD80F44824EFE746DF1",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "a77d0c57.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "460657A5E811CFD80F44824EFE746DF1",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "c13d4b6a.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "F0370258D50946272E23AD9DADBAA188",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "c13d4b6a.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "F0370258D50946272E23AD9DADBAA188",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "59f1273d.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "10C3444B36187F139082F5573DB1D561",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "59f1273d.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "10C3444B36187F139082F5573DB1D561",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "ef514ed3.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "AE1E93FE6FEAEC984C6AB9F34655A469",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "ef514ed3.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "AE1E93FE6FEAEC984C6AB9F34655A469",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "a69dcbba.app.enclave.host",
+        "address": "134.199.235.187",
+        "tlsVerified": true,
+        "serial": "1207B21A43F70D10F82353930BD57263",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      },
+      {
+        "host": "a69dcbba.app.enclave.host",
+        "address": "165.245.191.129",
+        "tlsVerified": true,
+        "serial": "1207B21A43F70D10F82353930BD57263",
+        "expires": "Jan 21 23:59:59 2027 GMT",
+        "response": "HTTP/1.1 200 OK",
+        "ok": true
+      }
+    ],
+    "ok": true
+  },
+  "limits": [
+    "CPU quota applies to application cgroup, including init/TLS/runtime, not the complete VM or guest monitor.",
+    "Guest/VM overhead consumes additional host memory beyond application allowance.",
+    "Windows VBS/Root scheduler is not SNP host exclusion.",
+    "Recovery involved downtime and ordinary lease reconciliation; unrelated queued/refused deployments were not forced through policy.",
+    "No fresh secret lifecycle or protected-port negative tests were performed by these root HTTP checks. Existing secret-dependent services recovered; custody v2 testing remains separate."
+  ]
+}

@@ -1,0 +1,568 @@
+From c95dcd3aee901b503751c02918a687c83b227511 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:01:26 -0700
+Subject: [PATCH] custody v2: genesis survives a failed or ambiguous submission
+ and a restart
+
+A founder whose createCommittee failed after its share was durable could never
+finish: the daemon exited, and on restart it saw a share on disk, skipped
+genesis and served a committee the chain did not have (no_committee forever).
+A retry in the same process made a new secret and a new committee.
+
+The founder now seals a genesis INTENT (the exact createCommittee arguments:
+salt, machine record, Y, code set, identity and host signatures) together with
+its share before the first submission. Until the agreed chain shows that
+committee at epoch 1 with this machine and key, every retry - a later genesis
+call, or the engine's tick after a restart - reads the committee at an agreed
+block and:
+- confirms it, without re-sending, when the chain already holds it;
+- re-sends the SAME transaction (after the same admission check) when the chain
+  agrees it is absent;
+- reports a conflict, re-sending nothing, when the id holds another machine or
+  key.
+An unreadable chain throws: absence is never inferred from an error. No retry
+ever makes a new secret or committee. The daemon logs an ambiguous genesis and
+lets the engine reconcile it instead of exiting.
+
+State without an intent (written by earlier images, such as the live
+committee's) is served exactly as before. A share for a committee the chain
+does not have and no intent for it (a legacy orphan, whose salt and signature
+were never kept) is reported with an explicit LEGACY ORPHAN reason, kept, and
+never re-created or deleted (docs/security/secret-custody-v2.md 4.1).
+
+Tests:
+- test/custody-v2-genesis-intent.test.mjs: the real member and writer, a vault
+  model with the contract's committee id; save failure, lost receipt, failure
+  before the chain, in-process retry, unreadable chain (including no release),
+  id conflict, legacy committee and orphan.
+- custody-v2-e2e: the same faults against the original vault, each with a
+  restart from the disk, including an unreachable RPC through the real quorum
+  reader.
+---
+ custody/v2/daemon.mjs                   |  13 +-
+ custody/v2/member.mjs                   |  78 +++++++--
+ docs/security/secret-custody-v2.md      |  13 ++
+ test/custody-v2-e2e.test.mjs            |  93 +++++++++--
+ test/custody-v2-genesis-intent.test.mjs | 205 ++++++++++++++++++++++++
+ 5 files changed, 372 insertions(+), 30 deletions(-)
+ create mode 100644 test/custody-v2-genesis-intent.test.mjs
+
+diff --git a/custody/v2/daemon.mjs b/custody/v2/daemon.mjs
+index a2c2dbc00b63e86246fae2a1f31ea0393ed5ccea..3ceba5c2775290050656d6ee33b49f9293d2a761 100644
+--- a/custody/v2/daemon.mjs
++++ b/custody/v2/daemon.mjs
+@@ -190,9 +190,16 @@
+       if (member._state().hostSig) break;
+       log("genesis waits for the host binding (POST /v2/custody/host-binding)"); await new Promise((r) => setTimeout(r, 15000));
+     }
+-    const g = await member.genesis({ salt: "0x" + randomBytes(32).toString("hex"), codeSet: [machine.measurement] });
+-    await saveNow();
+-    log(`GENESIS ${g.committeeId}: set committeeId in the host config`);
++    try {
++      const g = await member.genesis({ salt: "0x" + randomBytes(32).toString("hex"), codeSet: [machine.measurement] });
++      await saveNow();
++      log(`GENESIS ${g.committeeId}: set committeeId in the host config`);
++    } catch (e) {
++      // the intent and its share are durable: the engine re-sends that same intent until the agreed chain shows it
++      const open = member.genesisPending();
++      if (!open) throw e;
++      log(`GENESIS ${open.committeeId} not confirmed yet (${e.message}); the engine reconciles it with the chain`);
++    }
+   }
+   const loop = async () => {
+     try { await runIndependent.adoptIfCreated(); } catch (e) { log(`[independent] ${e.message}`); }
+diff --git a/custody/v2/member.mjs b/custody/v2/member.mjs
+index a5872f243fe4888aeb6754ff66e978881b87567d..7678e706b9afba804bb8e0a1cf24e7d88a07d056 100644
+--- a/custody/v2/member.mjs
++++ b/custody/v2/member.mjs
+@@ -29,7 +29,7 @@
+ export const machineBinding = (machine, nonce) => sha256(Buffer.from("enclave-custody-v2 machine\n"), hexToBytes(D.machineHash(machine)), Buffer.from(nonce));
+ 
+ // state store: { load() -> obj|null, save(obj) } - the daemon seals it to the chip and this code (snpkey)
+-// state shape: { epochs: { "<cid>:<epoch>": [{k, x (hex)}] }, pending: { "<cid>:<toEpoch>": [{k,x}] }, hostSig, candidates }
++// state shape: { epochs: { "<cid>:<epoch>": [{k, x (hex)}] }, pending: { "<cid>:<toEpoch>": [{k,x}] }, hostSig, candidates, genesis: { committeeId, args, confirmed } }
+ export function createMember({ chainId, vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson, attestSelf,
+                                verifyPeerQuote, capacityCheck = async () => ({ ok: false, reason: "no proof-of-capacity verifier configured" }),
+                                enclaveOwner, now = () => Date.now(), log = console.log, minTcb = DEFAULT_MIN_TCB, capacityReceipts = null, admissionCheck = null,
+@@ -125,19 +125,61 @@
+   }
+ 
+   // ---- genesis (§10: the Enclave seat creates the committee) ----
++  // GENESIS INTENT. The exact createCommittee arguments are durable together with the share before the first submission:
++  // st.genesis = { committeeId, args: [salt, machine, Y, codeSet, identitySig, hostSig], confirmed }. Until the agreed chain
++  // shows that committee with this machine and key, every retry (after a failed or ambiguous submission, or a restart)
++  // re-sends the SAME transaction for the SAME share - never a new secret or committee. A read that cannot agree throws:
++  // absence is never inferred from an error.
++  const genesisOpen = () => (st.genesis && !st.genesis.confirmed ? st.genesis : null);
++  // a fresh committee is a future admission: the founder's host must be Enclave-owned AND seated as Enclave
++  async function genesisRefusal() {
++    const { entry } = await chain.readRegistryEntry({ registryId: me.registryId });
++    return admissionRefusal(entry) || (vaultEnclaveOf(entry) ? null : "genesis needs a host the vault seats as Enclave");
++  }
++  const genesisMismatch = (gi, com) => {
++    if (com.epoch !== 1) return `the committee is at epoch ${com.epoch}, past the genesis this machine has not confirmed`;
++    if (com.machines.length !== 1 || lc(D.machineHash(com.machines[0])) !== lc(D.machineHash(me))) return "the committee was created for another machine";
++    if (lc(hex0x(com.commitments)) !== lc(gi.args[2])) return "the committee's key differs from this machine's genesis key";
++    return null;
++  };
++  async function reconcileGenesis() {
++    const gi = genesisOpen();
++    if (!gi) return { state: "none" };
++    const { committee: com } = await chain.readCommittee({ committeeId: gi.committeeId });
++    if (com) {
++      const reason = genesisMismatch(gi, com);
++      if (reason) { log(`[member] GENESIS CONFLICT ${gi.committeeId}: ${reason}; nothing is re-sent and the share is kept`); return { state: "genesis_conflict", committeeId: gi.committeeId, reason }; }
++      await commit(() => { st.genesis = { ...st.genesis, confirmed: true }; });
++      log(`[member] genesis committee ${gi.committeeId} confirmed on the agreed chain`);
++      return { state: "genesis_confirmed", committeeId: gi.committeeId };
++    }
++    const refusal = await genesisRefusal();
++    if (refusal) return { state: "genesis_refused", committeeId: gi.committeeId, reason: refusal };
++    const tx = await submit("createCommittee", gi.args);
++    log(`[member] genesis committee ${gi.committeeId} re-sent (the same intent) tx ${tx}`);
++    return { state: "genesis_submitted", committeeId: gi.committeeId, tx };
++  }
+   async function genesis({ salt, codeSet }) {
++    const open = genesisOpen();
++    if (open) {                                     // a retry: the durable intent, never a new committee
++      const r = await reconcileGenesis();
++      if (r.state === "genesis_conflict" || r.state === "genesis_refused") throw new Error(`genesis: ${r.reason}`);
++      return { committeeId: open.committeeId, Y: open.args[2], tx: r.tx || null, state: r.state };
++    }
+     if (!st.hostSig) throw new Error("genesis: no host binding yet");
+-    // a fresh committee is a future admission: the founder's host must be Enclave-owned AND seated as Enclave
+-    const { entry } = await chain.readRegistryEntry({ registryId: me.registryId });
+-    const refusal = admissionRefusal(entry) || (vaultEnclaveOf(entry) ? null : "genesis needs a host the vault seats as Enclave");
++    const refusal = await genesisRefusal();
+     if (refusal) throw new Error(`genesis: ${refusal}`);
+     const g = v2.genesis();
+     const Y = g.Y;
+-    const committeeId = D.committeeIdOf({ chainId, vault: vaultL, salt, Y });
+-    // the share is DURABLE before the transaction: a crash after it lands must not lose x, and a failed write sends nothing
+-    await commit(() => putShares("epochs", committeeId, 1, g.shares));
++    const committeeId = lc(D.committeeIdOf({ chainId, vault: vaultL, salt, Y }));
+     const sig = await D.signDigest(identity, D.genesisDigest({ chainId, vault: vaultL, committeeId, Y, machine: me, codeSet }));
+-    const tx = await submit("createCommittee", [salt, me, hex0x(Y), codeSet, sig, st.hostSig]);
++    const args = [salt, me, hex0x(Y), codeSet, sig, st.hostSig];
++    // the share AND the intent are DURABLE before the transaction: a crash after it lands must not lose x, a failed write
++    // sends nothing, and a retry re-sends exactly this
++    await commit(() => { putShares("epochs", committeeId, 1, g.shares); st.genesis = { committeeId, args, confirmed: false }; });
++    let tx;
++    try { tx = await submit("createCommittee", args); }
++    catch (e) { throw new Error(`genesis: createCommittee outcome unknown (${e.message}); the durable intent is reconciled with the chain, never re-created`); }
+     log(`[member] genesis committee ${committeeId} (Y ${bytesToHex(Y).slice(0, 18)}...) tx ${tx}`);
+     return { committeeId, Y: hex0x(Y), tx };
+   }
+@@ -407,9 +449,23 @@
+ 
+   // ---- one step of the engine ----
+   async function tick(committeeId) {
+-    const { committee: com, pending } = await chain.readCommittee({ committeeId });
+-    if (!com) return { state: "no_committee" };
+     const cid = lc(committeeId);
++    if (genesisOpen()?.committeeId === cid) {        // this machine's own genesis is not confirmed yet: reconcile it first
++      const r = await reconcileGenesis();
++      if (r.state !== "genesis_confirmed") return r;
++    }
++    const { committee: com, pending } = await chain.readCommittee({ committeeId });
++    if (!com) {
++      if (!Object.keys(st.epochs).some((k) => k.startsWith(cid + ":"))) return { state: "no_committee" };
++      // shares on disk for a committee the agreed chain does not have, and no open intent for it: a genesis recorded
++      // before intents existed (or a confirmed committee the agreed chain no longer shows). Its creation transaction cannot
++      // be rebuilt (salt and signature were not kept), so nothing is re-sent or invented, and the share is never deleted.
++      const reason = st.genesis?.committeeId === cid
++        ? "the agreed chain no longer shows this machine's confirmed genesis committee; shares kept, nothing re-sent"
++        : "LEGACY ORPHAN: this machine holds a share for a committee the agreed chain does not have and no genesis intent for it; it cannot be re-created safely (operator recovery: docs/security/secret-custody-v2.md §4.1), shares kept";
++      log(`[member] ${cid}: ${reason}`);
++      return { state: "no_committee", reason };
++    }
+     // heartbeats
+     await Promise.all(com.machines.filter((m) => m.identity !== me.identity).map(async (m) => {
+       try { const i = await fetchJson(`${m.endpoint}/v2/custody/info`); if (i && lc(i.identity) === m.identity) lastSeen.set(m.identity, now()); } catch {}
+@@ -562,5 +618,5 @@
+     return { approver: me.identity, epoch: com.epoch, sig: await D.signDigest(identity, D.codeDigest({ chainId, vault: vaultL, committeeId: cid, epoch: com.epoch, measurement: meas, add })) };
+   }
+ 
+-  return { me, shares, info, evidence, setHostSig, genesis, verifyGenesisRoster, adoptIndependentGenesis, committees, join, approve, approveCode, tick, _state: () => st, _lastSeen: lastSeen };
++  return { me, shares, info, evidence, setHostSig, genesis, reconcileGenesis, genesisPending: () => (genesisOpen() ? { committeeId: genesisOpen().committeeId } : null), verifyGenesisRoster, adoptIndependentGenesis, committees, join, approve, approveCode, tick, _state: () => st, _lastSeen: lastSeen };
+ }
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..4f64168b25fd606bc395c2dfa3697c7d4e8757bf 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -122,6 +122,19 @@
+   commitments. Every later member receives shares by handover (§4.4), so no multi-party DKG is needed. If a committee
+   ever has to be created by several parties at once, use Pedersen/Feldman DKG with complaints, following Gennaro,
+   Jarecki, Krawczyk and Rabin ("Secure DKG").
++- **Genesis retry and restart (`custody/v2/member.mjs` genesis intent).**
++  - **What is saved:** the founder seals its share AND the exact `createCommittee` arguments (salt, machine record, `Y`,
++    code set, identity and host signatures) before the first submission.
++  - **How it finishes:** after a failed or ambiguous submission, or a restart, the engine reads the committee at an
++    agreed block. When the chain holds it with this machine and this key at epoch 1, the genesis is confirmed without
++    re-sending. When the chain agrees it is absent, the same transaction is re-sent, after the same admission check.
++    An RPC error is never read as absence. The engine never makes a new secret or committee for a retry.
++  - **Committee at the intended id with another machine or key:** a conflict. Nothing is re-sent and the share is
++    kept.
++  - **Legacy orphan:** an image without intents could leave a share on disk for a committee that never reached the
++    chain. Its salt and signature were not kept, so it cannot be re-created. The engine reports `no_committee` with a
++    `LEGACY ORPHAN` reason and keeps the share. Recovery is an operator decision: a fresh genesis needs a fresh sealed
++    state (a new identity). Existing committees without an intent, such as the live one, are served exactly as before.
+ 
+ ### 4.2 Saving secrets (owner side)
+ 
+diff --git a/test/custody-v2-e2e.test.mjs b/test/custody-v2-e2e.test.mjs
+index 51a986f3fda9f9f268a7ad50e8e440c10e131775..48b27ab271042d44fd0ea59eddad171feda2eacd 100644
+--- a/test/custody-v2-e2e.test.mjs
++++ b/test/custody-v2-e2e.test.mjs
+@@ -10,9 +10,12 @@
+ //   5. the relay's v2 pointer reads the vault.
+ // Every machine persists through the daemon's REAL sealed-state writer (custody/v2/sealed-state.mjs: member store and the
+ // chain reader's checkpoint over one state) to a host disk this test can fail, and every createCommittee/ackHandover
+-// records what that machine had DURABLY when it was submitted. A genesis share write fails once (nothing reaches the chain),
+-// an ack submission fails once and that machine restarts from its durable state and re-acks the same share, which the
+-// contract accepts; the genesis machine also restarts from durable state and still releases.
++// records what that machine had DURABLY when it was submitted. Genesis faults, each followed by a restart from the disk:
++// a failed share write sends nothing; a createCommittee that fails before reaching the chain is re-sent as the SAME durable
++// intent; one that lands but whose answer is lost is confirmed from the chain without a second genesis; an unreachable RPC
++// sends nothing; a committee created without an intent (the live shape) is served as before, and an orphan share with no
++// intent is reported, kept and never re-created. An ack submission fails once and that machine restarts from its durable
++// state and re-acks the same share, which the contract accepts.
+ // Every custodian signature (genesis, approvals, deals, acks) is checked by the contract, so this also pins
+ // custody/v2/digests.mjs to the Solidity. Attestation of app guests is SIMULATED (synthetic AMD chain, real verifier);
+ // custodian self-evidence is stubbed (the hardware path is exercised on warden-host).
+@@ -124,23 +127,25 @@
+     };
+     const capacityOk = new Set();
+     const barrier = [];                                // every createCommittee/ackHandover: what its machine had durably
+-    const failSubmit = new Set();                      // "<machine>:<fn>": the next such submission fails (RPC down)
++    const failSubmit = new Set();                      // "<machine>:<fn>": the next such submission fails before the chain;
++                                                       // "<machine>:<fn>:lost": it lands, then its answer is lost
+     const newIdentity = (name, h) => {
+       const identity = privateKeyToAccount(generatePrivateKey()), kp = hpke.generateKeyPair(), chip = randomBytes(64);
+       return { identity, kp, chip, machine: { identity: identity.address.toLowerCase(), encKey: "0x" + Buffer.from(kp.publicKey).toString("hex"),
+         endpoint: `https://custody-${name}.test`, chipId: sha(chip), registryId: h.registryId, measurement: sha(CUSTODIAN_MEAS) } };
+     };
+     // durable: the sealed blob a (re)started machine finds on its host disk (null = fresh)
+-    const makeMachine = async (name, host, { id = newIdentity(name, host), durable = null } = {}) => {
++    const makeMachine = async (name, host, { id = newIdentity(name, host), durable = null, rpcs = readerOpts.rpcs } = {}) => {
+       const disk = { durable, failIf: null };          // failIf(state): the next write it matches fails (host /state 500)
+       const state = durable ? JSON.parse(durable) : {};
+       const writer = createSealedStateWriter({ seal: (s) => JSON.stringify(s), state, log: () => {}, put: async (blob) => {
+         if (disk.failIf && disk.failIf(JSON.parse(blob))) { disk.failIf = null; throw new Error("host /state: 500"); }
+         disk.durable = blob; } });
+-      const chain = createChainReaderV2({ ...readerOpts, checkpoint: writer.checkpoint });   // the daemon's wiring
++      const chain = createChainReaderV2({ ...readerOpts, rpcs, checkpoint: writer.checkpoint });   // the daemon's wiring
+       const submit = async (fn, args) => {
+         if (fn === "createCommittee" || fn === "ackHandover") barrier.push({ name, fn, args, durable: disk.durable && JSON.parse(disk.durable) });
+         if (failSubmit.delete(`${name}:${fn}`)) throw new Error(`submit ${fn}: rpc down`);
++        if (failSubmit.delete(`${name}:${fn}:lost`)) { await submitTx(fn, args); throw new Error(`submit ${fn}: receipt lost`); }
+         return submitTx(fn, args);
+       };
+       const member = createMember({ chainId, vault, identity: id.identity, encPrivateKey: id.kp.privateKey, machine: id.machine, chain, store: writer.memberStore,
+@@ -169,21 +174,77 @@
+         "genesis by a non-Enclave host is refused by the contract");
+     }
+     delete machines.n0;
++    const reader = createChainReaderV2(readerOpts);
++    const durableOf = (m) => JSON.parse(m.disk.durable).member;
++    const createsBy = (name) => barrier.filter((b) => b.name === name && b.fn === "createCommittee");
+     // the first share write fails: nothing reaches the chain and nothing is durable
+     E1.disk.failIf = (s) => Object.keys(s.member?.epochs || {}).length > 0;
+     await assert.rejects(E1.member.genesis({ salt: "0x" + "02".repeat(32), codeSet: [E1.machine.measurement] }), /state not persisted/);
+     assert.equal(barrier.length, 0, "no createCommittee after a failed share write");
+-    assert.deepEqual(JSON.parse(E1.disk.durable).member.epochs, {});
+-    const g = await E1.member.genesis({ salt: "0x" + "03".repeat(32), codeSet: [E1.machine.measurement] });
+-    const cid = g.committeeId.toLowerCase(); E1.committeeId = cid;
+-    assert.deepEqual(barrier.map((b) => [b.name, b.fn]), [["e1", "createCommittee"]]);
+-    assert.equal(barrier[0].durable.member.epochs[`${cid}:1`].length, 1, "the genesis share was durable when createCommittee was submitted");
+-    const reader = createChainReaderV2(readerOpts);
++    assert.deepEqual([durableOf(E1).epochs, durableOf(E1).genesis], [{}, undefined]);
++    // createCommittee fails before it reaches the chain; the machine restarts and re-sends the SAME durable intent
++    failSubmit.add("e1:createCommittee");
++    await assert.rejects(E1.member.genesis({ salt: "0x" + "03".repeat(32), codeSet: [E1.machine.measurement] }), /outcome unknown/);
++    const intent = durableOf(E1).genesis, cid = intent.committeeId, share1 = JSON.stringify(durableOf(E1).epochs[`${cid}:1`]);
++    assert.equal(createsBy("e1")[0].durable.member.epochs[`${cid}:1`].length, 1, "the genesis share was durable when createCommittee was submitted");
++    assert.deepEqual(createsBy("e1")[0].durable.member.genesis.args, intent.args, "...and so was the intent");
++    assert.equal((await reader.readCommittee({ committeeId: cid })).committee, null, "nothing reached the chain");
++    const E1r = await restart(E1); E1r.committeeId = cid;
++    assert.deepEqual(E1r.member.committees(), [cid]);
++    assert.equal((await E1r.member.tick(cid)).state, "genesis_submitted");
++    assert.equal(createsBy("e1").length, 2);
++    assert.deepEqual(createsBy("e1")[1].args, createsBy("e1")[0].args, "the same transaction: salt, machine, Y, code set, signatures");
++    assert.equal((await E1r.member.tick(cid)).state, "steady", "confirmed from the chain, then served");
++    assert.equal(durableOf(E1r).genesis.confirmed, true);
++    assert.equal(JSON.stringify(durableOf(E1r).epochs[`${cid}:1`]), share1, "the same share");
++    assert.equal(createsBy("e1").length, 2, "one committee, no further genesis");
+     let { committee } = await reader.readCommittee({ committeeId: cid });
+     assert.deepEqual([committee.epoch, committee.t, committee.W, committee.machines[0].enclave], [1, 1, 1, true]);
+-    // the genesis machine restarts: it serves from its durable share
+-    const E1r = await restart(E1);
+-    assert.deepEqual(E1r.member.committees(), [cid]);
++    assert.equal("0x" + Buffer.from(committee.Y).toString("hex"), intent.args[2], "the committee key is the intent's");
++
++    // createCommittee lands but its answer is lost: the restarted machine confirms it without a second genesis
++    const X = await makeMachine("x", hosts.eb);
++    failSubmit.add("x:createCommittee:lost");
++    await assert.rejects(X.member.genesis({ salt: "0x" + "05".repeat(32), codeSet: [X.machine.measurement] }), /outcome unknown/);
++    const xcid = durableOf(X).genesis.committeeId;
++    assert.ok((await reader.readCommittee({ committeeId: xcid })).committee, "it landed");
++    const Xr = await restart(X);
++    assert.equal((await Xr.member.tick(xcid)).state, "steady", "confirmed from the chain, then served");
++    assert.equal(createsBy("x").length, 1, "no second createCommittee");
++    assert.equal(durableOf(Xr).genesis.confirmed, true);
++
++    // an unreachable RPC (the real quorum reader): nothing is sent and nothing is invented; once it answers, the same intent
++    const Z = await makeMachine("z", hosts.eb);
++    failSubmit.add("z:createCommittee");
++    await assert.rejects(Z.member.genesis({ salt: "0x" + "06".repeat(32), codeSet: [Z.machine.measurement] }), /outcome unknown/);
++    const zcid = durableOf(Z).genesis.committeeId, zBlob = Z.disk.durable;
++    const Zdown = await makeMachine("z", hosts.eb, { id: Z.id, durable: zBlob, rpcs: [`http://127.0.0.1:${await freePort()}`] });
++    await assert.rejects(Zdown.member.tick(zcid), "an unreadable chain is never read as 'absent'");
++    await assert.rejects(Zdown.member.genesis({ salt: "0x" + "07".repeat(32), codeSet: [Z.machine.measurement] }));
++    assert.equal(createsBy("z").length, 1, "nothing sent while the chain is unreadable");
++    assert.equal(Zdown.disk.durable, zBlob, "nothing changed on disk");
++    const Zup = await restart(Zdown);
++    assert.equal((await Zup.member.tick(zcid)).state, "genesis_submitted");
++    assert.deepEqual(createsBy("z")[1].args, createsBy("z")[0].args, "the same intent");
++
++    // legacy state (an image without intents): a committee created like the live one is served as before; an orphan share is
++    // reported with a diagnostic, kept, and never re-created
++    const Lid = newIdentity("legacy", hosts.ea), gl = v2.genesis(), lsalt = "0x" + "08".repeat(32), lcodes = [Lid.machine.measurement];
++    const lcid = D.committeeIdOf({ chainId, vault, salt: lsalt, Y: gl.Y }).toLowerCase();
++    const lHostSig = await D.signDigest(hosts.ea.op, D.hostDigest({ chainId, vault, machine: Lid.machine }));
++    await submitTx("createCommittee", [lsalt, Lid.machine, "0x" + Buffer.from(gl.Y).toString("hex"), lcodes,
++      await D.signDigest(Lid.identity, D.genesisDigest({ chainId, vault, committeeId: lcid, Y: gl.Y, machine: Lid.machine, codeSet: lcodes })), lHostSig]);
++    const legacyState = (k, shares) => JSON.stringify({ member: { epochs: { [`${k}:1`]: shares }, pending: {}, hostSig: lHostSig, candidates: {} } });
++    const L = await makeMachine("legacy", hosts.ea, { id: Lid, durable: legacyState(lcid, gl.shares.map((x) => ({ k: x.k, x: x.x.toString(16).padStart(64, "0") }))) });
++    assert.equal((await L.member.tick(lcid)).state, "steady", "the legacy committee is served");
++    assert.equal(durableOf(L).genesis, undefined, "no intent invented");
++    const orphan = sha("orphan committee");
++    const O = await makeMachine("orphan", hosts.ea, { durable: legacyState(orphan, [{ k: 1, x: "44".repeat(32) }]) });
++    const ro = await O.member.tick(orphan);
++    assert.equal(ro.state, "no_committee"); assert.match(ro.reason, /LEGACY ORPHAN/);
++    assert.deepEqual(Object.keys(durableOf(O).epochs), [`${orphan}:1`], "the orphan share is kept");
++    assert.equal(createsBy("legacy").length + createsBy("orphan").length, 0, "nothing re-sent");
++    for (const n of ["x", "z", "legacy", "orphan"]) delete machines[n];
+ 
+     // ---- 2. an owner publishes, and an app guest unlocks at t = 1 ----
+     const owner = await acct();
+@@ -263,7 +324,7 @@
+     for (const m of [E1x, E2, NB, NC]) await m.member.tick(cid);
+     assert.equal(committee.machines.length, 4);
+     assert.deepEqual([committee.t, committee.W], [2, 3], "3 seats (one Enclave seat for two Enclave machines): t = 2");
+-    assert.equal(Buffer.from(committee.Y).toString("hex"), Buffer.from(g.Y.slice(2), "hex").toString("hex"), "the committee key never changed");
++    assert.equal(Buffer.from(committee.Y).toString("hex"), Buffer.from(intent.args[2].slice(2), "hex").toString("hex"), "the committee key never changed");
+     assert.deepEqual(E1x.member.shares.get(cid, 1), [], "old-epoch shares are erased after activation");
+     assert.deepEqual(JSON.parse(E1x.disk.durable).member.epochs[`${cid}:1`], undefined, "...durably");
+     assert.deepEqual(E1x.member.shares.get(cid, committee.epoch).map((s) => s.k), E2.member.shares.get(cid, committee.epoch).map((s) => s.k), "Enclave replicas hold the same index");
+diff --git a/test/custody-v2-genesis-intent.test.mjs b/test/custody-v2-genesis-intent.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff08ac278b42182d621cd9a6972111c35094e987
+--- /dev/null
++++ b/test/custody-v2-genesis-intent.test.mjs
+@@ -0,0 +1,205 @@
++// Custody v2 genesis retry and restart safety: the REAL member engine (custody/v2/member.mjs) through the REAL sealed-state
++// writer (custody/v2/sealed-state.mjs) against a host disk the test can fail, and an in-memory vault whose createCommittee
++// does what EnclaveSecretVaultV2.createCommittee does to the committee id (keccak of chain, vault, salt and Y; refused when
++// it exists). Each case restarts the machine from what is durable and drives it the way daemon.mjs does: tick() on the
++// committee it serves (member.committees()[0]). Real share crypto, real signatures.
++//   run: node --test test/custody-v2-genesis-intent.test.mjs
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { createHash } from "node:crypto";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import * as hpke from "../custody/hpke.mjs";
++import * as D from "../custody/v2/digests.mjs";
++import { createMember } from "../custody/v2/member.mjs";
++import { createCustodianV2 } from "../custody/v2/custodian.mjs";
++import { createSealedStateWriter } from "../custody/v2/sealed-state.mjs";
++
++const hex = (n, len = 32) => "0x" + n.toString(16).padStart(len * 2, "0");
++const sha = (s) => "0x" + createHash("sha256").update(s).digest("hex");
++const lc = (s) => String(s).toLowerCase();
++const bytes = (h) => Buffer.from(String(h).slice(2), "hex");
++const CHAIN = 8453, VAULT = hex(70, 20), ENCLAVE = hex(999, 20);
++const enclaveEntry = { active: true, owner: ENCLAVE, operator: hex(5, 20), payoutWallet: ENCLAVE };
++const daemonRunsGenesis = (s) => !(s.member && Object.keys(s.member.epochs || {}).length);   // daemon.mjs step 4's guard
++
++// the vault's committee store; down = no RPC can agree (every read throws, as the quorum reader does)
++function vaultSim() {
++  const committees = new Map(); let down = false;
++  const unavailable = () => Object.assign(new Error("only 0 RPCs agree on the chain state"), { code: "chain_unavailable" });
++  const chain = {
++    readRegistryEntry: async () => { if (down) throw unavailable(); return { entry: enclaveEntry }; },
++    readCommittee: async ({ committeeId }) => { if (down) throw unavailable(); return { committee: committees.get(lc(committeeId)) || null, pending: null }; },
++    // a served committee's coordinator reads one authorization snapshot; null here ends the tick at "committee_changed"
++    readAuthorization: async () => { if (down) throw unavailable(); return { committee: null }; },
++    readRelease: async () => { if (down) throw unavailable(); throw new Error("not used"); },
++  };
++  const create = ([salt, m, Y]) => {
++    const cid = lc(D.committeeIdOf({ chainId: CHAIN, vault: VAULT, salt, Y: bytes(Y) }));
++    if (committees.has(cid)) throw new Error("execution reverted: BadCommittee()");
++    committees.set(cid, { committeeId: cid, Y: bytes(Y), epoch: 1, t: 1, W: 1, activatedAt: 1, machines: [{ ...m, enclave: true }], commitments: bytes(Y) });
++  };
++  return { chain, committees, create, setDown: (v) => { down = v; } };
++}
++// the host's PUT /state: fails the next write matching failIf; durable = the last stored blob
++function hostDisk(blob = null) {
++  const d = { blob, failIf: null, put: async (b) => { if (d.failIf && d.failIf(JSON.parse(b))) { d.failIf = null; throw new Error("host /state: 500"); } d.blob = b; },
++              durable: () => (d.blob === null ? null : JSON.parse(d.blob)) };
++  return d;
++}
++function newMachine(tag) {
++  const id = privateKeyToAccount(generatePrivateKey()), kp = hpke.generateKeyPair();
++  return { id, kp, machine: { identity: id.address.toLowerCase(), encKey: "0x" + Buffer.from(kp.publicKey).toString("hex"), endpoint: `https://${tag}.example`,
++                              chipId: sha(`chip-${tag}`), registryId: sha(`reg-${tag}`), measurement: sha("custodian") } };
++}
++// one custodian process over a host disk: the daemon's wiring of state, writer, member and the host's /submit.
++// outcome: the next createCommittee "fail-before" (no chain write) or "lost-receipt" (written, then the answer is lost)
++function boot(who, disk, sim, calls) {
++  const state = disk.durable() || {};
++  const writer = createSealedStateWriter({ seal: (s) => JSON.stringify(s), put: disk.put, state, log: () => {} });
++  const p = { outcome: null };
++  const submit = async (fn, args) => {
++    calls.push({ fn, args: JSON.parse(JSON.stringify(args)), durable: disk.durable() });
++    const o = p.outcome; p.outcome = null;
++    if (o === "fail-before") throw new Error("rpc: connection reset");
++    if (fn === "createCommittee") sim.create(args);
++    if (o === "lost-receipt") throw new Error("rpc: receipt timeout");
++    return "0xtx";
++  };
++  const member = createMember({ chainId: CHAIN, vault: VAULT, identity: who.id, encPrivateKey: who.kp.privateKey, machine: who.machine, enclaveOwner: ENCLAVE,
++    chain: sim.chain, store: writer.memberStore, submit, log: () => {},
++    fetchJson: async () => { throw new Error("no peer"); }, attestSelf: async () => { throw new Error("not used"); }, verifyPeerQuote: async () => ({ ok: false }) });
++  p.member = member; p.state = state;
++  p.serve = () => member.tick(member.committees()[0]);          // the daemon's engine loop step
++  return p;
++}
++// a machine already bound to its Enclave host (the binding itself is covered by the barrier and e2e suites)
++const BOUND = () => JSON.stringify({ member: { epochs: {}, pending: {}, hostSig: "0x" + "11".repeat(65), candidates: {} } });
++const creates = (calls) => calls.filter((c) => c.fn === "createCommittee");
++const shareKeys = (s) => Object.keys(s?.member?.epochs || {});
++
++test("I1 a failed share write sends nothing and leaves no intent: the restarted daemon runs a fresh genesis", async () => {
++  const sim = vaultSim(), disk = hostDisk(BOUND()), calls = [], who = newMachine("i1");
++  const p = boot(who, disk, sim, calls);
++  disk.failIf = (s) => shareKeys(s).length > 0;
++  await assert.rejects(p.member.genesis({ salt: hex(1), codeSet: [who.machine.measurement] }), /state not persisted/);
++  assert.equal(calls.length, 0, "nothing was sent");
++  assert.equal(p.member._state().genesis, undefined, "no intent in memory");
++  assert.equal(disk.durable().member.genesis, undefined, "no intent on disk");
++  assert.deepEqual(shareKeys(disk.durable()), []);
++  assert.ok(daemonRunsGenesis(disk.durable()), "the restarted daemon runs genesis afresh (nothing of the failed one exists anywhere)");
++});
++
++test("I2 createCommittee lands but its answer is lost: the restarted machine confirms it from the chain without a second genesis", async () => {
++  const sim = vaultSim(), disk = hostDisk(BOUND()), calls = [], who = newMachine("i2");
++  const p = boot(who, disk, sim, calls);
++  p.outcome = "lost-receipt";
++  await assert.rejects(p.member.genesis({ salt: hex(2), codeSet: [who.machine.measurement] }));
++  assert.equal(sim.committees.size, 1, "the chain holds the committee");
++  const [cid] = [...sim.committees.keys()];
++  assert.deepEqual(shareKeys(creates(calls)[0].durable), [`${cid}:1`], "the share was durable at the submission");
++  const share = JSON.stringify(disk.durable().member.epochs[`${cid}:1`]);
++  // restart
++  assert.ok(!daemonRunsGenesis(disk.durable()), "the restarted daemon does not run a new genesis");
++  const q = boot(who, disk, sim, calls);
++  assert.equal(q.member.committees()[0], cid);
++  const r = await q.serve();
++  assert.equal(r.state, "committee_changed", `the committee is served: ${JSON.stringify(r)}`);
++  assert.equal(creates(calls).length, 1, "no second createCommittee");
++  assert.equal(disk.durable().member.genesis?.confirmed, true, "the intent is confirmed durably");
++  assert.equal(JSON.stringify(disk.durable().member.epochs[`${cid}:1`]), share, "the same share");
++});
++
++test("I3 createCommittee fails before any chain write: the restarted machine re-sends the SAME intent for the SAME share", async () => {
++  const sim = vaultSim(), disk = hostDisk(BOUND()), calls = [], who = newMachine("i3");
++  const p = boot(who, disk, sim, calls);
++  p.outcome = "fail-before";
++  await assert.rejects(p.member.genesis({ salt: hex(3), codeSet: [who.machine.measurement] }));
++  assert.equal(sim.committees.size, 0);
++  const [key] = shareKeys(disk.durable()), cid = key.split(":")[0], share = JSON.stringify(disk.durable().member.epochs[key]);
++  const q = boot(who, disk, sim, calls);
++  const r = await q.serve();
++  assert.equal(r.state, "genesis_submitted", `the restarted machine must re-send its genesis: ${JSON.stringify(r)}`);
++  assert.equal(creates(calls).length, 2);
++  assert.deepEqual(creates(calls)[1].args, creates(calls)[0].args, "the same transaction: salt, machine, Y, code set, signatures");
++  assert.ok(sim.committees.has(cid), "the intended committee now exists");
++  assert.equal(JSON.stringify(disk.durable().member.epochs[key]), share, "the same durable share");
++  assert.deepEqual(shareKeys(disk.durable()), [key], "no second secret");
++  assert.equal((await q.serve()).state, "committee_changed", "then it is confirmed and served");
++  assert.equal(creates(calls).length, 2, "one chain write in total");
++  assert.equal(disk.durable().member.genesis.confirmed, true);
++});
++
++test("I4 a genesis retry in the same process re-sends the durable intent, never a new committee", async () => {
++  const sim = vaultSim(), disk = hostDisk(BOUND()), calls = [], who = newMachine("i4");
++  const p = boot(who, disk, sim, calls);
++  p.outcome = "fail-before";
++  const g1 = p.member.genesis({ salt: hex(4), codeSet: [who.machine.measurement] }); g1.catch(() => {});
++  await assert.rejects(g1);
++  const g2 = await p.member.genesis({ salt: hex(5), codeSet: [who.machine.measurement] });
++  assert.deepEqual(creates(calls)[1].args, creates(calls)[0].args, "the retry sent the same transaction");
++  assert.equal(shareKeys(disk.durable()).length, 1, "one share only");
++  assert.equal(g2.committeeId, shareKeys(disk.durable())[0].split(":")[0]);
++  assert.equal(sim.committees.size, 1);
++});
++
++test("I5 chain unavailable: no submission, no new secret or committee, no release; the intent waits", async () => {
++  const sim = vaultSim(), disk = hostDisk(BOUND()), calls = [], who = newMachine("i5");
++  const p = boot(who, disk, sim, calls);
++  p.outcome = "fail-before";
++  await assert.rejects(p.member.genesis({ salt: hex(6), codeSet: [who.machine.measurement] }));
++  const before = disk.blob, [key] = shareKeys(disk.durable()), cid = key.split(":")[0];
++  sim.setDown(true);
++  const q = boot(who, disk, sim, calls);
++  await assert.rejects(q.serve(), /only 0 RPCs agree/, "an unreadable chain is never read as 'absent'");
++  await assert.rejects(q.member.genesis({ salt: hex(7), codeSet: [who.machine.measurement] }), /only 0 RPCs agree/);
++  assert.equal(creates(calls).length, 1, "only the original (failed) submission");
++  assert.equal(disk.blob, before, "nothing changed on disk");
++  assert.equal(sim.committees.size, 0);
++  const custodian = createCustodianV2({ chainId: CHAIN, vault: VAULT, encPrivateKey: who.kp.privateKey, shares: q.member.shares, chain: sim.chain, verifiers: {}, log: () => {} });
++  const c = custodian.challenge();
++  await assert.rejects(custodian.release({ v: 2, id: hex(9), endpoint: "https://app.example", committeeId: cid, epoch: 1, policyRev: "1", secretRev: "1",
++    recipientKey: "ab".repeat(32), challenges: [{ encKey: c.encKey, nonce: c.nonce }], operator: { sig: "0x", expiry: 0 }, evidence: {} }), /could not be confirmed/, "no release");
++  sim.setDown(false);
++  assert.equal((await q.serve()).state, "genesis_submitted", "when the chain answers, the same intent goes out");
++  assert.deepEqual(creates(calls)[1].args, creates(calls)[0].args);
++});
++
++test("I6 the intended committee id exists with another machine: a conflict, nothing re-sent, the share kept", async () => {
++  const sim = vaultSim(), disk = hostDisk(BOUND()), calls = [], who = newMachine("i6"), other = newMachine("i6-other");
++  const p = boot(who, disk, sim, calls);
++  p.outcome = "fail-before";
++  await assert.rejects(p.member.genesis({ salt: hex(8), codeSet: [who.machine.measurement] }));
++  const [key] = shareKeys(disk.durable()), cid = key.split(":")[0];
++  const sent = creates(calls)[0].args;
++  sim.create([sent[0], other.machine, sent[2]]);                     // someone else used this salt and key first
++  const q = boot(who, disk, sim, calls);
++  const r = await q.serve();
++  assert.equal(r.state, "genesis_conflict", JSON.stringify(r));
++  assert.match(r.reason, /another machine/);
++  assert.equal(creates(calls).length, 1);
++  assert.deepEqual(shareKeys(disk.durable()), [key], "the share is kept");
++  assert.equal(sim.committees.get(cid).machines[0].identity, other.machine.identity);
++});
++
++test("I7 legacy state without an intent: a live committee is served as before; an orphan is reported, never re-created or deleted", async () => {
++  const sim = vaultSim(), calls = [], who = newMachine("i7");
++  // a committee created by an image without intents (as the live one was): the share on disk, no genesis record
++  const cid = lc(D.committeeIdOf({ chainId: CHAIN, vault: VAULT, salt: hex(10), Y: Buffer.from("02" + "33".repeat(32), "hex") }));
++  sim.committees.set(cid, { committeeId: cid, Y: Buffer.alloc(33), epoch: 1, t: 1, W: 1, activatedAt: 1, machines: [{ ...who.machine, enclave: true }], commitments: Buffer.alloc(33) });
++  const legacy = (k) => JSON.stringify({ member: { epochs: { [`${k}:1`]: [{ k: 1, x: "44".repeat(32) }] }, pending: {}, hostSig: "0x" + "11".repeat(65), candidates: {} } });
++  const disk = hostDisk(legacy(cid));
++  const q = boot(who, disk, sim, calls);
++  assert.equal((await q.serve()).state, "committee_changed", "the legacy committee is served");
++  assert.equal(q.member._state().genesis, undefined, "no intent invented");
++  assert.equal(creates(calls).length, 0);
++  // an orphan: a share for a committee that never reached the chain, with no intent (its salt and signature are lost)
++  const orphan = sha("orphan"), disk2 = hostDisk(legacy(orphan));
++  const o = boot(who, disk2, sim, calls);
++  const r = await o.serve();
++  assert.equal(r.state, "no_committee");
++  assert.match(r.reason, /LEGACY ORPHAN/, "an explicit diagnostic");
++  assert.equal(creates(calls).length, 0, "nothing is re-sent");
++  assert.deepEqual(shareKeys(disk2.durable()), [`${orphan}:1`], "the share is never deleted");
++  sim.setDown(true);
++  await assert.rejects(o.serve(), /only 0 RPCs agree/, "with the chain unreadable it is not even called an orphan");
++});

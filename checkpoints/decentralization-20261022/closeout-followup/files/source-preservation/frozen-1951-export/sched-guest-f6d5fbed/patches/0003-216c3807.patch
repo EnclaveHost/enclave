@@ -1,0 +1,310 @@
+From 216c38075d44c40a697b0b3fcc21eb999ae0bf57 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:09:27 -0700
+Subject: [PATCH] Legacy CPU image monitor: the partition's processor cap
+ binds, not the catalog cpuPercent
+
+The installed legacy CPU image (runtime.bin 5fbfb947, monitor from this tree) put every bundle domain in cgroup
+cpu.max = catalog cpuPercent (EffectivePolicy: the bundle wins; a load's cpu was silently ignored), so an app whose
+purchased share gives its partition several VPs could still use one CPU. allocatedPolicy treats CPU like the existing
+RAM allocation: an explicit load cpu RAISES the quota when catalog <= cpu <= online CPUs*100 and is refused otherwise
+(no lowering, no unbounded override, never ignored). On an image whose measured platform directory carries
+cpu-vm-bound.enabled (one app per Hyper-V partition with an exact processor Limit/Reservation), a domain loaded with no
+cpu gets every online processor, so the partition's cap - set and read back by the manager - is what binds; that works
+with the installed loader, which sends no cpu. Without the marker the catalog share is kept exactly as before. The
+manifest, AppID and every report still name the catalog policy; the load answer states the applied cpuPercent.
+Tests: allocatedPolicy cases, the cgroup writer, and the real load path through the startDomain seam (on the seam-only
+commit the same load test shows cpu.max "100000 100000" where 336 or all online processors were due).
+---
+ isolation/m3/monitor/cpu_allowance_test.go | 101 +++++++++++++++++++++
+ isolation/m3/monitor/cpu_load_test.go      |  99 ++++++++++++++++++++
+ isolation/m3/monitor/main.go               |  48 ++++++++--
+ 3 files changed, 240 insertions(+), 8 deletions(-)
+ create mode 100644 isolation/m3/monitor/cpu_allowance_test.go
+ create mode 100644 isolation/m3/monitor/cpu_load_test.go
+
+diff --git a/isolation/m3/monitor/cpu_allowance_test.go b/isolation/m3/monitor/cpu_allowance_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..83fcf703755ea60e562e3359703b7d8ff3f44223
+--- /dev/null
++++ b/isolation/m3/monitor/cpu_allowance_test.go
+@@ -0,0 +1,101 @@
++package main
++
++import (
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"enclave.host/isolation/contract"
++)
++
++// The launcher's CPU allocation RAISES a bundle domain's cgroup quota above the catalog cpuPercent, as its RAM allocation
++// raises memory.max; it never lowers the catalog minimum, never exceeds the processors online, and is never ignored.
++func TestCPUAllowanceRaisesCatalogShare(t *testing.T) {
++	man := &contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}
++	ok := []struct {
++		req      request
++		cpus     int
++		cpu, mem int
++	}{
++		{request{}, 4, 100, 512},                          // nothing asked: the catalog's share, exactly as before
++		{request{CPU: 336, MemMiB: 20643}, 4, 336, 20643}, // a 21% share of 16 VPs: 4 VPs at 84%
++		{request{CPU: 400}, 4, 400, 512},                  // every online processor
++		{request{CPU: 100}, 1, 100, 512},                  // the catalog share itself is always allowed
++		{request{CPU: 208}, 3, 208, 512},                  // 13%: 3 VPs at 69.333%, quota rounded UP so the VM cap binds
++	}
++	for _, c := range ok {
++		pol, err := allocatedPolicy(man, c.req, c.cpus, false)
++		if err != nil || pol.CPUPercent != c.cpu || pol.MemMiB != c.mem || pol.Vcpus != 1 {
++			t.Fatalf("%+v on %d CPUs: %+v %v", c.req, c.cpus, pol, err)
++		}
++	}
++	if man.Policy.CPUPercent != 100 {
++		t.Fatalf("the hashed manifest's policy was changed: %+v", man.Policy)
++	}
++	for _, c := range []struct {
++		req  request
++		cpus int
++	}{{request{CPU: 16}, 16}, {request{CPU: -5}, 4}, {request{CPU: 401}, 4}, {request{CPU: 200}, 1}, {request{MemMiB: 256}, 4}} {
++		if pol, err := allocatedPolicy(man, c.req, c.cpus, false); err == nil {
++			t.Fatalf("%+v on %d CPUs was accepted: %+v", c.req, c.cpus, pol)
++		}
++	}
++	// a bare artifact (no manifest) keeps the request's numbers, exactly as before
++	if pol, err := allocatedPolicy(nil, request{CPU: 50, MemMiB: 128}, 1, true); err != nil || pol.CPUPercent != 50 || pol.MemMiB != 128 {
++		t.Fatalf("bare artifact: %+v %v", pol, err)
++	}
++}
++
++// What was allocated is what the domain's cgroup gets: cpu.max quota per 100000 us period.
++func TestCPUAllowanceReachesCgroup(t *testing.T) {
++	man := &contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}
++	pol, err := allocatedPolicy(man, request{CPU: 336}, 4, false)
++	if err != nil {
++		t.Fatal(err)
++	}
++	m := &monitor{}
++	d := &domain{CPU: pol.CPUPercent, MemMiB: pol.MemMiB, cgroup: filepath.Join(t.TempDir(), "dom1")}
++	// cgroupfs creates the control files with the directory; a plain directory needs them made first
++	if err := os.MkdirAll(d.cgroup, 0o755); err != nil {
++		t.Fatal(err)
++	}
++	for _, f := range []string{"cpu.max", "memory.max", "pids.max"} {
++		if err := os.WriteFile(filepath.Join(d.cgroup, f), nil, 0o644); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if err := m.cgroup(d); err != nil {
++		t.Fatal(err)
++	}
++	got, err := os.ReadFile(filepath.Join(d.cgroup, "cpu.max"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	if strings.TrimSpace(string(got)) != "336000 100000" {
++		t.Fatalf("cpu.max = %q", got)
++	}
++}
++
++// On a VM-bound image (one app per hypervisor-capped partition) a domain with no explicit allocation gets every online
++// processor; an explicit allocation still wins, and an image without the marker keeps the catalog share.
++func TestVMBoundImageGivesTheDomainEveryOnlineProcessor(t *testing.T) {
++	man := &contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}
++	for _, c := range []struct {
++		req     request
++		cpus    int
++		vmBound bool
++		want    int
++	}{
++		{request{}, 4, true, 400}, {request{}, 1, true, 100}, {request{}, 4, false, 100}, {request{CPU: 208}, 3, true, 208},
++	} {
++		pol, err := allocatedPolicy(man, c.req, c.cpus, c.vmBound)
++		if err != nil || pol.CPUPercent != c.want {
++			t.Fatalf("%+v on %d CPUs vmBound=%v: %+v %v", c.req, c.cpus, c.vmBound, pol, err)
++		}
++	}
++	shield := &contract.Manifest{Policy: contract.Policy{CPUPercent: 400, MemMiB: 8192, Vcpus: 4}}
++	if pol, _ := allocatedPolicy(shield, request{}, 2, true); pol.CPUPercent != 400 {
++		t.Fatalf("a catalog share above the online processors is never lowered: %+v", pol)
++	}
++}
+diff --git a/isolation/m3/monitor/cpu_load_test.go b/isolation/m3/monitor/cpu_load_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..7631565dd8c133f81ba5e592b822aaa792ba4331
+--- /dev/null
++++ b/isolation/m3/monitor/cpu_load_test.go
+@@ -0,0 +1,99 @@
++package main
++
++import (
++	"bufio"
++	"bytes"
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"runtime"
++	"strconv"
++	"strings"
++	"testing"
++
++	"enclave.host/isolation/contract"
++)
++
++// THE REAL LOAD PATH, without root: a catalog bundle (cpuPercent 100) is loaded with the launcher's cpu, through m.load's
++// own read, hash, parse and policy, and startDomain is replaced only to stop before any process exists and to point the
++// domain's cgroup writer at a temporary directory. Uses only load, cgroup and the startDomain seam, so the same file runs
++// on the pre-fix monitor, where the request's cpu was ignored and the domain kept cpu.max "100000 100000".
++func loadWithCPU(t *testing.T, cpu int) (*domain, string, error) { return loadOn(t, cpu, "/plat") }
++
++func loadOn(t *testing.T, cpu int, plat string) (*domain, string, error) {
++	t.Helper()
++	if runtime.NumCPU() < 4 {
++		t.Skip("needs 4 online processors for a 336% allocation")
++	}
++	component := append([]byte{0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00}, []byte("cpu-load-test")...)
++	bundle, err := contract.Build(contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}, component)
++	if err != nil {
++		t.Fatal(err)
++	}
++	cg := filepath.Join(t.TempDir(), "dom")
++	orig := startDomain
++	t.Cleanup(func() { startDomain = orig })
++	startDomain = func(m *monitor, d *domain, _ []byte) error {
++		d.cgroup = cg // cgroupfs makes the control files with the directory; a plain one needs them first
++		if err := os.MkdirAll(cg, 0o755); err != nil {
++			return err
++		}
++		for _, f := range []string{"cpu.max", "memory.max", "pids.max"} {
++			if err := os.WriteFile(filepath.Join(cg, f), nil, 0o644); err != nil {
++				return err
++			}
++		}
++		return m.cgroup(d)
++	}
++	m := newMonitor(false, plat, t.TempDir(), 40000, 5000)
++	m.noDomains = ""
++	d, err := m.load(bufio.NewReader(bytes.NewReader(bundle)), request{Cmd: "load", Label: "cpu", Size: len(bundle), CPU: cpu})
++	if err != nil {
++		return nil, "", err
++	}
++	got, err := os.ReadFile(filepath.Join(cg, "cpu.max"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	return d, strings.TrimSpace(string(got)), nil
++}
++
++func TestLoadAppliesTheLaunchersCPUAllocation(t *testing.T) {
++	d, cpuMax, err := loadWithCPU(t, 336)
++	if err != nil {
++		t.Fatalf("a 336%% allocation over a catalog 100%% was refused: %v", err)
++	}
++	ans, _ := json.Marshal(d) // the load answer is this domain, encoded
++	if d.CPU != 336 || cpuMax != "336000 100000" || !bytes.Contains(ans, []byte(`"cpuPercent":336`)) {
++		t.Fatalf("asked 336: domain cpuPercent %d, cgroup cpu.max %q, answer %s", d.CPU, cpuMax, ans)
++	}
++}
++
++func TestLoadWithoutAllocationKeepsTheCatalogShare(t *testing.T) {
++	d, cpuMax, err := loadWithCPU(t, 0)
++	if err != nil || d.CPU != 100 || cpuMax != "100000 100000" {
++		t.Fatalf("no allocation: %v %v %q", d, err, cpuMax)
++	}
++}
++
++func TestLoadRefusesAnAllocationBelowTheCatalogShare(t *testing.T) {
++	if d, cpuMax, err := loadWithCPU(t, 16); err == nil {
++		t.Fatalf("16%% under a catalog 100%% was loaded (cpuPercent %d, cpu.max %q) instead of refused", d.CPU, cpuMax)
++	}
++}
++
++// THE LEGACY CPU IMAGE carries the VM-bound marker in its measured platform directory: with the installed loader (which
++// sends no cpu) every domain gets all online processors, so the partition's exact Hyper-V cap is what binds. Same real
++// load path; on the pre-fix monitor the domain stayed at the catalog 100%.
++func TestLoadOnVMBoundImageGivesEveryOnlineProcessor(t *testing.T) {
++	plat := t.TempDir()
++	if err := os.WriteFile(filepath.Join(plat, "cpu-vm-bound.enabled"), []byte("1\n"), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	n := runtime.NumCPU()
++	d, cpuMax, err := loadOn(t, 0, plat)
++	want := strconv.Itoa(n*100000) + " 100000"
++	if err != nil || d.CPU != n*100 || cpuMax != want {
++		t.Fatalf("VM-bound image, %d online: %v cpuPercent %v cpu.max %q (want %q)", n, err, d, cpuMax, want)
++	}
++}
+diff --git a/isolation/m3/monitor/main.go b/isolation/m3/monitor/main.go
+index 1a0bc61826bd0d2b4b1a889277242b737f9a5148..1531112621f64fe89d27983210bd01440bb4613f 100644
+--- a/isolation/m3/monitor/main.go
++++ b/isolation/m3/monitor/main.go
+@@ -49,6 +49,7 @@
+ 	"os"
+ 	"os/exec"
+ 	"path/filepath"
++	"runtime"
+ 	"strconv"
+ 	"strings"
+ 	"sync"
+@@ -475,14 +476,10 @@
+ 			return nil, err
+ 		}
+ 	}
+-	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
+-	// Physical RAM is an availability allocation, separate from the immutable
+-	// catalog minimum in the hashed bundle. The launcher may raise that limit.
+-	if manifest != nil && req.MemMiB != 0 {
+-		if req.MemMiB < pol.MemMiB || req.MemMiB > 1048576 {
+-			return nil, fmt.Errorf("memory allocation is below the catalog minimum or outside host bounds")
+-		}
+-		pol.MemMiB = req.MemMiB
++	_, vmErr := os.Stat(filepath.Join(m.plat, cpuVMBoundMarker))
++	pol, perr := allocatedPolicy(manifest, req, runtime.NumCPU(), vmErr == nil)
++	if perr != nil {
++		return nil, perr
+ 	}
+ 	var inference *contract.Inference
+ 	if manifest != nil {
+@@ -1501,6 +1498,41 @@
+ 
+ // certNameOK: <8 lowercase hex>.<zone>, the app-zone name shape (isolation/m2/front certs.go nameFromHostData), at
+ // most 253 bytes, zone labels of lowercase letters, digits and hyphens.
++// cpuVMBoundMarker, in the measured platform directory, states that this image runs ONE app per partition whose CPU is
++// capped by its hypervisor (the per-app Hyper-V partition's exact processor Limit/Reservation): a domain loaded without
++// an explicit allocation then gets every online processor, so the partition's cap - not the catalog cpuPercent - is
++// what binds. An image without it keeps the catalog share exactly as before.
++const cpuVMBoundMarker = "cpu-vm-bound.enabled"
++
++// allocatedPolicy is a domain's share: the catalog's (EffectivePolicy: the hashed bundle wins), RAISED where the launcher
++// allocates more. Physical RAM and CPU are availability allocations, separate from the immutable catalog minimum in the
++// hashed bundle: the AppID and every report still name the bundle's own policy. An allocation may never go below that
++// minimum, and CPU (percent of one processor, cgroup cpu.max) never past the processors this guest has online, so one
++// the guest cannot honour is refused rather than ignored. With no CPU allocation on a VM-bound image (cpuVMBoundMarker)
++// the domain gets every online processor. The load answer states what was applied (cpuPercent, memMiB).
++func allocatedPolicy(manifest *contract.Manifest, req request, onlineCPUs int, vmBound bool) (contract.Policy, error) {
++	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
++	if manifest == nil {
++		return pol, nil
++	}
++	if req.MemMiB != 0 {
++		if req.MemMiB < pol.MemMiB || req.MemMiB > 1048576 {
++			return pol, fmt.Errorf("memory allocation is below the catalog minimum or outside host bounds")
++		}
++		pol.MemMiB = req.MemMiB
++	}
++	if req.CPU != 0 {
++		if req.CPU < pol.CPUPercent || req.CPU > onlineCPUs*100 {
++			return pol, fmt.Errorf("cpu allocation %d%% is below the catalog cpuPercent %d or above this guest's %d online processors",
++				req.CPU, pol.CPUPercent, onlineCPUs)
++		}
++		pol.CPUPercent = req.CPU
++	} else if vmBound && onlineCPUs*100 > pol.CPUPercent {
++		pol.CPUPercent = onlineCPUs * 100
++	}
++	return pol, nil
++}
++
+ func certNameOK(n string) bool {
+ 	if len(n) > 253 || len(n) < 10 || n[8] != '.' {
+ 		return false

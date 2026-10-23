@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-23T19:07:03.004741+00:00",
+  "readOnly": true,
+  "pid": 816,
+  "publicEnvironment": {
+    "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
+    "CUSTODY_VAULT": "0x08074300f75e78212ae10ebd14984f78e17811a6",
+    "CUSTODY_VAULT_V2": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "CUSTODY_COMMITTEE": null,
+    "CUSTODY_COMMITTEE_V2": null,
+    "AUTH_DATA_DIR": "/var/lib/enclave-relay",
+    "ATTESTED_SHIELD_POLICY": null
+  },
+  "sourceHashes": [
+    {
+      "path": "api-relay.js",
+      "sha256": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d"
+    },
+    {
+      "path": "secrets.js",
+      "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
+    },
+    {
+      "path": "relay/custody-state.mjs",
+      "sha256": null
+    }
+  ],
+  "shieldPolicy": null,
+  "activeEncryptedStore": {
+    "path": "/var/lib/enclave-relay/secrets.json",
+    "bytes": 25638,
+    "mode": "0o644",
+    "recordCount": 37,
+    "knownExistingCustodyCanaryPresent": false
+  },
+  "boundedBackupMetadata": [],
+  "limits": [
+    "No secret values or private environment values emitted. No decryption performed.",
+    "Only direct /root/relay-*/secrets.json* backup metadata checked, not an exhaustive retention inventory.",
+    "No service or configuration changed."
+  ]
+}

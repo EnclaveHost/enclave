@@ -1,0 +1,2568 @@
+From 44bf8f4fb0b07ff8cbe7dc5cbf94819cc4377f6b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:34:01 -0700
+Subject: [PATCH] Build corrected custodian reproducibly and verify fresh SNP
+ launch evidence
+
+---
+ .gitignore                        |   9 +
+ README.md                         |   9 +
+ SCAN-REVIEW.txt                   |   1 +
+ build-continue.sh                 |  55 +++
+ build-custodian-release.sh        |  56 +++
+ canary/ALLOCATION.txt             |   1 +
+ canary/headroom-check.sh          |  28 ++
+ canary/root-hardware-canary.py    | 131 +++++
+ canary/verify-custodian-quote.mjs |  58 +++
+ cpio-entries.mjs                  |  29 ++
+ evidence/A-manifest.json          | 112 +++++
+ evidence/B-manifest.json          | 112 +++++
+ evidence/attempt.json             |  16 +
+ evidence/protected-after.json     |   6 +
+ evidence/protected-before.json    |   6 +
+ evidence/result.json              |  52 ++
+ evidence/terminal.json            |   6 +
+ out/A-verify-v3.json              | 765 ++++++++++++++++++++++++++++++
+ out/B-verify-v3.json              | 765 ++++++++++++++++++++++++++++++
+ qrun.sh                           |  10 +
+ scan-review.sh                    |   3 +
+ verify-custodian-v3.mjs           | 148 ++++++
+ 22 files changed, 2378 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 SCAN-REVIEW.txt
+ create mode 100644 build-continue.sh
+ create mode 100755 build-custodian-release.sh
+ create mode 100644 canary/ALLOCATION.txt
+ create mode 100644 canary/headroom-check.sh
+ create mode 100644 canary/root-hardware-canary.py
+ create mode 100644 canary/verify-custodian-quote.mjs
+ create mode 100644 cpio-entries.mjs
+ create mode 100644 evidence/A-manifest.json
+ create mode 100644 evidence/B-manifest.json
+ create mode 100644 evidence/attempt.json
+ create mode 100644 evidence/protected-after.json
+ create mode 100644 evidence/protected-before.json
+ create mode 100644 evidence/result.json
+ create mode 100644 evidence/terminal.json
+ create mode 100644 out/A-verify-v3.json
+ create mode 100644 out/B-verify-v3.json
+ create mode 100755 qrun.sh
+ create mode 100644 scan-review.sh
+ create mode 100644 verify-custodian-v3.mjs
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5cfcc3a87d7c1532bdc2879f11a1db1a7bc6945
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,9 @@
++repo/
++repo-b/
++logs/
++*.out
++out/*/
++out/*.log
++canary/root-hardware-20261023/
++canary/*.out
++__pycache__/
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa25a7dc4fce2786de3cbe04c31f3ed09faa6167
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,9 @@
++# Corrected custody image: build and hardware evidence
++
++Frozen source c95dcd3aee901b503751c02918a687c83b227511 preserves the original production vault and administrator-controlled address book. Two independent clean offline builds produced byte-identical images. Measured launch identity e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71.
++
++On October23 at19:31UTC a fresh disposable SNP guest on the production machine passed nonce binding, exact launch measurement, AMD VCEK signature/TCB, VMPL0 and debug-off checks. The canary had no registry/submitter key, genesis, committee or existing state. Existing QEMU process identities stayed unchanged; canary state was removed and no canary processes survived. Scope-stop returned5 because the scope had already exited; the actual verifier and job exits were0.
++
++This proves that the corrected image boots and attests on this hardware. It is NOT production activation, lifecycle testing, or decentralized custody. The old one-seat custodian remains untouched. Enrollment, new committee setup, owner policy migration, relay route configuration, dashboard activation, dedicated secret lifecycle and failure tests are still required.
++
++The root hardware canary reuses the reviewed October21 exclusive hardware allocation (5120MiB capped,3072MiB guest,16GiB host reserve, both test lanes); ordinary build/test queue limits are unchanged. Source manifests and redacted verifier outcomes are versioned; images, raw logs, temporary sealed state and raw hardware quotes are excluded.
+diff --git a/SCAN-REVIEW.txt b/SCAN-REVIEW.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc7c070bd4376cf32b2e7ef9684878973cc6b61a
+--- /dev/null
++++ b/SCAN-REVIEW.txt
+@@ -0,0 +1 @@
++Root review 2026-10-23: the seven redacted generic-api-key matches in the staged diff are public data, not credentials. Six are the SHA256 of the snpkey executable (1d0541fe...), repeated in reproducible manifests and verifier receipts; one is the disposable quote canary's public X25519 encryption key c6eac873..., bound in the SNP quote. The canary private key remained sealed inside its guest and its disposable state was deleted. Reviewed exact staged lines534/652/759/852/1486/1623/2257 before this note. No broad scanner allowlist was added. Raw hardware quotes, serial logs, and state are excluded.
+diff --git a/build-continue.sh b/build-continue.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..e6b5b3610c74082d6b49dea435b29d236052e2a0
+--- /dev/null
++++ b/build-continue.sh
+@@ -0,0 +1,55 @@
++#!/bin/bash
++# RELEASE build of the corrected custodian image (custodian ONLY) from the frozen, root-reviewed durability commit c95dcd3a,
++# for the immutable original vault 0xe486…, its book 0xab21… and host ownership 0xbbd8…, with the same production host policy.
++# Recipe: work/custody-release/build-release-b.sh (same builder flags, base, offline lockfile installs), adapted:
++#   - TWO fresh, independent clones of the commit (--no-local: own object store), each with its own offline `npm ci`;
++#   - no --allow-dirty; no tool installs; Go runs with GOPROXY=off (the pinned go1.27.0 toolchain is already cached);
++#   - verify-custodian-v3.mjs on each (lineage to the verified c635fd68 release, sources, packages, measured config);
++#   - A == B: initramfs bytes, kernel, cmdline, manifest measurement/files/initramfs/commit.
++# The rewrap image is NOT rebuilt: v3 checks its closure is unchanged since c635fd68 and points at that frozen artifact.
++# Immutable once written. Every step's status is checked; no output filtering.
++set -euo pipefail
++unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
++HERE=$(cd "$(dirname "$0")" && pwd)
++SRC="$HERE/../custody-v2-durability-20261023/repo"
++COMMIT=c95dcd3aee901b503751c02918a687c83b227511
++BASE=/home/steven/enclave-prod/dist-custody-9e5fb2028
++FROZEN="$HERE/../custody-release/out"
++PATCHES="$HERE/../custody-v2-durability-20261023"
++VAULT=0xe48699b8401564aace7a814ae4569b67a3f7eef5; BOOK=0xab214342d5a490150a4a977063a2f88e21f80907; OWN=0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7
++OVMF_FILE=${OVMF:-$HOME/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd}
++export GOPROXY=off GOTOOLCHAIN_DOWNLOADS=off
++[ -f "$HERE/out/A-custodian/manifest.json" ] && [ ! -e "$HERE/repo-b" ] && [ ! -e "$HERE/out/B-custodian" ] || { echo "Unexpected continuation state"; exit 2; }
++mkdir -p "$HERE/out"
++echo "== inputs outside the repository: base and OVMF, as the c635fd68 release used them"
++check() { local got; got=$(sha256sum "$1" | cut -d' ' -f1); [ "$got" = "$2" ] || { echo "FAIL: $1 sha256 $got != $2"; exit 5; }; echo "ok $1 $got"; }
++check "$BASE/initramfs.cpio.gz" 7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5
++check "$BASE/vmlinuz" 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
++check "$OVMF_FILE" 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
++clone() {   # $1 checkout dir: an independent clone of the commit with its own offline lockfile install
++  git clone --no-local --no-hardlinks --quiet "$SRC" "$1"
++  git -C "$1" checkout --quiet --detach "$COMMIT"
++  git -C "$1" remote remove origin
++  [ "$(git -C "$1" rev-parse HEAD)" = "$COMMIT" ] || { echo "FAIL: $1 is not at $COMMIT"; exit 3; }
++  (cd "$1" && npm ci --offline --ignore-scripts --no-audit --no-fund --loglevel=warn && cd relay && npm ci --offline --ignore-scripts --no-audit --no-fund --loglevel=warn)
++}
++build() {   # $1 checkout, $2 output prefix
++  cd "$1"
++  [ -z "$(git status --porcelain)" ] || { echo "FAIL: $1 is not clean"; exit 3; }
++  echo "== $2: custodian (commit $(git rev-parse HEAD))"
++  node scripts/build-custodian-v2.mjs --base "$BASE" --out "$HERE/out/$2-custodian" --vault "$VAULT" --host-ownership "$OWN" --book "$BOOK" \
++    --host-policy release/host-policy-production.json > "$HERE/out/$2-custodian.log" 2>&1
++  echo "custodian exit=0"
++  node "$HERE/verify-custodian-v3.mjs" "$1" "$HERE/out/$2-custodian" "$FROZEN" "$PATCHES" "$HERE/out/$2-verify-v3.json"
++}
++echo "== A: verify existing successful build after fixing imported helper CLI guard"
++node "$HERE/verify-custodian-v3.mjs" "$HERE/repo" "$HERE/out/A-custodian" "$FROZEN" "$PATCHES" "$HERE/out/A-verify-v3.json"
++echo "== B: independent clean clone, offline install"
++clone "$HERE/repo-b"
++build "$HERE/repo-b" B
++echo "== A == B"
++cmp "$HERE/out/A-custodian/initramfs.cpio.gz" "$HERE/out/B-custodian/initramfs.cpio.gz"
++cmp "$HERE/out/A-custodian/vmlinuz" "$HERE/out/B-custodian/vmlinuz"
++cmp "$HERE/out/A-custodian/cmdline" "$HERE/out/B-custodian/cmdline"
++node -e "const a=require('$HERE/out/A-custodian/manifest.json'),b=require('$HERE/out/B-custodian/manifest.json');for(const f of ['measurement','measurementSha256','files','initramfs','kernel','cmdline','commit','bundleInputs'])if(JSON.stringify(a[f])!==JSON.stringify(b[f])){console.log('FAIL: custodian '+f+' differs');process.exit(4)}console.log('custodian: A == B ('+a.measurement+' / '+a.measurementSha256+')')"
++echo "PASS: custodian release built from $COMMIT, verified (v3) and independently reproduced; rewrap reused only as verified by v3"
+diff --git a/build-custodian-release.sh b/build-custodian-release.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..2a508761f0ea74c35038a9df33e51a88361591aa
+--- /dev/null
++++ b/build-custodian-release.sh
+@@ -0,0 +1,56 @@
++#!/bin/bash
++# RELEASE build of the corrected custodian image (custodian ONLY) from the frozen, root-reviewed durability commit c95dcd3a,
++# for the immutable original vault 0xe486…, its book 0xab21… and host ownership 0xbbd8…, with the same production host policy.
++# Recipe: work/custody-release/build-release-b.sh (same builder flags, base, offline lockfile installs), adapted:
++#   - TWO fresh, independent clones of the commit (--no-local: own object store), each with its own offline `npm ci`;
++#   - no --allow-dirty; no tool installs; Go runs with GOPROXY=off (the pinned go1.27.0 toolchain is already cached);
++#   - verify-custodian-v3.mjs on each (lineage to the verified c635fd68 release, sources, packages, measured config);
++#   - A == B: initramfs bytes, kernel, cmdline, manifest measurement/files/initramfs/commit.
++# The rewrap image is NOT rebuilt: v3 checks its closure is unchanged since c635fd68 and points at that frozen artifact.
++# Immutable once written. Every step's status is checked; no output filtering.
++set -euo pipefail
++unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
++HERE=$(cd "$(dirname "$0")" && pwd)
++SRC="$HERE/../custody-v2-durability-20261023/repo"
++COMMIT=c95dcd3aee901b503751c02918a687c83b227511
++BASE=/home/steven/enclave-prod/dist-custody-9e5fb2028
++FROZEN="$HERE/../custody-release/out"
++PATCHES="$HERE/../custody-v2-durability-20261023"
++VAULT=0xe48699b8401564aace7a814ae4569b67a3f7eef5; BOOK=0xab214342d5a490150a4a977063a2f88e21f80907; OWN=0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7
++OVMF_FILE=${OVMF:-$HOME/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd}
++export GOPROXY=off GOTOOLCHAIN_DOWNLOADS=off
++for d in out repo repo-b; do [ ! -e "$HERE/$d" ] || { echo "FAIL: $d exists"; exit 2; }; done
++mkdir -p "$HERE/out"
++echo "== inputs outside the repository: base and OVMF, as the c635fd68 release used them"
++check() { local got; got=$(sha256sum "$1" | cut -d' ' -f1); [ "$got" = "$2" ] || { echo "FAIL: $1 sha256 $got != $2"; exit 5; }; echo "ok $1 $got"; }
++check "$BASE/initramfs.cpio.gz" 7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5
++check "$BASE/vmlinuz" 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
++check "$OVMF_FILE" 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
++clone() {   # $1 checkout dir: an independent clone of the commit with its own offline lockfile install
++  git clone --no-local --no-hardlinks --quiet "$SRC" "$1"
++  git -C "$1" checkout --quiet --detach "$COMMIT"
++  git -C "$1" remote remove origin
++  [ "$(git -C "$1" rev-parse HEAD)" = "$COMMIT" ] || { echo "FAIL: $1 is not at $COMMIT"; exit 3; }
++  (cd "$1" && npm ci --offline --ignore-scripts --no-audit --no-fund --loglevel=warn && cd relay && npm ci --offline --ignore-scripts --no-audit --no-fund --loglevel=warn)
++}
++build() {   # $1 checkout, $2 output prefix
++  cd "$1"
++  [ -z "$(git status --porcelain)" ] || { echo "FAIL: $1 is not clean"; exit 3; }
++  echo "== $2: custodian (commit $(git rev-parse HEAD))"
++  node scripts/build-custodian-v2.mjs --base "$BASE" --out "$HERE/out/$2-custodian" --vault "$VAULT" --host-ownership "$OWN" --book "$BOOK" \
++    --host-policy release/host-policy-production.json > "$HERE/out/$2-custodian.log" 2>&1
++  echo "custodian exit=0"
++  node "$HERE/verify-custodian-v3.mjs" "$1" "$HERE/out/$2-custodian" "$FROZEN" "$PATCHES" "$HERE/out/$2-verify-v3.json"
++}
++echo "== A: clean clone, offline install"
++clone "$HERE/repo"
++build "$HERE/repo" A
++echo "== B: independent clean clone, offline install"
++clone "$HERE/repo-b"
++build "$HERE/repo-b" B
++echo "== A == B"
++cmp "$HERE/out/A-custodian/initramfs.cpio.gz" "$HERE/out/B-custodian/initramfs.cpio.gz"
++cmp "$HERE/out/A-custodian/vmlinuz" "$HERE/out/B-custodian/vmlinuz"
++cmp "$HERE/out/A-custodian/cmdline" "$HERE/out/B-custodian/cmdline"
++node -e "const a=require('$HERE/out/A-custodian/manifest.json'),b=require('$HERE/out/B-custodian/manifest.json');for(const f of ['measurement','measurementSha256','files','initramfs','kernel','cmdline','commit','bundleInputs'])if(JSON.stringify(a[f])!==JSON.stringify(b[f])){console.log('FAIL: custodian '+f+' differs');process.exit(4)}console.log('custodian: A == B ('+a.measurement+' / '+a.measurementSha256+')')"
++echo "PASS: custodian release built from $COMMIT, verified (v3) and independently reproduced; rewrap reused only as verified by v3"
+diff --git a/canary/ALLOCATION.txt b/canary/ALLOCATION.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0bb0c613475ccea0bdea865b581845082c4d7e97
+--- /dev/null
++++ b/canary/ALLOCATION.txt
+@@ -0,0 +1 @@
++One root-owned disposable SNP canary. Reuses the October21 reviewed root hardware allocation: 3072MiB guest within a 5120MiB cgroup and process-tree cap; both shared queue lanes exclusively; unchanged 16384MiB host reserve plus1024MiB admission margin. The 1536MiB helper limits ordinary build/test jobs and is unchanged. No Claude jobs may run concurrently. No production identity/state/key supplied, genesis=false, no submitter, no host registry key. Only canary-owned processes/state may be removed. This is quote-only evidence, not a secret lifecycle test. New measured image c95dcd3a/e01206d3; original vault and current platform authority preserved.
+diff --git a/canary/headroom-check.sh b/canary/headroom-check.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..37ecacf459a6e49ffc0b8086d58054c8e4858232
+--- /dev/null
++++ b/canary/headroom-check.sh
+@@ -0,0 +1,28 @@
++#!/bin/bash
++# READ-ONLY preflight for ONE quote-only SNP canary guest of a release image on THIS host. Changes nothing; never takes the
++# shared test queue's locks. Exit 0 only when every gate passes.
++#   headroom-check.sh <release image dir> <memMiB> <hostPort> <mgmtPort> <stateDir parent>
++set -uo pipefail
++DIST=$1 MEM=$2 HP=$3 MP=$4 STATE=$5
++OVMF=${OVMF:-$HOME/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd}
++FLOOR=16384 MARGIN=1024 ok=1
++gate() { if eval "$2"; then echo "PASS  $1"; else echo "FAIL  $1"; ok=0; fi; }
++sha() { sha256sum "$1" | cut -c1-64; }
++m() { node -e "console.log(require('$DIST/manifest.json')$1)"; }
++gate "SEV-SNP enabled in kvm_amd"                  '[ "$(cat /sys/module/kvm_amd/parameters/sev_snp 2>/dev/null)" = Y ]'
++gate "/dev/sev present and usable by this user"    '[ -r /dev/sev ] && [ -w /dev/sev ]'
++gate "release manifest role enclave-custodian-v2 or enclave-custody-rewrap" '[[ "$(m .role)" =~ ^(enclave-custodian-v2|enclave-custody-rewrap)$ ]]'
++gate "initramfs sha256 == manifest"                '[ "$(sha "$DIST/initramfs.cpio.gz")" = "$(m .initramfs.sha256)" ]'
++gate "vmlinuz sha256 == manifest"                  '[ "$(sha "$DIST/vmlinuz")" = "$(m .kernel.sha256)" ]'
++gate "OVMF sha256 == manifest (the measured firmware)" '[ "$(sha "$OVMF")" = "$(m .ovmfSha256)" ]'
++gate "cmdline file == manifest cmdline"            '[ "$(tr -d "\n" < "$DIST/cmdline")" = "$(m .cmdline)" ]'
++AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); NEED=$((FLOOR + MEM + MARGIN))
++gate "MemAvailable ${AVAIL} MiB >= ${FLOOR} reserve + ${MEM} guest + ${MARGIN} margin = ${NEED} MiB" '[ "$AVAIL" -ge "$NEED" ]'
++gate "loopback hostPort $HP free"                  '! ss -ltnH "sport = :$HP" | grep -q .'
++gate "loopback mgmtPort $MP free"                  '! ss -ltnH "sport = :$MP" | grep -q .'
++gate "state parent exists with >= 1 GiB free"      '[ -d "$STATE" ] && [ "$(df -Pm "$STATE" | awk "NR==2{print \$4}")" -ge 1024 ]'
++echo "info  running SNP guests: $(pgrep -fc 'sev-snp-guest' || true)"
++echo "info  shared test queue jobs running: $(pgrep -fc 'claude-test-queue.py' || true) (a canary should wait for a quiet window)"
++echo "info  release measurement $(m .measurement)"
++[ $ok = 1 ] && echo "PREFLIGHT PASS" || echo "PREFLIGHT FAIL"
++exit $((1 - ok))
+diff --git a/canary/root-hardware-canary.py b/canary/root-hardware-canary.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..de278da7bdb26966868ccc09ed3c145ff1c9d60c
+--- /dev/null
++++ b/canary/root-hardware-canary.py
+@@ -0,0 +1,131 @@
++#!/usr/bin/env python3
++"""One disposable, quote-only SNP guest; never a production activation.
++
++Root allocation: 5120 MiB, both shared queue lanes exclusively, 16 GiB reserve.
++The guest gets no registry or submitter key, committee, genesis or existing state.
++"""
++import datetime, fcntl, hashlib, json, os, pathlib, shutil, signal, subprocess, sys, time, urllib.request
++
++BASE = pathlib.Path(__file__).resolve().parents[2]
++CANARY = pathlib.Path(__file__).resolve().parent
++RUN = CANARY / 'root-hardware-20261023'
++DIST = CANARY.parent / 'out/A-custodian'
++REPO = CANARY.parent / 'repo'
++def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
++def save(name, value):
++    with (RUN / name).open('x') as f: json.dump(value, f, indent=2)
++def available():
++    return next(int(l.split()[1]) // 1024 for l in pathlib.Path('/proc/meminfo').read_text().splitlines() if l.startswith('MemAvailable:'))
++def qemus():
++    out = {}
++    for p in pathlib.Path('/proc').iterdir():
++        if not p.name.isdigit(): continue
++        try:
++            if not (p/'comm').read_text().startswith('qemu'): continue
++            st = (p/'stat').read_text(); out[p.name] = st[st.rfind(')')+2:].split()[19]
++        except (OSError, IndexError): pass
++    return out
++def child():
++    def interrupted(signum, frame): raise KeyboardInterrupt('canary interrupted')
++    signal.signal(signal.SIGTERM, interrupted)
++    signal.signal(signal.SIGINT, interrupted)
++    before = qemus(); save('protected-before.json', before)
++    state = RUN / 'state'
++    state.mkdir(mode=0o700)
++    cfg = dict(dist=str(DIST), ovmf='/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd',
++               sevDevice='/dev/sev', cpus=2, memMiB=3072, tunnelName='custody-release-canary',
++               endpoint='https://custody-release-canary.invalid', registryEndpoint='https://custody-release-canary.invalid',
++               hostPort=18970, mgmtPort=18971, stateDir=str(state), genesis=False,
++               vault='0xe48699b8401564aace7a814ae4569b67a3f7eef5', rpc='https://mainnet.base.org',
++               submitterKeyEnv='ENCLAVE_QUOTE_ONLY_NO_KEY')
++    save('config.json', cfg)
++    # A strict allowlist environment prevents accidental ambient signer/Node injection.
++    env = dict(PATH='/usr/local/bin:/usr/bin:/bin', HOME=os.environ['HOME'], LANG='C.UTF-8')
++    result = dict(startedAt=now(), quoteOnly=True, noRegistryKey=True, noSubmitterKey=True,
++                  noCommittee=True, genesis=False, productionActivated=False)
++    process = None
++    try:
++        with (RUN/'serial.log').open('x') as log:
++            process = subprocess.Popen(['node', str(REPO/'custody/v2/host.mjs'), str(RUN/'config.json')],
++                                       env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
++            save('launcher.json', dict(pid=process.pid, startedAt=now()))
++            deadline = time.monotonic()+240
++            info = None
++            while time.monotonic() < deadline:
++                if process.poll() is not None: raise RuntimeError('host launcher exited: '+str(process.returncode))
++                try:
++                    with urllib.request.urlopen('http://127.0.0.1:18971/v2/custody/info', timeout=2) as r:
++                        if r.status == 200: info=json.load(r); break
++                except Exception: pass
++                time.sleep(2)
++            if info is None: raise RuntimeError('guest evidence service did not become ready within 240 seconds')
++            save('guest-info.json', info)
++            with (RUN/'verify.log').open('x') as log:
++                verified = subprocess.run(['node', str(CANARY/'verify-custodian-quote.mjs'), '--manifest', str(DIST/'manifest.json'),
++                    '--source', str(REPO), '--url', 'http://127.0.0.1:18971', '--out', str(RUN/'verdict.json')],
++                    env=env, stdout=log, stderr=subprocess.STDOUT, timeout=65)
++            result['verifierExit']=verified.returncode
++            if (RUN/'verdict.json').exists(): result['verdict']=json.loads((RUN/'verdict.json').read_text())
++            result['ok']=verified.returncode==0 and result.get('verdict',{}).get('ok') is True
++    except Exception as e:
++        result.update(ok=False, error=str(e))
++    finally:
++        if process is not None:
++            try: os.killpg(process.pid, signal.SIGTERM)
++            except ProcessLookupError: pass
++            try: process.wait(timeout=6)
++            except subprocess.TimeoutExpired:
++                os.killpg(process.pid, signal.SIGKILL); process.wait(timeout=3)
++            # A successful host exit is not sufficient to prove its guest exited.
++            try: os.killpg(process.pid, signal.SIGKILL)
++            except ProcessLookupError: pass
++        after=qemus(); save('protected-after.json',after)
++        result['protectedQemuIdentitiesUnchanged']=before==after
++        result['finishedAt']=now()
++        # Only this run's fresh sealed identity and fw_cfg are disposable.
++        shutil.rmtree(state)
++        result['freshStateRemoved']=not state.exists()
++        save('result.json',result)
++    print(json.dumps({k:v for k,v in result.items() if k!='verdict'},indent=2),flush=True)
++    return 0 if result.get('ok') and result['protectedQemuIdentitiesUnchanged'] else 1
++
++def main():
++    if sys.argv[1:]==['--child']: return child()
++    locks=[]
++    for name in ['claude-test-queue.lock','claude-test-small-queue.lock']:
++        f=(BASE/name).open('a+')
++        try: fcntl.flock(f, fcntl.LOCK_EX|fcntl.LOCK_NB)
++        except BlockingIOError:
++            print('NOT STARTED: shared test lane busy',flush=True); return 98
++        locks.append(f)
++    if available()<16384+5120+1024:
++        print('NOT STARTED: reserve unavailable',flush=True); return 98
++    RUN.mkdir(mode=0o700) # Never silently repeat a prior attempt.
++    pre=subprocess.run(['bash',str(CANARY/'headroom-check.sh'),str(DIST),'3072','18970','18971',str(RUN)],capture_output=True,text=True)
++    (RUN/'preflight.log').write_text(pre.stdout+pre.stderr)
++    if pre.returncode: return pre.returncode
++    paths=[DIST/'manifest.json',DIST/'vmlinuz',DIST/'initramfs.cpio.gz',DIST/'cmdline',REPO/'custody/v2/host.mjs',CANARY/'verify-custodian-quote.mjs',pathlib.Path(__file__),
++           pathlib.Path('/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd')]
++    save('attempt.json',dict(at=now(),memoryCapMiB=5120,reserveMiB=16384,exclusiveBothQueueLanes=True,
++        hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}))
++    cmd=['systemd-run','--user','--scope','--quiet','--unit=enclave-custody-quote-canary-20261023',
++         '-p','MemoryMax=5120M','-p','MemorySwapMax=0','node',str(BASE/'enclave/test/helpers/memory-guard.mjs'),
++         '--max-rss-mib','5120','--floor-available-mib','16384','--log',str(RUN/'memory.log'),'--',
++         'timeout','--signal=TERM','--kill-after=20s','330s','python3',str(pathlib.Path(__file__).resolve()),'--child']
++    with (RUN/'execution.log').open('x') as out:
++        p=subprocess.Popen(cmd,stdout=out,stderr=subprocess.STDOUT)
++        code=p.wait()
++    # The scope's cgroup holds every process this run started (host launcher, QEMU, verifier), whatever its session:
++    # stop it (kills any survivor; a no-op when empty), then prove no QEMU of THIS run's state dir remains.
++    stop=subprocess.run(['systemctl','--user','stop','enclave-custody-quote-canary-20261023.scope'],capture_output=True,text=True,timeout=30)
++    survivors=[]
++    for d in pathlib.Path('/proc').iterdir():
++        if not d.name.isdigit(): continue
++        try: cl=(d/'cmdline').read_bytes().replace(b'\0',b' ').decode('utf8','replace')
++        except OSError: continue
++        if str(RUN) in cl and d.name!=str(os.getpid()): survivors.append(d.name)
++    if survivors and code==0: code=1
++    save('terminal.json',dict(at=now(),exitCode=code,scopeStop=stop.returncode,survivors=survivors))
++    print('CANARY TERMINAL',code,str(RUN),flush=True)
++    return code
++if __name__=='__main__': sys.exit(main())
+diff --git a/canary/verify-custodian-quote.mjs b/canary/verify-custodian-quote.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..652d945ed6420a8de0cc91fdc23d5a3052f9cf18
+--- /dev/null
++++ b/canary/verify-custodian-quote.mjs
+@@ -0,0 +1,58 @@
++// QUOTE-ONLY hardware canary verifier for the RELEASE custodian image (no committee, no registration, no keys).
++// Verifies the guest's /v2/custody/evidence answer for a FRESH nonce exactly as the custodian daemon verifies a peer
++// (custody/v2/daemon.mjs verifyPeerQuote -> relay/snp-verify.mjs verifyQuote: VCEK chain to AMD's pinned roots, AMD KDS
++// collateral, TCB floor, VMPL0, report_data = machineBinding(machine, nonce)), and additionally that:
++//   - the report's launch measurement == the RELEASE manifest's measurement (and nothing else),
++//   - the machine record's measurement == sha256(that measurement) (what the vault would record at genesis),
++//   - the guest's HOST_DATA, policy and chip id are reported (not judged: quote-only).
++//   node verify-custodian-quote.mjs --manifest <release dir>/manifest.json (--url http://127.0.0.1:<mgmtPort> | --evidence ev.json --nonce <hex>) [--out verdict.json]
++// --url: asks the guest for evidence over the host's LOOPBACK port forward with a fresh random nonce (nothing else).
++import fs from "node:fs";
++import path from "node:path";
++import { createHash, randomBytes } from "node:crypto";
++import { fileURLToPath } from "node:url";
++const arg = (n, d) => { const i = process.argv.indexOf("--" + n); return i > 0 ? process.argv[i + 1] : d; };
++const SRC = path.resolve(arg("source", path.join(path.dirname(fileURLToPath(import.meta.url)), "../repo")));
++const { verifyQuote, parseSnpReport } = await import(path.join(SRC, "relay/snp-verify.mjs"));
++const { machineBinding } = await import(path.join(SRC, "custody/v2/member.mjs"));
++const { DEFAULT_MIN_TCB } = await import(path.join(SRC, "custody/rules.mjs"));
++const sha = (b) => "0x" + createHash("sha256").update(b).digest("hex");
++
++export async function verifyCustodianQuote({ manifest, evidence, nonce, verify = verifyQuote }) {
++  const out = { ok: false, reasons: [], expected: { measurement: manifest.measurement, measurementSha256: manifest.measurementSha256, commit: manifest.commit } };
++  if (manifest.role !== "enclave-custodian-v2" || !/^[0-9a-f]{96}$/.test(String(manifest.measurement))) { out.reasons.push("not a measured custodian release manifest"); return out; }
++  if (!/^[0-9a-f]{64}$/.test(String(nonce))) { out.reasons.push("nonce: 32 bytes hex"); return out; }
++  if (!evidence || !evidence.machine || typeof evidence.report !== "string") { out.reasons.push("evidence: {machine, report} required"); return out; }
++  let report; try { report = Buffer.from(evidence.report, "base64"); parseSnpReport(report); } catch (e) { out.reasons.push(`report: ${e.message}`); return out; }
++  const binding = machineBinding(evidence.machine, Buffer.from(nonce, "hex"));
++  const v = await verify(report, { challenge: Buffer.alloc(32, 1), transportKeySpki: Buffer.alloc(32, 1), expectedBinding: Buffer.from(binding),
++    allowedMeasurements: [manifest.measurement], auxblob: evidence.auxblob ? Buffer.from(evidence.auxblob, "base64") : null, requireVcek: true, minTcb: DEFAULT_MIN_TCB, expectedVmpl: 0 });
++  out.verifier = { ok: v.ok, reasons: v.reasons };
++  if (!v.ok) { out.reasons.push(`verifyQuote: ${v.reasons.at(-1)}`); return out; }
++  const p = parseSnpReport(report);
++  out.observed = { measurement: p.measurement.toString("hex"), hostData: report.subarray(0xc0, 0xe0).toString("hex"), policy: "0x" + p.policy.toString(16), vmpl: p.vmpl,
++                   chipIdSha256: sha(p.chipId), machine: evidence.machine };
++  if (out.observed.measurement !== manifest.measurement) out.reasons.push("the quoted launch measurement is not the release measurement");
++  if (String(evidence.machine.measurement).toLowerCase() !== sha(p.measurement)) out.reasons.push("the machine record's measurement is not sha256 of the quoted one");
++  if ((p.policy >> 19n) & 1n) out.reasons.push("the guest policy allows DEBUG");
++  out.ok = out.reasons.length === 0;
++  return out;
++}
++
++if (process.argv[1] === fileURLToPath(import.meta.url)) {
++  const manifest = JSON.parse(fs.readFileSync(arg("manifest"), "utf8"));
++  let nonce = arg("nonce"), evidence;
++  if (arg("url")) {
++    const u = new URL(arg("url"));
++    if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) throw new Error("--url must be the host's loopback port forward");
++    nonce = randomBytes(32).toString("hex");
++    const r = await fetch(`${u.origin}/v2/custody/evidence`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nonce }), signal: AbortSignal.timeout(20000) });
++    evidence = await r.json();
++    if (!r.ok) throw new Error(`evidence: ${r.status} ${JSON.stringify(evidence).slice(0, 200)}`);
++  } else evidence = JSON.parse(fs.readFileSync(arg("evidence"), "utf8"));
++  const verdict = await verifyCustodianQuote({ manifest, evidence, nonce });
++  verdict.nonce = nonce; verdict.checkedAt = new Date().toISOString();
++  if (arg("out")) fs.writeFileSync(arg("out"), JSON.stringify(verdict, null, 1) + "\n", { flag: "wx" });
++  console.log(JSON.stringify({ ok: verdict.ok, reasons: verdict.reasons, measurement: verdict.observed?.measurement }, null, 1));
++  process.exit(verdict.ok ? 0 : 1);
++}
+diff --git a/cpio-entries.mjs b/cpio-entries.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e0972c1784be9c21439211f0f856c54770ab810b
+--- /dev/null
++++ b/cpio-entries.mjs
+@@ -0,0 +1,29 @@
++// cpio-entries.mjs: stream a newc initramfs.cpio.gz and return the named entries' bytes (others are skipped, never held).
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import zlib from "node:zlib";
++export async function cpioEntries(file, wanted) {
++  const want = new Set(wanted), out = {};
++  const it = fs.createReadStream(file).pipe(zlib.createGunzip())[Symbol.asyncIterator]();
++  let buf = Buffer.alloc(0);
++  const fill = async (n) => { while (buf.length < n) { const { value, done } = await it.next(); if (done) throw new Error("truncated cpio"); buf = buf.length ? Buffer.concat([buf, value]) : value; } };
++  const take = async (n) => { await fill(n); const o = buf.subarray(0, n); buf = buf.subarray(n); return o; };
++  const skip = async (n) => { while (n > 0) { if (!buf.length) { const { value, done } = await it.next(); if (done) throw new Error("truncated cpio"); buf = value; } const k = Math.min(n, buf.length); buf = buf.subarray(k); n -= k; } };
++  for (;;) {
++    const h = await take(110);
++    if (h.subarray(0, 6).toString() !== "070701") throw new Error("not newc cpio");
++    const size = parseInt(h.subarray(54, 62).toString(), 16), ns = parseInt(h.subarray(94, 102).toString(), 16);
++    const name = (await take(ns + ((4 - ((110 + ns) % 4)) % 4))).subarray(0, ns - 1).toString().replace(/^\.\//, "");
++    if (name === "TRAILER!!!") break;
++    const pad = (4 - (size % 4)) % 4;
++    if (want.has(name)) { out[name] = Buffer.from(await take(size)); await skip(pad); } else await skip(size + pad);
++  }
++  return out;
++}
++if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]) && process.argv[2]) {
++  const e = await cpioEntries(process.argv[2], ["opt/custodian/custodian.mjs"]);
++  const js = e["opt/custodian/custodian.mjs"].toString();
++  const i = js.indexOf("0xe48699b8401564aace7a814ae4569b67a3f7eef5");
++  console.log(js.length, i, JSON.stringify(js.slice(Math.max(0, i - 300), i + 1500)));
++}
+diff --git a/evidence/A-manifest.json b/evidence/A-manifest.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..981218e391badcbea682e90f1cd0d35b898d71da
+--- /dev/null
++++ b/evidence/A-manifest.json
+@@ -0,0 +1,112 @@
++{
++  "role": "enclave-custodian-v2",
++  "commit": "c95dcd3aee901b503751c02918a687c83b227511",
++  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "base": {
++    "dir": "dist-custody-9e5fb2028",
++    "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
++    "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "independentOwners": null,
++  "independentPolicy": null,
++  "transport": "direct",
++  "shieldRecipients": null,
++  "trustedProxies": null,
++  "bundleInputs": {
++    "repo": [
++      "availability/evidence.mjs",
++      "custody/chain.mjs",
++      "custody/custodian.mjs",
++      "custody/hpke.mjs",
++      "custody/protocol.mjs",
++      "custody/rules.mjs",
++      "custody/threshold.mjs",
++      "custody/v2/admission.mjs",
++      "custody/v2/capacity.mjs",
++      "custody/v2/chain.mjs",
++      "custody/v2/custodian.mjs",
++      "custody/v2/cvm-gsup.mjs",
++      "custody/v2/daemon.mjs",
++      "custody/v2/digests.mjs",
++      "custody/v2/governance.mjs",
++      "custody/v2/host-config.mjs",
++      "custody/v2/http.mjs",
++      "custody/v2/independent-genesis.mjs",
++      "custody/v2/independent-runtime.mjs",
++      "custody/v2/measured.mjs",
++      "custody/v2/member.mjs",
++      "custody/v2/process-plan.mjs",
++      "custody/v2/protocol.mjs",
++      "custody/v2/quorum.mjs",
++      "custody/v2/sealed-state.mjs",
++      "custody/v2/shield-evidence.mjs",
++      "custody/v2/shield-operator.mjs",
++      "custody/v2/shield-rules.mjs",
++      "custody/verifiers.mjs",
++      "isolation/contract/runtime.mjs",
++      "network/host-policy-mirrors.mjs",
++      "network/platform-host-policy.mjs",
++      "network/rpc-identity.mjs",
++      "relay/avf-verify.mjs",
++      "relay/hvnode-core.mjs",
++      "relay/hvnode-verify.mjs",
++      "relay/shield-host-session.mjs",
++      "relay/snp-verify.mjs",
++      "relay/vbs-app-core.mjs",
++      "relay/vbs-credential.mjs",
++      "relay/vbs-policy.mjs",
++      "relay/vbs-tcglog-core.mjs",
++      "relay/vbs-tcglog.mjs",
++      "relay/vbs-tpm.mjs",
++      "relay/vbs-verify.mjs",
++      "relay/vbs-vm-report-core.mjs",
++      "relay/vbs-vm-report.mjs",
++      "verifier/collateral-cache.mjs",
++      "verifier/collateral.mjs",
++      "verifier/consumer.mjs",
++      "verifier/der.mjs",
++      "verifier/envelope.mjs",
++      "verifier/metal-box.mjs",
++      "verifier/snp.mjs",
++      "verifier/tls-binding.mjs",
++      "windows/node/hvnode-evidence.mjs",
++      "windows/node/shield-verdict.mjs"
++    ],
++    "packages": [
++      "@noble/ciphers@1.3.0",
++      "@noble/curves@1.9.1",
++      "@noble/hashes@1.8.0",
++      "@scure/base@1.2.6",
++      "@scure/bip32@1.7.0",
++      "@scure/bip39@1.6.0",
++      "abitype@1.2.3",
++      "isows@1.0.7",
++      "ox@0.14.29",
++      "ox@0.14.30",
++      "viem@2.53.1",
++      "viem@2.54.3",
++      "ws@8.21.0",
++      "ws@8.21.1"
++    ]
++  },
++  "bundler": "esbuild@0.28.1",
++  "dkgBuild": null,
++  "files": {
++    "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
++    "/opt/custodian/custodian.mjs": "722a93e52b1d1c31599102d8f99c111ffb4fe095da4d7384c47c9306bae96475",
++    "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
++  },
++  "kernel": {
++    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "initramfs": {
++    "sha256": "56711f82f32cb23f7a75ef6f6c30c4b559444c2d0dac15158f99239fe5407ecb",
++    "bytes": 280104499
++  },
++  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
++  "vcpus": 2,
++  "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
++  "measurementSha256": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1",
++  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
++}
+diff --git a/evidence/B-manifest.json b/evidence/B-manifest.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..981218e391badcbea682e90f1cd0d35b898d71da
+--- /dev/null
++++ b/evidence/B-manifest.json
+@@ -0,0 +1,112 @@
++{
++  "role": "enclave-custodian-v2",
++  "commit": "c95dcd3aee901b503751c02918a687c83b227511",
++  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "base": {
++    "dir": "dist-custody-9e5fb2028",
++    "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
++    "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "independentOwners": null,
++  "independentPolicy": null,
++  "transport": "direct",
++  "shieldRecipients": null,
++  "trustedProxies": null,
++  "bundleInputs": {
++    "repo": [
++      "availability/evidence.mjs",
++      "custody/chain.mjs",
++      "custody/custodian.mjs",
++      "custody/hpke.mjs",
++      "custody/protocol.mjs",
++      "custody/rules.mjs",
++      "custody/threshold.mjs",
++      "custody/v2/admission.mjs",
++      "custody/v2/capacity.mjs",
++      "custody/v2/chain.mjs",
++      "custody/v2/custodian.mjs",
++      "custody/v2/cvm-gsup.mjs",
++      "custody/v2/daemon.mjs",
++      "custody/v2/digests.mjs",
++      "custody/v2/governance.mjs",
++      "custody/v2/host-config.mjs",
++      "custody/v2/http.mjs",
++      "custody/v2/independent-genesis.mjs",
++      "custody/v2/independent-runtime.mjs",
++      "custody/v2/measured.mjs",
++      "custody/v2/member.mjs",
++      "custody/v2/process-plan.mjs",
++      "custody/v2/protocol.mjs",
++      "custody/v2/quorum.mjs",
++      "custody/v2/sealed-state.mjs",
++      "custody/v2/shield-evidence.mjs",
++      "custody/v2/shield-operator.mjs",
++      "custody/v2/shield-rules.mjs",
++      "custody/verifiers.mjs",
++      "isolation/contract/runtime.mjs",
++      "network/host-policy-mirrors.mjs",
++      "network/platform-host-policy.mjs",
++      "network/rpc-identity.mjs",
++      "relay/avf-verify.mjs",
++      "relay/hvnode-core.mjs",
++      "relay/hvnode-verify.mjs",
++      "relay/shield-host-session.mjs",
++      "relay/snp-verify.mjs",
++      "relay/vbs-app-core.mjs",
++      "relay/vbs-credential.mjs",
++      "relay/vbs-policy.mjs",
++      "relay/vbs-tcglog-core.mjs",
++      "relay/vbs-tcglog.mjs",
++      "relay/vbs-tpm.mjs",
++      "relay/vbs-verify.mjs",
++      "relay/vbs-vm-report-core.mjs",
++      "relay/vbs-vm-report.mjs",
++      "verifier/collateral-cache.mjs",
++      "verifier/collateral.mjs",
++      "verifier/consumer.mjs",
++      "verifier/der.mjs",
++      "verifier/envelope.mjs",
++      "verifier/metal-box.mjs",
++      "verifier/snp.mjs",
++      "verifier/tls-binding.mjs",
++      "windows/node/hvnode-evidence.mjs",
++      "windows/node/shield-verdict.mjs"
++    ],
++    "packages": [
++      "@noble/ciphers@1.3.0",
++      "@noble/curves@1.9.1",
++      "@noble/hashes@1.8.0",
++      "@scure/base@1.2.6",
++      "@scure/bip32@1.7.0",
++      "@scure/bip39@1.6.0",
++      "abitype@1.2.3",
++      "isows@1.0.7",
++      "ox@0.14.29",
++      "ox@0.14.30",
++      "viem@2.53.1",
++      "viem@2.54.3",
++      "ws@8.21.0",
++      "ws@8.21.1"
++    ]
++  },
++  "bundler": "esbuild@0.28.1",
++  "dkgBuild": null,
++  "files": {
++    "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
++    "/opt/custodian/custodian.mjs": "722a93e52b1d1c31599102d8f99c111ffb4fe095da4d7384c47c9306bae96475",
++    "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
++  },
++  "kernel": {
++    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "initramfs": {
++    "sha256": "56711f82f32cb23f7a75ef6f6c30c4b559444c2d0dac15158f99239fe5407ecb",
++    "bytes": 280104499
++  },
++  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
++  "vcpus": 2,
++  "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
++  "measurementSha256": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1",
++  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
++}
+diff --git a/evidence/attempt.json b/evidence/attempt.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a1849bbecd926ebbf8dba60b78d1ccf7d54edd3
+--- /dev/null
++++ b/evidence/attempt.json
+@@ -0,0 +1,16 @@
++{
++  "at": "2026-10-23T19:31:04.200178+00:00",
++  "memoryCapMiB": 5120,
++  "reserveMiB": 16384,
++  "exclusiveBothQueueLanes": true,
++  "hashes": {
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/manifest.json": "b16d2eae453a161bc508b1b4e93c7c644e6b8607d8a8ac816ad74cffd726802d",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/initramfs.cpio.gz": "56711f82f32cb23f7a75ef6f6c30c4b559444c2d0dac15158f99239fe5407ecb",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/cmdline": "17a9bc3bc93234905381927cbbcf17522b85a3a2596f9a4b320966259d604827",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo/custody/v2/host.mjs": "745523476b7a8bc5d3f896addf36bd2cc3739be9dadeee569fb4e88e4e5b06bb",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/verify-custodian-quote.mjs": "5acfa74a659c95cf7706a783558f8d0bf392d7588d99940e05876d7e26050579",
++    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/root-hardware-canary.py": "89a8220662ec9e89c465bab1de4f42fc29038d1e846b3818e62ccbf6ed0d38c4",
++    "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
++  }
++}
+\ No newline at end of file
+diff --git a/evidence/protected-after.json b/evidence/protected-after.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c39206786f4a4a4ae1ace96031eccdada408052
+--- /dev/null
++++ b/evidence/protected-after.json
+@@ -0,0 +1,6 @@
++{
++  "2087833": "101999677",
++  "3483499": "87503396",
++  "3817658": "32598976",
++  "4061343": "107537939"
++}
+\ No newline at end of file
+diff --git a/evidence/protected-before.json b/evidence/protected-before.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c39206786f4a4a4ae1ace96031eccdada408052
+--- /dev/null
++++ b/evidence/protected-before.json
+@@ -0,0 +1,6 @@
++{
++  "2087833": "101999677",
++  "3483499": "87503396",
++  "3817658": "32598976",
++  "4061343": "107537939"
++}
+\ No newline at end of file
+diff --git a/evidence/result.json b/evidence/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce41f36f4beb4d84ca34d2f617d30743bc498784
+--- /dev/null
++++ b/evidence/result.json
+@@ -0,0 +1,52 @@
++{
++  "startedAt": "2026-10-23T19:31:04.553989+00:00",
++  "quoteOnly": true,
++  "noRegistryKey": true,
++  "noSubmitterKey": true,
++  "noCommittee": true,
++  "genesis": false,
++  "productionActivated": false,
++  "verifierExit": 0,
++  "verdict": {
++    "ok": true,
++    "reasons": [],
++    "expected": {
++      "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
++      "measurementSha256": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1",
++      "commit": "c95dcd3aee901b503751c02918a687c83b227511"
++    },
++    "verifier": {
++      "ok": true,
++      "reasons": [
++        "report is from VMPL0 (full privilege inside the CVM)",
++        "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
++        "measurement on Metal release allowlist",
++        "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
++        "AMD signature chain verified (VCEK KDS/Turin \u2192 ASK \u2192 ARK, Turin)",
++        "VCEK chip ID and TCB extensions match the report",
++        "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
++      ]
++    },
++    "observed": {
++      "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
++      "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
++      "policy": "0x30000",
++      "vmpl": 0,
++      "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++      "machine": {
++        "identity": "0xd7d539b09e82c5d3abd90b28c6495dd507b41299",
++        "encKey": "0xc6eac8731b17ccc8ced734f526fd9faf545a37d7139b2df62985aa70bdb88008",
++        "endpoint": "https://custody-release-canary.invalid",
++        "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
++        "registryId": "0x0fcd528cd5feab2ff62ea9489203a28075cc90b194ec041d2d676bbc47d8f2f0",
++        "measurement": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1"
++      }
++    },
++    "nonce": "4186e020845a7188f53ddd47c181645082620cfeb04bf7d0518602d3ead6fb81",
++    "checkedAt": "2026-10-23T19:31:21.278Z"
++  },
++  "ok": true,
++  "protectedQemuIdentitiesUnchanged": true,
++  "finishedAt": "2026-10-23T19:31:24.365782+00:00",
++  "freshStateRemoved": true
++}
+\ No newline at end of file
+diff --git a/evidence/terminal.json b/evidence/terminal.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7b71f54d7b68843c561b5b94bfa07b70cc226a41
+--- /dev/null
++++ b/evidence/terminal.json
+@@ -0,0 +1,6 @@
++{
++  "at": "2026-10-23T19:31:24.391081+00:00",
++  "exitCode": 0,
++  "scopeStop": 5,
++  "survivors": []
++}
+\ No newline at end of file
+diff --git a/out/A-verify-v3.json b/out/A-verify-v3.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..86a42c8cdc3aa666de53522f6a364e7abe533d3f
+--- /dev/null
++++ b/out/A-verify-v3.json
+@@ -0,0 +1,765 @@
++{
++ "releaseCommit": "c95dcd3aee901b503751c02918a687c83b227511",
++ "clean": true,
++ "lineage": {
++  "from": "c635fd68515b46c53935ef344e3b4c4779d8067c",
++  "commits": [
++   "ed0c536dde2bab4de8414fee74f7c45f94adfc87",
++   "415483ff9784c38a88b273363a7efd0c227b95ce",
++   "3ccd4333c99b5e486215e69d13aafdcb55e9d8ca",
++   "0a6b108eeb43202be4903a1385636a18ac4c537e",
++   "c95dcd3aee901b503751c02918a687c83b227511"
++  ],
++  "changed": [
++   "custody/v2/daemon.mjs",
++   "custody/v2/member.mjs",
++   "custody/v2/sealed-state.mjs",
++   "docs/security/secret-custody-v2.md",
++   "test/custody-v2-e2e.test.mjs",
++   "test/custody-v2-genesis-intent.test.mjs",
++   "test/custody-v2-persist-barrier.test.mjs",
++   "test/fixtures/EnclaveRegistry.schema4.sol",
++   "test/helpers/original-vault-rig.mjs"
++  ],
++  "patches": [
++   {
++    "range": "c635fd68515b46c53935ef344e3b4c4779d8067c..415483ff",
++    "file": "custody-v2-durability.patch",
++    "sha256": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17",
++    "frozenFile": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17",
++    "reviewed": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17"
++   },
++   {
++    "range": "415483ff..0a6b108e",
++    "file": "custody-v2-durability-followup.patch",
++    "sha256": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09",
++    "frozenFile": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09",
++    "reviewed": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09"
++   },
++   {
++    "range": "0a6b108e..c95dcd3a",
++    "file": "custody-v2-genesis-intent.patch",
++    "sha256": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263",
++    "frozenFile": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263",
++    "reviewed": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263"
++   }
++  ]
++ },
++ "image": {
++  "commit": "c95dcd3aee901b503751c02918a687c83b227511",
++  "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
++  "measurementSha256": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1",
++  "initramfs": {
++   "sha256": "56711f82f32cb23f7a75ef6f6c30c4b559444c2d0dac15158f99239fe5407ecb",
++   "bytes": 280104499
++  },
++  "files": {
++   "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
++   "/opt/custodian/custodian.mjs": "722a93e52b1d1c31599102d8f99c111ffb4fe095da4d7384c47c9306bae96475",
++   "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
++  },
++  "base": {
++   "dir": "dist-custody-9e5fb2028",
++   "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
++   "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
++  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
++  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
++  "vcpus": 2,
++  "bundler": "esbuild@0.28.1",
++  "role": "enclave-custodian-v2",
++  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "transport": "direct",
++  "dkgBuild": null,
++  "independentPolicy": null,
++  "shieldRecipients": null,
++  "trustedProxies": null,
++  "inputs": [
++   {
++    "path": "availability/evidence.mjs",
++    "sha256": "a17da0461510f08726a8c00843b70d7c42da682de2c65f46ad0891df48c905cb",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/chain.mjs",
++    "sha256": "f0349c4f36e73e4e10e10d0a0a22da695383ec8db702e9a96246ed9adc1c689b",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/custodian.mjs",
++    "sha256": "46563b843ba4dd0c4e753dc1da7f60a1b0146fb018fc30cee5f8426d7a85ab19",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/hpke.mjs",
++    "sha256": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/protocol.mjs",
++    "sha256": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/rules.mjs",
++    "sha256": "f35635aa4103f8075e3fcccc0be95b6c50f2d66240e95041509feeb17c7d694d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/threshold.mjs",
++    "sha256": "9c7f912e7dc38e1bf58e196bce2eaf4292219aef7dfa91b8d7813b102919844a",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/admission.mjs",
++    "sha256": "77c5454ad1d459770e1ece7fc094f469de810e70cc525059df38be41272c9756",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/capacity.mjs",
++    "sha256": "198ed0e0c6a65eac89a9c743d70c9b821e87b6c59c0c41a3b9fe94f55633d6c3",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/chain.mjs",
++    "sha256": "c85d3d820fd91613422580857c12477ec211c10c6af6a9d233543edb447fead9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/custodian.mjs",
++    "sha256": "320453fc802f4c9bf49058ab0219c60779b42df52de6fc5653f7228015bc285c",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/cvm-gsup.mjs",
++    "sha256": "a1d8528cc307b2aedaa0bbfaee6960a1100ad57327d1fb84e34c27028eb82562",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/daemon.mjs",
++    "sha256": "567187476278356f85707d987f9f3b9a31db5516f3f4f70a708833800350dd9d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": false,
++    "reviewedChange": true
++   },
++   {
++    "path": "custody/v2/digests.mjs",
++    "sha256": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/governance.mjs",
++    "sha256": "54ffac99c67ec86e248d40e081e01080a11c630b6eae758e49d09ef724ef50d9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/host-config.mjs",
++    "sha256": "05771b528710d7e51568106a70c54b7515ac8e2498735bca0fee74ed9ae2c93a",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/http.mjs",
++    "sha256": "541ba49b4b549ea974fb07c22c7bdca6ef0c04cde0992ce1ffa1623737e5a23c",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/independent-genesis.mjs",
++    "sha256": "004da08a92de8e75795b7e32e4a2212034b11a28dc54ea1fd023b835c399239e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/independent-runtime.mjs",
++    "sha256": "3ae542d200a6c6aedd7afda2c7e9b6afd74b9a9b5d8f7e9a4018917df5566d2c",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/measured.mjs",
++    "sha256": "a9a758e6846bd61cab18ede279c6dc93ef099ebc51fde89b5e8ed72b0d8a060e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/member.mjs",
++    "sha256": "1925b289405b7e083f630b0d70cceb8a73f23c09ebabdbddf6a2b3ef1d39e8ab",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": false,
++    "reviewedChange": true
++   },
++   {
++    "path": "custody/v2/process-plan.mjs",
++    "sha256": "2721f23d41b2942d5bfb52585bb1c7f5627673d70ba873b5ac88fd46df7d597e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/protocol.mjs",
++    "sha256": "d30852c2b227760f95a900b2240355c507173e81f221b38219e34a3f8def38e4",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/quorum.mjs",
++    "sha256": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/sealed-state.mjs",
++    "sha256": "634809fee730b9acd69d2eaf426d8a3364f18abb5b95ae1270fa057e5da4e79e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": false,
++    "reviewedChange": true
++   },
++   {
++    "path": "custody/v2/shield-evidence.mjs",
++    "sha256": "641b183f9b59044f826263c02cc031b2e4b0c9e84edfc373f9cb3a60d818e580",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/shield-operator.mjs",
++    "sha256": "0c146e20f3b288b9780ae9e26b51c1a9154b1c32d26cddef04b46011ef3fbcd9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/shield-rules.mjs",
++    "sha256": "d3f857d1a75243c1262cb62b3fc44325246a7bcc35ec44ba388599f0c4c14ef9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/verifiers.mjs",
++    "sha256": "3c0553b58a18239213bfc43dbc8b78aa079270a0a6eaab793eb3eba3432ad873",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "isolation/contract/runtime.mjs",
++    "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "network/host-policy-mirrors.mjs",
++    "sha256": "d7295d3806f00304d1ebb596fd380857a0f6b4a2702cb5f8e04427cfb4207660",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "network/platform-host-policy.mjs",
++    "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "network/rpc-identity.mjs",
++    "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/avf-verify.mjs",
++    "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/hvnode-core.mjs",
++    "sha256": "a69967f96af7324f409745fec29f0697b90e9da49037b5f8ff74e7deb26cd970",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/hvnode-verify.mjs",
++    "sha256": "b0155ae296bb3e8cb3a9e54eaaed989d341253031f34b1c69576a6039d1334a7",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/shield-host-session.mjs",
++    "sha256": "60d9ad86522d1e48ffe7d4b83628c7ce7af2bda06338595018114d8bb1d7cdef",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/snp-verify.mjs",
++    "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-app-core.mjs",
++    "sha256": "4d6130154e61f994898df5b869f9d4e332eb2b437204a5c631c1ac53e9978f70",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-credential.mjs",
++    "sha256": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-policy.mjs",
++    "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-tcglog-core.mjs",
++    "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-tcglog.mjs",
++    "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-tpm.mjs",
++    "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-verify.mjs",
++    "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-vm-report-core.mjs",
++    "sha256": "5c0fca2992494d985c6ac83d44c6a185e71ac83d0b9c232320da77db9609e314",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-vm-report.mjs",
++    "sha256": "974cbe2f5d2a37edfc4362b3f922d7e4ee178d309adfdd37584d159576e63775",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/collateral-cache.mjs",
++    "sha256": "eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/collateral.mjs",
++    "sha256": "c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/consumer.mjs",
++    "sha256": "907e40bfd42529aa907c3267b7ec0cb9652d9c250b196e00c1508a7e460608e1",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/der.mjs",
++    "sha256": "3606e988e4d340973c105fdc7fc0ee39db13034419561fbbe2e0ee396ade9775",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/envelope.mjs",
++    "sha256": "ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/metal-box.mjs",
++    "sha256": "6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/snp.mjs",
++    "sha256": "beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/tls-binding.mjs",
++    "sha256": "f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "windows/node/hvnode-evidence.mjs",
++    "sha256": "5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "windows/node/shield-verdict.mjs",
++    "sha256": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   }
++  ],
++  "inputsAddedSincePrev": [
++   "custody/v2/sealed-state.mjs"
++  ],
++  "inputsRemovedSincePrev": [],
++  "sourceCheck": {
++   "untracked": [],
++   "dirty": "",
++   "paths": 65
++  },
++  "packages": [
++   {
++    "package": "@noble/ciphers@1.3.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==",
++     "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw=="
++    ]
++   },
++   {
++    "package": "@noble/curves@1.9.1",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==",
++     "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA=="
++    ]
++   },
++   {
++    "package": "@noble/hashes@1.8.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==",
++     "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="
++    ]
++   },
++   {
++    "package": "@scure/base@1.2.6",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==",
++     "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg=="
++    ]
++   },
++   {
++    "package": "@scure/bip32@1.7.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==",
++     "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw=="
++    ]
++   },
++   {
++    "package": "@scure/bip39@1.6.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==",
++     "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A=="
++    ]
++   },
++   {
++    "package": "abitype@1.2.3",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==",
++     "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg=="
++    ]
++   },
++   {
++    "package": "isows@1.0.7",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
++     "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg=="
++    ]
++   },
++   {
++    "package": "ox@0.14.29",
++    "lockfiles": [
++     "package-lock.json"
++    ],
++    "integrity": [
++     "sha512-M5j87Ec4V99MQdRct/g09eWXW60g6zhHTUs1lr4deUtrPDnezBdCJTgKd7pxqTpSZBFveV0ALi9jMMuT1qKyNg=="
++    ]
++   },
++   {
++    "package": "ox@0.14.30",
++    "lockfiles": [
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-LI11uu+8iiM1B3CLckgd++YF1a0A2k5wDoM9ZeQMiL21BOzQs6L//BLS6hb1HSEKCyycdDIQLsVQx9MjpcC0hA=="
++    ]
++   },
++   {
++    "package": "viem@2.53.1",
++    "lockfiles": [
++     "package-lock.json"
++    ],
++    "integrity": [
++     "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA=="
++    ]
++   },
++   {
++    "package": "viem@2.54.3",
++    "lockfiles": [
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-hHXV/MLeGx+A/kHwEejf4TBSmpq2rtpxR3qMH21+BL62CQBLfCoMxQ0RV3V3QLQ1mKC/sAFEci1u83JEq1TQ6g=="
++    ]
++   },
++   {
++    "package": "ws@8.21.0",
++    "lockfiles": [
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="
++    ]
++   },
++   {
++    "package": "ws@8.21.1",
++    "lockfiles": [
++     "package-lock.json"
++    ],
++    "integrity": [
++     "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw=="
++    ]
++   }
++  ],
++  "extracted": {
++   "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
++   "/opt/custodian/custodian.mjs": "722a93e52b1d1c31599102d8f99c111ffb4fe095da4d7384c47c9306bae96475",
++   "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
++  },
++  "measured": {
++   "chainId": 8453,
++   "transport": "direct",
++   "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++   "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "rpcs": [
++    "https://mainnet.base.org",
++    "https://base-rpc.publicnode.com",
++    "https://base.drpc.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++   ],
++   "vaultKind": "book",
++   "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++   "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
++   "hostPolicy": {
++    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++    "mirrors": [
++     "https://134.199.235.187/platform-policy",
++     "https://134.209.248.172/platform-policy",
++     "https://165.245.191.129/platform-policy",
++     "https://146.190.246.39/platform-policy"
++    ]
++   },
++   "minAgree": 3,
++   "confirmations": 2,
++   "maxAgeSec": 120,
++   "enclaveOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "independentOwners": null,
++   "capacityContract": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++   "witnesses": {
++    "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap"
++   }
++  },
++  "measuredText": {
++   "sha256": "a7fc690aee2d891190ac7d9f877304a84c846a8b3a5211e4694c58b7712949c6",
++   "occurrences": 1
++  }
++ },
++ "hostPolicy": {
++  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "mirrors": [
++   "https://134.199.235.187/platform-policy",
++   "https://134.209.248.172/platform-policy",
++   "https://165.245.191.129/platform-policy",
++   "https://146.190.246.39/platform-policy"
++  ],
++  "sha256": "b22ed164444b5c4918ebd972a88a82f570906da571c1ea8c987058fe03be48a1"
++ },
++ "lockfiles": {
++  "package-lock.json": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20",
++  "relay/package-lock.json": "e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56"
++ },
++ "rewrap": {
++  "reused": true,
++  "artifact": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-release/out/A-rewrap",
++  "commit": "c635fd68515b46c53935ef344e3b4c4779d8067c",
++  "measurement": "f01a7166376cb192d7dac2abf89057d92825fc88c8d204cfac35df60b36d92d4be023018e0629dcab7ad695d8f06eb8e",
++  "measurementSha256": "0xf825c9b2ed578664f46309ba76cca7d7bebda87ead341b344c21e04944b91ccf",
++  "initramfsSha256": "1b090c69f6df2ec794403dd5823696d776e6b9ca97e99d93cc4d04f5de9f448c",
++  "closurePaths": 33,
++  "changedSincePrev": [],
++  "base": {
++   "dir": "dist-custody-9e5fb2028",
++   "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
++   "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  }
++ },
++ "failures": []
++}
+diff --git a/out/B-verify-v3.json b/out/B-verify-v3.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..86a42c8cdc3aa666de53522f6a364e7abe533d3f
+--- /dev/null
++++ b/out/B-verify-v3.json
+@@ -0,0 +1,765 @@
++{
++ "releaseCommit": "c95dcd3aee901b503751c02918a687c83b227511",
++ "clean": true,
++ "lineage": {
++  "from": "c635fd68515b46c53935ef344e3b4c4779d8067c",
++  "commits": [
++   "ed0c536dde2bab4de8414fee74f7c45f94adfc87",
++   "415483ff9784c38a88b273363a7efd0c227b95ce",
++   "3ccd4333c99b5e486215e69d13aafdcb55e9d8ca",
++   "0a6b108eeb43202be4903a1385636a18ac4c537e",
++   "c95dcd3aee901b503751c02918a687c83b227511"
++  ],
++  "changed": [
++   "custody/v2/daemon.mjs",
++   "custody/v2/member.mjs",
++   "custody/v2/sealed-state.mjs",
++   "docs/security/secret-custody-v2.md",
++   "test/custody-v2-e2e.test.mjs",
++   "test/custody-v2-genesis-intent.test.mjs",
++   "test/custody-v2-persist-barrier.test.mjs",
++   "test/fixtures/EnclaveRegistry.schema4.sol",
++   "test/helpers/original-vault-rig.mjs"
++  ],
++  "patches": [
++   {
++    "range": "c635fd68515b46c53935ef344e3b4c4779d8067c..415483ff",
++    "file": "custody-v2-durability.patch",
++    "sha256": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17",
++    "frozenFile": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17",
++    "reviewed": "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17"
++   },
++   {
++    "range": "415483ff..0a6b108e",
++    "file": "custody-v2-durability-followup.patch",
++    "sha256": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09",
++    "frozenFile": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09",
++    "reviewed": "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09"
++   },
++   {
++    "range": "0a6b108e..c95dcd3a",
++    "file": "custody-v2-genesis-intent.patch",
++    "sha256": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263",
++    "frozenFile": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263",
++    "reviewed": "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263"
++   }
++  ]
++ },
++ "image": {
++  "commit": "c95dcd3aee901b503751c02918a687c83b227511",
++  "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
++  "measurementSha256": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1",
++  "initramfs": {
++   "sha256": "56711f82f32cb23f7a75ef6f6c30c4b559444c2d0dac15158f99239fe5407ecb",
++   "bytes": 280104499
++  },
++  "files": {
++   "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
++   "/opt/custodian/custodian.mjs": "722a93e52b1d1c31599102d8f99c111ffb4fe095da4d7384c47c9306bae96475",
++   "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
++  },
++  "base": {
++   "dir": "dist-custody-9e5fb2028",
++   "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
++   "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
++  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
++  "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
++  "vcpus": 2,
++  "bundler": "esbuild@0.28.1",
++  "role": "enclave-custodian-v2",
++  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "transport": "direct",
++  "dkgBuild": null,
++  "independentPolicy": null,
++  "shieldRecipients": null,
++  "trustedProxies": null,
++  "inputs": [
++   {
++    "path": "availability/evidence.mjs",
++    "sha256": "a17da0461510f08726a8c00843b70d7c42da682de2c65f46ad0891df48c905cb",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/chain.mjs",
++    "sha256": "f0349c4f36e73e4e10e10d0a0a22da695383ec8db702e9a96246ed9adc1c689b",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/custodian.mjs",
++    "sha256": "46563b843ba4dd0c4e753dc1da7f60a1b0146fb018fc30cee5f8426d7a85ab19",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/hpke.mjs",
++    "sha256": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/protocol.mjs",
++    "sha256": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/rules.mjs",
++    "sha256": "f35635aa4103f8075e3fcccc0be95b6c50f2d66240e95041509feeb17c7d694d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/threshold.mjs",
++    "sha256": "9c7f912e7dc38e1bf58e196bce2eaf4292219aef7dfa91b8d7813b102919844a",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/admission.mjs",
++    "sha256": "77c5454ad1d459770e1ece7fc094f469de810e70cc525059df38be41272c9756",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/capacity.mjs",
++    "sha256": "198ed0e0c6a65eac89a9c743d70c9b821e87b6c59c0c41a3b9fe94f55633d6c3",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/chain.mjs",
++    "sha256": "c85d3d820fd91613422580857c12477ec211c10c6af6a9d233543edb447fead9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/custodian.mjs",
++    "sha256": "320453fc802f4c9bf49058ab0219c60779b42df52de6fc5653f7228015bc285c",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/cvm-gsup.mjs",
++    "sha256": "a1d8528cc307b2aedaa0bbfaee6960a1100ad57327d1fb84e34c27028eb82562",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/daemon.mjs",
++    "sha256": "567187476278356f85707d987f9f3b9a31db5516f3f4f70a708833800350dd9d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": false,
++    "reviewedChange": true
++   },
++   {
++    "path": "custody/v2/digests.mjs",
++    "sha256": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/governance.mjs",
++    "sha256": "54ffac99c67ec86e248d40e081e01080a11c630b6eae758e49d09ef724ef50d9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/host-config.mjs",
++    "sha256": "05771b528710d7e51568106a70c54b7515ac8e2498735bca0fee74ed9ae2c93a",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/http.mjs",
++    "sha256": "541ba49b4b549ea974fb07c22c7bdca6ef0c04cde0992ce1ffa1623737e5a23c",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/independent-genesis.mjs",
++    "sha256": "004da08a92de8e75795b7e32e4a2212034b11a28dc54ea1fd023b835c399239e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/independent-runtime.mjs",
++    "sha256": "3ae542d200a6c6aedd7afda2c7e9b6afd74b9a9b5d8f7e9a4018917df5566d2c",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/measured.mjs",
++    "sha256": "a9a758e6846bd61cab18ede279c6dc93ef099ebc51fde89b5e8ed72b0d8a060e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/member.mjs",
++    "sha256": "1925b289405b7e083f630b0d70cceb8a73f23c09ebabdbddf6a2b3ef1d39e8ab",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": false,
++    "reviewedChange": true
++   },
++   {
++    "path": "custody/v2/process-plan.mjs",
++    "sha256": "2721f23d41b2942d5bfb52585bb1c7f5627673d70ba873b5ac88fd46df7d597e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/protocol.mjs",
++    "sha256": "d30852c2b227760f95a900b2240355c507173e81f221b38219e34a3f8def38e4",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/quorum.mjs",
++    "sha256": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/sealed-state.mjs",
++    "sha256": "634809fee730b9acd69d2eaf426d8a3364f18abb5b95ae1270fa057e5da4e79e",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": false,
++    "reviewedChange": true
++   },
++   {
++    "path": "custody/v2/shield-evidence.mjs",
++    "sha256": "641b183f9b59044f826263c02cc031b2e4b0c9e84edfc373f9cb3a60d818e580",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/shield-operator.mjs",
++    "sha256": "0c146e20f3b288b9780ae9e26b51c1a9154b1c32d26cddef04b46011ef3fbcd9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/v2/shield-rules.mjs",
++    "sha256": "d3f857d1a75243c1262cb62b3fc44325246a7bcc35ec44ba388599f0c4c14ef9",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "custody/verifiers.mjs",
++    "sha256": "3c0553b58a18239213bfc43dbc8b78aa079270a0a6eaab793eb3eba3432ad873",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "isolation/contract/runtime.mjs",
++    "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "network/host-policy-mirrors.mjs",
++    "sha256": "d7295d3806f00304d1ebb596fd380857a0f6b4a2702cb5f8e04427cfb4207660",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "network/platform-host-policy.mjs",
++    "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "network/rpc-identity.mjs",
++    "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/avf-verify.mjs",
++    "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/hvnode-core.mjs",
++    "sha256": "a69967f96af7324f409745fec29f0697b90e9da49037b5f8ff74e7deb26cd970",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/hvnode-verify.mjs",
++    "sha256": "b0155ae296bb3e8cb3a9e54eaaed989d341253031f34b1c69576a6039d1334a7",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/shield-host-session.mjs",
++    "sha256": "60d9ad86522d1e48ffe7d4b83628c7ce7af2bda06338595018114d8bb1d7cdef",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/snp-verify.mjs",
++    "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-app-core.mjs",
++    "sha256": "4d6130154e61f994898df5b869f9d4e332eb2b437204a5c631c1ac53e9978f70",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-credential.mjs",
++    "sha256": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-policy.mjs",
++    "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-tcglog-core.mjs",
++    "sha256": "936fc2ccc116154b6936d16a05fa89774a8f68a6dcb36b2733b064d4f2425912",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-tcglog.mjs",
++    "sha256": "b7c6b2e43c4fde1fbc6730b2ce53d257a83003673b3b56257b60983083a7036d",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-tpm.mjs",
++    "sha256": "993c69a8e9931d67fb741ff93c52dc10503f11b42aedb125a42cffb71922b4f6",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-verify.mjs",
++    "sha256": "1b26c6b328d463b6597bc26ea4f8220403638e84655da1ddddea5152cd57b868",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-vm-report-core.mjs",
++    "sha256": "5c0fca2992494d985c6ac83d44c6a185e71ac83d0b9c232320da77db9609e314",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "relay/vbs-vm-report.mjs",
++    "sha256": "974cbe2f5d2a37edfc4362b3f922d7e4ee178d309adfdd37584d159576e63775",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/collateral-cache.mjs",
++    "sha256": "eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/collateral.mjs",
++    "sha256": "c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/consumer.mjs",
++    "sha256": "907e40bfd42529aa907c3267b7ec0cb9652d9c250b196e00c1508a7e460608e1",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/der.mjs",
++    "sha256": "3606e988e4d340973c105fdc7fc0ee39db13034419561fbbe2e0ee396ade9775",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/envelope.mjs",
++    "sha256": "ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/metal-box.mjs",
++    "sha256": "6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/snp.mjs",
++    "sha256": "beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "verifier/tls-binding.mjs",
++    "sha256": "f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "windows/node/hvnode-evidence.mjs",
++    "sha256": "5e0f11a03b07a585a79a0ec14b23f47ddc5f5af9ce8edc10dccea2400aba06c5",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   },
++   {
++    "path": "windows/node/shield-verdict.mjs",
++    "sha256": "6f134d8b27baea62044506c820df9fc36fbcaa68a64a5754f36bb18a7e5dbd95",
++    "tracked": true,
++    "equalsCommit": true,
++    "equalsPrevRelease": true,
++    "reviewedChange": false
++   }
++  ],
++  "inputsAddedSincePrev": [
++   "custody/v2/sealed-state.mjs"
++  ],
++  "inputsRemovedSincePrev": [],
++  "sourceCheck": {
++   "untracked": [],
++   "dirty": "",
++   "paths": 65
++  },
++  "packages": [
++   {
++    "package": "@noble/ciphers@1.3.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==",
++     "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw=="
++    ]
++   },
++   {
++    "package": "@noble/curves@1.9.1",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==",
++     "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA=="
++    ]
++   },
++   {
++    "package": "@noble/hashes@1.8.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==",
++     "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="
++    ]
++   },
++   {
++    "package": "@scure/base@1.2.6",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==",
++     "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg=="
++    ]
++   },
++   {
++    "package": "@scure/bip32@1.7.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==",
++     "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw=="
++    ]
++   },
++   {
++    "package": "@scure/bip39@1.6.0",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==",
++     "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A=="
++    ]
++   },
++   {
++    "package": "abitype@1.2.3",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==",
++     "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg=="
++    ]
++   },
++   {
++    "package": "isows@1.0.7",
++    "lockfiles": [
++     "package-lock.json",
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
++     "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg=="
++    ]
++   },
++   {
++    "package": "ox@0.14.29",
++    "lockfiles": [
++     "package-lock.json"
++    ],
++    "integrity": [
++     "sha512-M5j87Ec4V99MQdRct/g09eWXW60g6zhHTUs1lr4deUtrPDnezBdCJTgKd7pxqTpSZBFveV0ALi9jMMuT1qKyNg=="
++    ]
++   },
++   {
++    "package": "ox@0.14.30",
++    "lockfiles": [
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-LI11uu+8iiM1B3CLckgd++YF1a0A2k5wDoM9ZeQMiL21BOzQs6L//BLS6hb1HSEKCyycdDIQLsVQx9MjpcC0hA=="
++    ]
++   },
++   {
++    "package": "viem@2.53.1",
++    "lockfiles": [
++     "package-lock.json"
++    ],
++    "integrity": [
++     "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA=="
++    ]
++   },
++   {
++    "package": "viem@2.54.3",
++    "lockfiles": [
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-hHXV/MLeGx+A/kHwEejf4TBSmpq2rtpxR3qMH21+BL62CQBLfCoMxQ0RV3V3QLQ1mKC/sAFEci1u83JEq1TQ6g=="
++    ]
++   },
++   {
++    "package": "ws@8.21.0",
++    "lockfiles": [
++     "relay/package-lock.json"
++    ],
++    "integrity": [
++     "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="
++    ]
++   },
++   {
++    "package": "ws@8.21.1",
++    "lockfiles": [
++     "package-lock.json"
++    ],
++    "integrity": [
++     "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw=="
++    ]
++   }
++  ],
++  "extracted": {
++   "/opt/metal/gsup.mjs": "23dbbc7341ac8b5d71f8a360c8d410d2f18bc168201fe1bab43fe0193d92438d",
++   "/opt/custodian/custodian.mjs": "722a93e52b1d1c31599102d8f99c111ffb4fe095da4d7384c47c9306bae96475",
++   "/opt/custodian/snpkey": "1d0541fe2514298466ca602df527c89be0caac8c7cb9811b324127872a4c9bf2"
++  },
++  "measured": {
++   "chainId": 8453,
++   "transport": "direct",
++   "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++   "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "rpcs": [
++    "https://mainnet.base.org",
++    "https://base-rpc.publicnode.com",
++    "https://base.drpc.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++   ],
++   "vaultKind": "book",
++   "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++   "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
++   "hostPolicy": {
++    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++    "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++    "mirrors": [
++     "https://134.199.235.187/platform-policy",
++     "https://134.209.248.172/platform-policy",
++     "https://165.245.191.129/platform-policy",
++     "https://146.190.246.39/platform-policy"
++    ]
++   },
++   "minAgree": 3,
++   "confirmations": 2,
++   "maxAgeSec": 120,
++   "enclaveOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "independentOwners": null,
++   "capacityContract": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++   "witnesses": {
++    "0xd80bf435467df887f1031743c2a2125a130fe225": "enclave-bootstrap"
++   }
++  },
++  "measuredText": {
++   "sha256": "a7fc690aee2d891190ac7d9f877304a84c846a8b3a5211e4694c58b7712949c6",
++   "occurrences": 1
++  }
++ },
++ "hostPolicy": {
++  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
++  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "mirrors": [
++   "https://134.199.235.187/platform-policy",
++   "https://134.209.248.172/platform-policy",
++   "https://165.245.191.129/platform-policy",
++   "https://146.190.246.39/platform-policy"
++  ],
++  "sha256": "b22ed164444b5c4918ebd972a88a82f570906da571c1ea8c987058fe03be48a1"
++ },
++ "lockfiles": {
++  "package-lock.json": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20",
++  "relay/package-lock.json": "e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56"
++ },
++ "rewrap": {
++  "reused": true,
++  "artifact": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-release/out/A-rewrap",
++  "commit": "c635fd68515b46c53935ef344e3b4c4779d8067c",
++  "measurement": "f01a7166376cb192d7dac2abf89057d92825fc88c8d204cfac35df60b36d92d4be023018e0629dcab7ad695d8f06eb8e",
++  "measurementSha256": "0xf825c9b2ed578664f46309ba76cca7d7bebda87ead341b344c21e04944b91ccf",
++  "initramfsSha256": "1b090c69f6df2ec794403dd5823696d776e6b9ca97e99d93cc4d04f5de9f448c",
++  "closurePaths": 33,
++  "changedSincePrev": [],
++  "base": {
++   "dir": "dist-custody-9e5fb2028",
++   "initramfsSha256": "7169150f50ae69b8cb85d433f5a2b44ea7553968408d9dfd373caa03a8c146e5",
++   "kernelSha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  }
++ },
++ "failures": []
++}
+diff --git a/qrun.sh b/qrun.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..3bb88b436186b3fb43b4da44c57c051beaa9033d
+--- /dev/null
++++ b/qrun.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# qrun.sh <label> <mib> <command...>: ONE queue job, retried only while NOT STARTED (98). logs/<label>.out, logs/<label>.rc
++here=$(cd "$(dirname "$0")" && pwd); label=$1 mib=$2; shift 2
++Q=/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py
++rm -f "$here/logs/$label.rc"
++for n in $(seq 1 300); do
++  python3 -u "$Q" --mib "$mib" --log "$here/logs/$label.guard.log" -- "$@" > "$here/logs/$label.out" 2>&1; c=$?
++  [ $c != 98 ] && break; sleep 20
++done
++echo "exit $c" > "$here/logs/$label.rc"
+diff --git a/scan-review.sh b/scan-review.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..eaf7d4bfd2aef2b340e0f0ae9f50fad485ab64bb
+--- /dev/null
++++ b/scan-review.sh
+@@ -0,0 +1,3 @@
++#!/bin/bash
++set -uo pipefail
++git -C work/custody-v2-release-20261023 diff --cached --no-ext-diff --binary | /home/steven/.local/bin/gitleaks stdin --no-banner --redact --report-format json --report-path work/custody-v2-release-20261023/scan-findings.json
+diff --git a/verify-custodian-v3.mjs b/verify-custodian-v3.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..983605532601c57cb930946fe8f977b89b327bb3
+--- /dev/null
++++ b/verify-custodian-v3.mjs
+@@ -0,0 +1,148 @@
++// v3 (custodian only), adapted from work/custody-release/verify-release-v2.mjs. Verifies a corrected-custodian RELEASE build
++// against its committed source (read-only). v2's comparison of every bundle input with the integrated main working tree
++// (../enclave) cannot hold here: the custodian's sources now intentionally carry the reviewed durability patches that main
++// does not. That one check is replaced by LINEAGE against the previously verified release c635fd68 (whose inputs v2
++// verified equal to main):
++//   - HEAD descends from c635fd68 by exactly the five reviewed commits, and the three reviewed patch files reproduce
++//     byte for byte from them (git format-patch, sha256 as frozen for root review);
++//   - every bundle input either equals its c635fd68 blob, or is one of the reviewed custody files the patches change;
++//   - the files changed since c635fd68 are exactly the reviewed list.
++// Every other v2 check is kept:
++//   - manifest.commit == HEAD; HEAD clean;
++//   - every input tracked, with committed blob == disk;
++//   - the builder's own sourceCheck;
++//   - every bundled package pinned by its lockfile and the installed tree;
++//   - the custodian embeds the committed host policy's mirrors.
++// Added:
++//   - the image's own files (extracted from the cpio) hash to the manifest;
++//   - the bundle carries EXACTLY the MEASURED config recomputed with build-config.mjs from the release arguments
++//     (original vault, book, host ownership, host policy);
++//   - base kernel, initramfs, OVMF and cmdline equal the c635fd68 release's.
++// The rewrap image is not rebuilt: its whole closure (bundle inputs, builder, build-config, lockfiles, host policy) is
++// checked unchanged since c635fd68, so the frozen c635fd68 rewrap artifact stands.
++//   node verify-custodian-v3.mjs <release checkout> <custodian dir> <frozen c635 release out dir> <reviewed patches dir> <out.json>
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { execFileSync } from "node:child_process";
++import { cpioEntries } from "./cpio-entries.mjs";
++const [REPO, CDIR, FROZEN, PATCHES, OUT] = process.argv.slice(2).map((p) => path.resolve(p));
++const env = { ...process.env, GIT_DIR: path.join(REPO, ".git"), GIT_OPTIONAL_LOCKS: "0" };
++const git = (args, opts = {}) => execFileSync("git", args, { cwd: REPO, encoding: "utf8", maxBuffer: 64 << 20, env, ...opts });
++const gitBuf = (args) => execFileSync("git", args, { cwd: REPO, maxBuffer: 64 << 20, env });
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const fail = [];
++const PREV = "c635fd68515b46c53935ef344e3b4c4779d8067c";
++const VAULT = "0xe48699b8401564aace7a814ae4569b67a3f7eef5", BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907", OWN = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
++const REVIEWED_COMMITS = ["ed0c536d", "415483ff", "3ccd4333", "0a6b108e", "c95dcd3a"];
++const REVIEWED_PATCHES = [   // [range, file, sha256 as frozen in the durability reports]
++  [`${PREV}..415483ff`, "custody-v2-durability.patch", "59c8245703e1814e1124c580bd27a76f2ac9f171dbd8bb54e1286a8fcacd1f17"],
++  ["415483ff..0a6b108e", "custody-v2-durability-followup.patch", "e7788e19acf2c9dfcd6e76a90461ac410c03b674dcb5dfe402b614ffad0dee09"],
++  ["0a6b108e..c95dcd3a", "custody-v2-genesis-intent.patch", "c41252d7ac520025421f31267474380cdfdf759693032dc2a9408c195d760263"]];
++const REVIEWED_CUSTODY_FILES = ["custody/v2/daemon.mjs", "custody/v2/member.mjs", "custody/v2/sealed-state.mjs"];
++const REVIEWED_CHANGED = [...REVIEWED_CUSTODY_FILES, "docs/security/secret-custody-v2.md", "test/custody-v2-e2e.test.mjs", "test/custody-v2-genesis-intent.test.mjs",
++  "test/custody-v2-persist-barrier.test.mjs", "test/fixtures/EnclaveRegistry.schema4.sol", "test/helpers/original-vault-rig.mjs"].sort();
++
++const head = git(["rev-parse", "HEAD"]).trim();
++const porcelain = git(["status", "--porcelain"]).trim();
++if (porcelain) fail.push(`checkout is not clean:\n${porcelain}`);
++const report = { releaseCommit: head, clean: !porcelain, lineage: {}, image: {} };
++
++// ---- lineage from the verified release c635fd68 ----
++try { git(["merge-base", "--is-ancestor", PREV, head]); } catch { fail.push(`HEAD does not descend from ${PREV}`); }
++const commits = git(["rev-list", "--reverse", "--first-parent", `${PREV}..${head}`]).split("\n").filter(Boolean);
++const merges = git(["rev-list", "--merges", `${PREV}..${head}`]).trim();
++if (merges || commits.length !== REVIEWED_COMMITS.length || !commits.every((c, i) => c.startsWith(REVIEWED_COMMITS[i])))
++  fail.push(`commits since ${PREV} are not exactly the reviewed ${REVIEWED_COMMITS.join(",")}: ${commits.map((c) => c.slice(0, 8)).join(",")}${merges ? " (with merges)" : ""}`);
++const changed = git(["diff", "--name-only", PREV, head]).split("\n").filter(Boolean).sort();
++if (JSON.stringify(changed) !== JSON.stringify(REVIEWED_CHANGED)) fail.push(`files changed since ${PREV} differ from the reviewed list: ${changed.join(" ")}`);
++report.lineage = { from: PREV, commits, changed, patches: REVIEWED_PATCHES.map(([range, file, want]) => {
++  const got = sha(gitBuf(["format-patch", "--stdout", range]));
++  const frozen = fs.existsSync(path.join(PATCHES, file)) ? sha(fs.readFileSync(path.join(PATCHES, file))) : null;
++  if (got !== want || frozen !== want) fail.push(`${file}: format-patch ${range} sha256 ${got}, frozen file ${frozen}, reviewed ${want}`);
++  return { range, file, sha256: got, frozenFile: frozen, reviewed: want };
++}) };
++
++// ---- the custodian image ----
++const m = JSON.parse(fs.readFileSync(path.join(CDIR, "manifest.json"), "utf8"));
++const prev = JSON.parse(fs.readFileSync(path.join(FROZEN, "A-custodian/manifest.json"), "utf8"));
++const r = report.image;
++Object.assign(r, { commit: m.commit, measurement: m.measurement, measurementSha256: m.measurementSha256, initramfs: m.initramfs, files: m.files, base: m.base,
++  kernelSha256: m.kernel?.sha256, ovmfSha256: m.ovmfSha256, cmdline: m.cmdline, vcpus: m.vcpus, bundler: m.bundler, role: m.role, vault: m.vault, hostOwnership: m.hostOwnership,
++  transport: m.transport, dkgBuild: m.dkgBuild, independentPolicy: m.independentPolicy, shieldRecipients: m.shieldRecipients, trustedProxies: m.trustedProxies });
++if (m.commit !== head) fail.push(`manifest commit ${m.commit} != HEAD ${head}`);
++if (m.measurementError || !/^[0-9a-f]{96}$/.test(String(m.measurement))) fail.push("no measurement");
++if (sha(fs.readFileSync(path.join(CDIR, "initramfs.cpio.gz"))) !== m.initramfs.sha256) fail.push("initramfs hash");
++if (sha(fs.readFileSync(path.join(CDIR, "vmlinuz"))) !== m.kernel.sha256) fail.push("vmlinuz hash");
++if (fs.readFileSync(path.join(CDIR, "cmdline"), "utf8").trim() !== m.cmdline) fail.push("cmdline file != manifest");
++for (const k of ["base", "cmdline", "ovmfSha256", "vcpus", "bundler", "role", "vault", "hostOwnership", "transport", "dkgBuild", "independentPolicy", "independentOwners", "shieldRecipients", "trustedProxies"])
++  if (JSON.stringify(m[k]) !== JSON.stringify(prev[k])) fail.push(`${k} differs from the ${PREV} release: ${JSON.stringify(m[k])} vs ${JSON.stringify(prev[k])}`);
++if (m.kernel?.sha256 !== prev.kernel?.sha256) fail.push("kernel differs from the previous release");
++if (m.vault !== VAULT || m.hostOwnership !== OWN || m.role !== "enclave-custodian-v2") fail.push("vault, host ownership or role is not the production original vault's");
++const inputs = m.bundleInputs?.repo || [];
++if (!inputs.length) fail.push("manifest lists no bundle inputs");
++const tracked = new Set(git(["ls-files", "--", ...inputs]).split("\n").filter(Boolean));
++r.inputs = inputs.map((f) => {
++  const blob = gitBuf(["show", `HEAD:${f}`]), disk = fs.readFileSync(path.join(REPO, f));
++  let prevBlob = null; try { prevBlob = gitBuf(["show", `${PREV}:${f}`]); } catch {}
++  const equalsPrev = prevBlob !== null && sha(prevBlob) === sha(disk), reviewed = REVIEWED_CUSTODY_FILES.includes(f);
++  if (!tracked.has(f) || sha(blob) !== sha(disk)) fail.push(`${f} not tracked or differs from the commit`);
++  if (!equalsPrev && !reviewed) fail.push(`${f} changed since ${PREV} outside the reviewed patches`);
++  return { path: f, sha256: sha(disk), tracked: tracked.has(f), equalsCommit: sha(blob) === sha(disk), equalsPrevRelease: equalsPrev, reviewedChange: !equalsPrev && reviewed };
++});
++r.inputsAddedSincePrev = inputs.filter((f) => !prev.bundleInputs.repo.includes(f));
++r.inputsRemovedSincePrev = prev.bundleInputs.repo.filter((f) => !inputs.includes(f));
++const B = await import(path.join(REPO, "custody/v2/build-config.mjs"));
++const sc = B.sourceCheck({ repo: inputs }, { git });
++r.sourceCheck = { untracked: sc.untracked, dirty: sc.dirty, paths: sc.paths.length };
++if (sc.untracked.length || sc.dirty) fail.push("sourceCheck not clean");
++// packages: pinned by a lockfile, and the installed tree agrees
++const lock = (rel) => JSON.parse(fs.readFileSync(path.join(REPO, rel), "utf8"));
++const locks = { "": lock("package-lock.json"), "relay/": lock("relay/package-lock.json") };
++const hidden = { "": lock("node_modules/.package-lock.json"), "relay/": lock("relay/node_modules/.package-lock.json") };
++r.packages = (m.bundleInputs?.packages || []).map((p) => {
++  const at = p.lastIndexOf("@"), n = p.slice(0, at), v = p.slice(at + 1);
++  const roots = Object.keys(locks).filter((root) => locks[root].packages[`node_modules/${n}`]?.version === v);
++  const okHidden = roots.length > 0 && roots.every((root) => { const a = locks[root].packages[`node_modules/${n}`], h = hidden[root].packages[`node_modules/${n}`]; return h && h.version === a.version && h.integrity === a.integrity; });
++  if (!roots.length) fail.push(`${p} pinned by no lockfile`);
++  if (!okHidden) fail.push(`${p} installed tree disagrees with its lockfile`);
++  return { package: p, lockfiles: roots.map((x) => `${x}package-lock.json`), integrity: roots.map((x) => locks[x].packages[`node_modules/${n}`].integrity) };
++});
++if (JSON.stringify(r.packages.map((p) => p.package)) !== JSON.stringify(prev.bundleInputs.packages)) fail.push("bundled packages differ from the previous release");
++// the image's own files, and the MEASURED config they carry
++const want = Object.keys(m.files).map((f) => f.replace(/^\//, ""));
++const got = await cpioEntries(path.join(CDIR, "initramfs.cpio.gz"), want);
++r.extracted = Object.fromEntries(want.map((f) => [`/${f}`, got[f] ? sha(got[f]) : null]));
++for (const f of want) if (!got[f] || sha(got[f]) !== m.files[`/${f}`]) fail.push(`/${f} in the image does not hash to the manifest`);
++const hp = JSON.parse(fs.readFileSync(path.join(REPO, "release/host-policy-production.json"), "utf8"));
++const { measured } = B.custodianMeasured({ vault: VAULT, hostOwnership: OWN, transport: "direct", book: BOOK, hostPolicy: hp });
++const lit = (v) => (v === null || typeof v !== "object" ? JSON.stringify(v) : Array.isArray(v) ? `[${v.map(lit).join(", ")}]`
++  : `{ ${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${lit(x)}`).join(", ")} }`);
++const js = got["opt/custodian/custodian.mjs"]?.toString() || "";
++const expect = `var MEASURED = Object.freeze(${lit(measured)});`;
++const occurrences = js.split("var MEASURED = Object.freeze(").length - 1;
++if (!js.includes(expect) || occurrences !== 1) fail.push(`the custodian bundle does not carry exactly the recomputed MEASURED config (${occurrences} MEASURED definitions)`);
++if (measured.vaultKind !== "book" || measured.book !== BOOK || measured.vault !== VAULT || measured.hostOwnership !== OWN) fail.push("recomputed MEASURED is not the original vault's");
++for (const u of hp.mirrors) if (!js.includes(u)) fail.push(`custodian bundle lacks mirror ${u}`);
++r.measured = measured;
++r.measuredText = { sha256: sha(expect), occurrences };
++report.hostPolicy = { ...hp, sha256: sha(fs.readFileSync(path.join(REPO, "release/host-policy-production.json"))) };
++report.lockfiles = { "package-lock.json": sha(fs.readFileSync(path.join(REPO, "package-lock.json"))), "relay/package-lock.json": sha(fs.readFileSync(path.join(REPO, "relay/package-lock.json"))) };
++
++// ---- the rewrap image: reuse the frozen c635fd68 artifact only if its whole closure is unchanged ----
++const rw = JSON.parse(fs.readFileSync(path.join(FROZEN, "A-rewrap/manifest.json"), "utf8"));
++const rwClosure = [...rw.bundleInputs.repo, "scripts/build-custody-rewrap.mjs", "custody/v2/build-config.mjs", "package.json", "package-lock.json", "relay/package.json", "relay/package-lock.json",
++  "release/host-policy-production.json"];   // the rewrap builder's content closure: its esbuild inputs, itself, its imports
++                                            // (build-config; rewrap.mjs and host-policy-mirrors are inputs), npm locks, policy
++const rwChanged = git(["diff", "--name-only", PREV, head, "--", ...rwClosure]).split("\n").filter(Boolean);
++const rwInitramfs = sha(fs.readFileSync(path.join(FROZEN, "A-rewrap/initramfs.cpio.gz")));
++if (rwChanged.length) fail.push(`rewrap closure changed since ${PREV}: ${rwChanged.join(" ")}`);
++if (rw.commit !== PREV || rwInitramfs !== rw.initramfs.sha256) fail.push("the frozen rewrap artifact is not the verified c635fd68 build");
++report.rewrap = { reused: !rwChanged.length, artifact: path.join(FROZEN, "A-rewrap"), commit: rw.commit, measurement: rw.measurement, measurementSha256: rw.measurementSha256,
++  initramfsSha256: rwInitramfs, closurePaths: rwClosure.length, changedSincePrev: rwChanged, base: rw.base };
++if (JSON.stringify(rw.base) !== JSON.stringify(m.base)) fail.push("the frozen rewrap and the new custodian use different bases");
++report.failures = fail;
++fs.writeFileSync(OUT, JSON.stringify(report, null, 1) + "\n");
++console.log(JSON.stringify({ releaseCommit: head, clean: report.clean, failures: fail.length ? fail : "none", measurement: m.measurement, measurementSha256: m.measurementSha256,
++  inputs: inputs.length, reviewedChanges: r.inputs.filter((x) => x.reviewedChange).map((x) => x.path), added: r.inputsAddedSincePrev, rewrapReused: report.rewrap.reused }, null, 1));
++process.exit(fail.length ? 1 : 0);

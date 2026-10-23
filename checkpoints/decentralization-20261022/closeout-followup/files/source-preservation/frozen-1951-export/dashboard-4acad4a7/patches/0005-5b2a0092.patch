@@ -1,0 +1,634 @@
+From 5b2a0092657470b34948c60e9ae6100167856da9 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:11:16 -0700
+Subject: [PATCH] Tests: custody v2 dashboard flow over the committed bundle,
+ in Node and in a real browser (fixture vault)
+
+- test/custody-v2-dashboard.test.mjs, 10 tests:
+  - vendor rebuild = committed;
+  - every vault state (no fallback);
+  - committee labels;
+  - first save decrypts to the env with no plaintext in calldata or requests;
+  - rotation keeps rules and pause;
+  - refusals send nothing;
+  - explicit config binding;
+  - stale revision and read-back mismatch;
+  - pause/resume;
+  - migration order with gated relay deletion.
+- test/custody-v2-dashboard-browser.test.mjs (Chrome headless shell, under the queue's 512 MiB):
+  - the site's module and bundle run the flow;
+  - Node opens what the page stored;
+  - every page request is inspected;
+  - the edited deployments.js component loads.
+- test/helpers/custody-v2-fake-vault.mjs: the contract's _apply rules on the exact calldata. FIXTURE ONLY, not
+  production.
+---
+ test/custody-v2-dashboard-browser.test.mjs | 196 +++++++++++++++
+ test/custody-v2-dashboard.test.mjs         | 266 +++++++++++++++++++++
+ test/helpers/custody-v2-fake-vault.mjs     | 121 ++++++++++
+ 3 files changed, 583 insertions(+)
+ create mode 100644 test/custody-v2-dashboard-browser.test.mjs
+ create mode 100644 test/custody-v2-dashboard.test.mjs
+ create mode 100644 test/helpers/custody-v2-fake-vault.mjs
+
+diff --git a/test/custody-v2-dashboard-browser.test.mjs b/test/custody-v2-dashboard-browser.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8f6df47ba455ed8bf691ef61acdfe4ed6e4dbad7
+--- /dev/null
++++ b/test/custody-v2-dashboard-browser.test.mjs
+@@ -0,0 +1,196 @@
++// Custody v2 in a REAL browser (Chrome for Testing): the site's own site/js/core/custody-v2.js and the committed
++// site/vendor/custody-v2.js, served same-origin from this repository's site/ tree, run the owner flow. The chain is the
++// FIXTURE vault (test/helpers/custody-v2-fake-vault.mjs) in Node, bridged into the page; the "relay" is this test server's
++// own fixture endpoints. Node opens what the page stored with the committee secret, and inspects EVERY request the page
++// made: no v2 value is sent anywhere, and the relay copy is only deleted by the explicit, gated step. Fixture only - no
++// production vault, committee or relay is involved.
++//   run: node --test test/custody-v2-dashboard-browser.test.mjs   (skipped, saying so, without Chrome for Testing)
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { fileURLToPath } from "node:url";
++import { chromium } from "playwright";
++import { FakeVault, VAULT, BOOK, GENESIS_COMMITTEE, committeeKey, committee, openBundle } from "./helpers/custody-v2-fake-vault.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++// the lean headless shell when present (the shared test queue's 512 MiB cap: full Chrome's process tree peaked at 700 MiB),
++// in one process; else Chrome for Testing
++const SHELL = path.join(os.homedir(), ".cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell");
++const CFT = process.env.CHROME_FOR_TESTING || (fs.existsSync(SHELL) ? SHELL : path.join(os.homedir(), ".cache/ms-playwright/chromium-1232/chrome-linux64/chrome"));
++const LEAN = CFT === SHELL ? ["--single-process", "--no-zygote", "--js-flags=--max-old-space-size=128"] : [];
++const skip = !fs.existsSync(CFT) && "no Chrome for Testing or headless shell";
++
++const OWNER = "0x" + "0a".repeat(20);
++const ID = "0x" + "d1".repeat(32);
++const NEW_ENV = { STRIPE_KEY: "sk_live_browser_" + "n".repeat(24), DB_PASS: "browser-only-pass-9Zx" };
++const RELAY_ENV = { OLD_TOKEN: "relay-held-token-" + "o".repeat(20) };
++const PREDICTION = { appId: "ab".repeat(32), images: [{ releaseAdmitted: true, measurement: "cd".repeat(48), runtimeId: "ef".repeat(32) }] };
++
++const enc = (x) => JSON.stringify(x, (k, v) => typeof v === "bigint" ? { $b: String(v) } : v instanceof Uint8Array ? { $u: Buffer.from(v).toString("hex") } : v);
++const rev = (k, v) => v && typeof v === "object" && "$b" in v ? BigInt(v.$b) : v && typeof v === "object" && "$u" in v ? new Uint8Array(Buffer.from(v.$u, "hex")) : v;
++
++const PAGE = `<!doctype html><meta charset="utf-8"><script type="module">
++  import * as C2 from "/site/js/core/custody-v2.js";
++  import * as V from "/site/vendor/custody-v2.js";
++  const rev = (k, v) => v && typeof v === "object" && "$b" in v ? BigInt(v.$b)
++    : v && typeof v === "object" && "$u" in v ? Uint8Array.from((v.$u.match(/../g) || []).map((h) => parseInt(h, 16))) : v;
++  const enc = (x) => JSON.stringify(x, (k, v) => typeof v === "bigint" ? { $b: String(v) } : v instanceof Uint8Array ? { $u: Array.from(v, (b) => b.toString(16).padStart(2, "0")).join("") } : v);
++  const bridge = async (op, ...args) => JSON.parse(await window.__vault(op, enc(args)), rev);
++  const reader = {
++    readVaultIdentity: () => bridge("identity"),
++    readRelease: (a) => bridge("release", a),
++    readCommittee: (a) => bridge("committee", a),
++    snapshot: (fn) => fn({ block: 1n, call: (address, abi, name, args) => bridge("call", address, name, args), code: (a) => bridge("code", a) }),
++  };
++  window.setup = (cfg) => C2._setForTests({ lib: { ...V, createChainReaderV2: () => reader }, config: cfg, sleep: async () => {} });
++  window.signer = (address) => ({ address, sendTx: (to, data) => bridge("send", address, to, data), waitReceipt: async () => ({ status: "success" }) });
++  const post = async (p, body) => { const r = await fetch(p, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return r.json(); };
++  window.relay = { read: () => post("/relay/get", { id: "${ID}" }), exists: () => post("/relay/exists", { id: "${ID}" }), clear: () => post("/relay/clear", { payload: '{"clear":true}' }) };
++  window.C2 = C2; window.ready = true;
++</script>`;
++
++test("Chrome runs the custody v2 owner flow: verified vault, admit, encrypt-in-page save, migration, gated relay deletion", { skip }, async () => {
++  const fake = new FakeVault(), key = committeeKey();
++  fake.committees.set(GENESIS_COMMITTEE, committee(GENESIS_COMMITTEE, key.Y));
++  fake.ledger.set(ID, { owner: OWNER, envelope: JSON.stringify({ config: { region: "eu" } }) });   // inline config: read off the chain
++  const ID2 = "0x" + "d2".repeat(32);
++  fake.ledger.set(ID2, { owner: OWNER, envelope: "" });
++  const relayLog = [];
++  let relayCustody = false;
++  const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".json": "application/json" };
++  const server = http.createServer(async (req, res) => {
++    const u = new URL(req.url, "http://x");
++    if (u.pathname.startsWith("/relay/")) {
++      let body = ""; for await (const c of req) body += c;
++      relayLog.push({ path: u.pathname, body });
++      const out = u.pathname === "/relay/get" ? { id: ID, rev: 7, names: Object.keys(RELAY_ENV), env: RELAY_ENV }
++        : u.pathname === "/relay/exists" ? { id: ID, exists: true, ...(relayCustody ? { custody: true } : {}) } : { id: ID, rev: 8, names: [] };
++      res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify(out));
++    }
++    if (u.pathname === "/site/__c2test.html") { res.writeHead(200, { "content-type": types[".html"] }); return res.end(PAGE); }
++    // the repository tree, read-only, as the site's own relative imports expect it (site/js/core -> ../../../network/…)
++    const f = path.resolve(REPO, "." + u.pathname);
++    if (!f.startsWith(REPO + path.sep) || /[\\/](node_modules|\.git)[\\/]/.test(f) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end(); }
++    res.writeHead(200, { "content-type": types[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(res);
++  });
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  let browser;
++  try {
++    browser = await chromium.launch({ executablePath: CFT, headless: true, args: ["--disable-gpu", "--disable-extensions", "--disable-dev-shm-usage", ...LEAN] });
++    const page = await browser.newPage();
++    const errors = [], requests = [];
++    page.on("pageerror", (e) => errors.push(String(e)));
++    page.on("request", (r) => requests.push({ url: r.url(), method: r.method(), body: r.postData() || "" }));
++    await page.exposeFunction("__vault", async (op, argsJson) => {
++      const a = JSON.parse(argsJson, rev), r = fake.reader;
++      const out = op === "identity" ? await r.readVaultIdentity() : op === "release" ? await r.readRelease(a[0]) : op === "committee" ? await r.readCommittee(a[0])
++        : op === "call" ? await r.snapshot(({ call }) => call(a[0], null, a[1], a[2])) : op === "code" ? await r.snapshot(({ code }) => code(a[0]))
++        : op === "send" ? fake.execute(a[0], a[1], a[2]) : null;
++      return enc(out);
++    });
++    const bad = [], consoleLines = [];
++    page.on("response", (r) => { if (r.status() !== 200) bad.push(r.status() + " " + r.url()); });
++    page.on("console", (m) => consoleLines.push(m.type() + ": " + m.text()));
++    await page.goto(origin + "/site/__c2test.html");
++    await page.waitForFunction(() => window.ready === true, null, { timeout: 30000 })
++      .catch((e) => { throw new Error("the test page did not load: " + JSON.stringify({ errors, bad, console: consoleLines.slice(-8), requests: requests.map((r) => r.url.replace(origin, "")).slice(-12) })); });
++    const cfg = { vault: VAULT, book: BOOK, chainId: 8453, rpcs: ["https://a.example", "https://b.example", "https://c.example"], independent: { state: "off" } };
++    const out = await page.evaluate(async ({ cfg, ID, ID2, NEW_ENV, PREDICTION, OWNER }) => {
++      const code = (p) => p.then(() => null, (e) => e.code || String(e));
++      // UNSET first: the browser offers nothing and never assumes the production vault
++      setup({ ...cfg, vault: "" });
++      const unset = await C2.vaultState();
++      const unsetSave = await code(C2.saveV2({ id: ID, env: NEW_ENV, signer: signer(OWNER) }));
++      setup(cfg);
++      const verified = (await C2.vaultState()).state;
++      const plan = await C2.planFirstPolicy(ID, PREDICTION);
++      const notAdmitted = await code(C2.saveV2({ id: ID, env: NEW_ENV, signer: signer(OWNER) }));
++      const notOwner = await code(C2.saveV2({ id: ID, env: NEW_ENV, admittedRules: plan.rules, signer: signer("0x" + "0b".repeat(20)) }));
++      const saved = await C2.saveV2({ id: ID, env: NEW_ENV, admittedRules: plan.rules, signer: signer(OWNER) });
++      const status = await C2.statusV2(ID);
++      // the second deployment: migrate its relay copy (read, store in v2), keep the copy, then the gated deletion
++      // its config is the catalog version's: the owner states it has none (as the CLI's --no-config); unstated, it is refused
++      const unbound = await code(C2.migrateFromRelayV2({ id: ID2, relay, signer: signer(OWNER), admittedRules: plan.rules }));
++      const migrated = await C2.migrateFromRelayV2({ id: ID2, relay, signer: signer(OWNER), admittedRules: plan.rules, configOverride: { none: true } });
++      const clearRefused = await code(C2.clearRelayCopyV2({ id: ID2, relay }));
++      return { unset: unset.state, unsetSave, verified, label: plan.committee.label, notAdmitted, notOwner,
++               secretRev: String(saved.secretRev), status: { paused: status.policy.paused, kind: status.committee.kind, policyRev: String(status.policy.policyRev) },
++               unbound, migrated: { names: migrated.migratedNames, oldCopy: migrated.oldCopy.state }, clearRefused, ua: navigator.userAgent };
++    }, { cfg, ID, ID2, NEW_ENV, PREDICTION, OWNER });
++    relayCustody = true;
++    const cleared = await page.evaluate(async (ID2) => (await C2.clearRelayCopyV2({ id: ID2, relay })).state, ID2);
++    assert.deepEqual(errors, []);
++    assert.match(out.ua, /Chrome\//);
++    assert.equal(out.unset, "unset"); assert.equal(out.unsetSave, "vault_unset");
++    assert.equal(out.verified, "verified");
++    assert.match(out.label, /^SINGLE-SEAT BOOTSTRAP/);
++    assert.equal(out.notAdmitted, "rules_not_admitted"); assert.equal(out.notOwner, "not_owner");
++    assert.equal(out.secretRev, "1");
++    assert.deepEqual(out.status, { paused: false, kind: "single-seat-bootstrap", policyRev: "1" });
++    assert.equal(out.unbound, "config_unbound");
++    assert.deepEqual(out.migrated, { names: Object.keys(RELAY_ENV), oldCopy: "present-relay-not-custody-aware" });
++    assert.equal(out.clearRefused, "relay_not_custody_aware");
++    assert.equal(cleared, "relay-reports-deleted");
++    // what the page stored opens, with the committee secret, to exactly what it was given
++    assert.deepEqual(openBundle({ x: key.x, id: ID, secretRev: 1n, committeeId: GENESIS_COMMITTEE, bundle: fake.bundles.get(ID).data }).env, NEW_ENV);
++    assert.deepEqual(openBundle({ x: key.x, id: ID2, secretRev: 1n, committeeId: GENESIS_COMMITTEE, bundle: fake.bundles.get(ID2).data }).env, RELAY_ENV);
++    // the relay saw: one read, existence probes, and exactly ONE clear - after custody was reported - carrying no value
++    // (the unbound attempt stopped before the relay read: no owner signature is spent on a save that cannot happen)
++    assert.deepEqual(relayLog.map((x) => x.path), ["/relay/get", "/relay/exists", "/relay/exists", "/relay/exists", "/relay/clear"]);
++    assert.equal(fake.applied.length, 2, "two vault updates: the save and the migration (the unbound attempt sent none)");
++    // every request the page made stayed on this origin, and none carried a v2 value (new or migrated) in the clear
++    for (const r of requests) {
++      assert.ok(r.url.startsWith(origin + "/"), "an off-origin request: " + r.url);
++      for (const v of [...Object.values(NEW_ENV), ...Object.values(RELAY_ENV)]) {
++        assert.ok(!r.body.includes(v) && !r.url.includes(v), "a value in a request: " + r.url);
++        assert.ok(!r.body.toLowerCase().includes(Buffer.from(v).toString("hex")), "a hex value in a request: " + r.url);
++      }
++    }
++    assert.ok(!requests.some((r) => r.method === "POST" && !r.url.startsWith(origin + "/relay/")), "the only POSTs are the fixture relay's");
++  } finally {
++    if (browser) await browser.close().catch(() => {});
++    server.close();
++  }
++});
++
++test("the edited dashboard component (deployments.js) loads in Chrome with its custody v2 controls in the Secrets panel markup", { skip }, async () => {
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, "http://x");
++    if (u.pathname === "/site/__c2load.html") {
++      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
++      return res.end(`<!doctype html><meta charset="utf-8"><script type="module">
++        import("/site/components/deployments/deployments.js").then(() => { window.loaded = !!customElements.get("c-deployments"); }, (e) => { window.loaded = "ERR " + e; });
++      </script>`);
++    }
++    if (u.pathname.startsWith("/v1/") || !u.pathname.startsWith("/")) { res.writeHead(404); return res.end(); }
++    const f = path.resolve(REPO, "." + u.pathname);
++    if (!f.startsWith(REPO + path.sep) || /[\\/](node_modules|\.git)[\\/]/.test(f) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { res.writeHead(404); return res.end(); }
++    res.writeHead(200, { "content-type": /\.(m?js)$/.test(f) ? "text/javascript; charset=utf-8" : /\.html$/.test(f) ? "text/html; charset=utf-8" : "application/octet-stream" });
++    fs.createReadStream(f).pipe(res);
++  });
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  let browser;
++  try {
++    browser = await chromium.launch({ executablePath: CFT, headless: true, args: ["--disable-gpu", "--disable-extensions", "--disable-dev-shm-usage", ...LEAN] });
++    const page = await browser.newPage();
++    const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
++    // the page's own network (relay, RPCs) is cut: only this repository's files load
++    await page.route("**/*", (route) => route.request().url().startsWith(`http://127.0.0.1:${server.address().port}/`) ? route.continue() : route.abort());
++    await page.goto(`http://127.0.0.1:${server.address().port}/site/__c2load.html`);
++    await page.waitForFunction(() => window.loaded !== undefined, null, { timeout: 60000 });
++    assert.equal(await page.evaluate(() => window.loaded), true);
++    assert.deepEqual(errors.filter((e) => !/Failed to fetch|NetworkError|net::ERR/.test(e)), []);
++  } finally {
++    if (browser) await browser.close().catch(() => {});
++    server.close();
++  }
++  // the panel's markup carries the v2 controls, each stating the signature it needs, and v1 is labelled v1
++  const src = fs.readFileSync(path.join(REPO, "site/components/deployments/deployments.js"), "utf8");
++  for (const cls of ["es-c2-save", "es-c2-pause", "es-c2-clear", "es-c2-cfgrow", "enc-c2-status"]) assert.ok(src.includes('class="btn btn-sm ' + cls + '"') || src.includes('class="' + cls + '"') || src.includes('class="term ' + cls + '"'), cls);
++  assert.match(src, /Save to custody \(v1\)<\/button>/);
++  assert.match(src, /ONE owner transaction/);
++});
+diff --git a/test/custody-v2-dashboard.test.mjs b/test/custody-v2-dashboard.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e33b869b55836a80d8cae61b78ec941a2e8fe787
+--- /dev/null
++++ b/test/custody-v2-dashboard.test.mjs
+@@ -0,0 +1,266 @@
++// The dashboard's custody v2 owner flow (site/js/core/custody-v2.js) over the COMMITTED vendor bundle
++// (site/vendor/custody-v2.js: real v2 encryption, rules, update encoding and reviewed-vault identity checks). The chain is
++// a FIXTURE vault (test/helpers/custody-v2-fake-vault.mjs) that applies the contract's update rules to the exact calldata the
++// page sends; a stored bundle is opened with the committee's secret as custodians would. These are fixture tests: they say
++// nothing about the production vault, committee or relay. The real-browser run is test/custody-v2-dashboard-browser.test.mjs.
++//   run: node --test test/custody-v2-dashboard.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { decodeFunctionData } from "viem";
++import { FakeVault, VAULT, BOOK, GENESIS_COMMITTEE, committeeKey, committee, openBundle } from "./helpers/custody-v2-fake-vault.mjs";
++import { UPDATE_V2_ABI } from "../custody/v2/owner.mjs";
++import { configSha256, configTextFromEnvelope } from "../custody/protocol.mjs";
++import { SOURCES, OUT, MANIFEST, buildCustodyV2Vendor } from "../scripts/build-custody-v2-vendor.mjs";
++
++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++// config.js reads storage at import; the page's own fetches are recorded (none may carry a v2 value)
++const store = new Map();
++globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
++globalThis.sessionStorage = globalThis.localStorage;
++globalThis.CustomEvent = class { constructor(t, o){ this.type = t; this.detail = (o || {}).detail; } };
++globalThis.document = { dispatchEvent(){}, addEventListener(){} };
++const fetched = [];
++globalThis.fetch = async (url, init) => { fetched.push({ url: String(url), body: init && init.body ? String(init.body) : "" }); throw new Error("fixture: no network"); };
++
++const C2 = await import(path.join(REPO, "site/js/core/custody-v2.js"));
++const REAL = await import(path.join(REPO, "site/vendor/custody-v2.js"));
++
++const OWNER = "0x" + "0a".repeat(20), OTHER = "0x" + "0b".repeat(20), SAFE = "0x" + "5a".repeat(20);
++const ID = "0x" + "d1".repeat(32);
++const RPCS = ["https://rpc-a.example", "https://rpc-b.example", "https://rpc-c.example"];
++const ENV = { DATABASE_URL: "postgres://dash-user:dash-pass-7Hq@db.example/app", API_TOKEN: "tok_dashboard_" + "q".repeat(24) };
++const ENVELOPE = JSON.stringify({ config: { region: "eu" } });
++const PREDICTION = { appId: "ab".repeat(32), images: [{ releaseAdmitted: true, measurement: "cd".repeat(48), runtimeId: "ef".repeat(32) }] };
++
++let readerOpts = null;
++function rig({ vault = VAULT, book = BOOK, rpcs = RPCS, fake = new FakeVault(), committeeOpts = {} } = {}){
++  const key = committeeKey();
++  fake.committees.set(GENESIS_COMMITTEE, committee(GENESIS_COMMITTEE, key.Y, committeeOpts));
++  fake.ledger.set(ID, { owner: OWNER, envelope: ENVELOPE });
++  readerOpts = null;
++  C2._setForTests({ lib: { ...REAL, createChainReaderV2: (o) => { readerOpts = o; return fake.reader; } },
++                    config: { vault, book, chainId: 8453, rpcs, independent: { state: "off" } }, sleep: async () => {} });
++  return { fake, key };
++}
++const plaintextIn = (s) => Object.values(ENV).some((v) => String(s).includes(v) || String(s).toLowerCase().includes(Buffer.from(v).toString("hex")));
++async function rejects(p, code){ await assert.rejects(p, (e) => { assert.equal(e.code, code, e.message); return true; }); }
++
++test("the committed site/vendor/custody-v2.js is exactly a fresh build of custody/v2/browser.mjs from the reviewed SOURCES", async () => {
++  const { js, manifest } = await buildCustodyV2Vendor();
++  assert.equal(Buffer.compare(fs.readFileSync(OUT), js), 0, "rebuild with: node scripts/build-custody-v2-vendor.mjs");
++  assert.equal(fs.readFileSync(MANIFEST, "utf8"), JSON.stringify(manifest, null, 2) + "\n");
++  for (const p of Object.keys(manifest.sources)) assert.ok(SOURCES.includes(p), p + " is not a reviewed source");
++  assert.ok(!/from\s*["']node:/.test(js.toString("utf8")), "no node: import in a browser bundle");
++});
++
++test("vault states: unset (no default vault, nothing read), unreviewed, unreadable, mismatch and verified", async () => {
++  // UNSET: the page never falls back to 0xE486 the way the CLI does - no reader is even created
++  rig({ vault: "" });
++  let s = await C2.vaultState();
++  assert.equal(s.state, "unset"); assert.match(s.why, /names no secretVaultV2/);
++  assert.equal(readerOpts, null);
++  await rejects(C2.saveV2({ id: ID, env: ENV, signer: new FakeVault().wallet(OWNER) }), "vault_unset");
++  assert.equal((await C2.statusV2(ID)).policy, null);
++  // UNREVIEWED: an arbitrary address, and the reviewed non-production pinned variant
++  rig({ vault: "0x" + "77".repeat(20) });
++  assert.equal((await C2.vaultState()).state, "unreviewed");
++  rig({ vault: "0x56b81b3970a8ac2c52f9874bd2758ede30758228" });
++  s = await C2.vaultState(); assert.equal(s.state, "unreviewed"); assert.match(s.why, /non-production/);
++  assert.equal(readerOpts, null, "no chain read for an unreviewed vault");
++  // UNREADABLE: one RPC is no agreement; an RPC disagreement on the code
++  rig({ rpcs: RPCS.slice(0, 1) });
++  assert.equal((await C2.vaultState()).state, "unreadable");
++  let f = new FakeVault(); f.failIdentity = new Error("rpc quorum: 1 of 3 agree");
++  rig({ fake: f }); assert.equal((await C2.vaultState()).state, "unreadable");
++  // MISMATCH: other code, another book, the book naming another vault at the agreed block
++  f = new FakeVault({ identity: { codeHash: "0x" + "00".repeat(32), runtimeBytes: 19719, book: BOOK, enclaveOwner: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61" } });
++  rig({ fake: f }); s = await C2.vaultState(); assert.equal(s.state, "mismatch"); assert.match(s.why, /runtime differs/);
++  rig({ book: "0x" + "99".repeat(20) }); assert.equal((await C2.vaultState()).state, "mismatch");
++  rig({ fake: new FakeVault({ bookEntry: "0x" + "56".repeat(20) }) }); s = await C2.vaultState();
++  assert.equal(s.state, "mismatch"); assert.match(s.why, /book names/);
++  rig({ fake: new FakeVault({ bookEntry: "0x" + "00".repeat(20) }) }); assert.equal((await C2.vaultState()).state, "unset");
++  // VERIFIED: the reader is the agreed book-kind reader over two-of-three RPCs
++  rig(); s = await C2.vaultState();
++  assert.equal(s.state, "verified"); assert.equal(s.vault, VAULT);
++  assert.deepEqual([readerOpts.vaultKind, readerOpts.book, readerOpts.minAgree, readerOpts.rpcs.length], ["book", BOOK, 2, 3]);
++  assert.equal(fetched.length, 0);
++});
++
++test("committee status is exact t/W and seats; one seat or all-Enclave seats are labelled BOOTSTRAP, never decentralized", () => {
++  const Y = committeeKey().Y;
++  const one = C2.describeCommittee(committee(GENESIS_COMMITTEE, Y));
++  assert.equal(one.kind, "single-seat-bootstrap"); assert.match(one.label, /^SINGLE-SEAT BOOTSTRAP: one custodian machine \(Enclave-operated\), 1 of 1 shares/);
++  const ent = C2.describeCommittee(committee(GENESIS_COMMITTEE, Y, { machines: 3, enclave: 3, t: 2 }));
++  assert.equal(ent.kind, "enclave-operated"); assert.match(ent.label, /all 3 seats run by Enclave, 2 of 3 shares - not decentralized custody/);
++  const mixed = C2.describeCommittee(committee(GENESIS_COMMITTEE, Y, { machines: 4, enclave: 1, t: 3 }));
++  assert.equal(mixed.kind, "mixed"); assert.equal(mixed.label, "3 of 4 shares over 4 seats on 4 registered hosts, 1 Enclave-operated");
++  // the word only ever appears negated: no committee here is called decentralized
++  for (const d of [one, mixed]) assert.doesNotMatch(d.label, /decentrali/i);
++  assert.match(ent.label, /not decentralized custody$/);
++});
++
++test("a first save: the page encrypts to the committee key, ONE owner update; the stored bundle opens to exactly the env", async () => {
++  const { fake, key } = rig();
++  const wallet = fake.wallet(OWNER);
++  await rejects(C2.saveV2({ id: ID, env: ENV, signer: wallet }), "rules_not_admitted");
++  assert.equal(wallet.sent.length, 0, "nothing is sent before the owner admits the rules");
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  assert.equal(plan.committee.kind, "single-seat-bootstrap");
++  const steps = [];
++  const r = await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: wallet, onStep: (m) => steps.push(m) });
++  assert.equal(r.secretRev, 1n); assert.equal(r.policyRev, 1n);
++  assert.equal(r.configSha256, configSha256(configTextFromEnvelope(ENVELOPE)));
++  assert.equal(wallet.sent.length, 1);
++  assert.equal(steps.filter((s) => s.needsOwnerSignature).length, 1, "exactly one step asks for the owner's signature");
++  const { args } = decodeFunctionData({ abi: UPDATE_V2_ABI, data: wallet.sent[0].data });
++  assert.equal(args[1].setPolicy, true); assert.equal(args[1].committeeId, GENESIS_COMMITTEE); assert.equal(args[1].setBundle, true);
++  assert.equal(args[1].paused, false);
++  const stored = fake.bundles.get(ID).data;
++  const opened = openBundle({ x: key.x, id: ID, secretRev: 1n, committeeId: GENESIS_COMMITTEE, bundle: stored });
++  assert.deepEqual(opened.env, ENV);
++  assert.equal(opened.configSha256, r.configSha256);
++  // the values exist only inside the ciphertext: not in the calldata, not in any request the page made
++  assert.ok(!plaintextIn(wallet.sent[0].data), "no plaintext in the transaction");
++  assert.ok(!fetched.some((x) => plaintextIn(x.url + x.body)), "no plaintext in any page request");
++  assert.equal(fetched.length, 0, "the save path makes no relay or host request at all");
++});
++
++test("rotation: a new complete set replaces the bundle only (rules, committee and PAUSE untouched), at the next revision", async () => {
++  const { fake, key } = rig();
++  const wallet = fake.wallet(OWNER);
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: wallet });
++  await C2.setPausedV2({ id: ID, paused: true, signer: wallet });
++  const NEXT = { API_TOKEN: "tok_rotated_" + "r".repeat(24) };
++  const r = await C2.saveV2({ id: ID, env: NEXT, signer: wallet });
++  assert.equal(r.secretRev, 2n);
++  const { args } = decodeFunctionData({ abi: UPDATE_V2_ABI, data: wallet.sent.at(-1).data });
++  assert.equal(args[1].setPolicy, false, "an existing policy is not rewritten by a save");
++  assert.equal(args[1].expectPolicyRev, 2n);
++  assert.equal(fake.policies.get(ID).paused, true, "a save never silently resumes a paused policy");
++  assert.deepEqual(openBundle({ x: key.x, id: ID, secretRev: 2n, committeeId: GENESIS_COMMITTEE, bundle: fake.bundles.get(ID).data }).env, NEXT);
++});
++
++test("refusals send nothing: not the owner, a contract owner, a moved deployment, no committee, an empty set, a bad id", async () => {
++  let { fake } = rig();
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  let w = fake.wallet(OTHER);
++  await rejects(C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: w }), "not_owner");
++  assert.equal(w.sent.length, 0);
++  // a SessionVault-held deployment: the vault's beneficialOwnerOf is the session vault's owner, who may sign
++  fake.ledger.set(ID, { owner: "0x" + "c5".repeat(20), sessionOwner: OWNER, envelope: ENVELOPE });
++  w = fake.wallet(OWNER);
++  assert.equal((await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: w })).secretRev, 1n);
++  // a contract owner (Safe / passkey account): refused before anything is encrypted or sent
++  ({ fake } = rig());
++  fake.ledger.set(ID, { owner: SAFE, envelope: ENVELOPE }); fake.codes.set(SAFE, "0x6080");
++  w = fake.wallet(SAFE);
++  await rejects(C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: w }), "contract_owner");
++  assert.equal(w.sent.length, 0);
++  // the ledger moved the deployment after the policy was made: only claimPolicy may follow
++  ({ fake } = rig());
++  w = fake.wallet(OWNER);
++  await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: w });
++  fake.ledger.set(ID, { owner: OTHER, envelope: ENVELOPE });
++  await rejects(C2.saveV2({ id: ID, env: ENV, signer: fake.wallet(OTHER) }), "owner_moved");
++  ({ fake } = rig()); fake.committees.clear();
++  await rejects(C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: fake.wallet(OWNER) }), "no_committee");
++  await rejects(C2.saveV2({ id: ID, env: {}, admittedRules: plan.rules, signer: fake.wallet(OWNER) }), "empty_set");
++  await rejects(C2.saveV2({ id: "0x1234", env: ENV, signer: fake.wallet(OWNER) }), "bad_id");
++  await assert.rejects(C2.saveV2({ id: ID, env: { ENCLAVE_X: "1" }, admittedRules: plan.rules, signer: fake.wallet(OWNER) }));
++});
++
++test("the config binding is read off the chain only when inline; otherwise the owner names it (or none), never a guess", async () => {
++  const { fake, key } = rig();
++  fake.ledger.set(ID, { owner: OWNER, envelope: "" });            // the catalog version's config: not on the ledger
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  const w = fake.wallet(OWNER);
++  const st = await C2.statusV2(ID);
++  assert.equal(st.configSha256, null); assert.match(st.configNote, /catalog version/);
++  await rejects(C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: w }), "config_unbound");
++  await rejects(C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, configOverride: { json: "{not json" }, signer: w }), "config_bad");
++  assert.equal(w.sent.length, 0, "nothing sent without an explicit binding");
++  const CFG = '{"db":"${DATABASE_URL}"}';
++  const r = await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, configOverride: { json: CFG }, signer: w });
++  assert.equal(r.configSha256, configSha256(JSON.stringify(JSON.parse(CFG))));
++  assert.equal(openBundle({ x: key.x, id: ID, secretRev: 1n, committeeId: GENESIS_COMMITTEE, bundle: fake.bundles.get(ID).data }).configSha256, r.configSha256);
++  const r2 = await C2.saveV2({ id: ID, env: ENV, configOverride: { none: true }, signer: w });
++  assert.equal(r2.configSha256, configSha256(""));
++  // an inline envelope config always wins: a named override is not consulted
++  fake.ledger.set(ID, { owner: OWNER, envelope: ENVELOPE });
++  const r3 = await C2.saveV2({ id: ID, env: ENV, configOverride: { none: true }, signer: w });
++  assert.equal(r3.configSha256, configSha256(configTextFromEnvelope(ENVELOPE)));
++});
++
++test("a stale revision reverts and nothing is claimed; a vault that does not show the written bundle is reported, not trusted", async () => {
++  let { fake } = rig();
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: fake.wallet(OWNER) });
++  fake.raceBump = true;     // another update lands between the page's read and its transaction
++  await assert.rejects(C2.saveV2({ id: ID, env: ENV, signer: fake.wallet(OWNER) }), /StaleRevision/);
++  ({ fake } = rig());
++  fake.tamper = (b) => { const c = b.slice(); c[c.length - 1] ^= 1; return c; };
++  await rejects(C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: fake.wallet(OWNER) }), "readback_mismatch");
++});
++
++test("pause and resume: one owner update each, same committee and rules, read back; a no-op sends nothing", async () => {
++  const { fake } = rig();
++  const w = fake.wallet(OWNER);
++  await rejects(C2.setPausedV2({ id: ID, paused: true, signer: w }), "no_policy");
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  await C2.saveV2({ id: ID, env: ENV, admittedRules: plan.rules, signer: w });
++  const p = await C2.setPausedV2({ id: ID, paused: true, signer: w });
++  assert.equal(p.paused, true); assert.equal(p.policyRev, 2n);
++  const { args } = decodeFunctionData({ abi: UPDATE_V2_ABI, data: w.sent.at(-1).data });
++  assert.deepEqual([args[1].setPolicy, args[1].paused, args[1].committeeId, args[1].setBundle], [true, true, GENESIS_COMMITTEE, false]);
++  const n = w.sent.length;
++  assert.equal((await C2.setPausedV2({ id: ID, paused: true, signer: w })).unchanged, true);
++  assert.equal(w.sent.length, n);
++  assert.equal((await C2.setPausedV2({ id: ID, paused: false, signer: w })).paused, false);
++  await rejects(C2.setPausedV2({ id: ID, paused: true, signer: fake.wallet(OTHER) }), "not_owner");
++  const st = await C2.statusV2(ID);
++  assert.equal(st.policy.paused, false); assert.equal(st.policy.policyRev, 3n); assert.equal(st.committee.kind, "single-seat-bootstrap");
++});
++
++test("migration: relay copy -> v2 (read back) -> the relay copy is KEPT and reported; its deletion is a separate gated step", async () => {
++  const { fake, key } = rig();
++  const plan = await C2.planFirstPolicy(ID, PREDICTION);
++  const order = [];
++  const relay = (custody) => ({
++    read: async () => { order.push("relay-read"); return { env: ENV, rev: 7 }; },
++    exists: async () => { order.push("exists"); return { id: ID, exists: true, ...(custody ? { custody: true } : {}) }; },
++    clear: async () => { order.push("relay-clear"); return { rev: 8, names: [] }; } });
++  // the relay copy cannot be deleted while v2 holds nothing
++  await rejects(C2.clearRelayCopyV2({ id: ID, relay: relay(true) }), "no_v2_bundle");
++  assert.ok(!order.includes("relay-clear"));
++  const w = fake.wallet(OWNER);
++  const r = await C2.migrateFromRelayV2({ id: ID, relay: relay(false), signer: { ...w, sendTx: async (to, d) => { order.push("vault-update"); return w.sendTx(to, d); } }, admittedRules: plan.rules });
++  assert.deepEqual(order, ["relay-read", "vault-update", "exists"], "read, then store in v2, then only LOOK at the old copy");
++  assert.deepEqual(r.migratedNames, Object.keys(ENV).sort());
++  assert.equal(r.oldCopy.state, "present-relay-not-custody-aware");
++  assert.deepEqual(openBundle({ x: key.x, id: ID, secretRev: 1n, committeeId: GENESIS_COMMITTEE, bundle: fake.bundles.get(ID).data }).env, ENV);
++  // a relay that does not report custody keeps its copy: deleting it could leave the app with nothing
++  await rejects(C2.clearRelayCopyV2({ id: ID, relay: relay(false) }), "relay_not_custody_aware");
++  assert.ok(!order.includes("relay-clear"));
++  // once the relay is custody-aware the owner's explicit step deletes it, and the answer never claims more than the relay said
++  assert.equal((await C2.relayCopyState({ id: ID, relay: relay(true) })).state, "present");
++  const c = await C2.clearRelayCopyV2({ id: ID, relay: relay(true) });
++  assert.equal(c.state, "relay-reports-deleted"); assert.equal(order.at(-1), "relay-clear");
++  assert.match(c.why, /Backups, logs or replicas .* are not verifiable from this page: rotate those credentials/);
++  assert.doesNotMatch(c.why, /irreversib|permanent|all copies/i);
++  // a deployment v2 already holds is never overwritten by the relay's (older) copy
++  order.length = 0;
++  await rejects(C2.migrateFromRelayV2({ id: ID, relay: relay(true), signer: w }), "v2_already_holds");
++  assert.deepEqual(order, [], "not even the relay copy is read");
++  // an unbound config is refused BEFORE the relay read (no owner signature spent on a save that cannot happen)
++  const f3 = rig(); f3.fake.ledger.set(ID, { owner: OWNER, envelope: "" });
++  order.length = 0;
++  await rejects(C2.migrateFromRelayV2({ id: ID, relay: relay(false), signer: f3.fake.wallet(OWNER), admittedRules: plan.rules }), "config_unbound");
++  assert.deepEqual(order, []);
++  // nothing migrates from an empty relay
++  const f2 = rig();
++  await rejects(C2.migrateFromRelayV2({ id: ID, relay: { read: async () => ({ env: {}, rev: 0 }), exists: async () => ({}) }, signer: f2.fake.wallet(OWNER), admittedRules: plan.rules }), "nothing_to_migrate");
++});
+diff --git a/test/helpers/custody-v2-fake-vault.mjs b/test/helpers/custody-v2-fake-vault.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..58e21f96b4e989c0be9b9d04d622ad7df4de7026
+--- /dev/null
++++ b/test/helpers/custody-v2-fake-vault.mjs
+@@ -0,0 +1,121 @@
++// A FIXTURE EnclaveSecretVaultV2 for the dashboard's custody v2 tests (test/custody-v2-dashboard*.test.mjs). It is NOT the
++// chain: it serves the custody/v2/chain.mjs reader interface (readVaultIdentity, snapshot, readRelease, readCommittee) from
++// in-memory state, and applies an owner's `update` calldata with the rules of contracts/EnclaveSecretVaultV2.sol _apply
++// (owner = policy owner, or beneficialOwnerOf at the first write; expectPolicyRev; a first write sets a policy; a bundle
++// needs an existing committee; secretRev + 1 per bundle; policyRev + 1 per update). The committee key Y is a real v2
++// genesis key whose secret x the test keeps, so a stored bundle can be opened exactly as a custodian quorum would.
++import { decodeFunctionData, bytesToHex, hexToBytes } from "viem";
++import { secp256k1 } from "@noble/curves/secp256k1";
++import * as v2 from "../../custody/v2/protocol.mjs";
++import { UPDATE_V2_ABI } from "../../custody/v2/owner.mjs";
++import { REVIEWED_CUSTODY_VAULTS, PRODUCTION_CUSTODY_VAULT } from "../../network/custody-vaults.mjs";
++
++export const VAULT = PRODUCTION_CUSTODY_VAULT;
++export const BOOK = REVIEWED_CUSTODY_VAULTS[VAULT].immutable.book;
++export const GENESIS_COMMITTEE = "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3";
++const ZERO = "0x" + "00".repeat(20);
++const lc = (a) => String(a || "").toLowerCase();
++
++export class VaultError extends Error { constructor(name){ super("execution reverted: " + name); this.revert = name; } }
++
++export function committeeKey(){
++  const g = v2.genesis();
++  return { x: g.shares[0].x, Y: g.Y };
++}
++/** a committee record the way readCommitteeAt returns it */
++export function committee(committeeId, Y, { machines = 1, enclave = machines, t = 1, epoch = 1 } = {}){
++  return { committeeId: lc(committeeId), Y, epoch, t, W: machines, activatedAt: 1,
++           machines: Array.from({ length: machines }, (_, i) => ({ identity: "0x" + String(i + 1).padStart(40, "a"), encKey: "0x" + "11".repeat(32),
++             endpoint: "https://custodian-" + i + ".example", chipId: "0x" + String(i).padStart(64, "c"), registryId: "0x" + String(i).padStart(64, "e"),
++             measurement: "0x" + "33".repeat(32), enclave: i < enclave })),
++           commitments: new Uint8Array(0) };
++}
++/** open a stored bundle with the committee secret x, as t custodians would (R * x) */
++export function openBundle({ x, chainId = 8453, vault = VAULT, id, secretRev, committeeId, bundle }){
++  const label = v2.labelOf({ chainId, vault: lc(vault), id, secretRev, committeeId });
++  const R = secp256k1.ProjectivePoint.fromHex(bundle.subarray(0, 33));
++  return v2.decryptBundle({ S: R.multiply(x), label, bundle });
++}
++
++export class FakeVault {
++  constructor({ vault = VAULT, identity = null, bookEntry = VAULT } = {}){
++    const r = REVIEWED_CUSTODY_VAULTS[lc(vault)];
++    this.vault = lc(vault);
++    this.identity = identity || (r ? { codeHash: r.codeHash, runtimeBytes: r.runtimeBytes, book: r.immutable.book, enclaveOwner: r.immutable.enclaveOwner } : null);
++    this.bookEntry = lc(bookEntry);
++    this.ledger = new Map();      // id -> { owner, envelope, sessionOwner? }
++    this.codes = new Map();       // address -> code
++    this.committees = new Map();  // cid -> committee
++    this.policies = new Map();    // id -> policy
++    this.bundles = new Map();     // id -> { committeeId, data }
++    this.calls = [];              // every reader call, in order
++    this.applied = [];            // every accepted update
++    this.failIdentity = null; this.failBook = null; this.tamper = null; this.raceBump = false;
++  }
++  beneficialOwnerOf(id){ const row = this.ledger.get(id); if (!row) return ZERO; return lc(row.sessionOwner || row.owner); }
++  policyOf(id){ return this.policies.get(id) || { owner: ZERO, policyRev: 0n, secretRev: 0n, committeeId: "0x" + "00".repeat(32), paused: false, rules: new Uint8Array(0) }; }
++  release(id){
++    const p = this.policyOf(id), b = this.bundles.get(id), row = this.ledger.get(id);
++    const committee = /^0x0{64}$/.test(p.committeeId) ? null : (this.committees.get(p.committeeId) || null);
++    return { policy: { ...p }, bundle: { committeeId: b ? b.committeeId : "0x" + "00".repeat(32), secretRev: p.secretRev, data: b ? b.data : new Uint8Array(0) },
++             committee, beneficialOwner: this.beneficialOwnerOf(id),
++             lease: row ? { owner: lc(row.owner), runner: ZERO, leaseUntil: 0, appRef: "", envelope: row.envelope || "" } : null, endpointId: null, endpointOperator: null };
++  }
++  get reader(){
++    const self = this;
++    return {
++      vault: this.vault, vaultKind: "book",
++      readVaultIdentity: async () => { self.calls.push("identity"); if (self.failIdentity) throw self.failIdentity; return { ...self.identity }; },
++      snapshot: async (fn) => { self.calls.push("snapshot");
++        if (self.failBook) throw self.failBook;
++        return fn({ block: 1n,
++          call: async (address, abi, name, args) => {
++            if (lc(address) === lc(self.identity && self.identity.book) && name === "addr") return self.bookEntry;
++            throw new Error("fixture: no call " + name + " on " + address);
++          },
++          code: async (a) => self.codes.get(lc(a)) || "0x" }); },
++      readRelease: async ({ id }) => { self.calls.push("release"); return self.release(lc(id)); },
++      readCommittee: async ({ committeeId }) => { self.calls.push("committee"); return { committee: self.committees.get(lc(committeeId)) || null, pending: null }; },
++    };
++  }
++  /** the chain executing `to.update(...)` sent by `from`: the contract's _apply rules, or a revert */
++  execute(from, to, data){
++    if (lc(to) !== this.vault) throw new VaultError("WrongTarget");
++    const { functionName, args } = decodeFunctionData({ abi: UPDATE_V2_ABI, data });
++    if (functionName !== "update") throw new VaultError("NotUpdate");
++    const [id, u] = [lc(args[0]), args[1]];
++    const p = this.policyOf(id);
++    const owner = p.policyRev ? p.owner : this.beneficialOwnerOf(id);
++    if (!owner || owner === ZERO || lc(from) !== owner) throw new VaultError("NotOwner");
++    if (this.raceBump) { this.raceBump = false; p.policyRev += 1n; this.policies.set(id, { ...p }); }
++    if (u.expectPolicyRev !== p.policyRev) throw new VaultError("StaleRevision");
++    const next = { ...p, owner };
++    if (!p.policyRev && !u.setPolicy) throw new VaultError("BadRules");
++    if (u.setBundle && u.clear) throw new VaultError("BadBundle");
++    if (u.setPolicy){
++      const cid = lc(u.committeeId);
++      if (!this.committees.has(cid)) throw new VaultError("BadCommittee");
++      next.committeeId = cid; next.paused = u.paused; next.rules = hexToBytes(u.rules);
++    }
++    if (u.setBundle){
++      if (!this.committees.has(next.committeeId)) throw new VaultError("BadCommittee");
++      next.secretRev = p.secretRev + 1n;
++      let data = hexToBytes(u.bundle);
++      if (this.tamper) data = this.tamper(data);
++      this.bundles.set(id, { committeeId: next.committeeId, data });
++    }
++    if (u.clear){ next.secretRev = p.secretRev + 1n; this.bundles.delete(id); }
++    next.policyRev = p.policyRev + 1n;
++    this.policies.set(id, next);
++    this.applied.push({ from: lc(from), id, update: u });
++    return "0x" + (this.applied.length).toString(16).padStart(64, "0");
++  }
++  /** a wallet that signs as `address` and whose transactions this fixture executes */
++  wallet(address){
++    const self = this, sent = [];
++    return { address: lc(address), sent,
++      sendTx: async (to, data) => { sent.push({ to, data }); return self.execute(address, to, data); },
++      waitReceipt: async () => ({ status: "success" }) };
++  }
++}
++export { bytesToHex };

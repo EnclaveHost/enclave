@@ -1,0 +1,51 @@
+{
+  "file": "site/vendor/custody-v2.js",
+  "sha256": "e4fe3ebd19a528f51944434857aa6c34fc7258380154e7baf8b0a3f5753db938",
+  "bytes": 326422,
+  "entry": "custody/v2/browser.mjs",
+  "esbuild": "0.28.1",
+  "deps": {
+    "viem": "2.53.1",
+    "@noble/curves": "1.9.1",
+    "@noble/hashes": "1.8.0",
+    "@noble/ciphers": "1.3.0"
+  },
+  "sources": {
+    "custody/hpke.mjs": {
+      "sha256": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03"
+    },
+    "custody/protocol.mjs": {
+      "sha256": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc"
+    },
+    "custody/rules.mjs": {
+      "sha256": "f35635aa4103f8075e3fcccc0be95b6c50f2d66240e95041509feeb17c7d694d"
+    },
+    "custody/threshold.mjs": {
+      "sha256": "9c7f912e7dc38e1bf58e196bce2eaf4292219aef7dfa91b8d7813b102919844a"
+    },
+    "custody/v2/browser.mjs": {
+      "sha256": "33c842fe6da6ef1fa3c61108fc874118877686455771ffdf1e7cbe6a735ef05f"
+    },
+    "custody/v2/chain.mjs": {
+      "sha256": "c85d3d820fd91613422580857c12477ec211c10c6af6a9d233543edb447fead9"
+    },
+    "custody/v2/owner.mjs": {
+      "sha256": "706fd42d5d23842c177ccae2267f1919814c788e3208a786b789f7d3649c148c"
+    },
+    "custody/v2/protocol.mjs": {
+      "sha256": "d30852c2b227760f95a900b2240355c507173e81f221b38219e34a3f8def38e4"
+    },
+    "custody/v2/quorum.mjs": {
+      "sha256": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd"
+    },
+    "network/custody-vaults.mjs": {
+      "sha256": "8939a32af3ee41f4a9f172c74234f21ce0ae97ad7b97ed86856af3187c2c0da6"
+    },
+    "network/platform-host-policy.mjs": {
+      "sha256": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2"
+    },
+    "network/rpc-identity.mjs": {
+      "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+    }
+  }
+}

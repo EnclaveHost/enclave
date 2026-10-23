@@ -1,0 +1,12 @@
+{
+  "originalPolicyUnchanged": true,
+  "ok": true,
+  "newValues": {
+    "ENCLAVE_GUEST_IGVM_SHA256": "c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+    "ENCLAVE_WMISERVE_EXE": "C:\\Program Files\\Enclave\\bin\\shield-host-e4eeb994.exe",
+    "ENCLAVE_GUEST_CPU_ALLOWANCE": "1",
+    "ENCLAVE_WMISERVE_EXE_SHA256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
+    "ENCLAVE_GUEST_IGVM": "C:\\Program Files\\Enclave\\guest\\runtime-cpu-c1619eec.bin"
+  },
+  "unrelatedConfigUnchanged": true
+}

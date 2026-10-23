@@ -1,0 +1,4 @@
+import importlib.util,json,pathlib
+s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
+p=r'''$f='C:\ProgramData\Enclave\logs\partitions\enclave-app-hv9556d033df8c02-3f770400.log';$o=@{at=(Get-Date).ToUniversalTime().ToString('o');exists=(Test-Path $f)};if(Test-Path $f){$o.bytes=(Get-Item $f).Length;$o.messages=@(Get-Content $f -Tail 100|Where-Object {$_ -match '\[cron\]|panic|oom|exited|timeout|APP refused|error|failed'}|Select-Object -Last 12|ForEach-Object {$l=[string]$_;$l=$l -replace '(?i)(token|password|signature|authorization|secret|key)([=: ]+)[^ ,;]+','$1=[redacted]';$l=$l -replace 'https?://[^ ]+','[url]';$l.Substring(0,[Math]::Min(500,$l.Length))})};$o|ConvertTo-Json -Depth 5 -Compress'''
+r=h.ps(p,20);pathlib.Path('work/cpu-quota-activation-20261023/cron-console.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

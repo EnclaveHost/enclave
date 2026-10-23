@@ -1,0 +1,9 @@
+{
+  "addresses": [
+    "172.17.28.159",
+    "fe80::215:5dff:fe01:3317"
+  ],
+  "name": "enclave-control",
+  "checkpoints": [],
+  "state": "Running"
+}

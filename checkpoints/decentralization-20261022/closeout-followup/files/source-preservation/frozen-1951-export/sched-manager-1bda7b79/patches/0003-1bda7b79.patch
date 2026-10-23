@@ -1,0 +1,29 @@
+From 1bda7b79c021f87359191538c91c45b246dde8fe Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:34:01 -0700
+Subject: [PATCH] Admit tested exact-share guest image without removing
+ existing release pins
+
+---
+ windows/installer/admitted-shield-policy.json | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/windows/installer/admitted-shield-policy.json b/windows/installer/admitted-shield-policy.json
+index 26d3a537c92e1f25dce8672af0a7853c9aeeb5bd..337e6f8ca5a1c66b93bc47b80fa8a6dcbb8ef127 100644
+--- a/windows/installer/admitted-shield-policy.json
++++ b/windows/installer/admitted-shield-policy.json
+@@ -75,6 +75,14 @@
+    "secretsV1": true,
+    "configSocketServer": true,
+    "protectedPorts": true
++  },
++  {
++   "measurement": "62ac7aab7700ea41ace82549751ee8797a8e087502bf04ad96c0003727a6b535",
++   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
++   "configBundleV5": true,
++   "secretsV1": true,
++   "configSocketServer": true,
++   "protectedPorts": true
+   }
+  ],
+  "cpu": {

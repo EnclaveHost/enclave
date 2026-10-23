@@ -1,0 +1,266 @@
+From a5eae96cdaa9f916266c9ee101908e14e75ad085 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:49:51 -0700
+Subject: [PATCH] Fail closed on custody startup storage errors and bind
+ reviewed vault authority
+
+---
+ custody/v2/daemon.mjs                  | 20 +++++-----
+ custody/v2/host-binding.mjs            | 11 +++++-
+ custody/v2/host.mjs                    |  7 ++--
+ custody/v2/ingress.mjs                 |  2 +-
+ custody/v2/startup-state.mjs           | 23 ++++++++++++
+ test/custody-direct-host.test.mjs      | 11 +++++-
+ test/custody-direct-ingress.test.mjs   |  4 +-
+ test/custody-v2-startup-state.test.mjs | 51 ++++++++++++++++++++++++++
+ 8 files changed, 111 insertions(+), 18 deletions(-)
+ create mode 100644 custody/v2/startup-state.mjs
+ create mode 100644 test/custody-v2-startup-state.test.mjs
+
+diff --git a/custody/v2/daemon.mjs b/custody/v2/daemon.mjs
+index 3ceba5c2775290050656d6ee33b49f9293d2a761..85c4816f9592240662f398dee3183530e854d035 100644
+--- a/custody/v2/daemon.mjs
++++ b/custody/v2/daemon.mjs
+@@ -39,6 +39,7 @@
+ import { createPlatformHostGate } from "../../network/platform-host-policy.mjs";
+ import { httpPolicyMirrors } from "../../network/host-policy-mirrors.mjs";
+ import { createSealedStateWriter } from "./sealed-state.mjs";
++import { readStartupState, loadStartupState } from "./startup-state.mjs";
+ 
+ const log = (...a) => console.log(new Date().toISOString(), ...a);
+ const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
+@@ -78,7 +79,6 @@
+   const d = createDecipheriv("aes-256-gcm", key, blob.subarray(0, 12)); d.setAAD(AAD); d.setAuthTag(blob.subarray(12, 28));
+   return JSON.parse(Buffer.concat([d.update(blob.subarray(28)), d.final()]).toString("utf8"));
+ }
+-async function hostGet(hostUrl, p) { const r = await fetch(hostUrl + p); if (r.status === 404) return null; if (!r.ok) throw new Error(`host ${p}: ${r.status}`); return Buffer.from(await r.arrayBuffer()); }
+ async function hostPut(hostUrl, p, body) { const r = await fetch(hostUrl + p, { method: "PUT", body }); if (!r.ok) throw new Error(`host ${p}: ${r.status}`); }
+ 
+ async function main() {
+@@ -89,15 +89,15 @@
+   const trustedProxies = validateTrustedProxies(MEASURED.trustedProxies ?? []);
+   const key = derivedKey();
+   // 1. the sealed state (keys + shares), or a fresh identity
+-  let state = null;
+-  const blob = await hostGet(hc.hostUrl, "/state").catch((e) => { log(`state fetch failed: ${e.message}`); return null; });
+-  if (blob) { try { state = unseal(key, blob); log("sealed state opened"); } catch { throw new Error("the host's sealed state does not open in this guest (another chip or another custodian build): refusing to start rather than overwrite it"); } }
+-  if (!state) {
+-    const kp = hpke.generateKeyPair();
+-    state = { identityKey: generatePrivateKey(), encPrivate: Buffer.from(kp.privateKey).toString("hex"), member: null };
+-    await hostPut(hc.hostUrl, "/state", seal(key, state));
+-    log("new custodian identity sealed");
+-  }
++  const state = await loadStartupState({
++    read: () => readStartupState(hc.hostUrl + "/state"),
++    unseal: (blob) => {
++      try { const s = unseal(key, blob); log("sealed state opened"); return s; }
++      catch { throw new Error("the host's sealed state does not open in this guest (another chip or another custodian build): refusing to start rather than overwrite it"); }
++    },
++    fresh: () => { const kp = hpke.generateKeyPair(); return { identityKey: generatePrivateKey(), encPrivate: Buffer.from(kp.privateKey).toString("hex"), member: null }; },
++    persist: async (s) => { await hostPut(hc.hostUrl, "/state", seal(key, s)); log("new custodian identity sealed"); },
++  });
+   const identity = privateKeyToAccount(state.identityKey);
+   const encPrivateKey = new Uint8Array(Buffer.from(state.encPrivate, "hex"));
+   const encKey = "0x" + Buffer.from(hpke.publicKeyOf(encPrivateKey)).toString("hex");
+diff --git a/custody/v2/host-binding.mjs b/custody/v2/host-binding.mjs
+index b664e738a00d80ce90c252c4f7c51e1b045ff6b5..4c07ab6360c1bbe341fb1e22d384a1dabf5da812 100644
+--- a/custody/v2/host-binding.mjs
++++ b/custody/v2/host-binding.mjs
+@@ -1,8 +1,17 @@
+ import * as D from './digests.mjs';
++import { custodyVaultKind, REVIEWED_CUSTODY_VAULTS } from '../../network/custody-vaults.mjs';
+ const lc=value=>String(value).toLowerCase();
++export function hostBindingReaderOptions(manifest, rpcs) {
++  const pin = REVIEWED_CUSTODY_VAULTS[lc(manifest.vault)];
++  if (!pin) throw Error('host binding requires a reviewed vault');
++  const authority = pin.hostOwnership || pin.immutable.hostOwnership;
++  if (lc(manifest.hostOwnership) !== lc(authority)) throw Error('host binding ownership differs from reviewed authority');
++  return { rpcs, vault:manifest.vault, ...custodyVaultKind(manifest.vault), hostOwnership:manifest.hostOwnership,
++    chainId:pin.chainId, minAgree:Math.floor(rpcs.length/2)+1, confirmations:2 };
++}
+ // The private operator key is used only after the guest's requested machine
+ // record matches this host's configured registry and endpoint. The reader uses
+-// the vault's immutable registry/ownership bindings, never the address book.
++// the reviewed vault's authority mode, including the original vault's admin book.
+ export async function prepareHostBinding({chain,operator,chainId,vault,registryId,registryEndpoint,endpoint,info}) {
+   const m=info?.machine;
+   if(info?.v!==2||!m||lc(m.registryId)!==lc(registryId)||m.endpoint!==endpoint||
+diff --git a/custody/v2/host.mjs b/custody/v2/host.mjs
+index b7969f3cf6dff31775e5e5332282816f561dc215..5c12cc58b473eb63c55817e19af07ac92c51557e 100644
+--- a/custody/v2/host.mjs
++++ b/custody/v2/host.mjs
+@@ -19,7 +19,8 @@
+ import { privateKeyToAccount } from "viem/accounts";
+ import { base } from "viem/chains";
+ import { VAULT_V2_ABI, createChainReaderV2 } from "./chain.mjs";
+-import { prepareHostBinding } from './host-binding.mjs';
++import { prepareHostBinding, hostBindingReaderOptions } from './host-binding.mjs';
++import { checkCustodyVaultIdentity } from '../../network/custody-vaults.mjs';
+ import { MEASURED } from './measured.mjs';
+ 
+ const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+@@ -28,8 +29,7 @@
+    !/^0x[0-9a-f]{40}$/i.test(manifest.hostOwnership||'')||/^0x0{40}$/i.test(manifest.hostOwnership)||
+    !['direct','tunnel'].includes(manifest.transport))throw Error('compatible measured custody manifest required');
+ const bindingRpcs=cfg.rpcs||MEASURED.rpcs;
+-const bindingChain=createChainReaderV2({rpcs:bindingRpcs,vault:cfg.vault,hostOwnership:manifest.hostOwnership,
+-  chainId:8453,minAgree:Math.floor(bindingRpcs.length/2)+1,confirmations:2});
++const bindingChain=createChainReaderV2(hostBindingReaderOptions(manifest,bindingRpcs));
+ const log = (...a) => console.log(new Date().toISOString(), "[custodian-host]", ...a);
+ const STATE = path.join(cfg.stateDir, "state.bin");
+ fs.mkdirSync(cfg.stateDir, { recursive: true, mode: 0o700 });
+@@ -96,6 +96,7 @@
+       const response=await fetch(`http://127.0.0.1:${cfg.mgmtPort}/v2/custody/info`,{signal:AbortSignal.timeout(10000)});
+       if(!response.ok)throw Error(`guest info HTTP ${response.status}`);
+       const i=await response.json();
++      checkCustodyVaultIdentity(cfg.vault,await bindingChain.readVaultIdentity());
+       const binding=await prepareHostBinding({chain:bindingChain,operator:op,chainId:8453,vault:cfg.vault,registryId,
+         registryEndpoint:cfg.registryEndpoint,endpoint:cfg.endpoint,info:i});
+       if(binding.alreadyBound){log(`guest ${i.identity} bound (${i.epochs?.length||0} epoch(s) held)`);return;}
+diff --git a/custody/v2/ingress.mjs b/custody/v2/ingress.mjs
+index 7660720ebfa55551ca364b34243b6a4ded7937fc..ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772 100644
+--- a/custody/v2/ingress.mjs
++++ b/custody/v2/ingress.mjs
+@@ -15,7 +15,7 @@
+   }
+   @public_protocol {
+     method POST
+-    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/shield-session/challenge /v2/custody/shield-session/attest
++    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/owner-read/challenge /v2/custody/owner-read /v2/custody/shield-session/challenge /v2/custody/shield-session/attest
+   }
+   handle @public_info {
+     reverse_proxy 127.0.0.1:${mgmtPort}
+diff --git a/custody/v2/startup-state.mjs b/custody/v2/startup-state.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ee1523f5a88ef7f65b21a6aef6d7f75d61cd6959
+--- /dev/null
++++ b/custody/v2/startup-state.mjs
+@@ -0,0 +1,23 @@
++// Only an explicit missing-state response permits a new identity. Transport,
++// storage and authentication failures must never overwrite an existing share.
++export async function readStartupState(url, { fetchImpl = fetch, timeoutMs = 10000, maxBytes = 4 << 20 } = {}) {
++  const r = await fetchImpl(url, { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
++  if (r.status === 404) { await r.body?.cancel(); return null; }
++  if (r.status !== 200) { await r.body?.cancel(); throw Error(`sealed state read failed: HTTP ${r.status}`); }
++  const chunks = []; let size = 0;
++  for await (const chunk of r.body || []) {
++    size += chunk.byteLength;
++    if (size > maxBytes) throw Error('sealed state exceeds its size limit');
++    chunks.push(Buffer.from(chunk));
++  }
++  if (size < 28) throw Error('sealed state response is empty or truncated');
++  return Buffer.concat(chunks);
++}
++
++export async function loadStartupState({ read, unseal, fresh, persist }) {
++  const blob = await read();
++  if (blob !== null) return unseal(blob);
++  const state = fresh();
++  await persist(state);
++  return state;
++}
+diff --git a/test/custody-direct-host.test.mjs b/test/custody-direct-host.test.mjs
+index 2aa0973f87d51d80e60475a70d949a7f9699b149..4417609f78df8169b9f4b6cdd802a0f477a3437e 100644
+--- a/test/custody-direct-host.test.mjs
++++ b/test/custody-direct-host.test.mjs
+@@ -4,11 +4,20 @@
+ import {build} from 'esbuild';
+ import {EventEmitter} from 'node:events';
+ import {generatePrivateKey,privateKeyToAccount} from 'viem/accounts';
+-import {prepareHostBinding} from '../custody/v2/host-binding.mjs';
++import {prepareHostBinding,hostBindingReaderOptions} from '../custody/v2/host-binding.mjs';
+ import {directCustodyIngress} from '../custody/v2/ingress.mjs';
+ import * as D from '../custody/v2/digests.mjs';
+ const hex=(n,size=32)=>'0x'+n.toString(16).padStart(size*2,'0');
+ 
++test('the original vault launcher selects its admin book before any host signature, without RPC fallback',()=>{
++  const m={vault:'0xe48699b8401564aace7a814ae4569b67a3f7eef5',hostOwnership:'0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7'};
++  const o=hostBindingReaderOptions(m,['https://a.example','https://b.example']);
++  assert.equal(o.vaultKind,'book'); assert.equal(o.book,'0xab214342d5a490150a4a977063a2f88e21f80907');
++  assert.equal(o.hostOwnership,m.hostOwnership);assert.equal(o.minAgree,2);
++  assert.throws(()=>hostBindingReaderOptions({...m,vault:hex(42,20)},o.rpcs),/reviewed vault/);
++  assert.throws(()=>hostBindingReaderOptions({...m,hostOwnership:hex(43,20)},o.rpcs),/ownership differs/);
++});
++
+ test('actual bundled startup uses only the custodian in measured direct mode despite hostile host transport config',async()=>{
+   for(const transport of ['direct','tunnel','invalid']){
+     const {outputFiles}=await build({entryPoints:['custody/v2/cvm-gsup.mjs'],bundle:true,platform:'node',format:'cjs',write:false,
+diff --git a/test/custody-direct-ingress.test.mjs b/test/custody-direct-ingress.test.mjs
+index 4f6eaebaa6f644ffad97c1ca8cf9f7d704418e67..06572e9bbc568974fba7ddb7fa4ce62630706db2 100644
+--- a/test/custody-direct-ingress.test.mjs
++++ b/test/custody-direct-ingress.test.mjs
+@@ -45,7 +45,7 @@
+     }
+     assert.ok(ready,'direct TLS ingress becomes ready');seen.length=0;
+     const body=JSON.stringify({recipientKey:Buffer.from(keys.publicKey).toString('hex'),nonce:'test'});
+-    for(const route of ['evidence','challenge','release','join','approve','independent-genesis','code-approve']){
++    for(const route of ['evidence','challenge','release','join','approve','independent-genesis','code-approve','owner-read/challenge','owner-read']){
+       const response=await request(port,'/v2/custody/'+route,'POST',body);assert.equal(response.status,200);
+       const value=hpke.open(keys.privateKey,info,aad,Buffer.from(JSON.parse(response.body).sealed,'base64'));
+       assert.equal(Buffer.from(value).toString(),'recipient-only test value');
+@@ -53,7 +53,7 @@
+     }
+     const forwarded=seen.length;
+     for(const [route,method] of [['/state','GET'],['/state','PUT'],['/submit','POST'],['/receipts','GET'],
+-      ['/v2/custody/host-binding','POST'],['/v2/custody/%68ost-binding','POST'],['/v2/custody/release','GET'],['/v2/custody/info','POST']]){
++      ['/v2/custody/host-binding','POST'],['/v2/custody/%68ost-binding','POST'],['/v2/custody/release','GET'],['/v2/custody/info','POST'],['/v2/custody/owner-read','GET'],['/v2/custody/owner-read/challenge','PUT']]){
+       assert.equal((await request(port,route,method,'{}')).status,404,route+' '+method);
+     }
+     assert.equal(seen.length,forwarded,'private requests never reach the guest forwarding port');
+diff --git a/test/custody-v2-startup-state.test.mjs b/test/custody-v2-startup-state.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e406e9b3a6337e10e6e2e671ffc63e7a5921669
+--- /dev/null
++++ b/test/custody-v2-startup-state.test.mjs
+@@ -0,0 +1,51 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import { readStartupState, loadStartupState } from '../custody/v2/startup-state.mjs';
++
++test('storage outage, malformed body and transport failures never create or overwrite an identity', async t => {
++  let mode = 'stored', created = 0, writes = 0;
++  const saved = Buffer.alloc(64, 7), identity = { identity: 'dedicated-test-only' };
++  const srv = http.createServer((req, res) => {
++    if (mode === 'disconnect') return req.socket.destroy();
++    if (mode === 'stall') return;
++    if (mode === 'redirect') { res.writeHead(302, {location:'/state'}); return res.end(); }
++    if (mode === 'missing') { res.writeHead(404); return res.end(); }
++    if (mode === 'unavailable') { res.writeHead(503); return res.end(); }
++    if (mode === 'forbidden') { res.writeHead(403); return res.end(); }
++    if (mode === 'empty') return res.end();
++    if (mode === 'short') return res.end(Buffer.alloc(27));
++    if (mode === 'oversize') return res.end(Buffer.alloc(129));
++    if (mode === 'bad-seal') return res.end(Buffer.alloc(64, 8));
++    res.end(saved);
++  });
++  await new Promise(r => srv.listen(0, '127.0.0.1', r));
++  t.after(() => { srv.closeAllConnections(); return new Promise(r => srv.close(r)); });
++  const options = {
++    read: () => readStartupState(`http://127.0.0.1:${srv.address().port}/state`, {timeoutMs:300,maxBytes:128}),
++    unseal: blob => { assert.deepEqual(blob, saved, 'authenticated blob only'); return identity; },
++    fresh: () => { created++; return { identity:'new-test-only' }; },
++    persist: async () => { writes++; },
++  };
++  assert.equal(await loadStartupState(options), identity);
++  for (mode of ['unavailable','forbidden','empty','short','oversize','bad-seal','redirect','disconnect','stall']) {
++    await assert.rejects(loadStartupState(options), undefined, mode);
++    assert.equal(created, 0, mode + ': no replacement identity');
++    assert.equal(writes, 0, mode + ': existing disk untouched');
++  }
++  mode = 'stored';
++  assert.equal(await loadStartupState(options), identity, 'recovery reopens the same state');
++  mode = 'missing';
++  assert.deepEqual(await loadStartupState(options), {identity:'new-test-only'});
++  assert.equal(created,1); assert.equal(writes,1);
++});
++
++test('initial persistence is a barrier; a failed save exposes no initialized state', async () => {
++  let release;
++  const pending = new Promise(r => { release = r; }); let done = false;
++  const opts = { read:async()=>null, unseal:()=>assert.fail(), fresh:()=>({identity:'canary'}), persist:()=>pending };
++  const load = loadStartupState(opts).then(v => {done=true;return v;});
++  await new Promise(r=>setImmediate(r)); assert.equal(done,false);
++  release(); assert.deepEqual(await load,{identity:'canary'});
++  await assert.rejects(loadStartupState({...opts,persist:async()=>{throw Error('disk unavailable');}}),/disk unavailable/);
++});

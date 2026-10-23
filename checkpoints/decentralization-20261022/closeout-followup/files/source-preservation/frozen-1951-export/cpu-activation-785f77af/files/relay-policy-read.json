@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-23T19:23:21.507711+00:00",
+  "mode": "read",
+  "pidBefore": 816,
+  "policyPath": "/etc/nan-relay/shield-policy.json",
+  "beforeSha256": "efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41",
+  "policySha256": "efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41",
+  "cpu": {
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "configBundleV5": true,
+    "secretsV1": true,
+    "configSocketServer": true,
+    "protectedPorts": true
+  },
+  "matchingImages": [
+    {
+      "measurement": "8414496cd0d2af2a49ec0476f69b901bef04cea5d3b52b2347b81e1ef3f14b23",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "configBundleV5": true,
+      "secretsV1": true,
+      "configSocketServer": true,
+      "protectedPorts": true
+    }
+  ],
+  "imageCount": 11
+}

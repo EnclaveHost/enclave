@@ -1,0 +1,68 @@
+From 4acad4a7a3d6858eae27c6c8573836f48395d9de Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:11:16 -0700
+Subject: [PATCH] Docs: the dashboard's custody v2 panel (secret-custody-v2.md
+ 10.2), source-only status
+
+Its vault, committee, save/rotate, config binding, pause, migration and old-copy rules, and what it does not do. The
+panel is inert until the book entry secretVaultV2 is set (not set).
+---
+ docs/security/secret-custody-v2.md | 38 +++++++++++++++++++++++++++++-
+ 1 file changed, 37 insertions(+), 1 deletion(-)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..5c665cead1dbb4d4300ff1a86d2eff8c04ccc7d4 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -46,7 +46,8 @@
+   cache. After a restart, rollback protection starts again from the next read.
+ - **The relay is in the path.** The guest reaches the custodian through the relay's tunnel, and gets the pointer from
+   the relay-signed release (v1 L3).
+-- **Not built yet:** the site's "Save to custody" (v1 only; v2 via the CLI) and the governance book entry.
++- **Site v2 panel: source only, not deployed.** It is in the dashboard's Secrets panel (`site/js/core/custody-v2.js`). It
++  stays inert until the governance book entry `secretVaultV2` is set, which has not been done. §10.2 describes it.
+ - **No external cryptographic review.**
+ 
+ ## 1. Why v1 is not enough
+@@ -357,6 +358,41 @@
+ 7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
+ 8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
+ 
++### 10.2 The dashboard's custody v2 panel (owner side, browser)
++
++The Secrets panel's v2 block (`site/js/core/custody-v2.js`, crypto and reads from `/vendor/custody-v2.js`, built from
++`custody/v2/browser.mjs` by `scripts/build-custody-v2-vendor.mjs`) runs only against a VERIFIED vault:
++
++- **Which vault.** The vault is the one the book names under `secretVaultV2`, or an independent profile's own pin.
++  - There is no default. Unlike the CLI, the page never assumes 0xE486.
++  - The vault must be a reviewed production entry of `network/custody-vaults.mjs`, with matching code hash and immutables
++    at a block two RPCs agree on.
++  - A book-named vault must still be named by the book at that block.
++  - Otherwise the panel says `unset`, `unreviewed`, `unreadable` or `mismatch`, and offers no v2 action. It never falls back
++    to v1.
++- **Committee.** It is shown as its exact t of W, its seats and how many seats are Enclave-operated. One seat, or every seat
++  Enclave-operated, is labelled a BOOTSTRAP, never "decentralized".
++- **Save / rotate.** The complete set is encrypted IN THE PAGE to the committee key. One owner `update` stores it, and the
++  vault is read back.
++  - A first policy needs the owner's explicit admit of the relay's predicted images.
++  - An existing policy keeps its rules, committee and pause state.
++  - The values are bound to the config read off the chain when it is inline in the options envelope. Otherwise the owner
++    names that exact JSON, or states there is none (as the CLI's `--config-file` / `--no-config`).
++- **Pause / resume.** One owner `update` each.
++- **Migration from the relay.**
++  - The owner's signed relay read, then the v2 save and read-back.
++  - The relay's plaintext copy is KEPT and reported.
++  - Deleting it is a separate owner step, allowed only when the v2 bundle is on chain and the relay reports the deployment
++    custody-held.
++  - The panel reports only what the relay answered. Backups, logs or replicas outside its live store are not verifiable
++    there, so the owner is told to rotate those credentials.
++- **Not in the panel:**
++  - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
++  - owner read of stored values;
++  - committee moves (owner rewrap, `custody/v2/rewrap.mjs`);
++  - `claimPolicy` after a ledger transfer;
++  - independent mode (no Secrets panel there).
++
+ ## 11. Decisions (2026-10-14; Steven asked for the recommendation on each)
+ 
+ 1. **Upgrade authority.** Adding a custodian measurement needs signatures from seats holding `t` shares, then a 7-day

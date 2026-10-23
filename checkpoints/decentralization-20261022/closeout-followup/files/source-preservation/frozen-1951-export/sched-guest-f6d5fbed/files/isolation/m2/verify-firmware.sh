@@ -1,0 +1,115 @@
+#!/bin/sh
+# Does this firmware actually VERIFY the SEV kernel hash table?
+#
+# WHY THIS EXISTS. `kernel-hashes=on` makes QEMU write a table of sha256(kernel), sha256(initrd) and
+# sha256(cmdline) into a page the launch digest commits to. Whether anything CHECKS the served bytes against that
+# table is a property of the FIRMWARE, not of QEMU: upstream OvmfPkgX64 links BlobVerifierLibNull and never looks,
+# while OvmfPkg/AmdSev/AmdSevX64.dsc links BlobVerifierLibSevHashes, which compares and fails closed. Measured
+# 2026-09-23: the distro OVMF boots happily with NO table at all, so on every kernel-hashes path in this
+# repository "the app is in the measured image" was a statement about hashes rather than about what executes.
+#
+# THE TEST. Two launches of ONE image with ONE firmware:
+#
+#   kernel-hashes=on    must BOOT            (the control: the table matches what is served)
+#   kernel-hashes=off   must NOT BOOT        (no table at all; a verifying firmware refuses, a null one boots)
+#
+# A firmware that passes both is verifying. A firmware that boots in the second case is not, whatever the digest
+# commits to. The third case - serving different bytes than were hashed - needs a QEMU that hashes one file and
+# serves another, which is a test-only patch and is run by the review lane rather than here.
+#
+# OVMF_OVERRIDE IS FOR THIS TEST ONLY. It changes the firmware a LAUNCH uses; it does not change what
+# build-domain.sh and build-app-guest.sh hand to sev-snp-measure when they PREDICT a measurement, which comes
+# from m1/domain.env. So a suite run with the override would predict against one firmware and launch another, and
+# "measurement reproducible: live == predicted" would fail for a reason that has nothing to do with the property
+# under test. When the suites move to a verifying firmware, change domain.env so predictions and launches use the
+# same file - do not reach for this variable.
+#
+# usage: verify-firmware.sh <OVMF.fd> <domain.cpio.gz> [workdir]
+set -e
+here=$(cd "$(dirname "$0")" && pwd)
+FW=${1:?usage: verify-firmware.sh <OVMF.fd> <domain.cpio.gz> [workdir]}
+IMG=${2:?usage: verify-firmware.sh <OVMF.fd> <domain.cpio.gz> [workdir]}
+W=${3:-$(mktemp -d)}
+mkdir -p "$W"
+[ -r "$FW" ] || { echo "no firmware at $FW"; exit 2; }
+echo "firmware $FW ($(stat -c %s "$FW") bytes, sha256 $(sha256sum "$FW" | cut -c1-16)...)"
+
+booted() {   # booted <tag>: did the guest reach its own userspace?
+  grep -aq "DOM serving\|DOM started" "$W/$1.serial" 2>/dev/null
+}
+
+# launched <tag>: did QEMU actually start? A launch that never happened produces the same empty serial log as a
+# firmware that refused, and scoring those alike is how a broken harness reports a refusal it never observed.
+# The first version of this script did exactly that: it copied run-domain.sh into the workdir, where the copy
+# could no longer resolve ../m1/domain.env, so nothing ran and BOTH cases were scored from silence.
+launched() {
+  grep -aq "^HOST mode=" "$W/$1.host" 2>/dev/null
+}
+
+run() {      # run <tag> <on|off>
+  tag=$1; hashes=$2
+  OVMF_OVERRIDE=$FW KERNEL_HASHES=$hashes FW_DEBUGCON=1 sh "$here/run-domain.sh" start "$IMG" snp "$tag" "$W" \
+    > "$W/$tag.host" 2>&1 || true
+  for _ in $(seq 40); do booted "$tag" && break; sleep 1; done
+  sh "$here/run-domain.sh" stop "$tag" "$W" >/dev/null 2>&1 || true
+  if ! launched "$tag"; then
+    echo "INFRA  $tag: QEMU never launched, so this run says NOTHING about the firmware:"
+    sed 's/^/         /' "$W/$tag.host" | head -3
+    return 1
+  fi
+  return 0
+}
+
+fails=0
+check() {
+  case "$2" in
+    ok) echo "PASS $1" ;;
+    inconclusive) echo "INCONCLUSIVE $1"; fails=$((fails + 1)) ;;
+    *) echo "FAIL $1"; fails=$((fails + 1)) ;;
+  esac
+}
+
+if ! run control on; then
+  echo "ABORT: the control did not launch. Nothing below would mean anything."
+  exit 1
+fi
+booted control && r=ok || r=no
+check "1 control: kernel-hashes=on, the table matches what is served, the guest BOOTS" $r
+if [ "$r" = no ]; then
+  # A firmware that refuses its own control is not shown to verify: it may be refusing for a reason that has
+  # nothing to do with the table. Say so instead of collecting a pass from case 2.
+  echo "       The control did not boot, so case 2 below proves nothing: a firmware that never boots refuses"
+  echo "       everything. Diagnose the control first - serial at $W/control.serial."
+fi
+
+if ! run notable off; then
+  echo "ABORT: the no-table case did not launch."
+  exit 1
+fi
+if booted notable; then
+  r=no
+elif grep -aq "no hashes table\|Hash comparison failed" "$W/notable.debugcon" 2>/dev/null; then
+  r=ok                       # the firmware's own verdict, which is what a refusal should look like
+  echo "       the firmware said so itself: $(grep -ah "no hashes table\|Hash comparison failed" "$W/notable.debugcon" | head -1)"
+else
+  # NOT a pass on silence. A SIGTERMed QEMU exits 0 with an empty console, and so does a guest that never
+  # started, so "nothing happened" cannot be told from "the firmware refused" without positive evidence.
+  r=inconclusive
+  echo "       INCONCLUSIVE: the guest did not boot and the firmware said nothing. An empty console with rc 0"
+  echo "       is what a killed QEMU also looks like. Build the firmware with BUILD_TARGET=DEBUG so its verdict"
+  echo "       reaches $W/notable.debugcon, and score that rather than the absence."
+fi
+check "2 kernel-hashes=off: NO table in the measurement, the firmware must REFUSE to boot the guest, and SAY so" $r
+
+echo
+if [ "$fails" -eq 0 ] && booted control; then
+  echo "FIRMWARE VERIFIES: it boots what matches the table and refuses when there is no table."
+  echo "Still not shown here, and it needs a test-only QEMU that hashes one file while serving another:"
+  echo "that a SUBSTITUTED initrd is refused. Without that case this says the firmware checks for a table,"
+  echo "not that it compares the bytes. See isolation/m4/PLAN.md section 3."
+else
+  echo "$fails of 2 FAILED. If case 2 booted, this firmware does not verify the table:"
+  echo "it is almost certainly an OvmfPkgX64 build linking BlobVerifierLibNull. Build AmdSevX64.dsc instead."
+  exit 1
+fi
+echo "workdir $W"

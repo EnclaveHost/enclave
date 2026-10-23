@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-23T19:17:34.593594+00:00",
+  "step": "stop",
+  "scriptSha256": "c373d1ca8dc5538a6cb8fed6a313f163c120c7c6f24a63c474d276584a932b20",
+  "result": {
+    "ok": true,
+    "step": "stop",
+    "state": {
+      "tasks": [
+        {
+          "state": "Ready",
+          "name": "Node"
+        },
+        {
+          "state": "Ready",
+          "name": "Shield"
+        },
+        {
+          "state": "Ready",
+          "name": "Network"
+        }
+      ],
+      "infrastructure": [
+        {
+          "Name": "enclave-storage",
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "state": "Running"
+        },
+        {
+          "Name": "enclave-control",
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "state": "Running"
+        }
+      ],
+      "listeners": [],
+      "at": "2026-10-23T19:17:31.8463029Z"
+    }
+  }
+}

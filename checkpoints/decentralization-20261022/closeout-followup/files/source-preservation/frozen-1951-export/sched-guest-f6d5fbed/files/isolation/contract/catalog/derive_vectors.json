@@ -1,0 +1,958 @@
+{
+ "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+ "ok": [
+  {
+   "bundleSha256": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+   "mapping": {
+    "appId": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+    "bundleBytes": 439,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/1",
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "412675336810f73e40327f049ed9ad46a189e374d57d5582ae3bdf022fd6ba2d"
+   },
+   "name": "v1",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+   "mapping": {
+    "appId": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+    "bundleBytes": 439,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 8
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/1",
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "5324a3315366bee08ac3ebf64d56c37436638b6bbc348697c3156df7eff5a79b"
+   },
+   "name": "another catalog version, same component and policy: same AppID, different record",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 8
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+   "mapping": {
+    "appId": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+    "bundleBytes": 439,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/1",
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+    },
+    "recordSha256": "47cdeb00cc2604f8d3dda1c8a3e9ca7d925b52416f0e627b7a23ecc0f400847c"
+   },
+   "name": "another pinned runtime: same AppID, different record",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+   }
+  },
+  {
+   "bundleSha256": "5f5057951335f74e7c995bb6390552bb23764c41b7cb38d3fc9e042a2071a0e9",
+   "mapping": {
+    "appId": "5f5057951335f74e7c995bb6390552bb23764c41b7cb38d3fc9e042a2071a0e9",
+    "bundleBytes": 440,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/1",
+     "policy": {
+      "cpuPercent": 200,
+      "memMiB": 1024,
+      "vcpus": 2
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "4d9163e1fc9bce6cb9e1ecf0f109a19d0c63b430658b04986b1d885ac8588af1"
+   },
+   "name": "another policy: another AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 200,
+     "memMiB": 1024,
+     "vcpus": 2
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "54a99f7d52d7f4473b8ef06153c26aba99fce604637febea714d63342f3f5e60",
+   "mapping": {
+    "appId": "54a99f7d52d7f4473b8ef06153c26aba99fce604637febea714d63342f3f5e60",
+    "bundleBytes": 450,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/2",
+     "http": 8000,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "19d4e4f435dedacea8de85d6b0e65b985d1b09c757a150e0abc19cbdaa965cc3"
+   },
+   "name": "v2: a command serving HTTP on its declared port: another world, another AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "7bfd8bdc1e06ac8ac441e32b83709b8997903c49e80a96d60efaf4b05d9fd03f",
+   "mapping": {
+    "appId": "7bfd8bdc1e06ac8ac441e32b83709b8997903c49e80a96d60efaf4b05d9fd03f",
+    "bundleBytes": 450,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/2",
+     "http": 8001,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "eb61c1bd14438b823116c85bf535a25cdf753c4781a7b5b243238ca4c3d0eec1"
+   },
+   "name": "v2: another port: another AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 8001,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "70ae0cee5f5d36cc0fcf7fe7ee47662601dbcbe5f69cb94fc7d3334b6f4ebdd0",
+   "mapping": {
+    "appId": "70ae0cee5f5d36cc0fcf7fe7ee47662601dbcbe5f69cb94fc7d3334b6f4ebdd0",
+    "bundleBytes": 495,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/3",
+     "http": 8000,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "ports": [
+      "tcp:2222",
+      "tcp:47984",
+      "udp:47998"
+     ],
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "d254ce973d20a2ed3faf8d4ae86f64a23a61ac45068910abae2c227edba2b6d3"
+   },
+   "name": "v3: measured SSH and GameStream destinations",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:2222",
+     "tcp:47984",
+     "udp:47998"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "9d8458c6eaa33e2269e02bda01f71db945b2d28e12dd95602751e07a3d829054",
+   "mapping": {
+    "appId": "9d8458c6eaa33e2269e02bda01f71db945b2d28e12dd95602751e07a3d829054",
+    "bundleBytes": 471,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/3",
+     "http": 8000,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "ports": [
+      "tcp:2222"
+     ],
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "74d521c5d9368db9478488341a1a2fd1190c22c9ea6a44ac6ac519be556f08ee"
+   },
+   "name": "v3: changed destinations change AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:2222"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "bd37d00999da9397ea201ec449c6022ddca6e969c640cf1699eee6452dc44772",
+   "mapping": {
+    "appId": "bd37d00999da9397ea201ec449c6022ddca6e969c640cf1699eee6452dc44772",
+    "bundleBytes": 499,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/4",
+     "inference": {
+      "gpuMilli": 100,
+      "model": "qwen2.5-0.5b-q8-gguf"
+     },
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "4f31dbe57b6021e410d546be1f6748f694aedc411b058abaa4f42aa5ac62c3bc"
+   },
+   "name": "v4 measured GPU allocation",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "inference": {
+     "gpuMilli": 100,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "809673b0cd56c3a1aed2884b4e682bb584e3d42591cbaa09778e070f254e2b01",
+   "mapping": {
+    "appId": "809673b0cd56c3a1aed2884b4e682bb584e3d42591cbaa09778e070f254e2b01",
+    "bundleBytes": 499,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/4",
+     "inference": {
+      "gpuMilli": 200,
+      "model": "qwen2.5-0.5b-q8-gguf"
+     },
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "e6a417a8e09b5b4054e436795f0f726d7e840b9425819e1e3c545d0b8ee11fd1"
+   },
+   "name": "v4 changed allocation changes AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "inference": {
+     "gpuMilli": 200,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "51905adada46e73d134928b3d8eef92a18b8f9654c2e29265c08eb737cbf3719",
+   "mapping": {
+    "appId": "51905adada46e73d134928b3d8eef92a18b8f9654c2e29265c08eb737cbf3719",
+    "bundleBytes": 531,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/4",
+     "http": 8000,
+     "inference": {
+      "gpuMilli": 100,
+      "model": "qwen2.5-0.5b-q8-gguf"
+     },
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "ports": [
+      "tcp:2222"
+     ],
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "3f2b043a1092a96b8f1bd98170cd59840500e4644a3195e71a9ec0d0e2bbf146"
+   },
+   "name": "v4 command and protected port",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "http": 8000,
+    "inference": {
+     "gpuMilli": 100,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:2222"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  }
+ ],
+ "refused": [
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v4 missing inference",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v4 unsupported model",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "inference": {
+     "gpuMilli": 100,
+     "model": "other"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v4 undersized share",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "inference": {
+     "gpuMilli": 64,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v4 oversized share",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "inference": {
+     "gpuMilli": 1001,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v4 undeclared command port",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/4",
+    "inference": {
+     "gpuMilli": 100,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:2222"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v1 cannot hide inference",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "inference": {
+     "gpuMilli": 100,
+     "model": "qwen2.5-0.5b-q8-gguf"
+    },
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v3 empty",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v3 duplicate",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:2222",
+     "tcp:2222"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v3 unsorted",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "udp:2",
+     "tcp:1"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v3 zero prefix",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:02222"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v3 HTTP collision",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:8000"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 unexpected ports",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "ports": [
+     "tcp:2222",
+     "tcp:47984",
+     "udp:47998"
+    ],
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "unknown derivation version",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/99",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v1 naming a port",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 naming no port",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 port out of range",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 50000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 port zero",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 0,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "uppercase catalog app",
+   "record": {
+    "catalog": {
+     "app": "0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "policy not pinned",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 0
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "cid with a gateway prefix",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "ipfs://bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "runtime id not pinned",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": ""
+   }
+  },
+  {
+   "component_hex": "0061736d0100000000000000000000000000000000000000",
+   "name": "a core module",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "4d5a000000000000000000000000000000000000000000000000000000000000",
+   "name": "not wasm at all",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  }
+ ]
+}

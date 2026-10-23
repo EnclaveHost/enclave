@@ -1,0 +1,67 @@
+{
+  "source": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f",
+  "files": [
+    {
+      "path": "windows/vbslike/manager/cpu-share.mjs",
+      "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/manager/derive.mjs",
+      "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/manager/egress.mjs",
+      "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/manager/psrun.mjs",
+      "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "17a591f6a1d06605d276705f6f000017c73849d6a9ab8e9523f031029c3003aa",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/manager/wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/verify/boot-statements.mjs",
+      "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+      "origin": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f"
+    },
+    {
+      "path": "windows/vbslike/manager/ops/workload-canary.mjs",
+      "sha256": "45aefcbf96e6101be20844a9d44894bcb573b2cdc800728314c9e56301e3cca2",
+      "origin": "Root reviewed sustained benchmark derivative",
+      "changes": "Exact quota passed and echoed for ALL shares, including 16; guest cgroup rather than unenforced Windows root scheduler Limit.",
+      "parentSha256": "7a120a7610c79a5a8a5cc2615128b5752219ec639455bfa1e470276d04d7f032"
+    },
+    {
+      "path": "runtime.bin",
+      "sha256": "c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+      "bytes": 76288988,
+      "origin": "work/coupled-cpu-enforcement-20261023/build/exact-quota-final/out/img-a/runtime.bin"
+    },
+    {
+      "path": "shield-host.exe",
+      "sha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
+      "bytes": 1147904,
+      "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-cpu-enforcement-20261023/root-validation/candidate-shield-host.exe"
+    },
+    {
+      "path": "cpu-probe.wasm",
+      "sha256": "5d8f8d195709fcc5320f49291b94d16ea5dc48c895ed44e7478ca076fed31d38",
+      "bytes": 59578,
+      "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-cpu-enforcement-20261023/build/out/cpu-probe.wasm"
+    }
+  ],
+  "guestSource": "f6d5fbedf",
+  "note": "Exact explicit guest quota for every share; no VM-bound marker in candidate."
+}

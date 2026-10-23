@@ -1,0 +1,30 @@
+From 2cea9ead56c3cb9516d60bd784953a9d72846234 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:03:12 -0700
+Subject: [PATCH] Manager test: the launcher's appCpu input now carries the
+ guest quota
+
+server.test.mjs compared the launcher's appCpu input with an exact object; ab2ed9a20 adds the
+purchased guest quota to it (appCpuPercent = floor(entitlement / 1000)), so the expectation states it.
+No runtime file changes.
+---
+ windows/vbslike/manager/server.test.mjs | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/windows/vbslike/manager/server.test.mjs b/windows/vbslike/manager/server.test.mjs
+index 82ee167a9873d1a6821beddd20dd778a92c65ef7..2e155c06265ad128ab055cf25dd16c7c89786451 100644
+--- a/windows/vbslike/manager/server.test.mjs
++++ b/windows/vbslike/manager/server.test.mjs
+@@ -37,9 +37,10 @@
+     assert.equal(r.appId, v.ok[0].mapping.appId);
+     assert.equal(r.memory.appMiB, launched.opts.appMemoryMiB);
+     assert.equal(m.health().memory.poolMiB, 65536);
+-    // ...and the SAME share reaches it as processors (cpu-share.mjs)
++    // ...and the SAME share reaches it as processors and as the app's own guest quota (cpu-share.mjs), percent of one
+     const units = Math.floor(16 * share * 100000 + 1e-6), vps = Math.ceil(units / 100000);
+-    assert.deepEqual(launched.opts.appCpu, { vcpus: vps, limit: Math.floor(units / vps), reservation: Math.floor(units / vps) });
++    assert.deepEqual(launched.opts.appCpu, { vcpus: vps, limit: Math.floor(units / vps), reservation: Math.floor(units / vps),
++                                             appCpuPercent: Math.floor(units / 1000) });
+   }
+ });
+ 

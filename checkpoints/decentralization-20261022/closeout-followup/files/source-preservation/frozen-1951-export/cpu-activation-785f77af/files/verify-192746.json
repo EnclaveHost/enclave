@@ -1,0 +1,560 @@
+{
+  "at": "2026-10-23T19:27:46.704421+00:00",
+  "step": "verify",
+  "scriptSha256": "c373d1ca8dc5538a6cb8fed6a313f163c120c7c6f24a63c474d276584a932b20",
+  "result": {
+    "step": "verify",
+    "state": {
+      "tasks": [
+        {
+          "state": "Running",
+          "name": "Node"
+        },
+        {
+          "state": "Running",
+          "name": "Shield"
+        },
+        {
+          "state": "Running",
+          "name": "Network"
+        }
+      ],
+      "infrastructure": [
+        {
+          "Name": "enclave-storage",
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "state": "Running"
+        },
+        {
+          "Name": "enclave-control",
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "state": "Running"
+        }
+      ],
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 9600,
+          "OwningProcess": 4716
+        },
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 5180
+        }
+      ],
+      "at": "2026-10-23T19:27:43.8919428Z"
+    },
+    "ok": true,
+    "health": {
+      "managerEpoch": "3185c73c5375e7b87a1cf57f8699bff5",
+      "memory": {
+        "rule": "cpu-share",
+        "poolMiB": 98304
+      },
+      "cpu": {
+        "rule": "cpu-share",
+        "poolVcpus": 16,
+        "source": "os.cpus",
+        "hostLogicalProcessors": 16,
+        "unitsPerVcpu": 100000,
+        "allocatedUnits": 580000,
+        "freeUnits": 1020000
+      },
+      "inventory": {
+        "state": "ready",
+        "recovered": 10,
+        "unattributed": 0,
+        "at": "2026-10-23T19:18:18.893Z"
+      },
+      "backend": "hyperv-partition-per-app",
+      "supports": {
+        "gpu": true,
+        "secrets": true,
+        "egress": true,
+        "config": true,
+        "ports": true,
+        "configCid": true,
+        "set": true,
+        "mem64": true
+      },
+      "egress": {
+        "protocol": "egress-v1",
+        "vsockPort": 9443,
+        "upstream": "app-routes",
+        "scope": "enclave-catalog-bundle/6",
+        "allowlist": "derived in the guest from the measured config resolved with its released secrets"
+      },
+      "configMaxBytes": 32768,
+      "inference": {
+        "model": "qwen2.5-0.5b-q8-gguf",
+        "models": [
+          "qwen2.5-0.5b-q8-gguf"
+        ],
+        "minimumGpuMilli": 500,
+        "cardBudgetBytes": 12884901888,
+        "cards": 1,
+        "minimumCpuMilli": 250,
+        "guestFloorMiB": 8192,
+        "runtime": {
+          "name": "wasmtime",
+          "version": "49.0.0",
+          "execution": "jit",
+          "targetIsa": "x86_64",
+          "hostIsa": "x86_64",
+          "cpuFeatures": "host-detected",
+          "wx": "enforced",
+          "cache": "none"
+        },
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+        "ready": true,
+        "imageSha256": "7c41baaf494bebc631e83a548d5bc363ca6dbdda72947acbe739aa306d35398b",
+        "card": {
+          "worker": "vulkan",
+          "protocol": "1,4,0",
+          "device": "AMD Radeon 780M Graphics",
+          "vramGb": 16,
+          "vramBudgetGb": 12,
+          "vramFreeGb": 12,
+          "vramReservedGb": 0,
+          "gmacPerSec": 172.2,
+          "cardTflops": 8,
+          "smCount": 12,
+          "vramGiB": 16,
+          "at": "2026-10-23T19:27:31.281Z"
+        },
+        "checkedAt": 1792783651281,
+        "error": null,
+        "allocatedGpuMilli": 0,
+        "freeGpuMilli": 1000
+      },
+      "boundary": {
+        "tier": "T0-hv",
+        "partition": "wmi-openhcl-gen2-igvm-linux",
+        "guestStateIsolationType": 1,
+        "hostExcluded": false,
+        "attested": false,
+        "note": "a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity."
+      },
+      "catalog": {
+        "derivations": [
+          "enclave-catalog-bundle/1",
+          "enclave-catalog-bundle/4",
+          "enclave-catalog-bundle/5",
+          "enclave-catalog-bundle/6",
+          "enclave-catalog-bundle/7"
+        ],
+        "derives": [
+          "enclave-catalog-bundle/1",
+          "enclave-catalog-bundle/2",
+          "enclave-catalog-bundle/3",
+          "enclave-catalog-bundle/4",
+          "enclave-catalog-bundle/5",
+          "enclave-catalog-bundle/6",
+          "enclave-catalog-bundle/7"
+        ],
+        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+      },
+      "runtime": {
+        "v2SocketServer": false,
+        "configSocketServer": true,
+        "note": "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front"
+      },
+      "policyRule": "enclave-isolation-policy/1",
+      "canStart": true,
+      "preflight": {
+        "ok": true,
+        "checks": [
+          {
+            "name": "vmms service",
+            "ok": true,
+            "detail": "the Hyper-V Virtual Machine Management service"
+          },
+          {
+            "name": "root\\virtualization\\v2",
+            "ok": true,
+            "detail": "the WMI namespace New-CustomVM defines the VM through"
+          },
+          {
+            "name": "Hyper-V PowerShell module",
+            "ok": true,
+            "detail": "Get-VM, which owns, starts and removes the VM"
+          },
+          {
+            "name": "Msvm_VirtualSystemSettingData.FirmwareFile",
+            "ok": true,
+            "detail": "the field that carries a custom IGVM"
+          },
+          {
+            "name": "hypervisor present",
+            "ok": true,
+            "detail": "already true here: VBS runs on it"
+          },
+          {
+            "name": "AllowFirmwareLoadFromFile",
+            "ok": true,
+            "detail": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization\\AllowFirmwareLoadFromFile is DWORD 1. Hyper-V refuses a custom IGVM without it (measured: Worker-Admin event 5142). REPORTED ONLY: this manager never sets, changes or removes it; permanent production use of it is an open owner decision."
+          },
+          {
+            "name": "hyperv.psm1 (New-CustomVM), pinned",
+            "ok": true,
+            "detail": "sha256 17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c"
+          },
+          {
+            "name": "type-1 guest-state master (VMGS)",
+            "ok": true,
+            "detail": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs (4194816 bytes); each run gets a fresh copy"
+          },
+          {
+            "name": "boot form",
+            "ok": true,
+            "detail": "linux-direct (no medium; the IGVM is the identity)"
+          },
+          {
+            "name": "hv_sock egress service (vsock 9443) registered",
+            "ok": true,
+            "detail": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization\\GuestCommunicationServices\\000024e3-facb-11e6-bd58-64006a7986d3 (vsock port 9443) is registered: the egress bridge binds this partition's service there. Reported only; this manager never writes the registry."
+          },
+          {
+            "name": "CPU pool within host logical processors",
+            "ok": true,
+            "detail": "os.cpus 16; Hyper-V host LogicalProcessorCount 16"
+          }
+        ],
+        "hostLogicalProcessors": 16
+      }
+    },
+    "vms": [
+      {
+        "id": "hvdb226107c350440d53edd27915e38320",
+        "name": "shield-readiness-v1",
+        "status": "running",
+        "memory": null,
+        "cpu": {
+          "rule": "readiness-witness-fixed",
+          "vcpus": 1,
+          "limit": 100000,
+          "reservation": 0,
+          "grantedUnits": 100000,
+          "readback": null,
+          "guestOnlineVcpus": 1,
+          "appCpuPercent": 100
+        },
+        "recovered": null,
+        "reason": null
+      },
+      {
+        "id": "hv37073dc3cd831367112daabb2387fdd0",
+        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        },
+        "cpu": {
+          "rule": "cpu-share",
+          "poolVcpus": 16,
+          "cpuShare": 0.01,
+          "entitlementUnits": 16000,
+          "vcpus": 1,
+          "limit": 16000,
+          "reservation": 16000,
+          "grantedUnits": 16000,
+          "policy": {
+            "vcpus": 1,
+            "cpuPercent": 100
+          },
+          "appCpuPercent": 16,
+          "readback": {
+            "reservation": 16000,
+            "weight": 100,
+            "count": 1,
+            "maximum": 16,
+            "limit": 16000,
+            "vcpus": 1,
+            "reserve": 16,
+            "units": "percent / 1000"
+          },
+          "guestOnlineVcpus": 1,
+          "enforcement": "guest-app-cgroup",
+          "enforcedUnits": 16000,
+          "blocker": null
+        },
+        "recovered": null,
+        "reason": null
+      },
+      {
+        "id": "hv5f911b207b73731a32b0791d2408a8de",
+        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.02,
+          "appMiB": 1966,
+          "vmMiB": 2606
+        },
+        "cpu": {
+          "rule": "cpu-share",
+          "poolVcpus": 16,
+          "cpuShare": 0.02,
+          "entitlementUnits": 32000,
+          "vcpus": 1,
+          "limit": 32000,
+          "reservation": 32000,
+          "grantedUnits": 32000,
+          "policy": {
+            "vcpus": 1,
+            "cpuPercent": 100
+          },
+          "appCpuPercent": 32,
+          "readback": {
+            "reservation": 32000,
+            "weight": 100,
+            "count": 1,
+            "maximum": 32,
+            "limit": 32000,
+            "vcpus": 1,
+            "reserve": 32,
+            "units": "percent / 1000"
+          },
+          "guestOnlineVcpus": 1,
+          "enforcement": "guest-app-cgroup",
+          "enforcedUnits": 32000,
+          "blocker": null
+        },
+        "recovered": null,
+        "reason": null
+      },
+      {
+        "id": "hv9556d033df8c02d3103d2494bcfc016c",
+        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        },
+        "cpu": {
+          "rule": "cpu-share",
+          "poolVcpus": 16,
+          "cpuShare": 0.01,
+          "entitlementUnits": 16000,
+          "vcpus": 1,
+          "limit": 16000,
+          "reservation": 16000,
+          "grantedUnits": 16000,
+          "policy": {
+            "vcpus": 1,
+            "cpuPercent": 100
+          },
+          "appCpuPercent": 16,
+          "readback": {
+            "reservation": 16000,
+            "weight": 100,
+            "count": 1,
+            "maximum": 16,
+            "limit": 16000,
+            "vcpus": 1,
+            "reserve": 16,
+            "units": "percent / 1000"
+          },
+          "guestOnlineVcpus": 1,
+          "enforcement": "guest-app-cgroup",
+          "enforcedUnits": 16000,
+          "blocker": null
+        },
+        "recovered": null,
+        "reason": null
+      },
+      {
+        "id": "hv6ff986b89fdc0db1c3c87287c148df2f",
+        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.25,
+          "appMiB": 24576,
+          "vmMiB": 25216
+        },
+        "cpu": {
+          "rule": "cpu-share",
+          "poolVcpus": 16,
+          "cpuShare": 0.25,
+          "entitlementUnits": 400000,
+          "vcpus": 4,
+          "limit": 100000,
+          "reservation": 100000,
+          "grantedUnits": 400000,
+          "policy": {
+            "vcpus": 1,
+            "cpuPercent": 100
+          },
+          "appCpuPercent": 400,
+          "readback": {
+            "reservation": 100000,
+            "weight": 100,
+            "count": 4,
+            "maximum": 100,
+            "limit": 100000,
+            "vcpus": 4,
+            "reserve": 100,
+            "units": "percent / 1000"
+          },
+          "guestOnlineVcpus": 4,
+          "enforcement": "guest-app-cgroup",
+          "enforcedUnits": 400000,
+          "blocker": null
+        },
+        "recovered": null,
+        "reason": null
+      },
+      {
+        "id": "hv5b5a5d531625082f44fadd70092072c6",
+        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "status": "starting",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        },
+        "cpu": {
+          "rule": "cpu-share",
+          "poolVcpus": 16,
+          "cpuShare": 0.01,
+          "entitlementUnits": 16000,
+          "vcpus": 1,
+          "limit": 16000,
+          "reservation": 16000,
+          "grantedUnits": 16000,
+          "policy": {
+            "vcpus": 1,
+            "cpuPercent": 100
+          },
+          "appCpuPercent": 16,
+          "readback": {
+            "reservation": 16000,
+            "weight": 100,
+            "count": 1,
+            "maximum": 16,
+            "limit": 16000,
+            "vcpus": 1,
+            "reserve": 16,
+            "units": "percent / 1000"
+          },
+          "guestOnlineVcpus": 1,
+          "enforcement": "guest-app-cgroup",
+          "enforcedUnits": 16000,
+          "blocker": null
+        },
+        "recovered": null,
+        "reason": "the guest booted and produced console output; readiness has not been judged yet, so whether the app is serving is not established"
+      }
+    ],
+    "deployments": [
+      {
+        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+        "status": "queued",
+        "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 78/sec per whole node, 1% of it here)"
+      },
+      {
+        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+        "status": "refused",
+        "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing."
+      },
+      {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "status": "provisioning",
+        "reason": "the launch of 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a did not end in a known state (unavailable: the manager did not launch 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a: RAM allocation is unknown until recovered partitions are reconciled); nothing is retried and the lease is kept - reconcile before repeating it"
+      },
+      {
+        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "status": "refused",
+        "reason": "this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can"
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "status": "refused",
+        "reason": "this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can"
+      },
+      {
+        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "status": "provisioning",
+        "reason": "the launch of 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c did not end in a known state (unavailable: the manager did not launch 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c: RAM allocation is unknown until recovered partitions are reconciled); nothing is retried and the lease is kept - reconcile before repeating it"
+      },
+      {
+        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "status": "provisioning",
+        "reason": "the launch of 0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238 did not end in a known state (unavailable: the manager did not launch 0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238: RAM allocation is unknown until recovered partitions are reconciled); nothing is retried and the lease is kept - reconcile before repeating it"
+      },
+      {
+        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+        "status": "refused",
+        "reason": "this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can"
+      },
+      {
+        "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+        "status": "refused",
+        "reason": "this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can"
+      },
+      {
+        "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+        "status": "refused",
+        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
+      },
+      {
+        "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+        "status": "refused",
+        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
+      },
+      {
+        "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+        "status": "refused",
+        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+      },
+      {
+        "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+        "status": "refused",
+        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+      },
+      {
+        "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+        "status": "refused",
+        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+      },
+      {
+        "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+        "status": "refused",
+        "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled."
+      }
+    ]
+  }
+}

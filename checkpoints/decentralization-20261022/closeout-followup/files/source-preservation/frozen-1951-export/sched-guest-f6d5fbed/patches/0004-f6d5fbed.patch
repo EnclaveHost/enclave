@@ -1,0 +1,165 @@
+From f6d5fbedfdbac37f69717cda0b1ab510d2abf2ad Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:54:18 -0700
+Subject: [PATCH] Monitor: an explicit CPU allocation is the purchased share
+ exactly, below one processor too
+
+Hyper-V's root scheduler (the NucBox's Windows 11 client host, scheduler type 0x4) does not enforce
+per-VM processor limits or reserves: root's sustained native run burned 4000M in 4813 ms at 100% of
+one VP and 4824 ms with the VP's Limit/Reservation read back at 16%. The guest app's cgroup quota is
+therefore the only CPU cap a purchased share has on that host, and allocatedPolicy refused any
+explicit quota below the catalog cpuPercent, so a 1% share of 16 logical processors (16% of one)
+could only run at the catalog's whole processor (6.25% of the host).
+
+An explicit load cpu is now applied exactly from 1 up to the online processors * 100. The catalog
+cpuPercent stays the runtime's default when nothing is allocated; the catalog's real compute minimum
+is its GFLOPS floor, which the node's admission turns into the share it allocates. RAM keeps its
+catalog minimum, the manifest/AppID/reports are unchanged, and the load answer states the applied
+cpuPercent (the launcher refuses to serve on any other). The VM-bound marker comment now says that
+its fallback is not a cap under the root scheduler.
+Tests: 1%/2%/4%/21%/25%/13% of 16 LPs, 1% minimum, refusals past the online processors, and the real
+load path writing cgroup cpu.max 16000/32000/64000 per 100000.
+---
+ isolation/m3/monitor/cpu_allowance_test.go | 24 +++++++++++++------
+ isolation/m3/monitor/cpu_load_test.go      | 23 +++++++++++++++---
+ isolation/m3/monitor/main.go               | 28 +++++++++++++---------
+ 3 files changed, 54 insertions(+), 21 deletions(-)
+
+diff --git a/isolation/m3/monitor/cpu_allowance_test.go b/isolation/m3/monitor/cpu_allowance_test.go
+index 83fcf703755ea60e562e3359703b7d8ff3f44223..cbb32cf3b55475f67db876c4bdf2c3072a25bb9e 100644
+--- a/isolation/m3/monitor/cpu_allowance_test.go
++++ b/isolation/m3/monitor/cpu_allowance_test.go
+@@ -9,9 +9,10 @@
+ 	"enclave.host/isolation/contract"
+ )
+ 
+-// The launcher's CPU allocation RAISES a bundle domain's cgroup quota above the catalog cpuPercent, as its RAM allocation
+-// raises memory.max; it never lowers the catalog minimum, never exceeds the processors online, and is never ignored.
+-func TestCPUAllowanceRaisesCatalogShare(t *testing.T) {
++// The launcher's CPU allocation is the purchased share of the host, applied exactly: above the catalog cpuPercent (a
++// share of several processors) and BELOW it (a share smaller than one processor: 1% of 16 logical processors is 16% of
++// one), never past the processors online, never ignored. RAM keeps its catalog minimum.
++func TestCPUAllowanceIsThePurchasedShare(t *testing.T) {
+ 	man := &contract.Manifest{Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}}
+ 	ok := []struct {
+ 		req      request
+@@ -19,16 +20,24 @@
+ 		cpu, mem int
+ 	}{
+ 		{request{}, 4, 100, 512},                          // nothing asked: the catalog's share, exactly as before
++		{request{CPU: 16, MemMiB: 983}, 1, 16, 983},       // 1% of 16 LPs: 16% of one processor, NOT the catalog's 100
++		{request{CPU: 32}, 1, 32, 512},                    // 2%
++		{request{CPU: 64}, 1, 64, 512},                    // 4%
++		{request{CPU: 1}, 1, 1, 512},                      // the cgroup's smallest quota (1 ms per 100 ms period)
+ 		{request{CPU: 336, MemMiB: 20643}, 4, 336, 20643}, // a 21% share of 16 VPs: 4 VPs at 84%
+-		{request{CPU: 400}, 4, 400, 512},                  // every online processor
+-		{request{CPU: 100}, 1, 100, 512},                  // the catalog share itself is always allowed
+-		{request{CPU: 208}, 3, 208, 512},                  // 13%: 3 VPs at 69.333%, quota rounded UP so the VM cap binds
++		{request{CPU: 400}, 4, 400, 512},                  // 25%: every online processor
++		{request{CPU: 100}, 1, 100, 512},                  // 6.25%: one whole processor
++		{request{CPU: 208}, 3, 208, 512},                  // 13%: 2.08 processors
+ 	}
+ 	for _, c := range ok {
+ 		pol, err := allocatedPolicy(man, c.req, c.cpus, false)
+ 		if err != nil || pol.CPUPercent != c.cpu || pol.MemMiB != c.mem || pol.Vcpus != 1 {
+ 			t.Fatalf("%+v on %d CPUs: %+v %v", c.req, c.cpus, pol, err)
+ 		}
++		// an explicit allocation wins on a VM-bound image too
++		if pol, err := allocatedPolicy(man, c.req, c.cpus, true); c.req.CPU != 0 && (err != nil || pol.CPUPercent != c.cpu) {
++			t.Fatalf("VM-bound %+v on %d CPUs: %+v %v", c.req, c.cpus, pol, err)
++		}
+ 	}
+ 	if man.Policy.CPUPercent != 100 {
+ 		t.Fatalf("the hashed manifest's policy was changed: %+v", man.Policy)
+@@ -36,7 +45,8 @@
+ 	for _, c := range []struct {
+ 		req  request
+ 		cpus int
+-	}{{request{CPU: 16}, 16}, {request{CPU: -5}, 4}, {request{CPU: 401}, 4}, {request{CPU: 200}, 1}, {request{MemMiB: 256}, 4}} {
++	}{{request{CPU: -5}, 4}, {request{CPU: 401}, 4}, {request{CPU: 200}, 1}, {request{CPU: 101}, 1}, {request{CPU: 1601}, 16},
++		{request{MemMiB: 256}, 4}, {request{CPU: 16, MemMiB: 256}, 1}} {
+ 		if pol, err := allocatedPolicy(man, c.req, c.cpus, false); err == nil {
+ 			t.Fatalf("%+v on %d CPUs was accepted: %+v", c.req, c.cpus, pol)
+ 		}
+diff --git a/isolation/m3/monitor/cpu_load_test.go b/isolation/m3/monitor/cpu_load_test.go
+index 7631565dd8c133f81ba5e592b822aaa792ba4331..35794e2658e0fcad4ddba940cf426853824b6d62 100644
+--- a/isolation/m3/monitor/cpu_load_test.go
++++ b/isolation/m3/monitor/cpu_load_test.go
+@@ -76,9 +76,26 @@
+ 	}
+ }
+ 
+-func TestLoadRefusesAnAllocationBelowTheCatalogShare(t *testing.T) {
+-	if d, cpuMax, err := loadWithCPU(t, 16); err == nil {
+-		t.Fatalf("16%% under a catalog 100%% was loaded (cpuPercent %d, cpu.max %q) instead of refused", d.CPU, cpuMax)
++// A purchased share smaller than one processor reaches the domain's cgroup exactly: 1%, 2% and 4% of 16 logical
++// processors are 16%, 32% and 64% of one, under a catalog cpuPercent of 100. The pre-fix monitor refused them, so the
++// launcher could only leave such a domain at the catalog's whole processor (6.25% of the host for a 1% purchase).
++func TestLoadAppliesAPurchasedShareBelowOneProcessor(t *testing.T) {
++	for _, cpu := range []int{16, 32, 64} {
++		d, cpuMax, err := loadWithCPU(t, cpu)
++		if err != nil {
++			t.Fatalf("%d%% under a catalog 100%% was refused: %v", cpu, err)
++		}
++		ans, _ := json.Marshal(d)
++		want := strconv.Itoa(cpu*1000) + " 100000"
++		if d.CPU != cpu || cpuMax != want || !bytes.Contains(ans, []byte(`"cpuPercent":`+strconv.Itoa(cpu)+`,`)) {
++			t.Fatalf("asked %d: domain cpuPercent %d, cgroup cpu.max %q (want %q), answer %s", cpu, d.CPU, cpuMax, want, ans)
++		}
++	}
++}
++
++func TestLoadRefusesAnAllocationPastTheOnlineProcessors(t *testing.T) {
++	if d, cpuMax, err := loadWithCPU(t, runtime.NumCPU()*100+1); err == nil {
++		t.Fatalf("more than every online processor was loaded (cpuPercent %d, cpu.max %q) instead of refused", d.CPU, cpuMax)
+ 	}
+ }
+ 
+diff --git a/isolation/m3/monitor/main.go b/isolation/m3/monitor/main.go
+index 1531112621f64fe89d27983210bd01440bb4613f..ab2df98161ef9404c5b869789389aa83efedb235 100644
+--- a/isolation/m3/monitor/main.go
++++ b/isolation/m3/monitor/main.go
+@@ -1500,16 +1500,22 @@
+ // most 253 bytes, zone labels of lowercase letters, digits and hyphens.
+ // cpuVMBoundMarker, in the measured platform directory, states that this image runs ONE app per partition whose CPU is
+ // capped by its hypervisor (the per-app Hyper-V partition's exact processor Limit/Reservation): a domain loaded without
+-// an explicit allocation then gets every online processor, so the partition's cap - not the catalog cpuPercent - is
+-// what binds. An image without it keeps the catalog share exactly as before.
++// an explicit allocation then gets every online processor. An image without it keeps the catalog share exactly as before.
++// That cap binds only under a hypervisor scheduler that enforces it: Hyper-V's ROOT scheduler (Windows client hosts)
++// ignores per-VM limits and reserves, so there the marker leaves the domain uncapped within its VPs, and only an explicit
++// allocation (below) confines it.
+ const cpuVMBoundMarker = "cpu-vm-bound.enabled"
+ 
+-// allocatedPolicy is a domain's share: the catalog's (EffectivePolicy: the hashed bundle wins), RAISED where the launcher
+-// allocates more. Physical RAM and CPU are availability allocations, separate from the immutable catalog minimum in the
+-// hashed bundle: the AppID and every report still name the bundle's own policy. An allocation may never go below that
+-// minimum, and CPU (percent of one processor, cgroup cpu.max) never past the processors this guest has online, so one
+-// the guest cannot honour is refused rather than ignored. With no CPU allocation on a VM-bound image (cpuVMBoundMarker)
+-// the domain gets every online processor. The load answer states what was applied (cpuPercent, memMiB).
++// allocatedPolicy is a domain's share: the catalog's (EffectivePolicy: the hashed bundle wins), or the launcher's explicit
++// allocation. Physical RAM and CPU are availability allocations, separate from the hashed bundle: the AppID and every
++// report still name the bundle's own policy. RAM may never go below the catalog minimum. CPU (percent of one processor,
++// cgroup cpu.max) is the purchased share of the host, exactly, from 1% up to the processors this guest has online: the
++// catalog cpuPercent is only the runtime's default when nothing is allocated (the catalog's real compute minimum is its
++// GFLOPS floor, which the node's admission turns into the share it allocates), so a share below one whole processor is
++// applied as asked, never rounded up to the default. Lowering a quota grants nothing and changes no isolation boundary.
++// One the guest cannot honour is refused rather than ignored. With no CPU allocation on a VM-bound image
++// (cpuVMBoundMarker) the domain gets every online processor. The load answer states what was applied (cpuPercent,
++// memMiB), and the launcher serves nothing unless it is exactly what was allocated.
+ func allocatedPolicy(manifest *contract.Manifest, req request, onlineCPUs int, vmBound bool) (contract.Policy, error) {
+ 	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
+ 	if manifest == nil {
+@@ -1522,9 +1528,9 @@
+ 		pol.MemMiB = req.MemMiB
+ 	}
+ 	if req.CPU != 0 {
+-		if req.CPU < pol.CPUPercent || req.CPU > onlineCPUs*100 {
+-			return pol, fmt.Errorf("cpu allocation %d%% is below the catalog cpuPercent %d or above this guest's %d online processors",
+-				req.CPU, pol.CPUPercent, onlineCPUs)
++		if req.CPU < 1 || req.CPU > onlineCPUs*100 {
++			return pol, fmt.Errorf("cpu allocation %d%% is outside 1..%d (this guest's %d online processors)",
++				req.CPU, onlineCPUs*100, onlineCPUs)
+ 		}
+ 		pol.CPUPercent = req.CPU
+ 	} else if vmBound && onlineCPUs*100 > pol.CPUPercent {

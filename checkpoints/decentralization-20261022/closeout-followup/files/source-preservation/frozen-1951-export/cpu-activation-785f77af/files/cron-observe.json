@@ -1,0 +1,75 @@
+{
+  "curlExit": 0,
+  "localHttp": "200 time=1.840277\r\n",
+  "at": "2026-10-23T19:39:15.8736623Z",
+  "vm": [
+    {
+      "Name": "enclave-app-hv9556d033df8c02-3f770400",
+      "CPUUsage": 0,
+      "MemoryAssigned": 2147483648,
+      "State": 2
+    }
+  ],
+  "view": {
+    "id": "hv9556d033df8c02d3103d2494bcfc016c",
+    "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+    "status": "running",
+    "reason": null,
+    "relay": {
+      "host": "127.0.0.1",
+      "port": 53694
+    },
+    "ports": null,
+    "appPort": null,
+    "relayPort": null,
+    "instanceId": "hv9556d033df8c02-3f770400",
+    "appId": "3f770400d06ed1c96601dfecc2446d0b5e51d15a0b0018616e340ecb03997995",
+    "cpu": {
+      "rule": "cpu-share",
+      "poolVcpus": 16,
+      "cpuShare": 0.01,
+      "entitlementUnits": 16000,
+      "vcpus": 1,
+      "limit": 16000,
+      "reservation": 16000,
+      "grantedUnits": 16000,
+      "policy": {
+        "vcpus": 1,
+        "cpuPercent": 100
+      },
+      "appCpuPercent": 16,
+      "readback": {
+        "reservation": 16000,
+        "weight": 100,
+        "count": 1,
+        "maximum": 16,
+        "limit": 16000,
+        "vcpus": 1,
+        "reserve": 16,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 1,
+      "enforcement": "guest-app-cgroup",
+      "enforcedUnits": 16000,
+      "blocker": null
+    },
+    "memory": {
+      "rule": "cpu-share",
+      "poolMiB": 98304,
+      "cpuShare": 0.01,
+      "appMiB": 983,
+      "vmMiB": 2048
+    },
+    "error": null
+  },
+  "network": [
+    "19:25:31 [privacy] local guest proof 0x38f368d6: deployment has no unique running partition (10 more since the last line)",
+    "19:26:31 [privacy] local guest proof 0x38f368d6: deployment has no unique running partition (9 more since the last line)",
+    "19:26:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+    "19:27:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+    "19:28:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
+    "19:29:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+    "19:30:48 [privacy] app 0x38f368d6 egress back",
+    "19:33:11 [privacy] local route: app 0x38f368d6 -> app 0xef514ed3 on this host"
+  ]
+}

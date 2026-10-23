@@ -43,6 +43,8 @@ Frozen 1806 append (2026-10-23; "1806" = the batch start 18:06Z, an identifier):
 
 Frozen 1852 append (2026-10-23; "1852" = the batch start 18:52Z, an identifier): ROOT native CPU quota COUNTEREXAMPLE 8afbf879 (the Hyper-V cap FAILED under the Windows root scheduler: a 1% share still used a full guest CPU; no CPU activation; source fix pending), ROOT fresh read-only custody v2 verification a90f8339 (single-seat bootstrap, not decentralized; raw quote not captured), R guest lineage 02863ae1, B Linux RPC consumer closure c08532b2 (SOURCE-ONLY: compiled bundles held, manifests converted; source/test only), M custody v2 durability 415483ff (source only; touched-file reproduction, base not published); root receipts and snapshots. See `MANIFEST.json` `appends`.
 
+Frozen 1951 append (2026-10-23; "1951" = the batch start 19:51Z, an identifier): ROOT CPU production activation 785f77af (all 9 apps on exact coupled shares, 18/18 TLS per root) with B manager 1bda7b79 and guest f6d5fbed source and ROOT native quota verification e859355e; custody v2 durability a5eae96c (source only, not built or activated), ROOT corrected-image release 44bf8f4f (e012 quote-only hardware canary, superseded for activation, not activated), R dashboard 4acad4a7 (source/test), ROOT live config 70019fdf; root receipts and journal snapshot. Existing custody remains the single-seat bootstrap. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

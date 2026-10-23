@@ -1,0 +1,4525 @@
+{
+ "format": "enclave-frozen-1951-export/v1",
+ "checkpointHeadAtExport": "45bf6552f07a71cf7968e9b5bc48df8f5047d028",
+ "batch": "1951 = the batch start 2026-10-23T19:51Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY. ROOT CPU production activation (all 9 apps, exact coupled shares, 18/18 TLS per root) with B manager/guest source; custody v2: durability through a5eae96c (source only, not built/activated), root corrected-image release e012 (quote-only hardware canary; superseded for activation by a5eae96c; not activated), R dashboard (source/test), root live config reads. Existing custody is the original single-seat bootstrap, NOT decentralized custody.",
+ "sides": {
+  "cpu-activation": {
+   "repo": "work/cpu-quota-activation-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "785f77af9b9d128f0d913d7708137be8996f1c2d",
+   "headTree": "d8d44a53c320f6c0963e6dcbe814b1e83455766d",
+   "commits": [
+    {
+     "commit": "3451c90a5c2539c9dde629936f571f5521b1f4b1",
+     "tree": "a2e2196e08000b94a2a1a84b3fa4b5a5b3412cb7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:34:01-07:00",
+     "subject": "Record guarded exact-share CPU activation and recovery evidence",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "cpu-activation-785f77af/patches/0001-3451c90a.patch"
+    },
+    {
+     "commit": "785f77af9b9d128f0d913d7708137be8996f1c2d",
+     "tree": "d8d44a53c320f6c0963e6dcbe814b1e83455766d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:51:20-07:00",
+     "subject": "Record full NucBox app recovery and verified TLS after coupled share rollout",
+     "parent": "3451c90a5c2539c9dde629936f571f5521b1f4b1",
+     "emptyAfterExclusion": false,
+     "patch": "cpu-activation-785f77af/patches/0002-785f77af.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f1a51d351a99585ec490418f264b3b687de09c02",
+     "sha256": "b29bf6507cff3ae6265348b40b2ceab62bc90be494f8fa11b5c9e74e8b71e76a",
+     "bytes": 41,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "34b4bca9d4c069a10738467521dca49fb49cc470",
+     "sha256": "05bc1e9c7f2dd8839aedafd945bd632b0b27a2358d08e01fcd45a388dadd534c",
+     "bytes": 2404,
+     "baseBlob": null
+    },
+    {
+     "path": "activate.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e31b60b1b947bf43bb6652938ff6edf774418f4c",
+     "sha256": "c373d1ca8dc5538a6cb8fed6a313f163c120c7c6f24a63c474d276584a932b20",
+     "bytes": 9043,
+     "baseBlob": null
+    },
+    {
+     "path": "check-prepared.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "529b01205bbd5e3bb88708cdc0e00b8cae99d5b6",
+     "sha256": "9a66ab64d3227cc4089095f45ab0b0d238e8cfb20f5d361ddb61c31d0bcd10de",
+     "bytes": 2209,
+     "baseBlob": null
+    },
+    {
+     "path": "cron-console.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "78d79217eb31d2c9aefaa0f890a01804895e1acb",
+     "sha256": "51366547f0e2ce944e5b3814bd2776a8aa8b5a13da91556fb13ece19ad8797cf",
+     "bytes": 554,
+     "baseBlob": null
+    },
+    {
+     "path": "cron-console.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6427e542f16340636873f74cbea8a930ffb63664",
+     "sha256": "83d9d03598b8eee4f5b69b2c5c328a0c36a604ff0b04ab30ddad7a3fbe50d7b7",
+     "bytes": 964,
+     "baseBlob": null
+    },
+    {
+     "path": "cron-observe.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d3092ea8a487c85f97e7c745106f5c0a18a1aed",
+     "sha256": "c769417770a7fa6034c96c37a2f10135af13351559f8dc655f22e4f0d3af252e",
+     "bytes": 2676,
+     "baseBlob": null
+    },
+    {
+     "path": "cron-observe.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b839d6df379bd8e5fb4f6e7512a861cdae777270",
+     "sha256": "d5335d3bf8f8b6b902e4bee88861afa6fb45842fdaf5cd512647e7bc84779d6b",
+     "bytes": 1388,
+     "baseBlob": null
+    },
+    {
+     "path": "install-191800.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f45510fc4ad5d5e7967fa06b0c2ce42f7ec7220c",
+     "sha256": "fccba0d730e58f0632b1939d21b821b46e3cb28ef6eed8538ac5f393e8381d4c",
+     "bytes": 871,
+     "baseBlob": null
+    },
+    {
+     "path": "manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2033ef64580e165bfb9d95f5b0b57310033619be",
+     "sha256": "5e42e5e8b0d65037cdc8d7af8bc46ade0c7b00b07932b3134b2047901ff20553",
+     "bytes": 2660,
+     "baseBlob": null
+    },
+    {
+     "path": "payload/cpu-share.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bbf18cdd55256bb6662dc92c0f9e72626f3c3d67",
+     "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+     "bytes": 3268,
+     "baseBlob": null
+    },
+    {
+     "path": "payload/main.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4579edf314ad1c851fdc28f04babe62fb20bf9da",
+     "sha256": "c051724ba86e4007ef1f14086e3bad8ce6ef4dd8286c45eabee8f835ca35c8ce",
+     "bytes": 20188,
+     "baseBlob": null
+    },
+    {
+     "path": "payload/server.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "51a1a5d3e0a661e59b325337c2fc3344f9f55789",
+     "sha256": "1bbb64ffff2bdefe8f15ecf804720e15dc3c322adb93cf8f2fe50a5191ecea66",
+     "bytes": 56416,
+     "baseBlob": null
+    },
+    {
+     "path": "payload/wmi-launcher.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3e9d01cfa62d1d1c8c7e4ba6436b1d1fd71d1fe8",
+     "sha256": "17a591f6a1d06605d276705f6f000017c73849d6a9ab8e9523f031029c3003aa",
+     "bytes": 92143,
+     "baseBlob": null
+    },
+    {
+     "path": "payload/wmiserve-run.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "68d0bbbe7116100ade38a89e0ef651686f9e3bea",
+     "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+     "bytes": 13831,
+     "baseBlob": null
+    },
+    {
+     "path": "policy-fields.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "588a68c6fee4d08c6b900d1868fd841ce7fc6c26",
+     "sha256": "ef552d0762916f105012e08486afb2e18fb385a61c4ac2f918cc26a783a3194c",
+     "bytes": 481,
+     "baseBlob": null
+    },
+    {
+     "path": "preflight-191716.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2388031bf21d47379209884f3e89badf080cb22b",
+     "sha256": "b3c2f489730530dc5edf9bc7006b8007d6207bab7676c4bf55da85950264a2d2",
+     "bytes": 6841,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-191537.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b928bf8345d5cb4fce712a681edaf7505ff56180",
+     "sha256": "9a9f3c6fa2732c2cfbf94f827f85bd4d46c1036c3b8851f954570dcc6705d7a3",
+     "bytes": 1374,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d0c95d5f89c874b3a46b61a77740ed3ab7869c62",
+     "sha256": "0b09a5da04702a02cce19be064e302088d31189f6daad69f58a421703741f1aa",
+     "bytes": 1913,
+     "baseBlob": null
+    },
+    {
+     "path": "prepared-validation.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4d7099c9149e50651eddbb42b65cb55f5450fc61",
+     "sha256": "d7e086d5d778c70f70f4c1ab74151199bd921ea11072ad54faded3badd8cd7ce",
+     "bytes": 531,
+     "baseBlob": null
+    },
+    {
+     "path": "read-policy.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c8affc55d4e9b841111816d6afdf678d2acb853",
+     "sha256": "28d052eb7f63f06681f5a412cd40fdf3590670935da9e05302a819f3ac694e3d",
+     "bytes": 534,
+     "baseBlob": null
+    },
+    {
+     "path": "recovery-logs.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e7c61736a8f73ceaf596eab5e306457646526d53",
+     "sha256": "3dfa9f8765b7dc6f1355cf2a812c0dd211758d5330d63170e5bd7e6f91d5592d",
+     "bytes": 11167,
+     "baseBlob": null
+    },
+    {
+     "path": "recovery-logs.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fb6b5b3076d04aa275615ea73ee701edc880533c",
+     "sha256": "503361d6cdf03569e1f86118d8b999bbb7668fe4e90d42fe0cfcce92338c73aa",
+     "bytes": 1057,
+     "baseBlob": null
+    },
+    {
+     "path": "relay-policy-apply.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d27cdd2539ff8d9ae39fc98fd9a7e9a353c54533",
+     "sha256": "ec7809b44ce1c88e81823fc50fea4ca3e22433b30faaae9c193a630910155876",
+     "bytes": 1632,
+     "baseBlob": null
+    },
+    {
+     "path": "relay-policy-read.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "74bd4a8e2c01e642101d2c85e23715a8a76d251c",
+     "sha256": "77bf836f7faf8d18ed8dcef0de71bd9409f3d986ab9a829b71bdb331e8f88412",
+     "bytes": 874,
+     "baseBlob": null
+    },
+    {
+     "path": "relay-policy.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dcab6fc419dfa3f0de39682782d0edf8a0ffe281",
+     "sha256": "17404da8df697bb83b93dfc25e0d05f9adda85dec3c8ab1650aff7041ffa7191",
+     "bytes": 3984,
+     "baseBlob": null
+    },
+    {
+     "path": "run.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bba7ab2971ffde7940029682cd29d91fe1f9c0b4",
+     "sha256": "c141f2eaf2ae091ba0ef388549d3cd4a3c31aa5e61c262a9e1e12836e2f1b72c",
+     "bytes": 2828,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-commits.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ba28cfa17f3fbf456492dcc1340391dc6edd685d",
+     "sha256": "a891f4dd80a3b343fa60440f370b5c3c7c42bbc78ea608b39ea1ec35d60a6ae1",
+     "bytes": 421,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-remainder.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "53bc03c59189c73b79bf2fddea0f648a47184106",
+     "sha256": "3904fa978680d32abc343579ca79b1ad2fe871f1ed1f7c0d66da7410e3c0f320",
+     "bytes": 525,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-191512.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2db36ef701ae5e8b81ae0438ef34f24f286d7560",
+     "sha256": "0b9ade78be46022246301a768c52cdb16f9d9269ad23b203a16b40c68f62911e",
+     "bytes": 292,
+     "baseBlob": null
+    },
+    {
+     "path": "start-network-191848.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "271218d92281a24f1699e510be8c8da20844bed5",
+     "sha256": "7e07a74efefceedd021723fb0ac0a47ed60ad3069e2ecd3fce8e7bb01dc0c2ef",
+     "bytes": 1014,
+     "baseBlob": null
+    },
+    {
+     "path": "start-node-191913.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "57464a1dd4baca6b28f041ee42d261382a7c0e40",
+     "sha256": "05f499d45e76c795e6da8fb445f8f87eaa2c5b2aa32aa9f7c3abb03b349550c7",
+     "bytes": 1010,
+     "baseBlob": null
+    },
+    {
+     "path": "start-shield-191819.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c6ac62199870bd25c1a94beb787805383f30ca0",
+     "sha256": "12142f5419cd0428d65bdbf19188ddec531ba851789684554ac331b4e7eae24e",
+     "bytes": 883,
+     "baseBlob": null
+    },
+    {
+     "path": "stop-191734.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae1306d38e681f2c8df7a6dcd586ffeac421d90e",
+     "sha256": "50d5d1e139caf78d3ad9cf7706b74811096dafb7704b1f4c0c37fb93a6077979",
+     "bytes": 865,
+     "baseBlob": null
+    },
+    {
+     "path": "tls-20261023T192834Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c904d3e565a9cf084ea2c5605909f25d1b5a0a0",
+     "sha256": "4ad3ad73237ee0a101eb2673bc33679a848155736bc868faa17b51d8a5a6fbfd",
+     "bytes": 1341,
+     "baseBlob": null
+    },
+    {
+     "path": "tls-20261023T193036Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8d750bf11ba24843a7db15d69f4780b31ba6bab1",
+     "sha256": "bba39eb9595f81d57716d00b34574ce01084d96813d634947ac68c097627ccd7",
+     "bytes": 2141,
+     "baseBlob": null
+    },
+    {
+     "path": "tls-20261023T193141Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3bfb94b203dadde6557524b9562cb174be7e2d6f",
+     "sha256": "1411b1a307f95fb745d7423d5a7976cb2eeb65229d2830a650e7dd4d4458c96f",
+     "bytes": 3105,
+     "baseBlob": null
+    },
+    {
+     "path": "tls-20261023T193454Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b27f3daa98bf8b42f8f3955fcac12a3fcabb848f",
+     "sha256": "89b8fa02b3adab51d33ace87740f539a98ff0d6443bda23ac002786ad37a0539",
+     "bytes": 4713,
+     "baseBlob": null
+    },
+    {
+     "path": "tls-20261023T194101Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6f9205434907cf34d422fcea9b8990f8faebf55f",
+     "sha256": "c03a8d95acaecea9ca2ccb9e164970dfe79cff0e0f4d7cf66fa06f8c7fc86484",
+     "bytes": 4938,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-191933.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "18ab606055380ccedf9cb05cdb8e38dcab438353",
+     "sha256": "00ad7be31816f1a32d7989a7c992f30d5f180839f7ee9d9ac376a519fed09fe7",
+     "bytes": 17605,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-192107.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4644f1aaa4d4444b878f3834e829b3f7d36eae30",
+     "sha256": "dbff4ba91beaea066d1d3c6887bd99ac2813342c57984d815ae08bf63921600d",
+     "bytes": 17477,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-192746.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c8a5c561e212e54ec21dbb94db65d7e208feffa3",
+     "sha256": "820585a2eec00a13922b4fd96ff48aede3d22a59530ba146c9aa362a11b776cd",
+     "bytes": 19960,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-192851.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "50d1a6437187207e1bf75f816ac4ab3a616ef571",
+     "sha256": "ae79b155fa7b6bf92661012a9800f5c679b3dbb5b4647ad9d5c725885ebf7117",
+     "bytes": 21617,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-193006.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "725cf10e7f2eeb413894b5881b474bfacd0e4250",
+     "sha256": "ed15f6eac0abddf9059db979ca58831998efe672021ea113fd4fe99fa9282268",
+     "bytes": 22753,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-193103.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "42415d90aed071aad65967f22f803fd601cfa5be",
+     "sha256": "910714a5c14ef4aea291cfde08b613e3f7abe7bec4711587b1a589f68b185d3a",
+     "bytes": 22707,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-public.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "25959eb3b5fb68d5cb4e11a9d121eff1ab1d29f4",
+     "sha256": "9a82b188acc67d729bab93b5e5f7fa4fc82943dae0c7ee58d7ecc58578532899",
+     "bytes": 1907,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "cpu-activation-785f77af/patches/0001-3451c90a.patch",
+     "sha256": "4fdc295cbc209e1e3bc015b1862771bbbec4da24710369222bfb79284f8a3b2b"
+    },
+    {
+     "file": "cpu-activation-785f77af/patches/0002-785f77af.patch",
+     "sha256": "3f40bb8fa6e356bcd797e22b6bd0088aafe77a505f542d45abb20ae81f2585e0"
+    }
+   ],
+   "note": "ROOT production CPU activation: guarded exact-share activation (3451c90) and full NucBox app recovery with verified TLS (785f77a): all 9 apps running exact coupled shares, strict CA/hostname HTTPS 200 on all 18 advertised routes (19:41Z, per root). Tracked text only; the staged runtime/launcher binaries and ignored logs are not captured"
+  },
+  "sched-manager": {
+   "repo": "work/cpu-root-scheduler-quota-20261023/repo",
+   "branch": "cpu-quota-manager",
+   "headReachableFromBranch": true,
+   "base": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+   "baseProvenance": "ea6717d2 preserved in 45bf6552 (frozen-1726 cpu-enforce head)",
+   "head": "1bda7b79c021f87359191538c91c45b246dde8fe",
+   "headTree": "5aa32ffb27249d467653f6a59c17f8b083868588",
+   "commits": [
+    {
+     "commit": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f",
+     "tree": "58dc17cc6ea7843f54649d517a9cdb5d533a96c2",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:56:55-07:00",
+     "subject": "Manager: every purchased CPU share is confined by its exact guest quota, below one processor too",
+     "parent": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+     "emptyAfterExclusion": false,
+     "patch": "sched-manager-1bda7b79/patches/0001-ab2ed9a2.patch"
+    },
+    {
+     "commit": "2cea9ead56c3cb9516d60bd784953a9d72846234",
+     "tree": "ddf623f57e7516f846cd4413f954a247a0977ebd",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:03:12-07:00",
+     "subject": "Manager test: the launcher's appCpu input now carries the guest quota",
+     "parent": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f",
+     "emptyAfterExclusion": false,
+     "patch": "sched-manager-1bda7b79/patches/0002-2cea9ead.patch"
+    },
+    {
+     "commit": "1bda7b79c021f87359191538c91c45b246dde8fe",
+     "tree": "5aa32ffb27249d467653f6a59c17f8b083868588",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:34:01-07:00",
+     "subject": "Admit tested exact-share guest image without removing existing release pins",
+     "parent": "2cea9ead56c3cb9516d60bd784953a9d72846234",
+     "emptyAfterExclusion": false,
+     "patch": "sched-manager-1bda7b79/patches/0003-1bda7b79.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "windows/installer/admitted-shield-policy.json",
+     "status": "M",
+     "mode": "100644",
+     "blob": "337e6f8ca5a1c66b93bc47b80fa8a6dcbb8ef127",
+     "sha256": "12d9cc85f1ccf545c2c8c1f0b3dfd23e86f12761169b5d80d4061b706b70aa1a",
+     "bytes": 7588,
+     "baseBlob": "26d3a537c92e1f25dce8672af0a7853c9aeeb5bd"
+    },
+    {
+     "path": "windows/vbslike/manager/cpu-allocation.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "cfd3cd80416010a50686a4b4d780ed3d8ac22426",
+     "sha256": "1c22706a6e23c2e150931645682091377f628f2c7e15a87d1c82247447bfa01d",
+     "bytes": 17557,
+     "baseBlob": "d3856ed91291e9178dc43169980c11da44e4c8bc"
+    },
+    {
+     "path": "windows/vbslike/manager/cpu-share.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "bbf18cdd55256bb6662dc92c0f9e72626f3c3d67",
+     "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+     "bytes": 3268,
+     "baseBlob": "a1727a5a5a1571803d16dc069849035299917f01"
+    },
+    {
+     "path": "windows/vbslike/manager/cpu-share.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "138220789ece1f2a966f145ba49fdb4bd8630ca6",
+     "sha256": "233b9b82cdfa5528102754b5f0ad75073747a509ca71e6ea323575e9da16e5da",
+     "bytes": 7989,
+     "baseBlob": "533abcf3082018130198895e5a8cc7993a045bea"
+    },
+    {
+     "path": "windows/vbslike/manager/main.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4579edf314ad1c851fdc28f04babe62fb20bf9da",
+     "sha256": "c051724ba86e4007ef1f14086e3bad8ce6ef4dd8286c45eabee8f835ca35c8ce",
+     "bytes": 20188,
+     "baseBlob": "0c31971eadbbe07b58f6f63148831deb5efe0b8e"
+    },
+    {
+     "path": "windows/vbslike/manager/server.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "51a1a5d3e0a661e59b325337c2fc3344f9f55789",
+     "sha256": "1bbb64ffff2bdefe8f15ecf804720e15dc3c322adb93cf8f2fe50a5191ecea66",
+     "bytes": 56416,
+     "baseBlob": "b5b1ca401b996b8b74cf2c9bb48dd8646faedcc4"
+    },
+    {
+     "path": "windows/vbslike/manager/server.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2e155c06265ad128ab055cf25dd16c7c89786451",
+     "sha256": "118a9c48e84fa1b6da0451ad931ead7850559573d59b7bda2e695ff5b84910a7",
+     "bytes": 43199,
+     "baseBlob": "82ee167a9873d1a6821beddd20dd778a92c65ef7"
+    },
+    {
+     "path": "windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3a09af8af28702abfd2e9a68148e35a6d686f00e",
+     "sha256": "fc178aa96c7ca906a30866386b25fcaced0bd1fda7f8aa0501907489cb7d97c0",
+     "bytes": 5282,
+     "baseBlob": "fad3d57f5cc40bb810ededf19d69772dccdf2ef3"
+    },
+    {
+     "path": "windows/vbslike/manager/wmi-launcher.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3e9d01cfa62d1d1c8c7e4ba6436b1d1fd71d1fe8",
+     "sha256": "17a591f6a1d06605d276705f6f000017c73849d6a9ab8e9523f031029c3003aa",
+     "bytes": 92143,
+     "baseBlob": "3b5ee5f5edbfebe6632addb638e457d02e9bd71e"
+    }
+   ],
+   "patches": [
+    {
+     "file": "sched-manager-1bda7b79/patches/0001-ab2ed9a2.patch",
+     "sha256": "9518003c56247250f19aa8693d6025f7892c58e6fc7203834161295d8bbf263e"
+    },
+    {
+     "file": "sched-manager-1bda7b79/patches/0002-2cea9ead.patch",
+     "sha256": "8b9e2919621b6da5e67c23139de445ed52fb9fa074b4451ae3314a4111157fd5"
+    },
+    {
+     "file": "sched-manager-1bda7b79/patches/0003-1bda7b79.patch",
+     "sha256": "736aa8edac7d0ecafc96052f2919066ec6e62641738d2ee408a2c7f6a4f6641b"
+    }
+   ],
+   "note": "B manager source on ea6717d2: every purchased CPU share confined by its exact guest quota (ab2ed9a2), manager test (2cea9ead), admit the tested exact-share guest image without removing existing ones (1bda7b79); the exact 5 manager files root activated come from ab2ed9a2"
+  },
+  "durability2": {
+   "repo": "work/custody-v2-durability-20261023/repo",
+   "branch": "root-custody-rollout-closure",
+   "headReachableFromBranch": true,
+   "base": "415483ff9784c38a88b273363a7efd0c227b95ce",
+   "baseProvenance": "415483ff = frozen-1852 m-durability head, itself touched-file-only (base c635fd68 not publishable): TOUCHED-FILE reproduction",
+   "head": "a5eae96cdaa9f916266c9ee101908e14e75ad085",
+   "headTree": "d8afe7ffbb751c0d277cdb24b6ccdf01b80f98bf",
+   "commits": [
+    {
+     "commit": "3ccd4333c99b5e486215e69d13aafdcb55e9d8ca",
+     "tree": "9778427c43c018d307385b961570fa0e10a75201",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:45:06-07:00",
+     "subject": "custody v2: a concurrent independent write never persists a failed member change",
+     "parent": "415483ff9784c38a88b273363a7efd0c227b95ce",
+     "emptyAfterExclusion": false,
+     "patch": "durability2-a5eae96c/patches/0001-3ccd4333.patch",
+     "touchedBlobs": [
+      {
+       "path": "custody/v2/daemon.mjs",
+       "blob": "a2c2dbc00b63e86246fae2a1f31ea0393ed5ccea"
+      },
+      {
+       "path": "custody/v2/host-binding.mjs",
+       "blob": "b664e738a00d80ce90c252c4f7c51e1b045ff6b5"
+      },
+      {
+       "path": "custody/v2/host.mjs",
+       "blob": "b7969f3cf6dff31775e5e5332282816f561dc215"
+      },
+      {
+       "path": "custody/v2/ingress.mjs",
+       "blob": "7660720ebfa55551ca364b34243b6a4ded7937fc"
+      },
+      {
+       "path": "custody/v2/member.mjs",
+       "blob": "a5872f243fe4888aeb6754ff66e978881b87567d"
+      },
+      {
+       "path": "custody/v2/sealed-state.mjs",
+       "blob": "91be18b777a1ace72f63fee99f7fdbceacae2061"
+      },
+      {
+       "path": "custody/v2/startup-state.mjs",
+       "blob": null
+      },
+      {
+       "path": "docs/security/secret-custody-v2.md",
+       "blob": "393f9d31070e3b5f44580689c4a95bff91a3a4d5"
+      },
+      {
+       "path": "test/custody-direct-host.test.mjs",
+       "blob": "2aa0973f87d51d80e60475a70d949a7f9699b149"
+      },
+      {
+       "path": "test/custody-direct-ingress.test.mjs",
+       "blob": "4f6eaebaa6f644ffad97c1ca8cf9f7d704418e67"
+      },
+      {
+       "path": "test/custody-v2-e2e.test.mjs",
+       "blob": "6625af0daeb8da71971848fefbb3668c8d3830f5"
+      },
+      {
+       "path": "test/custody-v2-genesis-intent.test.mjs",
+       "blob": null
+      },
+      {
+       "path": "test/custody-v2-persist-barrier.test.mjs",
+       "blob": "43f2da649d979edc3b13deddca76b1ef4c8f02df"
+      },
+      {
+       "path": "test/custody-v2-startup-state.test.mjs",
+       "blob": null
+      },
+      {
+       "path": "test/fixtures/EnclaveRegistry.schema4.sol",
+       "blob": null
+      }
+     ]
+    },
+    {
+     "commit": "0a6b108eeb43202be4903a1385636a18ac4c537e",
+     "tree": "01691b08d81281f88cd364484e29d9592b87075c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:45:06-07:00",
+     "subject": "test: custody-v2-e2e on the original book-bound vault (2-argument constructor)",
+     "parent": "3ccd4333c99b5e486215e69d13aafdcb55e9d8ca",
+     "emptyAfterExclusion": false,
+     "patch": "durability2-a5eae96c/patches/0002-0a6b108e.patch",
+     "touchedBlobs": [
+      {
+       "path": "custody/v2/daemon.mjs",
+       "blob": "a2c2dbc00b63e86246fae2a1f31ea0393ed5ccea"
+      },
+      {
+       "path": "custody/v2/host-binding.mjs",
+       "blob": "b664e738a00d80ce90c252c4f7c51e1b045ff6b5"
+      },
+      {
+       "path": "custody/v2/host.mjs",
+       "blob": "b7969f3cf6dff31775e5e5332282816f561dc215"
+      },
+      {
+       "path": "custody/v2/ingress.mjs",
+       "blob": "7660720ebfa55551ca364b34243b6a4ded7937fc"
+      },
+      {
+       "path": "custody/v2/member.mjs",
+       "blob": "a5872f243fe4888aeb6754ff66e978881b87567d"
+      },
+      {
+       "path": "custody/v2/sealed-state.mjs",
+       "blob": "91be18b777a1ace72f63fee99f7fdbceacae2061"
+      },
+      {
+       "path": "custody/v2/startup-state.mjs",
+       "blob": null
+      },
+      {
+       "path": "docs/security/secret-custody-v2.md",
+       "blob": "393f9d31070e3b5f44580689c4a95bff91a3a4d5"
+      },
+      {
+       "path": "test/custody-direct-host.test.mjs",
+       "blob": "2aa0973f87d51d80e60475a70d949a7f9699b149"
+      },
+      {
+       "path": "test/custody-direct-ingress.test.mjs",
+       "blob": "4f6eaebaa6f644ffad97c1ca8cf9f7d704418e67"
+      },
+      {
+       "path": "test/custody-v2-e2e.test.mjs",
+       "blob": "51a986f3fda9f9f268a7ad50e8e440c10e131775"
+      },
+      {
+       "path": "test/custody-v2-genesis-intent.test.mjs",
+       "blob": null
+      },
+      {
+       "path": "test/custody-v2-persist-barrier.test.mjs",
+       "blob": "43f2da649d979edc3b13deddca76b1ef4c8f02df"
+      },
+      {
+       "path": "test/custody-v2-startup-state.test.mjs",
+       "blob": null
+      },
+      {
+       "path": "test/fixtures/EnclaveRegistry.schema4.sol",
+       "blob": "3086cf4245dc0804afd45ee666d9c8efe50549f2"
+      }
+     ]
+    },
+    {
+     "commit": "c95dcd3aee901b503751c02918a687c83b227511",
+     "tree": "4756de1ad3ed08916138fb84d4f42b6b8b90a261",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:01:26-07:00",
+     "subject": "custody v2: genesis survives a failed or ambiguous submission and a restart",
+     "parent": "0a6b108eeb43202be4903a1385636a18ac4c537e",
+     "emptyAfterExclusion": false,
+     "patch": "durability2-a5eae96c/patches/0003-c95dcd3a.patch",
+     "touchedBlobs": [
+      {
+       "path": "custody/v2/daemon.mjs",
+       "blob": "3ceba5c2775290050656d6ee33b49f9293d2a761"
+      },
+      {
+       "path": "custody/v2/host-binding.mjs",
+       "blob": "b664e738a00d80ce90c252c4f7c51e1b045ff6b5"
+      },
+      {
+       "path": "custody/v2/host.mjs",
+       "blob": "b7969f3cf6dff31775e5e5332282816f561dc215"
+      },
+      {
+       "path": "custody/v2/ingress.mjs",
+       "blob": "7660720ebfa55551ca364b34243b6a4ded7937fc"
+      },
+      {
+       "path": "custody/v2/member.mjs",
+       "blob": "7678e706b9afba804bb8e0a1cf24e7d88a07d056"
+      },
+      {
+       "path": "custody/v2/sealed-state.mjs",
+       "blob": "91be18b777a1ace72f63fee99f7fdbceacae2061"
+      },
+      {
+       "path": "custody/v2/startup-state.mjs",
+       "blob": null
+      },
+      {
+       "path": "docs/security/secret-custody-v2.md",
+       "blob": "4f64168b25fd606bc395c2dfa3697c7d4e8757bf"
+      },
+      {
+       "path": "test/custody-direct-host.test.mjs",
+       "blob": "2aa0973f87d51d80e60475a70d949a7f9699b149"
+      },
+      {
+       "path": "test/custody-direct-ingress.test.mjs",
+       "blob": "4f6eaebaa6f644ffad97c1ca8cf9f7d704418e67"
+      },
+      {
+       "path": "test/custody-v2-e2e.test.mjs",
+       "blob": "48b27ab271042d44fd0ea59eddad171feda2eacd"
+      },
+      {
+       "path": "test/custody-v2-genesis-intent.test.mjs",
+       "blob": "ff08ac278b42182d621cd9a6972111c35094e987"
+      },
+      {
+       "path": "test/custody-v2-persist-barrier.test.mjs",
+       "blob": "43f2da649d979edc3b13deddca76b1ef4c8f02df"
+      },
+      {
+       "path": "test/custody-v2-startup-state.test.mjs",
+       "blob": null
+      },
+      {
+       "path": "test/fixtures/EnclaveRegistry.schema4.sol",
+       "blob": "3086cf4245dc0804afd45ee666d9c8efe50549f2"
+      }
+     ]
+    },
+    {
+     "commit": "a5eae96cdaa9f916266c9ee101908e14e75ad085",
+     "tree": "d8afe7ffbb751c0d277cdb24b6ccdf01b80f98bf",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:49:51-07:00",
+     "subject": "Fail closed on custody startup storage errors and bind reviewed vault authority",
+     "parent": "c95dcd3aee901b503751c02918a687c83b227511",
+     "emptyAfterExclusion": false,
+     "patch": "durability2-a5eae96c/patches/0004-a5eae96c.patch",
+     "touchedBlobs": [
+      {
+       "path": "custody/v2/daemon.mjs",
+       "blob": "85c4816f9592240662f398dee3183530e854d035"
+      },
+      {
+       "path": "custody/v2/host-binding.mjs",
+       "blob": "4c07ab6360c1bbe341fb1e22d384a1dabf5da812"
+      },
+      {
+       "path": "custody/v2/host.mjs",
+       "blob": "5c12cc58b473eb63c55817e19af07ac92c51557e"
+      },
+      {
+       "path": "custody/v2/ingress.mjs",
+       "blob": "ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772"
+      },
+      {
+       "path": "custody/v2/member.mjs",
+       "blob": "7678e706b9afba804bb8e0a1cf24e7d88a07d056"
+      },
+      {
+       "path": "custody/v2/sealed-state.mjs",
+       "blob": "91be18b777a1ace72f63fee99f7fdbceacae2061"
+      },
+      {
+       "path": "custody/v2/startup-state.mjs",
+       "blob": "ee1523f5a88ef7f65b21a6aef6d7f75d61cd6959"
+      },
+      {
+       "path": "docs/security/secret-custody-v2.md",
+       "blob": "4f64168b25fd606bc395c2dfa3697c7d4e8757bf"
+      },
+      {
+       "path": "test/custody-direct-host.test.mjs",
+       "blob": "4417609f78df8169b9f4b6cdd802a0f477a3437e"
+      },
+      {
+       "path": "test/custody-direct-ingress.test.mjs",
+       "blob": "06572e9bbc568974fba7ddb7fa4ce62630706db2"
+      },
+      {
+       "path": "test/custody-v2-e2e.test.mjs",
+       "blob": "48b27ab271042d44fd0ea59eddad171feda2eacd"
+      },
+      {
+       "path": "test/custody-v2-genesis-intent.test.mjs",
+       "blob": "ff08ac278b42182d621cd9a6972111c35094e987"
+      },
+      {
+       "path": "test/custody-v2-persist-barrier.test.mjs",
+       "blob": "43f2da649d979edc3b13deddca76b1ef4c8f02df"
+      },
+      {
+       "path": "test/custody-v2-startup-state.test.mjs",
+       "blob": "9e406e9b3a6337e10e6e2e671ffc63e7a5921669"
+      },
+      {
+       "path": "test/fixtures/EnclaveRegistry.schema4.sol",
+       "blob": "3086cf4245dc0804afd45ee666d9c8efe50549f2"
+      }
+     ]
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "custody/v2/daemon.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "85c4816f9592240662f398dee3183530e854d035",
+     "sha256": "63b8a85c78e83f9209f0825c2d923b7d65eb2c360b8bdda95ff6bba887fde7f6",
+     "bytes": 15674,
+     "baseBlob": "a2c2dbc00b63e86246fae2a1f31ea0393ed5ccea"
+    },
+    {
+     "path": "custody/v2/host-binding.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4c07ab6360c1bbe341fb1e22d384a1dabf5da812",
+     "sha256": "d803cfc864f81ae7b69c59f9b59cb10b6f781c4899f6b5d9ed8e8086729d8c9e",
+     "bytes": 1945,
+     "baseBlob": "b664e738a00d80ce90c252c4f7c51e1b045ff6b5"
+    },
+    {
+     "path": "custody/v2/host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5c12cc58b473eb63c55817e19af07ac92c51557e",
+     "sha256": "c2923901a78f6253aa405ef051246211f97e63d8e9ea0267b00e9a836b80090f",
+     "bytes": 9698,
+     "baseBlob": "b7969f3cf6dff31775e5e5332282816f561dc215"
+    },
+    {
+     "path": "custody/v2/ingress.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ebacbcc6c6d0016c9bc498ae774bc2a3fc1f1772",
+     "sha256": "dd5d74d0d6875c379b8cd90cc1ae119a2a5cbc778c47745a6639c1dc391b5460",
+     "bytes": 1614,
+     "baseBlob": "7660720ebfa55551ca364b34243b6a4ded7937fc"
+    },
+    {
+     "path": "custody/v2/member.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "7678e706b9afba804bb8e0a1cf24e7d88a07d056",
+     "sha256": "1925b289405b7e083f630b0d70cceb8a73f23c09ebabdbddf6a2b3ef1d39e8ab",
+     "bytes": 49111,
+     "baseBlob": "a5872f243fe4888aeb6754ff66e978881b87567d"
+    },
+    {
+     "path": "custody/v2/sealed-state.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "91be18b777a1ace72f63fee99f7fdbceacae2061",
+     "sha256": "634809fee730b9acd69d2eaf426d8a3364f18abb5b95ae1270fa057e5da4e79e",
+     "bytes": 2726,
+     "baseBlob": "ec717869af94524291b2824c7175b7b9af581a24"
+    },
+    {
+     "path": "custody/v2/startup-state.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ee1523f5a88ef7f65b21a6aef6d7f75d61cd6959",
+     "sha256": "086b28c3bddb912cdf95a3a96a4514eaada25b9be8851fce07f18e9458395a35",
+     "bytes": 1095,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4f64168b25fd606bc395c2dfa3697c7d4e8757bf",
+     "sha256": "44ac44a4afe6996f99ef82257d301b87a20f02b452f3fbaf4a5edf5d6b29c44a",
+     "bytes": 26755,
+     "baseBlob": "393f9d31070e3b5f44580689c4a95bff91a3a4d5"
+    },
+    {
+     "path": "test/custody-direct-host.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4417609f78df8169b9f4b6cdd802a0f477a3437e",
+     "sha256": "2cca4ae3a605bdd940eeee25c9555eb068150fee1077e552642581863cde7ff8",
+     "bytes": 5390,
+     "baseBlob": "2aa0973f87d51d80e60475a70d949a7f9699b149"
+    },
+    {
+     "path": "test/custody-direct-ingress.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "06572e9bbc568974fba7ddb7fa4ce62630706db2",
+     "sha256": "32b09e7fdcde30de2c4bb122daea732e03b80d61a200319559c9d10546173ab0",
+     "bytes": 4697,
+     "baseBlob": "4f6eaebaa6f644ffad97c1ca8cf9f7d704418e67"
+    },
+    {
+     "path": "test/custody-v2-e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "48b27ab271042d44fd0ea59eddad171feda2eacd",
+     "sha256": "69eafa49b945f0db688bd56f1250f417e0d6db46e9a97c85fa9257f5ebdee81f",
+     "bytes": 30519,
+     "baseBlob": "6625af0daeb8da71971848fefbb3668c8d3830f5"
+    },
+    {
+     "path": "test/custody-v2-genesis-intent.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff08ac278b42182d621cd9a6972111c35094e987",
+     "sha256": "746f9ac12007c3b9d32771dbdf01e3b04bb2d18f9c3d612167e6125cbac7745a",
+     "bytes": 14359,
+     "baseBlob": null
+    },
+    {
+     "path": "test/custody-v2-persist-barrier.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "43f2da649d979edc3b13deddca76b1ef4c8f02df",
+     "sha256": "6a66c228a222b08f4ac45e52e8d264d6fa1a15248eb4b6e9acd93141121f3de4",
+     "bytes": 23665,
+     "baseBlob": "b4f6c04da6327725e31dbcf18926a7fbe869fb66"
+    },
+    {
+     "path": "test/custody-v2-startup-state.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9e406e9b3a6337e10e6e2e671ffc63e7a5921669",
+     "sha256": "e5ab18065cc51877ac6469b284de006afd01b77f23702451fb7301f9da512c1a",
+     "bytes": 2921,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/EnclaveRegistry.schema4.sol",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3086cf4245dc0804afd45ee666d9c8efe50549f2",
+     "sha256": "771a22d361dde5e19cfc8a1db66b7739e6b447e6185153be9fc8c248be0fd2a9",
+     "bytes": 17407,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "durability2-a5eae96c/patches/0001-3ccd4333.patch",
+     "sha256": "4f4bf89fe1bb20725483c451f9d08efac15a3a5a1496c9fd13d24eed5dc0b7c6"
+    },
+    {
+     "file": "durability2-a5eae96c/patches/0002-0a6b108e.patch",
+     "sha256": "51da9c1027135689c8d863f5647df3017aa5e155d2060cb40b2fd59b4b69326f"
+    },
+    {
+     "file": "durability2-a5eae96c/patches/0003-c95dcd3a.patch",
+     "sha256": "51cfe161d186981bbb7bd5f8e441ed9ac27917d7e6274e55b2df535625bb3bde"
+    },
+    {
+     "file": "durability2-a5eae96c/patches/0004-a5eae96c.patch",
+     "sha256": "a23408a0d68587b9f5cf7f50f1d11f7d0b8c388b56b43f369f66f0ed835b0a42"
+    }
+   ],
+   "baseFiles": [
+    {
+     "path": "custody/v2/daemon.mjs",
+     "mode": "100644",
+     "blob": "a2c2dbc00b63e86246fae2a1f31ea0393ed5ccea",
+     "file": "durability2-a5eae96c/base-files/custody/v2/daemon.mjs",
+     "sha256": "0a45f360240972ad3806339b1ec5b11d85d9b68cef843aa4d4f53875efd5617b"
+    },
+    {
+     "path": "custody/v2/host-binding.mjs",
+     "mode": "100644",
+     "blob": "b664e738a00d80ce90c252c4f7c51e1b045ff6b5",
+     "file": "durability2-a5eae96c/base-files/custody/v2/host-binding.mjs",
+     "sha256": "79b5a82ba5cffc103628a9a8322b2bb6b5e1f050228d75050f01d8946c752044"
+    },
+    {
+     "path": "custody/v2/host.mjs",
+     "mode": "100644",
+     "blob": "b7969f3cf6dff31775e5e5332282816f561dc215",
+     "file": "durability2-a5eae96c/base-files/custody/v2/host.mjs",
+     "sha256": "745523476b7a8bc5d3f896addf36bd2cc3739be9dadeee569fb4e88e4e5b06bb"
+    },
+    {
+     "path": "custody/v2/ingress.mjs",
+     "mode": "100644",
+     "blob": "7660720ebfa55551ca364b34243b6a4ded7937fc",
+     "file": "durability2-a5eae96c/base-files/custody/v2/ingress.mjs",
+     "sha256": "7d9b2d1aeae0e81f86e2aacc83224327ebe9217ad01d39b271960445424640e0"
+    },
+    {
+     "path": "custody/v2/member.mjs",
+     "mode": "100644",
+     "blob": "a5872f243fe4888aeb6754ff66e978881b87567d",
+     "file": "durability2-a5eae96c/base-files/custody/v2/member.mjs",
+     "sha256": "d896251cb607fe7957b56146351c977e960887d9b577a30f0384123b53414798"
+    },
+    {
+     "path": "custody/v2/sealed-state.mjs",
+     "mode": "100644",
+     "blob": "ec717869af94524291b2824c7175b7b9af581a24",
+     "file": "durability2-a5eae96c/base-files/custody/v2/sealed-state.mjs",
+     "sha256": "d58165607cba6c043a399af0150aeaba2b1656eddf401ea773568fe6563e5c45"
+    },
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "mode": "100644",
+     "blob": "393f9d31070e3b5f44580689c4a95bff91a3a4d5",
+     "file": "durability2-a5eae96c/base-files/docs/security/secret-custody-v2.md",
+     "sha256": "8012bfae98f052ee8125f2e683d06eeca3d28e43605652a5256c40388ff0d8d7"
+    },
+    {
+     "path": "test/custody-direct-host.test.mjs",
+     "mode": "100644",
+     "blob": "2aa0973f87d51d80e60475a70d949a7f9699b149",
+     "file": "durability2-a5eae96c/base-files/test/custody-direct-host.test.mjs",
+     "sha256": "7aa843825b23432afbc1b653cf85cc19f0281277963c30f168ec218fc564d80f"
+    },
+    {
+     "path": "test/custody-direct-ingress.test.mjs",
+     "mode": "100644",
+     "blob": "4f6eaebaa6f644ffad97c1ca8cf9f7d704418e67",
+     "file": "durability2-a5eae96c/base-files/test/custody-direct-ingress.test.mjs",
+     "sha256": "3faa077a8abfe6a2f5a69655f274ebc0cdfc8c1f95a8cc57280ad7645012aef2"
+    },
+    {
+     "path": "test/custody-v2-e2e.test.mjs",
+     "mode": "100644",
+     "blob": "6625af0daeb8da71971848fefbb3668c8d3830f5",
+     "file": "durability2-a5eae96c/base-files/test/custody-v2-e2e.test.mjs",
+     "sha256": "6f984bbe3ae3824072934b5d5e0ac68e47084d23529a3fc397d3c4cf7f43ec17"
+    },
+    {
+     "path": "test/custody-v2-persist-barrier.test.mjs",
+     "mode": "100644",
+     "blob": "b4f6c04da6327725e31dbcf18926a7fbe869fb66",
+     "file": "durability2-a5eae96c/base-files/test/custody-v2-persist-barrier.test.mjs",
+     "sha256": "a5acb99b334a728bc0682aa674223f2f7ebc2e2f33f2ab3f5e260c00fbb08a3f"
+    }
+   ],
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "46e048065527aebe4731174a2fa521c853f0a021",
+     "bytes": "5359",
+     "path": "test/helpers/original-vault-rig.mjs",
+     "sha256": "ffb29072640c656c7df975d0bbaed4fa7ba9a5a67cea2a2a30af0cc876d4b09a"
+    }
+   ],
+   "excluded": [
+    "test/helpers/original-vault-rig.mjs"
+   ],
+   "omittedRecipe": "test/helpers/original-vault-rig.mjs (new in 0a6b108e; blob in omittedAtHead) is omitted: its contract identifiers trip gitleaks generic-api-key. It is excluded from the patches and the touched-path check; restore from M's repository at a5eae96c",
+   "baseTreeNotReproduced": {
+    "base": "415483ff9784c38a88b273363a7efd0c227b95ce",
+    "baseTree": "c1366cf9c52b7381ef9d308f9ec8aa6be3145efd",
+    "why": "continues frozen-1852 m-durability, whose base c635fd68 (pre-rewrite custody-release repo-b) is not publishable; full trees not claimed",
+    "verified": "base-files/ + this side's patches reproduce every touched path's blob at every commit (verify-frozen-1951-export.py)"
+   },
+   "note": "custody v2 durability through root-custody-rollout-closure: 3ccd4333 concurrent-write safety, 0a6b108e e2e on the original book-bound vault, c95dcd3a genesis survives a failed/ambiguous submission (image e012 built from it), a5eae96c root startup fail-closed / launcher original-vault identity / direct owner-read fixes. SOURCE ONLY: a5eae96c is NOT built, quoted or activated; it supersedes e012 for activation"
+  },
+  "custody-release": {
+   "repo": "work/custody-v2-release-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "44bf8f4fb0b07ff8cbe7dc5cbf94819cc4377f6b",
+   "headTree": "afec64f0a7b8d4f0a76af4287833f4e1e3060c81",
+   "commits": [
+    {
+     "commit": "44bf8f4fb0b07ff8cbe7dc5cbf94819cc4377f6b",
+     "tree": "afec64f0a7b8d4f0a76af4287833f4e1e3060c81",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:34:01-07:00",
+     "subject": "Build corrected custodian reproducibly and verify fresh SNP launch evidence",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "custody-release-44bf8f4f/patches/0001-44bf8f4f.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d5cfcc3a87d7c1532bdc2879f11a1db1a7bc6945",
+     "sha256": "7212e9b11a95ec4651929efb0b3150a8ad71670056b37b89825858c575ae8e96",
+     "bytes": 100,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fa25a7dc4fce2786de3cbe04c31f3ed09faa6167",
+     "sha256": "e93ccb7d0d7b4209ea260a0854683bc5422b1b22af56ca306950e2fefb64fee1",
+     "bytes": 1569,
+     "baseBlob": null
+    },
+    {
+     "path": "SCAN-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bc7c070bd4376cf32b2e7ef9684878973cc6b61a",
+     "sha256": "147838733b2a6d969121bd37bb71d4460f02fc883934d8f4ff457cdfe6ad1770",
+     "bytes": 606,
+     "baseBlob": null
+    },
+    {
+     "path": "build-continue.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e6b5b3610c74082d6b49dea435b29d236052e2a0",
+     "sha256": "36e67ff34b9a9f178676e5a9251dff32d2964cb37f012171439158c2738d045a",
+     "bytes": 4513,
+     "baseBlob": null
+    },
+    {
+     "path": "build-custodian-release.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "2a508761f0ea74c35038a9df33e51a88361591aa",
+     "sha256": "f22d7e3f1141db4cb3aebd3251d4ef20788ac7272a30fbec02cb4d5791244729",
+     "bytes": 4319,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/ALLOCATION.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0bb0c613475ccea0bdea865b581845082c4d7e97",
+     "sha256": "5688ad7d5d90befb8d4e5c8916bc8d30c8178deb9a9e1efabd3a25f1ddf0f4b0",
+     "bytes": 656,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/headroom-check.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "37ecacf459a6e49ffc0b8086d58054c8e4858232",
+     "sha256": "5ba4bf3ccdd30e8712b98e97cdbcec654bfbb48392919bce067be797aa7010f7",
+     "bytes": 2283,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/root-hardware-canary.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "de278da7bdb26966868ccc09ed3c145ff1c9d60c",
+     "sha256": "89a8220662ec9e89c465bab1de4f42fc29038d1e846b3818e62ccbf6ed0d38c4",
+     "bytes": 8012,
+     "baseBlob": null
+    },
+    {
+     "path": "canary/verify-custodian-quote.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "652d945ed6420a8de0cc91fdc23d5a3052f9cf18",
+     "sha256": "5acfa74a659c95cf7706a783558f8d0bf392d7588d99940e05876d7e26050579",
+     "bytes": 5094,
+     "baseBlob": null
+    },
+    {
+     "path": "cpio-entries.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e0972c1784be9c21439211f0f856c54770ab810b",
+     "sha256": "99f0b8517f02abdc72faeea52436dd499ce0f83634deb649a7c15851956ce810",
+     "bytes": 1992,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/A-manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "981218e391badcbea682e90f1cd0d35b898d71da",
+     "sha256": "b16d2eae453a161bc508b1b4e93c7c644e6b8607d8a8ac816ad74cffd726802d",
+     "bytes": 3919,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/B-manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "981218e391badcbea682e90f1cd0d35b898d71da",
+     "sha256": "b16d2eae453a161bc508b1b4e93c7c644e6b8607d8a8ac816ad74cffd726802d",
+     "bytes": 3919,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/attempt.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a1849bbecd926ebbf8dba60b78d1ccf7d54edd3",
+     "sha256": "18f886f1f13bf66c4472f36c6ccd5f38df4a6382a3b196cd1dcd4eb058c135eb",
+     "bytes": 1541,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-after.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1c39206786f4a4a4ae1ace96031eccdada408052",
+     "sha256": "7165576017fa64da44ba99b9243c379ba1074ec49a6e663899f173e026e78120",
+     "bytes": 104,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-before.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1c39206786f4a4a4ae1ace96031eccdada408052",
+     "sha256": "7165576017fa64da44ba99b9243c379ba1074ec49a6e663899f173e026e78120",
+     "bytes": 104,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ce41f36f4beb4d84ca34d2f617d30743bc498784",
+     "sha256": "b6f1c8580df6be4eba20db1e7e97697965753e15cd01f845bfc217aaa9cca98a",
+     "bytes": 2333,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/terminal.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7b71f54d7b68843c561b5b94bfa07b70cc226a41",
+     "sha256": "43b8d8f96b318ce8e5ffdd55933a1555287b5d24887fa795cc9d5fe8e50ac383",
+     "bytes": 100,
+     "baseBlob": null
+    },
+    {
+     "path": "out/A-verify-v3.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "86a42c8cdc3aa666de53522f6a364e7abe533d3f",
+     "sha256": "4c944accc01bd0906be07f89e0bf9429cd7e5da3237ced7f43ceb5cc3bb6baa5",
+     "bytes": 24524,
+     "baseBlob": null
+    },
+    {
+     "path": "out/B-verify-v3.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "86a42c8cdc3aa666de53522f6a364e7abe533d3f",
+     "sha256": "4c944accc01bd0906be07f89e0bf9429cd7e5da3237ced7f43ceb5cc3bb6baa5",
+     "bytes": 24524,
+     "baseBlob": null
+    },
+    {
+     "path": "qrun.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "3bb88b436186b3fb43b4da44c57c051beaa9033d",
+     "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+     "bytes": 515,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-review.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eaf7d4bfd2aef2b340e0f0ae9f50fad485ab64bb",
+     "sha256": "45d571336d4e8003af4dca7f814c412e68d98b412d4924120b55d19e532bc817",
+     "bytes": 255,
+     "baseBlob": null
+    },
+    {
+     "path": "verify-custodian-v3.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "983605532601c57cb930946fe8f977b89b327bb3",
+     "sha256": "68c3149e0dd7c424a3f9befd346bca324f063f04b80d6ae0b37f4cbecfc2735e",
+     "bytes": 13953,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-release-44bf8f4f/patches/0001-44bf8f4f.patch",
+     "sha256": "c5b80268de48345faa32c0b097aea04afaf2b3b10c74ee08cb0440951e17e9ed"
+    }
+   ],
+   "note": "ROOT corrected custodian e012 (from c95dcd3a): two byte-identical reproducible builds and a genuine SNP QUOTE-ONLY hardware canary (19:31Z; no registry/submitter key, no committee, no genesis, not activated). Superseded for activation by a5eae96c. Ignored canary run directories, logs and custodian outputs are not captured"
+  },
+  "dashboard": {
+   "repo": "work/custody-v2-dashboard-20261023/repo",
+   "branch": "custody-v2-dashboard",
+   "headReachableFromBranch": true,
+   "base": "ff13ebe089f3c18a064892269c55ddca2b4409e9",
+   "baseProvenance": "ff13ebe0 preserved in 45bf6552 (frozen-1639 e-gen head)",
+   "head": "4acad4a7a3d6858eae27c6c8573836f48395d9de",
+   "headTree": "cfaa8d49b8bdc9acc70477f51a7895b347507340",
+   "commits": [
+    {
+     "commit": "2cf89ae230e00d85d7842ee9092ed60334ad84b5",
+     "tree": "fba0994fd5f5c77eac7717405c66fd57c66be76c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:51:05-07:00",
+     "subject": "Custody v2 browser entry and vendor builder (sources only)",
+     "parent": "ff13ebe089f3c18a064892269c55ddca2b4409e9",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard-4acad4a7/patches/0001-2cf89ae2.patch"
+    },
+    {
+     "commit": "5843da8cd82470b91004d91ff05c6a87f0b55dae",
+     "tree": "ab742f6c3cbaa28433ebe0057bd62735b89d9aca",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:06:41-07:00",
+     "subject": "Custody v2 browser entry: also export configTextOf (the owner names a non-inline config)",
+     "parent": "2cf89ae230e00d85d7842ee9092ed60334ad84b5",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard-4acad4a7/patches/0002-5843da8c.patch"
+    },
+    {
+     "commit": "da56c238466a3271805962c30d4c05e8ecff64fa",
+     "tree": "dae99d90cd49abbd8a47157cafcf1710113ac190",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:11:16-07:00",
+     "subject": "site/vendor/custody-v2.js: the custody v2 browser bundle, built from 5843da8cd",
+     "parent": "5843da8cd82470b91004d91ff05c6a87f0b55dae",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard-4acad4a7/patches/0003-da56c238.patch"
+    },
+    {
+     "commit": "d171bce480a790ae654cc1317dae48d5f705b25f",
+     "tree": "971dbca46610bef7a30d916f0db45e2229670cfc",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:11:16-07:00",
+     "subject": "Dashboard: custody v2 owner flow in the Secrets panel (verified vault, encrypt in page, migration, pause)",
+     "parent": "da56c238466a3271805962c30d4c05e8ecff64fa",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard-4acad4a7/patches/0004-d171bce4.patch"
+    },
+    {
+     "commit": "5b2a0092657470b34948c60e9ae6100167856da9",
+     "tree": "f5e77f49bd1712beadc3034b1e6b95c64c27af70",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:11:16-07:00",
+     "subject": "Tests: custody v2 dashboard flow over the committed bundle, in Node and in a real browser (fixture vault)",
+     "parent": "d171bce480a790ae654cc1317dae48d5f705b25f",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard-4acad4a7/patches/0005-5b2a0092.patch"
+    },
+    {
+     "commit": "4acad4a7a3d6858eae27c6c8573836f48395d9de",
+     "tree": "cfaa8d49b8bdc9acc70477f51a7895b347507340",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:11:16-07:00",
+     "subject": "Docs: the dashboard's custody v2 panel (secret-custody-v2.md 10.2), source-only status",
+     "parent": "5b2a0092657470b34948c60e9ae6100167856da9",
+     "emptyAfterExclusion": false,
+     "patch": "dashboard-4acad4a7/patches/0006-4acad4a7.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "custody/v2/browser.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fcab2a1ce28b9e8930e7b364f5875cef6261bd97",
+     "sha256": "33c842fe6da6ef1fa3c61108fc874118877686455771ffdf1e7cbe6a735ef05f",
+     "bytes": 1076,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5c665cead1dbb4d4300ff1a86d2eff8c04ccc7d4",
+     "sha256": "6ba9cdfc243af4a1f18d339077f8a6cf60aaa993c58ee536bc5c4aa245d897d0",
+     "bytes": 27943,
+     "baseBlob": "393f9d31070e3b5f44580689c4a95bff91a3a4d5"
+    },
+    {
+     "path": "scripts/build-custody-v2-vendor.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f6446dcbc5e58ecbcad3326d4d1e8e756f15b07",
+     "sha256": "f86fe930deaa7db90cbb01d992dd2b773b73079e69cf2641861306b182f1dfff",
+     "bytes": 4806,
+     "baseBlob": null
+    },
+    {
+     "path": "site/components/deployments/deployments.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "37fe58599f17e9a8e5ad0ef7be60e8b0c29408bd",
+     "sha256": "3aa0a05b87dafaabbff8edcad62472a3c5ded053d26df7225edacc28af2882c3",
+     "bytes": 319291,
+     "baseBlob": "a1c2425c13ab32171360ca7b284f4a15238da96e"
+    },
+    {
+     "path": "site/js/core/config.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f8774e9ff035d05dd6e020aaa4e7221c144a1eb6",
+     "sha256": "f6acc908ba51197ed885c42e35a91a3edc273ec4ad636e982789857be456d841",
+     "bytes": 17402,
+     "baseBlob": "33420688f3f017a7f45f62e2f16a33f933cd10aa"
+    },
+    {
+     "path": "site/js/core/custody-v2.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f94730dc6ced4effcf424a4f3e2a7951e3ea7ed2",
+     "sha256": "a399ef1d3e6d87253639bd0494f557b7e20ba24cabf42aa905cd3a11a0ae7c99",
+     "bytes": 23561,
+     "baseBlob": null
+    },
+    {
+     "path": "site/vendor/custody-v2.MANIFEST.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6140db8d8491ca151f1426ea147b55f44f99d47f",
+     "sha256": "b7644dc771286c1674883d4d3d64b967e6f6e7f5bc71e75588c0d8c895d1ea73",
+     "bytes": 1811,
+     "baseBlob": null
+    },
+    {
+     "path": "site/vendor/custody-v2.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ed24fd5225ae3a6eb9166f418cae8ec477bc684c",
+     "sha256": "e4fe3ebd19a528f51944434857aa6c34fc7258380154e7baf8b0a3f5753db938",
+     "bytes": 326422,
+     "baseBlob": null
+    },
+    {
+     "path": "test/custody-v2-dashboard-browser.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f6df47ba455ed8bf691ef61acdfe4ed6e4dbad7",
+     "sha256": "9d47516f3b2f8c26f73b67d42a6c88d15ff60bc4e01498d6c2a10cbcf00eaacb",
+     "bytes": 15555,
+     "baseBlob": null
+    },
+    {
+     "path": "test/custody-v2-dashboard.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e33b869b55836a80d8cae61b78ec941a2e8fe787",
+     "sha256": "9f92c70b4703755bd70455551aa4ee1bd8f353d6ca7f6a980d098d31d0175842",
+     "bytes": 19529,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helpers/custody-v2-fake-vault.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "58e21f96b4e989c0be9b9d04d622ad7df4de7026",
+     "sha256": "95ffa79635323e312956efefc0edbead4ae0e8d071d2c0eb1fe41d696d75a20b",
+     "bytes": 7627,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "dashboard-4acad4a7/patches/0001-2cf89ae2.patch",
+     "sha256": "4d638943bd6472c85f3afa09c3fee1d81cff233165e335b42d5bf9390f0588c5"
+    },
+    {
+     "file": "dashboard-4acad4a7/patches/0002-5843da8c.patch",
+     "sha256": "d5ecb8593ac789710a9adff9fb994f20602803e7eff639ebdbc965c242ca6213"
+    },
+    {
+     "file": "dashboard-4acad4a7/patches/0003-da56c238.patch",
+     "sha256": "f94649a0694693bcf6f291aa1dc0d145c133a58116f7129bfaa7a32129775071"
+    },
+    {
+     "file": "dashboard-4acad4a7/patches/0004-d171bce4.patch",
+     "sha256": "5af66659bda7973d9251b3c819f1975d770742cd5881899b77a682ba042e0b94"
+    },
+    {
+     "file": "dashboard-4acad4a7/patches/0005-5b2a0092.patch",
+     "sha256": "30e79046dd22b84fcd4b4905858587aee6da0581597af92edaf75f95bbccac2f"
+    },
+    {
+     "file": "dashboard-4acad4a7/patches/0006-4acad4a7.patch",
+     "sha256": "0ae9ea90cd4a6a6ace4e8a787715e47db3c7bc9a452573b5067ada433b59a9f8"
+    }
+   ],
+   "note": "R custody v2 dashboard on ff13ebe0: browser entry + vendor builder, committed browser bundle site/vendor/custody-v2.js built from 5843da8c, Secrets-panel owner flow, Node + real-browser tests, docs. Source/test only; not deployed"
+  },
+  "custody-live2": {
+   "repo": "work/custody-v2-live-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "a90f8339e7225e185393a646a879feaf4853c5b1",
+   "baseProvenance": "a90f8339 preserved in 45bf6552 (frozen-1852 custody-live head)",
+   "head": "70019fdf9c7c4628cd852af7ac6ebae55843a610",
+   "headTree": "bb19b19a251d290cbd31691adc6078c55d901879",
+   "commits": [
+    {
+     "commit": "70019fdf9c7c4628cd852af7ac6ebae55843a610",
+     "tree": "bb19b19a251d290cbd31691adc6078c55d901879",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:10:51-07:00",
+     "subject": "Record live custody configuration, sealed-state retention and relay metadata without reading secrets",
+     "parent": "a90f8339e7225e185393a646a879feaf4853c5b1",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live2-70019fdf/patches/0001-70019fdf.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "SCAN-REVIEW.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a764a5bfd18ae78650b432da35776bab56b4db1b",
+     "sha256": "a77d083e553dbc3bbe88a11afcc46203873921a2840dd86f58340c56a9ec10bf",
+     "bytes": 429,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/dns-policy-inventory.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a9b65c20724de18ced54c24e4cc45f9fd12a12b",
+     "sha256": "9e13271fde4c8b113c94824c2e9802e09af60ec2a75c1d3a816cb4efe2316e9d",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/dns-policy-inventory.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "79bac8e0fdba8ff5e4cf8bea5f977e8ae6bb85d6",
+     "sha256": "6bd7f9f49d1c3943f6c6f39d3979bb6add971042449ef16b06138fe6fd95e6fd",
+     "bytes": 1384,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/local-config-retention-4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/local-config-retention.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "375a243172d0d02d45903e309cdec25b7200eb28",
+     "sha256": "72d7d267bcefe9dde5d0b39cb0f2322fe468220a8702c9ac6d57164d83bf5f24",
+     "bytes": 4079,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/provider-policy-inventory.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d000b0a74faede002a51d5e99094d86d4f7e1dfb",
+     "sha256": "875ade4603e68e327e674eb734b7a801c41fef46f242b98b34ede632826b2793",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/provider-policy-inventory.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "60fcc208fbffb6a7c21e99ca7e21d7ec5aaa8a9b",
+     "sha256": "25f9ff51ee4759ab0c669215ff87cbd9aab87801d640ee845a35dfc76de44692",
+     "bytes": 4520,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/relay-public-config-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b83e60f24b05844e591bbd8d18f04567647cfcee",
+     "sha256": "36e445428a4533939ac6b6f290d49bb44c837c7bdce540bed15297d816415252",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/relay-public-config.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "34e1670a71c8b250dc484bbe87593e94c1030d56",
+     "sha256": "a4fa79693b512c1a3d8408a7521870e0b5bc3fc03e44d6afe320ff16b17a01f1",
+     "bytes": 1329,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/dns-policy-inventory.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "07d15b994ee79e9940c8090af4615b6692cf77b9",
+     "sha256": "936ec8f43b93e3aa97c860977a12de520108541cf8afe66c615d2a5b7b07f4d2",
+     "bytes": 1782,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/local-config-retention.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9bfcdb50981b4000f9604c2cdd8f20049a00000c",
+     "sha256": "7753b5462e7a1a2f4f7fbf38447bfba80082baa8a6ee4dd4e3dcb356f22136f8",
+     "bytes": 1858,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/provider-policy-inventory.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6c9a3258bb758a059fea3669e6208a1263055c74",
+     "sha256": "70c292d116feb09dfbaae9fd095fb738140d03520559d7687e051233b691dffb",
+     "bytes": 993,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/relay-public-config.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c880f16f2e9c45bc8f25e15e3ad1677e0b64527a",
+     "sha256": "e41306af6fad1ab1b80308e53f9b442bfda8702b4ab181482673e0f32abf32d6",
+     "bytes": 3079,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/service-command-paths.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "13056d9821fd701534f5d13fa398f02445519b32",
+     "sha256": "939ea8533973358c8496b229edaab436ae0cb2ce8b2b495223bd33075226cb5f",
+     "bytes": 466,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-live2-70019fdf/patches/0001-70019fdf.patch",
+     "sha256": "f73ad4f7fe768eab5f21af752d905b188f55f3889b65408b45756200ac320304"
+    }
+   ],
+   "note": "ROOT live custody configuration read on a90f8339: sealed-state retention, relay public config, DNS/provider policy inventory. Read-only; no secrets/sealed state/private config read or captured; existing single-seat bootstrap unchanged (NOT decentralized)"
+  },
+  "root-native2": {
+   "repo": "work/coupled-cpu-enforcement-20261023/root-validation",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "8afbf879ae3960e1b958dad09ce0f331799f002c",
+   "baseProvenance": "8afbf879 preserved in 45bf6552 (frozen-1852 root-cpu-quota head)",
+   "head": "e859355e65223d2210abf8d02ebd7567c8777968",
+   "headTree": "3b44552184778fe25120c42b514d1338d13f1adf",
+   "commits": [
+    {
+     "commit": "e859355e65223d2210abf8d02ebd7567c8777968",
+     "tree": "3b44552184778fe25120c42b514d1338d13f1adf",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T12:10:51-07:00",
+     "subject": "Verify exact guest CPU quotas with sustained native workloads without changing production VMs",
+     "parent": "8afbf879ae3960e1b958dad09ce0f331799f002c",
+     "emptyAfterExclusion": false,
+     "patch": "root-native2-e859355e/patches/0001-e859355e.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "control-address.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6b71219e3f3f559c43a43c2fd976cdc3f9ede661",
+     "sha256": "b5cc16cfffd6cc54de6fb8e0a6dfb207c9cf5aef831c13749a4742ab93819116",
+     "bytes": 149,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-exact-quota.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-exact-quota.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4fa8089e0d702d9ac56963a9ad431093d846a302",
+     "sha256": "a1f15d23715e147902e09f73ccf0a6abbe1e5321958935161561ecb787fa233a",
+     "bytes": 3014,
+     "baseBlob": null
+    },
+    {
+     "path": "read-control-address.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7c9a69c0e771ea795077dcc742e3dcfc43c5632e",
+     "sha256": "b960a0d74bd40896be1cd82f357e694645c99c518cc26be3d7f19603937b058f",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "read-control-address.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "88eba27ba1f704843e3c8f570a2dc97b59ed2fb2",
+     "sha256": "65ba34be8ee5d10880237d1a613bcc2225b8d3824b8f680982b3b68d917f4f05",
+     "bytes": 637,
+     "baseBlob": null
+    },
+    {
+     "path": "run-workload-exact.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "82cd5223b0461e710b725ca6c26633380d201bac",
+     "sha256": "64cb8b9dd3db78f0e11900f9fa72cfc8f30c5ee4836e8af3880115ae88a2b40b",
+     "bytes": 5800,
+     "baseBlob": null
+    },
+    {
+     "path": "scan-exact-staged.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8b0dcd29922b368cab34ecbf122bd4289a9ea104",
+     "sha256": "eaedb85f0b708790a8968ca54b6cca50f65c1ec3d2d01d15603165c5a7407eb8",
+     "bytes": 365,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f4718f177d7ee83cf56a4ff92b74a1e0fe4a8499",
+     "sha256": "cb6c05b3df2bd0b45cc212d7f69e7a9c17c7b1eb4a2352d7713aabade2b13d5e",
+     "bytes": 2958,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/cpu-share.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bbf18cdd55256bb6662dc92c0f9e72626f3c3d67",
+     "sha256": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f",
+     "bytes": 3268,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/derive.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "516ba99173b6025714556c48457b169fec229163",
+     "sha256": "504342510c09dadeac0ec925bf071ff9378a56c5c9cc6990c29bbaf85635ad4e",
+     "bytes": 10120,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/egress.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "aa6833b86744ac3f366ada668ae67b4788ea088a",
+     "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
+     "bytes": 10148,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/ops/workload-canary.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2bbcd83e6152a50cde7ef947d32788de07aff4ce",
+     "sha256": "45aefcbf96e6101be20844a9d44894bcb573b2cdc800728314c9e56301e3cca2",
+     "bytes": 8585,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/psrun.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "469c0f8a366702c9eefe879794ac5acf13e28032",
+     "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
+     "bytes": 2341,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/wmi-launcher.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3e9d01cfa62d1d1c8c7e4ba6436b1d1fd71d1fe8",
+     "sha256": "17a591f6a1d06605d276705f6f000017c73849d6a9ab8e9523f031029c3003aa",
+     "bytes": 92143,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/manager/wmiserve-run.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "68d0bbbe7116100ade38a89e0ef651686f9e3bea",
+     "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+     "bytes": 13831,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-kit/windows/vbslike/verify/boot-statements.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a95d48a9820a639008287fd6cc2a06cff146bcf1",
+     "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
+     "bytes": 1712,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-run.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "35537a9a0d26cff2734810dc4ffa367312cbad2d",
+     "sha256": "c8865301b041f9c20b92850be6c78c0efa8308880b5c94e78ea6d1279c9171a1",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-run.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2d89f5a70caee38b12675a62878b5e76df52b3bd",
+     "sha256": "2e9070ee512d2b4301c7a1a51f4a70b19c6d3a54edc9db7a9cfbca0f9941491c",
+     "bytes": 6051,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-stage.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4f159cbad83ab5f5040a37667099e749c086ed9f",
+     "sha256": "08b4df1b34a3d0a0af09cee82ede5fb8f53ea945e5780a21dff1075fd4447692",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact-stage.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1e400e60e204eaf9a6abd16548eeea6d45a28c3",
+     "sha256": "c45aec40926a1450b362d36ac1bc86bba5f0b6858db02c8b862e6be7f2547ff1",
+     "bytes": 72,
+     "baseBlob": null
+    },
+    {
+     "path": "workload-exact.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f87481d26987483aa04a0b1c680ab776d7799ef",
+     "sha256": "c90683b896147a281ad57dd7dc3d1e923cb31e58f9f145f503bdf1d58852a5cc",
+     "bytes": 2944,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-native2-e859355e/patches/0001-e859355e.patch",
+     "sha256": "d1de9dd0f30b57a0859a0474900e08442f93dd2e985b92c9bc343ee4558ee696"
+    }
+   ],
+   "note": "ROOT root-validation on 8afbf879: exact guest CPU quotas verified with sustained native workloads (after the 8afbf879 Hyper-V cap counterexample). Text only; ignored binaries not captured"
+  }
+ },
+ "derivatives": {
+  "sched-guest": {
+   "repo": "work/cpu-root-scheduler-quota-20261023/guest",
+   "branch": "cpu-quota-guest",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (guest source repo: isolation/{contract,m2,m3} as at c85e0c5); SOURCE-ONLY DERIVATIVE",
+   "head": "f6d5fbedfdbac37f69717cda0b1ab510d2abf2ad",
+   "headTree": "7b29e50c76023ca6a8a23993910aa12bc348b08b",
+   "commits": [
+    {
+     "commit": "f7b6ff5597215b267a5ac06e74631349c2870b27",
+     "tree": "75c2994e33d3831981564099dff80bff33b0adbf",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-05T07:41:44Z",
+     "subject": "Source: isolation/{contract,m2,m3} exactly as at c85e0c592353096f0710b1735d337ce6783c9fc0",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "sched-guest-f6d5fbed/patches/0001-f7b6ff55.patch",
+     "originalTree": "ccc477c40937d1a5a889410351a6f6689611720b"
+    },
+    {
+     "commit": "3dbbf8359ce30ab7f0792f16add0d2962546ec56",
+     "tree": "cd5a27d91c5fe9c7912ab26e0d636ea05290a1cd",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:09:27-07:00",
+     "subject": "Monitor: a test seam around load's call into start (no behaviour change)",
+     "parent": "f7b6ff5597215b267a5ac06e74631349c2870b27",
+     "emptyAfterExclusion": false,
+     "patch": "sched-guest-f6d5fbed/patches/0002-3dbbf835.patch",
+     "originalTree": "a6fa4dc1beb8a605f37538c559cdba2d68d7305e"
+    },
+    {
+     "commit": "216c38075d44c40a697b0b3fcc21eb999ae0bf57",
+     "tree": "60a7c16ff1705e8a1ff59a064899570015cfec69",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:09:27-07:00",
+     "subject": "Legacy CPU image monitor: the partition's processor cap binds, not the catalog cpuPercent",
+     "parent": "3dbbf8359ce30ab7f0792f16add0d2962546ec56",
+     "emptyAfterExclusion": false,
+     "patch": "sched-guest-f6d5fbed/patches/0003-216c3807.patch",
+     "originalTree": "6ef1989c4e5b073b5d6c66776b8d70d5155a2fe0"
+    },
+    {
+     "commit": "f6d5fbedfdbac37f69717cda0b1ab510d2abf2ad",
+     "tree": "7b29e50c76023ca6a8a23993910aa12bc348b08b",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T11:54:18-07:00",
+     "subject": "Monitor: an explicit CPU allocation is the purchased share exactly, below one processor too",
+     "parent": "216c38075d44c40a697b0b3fcc21eb999ae0bf57",
+     "emptyAfterExclusion": false,
+     "patch": "sched-guest-f6d5fbed/patches/0004-f6d5fbed.patch",
+     "originalTree": "b424a5c4b0fc9ed504c450d6887533debe1c5ca4"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "isolation/contract/README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cf7ed0ed157e2420e453629a3eab42b23a55a17c",
+     "sha256": "c0d209bb489fb9858b4cf96ea821d68a006a08842ce37800e91c3143db9ea5bc",
+     "bytes": 2363,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/RUNTIME.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fa02123a2f1b3afa88d71f91421efc426bde4579",
+     "sha256": "12816672c8f359dd3f88bdf553bb925118bd911a7dabbf113da600ece1458a24",
+     "bytes": 8814,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/bundle.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ea07c81d0543b629316851d067cabdf9d55b5542",
+     "sha256": "d54d690c5caa729a9487d11685c78178238e7ecd474a18eb359b27c29758fc1c",
+     "bytes": 10481,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/catalog/DERIVE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1440c303daa41f1d1b31641733c7562d76be9dbf",
+     "sha256": "bf728e8b17cc6636a7b0ea98d6015e56e31dcba64b9cc2e74577cb96921a8627",
+     "bytes": 10594,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/catalog/derive.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "caa1e53fc7a1815e11b5c2a9b3f8122501ec64f6",
+     "sha256": "85944585e088cfa4c116523a6e5ddbce7c823285ca43b779c766f385dfde7037",
+     "bytes": 9054,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/catalog/derive_reference.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6c5f056836019374114210865fcf067010b58182",
+     "sha256": "f8213bf008c4be8bf6b2988ffa2b9f9e156161352427788a79f5b9da0cd3412f",
+     "bytes": 9752,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/catalog/derive_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "50ebe4445c4f604103d7ad01f314d54e4a459437",
+     "sha256": "1d020308b0be84173b08e0203682123ce2b1ff13fe238acba9f3359d53e7be70",
+     "bytes": 3773,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/catalog/derive_vectors.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "49cc7fa64216ea10a5a5ad5532f7bfc56fc03a69",
+     "sha256": "68fa9a919925660e07b8f59a265648f7592b21c19a96d3c1507d35d85dcd884f",
+     "bytes": 37200,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/cmd/bundle/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f74d5c3507fe2bd5c4d9af711ea93d5cdd4a13ed",
+     "sha256": "f11aa6ebefcbc0650b0c685f528cdb8ceb806a11d9b7ff94fa213833dce63fe9",
+     "bytes": 4181,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/config_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "894d83786355057e5e5022ba7fd5905f41122750",
+     "sha256": "1d49062665dccbf58da9750ef00afdfa12da32ffe309d4cd6dab24f73df3f3af",
+     "bytes": 2820,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/go.mod",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9de6c34e3326a31db0187ab01b6b6fd81737283a",
+     "sha256": "b96f05a8510845a6916ab2db72d88b8ba6956b62545418fccd0598d52189d5c3",
+     "bytes": 48,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/inference.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f6201ba3eb69cd0e3df72915ac7a58478d23453b",
+     "sha256": "5f88703ba97b44e077122c49dbfb1cdfc598da252bc955ddc027c030fcb09934",
+     "bytes": 1415,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/inference_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "53c91111c3cf89b5ba7c09e1e13435509098cdf8",
+     "sha256": "af58254063cecdb5e7aaa97e655be62e26b0a57aab05b6add7444ea2015711a4",
+     "bytes": 811,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/lifecycle.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9ef93dee0ffa51b2f79d711bbd77e0d78b990c6a",
+     "sha256": "94d08eb4aea01a79c3a647c0558400f2b41b31a28b9cccdbe0b183a698ec8332",
+     "bytes": 3394,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/lifecycle_endrequested_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8e0657dbc93d28207a91d140b2ba070cbd10e1a3",
+     "sha256": "dfad2b46c2af52f564649c8be1da0d8486aee03feb359707447450505e26459c",
+     "bytes": 970,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/ports.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9fc7cc7cff5b7ad88daa0545a5a286cf5ec03e30",
+     "sha256": "54bb313dc6465398c4a544d06e34b12a1b66b1d4e429eb54009e665ac6767e7b",
+     "bytes": 982,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/protocol.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c8abb872866e39239dd97e300765a0a9e754904e",
+     "sha256": "0db2ea53037b77d96c16f9de5717e0a7dae85fd70104ed6e7e668319804e8093",
+     "bytes": 2037,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/report.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dc71c3d03884082e78361a68c391b6db23046e35",
+     "sha256": "d90842577a06a731f206a63ecd239f333f49b51f875c6bdbe78deaba2c63aaf1",
+     "bytes": 2038,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/runtime-identity.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e85140fab3ed62f4580f7f5b3fb2e140899a7758",
+     "sha256": "cffa18515a19a703177a7328457d9e36a45e908fd58ef1307b67c98bd714b13b",
+     "bytes": 2840,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/runtime.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0e8fbb89f32e48dac5c1aed6bf846ccb2a9fad67",
+     "sha256": "7c35b9aa47af21ce8d4d544c2d8fb03ca2b8b4c4469e7d06ac56add7e3478e20",
+     "bytes": 5866,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/runtime.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "22842ed51ef24a47a15e0942f80e3b22ac6de35b",
+     "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+     "bytes": 6224,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/vectors.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c2ef7ac5967c7d8733d90d6d082f1cd7a3d09b3f",
+     "sha256": "e223bbcb0bdbaa220e33e4076737f65e17aac2034ed37e9b671ebc7aaad4f517",
+     "bytes": 27374,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/vectors_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d0eb4f209cb61e76811d009aa18f5c79d3ca828b",
+     "sha256": "2e5b4237a11ae447bd5bfaffefc0ffa2f11d22022216d1eef1c392faa09257ee",
+     "bytes": 16709,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/world_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a6c4b02c13e941c5e000b84848c24e9fc8bbb6c4",
+     "sha256": "a3d3ad066e3d18d36e44765513badb476a4d453b64b0fa202e6c1642efbde6bc",
+     "bytes": 1507,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/wxscan.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "597909d70c95925a95695e14ce4e85aa6ce0473c",
+     "sha256": "a5b008130fd6dce5bc2e2f1feed65aa4b02fcb6c4cee0ae93f97f783d19de484",
+     "bytes": 7551,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/contract/wxscan_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "70d58a4c6340cb5c1b5732cda83c54ccda5731e1",
+     "sha256": "de91455ead56b817f317b933f7bf7aabefdfdd67945e52c528e8fd48827d0802",
+     "bytes": 7732,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/app-seccomp-probe.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c7c12dfd507692252bd80b2e396859eb4eb35a4",
+     "sha256": "089f777c621dbd6163b7850456e872f1da452807fba441e4c5fdaa4736fd7861",
+     "bytes": 9761,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/app-seccomp.h",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c59d9a1d384be0b7bd1bbb9bed313e1361d02bca",
+     "sha256": "1bcc87cc8c202caa1d1c3572a535da7f291b4e68f199ceb34419f5341666b325",
+     "bytes": 9880,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/app/Cargo.lock",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5fa40b55db3746ac313f7013baa0ea0a3ad8cb6a",
+     "sha256": "810262c054d9a0e0514ad497b4955af4bc6ac54dbf0692f693c3aec44bce1c69",
+     "bytes": 1066,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/app/Cargo.toml",
+     "status": "A",
+     "mode": "100644",
+     "blob": "96ccea03bd0b1605ca9df6bb03799f19d376cc56",
+     "sha256": "e0037add212734066f1110e7dc4d6c56aaed1a57a33371e95dc56556a30c6f0c",
+     "bytes": 294,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/app/src/lib.rs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "70933db93e81fa14731c0ccdc855231f046776b3",
+     "sha256": "8d1036f8cc89c8271488de6eef66bc298099422eb6f1a63258b6c60a91abb0a1",
+     "bytes": 2929,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/appconfig/appconfig.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b78fda365522161592e68d9ce611a301c5a42f0f",
+     "sha256": "902dc9e7f0867c3cbd68b63709b5e5fead093f1d38c5991f22b85d7d68db6c92",
+     "bytes": 8456,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/appconfig/appconfig_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "89ecb91b65fbc4a1cc8c58f6d73d495bf6793e55",
+     "sha256": "c5c2defbe37ad656c4b0f581b06c369c3a2dfae18254d2ce57f76a7a7ef981cf",
+     "bytes": 5470,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/appconfig/cmd/resolve/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "39a71ef98aa02f05ba498fd4f8c71a3982441cf1",
+     "sha256": "cb46b88b6ace498e6dccf711608c81307005ad0315bcedd22c626bd1fa2aae3e",
+     "bytes": 1198,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/appconfig/e2e-mcp-adapter.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b3d1683bac9399b34eeb6c0e2a868996bfd33349",
+     "sha256": "eeb69c0338319f0da95b578b948942bdf254e19e16d28ff8c7b862cd44996657",
+     "bytes": 3697,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/appconfig/testdata/mcp-adapter-synthetic.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "699b507b1ac12f863308530e1f8192ec0a869235",
+     "sha256": "4c10b6471612bb1e410fbeef92d7e3e101a6115eba3daa51d8ab2e2bbfa771c5",
+     "bytes": 1340,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/build-domain.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "d7d01c34a4ff7dc8404670c6671710b84d3c6669",
+     "sha256": "f28c0fc06f4e6bfe9148d58386df1c687c3e306a640fdc11ad8f7b7a61d599c1",
+     "bytes": 2841,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/build-musl.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "be96a800e5df3e5da371c182814289524a2d4d93",
+     "sha256": "6d3cf8f7c53c0d8707f8783b2d9f7ecfb08d8e4dcb83dbc4c25b3476468e6ea1",
+     "bytes": 3584,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/build-verifying-firmware.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "fea184fb22027590eaeb61025693dc12b49cc5f4",
+     "sha256": "c38b6978bfced2cd9740fdc6db181ba5aff2e4344b137b133f75e64c9553db40",
+     "bytes": 4483,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/client.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0e2eddf0d5bb6383cfc3b8fe85ba32d93214905a",
+     "sha256": "832c80e99b184c4028ace4b5d5ec638fa4eafab3b8215ea97eb1a99440ed3e6d",
+     "bytes": 14800,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/cmd/shield-egress/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "05a94143994aa0d743c52d187ec6e0b051802cee",
+     "sha256": "c9ea03ec0e4879593f439e45249886d4a80454d9e6067565e1b76780cde18d6d",
+     "bytes": 7784,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/cmd/shield-egress/main_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec7167fb3408aa723c484d2e0b1929e2e83c5c33",
+     "sha256": "55ec7a6d7a5ad9825da39ea796d168ff8532c3fce0f0a1240e58c7a33157d1b7",
+     "bytes": 17066,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/dominit.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8a7f9cb9ff836fee9ae616741aa05c3e1425030b",
+     "sha256": "07ba0fbcd5ff8e67de72f6fd7d75c8c87c73ac7322d11fea4dd9670bcbd9fd74",
+     "bytes": 31681,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/domtls/domtls.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b843ae9a07942265c4dbf934efd94396069ee197",
+     "sha256": "1163b80a9f0924f9abc23cc6fff98b406ab185a6328d33fe0ea5f003d0eb6535",
+     "bytes": 1477,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/app_dns_cache_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "79a6ae706ef8c0c7549abfd4f49c904543fa5295",
+     "sha256": "ff26df8f121d9ce696b158a59af1d877c0c774f628d26e3ac20c7b5dc12491c2",
+     "bytes": 5609,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/app_routes.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "261fa8f0888e4f1c8a5474df4dbdddc2841cff36",
+     "sha256": "d480711741f84179b1fc2504f398230d10262b8f911386d7c0ad2df0143447f1",
+     "bytes": 10136,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/app_routes_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "80dd4cb615742643b26500c37cbf2e195ea79849",
+     "sha256": "6394c42523ae06c18c43f49a6c7753cefb9508bebebce09370017d81c56325c4",
+     "bytes": 1699,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/dialer.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5f90a25826f95e7e3b931a709eb81efbb4ab7376",
+     "sha256": "c1ba2fcc5fac17d77057b54cbd77e59f7a9c3c57fb690fa9f34207dcfa1fd956",
+     "bytes": 11481,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/dialer_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "784b1cc12dad974f00ca590fadcfd6626b619776",
+     "sha256": "b1e0cce81caef65f1261a92c37d4296bf9c301324458e69635adc34e54330d73",
+     "bytes": 7581,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/forward.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f394fa5b32920fb5b0bd858c0310dcb52eb7f39a",
+     "sha256": "ce7c8c100c38fa169799b616f6072f41ec1ad4c29a2065b3553989f9a865bd42",
+     "bytes": 11701,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/forward_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "74e902cb5054a3d065e48b664bc97030f274d817",
+     "sha256": "7320ed4ea3b7b4bbfcaf27377523fbc1c3a77307dc4f0906d4a210121366045c",
+     "bytes": 17805,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/fromrelease_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5cad8328dafba4f2194db8585a1294bdcbec3589",
+     "sha256": "e34d7539710c17076cd381eca07584e82ce8712bdba655a18dd26772cb2c31d1",
+     "bytes": 3012,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/policy.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4512bc465e75afd0ba48612eaab96356bff14323",
+     "sha256": "412503f3bf4c3ed7f742ba643b3a7ae1a19ad1d333b80f24cb6cda15a52f4dfd",
+     "bytes": 12146,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/policy_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e8a9e813afeeb62f06c7b4357dd8cff52c11f662",
+     "sha256": "c5a424a13869e74d3241dd2dd13d6f75d96a4e16d24c7a780a6b53a9b4c04f45",
+     "bytes": 6244,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/shield_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "87c3a4cc1aa2ccf40eeee226d404100f9f90ce9b",
+     "sha256": "f3daf89296b0091e2d304ee51dc57eb0a4d9a02c0c533892cf07ec9d7877e00c",
+     "bytes": 9733,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/socks.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c55af5012bca393e87d48437062e5682594b6ebe",
+     "sha256": "75599c96f4c2b53c044f1a9092a63a1e441cab0e87b52db3d4032bf77624d123",
+     "bytes": 2583,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/socks_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "327bd0e8aaa3e4dc0259b8b6e6d0cdde5c6edaab",
+     "sha256": "d200de3c3c7347886283d2a7884beb8aba3fb048afadc71bea4d1feaa071e1cf",
+     "bytes": 3350,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/web.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3e5cc1488efc3270b02333a9b3ce3730e2ddd059",
+     "sha256": "8f18efb06c15c566e710e07391ce9342da2bbdbf1567dbb9476bcffff8b7c917",
+     "bytes": 15388,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/egress/web_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "83374dc1b2f344d928e7ff3315dc4a89dcaec8c7",
+     "sha256": "9cca7eddbdbe7c1b7e33e8158c0b415c47a4fbb36bb7dd8a9b2bbb2ebf9b577f",
+     "bytes": 14175,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/evidence/runtime-seccomp-20260926/README.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c1a45f873357c940ef295fad427838e1cc95be7e",
+     "sha256": "97378af769fd678c788274a2f009b8681619e2c70e45b11a9108b113d1926e34",
+     "bytes": 1398,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/evidence/runtime-seccomp-20260926/launch.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "99dc45446f3ab8910ed7aea34b51a64edde9b4b6",
+     "sha256": "caac83ebb124158a3246960c401268841e1112738ad15d609e1796897cdc47a2",
+     "bytes": 381,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/evidence/runtime-seccomp-20260926/measure.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "6d14b7a266b690563edd3412d6fbbc740325520c",
+     "sha256": "9020143800af85f8c2fd92d0911aa0e42d5cb8608d9efa0e095c738c6e6e4074",
+     "bytes": 2364,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/evidence/runtime-seccomp-20260926/measurement.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5397584c97563ef5bec92f55f792b6b53547e5e4",
+     "sha256": "4c8a62ff0ed07ce53b34cd31f1b13d4436a91503ce6cdec25ea213c68a067ca4",
+     "bytes": 907,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/appid.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "af52de97115e77cf1c092ec35bbfd60b7f34661e",
+     "sha256": "cd8aedeb074246753f59f0e6d8841dbcfae81ccb3537565c8dc3b794a201a879",
+     "bytes": 5233,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/certs.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c7a60f66abdd1fd87b0ebca66abb7a8cd2c3af3e",
+     "sha256": "53b400f27163af48893c0158745f4ce746adea6913ac84a76eb93cd88d1996de",
+     "bytes": 7644,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/certs_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ac9088e7b24fdd0095a03d9c42aa7f6f1e4f5fb1",
+     "sha256": "52bdba6bfbcafa0e811a9c6721653026c93d55fbb74e4b4e70ab6947af5402f5",
+     "bytes": 5867,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/console.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "83370afa11eb379f9861379a48b4d8f1fc4d5b33",
+     "sha256": "ee9e983c250b42cba4bcb4c0a8dfce1a35d054531ef202163287551b645919cc",
+     "bytes": 6900,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/console_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "08222c0c4f5787c2e70c7ddea0c4921b6137f257",
+     "sha256": "1a1c1387aec5b7c1bb1d383d5749855fbaf01b0967adf833c461e822cde0fe80",
+     "bytes": 14491,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/dumpable.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "18e5ec626306a3317e304244e83248b9f63bbe9a",
+     "sha256": "1cea542414254c790966779b28dd07448c7bbd22902e82bc99805cdb572eb3cc",
+     "bytes": 4479,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/dumpable_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c3409b6224c94423cb7aca0ef0015733d3b283d2",
+     "sha256": "240a1b1b930bc10ce095123391ca36e8cb8270a013f58128d0dff0b214eed783",
+     "bytes": 7033,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/hostdata_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f130de2fe119c820ad70a86da76ad5aab518acda",
+     "sha256": "d49369a304135f005b203e0e8bac9f91017d0edb3e3d9c66823e9ecbf20fb655",
+     "bytes": 2032,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/launchername_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e278d690be44ea3137bd8d5d6e8950faacd53d59",
+     "sha256": "d33f459b6ee618abba29f3ebbdff8eab68734987b2d3d5430fbebeb80e7a1498",
+     "bytes": 1367,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "01a2553117c56d21cf75516234d198d0a0460c1b",
+     "sha256": "445b8dfe6aa9f7481a8ef3b8b02d6cb7df75ff0f27eeb3ccd018e314cea266dd",
+     "bytes": 28878,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/oracle_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ce5c76011135309ccc14451f0f2a37ee1ef30064",
+     "sha256": "8264537ca022a7631013259ddecb5cab827591211cb98f0f094b4a8ec997a6d7",
+     "bytes": 6596,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/pins.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4ffc52d7c30498b35e55ea9fbfefc3a673e08aec",
+     "sha256": "e407830aaa6aeae3950b527f4602220fc88772483b6604e715a62ec622ed237d",
+     "bytes": 344,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/pins_lab.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ac830c1a40b436e4c5dbc1bca91acc61380de36",
+     "sha256": "6fd912fb84530ee77840a3cf4ba6c6f6050d2deb5df737879e4274123eee53de",
+     "bytes": 288,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/provision.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dda586a4de630c83b21124cddc2652a726f6cd5d",
+     "sha256": "1ab337f59ece18ab66dcaf8cf069adac525540aa305d0aa106a8a3b5b057079c",
+     "bytes": 13229,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/provision_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3387467a52ed2ab3b7e280b9c5d1deee315ec7b9",
+     "sha256": "06e3fce19f8173e345e815d226a0039ddf289752b0122d630db6eb074caca9cd",
+     "bytes": 19003,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/ready.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f978fe32ae5445d25c8c34ade9802e0d6ad996b5",
+     "sha256": "49c5dc6e686c2bc3142e411d768b99cabd25fea205525d7816b559d3d9349ce9",
+     "bytes": 5876,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/ready_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c4b2817531835a7c385080fc318ef658423493e",
+     "sha256": "68658315ef2bbf5f41735bf9200d5d2bc665bbdb63bd82c36de384da3f2be5af",
+     "bytes": 6958,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/release_decision_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6675deecd739e71812e690d64433ca576b63d37a",
+     "sha256": "93142e6eb34d02e1bb50a2a94a6fec139242f471563d98a63c4a275db295acef",
+     "bytes": 3244,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/runtime.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b8cffff934cf4b84a9ca4ba018995497136fa79a",
+     "sha256": "46b7fb113c2f9acab07e192bb5f0a952f4d8a224a57b990c9d01f7f40b0d512e",
+     "bytes": 7754,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/selftest_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4d454fbb3d2f2b6d4c6bfb8270adfbf944f1682",
+     "sha256": "26691521a1353e6e0a1a01854444a4719f6f96b7f82471b3c4faf345f05e7018",
+     "bytes": 8673,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/shield_egress.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe883438ea733c0ff81d9cd1027d6c42e0e8c284",
+     "sha256": "f5cbe2b9d6eb390f741e4aab3379df53a610f1d7bd6a0d537f2d87e87ddbcb72",
+     "bytes": 6820,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/shield_secrets.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fa91c7b7bef71890f20aa3d360a2bbf55ed7b7c2",
+     "sha256": "05d4194bcadb49b249fec3dd530d052c215e05da4250e4424e34076a0942b4fb",
+     "bytes": 6262,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/shield_secrets_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cc8b862f349506a4ab1868d5d7f88636a8be59c2",
+     "sha256": "3206f19704661c39415912beea74cb9450e7c03d80e4fc9aa55cf807f3ca145c",
+     "bytes": 16781,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/tunnel.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a73627c824a80e9d557e0aa341219c4d759f61f6",
+     "sha256": "c145679f3cfc2940b54d794e7ac1e183c739d1df0e9a1f45744ebd1e5abbbc7d",
+     "bytes": 6068,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/front/tunnel_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab599dd195662b28d54f47dee083f9378c979daa",
+     "sha256": "7d6fcfc23287b313a502938a9486d7edd7dcdfd6cda84940577e38a1975672d5",
+     "bytes": 4322,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/fwd/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c0bb88d8d2977d58e1c17d3f14823239aa01add0",
+     "sha256": "7bc2266c730e4d097ef3bc2337aa7bafac834a5a68f8c24607b70fc4afe6b55c",
+     "bytes": 4258,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/go.mod",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4365b0d80e06dc3984e782844bfb3590ee697e18",
+     "sha256": "665c59a9d1eacdbea555856dfcd814c02e1ca8cd3f7b63c65099564ee1bd5f01",
+     "bytes": 146,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/judge.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "460dda8f1cf71f50bac33829d681d2e70c9bf98d",
+     "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+     "bytes": 39168,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/egress/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bf23824a437cfa7214f367fd1e9c937c3a440081",
+     "sha256": "8557062b0449c690eb42ed4152a548026fbf3f106ca749c4865dace568533504",
+     "bytes": 2602,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/EVIDENCE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fcb570d238654bfa03e367f7e016365b2fb809c8",
+     "sha256": "cbffa4011324f1ad8ce43c59dec61c94e4cadd2b78d59d171ec2e9855804feae",
+     "bytes": 3174,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/create.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe60d71706a63fce9d69d8298a99ac0c65986ffa",
+     "sha256": "f8e649bd4837e7da59977c04709885b66b2cf73f11c3d8d74d4c4b4bf2e3b4b6",
+     "bytes": 517,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/health.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1b7df9d46a7d8ab57f3b63b14ca3b5c52da60640",
+     "sha256": "e99f45d2640697d1165e5cdaef6a5d446055490f94b752d82826f5acc29d4db8",
+     "bytes": 1007,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/prod-units-after.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/prod-units-before.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/run.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8e6ee962c6d1d915355c78a7a9a19269c7c4f721",
+     "sha256": "927f1d1b6b653a9b89a95c63e823a5d67d83a7768eaf9f33be0491607cbde974",
+     "bytes": 1038,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/serial-dom.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d360d99e9b21f26bb66fe92b85e02fcc0572b51",
+     "sha256": "feb3be69230fe6516ade1e1bb45c6a4c45bf2f91ad0de8775a6bbdb62df7126e",
+     "bytes": 667,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-2026-09-25/vm.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8892bf35667cfb2752faf81a8468283de3a12991",
+     "sha256": "16b923f05f93a17e7ceb7dc773cca5dd31b0e491e6f6c32c83f21fbea68d7531",
+     "bytes": 804,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/EVIDENCE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5d4892cc234109f133f34306e107cb2d1051c3b4",
+     "sha256": "4d87831df47ea8f3c3edcef689bc2995d6c5afdcb339177a3af734e7d186eb90",
+     "bytes": 1859,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/create.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "97419abc7885a8131d182537c697b1c8b39ddc5d",
+     "sha256": "cb929e432536e282232d7752a668ba7993e3e1154fd1574c95070fea3a7dc4aa",
+     "bytes": 517,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/guestd-buildinfo.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1ee2c04bfacaff580360df6f710527f5b17eb284",
+     "sha256": "58e1b837fa3866ab01cf8949ce3131dbf277fd04ccdf7e2bdc823994d7c21cd0",
+     "bytes": 553,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/guestd.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8fbcf7c283e830381f2f04dc987b5cc5900c87c5",
+     "sha256": "583cace91d43f1300191adabf3a7678e5d2d654384954023c1e081fcf937acb2",
+     "bytes": 73,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/health.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a2a66f46cfde346f7e0d1c452ebf41c614a806e4",
+     "sha256": "411abd95f9986a87aca791c4f47045dbc1b1a631ebc14a91185be654a72f1a5d",
+     "bytes": 1083,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/prod-units-after.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/prod-units-before.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/run.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "86aafdffea8348fc80e24ae14d1f37b5f2fd71bb",
+     "sha256": "08ddd6e90c640e88dced85f2ea47a22c5949bf728680ee89537e7eedb6d4ed22",
+     "bytes": 1039,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/serial-dom.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d11e59f923bba4238da21e485c89087a8a6d497b",
+     "sha256": "755a37e403fffb14aed0c08f486ce3b2dcef6d2efbd17f4a426272a310cee095",
+     "bytes": 667,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/legacy-merge-2026-09-25/vm.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "55d12320c56253f7d63adedefe984de155f59e76",
+     "sha256": "363cd5f94425b0f494606001bd9a6f705dbc708849230c342ba679b36bfdb73e",
+     "bytes": 804,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/EVIDENCE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9af74a56ea4029f5eb9c508a2a8ae5b4bd8f71d3",
+     "sha256": "5bce72069a2e6988b9a890c891b2fad6f827293d7cd8da6c8006d13e7278804e",
+     "bytes": 3272,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/prod-units-after.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/prod-units-before.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/run.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "314e3a8bcea4306faefb46132bc1076c05630988",
+     "sha256": "eb6beb8838e5216a56dbb17f6a055a1067a52bda173b94ce8f53c0db7b6030b0",
+     "bytes": 1716,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/serial-new.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "680fa77f104dc8228a5f4a42a9145f0e79182648",
+     "sha256": "783e320400c7fa2581bae7bd9621656850a0348f1a2d97c3f21c5ed6f30adda4",
+     "bytes": 919,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/serial-old.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5e89ed7734b02124713905de38ae23dab26625f9",
+     "sha256": "9fa637b6327b51a2bdd1595bbc8af744cf157ede99c262ac9e2203a2849a0df2",
+     "bytes": 3124,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/vm-new.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "203042176c1c20666669b112318c29eb7e0460cc",
+     "sha256": "c7717a86f677acd49cd128bb5e513bcae84e1dd4f9e695715868663b5b8c7d3f",
+     "bytes": 557,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-2026-09-25/vm-old.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "84c7f35bb8967da2bc4b5c5a8c864a1f4654c2b1",
+     "sha256": "290670da0b6aebe08cc637e90a0bb3af49cd6f1832367b81ad6e5c12bc1b1760",
+     "bytes": 708,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/EVIDENCE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bf3ecdc5bf031f9cab5c088fb30453053defac87",
+     "sha256": "69b243ade5b9c565f3449d776044ba9ee2a2750723bf953e7e6a944cfa0a2edd",
+     "bytes": 1351,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/prod-units-after.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/prod-units-before.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/run.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9f0975e167c0ca3531b5188f7e6561725998efe6",
+     "sha256": "f5b559e5e9e7bc61aa72f1bfac19a3469149de29317dd0870680129ab1dc32fa",
+     "bytes": 1944,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/serial-new.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1f2ddd61e34f8bd0b146d7711075021ec507e707",
+     "sha256": "edebf1e5aa5576f7c4986f7145b67f55f80e56e587d5ad9dc73b0bbe56e76b19",
+     "bytes": 918,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/serial-old.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "43895dac2d67ef36a88d3544af091fd8765149dd",
+     "sha256": "03490fb831c0db3c27e304abafbb82a6c3217db9e122e8e75c39bb8ee1a5807e",
+     "bytes": 3125,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/vm-new.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bee07b71ac11f6e3e61d22a1b795603f20aa87fd",
+     "sha256": "863ff3317ab52976eca6f72d0fe58fa91e4af676b1092293da858f16c7391d86",
+     "bytes": 557,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/output-musl-2026-09-25/vm-old.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c642759a06a0cea04e4d7e639f6bfc0d51300eeb",
+     "sha256": "00c9dd2e378bfd21ae4534afd9df27475bfcb7534dff503ed4f0d71476d058b6",
+     "bytes": 708,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase1-2026-09-25/EVIDENCE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "55fce328c31a5cd35dede570c7061cb4046be204",
+     "sha256": "f46bcac6a700a68303273908b21df09742d6e1c5934b821a346cc299d13152b7",
+     "bytes": 3393,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase1-2026-09-25/prod-units-after.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase1-2026-09-25/prod-units-before.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase1-2026-09-25/run.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d78ab3e0622f637a86af7c3d774c53f480610000",
+     "sha256": "d0348a12fc95a2b8e7d6590f9e1191ebac379c34f02b7058b3b043216e58e07a",
+     "bytes": 1625,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/EVIDENCE.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e2dd78e2de1b0e8cf5d3c55fd47f260102cbadb7",
+     "sha256": "71ef12f7c7150769f4139da038b761225e0d2746c6b51a893bfdc84f01663a9a",
+     "bytes": 5108,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/PASS-CONDITION.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "442c037caf07d09bb691fc900384b4d899bcd94f",
+     "sha256": "4c887082164d1f654d85ac324eefa68d590a2f22506ac76744ecf4584ba0e0b0",
+     "bytes": 2030,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/prod-units-after.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/prod-units-before.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72823d22e87188910828a5179644cebacc1ec6b6",
+     "sha256": "1f249fad3b9258f86e2fcf36a96bb32f4cb95ee18d8d1037fc4d5d7487358f3f",
+     "bytes": 135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/run.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c7608dff5e7e8717ecb12b8635b18d7c0e182dea",
+     "sha256": "44db9e66af0e0a2f786a78b573c39debf0f206e7763e0f1d82d49305a039b0a7",
+     "bytes": 1428,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/spawn.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1e19e7b030ef4baf2cb2f1a940baee26fe9c002a",
+     "sha256": "14ca13db689fcbbff9455c7ec4dcad724c6b8889ee428578440dfd152d7e6617",
+     "bytes": 846,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/evidence/phase2-2026-09-25/supervisor-isolation-lines.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "741ac1d0a18417d842bb9f2566317a12ff401841",
+     "sha256": "f557c682820075260782d40b37217e22476500d93542a001e5bff2ca24ee2d4b",
+     "bytes": 230,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/portprobe/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "150f0666c5a387db22a35074239a98a1510fa92f",
+     "sha256": "8c7256c0f3fcc93731f9f2b635f41f4b82d098aabe4463165dc6f0e7a19c9cb6",
+     "bytes": 924,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/relay.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bc3bf4e16677eb0830fbf30d3e9f26381affb4c0",
+     "sha256": "59bd4363f31726d98b77c155385bff32bb86855d2c06920fe541e64117a6ec5c",
+     "bytes": 8068,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/run-lab-phase2.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "6665abb0b418c5bb61ed2277002680752e971e46",
+     "sha256": "166ab3754cf8430fe02b655aa3df86cfa5e500bfa26f910fd8f4dc8d8b4e201e",
+     "bytes": 11677,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/run-lab.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "4fec78d1187776b81072e4ba178276cf039eff72",
+     "sha256": "df0de508b7a4d0f1b3cc902ded31d94b5f4a44a781f062fcb48e7a2832854bf6",
+     "bytes": 14829,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/run-legacy-check.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "07e8fadf860fa788bcfc30d671cea5e44edd4307",
+     "sha256": "e9d4effeb993ba0e5677118c5cc430f767dfff099ff453f270158285b396fae6",
+     "bytes": 9233,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/run-output-check.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "847bd4caa9c5ec803dae7562ad3f330bad4fa339",
+     "sha256": "05652637c13bb2014d386555e65cadb7faeb5f4f98c9222de272e84b98ccdb83",
+     "bytes": 11214,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/sentinel-app/.gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2f7896d1d1365eafb0da03d9fe456fac81408487",
+     "sha256": "b53ee26e6ff1da219b0563333a76d2c9ec19eec713d6ee54e11a1edacb0e9f3d",
+     "bytes": 8,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/sentinel-app/Cargo.lock",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0d452f6f244de0260bb892ff195913ade969696c",
+     "sha256": "1fc313ab1b6b6a3062598907465338f26f6c50241bb714eb01a533d2a444570d",
+     "bytes": 156,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/sentinel-app/Cargo.toml",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ceb0bc06e32821d31d9c3c35efafdba71d98548a",
+     "sha256": "cfadf00e24fa6c6b252bdb9e78a850c56d1995abcc6ff5a5eb5403c7bb44fac6",
+     "bytes": 377,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/lab-release/sentinel-app/src/main.rs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "159689e6da2a84afd7632f8455804e18652d3051",
+     "sha256": "d7bd86b8ddd1a1599153ec6c0acba1b4423b5b76810fe76d9d20110fb35be59e",
+     "bytes": 1697,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/negative.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "281a2f97dab14a1aae7cfceec0bc67fd2941fb15",
+     "sha256": "08ed6b62b11c5312069cf5a89018c8499249b6cd99b06161652914e692818f0c",
+     "bytes": 15154,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/client.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1ec3c2a033cfeb9d1f1c3fc1a058f2f50432840a",
+     "sha256": "81ad60505b7b90358a81d9fa1f98c728c746f41dd544abaee3eab302ab72869d",
+     "bytes": 12794,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/client_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1fe0db66933918b7fa70b2a8e0da60414f8dad1e",
+     "sha256": "e8b47cb997143297e119fb06af394f5f859dd791bae3dc51b9cfff9bd722557d",
+     "bytes": 16942,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/pins.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4f6fb33d0e5f8671defa2f28d74675c8a08fb906",
+     "sha256": "a52356602f709a75b32ab82c1546d914e2f2350b52c0107e530df7a10ba9c554",
+     "bytes": 4016,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/pins_lab.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e9e7033b8fb79bf8533d6de6ff8c3e1a98da40bc",
+     "sha256": "bc1f41c790577020817a77abd2ceced801c0b215c9e76c8bc46c393d3bc73387",
+     "bytes": 1006,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/pins_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "46cdcd738a2403b763d160b7bd899f25ba6c923b",
+     "sha256": "02d6524916d08711e929b14a4ace05d94d4b6d0de66e63155997662583096170",
+     "bytes": 901,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/release.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3db5c95cf8a7f3461d6a5bfd41bd4d460441eef8",
+     "sha256": "9a5f428b7df1c24bcce698c491a8e4cfaf6f78b4658b37d2ae5443a070304e84",
+     "bytes": 7525,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/release_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4665d48fff4be89dcd6804d44d89742bdfa2398a",
+     "sha256": "13a197cfb9c15fa499d8d80184f1f617e7d27dcd87cb98bcdff5b9b68cdf0d95",
+     "bytes": 12860,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/roots/isrg-root-x1.pem",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b85c8037f6b60976b2546fdbae88312c5246d9a3",
+     "sha256": "22b557a27055b33606b6559f37703928d3e4ad79f110b407d04986e1843543d1",
+     "bytes": 1939,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/roots/isrg-root-x2.pem",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d903edc9e61fc635582cd4c9be850eb229254a8",
+     "sha256": "a13d881e11fe6df181b53841f9fa738a2d7ca9ae7be3d53c866f722b4242b013",
+     "bytes": 790,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/roots/sectigo-public-server-root-e46.pem",
+     "status": "A",
+     "mode": "100644",
+     "blob": "61e0d2fd20751e8e8114743d060183a82488335f",
+     "sha256": "808130157f570b7640069852c88e256738007811a64c3aa9a4c31038347dc19c",
+     "bytes": 834,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/roots/usertrust-ecc.pem",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b1cf1fd3a13b5a7a4d0fcd7a7991c2602f5cbf24",
+     "sha256": "08fb40ba4144166f6ae80c7ab60be23e97e5083836d45fa85a33a5d0bfec10f8",
+     "bytes": 948,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/testdata/chain-letsencrypt-api.enclave.host-20260925.pem",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2fcf95e4d8b8cf567079f6e53fae3b38f2d2994a",
+     "sha256": "1c9c826b8419629b3b3d158a3b6061e0945281a033bb58b4b5738f32eb37468a",
+     "bytes": 4821,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/testdata/chain-zerossl-4e62e60d.app.enclave.host-20260925.pem",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c752678d921f2eb3728c407418796accf6e27c36",
+     "sha256": "66ddc81d4f72062175ac2e96e8aa8590098856d184a2c9e91cb78629dcb691de",
+     "bytes": 3682,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/testdata/guest-vectors.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e70802c2043e8c6527c0ccc74e0f227b9f77d791",
+     "sha256": "8a7526217b7937e5169c4bcb1072a684b6239faab1b0b4757574e5434d99f0c6",
+     "bytes": 2314,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/testdata/relay-vectors-8042ce68.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5965518743a3fff1f65ae2737a4bbf921889d9dc",
+     "sha256": "03f61372f7b4654ea61ec4acbf12cec75ee7b5cf9cf643725c53ff91acc67c3c",
+     "bytes": 2640,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/verify.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f354e149707154b4d038977565386ad7358dac8c",
+     "sha256": "6e73b78442c50fe609d339837d1085fb72deba81d2b1f099b87f148440728d6c",
+     "bytes": 4190,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/release/verify_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e14a7eabc9ed65fd9dcb9f22336ce5bf6e08caae",
+     "sha256": "2389162c94f625d7fa0787141d3fca6906b35212c3f8569cd017d8ab496ebcad",
+     "bytes": 6225,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/run-domain.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9414c5ea5037c6ba9108d1244855c65d641026a9",
+     "sha256": "88ce682ac383a18e8ebf5631bbc9b0caedcb268bd9f4df76503936a22bc462ca",
+     "bytes": 5945,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/sha256-min.h",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4ebf60dd4eb639fd5ade154b861cf9d4a68a26aa",
+     "sha256": "9b857776a74ded12ca64f56e45fc4a37a4d73d2e5c6785493f2f625d6448c9c7",
+     "bytes": 3687,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/shieldbridge/bridge.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f3d3cf81ea7f09068d986da220c5c2de1521b6d2",
+     "sha256": "3b42b4c6d4af77e3a930fe1b768c301dbbd40628678fd196a8ba296e27c647cd",
+     "bytes": 3707,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/shieldbridge/bridge_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "efcdb7da4b121089670a4ab6fcb1a45720be5870",
+     "sha256": "5edff6ef27bb969d3f4fd9cece0dd68b1add6deb6d58a707d8bedead89824587",
+     "bytes": 7059,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/shieldconfig/config.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "870b8dd10dfd82d799e6672bf8689bddb3d3659c",
+     "sha256": "7af247e3f67b4a2c278c155940ee62566b3c2446a435c72ea9d1d7470aca4177",
+     "bytes": 1118,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/shieldconfig/publicweb.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4118f160429df29365296d1cb426e5bdfd0cd863",
+     "sha256": "ae8bff3757808aa3076c8fd7408a41e70d85bb4e34704f0357998752b338f56a",
+     "bytes": 1556,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/shieldconfig/publicweb_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9082ce1b6694db59e6d6817586f17e9f6b683c0a",
+     "sha256": "a94301f0bbb4a18c49dc680f5c56f953c9f3e1a217ce37c282c54cd9dbc99da6",
+     "bytes": 1337,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/shieldconfig/publicweb_unix.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "00263167ab7c4ab2aa24306bd889d758b7792e29",
+     "sha256": "589c0a850dfff520ad5a4f79ebe9b1471ef3a10f32aad038fd457a7690cac10d",
+     "bytes": 708,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/test-dominit-handoff.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "bec307ce83dedc366fa8b1776be51fd0dc523343",
+     "sha256": "3fa56b7fb6249de5fc837ac21f57d65191c16483492ecd146f08c5c741392db9",
+     "bytes": 3186,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/test-dominit-hardening.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "8eef8276499861c7af64dfca66a727f915541c81",
+     "sha256": "989fd72c72d8a6889b60c723fb96d51703a5148f7ea2f3d703af5a28910c2b48",
+     "bytes": 22589,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/test-m2.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "671536fbec87781763da676cfea178347a9f58fc",
+     "sha256": "eac3d1f5161a81558c4824d7d3830681e2ae103eaf1d9b381a0889e5a35c7430",
+     "bytes": 15555,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/test-seccomp-statement.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "987117c6f4557192fd724303e5d8b4b2d921f46c",
+     "sha256": "b0ec242a4e3b9c3b8486d253e7d85a63652f78467a687e35cddde108bfbda4ec",
+     "bytes": 8070,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/vcek-prep.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d73c47d77d7e00fa231d55731083ab75deb24545",
+     "sha256": "20fb858f9078258b8fa5692635605c77d7322e63c8bf8c5e9527abd12c9734ea",
+     "bytes": 2580,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/verify-firmware.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "9152f7c373acdd509ec2ad442a7ba55adbbda462",
+     "sha256": "799e5026cdab0f400cb530a6393b861947d4fe37bc83fbe414b1ce37c553d7ac",
+     "bytes": 6135,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m2/vsock/vsock.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ad13ebaaa81ec5f487ca5de69292f3da7406b3b3",
+     "sha256": "49eac528d77bba17ffa2179862c3d14b600a5b98b9cbfed5017da195f962a0f4",
+     "bytes": 5396,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/HV-GUEST.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "64fa5c23d7833a21bed03d8acd83089e129ee8db",
+     "sha256": "7b458670a51788b8b69292711f8c84cb21dfa70334e3ff371c9f9d17dc67ae37",
+     "bytes": 7024,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/PARAVISOR-ATTESTATION-CONTRACT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d3c0b7cebde176e93f456faf44310fef8b8988ea",
+     "sha256": "c7937a36bce09ec451fe7f720066cea5acb87369c34bd06ec0739a7527bbe040",
+     "bytes": 14415,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/PLAN.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ff18667ac1551d13608fa41aec5ed078d6fac566",
+     "sha256": "c1d83461f320c7401479675773f986ae16faecce77af9d8a97bbe20dc68163e0",
+     "bytes": 66982,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/UEFI-BOOT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "11d3388ac0d574b2e763bcdf191462fb583f3d3b",
+     "sha256": "8defece55a9ad8e4b43787217ad216184f8555da22d2fafd3201583c1af58f8f",
+     "bytes": 19842,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/VBS-ISOLATION.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1cde97f99c4fe62c9011576678fad6bd385607b5",
+     "sha256": "b91108dcabc7d378568a4651193cc4f40101037747c7b8071847130d90905cb3",
+     "bytes": 40213,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/boundary-gate-fixtures.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "10318f9e613c42bd00ccecfc920855bacc1c6248",
+     "sha256": "c3fe24fe24cd6dad621c5050985f5fcb901dcd5ebc6ea9170ddf0206c6244b89",
+     "bytes": 5164,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/boundary-gate.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "fecca5d0e4de861329701607dedc0193fe28f2b6",
+     "sha256": "714dcf91f72da6c52fd47ad2c4893b58b096cc46a39c897c235937210dd5ce7a",
+     "bytes": 4480,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/build-domain.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "a633ca7a454d2d505856b030fa6943bebab33893",
+     "sha256": "6a7ae568a69bea7a851de962afc8837b8ed4f8378828638114f709fd5d386cb4",
+     "bytes": 3072,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/build-planes-host.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "32b05d9790eee904dd3f981e307e0ae627aa35ea",
+     "sha256": "17a8dfc0fa0f0bedef83ce7d61d3c4257ba65ae49254f05c7e197dc0d792be79",
+     "bytes": 7581,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/build-svsm-toolchain.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "d45d9ad26c3cb5cfe9e4bc26ba09fd0593c9b559",
+     "sha256": "16b9cc289c594f2011d5a3908e42881ca58dc2caf82a34c38b1cd261765ca8a2",
+     "bytes": 9443,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/build-uki.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9300705d8bd9721187131c05fecb31ae155168b3",
+     "sha256": "a3e2748b5313ee2bc7e8b5a4e7c7265db782c0e7180f2bdb9eaa1f61ecafbbe4",
+     "bytes": 3562,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/domexec.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dc56930fca2ef2e2560f33c2ca0e66f3ebf63600",
+     "sha256": "8d1ce7d0188d90a502de83da3667599b5e719b4ec14ec45e4581cb227764cc60",
+     "bytes": 30857,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/dominit.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c5b433cf082b7c2fa07e78db2a0f49a85b49243",
+     "sha256": "260d0168b61974124097ad88456adc784a662bcaa364398fd48c7126f0d91aaa",
+     "bytes": 8867,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/domprobe.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8d7febe91cbab7e13f1a6ff336bf2d5bb11db32a",
+     "sha256": "addf76c24fa806d9027b8c321defc2933a7cc27b2f603fad9f32959db4d8d417",
+     "bytes": 12552,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/egress-probe.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4c2476fb6fc017809cef814b31871c78d168333a",
+     "sha256": "25cb7013818efd4c7fb2edec22cc17ff671fbfff203baf376034537a46c45c30",
+     "bytes": 10678,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/frontuid-probe.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f11377d0117a96ee16eb87e0ad796b36f99ace0f",
+     "sha256": "f06eb7d1bf0a6ee2ecb0af88116262fa192006a3bbb21c4c32c84433ce54e880",
+     "bytes": 5237,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/go.mod",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e5c10bf78a870c7593ac2fd11f784fe84f49614f",
+     "sha256": "cbf2c0e926a44956c1a666d37333036d4e3579f66d371d9373f2e520d672f119",
+     "bytes": 229,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hv-local-check-2026-09-24.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "88a7c6490426d84046574bb811600d38d61a3b3f",
+     "sha256": "d32b3459021cc1dda46b8459d3ad92162a56a86f21b4e8d9f1885823604a1312",
+     "bytes": 2910,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hv-node-check-2026-09-24.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c02bab4106add2893d81864dd17f9f804b9dd22c",
+     "sha256": "a810800f97ab55dd62894dba8cfae09c7ae0b5781f7c51f26645273afc806e39",
+     "bytes": 3695,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hv-route-check-2026-09-24.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "de64afe0e6cd916eb54e914d3aa34f41859773e1",
+     "sha256": "12d0aafa9daa59dcc32dfb859de1274ad953ad07990073aab759e5a62e8edd8e",
+     "bytes": 1894,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hv-uefi-check-2026-09-25.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9fdb2a1fbf38244060277f909befd2b35fa40222",
+     "sha256": "34acd0a94c7ad4fedba16cd17ae7b2c9dd85705d049afc46347166a4eee6dc2d",
+     "bytes": 6484,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hv-uefi-guards-2026-09-25.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d5e5e6d231dce5e919e0434381ced785711c691f",
+     "sha256": "8634a3ecf1f43856ab0d7c78890e515338360500486143c55390f5b326ca1526",
+     "bytes": 5486,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab-accept.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "afc3381f89263df66618f1cecca1419718f88ef3",
+     "sha256": "5830dedc7ccba6e131d539f49b8176be6a2006e39e2418411dd452c314ec84f0",
+     "bytes": 23364,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab-check.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d9b1e9d85081dde22c35ab4dd0afcc301b1a596e",
+     "sha256": "7b9ca3e2bdd19ec5625d80f0add09dfb0a8b4bcf0c9b9154b641e16338c9f67e",
+     "bytes": 9963,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab-kvm-backend.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9aebc856e80ead59dac41795d813448b9d87a667",
+     "sha256": "6670c5ed7ae7331fdf58546a9d8857723b23d97cc301a9c271efc1ca0a447e7d",
+     "bytes": 4544,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab-manager.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "09365d62c527c01023934399350e63e4e7ecaa6d",
+     "sha256": "96bc744cd459af46e4988e8152f8dc16de714c301fe9c973568498606a28417a",
+     "bytes": 3404,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab-node.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "572edbcbcb2d149cd2df133cb2252e2a953f05c0",
+     "sha256": "f422af8745a1d784605ea533744f097b386a6aa0ae2a27c09ca32eb7f81dab56",
+     "bytes": 23611,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab-route.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1da880d1d17b53f989031c25e21c5375eeb13534",
+     "sha256": "02ef2b3eae32dcfa8bedd007d71e87849b377cb3e62f2af683ab7de2135ec328",
+     "bytes": 12996,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/hvlab.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bb3fb2b34cbcbfcb3ab570d772c705152f43c372",
+     "sha256": "08bbbad7f1312391729e31d2e1baad547d5d474245cd53f762d06e537eefcc27",
+     "bytes": 8555,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/install-planes-kernel.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "57dea04bf7a95d1ab54eb7bfe565ccb8e84d458b",
+     "sha256": "081f9e301754d06dda42058009bab911e7112bea1372091a01faef67a9ac40fc",
+     "bytes": 12013,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/m3b-verify.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "1b969a61940d83338d519f53545f3c354ed647b8",
+     "sha256": "c04a8fc12d5338fb0bc53fb575e4614c8e8762fa9a5b1eca5522a13f86cf03b2",
+     "bytes": 13659,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/m3ctl/flags_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "df0aae3db6207fcff01d86741242715c4efd6c10",
+     "sha256": "ad13ed46b4f1ebd9bb762432f3b195540d8e34eaca362137070aad21f399aec4",
+     "bytes": 2288,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/m3ctl/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4fc19fe67e268097c0f408edca8466cdbcc9d7bb",
+     "sha256": "b1640fa60a2e7bee38a96ce691bf00f4988682745dea91050cc8712307c8f19b",
+     "bytes": 5391,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/memmarker-check-2026-09-25.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "faeb324b7c137bdd058623e02a9745b638357bcc",
+     "sha256": "6fd87b261067cafcbb7ccbc626bddc652f4d4029c0563a336da60092d7de87ca",
+     "bytes": 1861,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/appconfig_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bb786044539cf6c74cd5f2d999f0e88bd0299177",
+     "sha256": "dc1fc7ee9afd79535ab340d7cdc8f88ba2ef8fb3d8d78618f165325246a3c551",
+     "bytes": 932,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/boot_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "68b37e523c2d5597289da48383bdc376d3f33f14",
+     "sha256": "4c399150af80d76e03642c67ede3f3e1e89e21aa4ed863f68f736b74d08eb84a",
+     "bytes": 4717,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/certname_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8238b3997cbb4c8efdd2a501a6732efb42fdb170",
+     "sha256": "190919495cdf55197cc37a00c4846f0c7b8179eb54e274478a185d50d659c021",
+     "bytes": 513,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/cpu_allowance_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cbb32cf3b55475f67db876c4bdf2c3072a25bb9e",
+     "sha256": "5da3ddf2e6afabc292b3a6692187c6b1e75a2da7e2ebe03621aedd4bbadd4511",
+     "bytes": 4820,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/cpu_load_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "35794e2658e0fcad4ddba940cf426853824b6d62",
+     "sha256": "9bcca2f3fa10208a54fb28e4903e45c4bbe163ca0ed995f6f774ac8f8b75af4a",
+     "bytes": 4747,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/cpuid_amd64.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8c80fc323423d1d254ec756c84527665897f7037",
+     "sha256": "b6c216f7d1682eb028da77708b4ee2b2a5a3de97e064b9913612c2101faa6333",
+     "bytes": 159,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/cpuid_amd64.s",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3c59020d6b723a1e364459c0584658aa599a9e3b",
+     "sha256": "a462c12a8694906fcbe700b7e6764ab429593d6cc8135f81dced46d5024ce7cc",
+     "bytes": 252,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/cpuid_other.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "89af1af0019ed351787fa30c6ec9e6c20fd3db9b",
+     "sha256": "a55798e2287a53950879c746f05fc6782f33f1ac13ca5be1999392fbb56aebac",
+     "bytes": 137,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/etc_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2c3a5fc422ba38aa283c449ea76af490672db47c",
+     "sha256": "de2fd685bfcf6bd120eb806ec2ea7b4f98b51fbb232b88fdabac131da94edccd",
+     "bytes": 5930,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/frontuid_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e4a7c2e15a39fdf35979530880d79af0413033cc",
+     "sha256": "b298f3f9d976acc751aafe65be276f5f234a7da39641f12ff1bcda058a8aec9e",
+     "bytes": 2455,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/holds_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d5f2d892ed8c604377d9f64e0ef09c714791c10b",
+     "sha256": "d2b0eaef7d9f5c3951d82850b5d121c404cac8b5ee762fc4b3f7398d03a63cae",
+     "bytes": 4715,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/hvisolation.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "14de966e793fd83de59de35d112ffeb92404585c",
+     "sha256": "24e893073095f93a98993c2436d3b0bb771c9d0df68d2016bd4f23923811101c",
+     "bytes": 3272,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/hvisolation_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d1c1838c1c13ff00b4ae4d003342327c03e4f986",
+     "sha256": "921e56419db8f67a740b6506e3bd2ea2f6b0e73adc15ecdb89896d0465afd369",
+     "bytes": 2216,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ab2df98161ef9404c5b869789389aa83efedb235",
+     "sha256": "37386553d64c77331938478e0a81acefa034fff034de0182eb83be38c3d6e348",
+     "bytes": 76177,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/nulldev_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1f6531e4eea0eae93aa86311bc18a4f8888ac702",
+     "sha256": "eaca515d36bc918441dadce3bde93e1ea29bfa3452b989c658db38c5a377fccc",
+     "bytes": 1296,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/report_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5c1fb4f896d03f098db4a0dc64c74a8ac9d14463",
+     "sha256": "0b4cc37c9df61e2c616a8fc0870e9734ff451ec86afca011df7e629337eb8efe",
+     "bytes": 32380,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/wxscan_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f1265de63314e44ff5c4f874603e14a3be10a2f7",
+     "sha256": "2d14a59053d620435041a10de4199b904682f9179852b4ad50811824f9655bab",
+     "bytes": 5881,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/yama_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2e3d4d62a8c866f2465f6214824d7709db5c8d01",
+     "sha256": "df7c341e414a94beb63522886527f007970f3e12d02b3801c24febcbd743316b",
+     "bytes": 3302,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/nucbox-shield-20260929/README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "521d072c2e7c20ad77fb6015216e52ce07d39c41",
+     "sha256": "7f74a116cfecc5cbdb8a35f49897ad55a1cb7f2848ab8ed859ffe0390a1c1306",
+     "bytes": 2182,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/nucbox-shield-20260929/root-manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b424d62126958761f256c70049dc6d3a375f31fc",
+     "sha256": "358789ba39b9283d64102fec43b3e7ad6d518842a4e6511e3ba31c8308834baf",
+     "bytes": 6118,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/.gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a82b2e7fa5f95ff89000798d8d867ab75849c204",
+     "sha256": "6a16bc6a30590765234ce6ff972ee3fbef292ba4f3081f9451b6cfdc2c80c1d5",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/Kbuild",
+     "status": "A",
+     "mode": "100644",
+     "blob": "861b9f4fb145ed3ea20d138f5802e793b5504032",
+     "sha256": "831c4a3df8b14596dfb9b1ac687c27d3988d40d0f39f540a9c3c023bbedc4420",
+     "bytes": 21,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/Makefile",
+     "status": "A",
+     "mode": "100644",
+     "blob": "55069947d46d497e5fb9ccad53ba3160d1ab4d4f",
+     "sha256": "737438dbf828cb264a38c7c18ff323307f3833ecb1b631faf814acb0cdf14078",
+     "bytes": 29,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5166a18540165905d9c6de24a52c1766ca05db59",
+     "sha256": "42c5ac021168d9faf7fd37b8b7e841f2c461002df18030c8a00c51d1cc6cf430",
+     "bytes": 2621,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/build-probe.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "fdd50fc81f9fcf5c14565bef9c3e720a9803e3c0",
+     "sha256": "7e2c16c455d9b9e250fe5cbe63e4556859f387e7047103a792244dd69843980c",
+     "bytes": 1277,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/enclave-tpm-probe.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "45f45a6eb3a1e7f5b2adcc9f21b068ea4a7855c1",
+     "sha256": "bd3a7df970aa14fdbec7ddfdebd08510f6eb927a6c83e9223c36ac915a8dd337",
+     "bytes": 1772,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/g4panic/.gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a82b2e7fa5f95ff89000798d8d867ab75849c204",
+     "sha256": "6a16bc6a30590765234ce6ff972ee3fbef292ba4f3081f9451b6cfdc2c80c1d5",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/g4panic/Kbuild",
+     "status": "A",
+     "mode": "100644",
+     "blob": "741eac15748a6c31e826456854e4ddc34f7c4e81",
+     "sha256": "017eab059a04e46b7815be906ce36e8c6af345071ce03f26ed4f1f8b32452a28",
+     "bytes": 19,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/g4panic/g4panic.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe950e579e120690a2f9db98f2a4b7bf19aac446",
+     "sha256": "45ec41f068e6733df8a0e6705117fd39c6a32d395432b47f5a3d421e5cb092ea",
+     "bytes": 2092,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/igvm_platforms.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4ea4dda5b7eac62e82b9bc49cf004ab4261889e7",
+     "sha256": "f9ae90194543b4ca573261551fa246ddfecb9e5ef493e415c5cc640166cb193c",
+     "bytes": 960,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/memmarker/.gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a82b2e7fa5f95ff89000798d8d867ab75849c204",
+     "sha256": "6a16bc6a30590765234ce6ff972ee3fbef292ba4f3081f9451b6cfdc2c80c1d5",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/memmarker/Kbuild",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2dae19743b27112ca2831819e4f066c36525881d",
+     "sha256": "2827aa6534ab13bd59b9d592fce48915aab8bd40822aed67d8ef47e92220d70e",
+     "bytes": 21,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/memmarker/memmarker.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5bb0dc8a991a14a61342801ccdd08fc6515ace0c",
+     "sha256": "b284dd11980969fd398b179b03f7ac17d735912bf5de9b236300020315a376b6",
+     "bytes": 3521,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/vbsreport.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7aafeb8c5bb486d87367c5363e9d85c209024a26",
+     "sha256": "a7beb20afe2bb86cd23545ec460abcafdec0e95433b2d85e4d3c04ac056d6317",
+     "bytes": 3896,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/verify_vbs_vm_report.py",
+     "status": "A",
+     "mode": "100755",
+     "blob": "0dfbf18bac105f8017b02ad2fa8f45de8b92a94e",
+     "sha256": "f3c9fc8a9698656d0610c7fefcb8a7a6c5ace1f71be94bec0c29d1b1002d025b",
+     "bytes": 9252,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/vmgs_check.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "108abc7debab4ad4e6913946054037c86fffa66b",
+     "sha256": "711aeaaf6f3887732fe20ec8da8afa71b550db51bee256d9698c437fa1c8b58b",
+     "bytes": 8801,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/probe/vtpm-report-read.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "80cd9d7660a98d48c46d8f453d178929dafea39d",
+     "sha256": "dd68e94240e66b03e3bbbd3df095688a1a0ba5cddb022e280bba01d9d96fb11f",
+     "bytes": 7682,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/recheck-context-fixtures.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b4861c891f50dd0a2acdc6ce1209b4f9ab12c793",
+     "sha256": "aecfcfeb6e2c250427e67dd290e221dd0b6dea1019c4414a702df90a8c7a6db9",
+     "bytes": 5406,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/run-domain.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "e08b467405e2e750515932a3edd09152113bb50e",
+     "sha256": "fac7ef5dd533ba2bc48b57577896470bb14270afa468e429ce77813048e71731",
+     "bytes": 5794,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/secretrun/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7e4e6327d36b0671cf0a2a4def4c3fb82c912228",
+     "sha256": "538ab6333617fdb28f6f39f381aa0d46264a31d53f93da59bfe9dbff65a4ecc8",
+     "bytes": 2026,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/shieldbroker/main.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "688b8e8ec924dc0bfcd725c29c370f0d156f6b41",
+     "sha256": "48aeac13eb9628816465ccae1318e87c667b7a4f31b0f3fedbc21ee4e44be07c",
+     "bytes": 865,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-domexec-egress.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "89b2f37b5659942e49e6c5532cab39a1f07d2104",
+     "sha256": "ef20ff43037555b6cbd2f55cc14631d1611278c9efddeb02dd25bb18419e2def",
+     "bytes": 10063,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-domexec-frontuid.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "4d8e5e22477d4379f7b9a62849e4cdf0e6e0bc59",
+     "sha256": "e1bc4b242162aa1205ef1d5a7272d26af76a7b7750c2f3318dca363edcfc488d",
+     "bytes": 7977,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-domexec-seccomp.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "79bb6f6001c70f1633ff584ac8c40be100902734",
+     "sha256": "7fc270b9cd24256c7bafd44c728c958b0714eff3bb5eb20b64a00ac18614cc47",
+     "bytes": 5501,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-domprobe-layers.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8ff6c94e3c19b685318b55d9ffede62b099a6edb",
+     "sha256": "0b1263db2ef62bae6a8c0798fb04037bd86881099053f27d02d33d578fa50c64",
+     "bytes": 6248,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-hv-accept.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "5d1ea346a00e64c544bb0feefc9a1a10f106a734",
+     "sha256": "626a3869a07f6df732a48aa5dc29d2e4a989ddeaedba650c122705f58bf5d7ae",
+     "bytes": 4109,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-hv-local.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "accd9a971f71646931012b768dfbd28e4e5c916e",
+     "sha256": "216954949123fed509e5b262569477cdc05db31178401b6f14a1288d4a06ff0b",
+     "bytes": 7610,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-m3.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "c9a9ccfa7308a2649a51e9c19fd40834a8301d54",
+     "sha256": "0db3d1a7e0a9ec5f66eb81acfd7c2f0bbd1b5c225bfa33d4983dc342c3cae7d8",
+     "bytes": 39400,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/test-uefi-guards.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6ac9e39607d06e44035d465cb03e098b12382111",
+     "sha256": "60fa20600fa8737733bb53cf2a9ab41a6968b87a62f58c02ec9bce69f36491b8",
+     "bytes": 5071,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vbs-probe-check-2026-09-25.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1038778e4498d837338fb7bc7b87b791d7a947d8",
+     "sha256": "0b530ec9f8d4ed69d218e8d6a21cdfd252c811f6b0aef90c2cc06421ae762804",
+     "bytes": 5885,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vtpm/.gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "156dffa7c84815efbdbe48b8b025d1b006ecaf50",
+     "sha256": "0a16b234734b141443e62ea4d02515cac1dc9d575bf66e71dde3b2e727595d5a",
+     "bytes": 59,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vtpm/Makefile",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8cc7d7490fa5df3f1a0fe7baaa90995ca3ecd461",
+     "sha256": "297c850435c717e0d4baf1bea6b3dcd1bf0f1445f052014a06d4456842a76de0",
+     "bytes": 74,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vtpm/README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9d125f094fff99ee17ee8d9610a7c23bfbf944cd",
+     "sha256": "67bef26fd5b90774a655f252c0e24bb51ec5582bc929b76f7967695a165bcf02",
+     "bytes": 757,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vtpm/enclave_openhcl_tpm.c",
+     "status": "A",
+     "mode": "100644",
+     "blob": "eb3c1a73a8cf88fb453cd1cfcc22083549fddaf3",
+     "sha256": "c9bde9f889869a79543f69e21eaddcc78290eee9a16514e91252b73a4b131c56",
+     "bytes": 4292,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vtpmclient/client.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5a49a7a417d4cf9ddc7e71c5cc013962211ba53c",
+     "sha256": "3be2884381ec409e7c457f7c5715042f8a6bb816ce87de23c64741e064cd3100",
+     "bytes": 6294,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/vtpmclient/client_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2f727269bb6c328ac505412abe449570488aa4e6",
+     "sha256": "e776bcf0834a21a3c53451668d31420764537b5a42ce4aa3c03d99c829e932ee",
+     "bytes": 4463,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "sched-guest-f6d5fbed/patches/0001-f7b6ff55.patch",
+     "sha256": "79eb86fe9c8e9337be9a1d7161c4e664aebffc150708873032c2366dabe7fa09"
+    },
+    {
+     "file": "sched-guest-f6d5fbed/patches/0002-3dbbf835.patch",
+     "sha256": "ac2292939ecefdc4cd26abb921b4d7b2e4d5d0e5cdc81bde5d912238e9f85334"
+    },
+    {
+     "file": "sched-guest-f6d5fbed/patches/0003-216c3807.patch",
+     "sha256": "06acd01f0b92047fc79b47d1999fe5a3476ef538bd2352aebc47c514024e21c1"
+    },
+    {
+     "file": "sched-guest-f6d5fbed/patches/0004-f6d5fbed.patch",
+     "sha256": "3c4d3e323c29f4e35b35786dbc65b8db24321b577c4b15aa92c6478e5c9a748f"
+    }
+   ],
+   "originalHeadTree": "b424a5c4b0fc9ed504c450d6887533debe1c5ca4",
+   "omittedAtHead": [
+    {
+     "mode": "100644",
+     "type": "blob",
+     "blob": "497ba6c460bb06af74cbd0480b94eb24e4b6b42a",
+     "bytes": "12784",
+     "path": "isolation/m3/hv-accept-check-2026-09-25.txt",
+     "sha256": "e401d7967d89b3795551cfde152d31fb95c6367ff536a4967b1687fea1167313"
+    }
+   ],
+   "excluded": [
+    "isolation/m3/hv-accept-check-2026-09-25.txt"
+   ],
+   "label": "SOURCE-ONLY DERIVATIVE: B guest source repo (isolation/{contract,m2,m3} as at c85e0c5, root f7b6ff55) -> f6d5fbed: an explicit CPU allocation is the purchased share exactly, below one processor too (root final image c1619eec built from f6d5, monitor-only). Committed public CA root / chain PEMs are certificates, not keys. The built image is not captured; minus isolation/m3/hv-accept-check-2026-09-25.txt (a local QEMU/KVM fixture log whose launcherKey - the launcher's PUBLIC report verification key - trips gitleaks generic-api-key)",
+   "omittedRecipe": "restore the fixture log from the guest repository at f6d5fbed (or c85e0c592, where it was committed); blob in omittedAtHead"
+  }
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-1852-checkpoint.md": "970f85412b137d960008a937850909b4c18e97ca3adc7314d432e81077cec3dd",
+  "source-preservation/snapshots-1951/ROOT-CONTINUE-LATEST.snapshot-1951.txt": "d097841632abe1e7aef474725478ca334f291ea7ac93a6de78568c98655a33fb"
+ },
+ "rootEvidence": {
+  "../../outputs/decentralization-audit/nucbox-coupled-shares-production-20261023.json": "4d4d795f1ed151e0dfcb0bcc4d0603f8fef22feb6f9194d1f0600a4669a805da",
+  "../../outputs/decentralization-audit/custody-v2-corrected-image-hardware-20261023.json": "e3795392f4f171578b9f28d44175d48af433806ce9d308e0af44c444e5eeba6c"
+ },
+ "snapshotsUnchangedSince1852": [
+  "ROOT-PENDING-LATEST.txt",
+  "effective-goal-requirements.txt"
+ ],
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "ignored/untracked files in every repo: binaries (staged runtime .bin, launcher .exe, custodian images), node_modules, raw quotes, sealed state, private config, canary run directories and logs",
+  "commits after these heads and every worktree change: M/R resumed work, root live probes (custody-v2-live untracked book-plan etc.)",
+  "outer non-repo files of these work directories"
+ ]
+}

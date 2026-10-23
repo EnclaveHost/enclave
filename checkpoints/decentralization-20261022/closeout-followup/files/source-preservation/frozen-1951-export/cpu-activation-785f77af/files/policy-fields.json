@@ -1,0 +1,14 @@
+{
+  "cpu": {
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "configBundleV5": true,
+    "secretsV1": true,
+    "configSocketServer": true,
+    "protectedPorts": true
+  },
+  "witness": {
+    "appSha256": "a79db30fdf40b37499c8dbf955728c74541fa140201059158694c841736f5030",
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+  },
+  "hash": "efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41"
+}

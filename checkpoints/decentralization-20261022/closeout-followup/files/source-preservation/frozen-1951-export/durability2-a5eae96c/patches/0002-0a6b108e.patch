@@ -1,0 +1,729 @@
+From 0a6b108eeb43202be4903a1385636a18ac4c537e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:45:06 -0700
+Subject: [PATCH] test: custody-v2-e2e on the original book-bound vault
+ (2-argument constructor)
+
+custody-v2-e2e deployed the pinned variant's 3-argument constructor against
+contracts/EnclaveSecretVaultV2.sol, the restored production source whose
+constructor is (book, enclaveOwner), and failed before any member code ran.
+
+It now uses the reviewed original-vault rig (test/helpers/original-vault-rig.mjs
+and the deployed schema-4 registry source test/fixtures/EnclaveRegistry.schema4.sol,
+both byte-identical to the reviewed custody-v2-original-vault-e2e tree), the
+book-kind reader, and the address-book authority semantics of that vault: the
+admin's book names the ledger and registry; a cleared registry fails release
+closed and a restore recovers. The pinned variant's "book edits cannot disable
+release" assertion does not hold for this vault and is replaced.
+
+Each machine persists through the daemon's real sealed-state writer (member
+store + chain checkpoint). A failed genesis share write reaches no chain; every
+createCommittee/ackHandover is checked against what its machine had durably; one
+ack submission fails after the share is durable, that machine restarts from its
+disk and re-acks the same share, which the contract accepts and activates.
+No contract source changes.
+---
+ test/custody-v2-e2e.test.mjs              | 286 ++++++++++++---------
+ test/fixtures/EnclaveRegistry.schema4.sol | 295 ++++++++++++++++++++++
+ 2 files changed, 457 insertions(+), 124 deletions(-)
+ create mode 100644 test/fixtures/EnclaveRegistry.schema4.sol
+
+diff --git a/test/custody-v2-e2e.test.mjs b/test/custody-v2-e2e.test.mjs
+index 6625af0daeb8da71971848fefbb3668c8d3830f5..51a986f3fda9f9f268a7ad50e8e440c10e131775 100644
+--- a/test/custody-v2-e2e.test.mjs
++++ b/test/custody-v2-e2e.test.mjs
+@@ -1,20 +1,32 @@
+-// Custody v2 end to end on a REAL chain (anvil) with the REAL EnclaveSecretVaultV2: the Enclave seat creates the committee
+-// (genesis), an owner encrypts to the committee key, an attested guest unlocks at t = 1, candidates join (a second
+-// Enclave machine, two capacity-proven hosts), a handover runs through the contract (proposal, deals, acks, activation),
+-// and the guest unlocks at t = 2 with EXACTLY ONE Enclave machine's partial; the two Enclave machines alone cannot.
++// Custody v2 end to end on a REAL chain (anvil) with the ORIGINAL book-bound EnclaveSecretVaultV2 (contracts/, the source of
++// the deployed 0xE48699B8… vault: constructor (book, enclaveOwner); its ledger and host registry are the admin's address-book
++// entries), the deployed schema-4 EnclaveRegistry source, EnclaveHostOwnership and EnclaveAddressBook
++// (test/helpers/original-vault-rig.mjs), driven by the candidate reader (vaultKind "book") and member:
++//   1. the Enclave seat creates the committee (genesis); a non-Enclave host cannot, by the member or by the contract;
++//   2. an owner encrypts to the committee key and an attested guest unlocks at t = 1;
++//   3. candidates join (a second Enclave machine, two capacity-proven hosts) and a handover runs through the contract
++//      (proposal, deals, acks, activation); the guest then unlocks at t = 2 with EXACTLY ONE Enclave machine's partial;
++//   4. the address book is the release authority: only its admin edits it, a cleared registry fails closed, a restore recovers;
++//   5. the relay's v2 pointer reads the vault.
++// Every machine persists through the daemon's REAL sealed-state writer (custody/v2/sealed-state.mjs: member store and the
++// chain reader's checkpoint over one state) to a host disk this test can fail, and every createCommittee/ackHandover
++// records what that machine had DURABLY when it was submitted. A genesis share write fails once (nothing reaches the chain),
++// an ack submission fails once and that machine restarts from its durable state and re-acks the same share, which the
++// contract accepts; the genesis machine also restarts from durable state and still releases.
+ // Every custodian signature (genesis, approvals, deals, acks) is checked by the contract, so this also pins
+ // custody/v2/digests.mjs to the Solidity. Attestation of app guests is SIMULATED (synthetic AMD chain, real verifier);
+ // custodian self-evidence is stubbed (the hardware path is exercised on warden-host).
+ //   run: node --test test/custody-v2-e2e.test.mjs
+ import test from "node:test";
+ import assert from "node:assert/strict";
+-import fs from "node:fs";
+-import path from "node:path";
+-import { createRequire } from "node:module";
++import net from "node:net";
++import { spawn, spawnSync } from "node:child_process";
+ import { createHash, randomBytes } from "node:crypto";
+-import { createWalletClient, http, keccak256, toBytes, parseEther, stringToHex } from "viem";
++import { createPublicClient, createWalletClient, http, keccak256, toBytes, parseEther, stringToHex } from "viem";
+ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+-import { anvilAvailable, startAnvil, snpAttester, RUNTIME, MEASUREMENT, FLOOR } from "./helpers/custody-rig.mjs";
++import { foundry } from "viem/chains";
++import { snpAttester, RUNTIME, MEASUREMENT, FLOOR } from "./helpers/custody-rig.mjs";
++import { originalVaultRig } from "./helpers/original-vault-rig.mjs";
+ import { synthChain } from "./helpers/snp-synth.mjs";
+ import { memoryCollateral } from "../verifier/index.mjs";
+ import { snpVerifier, SNP_GUEST_FORMAT } from "../custody/verifiers.mjs";
+@@ -23,95 +35,79 @@
+ import * as D from "../custody/v2/digests.mjs";
+ import { createChainReaderV2, VAULT_V2_ABI } from "../custody/v2/chain.mjs";
+ import { createCustodianV2 } from "../custody/v2/custodian.mjs";
+-import { createMember, BATCH_MS, SILENT_MS } from "../custody/v2/member.mjs";
++import { createMember, BATCH_MS } from "../custody/v2/member.mjs";
++import { createSealedStateWriter } from "../custody/v2/sealed-state.mjs";
+ import { buildBundleV2, makeUpdateV2, UPDATE_V2_ABI } from "../custody/v2/owner.mjs";
+ import { runtimeId } from "../isolation/contract/runtime.mjs";
+ import { createCustodyReader } from "../relay/custody-state.mjs";
+ 
+-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+-const require = createRequire(import.meta.url);
+-const MOCKS = `// SPDX-License-Identifier: MIT
+-pragma solidity ^0.8.20;
+-contract RigBook { mapping(bytes32 => address) public addr; function set(bytes32 k, address v) external { addr[k] = v; } }
+-contract RigLedger {
+-  struct Deployment { bytes32 id; address owner; string appRef; string ports; string configCid; uint16 gpuMilli; uint16 cpuMilli; uint32 appPort;
+-    bool isPublic; bool active; uint64 createdAt; uint256 rate; uint256 balance6; uint256 spent6; bytes32 runner; address runnerOperator; uint64 leaseUntil; }
+-  mapping(bytes32 => Deployment) private d;
+-  function set(bytes32 id, address owner, bytes32 runner, address runnerOperator, uint64 leaseUntil) external {
+-    Deployment storage x = d[id]; x.id = id; x.owner = owner; x.runner = runner; x.runnerOperator = runnerOperator; x.leaseUntil = leaseUntil; x.active = true; }
+-  function get(bytes32 id) external view returns (Deployment memory) { return d[id]; }
++const anvilAvailable = () => spawnSync("anvil", ["--version"], { stdio: "ignore" }).status === 0;
++const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); }); });
++// one block per second, so a fresh-block quorum (and its sealed checkpoint) stays fresh while the test is idle
++async function startAnvil(chainId) {
++  const port = await freePort();
++  const p = spawn("anvil", ["--port", String(port), "--silent", "--chain-id", String(chainId), "--block-time", "1"], { stdio: "ignore" });
++  const url = `http://127.0.0.1:${port}`, chain = { ...foundry, id: chainId };
++  const client = createPublicClient({ chain, transport: http(url), pollingInterval: 250 });
++  for (let i = 0; i < 100; i++) { try { await client.getChainId(); return { url, client, chain, stop: () => p.kill("SIGTERM") }; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  p.kill("SIGKILL"); throw new Error("anvil did not start");
+ }
+-contract RigRegistry {
+-  struct Enclave { string endpoint; string repo; bytes32 measurement; address operator; uint64 registeredAt; uint64 lastSeen; bool active;
+-    uint64 cpuPricePerSec6; uint64 gpuPricePerSec6; address proofKey; address payoutWallet; }
+-  mapping(bytes32 => Enclave) private e;
+-  function set(string calldata endpoint, address operator, bool active, address payoutWallet) external {
+-    Enclave storage x = e[keccak256(bytes(endpoint))]; x.endpoint = endpoint; x.operator = operator; x.active = active; x.payoutWallet = payoutWallet; }
+-  function get(bytes32 id) external view returns (Enclave memory) { return e[id]; }
+-}
+-`;
+-function compile() {
+-  const src = fs.readFileSync(path.join(ROOT, "contracts/EnclaveSecretVaultV2.sol"), "utf8");
+-  const ownershipSrc = fs.readFileSync(path.join(ROOT, "contracts/EnclaveHostOwnership.sol"), "utf8");
+-  const key = createHash("sha256").update(src).update(ownershipSrc).update(MOCKS).digest("hex").slice(0, 16);
+-  const cache = path.join(process.env.TMPDIR || "/tmp", `enclave-custody-v2-rig-${key}.json`);
+-  if (fs.existsSync(cache)) return JSON.parse(fs.readFileSync(cache, "utf8"));
+-  const solc = require("solc");
+-  const out = JSON.parse(solc.compile(JSON.stringify({ language: "Solidity", sources: { "V.sol": { content: src }, "Rig.sol": { content: MOCKS }, "Ownership.sol": {content: ownershipSrc} },
+-    settings: { viaIR: true, optimizer: { enabled: true, runs: 200 }, outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } } })));
+-  const errs = (out.errors || []).filter((e) => e.severity === "error");
+-  if (errs.length) throw new Error(errs.map((e) => e.formattedMessage).join("\n"));
+-  const pick = (f, n) => ({ abi: out.contracts[f][n].abi, bytecode: "0x" + out.contracts[f][n].evm.bytecode.object });
+-  const r = { ownership: pick("Ownership.sol", "EnclaveHostOwnership"), vault: pick("V.sol", "EnclaveSecretVaultV2"), book: pick("Rig.sol", "RigBook"), ledger: pick("Rig.sol", "RigLedger"), registry: pick("Rig.sol", "RigRegistry") };
+-  fs.writeFileSync(cache, JSON.stringify(r));
+-  return r;
+-}
+-
+ const sha = (b) => "0x" + createHash("sha256").update(b).digest("hex");
++const key = (s) => stringToHex(s, { size: 32 });
++const ZERO = "0x" + "00".repeat(20);
+ const APP = Buffer.alloc(32, 0xa7);
+ const RULES = { v: 1, appId: APP.toString("hex"), images: [{ platform: "sev-snp", measurement: MEASUREMENT, runtimeId: runtimeId(RUNTIME).toString("hex") }], minTcb: FLOOR, vmpl: 0 };
+ const CUSTODIAN_MEAS = Buffer.alloc(48, 0x5c);
+ 
+-test("custody v2 end to end: genesis, release at t=1, join + handover through the contract, release at t=2 with exactly one Enclave partial", { skip: anvilAvailable() ? false : "anvil not installed", timeout: 300_000 }, async () => {
+-  const C = compile();
+-  const anvil = await startAnvil({ chainId: 31337 });
++test("custody v2 end to end on the original book-bound vault: genesis, release at t=1, join + handover through the contract with durable shares, release at t=2 with exactly one Enclave partial",
++  { skip: anvilAvailable() ? false : "anvil not installed", timeout: 600_000 }, async () => {
++  const C = originalVaultRig();                      // compiled in a child process before anvil starts
++  const chainId = 31337;
++  const anvil = await startAnvil(chainId);
+   try {
+     const pub = anvil.client;
+     const fund = (a) => pub.request({ method: "anvil_setBalance", params: [a, "0x" + parseEther("100").toString(16)] });
+     const acct = async () => { const a = privateKeyToAccount(generatePrivateKey()); await fund(a.address); return a; };
+     const wallet = (a) => createWalletClient({ account: a, chain: anvil.chain, transport: http(anvil.url) });
+     const send = async (a, address, abi, functionName, args) => {
+-      const hash = await wallet(a).writeContract({ address, abi, functionName, args });
++      const hash = await wallet(a).writeContract({ address, abi, functionName, args, gas: 15_000_000n });
+       const r = await pub.waitForTransactionReceipt({ hash });
+       if (r.status !== "success") throw new Error(`${functionName} reverted`);
+       return hash;
+     };
++    const reverts = (a, address, abi, functionName, args, re, msg) => assert.rejects(pub.simulateContract({ account: a, address, abi, functionName, args }), re, msg);
+     const deploy = async (a, c, args = []) => (await pub.waitForTransactionReceipt({ hash: await wallet(a).deployContract({ abi: c.abi, bytecode: c.bytecode, args }) })).contractAddress;
+-    const deployer = await acct(), enclaveWallet = await acct(), enclaveOwner = enclaveWallet.address;
+-    const book = await deploy(deployer, C.book), ledger = await deploy(deployer, C.ledger), registry = await deploy(deployer, C.registry);
+-    await send(deployer, book, C.book.abi, "set", [stringToHex("deployments", { size: 32 }), ledger]);
+-    await send(deployer, book, C.book.abi, "set", [stringToHex("registry", { size: 32 }), registry]);
+-    const ownership = await deploy(deployer, C.ownership, [registry]);
+-    const vault = (await deploy(deployer, C.vault, [book, enclaveOwner, ownership])).toLowerCase();
+-    const chainId = 31337;
++
++    // ---- contracts: the admin owns the book; the vault's immutables are (book, Enclave wallet), as deployed ----
++    const admin = await acct(), enclaveWallet = await acct(), enclaveOwner = enclaveWallet.address, outsider = await acct();
++    const book = await deploy(admin, C.book), ledger = await deploy(admin, C.ledger), registry = await deploy(admin, C.registry);
++    await send(admin, book, C.book.abi, "set", [key("deployments"), ledger]);
++    await send(admin, book, C.book.abi, "set", [key("registry"), registry]);
++    const ownership = await deploy(admin, C.ownership, [registry]);
++    assert.deepEqual(C.vault.abi.find((x) => x.type === "constructor").inputs.map((i) => i.name), ["book_", "enclaveOwner_"], "the original vault's constructor");
++    const vault = (await deploy(admin, C.vault, [book, enclaveOwner])).toLowerCase();
++    assert.equal((await pub.readContract({ address: vault, abi: VAULT_V2_ABI, functionName: "book" })).toLowerCase(), book.toLowerCase());
++    await assert.rejects(pub.readContract({ address: vault, abi: VAULT_V2_ABI, functionName: "hostOwnership" }), "the original vault has no pinned authority getters");
+     const nowBlock = async () => Number((await pub.getBlock()).timestamp);
+     // simulated clock for the engine's batching/liveness windows
+     let skew = 0; const now = () => Date.now() + skew;
+ 
+-    // ---- hosts: two accepted by Enclave wallet, two others, one app host ----
++    // ---- hosts on the real registry: Enclave payout declared by the Enclave wallet itself; ownership via the extension ----
+     const hosts = {};
+     for (const [name, enclave] of [["ea", true], ["eb", true], ["nb", false], ["nc", false], ["app", false]]) {
+-      const op = await acct(); const endpoint = `https://${name}.host.test`;
+-      await send(deployer, registry, C.registry.abi, "set", [endpoint, op.address, true, enclave ? enclaveOwner : "0x" + "00".repeat(20)]);
+-      const registryId = keccak256(toBytes(endpoint)), owner = enclave ? enclaveWallet : op;
++      const op = await acct(), endpoint = `https://${name}.host.test`, registryId = keccak256(toBytes(endpoint));
++      await send(op, registry, C.registry.abi, "register", [endpoint, "repo", "0x" + "11".repeat(32), 1n, 0n, ZERO]);
++      if (enclave) await send(enclaveWallet, registry, C.registry.abi, "setPayoutWallet", [registryId]);
++      const owner = enclave ? enclaveWallet : op;
+       await send(op, ownership, C.ownership.abi, "proposeOwner", [registryId, owner.address]);
+       await send(owner, ownership, C.ownership.abi, "acceptOwner", [registryId]);
+       hosts[name] = { op, endpoint, registryId };
+     }
++    const readerOpts = { rpcs: [anvil.url], vault, minAgree: 1, vaultKind: "book", book, hostOwnership: ownership };
+ 
+-    // ---- custodian machines (in-process), routed by endpoint ----
++    // ---- custodian machines (in-process), routed by endpoint, each persisting through the real writer ----
+     const submitter = await acct();
+-    const submit = (fn, args) => send(submitter, vault, VAULT_V2_ABI, fn, args);
++    const submitTx = (fn, args) => send(submitter, vault, VAULT_V2_ABI, fn, args);
+     const S = synthChain();
+     const collateral = memoryCollateral({ chains: { Genoa: S.chainPem }, vceks: { Genoa: S.vcekDer }, crls: { Genoa: S.crlDer } });
+     const verifiers = Object.freeze({ [SNP_GUEST_FORMAT]: snpVerifier({ collateral, roots: new Map([["Genoa", S.arkFp]]) }) });
+@@ -127,57 +123,82 @@
+       throw new Error(`no route ${p}`);
+     };
+     const capacityOk = new Set();
+-    const makeMachine = async (name, host) => {
+-      const identity = privateKeyToAccount(generatePrivateKey());
+-      const kp = hpke.generateKeyPair();
+-      const chip = randomBytes(64);
+-      const machine = { identity: identity.address.toLowerCase(), encKey: "0x" + Buffer.from(kp.publicKey).toString("hex"), endpoint: `https://custody-${name}.test`,
+-                        chipId: sha(chip), registryId: host.registryId, measurement: sha(CUSTODIAN_MEAS) };
+-      let state = null;
+-      const chain = createChainReaderV2({ rpcs: [anvil.url], vault, minAgree: 1 });
+-      const member = createMember({ chainId, vault, identity, encPrivateKey: kp.privateKey, machine, chain, store: { load: () => state, save: (s) => { state = JSON.parse(JSON.stringify(s)); } },
++    const barrier = [];                                // every createCommittee/ackHandover: what its machine had durably
++    const failSubmit = new Set();                      // "<machine>:<fn>": the next such submission fails (RPC down)
++    const newIdentity = (name, h) => {
++      const identity = privateKeyToAccount(generatePrivateKey()), kp = hpke.generateKeyPair(), chip = randomBytes(64);
++      return { identity, kp, chip, machine: { identity: identity.address.toLowerCase(), encKey: "0x" + Buffer.from(kp.publicKey).toString("hex"),
++        endpoint: `https://custody-${name}.test`, chipId: sha(chip), registryId: h.registryId, measurement: sha(CUSTODIAN_MEAS) } };
++    };
++    // durable: the sealed blob a (re)started machine finds on its host disk (null = fresh)
++    const makeMachine = async (name, host, { id = newIdentity(name, host), durable = null } = {}) => {
++      const disk = { durable, failIf: null };          // failIf(state): the next write it matches fails (host /state 500)
++      const state = durable ? JSON.parse(durable) : {};
++      const writer = createSealedStateWriter({ seal: (s) => JSON.stringify(s), state, log: () => {}, put: async (blob) => {
++        if (disk.failIf && disk.failIf(JSON.parse(blob))) { disk.failIf = null; throw new Error("host /state: 500"); }
++        disk.durable = blob; } });
++      const chain = createChainReaderV2({ ...readerOpts, checkpoint: writer.checkpoint });   // the daemon's wiring
++      const submit = async (fn, args) => {
++        if (fn === "createCommittee" || fn === "ackHandover") barrier.push({ name, fn, args, durable: disk.durable && JSON.parse(disk.durable) });
++        if (failSubmit.delete(`${name}:${fn}`)) throw new Error(`submit ${fn}: rpc down`);
++        return submitTx(fn, args);
++      };
++      const member = createMember({ chainId, vault, identity: id.identity, encPrivateKey: id.kp.privateKey, machine: id.machine, chain, store: writer.memberStore,
+         submit, fetchJson: route, now, log: () => {}, enclaveOwner,
+         // custodian self-evidence (stub): the binding is carried through and checked; measurement and chip from the record
+-        attestSelf: async (binding) => ({ report: Buffer.concat([Buffer.from(binding), CUSTODIAN_MEAS, chip]), auxblob: null }),
++        attestSelf: async (binding) => ({ report: Buffer.concat([Buffer.from(binding), CUSTODIAN_MEAS, id.chip]), auxblob: null }),
+         verifyPeerQuote: async (report, { binding }) => (Buffer.compare(report.subarray(0, 32), Buffer.from(binding)) === 0
+           ? { ok: true, measurement: report.subarray(32, 80).toString("hex"), chipId: report.subarray(80, 144).toString("hex") } : { ok: false, reason: "binding" }),
+         capacityCheck: async ({ machine: m }) => (capacityOk.has(m.identity) ? { ok: true } : { ok: false, reason: "no receipts" }) });
+-      const custodian = createCustodianV2({ chainId, vault, encPrivateKey: kp.privateKey, shares: member.shares, chain, verifiers, log: () => {} });
+-      const sig = await D.signDigest(host.op, D.hostDigest({ chainId, vault, machine }));
+-      await member.setHostSig(sig);
+-      machines[name] = { name, endpoint: machine.endpoint, machine, member, custodian, committeeId: null };
+-      return machines[name];
++      const custodian = createCustodianV2({ chainId, vault, encPrivateKey: id.kp.privateKey, shares: member.shares, chain, verifiers, log: () => {} });
++      if (!durable) await member.setHostSig(await D.signDigest(host.op, D.hostDigest({ chainId, vault, machine: id.machine })));
++      return (machines[name] = { name, host, id, endpoint: id.machine.endpoint, machine: id.machine, member, custodian, disk, committeeId: machines[name]?.committeeId ?? null });
+     };
++    // a restart: the process is gone; a new one opens what the host disk holds
++    const restart = (m) => makeMachine(m.name, m.host, { id: m.id, durable: m.disk.durable });
+ 
+     // ---- 1. genesis by an Enclave machine; a non-Enclave machine cannot ----
+     const E1 = await makeMachine("e1", hosts.ea);
+     const N0 = await makeMachine("n0", hosts.nb);
+-    await assert.rejects(N0.member.genesis({ salt: "0x" + "01".repeat(32), codeSet: [N0.machine.measurement] }), "genesis by a non-Enclave host is refused by the contract");
++    await assert.rejects(N0.member.genesis({ salt: "0x" + "01".repeat(32), codeSet: [N0.machine.measurement] }), /genesis needs a host the vault seats as Enclave/);
++    {   // ...and the contract itself refuses it (its Enclave flag is the registry payout)
++      const g0 = v2.genesis(), salt = "0x" + "01".repeat(32), codeSet = [N0.machine.measurement];
++      const cid0 = D.committeeIdOf({ chainId, vault, salt, Y: g0.Y });
++      await reverts(submitter, vault, VAULT_V2_ABI, "createCommittee", [salt, N0.machine, "0x" + Buffer.from(g0.Y).toString("hex"), codeSet,
++        await D.signDigest(N0.id.identity, D.genesisDigest({ chainId, vault, committeeId: cid0, Y: g0.Y, machine: N0.machine, codeSet })), N0.member._state().hostSig], /revert/i,
++        "genesis by a non-Enclave host is refused by the contract");
++    }
+     delete machines.n0;
+-    const g = await E1.member.genesis({ salt: "0x" + "02".repeat(32), codeSet: [E1.machine.measurement] });
+-    const cid = g.committeeId; E1.committeeId = cid;
+-    const reader = createChainReaderV2({ rpcs: [anvil.url], vault, minAgree: 1 });
++    // the first share write fails: nothing reaches the chain and nothing is durable
++    E1.disk.failIf = (s) => Object.keys(s.member?.epochs || {}).length > 0;
++    await assert.rejects(E1.member.genesis({ salt: "0x" + "02".repeat(32), codeSet: [E1.machine.measurement] }), /state not persisted/);
++    assert.equal(barrier.length, 0, "no createCommittee after a failed share write");
++    assert.deepEqual(JSON.parse(E1.disk.durable).member.epochs, {});
++    const g = await E1.member.genesis({ salt: "0x" + "03".repeat(32), codeSet: [E1.machine.measurement] });
++    const cid = g.committeeId.toLowerCase(); E1.committeeId = cid;
++    assert.deepEqual(barrier.map((b) => [b.name, b.fn]), [["e1", "createCommittee"]]);
++    assert.equal(barrier[0].durable.member.epochs[`${cid}:1`].length, 1, "the genesis share was durable when createCommittee was submitted");
++    const reader = createChainReaderV2(readerOpts);
+     let { committee } = await reader.readCommittee({ committeeId: cid });
+     assert.deepEqual([committee.epoch, committee.t, committee.W, committee.machines[0].enclave], [1, 1, 1, true]);
++    // the genesis machine restarts: it serves from its durable share
++    const E1r = await restart(E1);
++    assert.deepEqual(E1r.member.committees(), [cid]);
+ 
+     // ---- 2. an owner publishes, and an app guest unlocks at t = 1 ----
+     const owner = await acct();
+     const id = "0x" + randomBytes(32).toString("hex");
+-    await send(deployer, ledger, C.ledger.abi, "set", [id, owner.address, hosts.app.registryId, hosts.app.op.address, BigInt((await nowBlock()) + 7200)]);
++    await send(admin, ledger, C.ledger.abi, "set", [id, owner.address, hosts.app.registryId, hosts.app.op.address, BigInt((await nowBlock()) + 7200)]);
+     const env = { API_KEY: "v2-secret", DB: "postgres://x" };
+-    const publish = async (secretRev, expectPolicyRev) => {
+-      const bundle = buildBundleV2({ chainId, vault, id, secretRev, committeeId: cid, Y: committee.Y, env, configText: "" });
+-      await send(owner, vault, UPDATE_V2_ABI, "update", [id, makeUpdateV2({ expectPolicyRev, policy: { committeeId: cid, paused: false, rules: RULES }, bundle })]);
+-    };
+-    await publish(1, 0);
++    const bundle = buildBundleV2({ chainId, vault, id, secretRev: 1, committeeId: cid, Y: committee.Y, env, configText: "" });
++    await send(owner, vault, UPDATE_V2_ABI, "update", [id, makeUpdateV2({ expectPolicyRev: 0, policy: { committeeId: cid, paused: false, rules: RULES }, bundle })]);
+ 
+     const unlock = async (useMachines, { expectEnclaveRule = true } = {}) => {
+       const st = await reader.readRelease({ id, endpoint: hosts.app.endpoint });
+       const com = st.committee;
+       const at = snpAttester(S, { appId: APP, hostData: Buffer.from(id.slice(2), "hex") });
+       const recipient = hpke.generateKeyPair();
+-      const challenges = [];
+-      for (const m of useMachines) { const c = m.custodian.challenge(); challenges.push({ m, encKey: c.encKey, nonce: c.nonce }); }
++      const challenges = useMachines.map((m) => { const c = m.custodian.challenge(); return { m, encKey: c.encKey, nonce: c.nonce }; });
+       const chs = challenges.map((c) => ({ encKey: Buffer.from(c.encKey, "hex"), nonce: Buffer.from(c.nonce, "hex") }));
+       const binding = v2.releaseBinding({ chainId, vault, id, policyRev: st.policy.policyRev, secretRev: st.policy.secretRev, committeeId: cid, epoch: com.epoch,
+         challenges: chs, runtimeId: new Uint8Array(runtimeId(RUNTIME)), transportSpki: at.transportSpki, recipientKey: recipient.publicKey });
+@@ -201,49 +222,67 @@
+       const S2 = v2.combine(chosen.slice(0, com.t), com.t);
+       return v2.decryptBundle({ S: S2, label: v2.labelOf({ chainId, vault, id, secretRev: st.policy.secretRev, committeeId: cid }), bundle: st.bundle.data }).env;
+     };
+-    assert.deepEqual(await unlock([E1]), env, "t = 1: the Enclave seat alone unlocks");
+-
+-    // A payout declaration naming Enclave must not waive an independent host's
+-    // proof of capacity or merge it into Enclave's seat.
+-    await send(deployer, registry, C.registry.abi, "set", [hosts.nb.endpoint, hosts.nb.op.address, true, enclaveOwner]);
+-    const nbRegistry = await reader.readRegistryEntry({registryId:hosts.nb.registryId});
+-    assert.equal(nbRegistry.entry.owner, hosts.nb.op.address.toLowerCase());
+-    assert.equal(nbRegistry.entry.payoutWallet,enclaveOwner.toLowerCase());
++    assert.deepEqual(await unlock([E1r]), env, "t = 1: the (restarted) Enclave seat alone unlocks");
+ 
+-    // ---- 3. candidates join; E1 coordinates a handover through the contract ----
+-    const E2 = await makeMachine("e2", hosts.eb), NB = await makeMachine("nb", hosts.nb), NC = await makeMachine("nc", hosts.nc);
++    // ---- 3. candidates join; the Enclave seat coordinates a handover through the contract ----
++    const E1x = E1r;
++    let E2 = await makeMachine("e2", hosts.eb), NB = await makeMachine("nb", hosts.nb), NC = await makeMachine("nc", hosts.nc);
+     for (const m of [E2, NB, NC]) m.committeeId = cid;
+-    await assert.rejects(E1.member.join({ machine: NB.machine }, cid), /proof of capacity/, "a non-Enclave candidate without capacity proof is refused");
++    await assert.rejects(E1x.member.join({ machine: NB.machine }, cid), /proof of capacity/, "a non-Enclave candidate without capacity proof is refused");
+     capacityOk.add(NB.machine.identity); capacityOk.add(NC.machine.identity);
+-    for (const m of [E2, NB, NC]) assert.ok((await E1.member.join({ machine: m.machine }, cid)).ok);
+-    let r = await E1.member.tick(cid);
++    for (const m of [E2, NB, NC]) assert.ok((await E1x.member.join({ machine: m.machine }, cid)).ok);
++    let r = await E1x.member.tick(cid);
+     assert.equal(r.state, "batching", "changes wait for the batching window");
+     skew += BATCH_MS + 1000;
+-    r = await E1.member.tick(cid);
++    r = await E1x.member.tick(cid);
+     assert.equal(r.state, "proposed", JSON.stringify(r));
+-    // deals, then every new machine verifies, persists and acks; the last ack activates the epoch
+-    for (let i = 0; i < 4; i++) for (const m of [E1, E2, NB, NC]) await m.member.tick(cid).catch((e) => { throw new Error(`${m.name}: ${e.message}`); });
++    // deals, then every new machine verifies, persists and acks; the last ack activates the epoch. NC's first ack
++    // submission fails AFTER its share is durable; NC then restarts from its disk and acks the same share again.
++    failSubmit.add("nc:ackHandover");
++    let ncFailed = null;
++    for (let i = 0; i < 8 && (await reader.readCommittee({ committeeId: cid })).committee.epoch === 1; i++) {
++      for (const m of [E1x, E2, NB, NC]) {
++        try { await m.member.tick(cid); }
++        catch (e) {
++          if (m === NC && !ncFailed && /rpc down/.test(e.message)) { ncFailed = JSON.parse(NC.disk.durable); NC = await restart(NC); continue; }
++          throw new Error(`${m.name}: ${e.message}`);
++        }
++      }
++    }
++    assert.ok(ncFailed, "NC's first ack failed");
+     ({ committee } = await reader.readCommittee({ committeeId: cid }));
++    assert.equal(committee.epoch, 2, "the handover activated (the restarted NC's re-sent ack was accepted)");
++    const toEpoch = 2, pkey = `${cid}:${toEpoch}`;
++    const ncAcks = barrier.filter((b) => b.name === "nc" && b.fn === "ackHandover");
++    assert.equal(ncAcks.length, 2, "NC acked twice: the failed submission and the re-sent one");
++    assert.deepEqual(ncAcks[1].durable.member.pending[pkey], ncFailed.member.pending[pkey], "the re-sent ack is for the SAME durable share");
++    assert.equal(ncAcks[0].args[2], ncAcks[1].args[2], "...and the same new commitments");
++    for (const b of barrier.filter((x) => x.fn === "ackHandover"))
++      assert.ok(b.durable?.member?.pending?.[pkey]?.length > 0, `${b.name}: its new share was durable when its ack was submitted`);
++    assert.deepEqual(barrier.filter((x) => x.fn === "ackHandover").map((b) => b.name).sort(), ["e1", "e2", "nb", "nc", "nc"]);
++    for (const m of [E1x, E2, NB, NC]) await m.member.tick(cid);
+     assert.equal(committee.machines.length, 4);
+     assert.deepEqual([committee.t, committee.W], [2, 3], "3 seats (one Enclave seat for two Enclave machines): t = 2");
+-    assert.ok(committee.epoch > 1);
+     assert.equal(Buffer.from(committee.Y).toString("hex"), Buffer.from(g.Y.slice(2), "hex").toString("hex"), "the committee key never changed");
+-    for (const m of [E1, E2, NB, NC]) await m.member.tick(cid);
+-    assert.deepEqual(E1.member.shares.get(cid, 1), [], "old-epoch shares are erased after activation");
+-    assert.deepEqual(E1.member.shares.get(cid, committee.epoch).map((s) => s.k), E2.member.shares.get(cid, committee.epoch).map((s) => s.k), "Enclave replicas hold the same index");
+-    assert.equal(E1.member.shares.get(cid, committee.epoch)[0].x, E2.member.shares.get(cid, committee.epoch)[0].x, "...and the same share");
++    assert.deepEqual(E1x.member.shares.get(cid, 1), [], "old-epoch shares are erased after activation");
++    assert.deepEqual(JSON.parse(E1x.disk.durable).member.epochs[`${cid}:1`], undefined, "...durably");
++    assert.deepEqual(E1x.member.shares.get(cid, committee.epoch).map((s) => s.k), E2.member.shares.get(cid, committee.epoch).map((s) => s.k), "Enclave replicas hold the same index");
++    assert.equal(E1x.member.shares.get(cid, committee.epoch)[0].x, E2.member.shares.get(cid, committee.epoch)[0].x, "...and the same share");
+ 
+-    // ---- 4. t = 2: exactly one Enclave machine + one other host unlock; the old bundle is still readable ----
+-    assert.deepEqual(await unlock([E1, NB]), env);
+-    assert.deepEqual(await unlock([E2, NC]), env);
+-    assert.deepEqual(await unlock([E1, E2, NB, NC]), env, "all answer: one Enclave partial used");
+-    await assert.rejects(unlock([E1, E2], { expectEnclaveRule: false }), /exactly 2 distinct/, "two Enclave machines are ONE seat: they cannot reach t");
++    // ---- t = 2: exactly one Enclave machine + one other host unlock ----
++    assert.deepEqual(await unlock([E1x, NB]), env);
++    assert.deepEqual(await unlock([E2, NC]), env, "the restarted NC releases from its durable, activated share");
++    assert.deepEqual(await unlock([E1x, E2, NB, NC]), env, "all answer: one Enclave partial used");
++    await assert.rejects(unlock([E1x, E2], { expectEnclaveRule: false }), /exactly 2 distinct/, "two Enclave machines are ONE seat: they cannot reach t");
+     assert.deepEqual(await unlock([NB, NC]), env, "no Enclave machine online: the other seats suffice");
+-    await send(deployer, book, C.book.abi, "set", [stringToHex("deployments", {size:32}), "0x"+"00".repeat(20)]);
+-    await send(deployer, book, C.book.abi, "set", [stringToHex("registry", {size:32}), "0x"+"00".repeat(20)]);
+-    assert.deepEqual(await unlock([NB, NC]), env, "book edits cannot disable independent custody release");
+-    await send(deployer, book, C.book.abi, "set", [stringToHex("deployments", {size:32}), ledger]);
+-    await send(deployer, book, C.book.abi, "set", [stringToHex("registry", {size:32}), registry]);
++
++    // ---- 4. the address book is the original vault's release authority ----
++    await reverts(outsider, book, C.book.abi, "set", [key("registry"), ZERO], /!owner|revert/i, "only the book's admin edits it");
++    await send(admin, book, C.book.abi, "set", [key("registry"), ZERO]);
++    await assert.rejects(unlock([NB, NC]), /address book has no|release_authority|only 0 RPCs/, "a cleared registry entry fails release closed");
++    await send(admin, book, C.book.abi, "set", [key("registry"), registry]);
++    assert.deepEqual(await unlock([NB, NC]), env, "restored by the admin");
++
+     // ---- 5. the relay's v2 pointer for the guest's signed release (relay/custody-state.mjs) ----
+     const relayReader = createCustodyReader({ vault2: vault, chainId, rpcs: [anvil.url], minAgree: 1, maxAgeSec: null });
+     const ptr = await relayReader.custodyStateFor(id);
+@@ -253,6 +292,5 @@
+     assert.deepEqual(new Set(ptr.machines.filter((m) => !m.enclave).flatMap((m) => m.indices)), new Set([2, 3]));
+     assert.equal(await relayReader.custodyHeld(id), true);
+     assert.equal(await relayReader.custodyHeld("0x" + "ab".repeat(32)), false);
+-    void SILENT_MS;
+   } finally { anvil.stop(); }
+ });
+diff --git a/test/fixtures/EnclaveRegistry.schema4.sol b/test/fixtures/EnclaveRegistry.schema4.sol
+new file mode 100644
+index 0000000000000000000000000000000000000000..3086cf4245dc0804afd45ee666d9c8efe50549f2
+--- /dev/null
++++ b/test/fixtures/EnclaveRegistry.schema4.sol
+@@ -0,0 +1,295 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++/// @title EnclaveRegistry — transparent, gateway-free discovery for Enclave enclaves.
++/// @notice The on-chain source of truth for "which enclaves exist, where they
++///         are, and what code they claim to run." There is NO trusted gateway:
++///         a caller reads this registry from any RPC, then connects to an
++///         enclave DIRECTLY and verifies its live attestation (Cloud Provider's
++///         SecureClient does the SEV-SNP/TDX + Sigstore checks). This contract
++///         publishes the *slow-moving* truth (endpoint, repo, measurement,
++///         liveness); live capacity is read from each enclave's /availability
++///         off-chain. Nothing here is trusted — it is verified at connect time.
++///
++/// Trust model:
++///   - Each entry is owned by the operator address that first registered its
++///     endpoint. Only that operator can update / heartbeat / deregister it.
++///     Registering does NOT make an enclave trusted — the `repo` + `measurement`
++///     are CLAIMS a caller checks against the enclave's live attestation.
++///   - PRICE is part of the entry (schema 2): an operator states what its
++///     WHOLE machine costs per second — cpuPricePerSec6 for the node's
++///     vCPU+RAM, gpuPricePerSec6 for one card's GPU+VRAM, USDC 6dp. That is
++///     what a TENANT pays (the ledger pays the operator its runnerBps share of
++///     it); a deployment buying gpuMilli/cpuMilli thousandths pays that
++///     fraction of each. EnclaveDeployments reads these numbers when the
++///     operator claims work, so the price an enclave advertises here is the
++///     price it can actually charge — and a deployment's own rate cap is
++///     checked against it. Re-pricing (setPrices) affects FUTURE claims only:
++///     a live lease was bought at the price in force when it was claimed.
++///   - Liveness is advisory: operators heartbeat; readers treat entries whose
++///     lastSeen is older than a window of their choosing (e.g. 1h) as down.
++///   - PAYOUT WALLET (schema 4): the seller's own wallet — where this box's
++///     earnings are swept (metal/config.json `payoutAddress`), published here
++///     so it is part of the enclave's public record rather than private
++///     supervisor config. It is DECLARED BY THAT WALLET, not by the operator:
++///     setPayoutWallet takes no address argument and simply records msg.sender.
++///     That direction is load-bearing, not a style choice. EnclaveDeployments
++///     rev 12 hosts a deployment for FREE when this wallet is the deployment's
++///     owner (a seller running their own app on their own box), and a free
++///     lease is one the tenant's rate cap can no longer evict — so if an
++///     operator could name any address here, it could push a stranger's
++///     deployment into the free tier and squat its lease at zero cost. Making
++///     the declaration a transaction FROM the wallet means the only address a
++///     box can put here is one whose owner agreed, and clearPayoutWallet lets
++///     that owner revoke it at any time.
++///   - PROOF KEY (schema 3): the address half of a secp256k1 keypair MINTED
++///     INSIDE the CVM at boot (like the TLS-bridge key and the ES256 session
++///     key - the operator never sees the private half). EnclaveProofOfTime
++///     verifies proof-of-time checkpoints against it: the enclave signs "app X
++///     was running here at time T, anchored to block N", and the ledger pays
++///     for PROVEN service instead of held lease time. Registering it is a
++///     CLAIM like `measurement` is - anyone can fetch /v1/attestation over the
++///     enclave's attested origin and check that the key served there is the
++///     key on-chain. A mismatch is public, provable misbehavior (the ledger's
++///     bond exists to price exactly that). The key rotates on every CVM
++///     relaunch, because the CVM has no persistent disk to keep it on: the
++///     enclave re-publishes with setProofKey at boot, and checkpoints are
++///     always verified against the CURRENT entry.
++///   - Open registration (anyone may register). Sybil resistance via
++///     stake-to-register + slashing is a deliberate FUTURE addition (see notes);
++///     it is not needed for correctness because attestation, not registration,
++///     is what gates trust.
++contract EnclaveRegistry {
++    struct Enclave {
++        string  endpoint;     // e.g. "https://svalbard.enclave.containers.Cloud Provider.dev"
++        string  repo;         // attestation source, e.g. "EnclaveHost/enclave" (Sigstore-measured; exact casing)
++        bytes32 measurement;  // optional cross-check digest (0x0 if unset); the live quote is authoritative
++        address operator;     // controls this entry
++        uint64  registeredAt;
++        uint64  lastSeen;     // last heartbeat/update; readers judge staleness
++        bool    active;       // operator-set; deregister flips to false
++        // ---- price (schema 2; APPENDED so the first seven fields keep their
++        // offsets — readers still sniff registrySchema before decoding) ------
++        uint64  cpuPricePerSec6;  // USDC 6dp per second for the WHOLE node (vCPU+RAM)
++        uint64  gpuPricePerSec6;  // USDC 6dp per second for ONE WHOLE card (GPU+VRAM); 0 on a CPU-only box
++        // ---- proof of time (schema 3; APPENDED, same reason as the prices) --
++        address proofKey;         // in-CVM secp256k1 signer for EnclaveProofOfTime checkpoints
++                                  // (0x0 = this enclave posts no proofs and, once the ledger's
++                                  // proof cutover has passed, cannot claim work)
++        // ---- payout wallet (schema 4; APPENDED, same reason as the others) --
++        address payoutWallet;     // the seller's own wallet, SET BY THAT WALLET (setPayoutWallet).
++                                  // 0x0 = undeclared. Never written by register(): the operator
++                                  // cannot set it, so re-registering at every boot leaves it alone.
++    }
++
++    /// @dev Struct-shape revision, sniffed by consumers exactly as
++    ///      EnclaveDeployments.deploymentsSchema is: rev 1 (no getter — the
++    ///      call reverts there) had no prices and a three-argument register();
++    ///      rev 2 appends the two per-machine prices and grows register() to
++    ///      carry them, so an enclave states its price as it joins the network.
++    ///      Rev 3 appends the proof key (and grows register() again), so an
++    ///      enclave states WHICH in-CVM key signs its proof-of-time
++    ///      checkpoints. A rev-9 EnclaveDeployments requires this field; the
++    ///      two contracts deploy as a pair, exactly as rev 2 / rev 8 did.
++    ///      Rev 4 appends the seller's payoutWallet and grows the surface by
++    ///      setPayoutWallet/clearPayoutWallet — register() is UNCHANGED, since
++    ///      the operator is deliberately not the party that may set it. A
++    ///      rev-12 EnclaveDeployments requires this field (it charges nothing
++    ///      when the wallet is the deployment's owner); the pair ships together
++    ///      once more.
++    uint256 public constant registrySchema = 4;
++
++    bytes32[] private _ids;                       // all endpoint ids ever registered
++    mapping(bytes32 => Enclave) private _enclaves;
++    mapping(bytes32 => bool)    private _exists;
++
++    event Registered(bytes32 indexed id, address indexed operator, string endpoint, string repo);
++    event Updated(bytes32 indexed id, string repo, bytes32 measurement);
++    event PricesSet(bytes32 indexed id, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6);
++    event ProofKeySet(bytes32 indexed id, address indexed proofKey);
++    event PayoutWalletSet(bytes32 indexed id, address indexed payoutWallet);
++    event Heartbeat(bytes32 indexed id, uint64 at);
++    event Deregistered(bytes32 indexed id);
++
++    /// @dev id is derived from the endpoint, so re-registering the same endpoint
++    ///      updates its entry in place (and only the original operator may).
++    function idOf(string calldata endpoint) public pure returns (bytes32) {
++        return keccak256(bytes(endpoint));
++    }
++
++    /// @notice Create or update the caller's enclave entry for `endpoint`, at
++    ///         the per-second price it sells its whole machine for.
++    /// @param cpuPricePerSec6 USDC 6dp/sec for the WHOLE node (vCPU+RAM). Must be
++    ///        > 0: an enclave that sells compute states what it costs. Every
++    ///        deployment buys some cpuMilli, so this price always applies.
++    /// @param gpuPricePerSec6 USDC 6dp/sec for ONE WHOLE card. 0 on a CPU-only
++    ///        box (and then GPU work simply prices at cpu-only, which no GPU
++    ///        deployment can be served by anyway — runners refuse GPU work
++    ///        without a card).
++    /// @param proofKey the address half of the enclave's in-CVM proof-of-time
++    ///        signer (schema 3). Registering at boot is how a freshly relaunched
++    ///        CVM publishes the key it just minted; 0x0 is accepted (an enclave
++    ///        that posts no proofs), but a rev-9 ledger refuses its claims once
++    ///        the proof cutover has passed.
++    function register(string calldata endpoint, string calldata repo, bytes32 measurement,
++                      uint64 cpuPricePerSec6, uint64 gpuPricePerSec6, address proofKey)
++        external
++        returns (bytes32 id)
++    {
++        require(bytes(endpoint).length > 0, "endpoint required");
++        require(cpuPricePerSec6 > 0, "cpu price required");
++        id = keccak256(bytes(endpoint));
++        Enclave storage e = _enclaves[id];
++        if (_exists[id]) {
++            require(e.operator == msg.sender, "not operator");
++        } else {
++            _exists[id] = true;
++            _ids.push(id);
++            e.operator = msg.sender;
++            e.registeredAt = uint64(block.timestamp);
++            e.endpoint = endpoint;
++            emit Registered(id, msg.sender, endpoint, repo);
++        }
++        e.repo = repo;
++        e.measurement = measurement;
++        e.lastSeen = uint64(block.timestamp);
++        e.active = true;
++        e.cpuPricePerSec6 = cpuPricePerSec6;
++        e.gpuPricePerSec6 = gpuPricePerSec6;
++        e.proofKey = proofKey;
++        emit Updated(id, repo, measurement);
++        emit PricesSet(id, cpuPricePerSec6, gpuPricePerSec6);
++        emit ProofKeySet(id, proofKey);
++    }
++
++    /// @notice Publish the in-CVM key that signs this enclave's proof-of-time
++    ///         checkpoints, without re-registering. Called at every boot: the
++    ///         key lives only in the CVM's memory, so a relaunch mints a new
++    ///         one and the entry must follow it or the ledger stops accepting
++    ///         this enclave's proofs (and stops paying it).
++    /// @dev Rotation is safe mid-lease. EnclaveProofOfTime verifies each
++    ///      checkpoint against the key registered AT VERIFICATION TIME, and a
++    ///      checkpoint is only redeemable for ~256 blocks after it is signed
++    ///      (its block anchor), so rotating cannot invalidate proofs already
++    ///      accepted and cannot revive proofs signed by the retired key.
++    ///
++    ///      Setting this to an address whose private half is NOT in the CVM is
++    ///      the one lie this contract cannot catch - and the one anybody can:
++    ///      the enclave serves its live proof key over the attested origin
++    ///      (/v1/attestation), so a watcher compares the two and has public
++    ///      evidence if they differ.
++    function setProofKey(bytes32 id, address proofKey) external {
++        Enclave storage e = _enclaves[id];
++        require(_exists[id], "unknown");
++        require(e.operator == msg.sender, "not operator");
++        e.proofKey = proofKey;
++        e.lastSeen = uint64(block.timestamp);
++        emit ProofKeySet(id, proofKey);
++    }
++
++    /// @notice Declare that this enclave pays the CALLER — the seller's own
++    ///         wallet, on-chain (schema 4). One transaction from that wallet
++    ///         per box; the supervisor keeps sweeping earnings to it exactly as
++    ///         before (this contract moves no money and redirects none).
++    /// @dev Deliberately takes NO address parameter and does NOT check
++    ///      msg.sender against the operator. Both follow from what the field is
++    ///      for: EnclaveDeployments rev 12 stops charging a deployment whose
++    ///      owner is this wallet, so the field is a consent record. Recording
++    ///      msg.sender is what makes it unforgeable — an operator cannot name a
++    ///      wallet it does not control, and therefore cannot pull a stranger's
++    ///      deployment into the free (rate-cap-immune) tier. The mirror risk —
++    ///      declaring for a box you do not operate, or once sold — is undone by
++    ///      clearPayoutWallet below, which the declaring wallet may always call.
++    ///
++    ///      Callable before the entry has ever been claimed by anyone else's
++    ///      declaration: a second wallet simply overwrites the first, which is
++    ///      correct, because only the OPERATOR chooses which box carries the
++    ///      declaration and only the WALLET chooses to be named. Neither can
++    ///      act alone: a box with a hostile declaration earns the declaring
++    ///      wallet nothing and can be cleared by its operator.
++    function setPayoutWallet(bytes32 id) external {
++        require(_exists[id], "unknown");
++        _enclaves[id].payoutWallet = msg.sender;
++        emit PayoutWalletSet(id, msg.sender);
++    }
++
++    /// @notice Withdraw the declaration. Either side may: the wallet (revoking
++    ///         its consent — the escape hatch above) or the operator (a box
++    ///         changing hands, or clearing a declaration it never wanted).
++    function clearPayoutWallet(bytes32 id) external {
++        Enclave storage e = _enclaves[id];
++        require(_exists[id], "unknown");
++        require(e.payoutWallet == msg.sender || e.operator == msg.sender, "not payee");
++        e.payoutWallet = address(0);
++        emit PayoutWalletSet(id, address(0));
++    }
++
++    /// @notice Re-price this enclave without re-registering. Affects FUTURE
++    ///         claims only — a lease already taken was bought at the price in
++    ///         force when it was claimed, and the ledger snapshotted it there.
++    function setPrices(bytes32 id, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6) external {
++        Enclave storage e = _enclaves[id];
++        require(_exists[id], "unknown");
++        require(e.operator == msg.sender, "not operator");
++        require(cpuPricePerSec6 > 0, "cpu price required");
++        e.cpuPricePerSec6 = cpuPricePerSec6;
++        e.gpuPricePerSec6 = gpuPricePerSec6;
++        e.lastSeen = uint64(block.timestamp);
++        emit PricesSet(id, cpuPricePerSec6, gpuPricePerSec6);
++    }
++
++    /// @notice Refresh liveness. Cheap; call on an interval (e.g. every 15 min).
++    function heartbeat(bytes32 id) external {
++        Enclave storage e = _enclaves[id];
++        require(_exists[id], "unknown");
++        require(e.operator == msg.sender, "not operator");
++        e.lastSeen = uint64(block.timestamp);
++        e.active = true;
++        emit Heartbeat(id, e.lastSeen);
++    }
++
++    /// @notice Update the claimed code (on redeploy) without re-registering.
++    function setMeasurement(bytes32 id, string calldata repo, bytes32 measurement) external {
++        Enclave storage e = _enclaves[id];
++        require(_exists[id], "unknown");
++        require(e.operator == msg.sender, "not operator");
++        e.repo = repo;
++        e.measurement = measurement;
++        e.lastSeen = uint64(block.timestamp);
++        emit Updated(id, repo, measurement);
++    }
++
++    /// @notice Mark this enclave down (graceful shutdown). Entry is kept for history.
++    function deregister(bytes32 id) external {
++        Enclave storage e = _enclaves[id];
++        require(_exists[id], "unknown");
++        require(e.operator == msg.sender, "not operator");
++        e.active = false;
++        emit Deregistered(id);
++    }
++
++    // ----- reads (off-chain discovery) -------------------------------------
++    function count() external view returns (uint256) { return _ids.length; }
++    function idAt(uint256 i) external view returns (bytes32) { return _ids[i]; }
++    function get(bytes32 id) external view returns (Enclave memory) { return _enclaves[id]; }
++
++    /// @notice Paginated dump for clients (read the whole set with a few calls).
++    function getPage(uint256 start, uint256 n) external view returns (Enclave[] memory page) {
++        uint256 len = _ids.length;
++        if (start >= len) return new Enclave[](0);
++        uint256 end = start + n; if (end > len) end = len;
++        page = new Enclave[](end - start);
++        for (uint256 i = start; i < end; i++) page[i - start] = _enclaves[_ids[i]];
++    }
++}
++
++/*
++FUTURE (not implemented — open registry is correct without it):
++  - stake-to-register: require msg.value/ERC20 bond on register(); refundable on
++    clean deregister; slashable by a challenge if the enclave fails attestation
++    or lies about liveness. Adds sybil resistance + economic skin-in-the-game.
++  - challenge/slash: a watcher proves an entry's live attestation != its claimed
++    measurement and claims part of the bond.
++  These layer on top; they do not change that ATTESTATION (checked at connect by
++  the caller's Cloud Provider SecureClient), not registration, is what gates trust.
++*/

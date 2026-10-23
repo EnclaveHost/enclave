@@ -1,0 +1,212 @@
+// The custody v2 custodian, as it runs INSIDE its SEV-SNP guest (docs/security/secret-custody-v2.md §8). Bundled by
+// scripts/build-custodian-v2.mjs into /opt/custodian/custodian.mjs of the custodian image.
+//
+// MEASURED (this bundle's constants, MEASURED below): the chain, the vault, the RPCs and how many must agree, the Enclave
+// owner. A host must not choose the chain a custodian believes: RPCs it controls could invent a policy.
+// UNMEASURED (fw_cfg opt/org.enclave.custody, written by the host launcher): the public endpoint, the host's registry id,
+// the committee to serve, whether to run genesis, and where the host keeps the sealed state and submits transactions. A
+// lying host can at most make this custodian useless (wrong endpoint, dropped state, unsent transactions); it cannot make
+// it release anything: every release is checked against the agreed chain, and the state opens only inside this guest.
+//
+// OPTIONAL, MEASURED: Enclave Shield release recipients (custody/v2/shield-operator.mjs). Only an image built with
+// --shield-recipients carries MEASURED.shieldRecipients (the operator's TPM EK roots, their pins and limits, and its
+// acknowledgement of tier hv-node/T0-hv). Without it this custodian is SNP-only, as before. Never from the host config.
+//
+// State: sealed with an SNP DERIVED key (snpkey: VCEK root, mixing the launch measurement and the guest policy), so only
+// this exact code on this exact chip opens it. The host stores the ciphertext (GET/PUT <host>/state).
+import fs from "node:fs";
+import http from "node:http";
+import { execFileSync } from "node:child_process";
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
+import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+import { bytesToHex } from "viem";
+import * as hpke from "../hpke.mjs";
+import { createChainReaderV2 } from "./chain.mjs";
+import { createCustodianV2, Refusal } from "./custodian.mjs";
+import { createMember } from "./member.mjs";
+import { productionVerifiers } from "../verifiers.mjs";
+import { cachedCollateral, httpCollateral } from "../../verifier/consumer.mjs";
+import { verifyQuote, parseSnpReport } from "../../relay/snp-verify.mjs";
+import { MEASURED } from "./measured.mjs";
+import { receiptCapacityCheck } from "./capacity.mjs";
+import { ownerAdmissionCheck } from "./admission.mjs";
+import { dkgHelper } from "./independent-genesis.mjs";
+import { independentPolicy, ownerPermitAdmission } from "./governance.mjs";
+import { createIndependentService } from "./independent-runtime.mjs";
+import { parseHostConfig } from "./host-config.mjs";
+import { createCustodyRouter, validateTrustedProxies } from "./http.mjs";
+import { shieldCustodyFor, validateShieldOperator } from "./shield-operator.mjs";
+import { createPlatformHostGate } from "../../network/platform-host-policy.mjs";
+import { httpPolicyMirrors } from "../../network/host-policy-mirrors.mjs";
+import { createSealedStateWriter } from "./sealed-state.mjs";
+import { readStartupState, loadStartupState } from "./startup-state.mjs";
+
+const log = (...a) => console.log(new Date().toISOString(), ...a);
+const FW = "/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.custody/raw";
+const TSM = "/sys/kernel/config/tsm/report";
+
+const readHostConfig = () => parseHostConfig(fs.readFileSync(process.env.CUSTODY_HOST_CONFIG || FW, "utf8"));
+
+// ---- the chip: derived sealing key and reports ----
+const derivedKey = () => Buffer.from(execFileSync("/opt/custodian/snpkey", ["derive"], { encoding: "utf8" }).trim(), "hex");
+function vcekTable(der) {
+  const hdr = Buffer.alloc(48);
+  Buffer.from("63da758de6644564adc5f4b93be8accd", "hex").copy(hdr, 0);
+  hdr.writeUInt32LE(48, 16); hdr.writeUInt32LE(der.length, 20);
+  return Buffer.concat([hdr, der]);
+}
+function tsmReport(first32, vcek) {
+  const dir = `${TSM}/custody-${process.pid}-${randomBytes(4).toString("hex")}`;
+  fs.mkdirSync(dir);
+  try {
+    const rd = Buffer.alloc(64); Buffer.from(first32).copy(rd, 0);
+    fs.writeFileSync(`${dir}/inblob`, rd);
+    const report = fs.readFileSync(`${dir}/outblob`);
+    let auxblob = null; try { auxblob = fs.readFileSync(`${dir}/auxblob`); } catch {}
+    if ((!auxblob || !auxblob.length) && vcek) auxblob = vcekTable(vcek);
+    return { report, auxblob };
+  } finally { try { fs.rmdirSync(dir); } catch {} }
+}
+
+// ---- sealed state ----
+const AAD = Buffer.from("enclave-custody-v2 state");
+function seal(key, obj) {
+  const iv = randomBytes(12), c = createCipheriv("aes-256-gcm", key, iv); c.setAAD(AAD);
+  const ct = Buffer.concat([c.update(Buffer.from(JSON.stringify(obj))), c.final()]);
+  return Buffer.concat([iv, c.getAuthTag(), ct]);
+}
+function unseal(key, blob) {
+  const d = createDecipheriv("aes-256-gcm", key, blob.subarray(0, 12)); d.setAAD(AAD); d.setAuthTag(blob.subarray(12, 28));
+  return JSON.parse(Buffer.concat([d.update(blob.subarray(28)), d.final()]).toString("utf8"));
+}
+async function hostPut(hostUrl, p, body) { const r = await fetch(hostUrl + p, { method: "PUT", body }); if (!r.ok) throw new Error(`host ${p}: ${r.status}`); }
+
+async function main() {
+  const hc = readHostConfig();
+  // a measured Shield opt-in that does not validate is a bad build: refuse before any state is touched
+  if (MEASURED.shieldRecipients !== undefined && MEASURED.shieldRecipients !== null) validateShieldOperator(MEASURED.shieldRecipients);
+  // likewise the measured forwarder list (absent: the TCP peer keys every client's rate bucket)
+  const trustedProxies = validateTrustedProxies(MEASURED.trustedProxies ?? []);
+  const key = derivedKey();
+  // 1. the sealed state (keys + shares), or a fresh identity
+  const state = await loadStartupState({
+    read: () => readStartupState(hc.hostUrl + "/state"),
+    unseal: (blob) => {
+      try { const s = unseal(key, blob); log("sealed state opened"); return s; }
+      catch { throw new Error("the host's sealed state does not open in this guest (another chip or another custodian build): refusing to start rather than overwrite it"); }
+    },
+    fresh: () => { const kp = hpke.generateKeyPair(); return { identityKey: generatePrivateKey(), encPrivate: Buffer.from(kp.privateKey).toString("hex"), member: null }; },
+    persist: async (s) => { await hostPut(hc.hostUrl, "/state", seal(key, s)); log("new custodian identity sealed"); },
+  });
+  const identity = privateKeyToAccount(state.identityKey);
+  const encPrivateKey = new Uint8Array(Buffer.from(state.encPrivate, "hex"));
+  const encKey = "0x" + Buffer.from(hpke.publicKeyOf(encPrivateKey)).toString("hex");
+  // 2. this machine's record: measurement and chip id from its OWN report
+  const probe = parseSnpReport(tsmReport(Buffer.alloc(32), hc.vcek).report);
+  const sha = (b) => "0x" + createHash("sha256").update(b).digest("hex");
+  const machine = { identity: identity.address.toLowerCase(), encKey, endpoint: hc.endpoint, chipId: sha(probe.chipId), registryId: hc.registryId, measurement: sha(probe.measurement) };
+  log(`machine ${machine.identity} measurement ${probe.measurement.toString("hex").slice(0, 16)}... chip ${machine.chipId.slice(0, 12)}...`);
+
+  if (!/^0x[0-9a-f]{40}$/.test(MEASURED.hostOwnership || "") || /^0x0{40}$/.test(MEASURED.hostOwnership)) throw new Error("measured host wallet authority is required");
+  // Serialize snapshots so an older asynchronous member save cannot overwrite
+  // a newer DKG phase. DKG awaits persistence before it emits a phase response.
+  let hostGate = null;                                 // the platform host policy gate (below), read by the chain reader's hostPolicy
+  const sealed = createSealedStateWriter({ seal: (s) => seal(key, s), put: (blob) => hostPut(hc.hostUrl, "/state", blob), state, log });
+  const saveNow = sealed.saveNow;
+  const chain = createChainReaderV2({ chainId:MEASURED.chainId, hostOwnership:MEASURED.hostOwnership,
+    vaultKind:MEASURED.vaultKind||"pinned", book:MEASURED.book||null,
+    // the platform host policy facts are read with every release/authorization snapshot, including the current book owner's
+    // ERC-1271 answer for the gate's accepted policy at that same block
+    hostPolicy:MEASURED.hostPolicy ? { ...MEASURED.hostPolicy, check1271: () => (hostGate ? hostGate.currentAuthorityChecks() : []) } : null,
+    rpcs:MEASURED.rpcs, vault:MEASURED.vault, minAgree:MEASURED.minAgree, maxAgeSec:MEASURED.maxAgeSec,
+    confirmations:MEASURED.confirmations,
+    checkpoint: sealed.checkpoint });
+  if (MEASURED.vaultKind === "book") {                 // the measured book-bound vault's code and immutables, at an agreed block
+    const idn = await chain.readVaultIdentity();
+    if (idn.codeHash !== String(MEASURED.vaultCodeHash).toLowerCase() || idn.book !== String(MEASURED.book).toLowerCase() || idn.enclaveOwner !== String(MEASURED.enclaveOwner).toLowerCase())
+      throw new Error("the vault's code or immutables differ from the measured book-bound vault");
+  }
+  const store = sealed.memberStore;
+  const submit = async (fn, args) => {
+    const r = await fetch(hc.hostUrl + "/submit", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fn, args }, (k, v) => (typeof v === "bigint" ? v.toString() : v)) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`submit ${fn}: ${j.error || r.status}`);
+    return j.tx;
+  };
+  const fetchJson = async (url, body) => {
+    const r = await fetch(url, {signal:AbortSignal.timeout(15000),...(body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});
+    const j = await r.json(); if (!r.ok) throw new Error(j.message || j.error || String(r.status)); return j;
+  };
+  const verifyPeerQuote = async (report, { binding, auxblob, minTcb }) => {
+    let p; try { p = parseSnpReport(report); } catch (e) { return { ok: false, reason: e.message }; }
+    const v = await verifyQuote(report, { challenge: Buffer.alloc(32, 1), transportKeySpki: Buffer.alloc(32, 1), expectedBinding: Buffer.from(binding),
+                                          allowedMeasurements: [p.measurement.toString("hex")], auxblob, requireVcek: true, minTcb, expectedVmpl: 0 });
+    if (!v.ok) return { ok: false, reason: v.reasons.slice(-1)[0] };
+    return { ok: true, measurement: p.measurement.toString("hex"), chipId: p.chipId.toString("hex") };
+  };
+  // The measured independent policy: an explicit owner list, or owner permits (any distinct non-Enclave owners that sign);
+  // with neither, the legacy Enclave-founded admission (capacity receipts) applies.
+  // The measured platform host policy (present only when the image enables it): the gate reads the admin's book anchor
+  // and host facts at agreed blocks, loads the anchored document from the measured mirrors and keeps it in sealed state.
+  hostGate = MEASURED.hostPolicy ? createPlatformHostGate({ book: MEASURED.hostPolicy.book, hostOwnership: MEASURED.hostPolicy.hostOwnership,
+    snapshot: chain.snapshot, mirrors: httpPolicyMirrors(MEASURED.hostPolicy.mirrors), log,
+    store: sealed.hostPolicyStore }) : null;
+  if (hostGate) {
+    const tick = () => hostGate.refresh().then((p) => log(`platform host policy #${p.policy.sequence} ${p.digest.slice(0, 18)}...`), (e) => log(`platform host policy refresh: ${e.code || ""} ${e.message}`));
+    await tick(); setInterval(tick, 5 * 60_000).unref();
+  }
+  const policy = independentPolicy(MEASURED);
+  const admissionCheck = policy?.mode === "owner-list" ? ownerAdmissionCheck(policy.owners)
+    : policy?.mode === "owner-permits" ? ownerPermitAdmission({ enclaveOwner: MEASURED.enclaveOwner })
+    : null;
+  const member = createMember({ chainId: MEASURED.chainId, vault: MEASURED.vault, identity, encPrivateKey, machine, chain, store, submit, fetchJson,
+                                attestSelf: async (b) => tsmReport(b, hc.vcek), verifyPeerQuote, enclaveOwner: MEASURED.enclaveOwner, log,
+                                // a non-Enclave candidate proves capacity with the audit witness's receipt for its chip (§5 item 2)
+                                admissionCheck, hostGate,
+                                capacityCheck: receiptCapacityCheck({ chainId: MEASURED.chainId, contract: MEASURED.capacityContract, witnesses: MEASURED.witnesses }),
+                                // this machine's own receipts, which its host fetches from the witness (unverified here: every member checks them)
+                                capacityReceipts: async () => { const r = await fetch(hc.hostUrl + "/receipts"); return r.ok ? (await r.json()).slice(0, 8) : []; } });
+  // the measured Shield opt-in, for THIS custodian's own committee key (absent: SNP only; malformed: refuse to start)
+  const shield = shieldCustodyFor(MEASURED.shieldRecipients, { party: encKey.slice(2) });
+  if (shield) log(`Shield recipients ON (measured): tier hv-node/T0-hv, hostExcluded false, ${shield.limits.maxSessions} host sessions, party ${encKey.slice(2, 14)}...`);
+  const custodian = createCustodianV2({ chainId: MEASURED.chainId, vault: MEASURED.vault, encPrivateKey, shares: member.shares, chain,
+                                        verifiers: productionVerifiers({ collateral: cachedCollateral({ dir: "/tmp/amd-collateral", upstream: httpCollateral({ timeoutMs: 8000 }) }) }), hostGate, shield, log });
+
+  const runIndependent = createIndependentService({ policy, member, chain, identity, encPrivateKey, invoke: dkgHelper("/opt/custodian/dkg"),
+    state, persist: saveNow, fetchJson, submit, log });
+  // the committee this custodian serves: the host's choice, else the one it adopted (an independent genesis sets none)
+  const servedCommittee = () => hc.committeeId || member.committees()[0] || null;
+
+  // 3. HTTP (the tunnel agent forwards the relay's /t/<name>/... here): custody/v2/http.mjs
+  const srv = http.createServer(createCustodyRouter({ custodian, member, runIndependent, servedCommittee, policyMode: policy?.mode || null,
+                                                      chainId: MEASURED.chainId, vault: MEASURED.vault, trustedProxies }));
+  srv.listen(hc.port, "0.0.0.0", () => log(`custodian-v2 on :${hc.port} for ${hc.endpoint}`));
+
+  // 4. genesis, if the host asked for it and there is no committee yet; then the engine
+  if (hc.genesis && !hc.committeeId && !(state.member && Object.keys(state.member.epochs || {}).length)) {
+    for (;;) {
+      if (state.member && state.member.hostSig) break;
+      if (member._state().hostSig) break;
+      log("genesis waits for the host binding (POST /v2/custody/host-binding)"); await new Promise((r) => setTimeout(r, 15000));
+    }
+    try {
+      const g = await member.genesis({ salt: "0x" + randomBytes(32).toString("hex"), codeSet: [machine.measurement] });
+      await saveNow();
+      log(`GENESIS ${g.committeeId}: set committeeId in the host config`);
+    } catch (e) {
+      // the intent and its share are durable: the engine re-sends that same intent until the agreed chain shows it
+      const open = member.genesisPending();
+      if (!open) throw e;
+      log(`GENESIS ${open.committeeId} not confirmed yet (${e.message}); the engine reconciles it with the chain`);
+    }
+  }
+  const loop = async () => {
+    try { await runIndependent.adoptIfCreated(); } catch (e) { log(`[independent] ${e.message}`); }
+    const cid = servedCommittee();
+    if (cid) { try { const r = await member.tick(cid); if (r.state !== "steady" && r.state !== "idle") log(`[engine] ${JSON.stringify(r)}`); } catch (e) { log(`[engine] ${e.message}`); } }
+    setTimeout(loop, 60_000);
+  };
+  setTimeout(loop, 5_000);
+}
+main().catch((e) => { log(`FATAL ${e.stack || e.message}`); process.exit(1); });

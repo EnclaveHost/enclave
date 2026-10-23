@@ -1,0 +1,179 @@
+From 3ccd4333c99b5e486215e69d13aafdcb55e9d8ca Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:45:06 -0700
+Subject: [PATCH] custody v2: a concurrent independent write never persists a
+ failed member change
+
+The sealed-state writer sealed the whole live state when a write was requested.
+A chain checkpoint, host-policy or DKG write requested while a member write was
+pending therefore carried the member's not-yet-durable change; if the member
+write then failed and was rolled back in memory, the queued independent write
+still made it durable.
+
+Writes now seal when their turn comes, and the member part of every write is
+the member state as memberStore last wrote it (or as loaded): a failed member
+change is never carried, and a member write that succeeded is never dropped by
+a later independent write.
+
+Tests (real member + real writer, held/failed host disk):
+- X1 genesis: share write pending, concurrent checkpoint, write fails; the
+  share must not become durable and the reopened daemon must run genesis again
+  (before: it skipped genesis and served a committee that does not exist).
+- X2 handover: share write pending, concurrent host-policy save, write fails;
+  no durable share or ack record; the reopened member persists, then acks once.
+- X3 the success case: a concurrent DKG write keeps the durable share.
+- W1 now drives member changes through memberStore (their only path) and also
+  checks that a failed member write is not carried by a newer write.
+---
+ custody/v2/sealed-state.mjs              | 21 ++++--
+ test/custody-v2-persist-barrier.test.mjs | 90 ++++++++++++++++++++++--
+ 2 files changed, 102 insertions(+), 9 deletions(-)
+
+diff --git a/custody/v2/sealed-state.mjs b/custody/v2/sealed-state.mjs
+index ec717869af94524291b2824c7175b7b9af581a24..91be18b777a1ace72f63fee99f7fdbceacae2061 100644
+--- a/custody/v2/sealed-state.mjs
++++ b/custody/v2/sealed-state.mjs
+@@ -1,16 +1,29 @@
+ // The custodian's sealed-state writes to its host (custody/v2/daemon.mjs), extracted so the exact write path can be tested.
+-// Each write seals the WHOLE state at the moment it is requested and the writes run one after another in request order,
+-// so an older snapshot never lands after a newer one: a newer member save cannot be overwritten by an older DKG phase.
++// Writes run one after another in request order, and each seals the WHOLE state when its turn comes, so an older snapshot
++// never lands after a newer one: a newer member save cannot be overwritten by an older DKG phase.
++// The member part of a write is the member state as memberStore last WROTE it (or as loaded), never the live object: while a
++// member write is pending its change is already in memory, and if that write fails the member rolls it back (member.mjs
++// commit), so a concurrent checkpoint, host-policy or DKG write must not make the failed change durable. Resolving it at
++// the write's turn (after every earlier member write has succeeded or failed) also never drops a member write that succeeded.
+ //   seal(state) -> sealed blob (the daemon's AES-GCM under the SNP derived key)
+ //   put(blob)   -> promise: the host's PUT /state (it keeps history and fsyncs: custody/v2/host.mjs)
+ export function createSealedStateWriter({ seal, put, state, log = () => {} }) {
+   let writes = Promise.resolve();
+-  const saveNow = () => { const blob = seal(state); const next = writes.catch(() => {}).then(() => put(blob)); writes = next; return next; };
++  let written = state.member === undefined ? null : structuredClone(state.member);
++  // member: the snapshot a member write carries; undefined = the last written member
++  const write = (member) => {
++    const next = writes.catch(() => {}).then(async () => {
++      await put(seal({ ...state, member: member === undefined ? written : member }));
++      if (member !== undefined) written = member;
++    });
++    writes = next; return next;
++  };
++  const saveNow = () => write(undefined);
+   // the chain reader's block checkpoint: awaited by the reader
+   const checkpoint = { load: () => state.chainCheckpoint, save: async (mark) => { state.chainCheckpoint = mark; await saveNow(); } };
+   // the member engine's state (custody/v2/member.mjs): save RETURNS the write, which the member awaits before any
+   // transaction or signature that relies on it (its durability barrier); a failed write is logged AND reaches the member
+-  const memberStore = { load: () => state.member, save: (m) => { state.member = m; return saveNow().catch((e) => { log(`STATE SAVE FAILED: ${e.message}`); throw e; }); } };
++  const memberStore = { load: () => state.member, save: (m) => { state.member = m; return write(structuredClone(m)).catch((e) => { log(`STATE SAVE FAILED: ${e.message}`); throw e; }); } };
+   // the platform host gate's accepted policy (network/platform-host-policy.mjs): deliberately not a barrier. The gate enforces
+   // a newly anchored policy (a ban) at once; the record only carries its anti-rollback high-water across restarts
+   const hostPolicyStore = { load: () => state.hostPolicy || null, save: (v) => { state.hostPolicy = v; saveNow().catch((e) => log(`STATE SAVE FAILED: ${e.message}`)); } };
+diff --git a/test/custody-v2-persist-barrier.test.mjs b/test/custody-v2-persist-barrier.test.mjs
+index b4f6c04da6327725e31dbcf18926a7fbe869fb66..43f2da649d979edc3b13deddca76b1ef4c8f02df 100644
+--- a/test/custody-v2-persist-barrier.test.mjs
++++ b/test/custody-v2-persist-barrier.test.mjs
+@@ -229,20 +229,100 @@
+   assert.equal(JSON.stringify(pendingOf(ack.durable.member, w)), now, "the NEW share was durable when its ack was submitted");
+ });
+ 
++// ---------------------------------------------------------------- a member write pending while an independent write is requested
++// The daemon's chain checkpoint (every agreed read), host-policy record and DKG runtime write the SAME whole state as the
++// member. While a member write is pending its change is already in memory; if that write then fails, the member rolls it
++// back, but an independent write requested in between must not make the failed change durable.
++const daemonRunsGenesis = (s) => !(s.member && Object.keys(s.member.epochs || {}).length);   // daemon.mjs step 4's guard
++const noCommitteeChain = { ...genesisChain, readCommittee: async () => ({ committee: null, pending: null }) };
++
++test("X1 genesis: a checkpoint requested while the share write is pending does not persist the share when that write fails; restart retries genesis", async () => {
++  const events = [], disk = hostDisk(events), state = bound(), who = newMachine("x1");
++  const { member, writer } = rig({ who, state, disk, events, chain: noCommitteeChain });
++  const p = member.genesis({ salt: hex(7), codeSet: [who.machine.measurement] }); p.catch(() => {});
++  await until(() => disk.pending() > 0, "the share write");
++  const mark = { blockNumber: 7, blockHash: hex(77) };
++  const cp = writer.checkpoint.save(mark);                    // a concurrent agreed read's checkpoint, queued behind the share write
++  await disk.complete(false);                                 // the share write fails
++  await assert.rejects(p, /persist/i);
++  await until(() => disk.pending() > 0, "the checkpoint write");
++  await disk.complete(true); await cp;
++  assert.ok(!events.includes("submit:createCommittee"), events.join(" "));
++  assert.deepEqual(member._state().epochs, {}, "rolled back in memory");
++  const durable = disk.durable();
++  assert.deepEqual(durable.chainCheckpoint, mark, "the checkpoint itself is durable");
++  assert.deepEqual(durable.member.epochs, {}, `the failed genesis share became durable through the checkpoint write: ${Object.keys(durable.member.epochs)}`);
++  // restart from what is durable: the daemon runs genesis again (it skips genesis once any share is on disk)
++  assert.ok(daemonRunsGenesis(durable), "the reopened daemon must not skip genesis for a committee that was never created");
++  const events2 = [], disk2 = hostDisk(events2); disk2.setMode("auto");
++  const { member: again, subs } = rig({ who, state: durable, disk: disk2, events: events2, chain: noCommitteeChain });
++  assert.deepEqual(again.committees(), [], "no committee to serve (else daemon.mjs serves it and every tick is no_committee)");
++  const g = await again.genesis({ salt: hex(8), codeSet: [who.machine.measurement] });
++  assert.equal(subs.length, 1);
++  assert.equal(subs[0].durable.member.epochs[`${g.committeeId}:1`].length, 1, "the retry's share was durable at its createCommittee");
++  assert.deepEqual(subs[0].durable.chainCheckpoint, mark, "and the checkpoint survived");
++});
++
++test("X2 handover: a host-policy save requested while the share write is pending does not persist the share when that write fails; restart acks once", async () => {
++  const events = [], disk = hostDisk(events), state = fresh(), w = handoverWorld();
++  const { member, writer } = rig({ who: w.B, state, disk, events, chain: w.chain });
++  const p = member.tick(w.cid); p.catch(() => {});
++  for (;;) {                                                  // complete writes until the one carrying the share is pending
++    await until(() => disk.pending() > 0 || events.includes("submit:ackHandover"), "a write");
++    if (events.includes("submit:ackHandover") || pendingOf(state.member, w)) break;
++    await disk.complete(true);
++  }
++  assert.ok(pendingOf(state.member, w), "the share write is pending");
++  writer.hostPolicyStore.save({ digest: hex(9), sequence: 9 }); // the host gate's accepted policy (fire-and-forget, as in the daemon)
++  await disk.complete(false);
++  await p.catch(() => {});
++  await until(() => disk.pending() > 0, "the policy write");
++  await disk.complete(true);
++  assert.equal(acks(events), 0, events.join(" "));
++  assert.equal(pendingOf(member._state(), w), null, "rolled back in memory");
++  const durable = disk.durable();
++  assert.equal(durable.hostPolicy.sequence, 9, "the policy record itself is durable");
++  assert.equal(pendingOf(durable.member, w), null, "the failed pending share became durable through the policy write");
++  assert.equal(durable.member.pendingAcks?.[`${w.cid}:2`], undefined, "...nor its ack record");
++  const events2 = [], disk2 = hostDisk(events2); disk2.setMode("auto");
++  const { member: again, subs } = rig({ who: w.B, state: durable, disk: disk2, events: events2, chain: w.chain });
++  assert.equal((await again.tick(w.cid)).state, "acked");
++  assert.equal(acks(events2), 1);
++  assert.ok(ackedDurably(subs, w), "the share was durable when the ack was submitted");
++});
++
++test("X3 an independent write requested while a member write is pending keeps that member write once it SUCCEEDS (no regression)", async () => {
++  const events = [], disk = hostDisk(events), state = bound(), who = newMachine("x3");
++  const { member, writer } = rig({ who, state, disk, events, chain: genesisChain });
++  const p = member.genesis({ salt: hex(10), codeSet: [who.machine.measurement] });
++  await until(() => disk.pending() > 0, "the share write");
++  state.independentDkg = { phase: 2 };                        // the DKG runtime's state, persisted with saveNow
++  const ip = writer.saveNow();
++  await disk.complete(true);
++  const g = await p;
++  await until(() => disk.pending() > 0, "the DKG write");
++  await disk.complete(true); await ip;
++  assert.equal(disk.durable().member.epochs[`${g.committeeId}:1`].length, 1, "the later write still holds the durable share");
++  assert.equal(disk.durable().independentDkg.phase, 2);
++});
++
+ // ---------------------------------------------------------------- the writer itself (the daemon's saveNow)
+ test("W1 serialized writes: a newer snapshot is never replaced by an older one, even when the older write fails", async () => {
+-  const events = [], disk = hostDisk(events), state = { member: { n: 1 } };
+-  const writer = createSealedStateWriter({ seal: (s) => JSON.stringify(s), put: (b) => disk.put(b), state });
+-  const w1 = writer.saveNow(); state.member = { n: 2 }; const w2 = writer.saveNow();
++  // the member part goes through memberStore (its only path in the daemon); the DKG part is written in place, as in
++  // independent-runtime.mjs
++  const events = [], disk = hostDisk(events), state = { member: null };
++  const writer = createSealedStateWriter({ seal: (s) => JSON.stringify(s), put: (b) => disk.put(b), state, log: () => {} });
++  const w1 = writer.memberStore.save({ n: 1 }); state.independentDkg = { n: 1 }; const w2 = writer.memberStore.save({ n: 2 });
+   await settle();
+   assert.equal(disk.pending(), 1, "the second write waits for the first");
+   await disk.complete(true); await w1;
+   await until(() => disk.pending() > 0, "the second write"); await disk.complete(true); await w2;
+   assert.equal(disk.durable().member.n, 2);
+-  const w3 = writer.saveNow(); state.member = { n: 3 }; const w4 = writer.saveNow();
++  const w3 = writer.memberStore.save({ n: 3 }); w3.catch(() => {}); state.independentDkg = { n: 3 }; const w4 = writer.saveNow();
+   await until(() => disk.pending() > 0, "w3"); await disk.complete(false); await assert.rejects(w3);
+   await until(() => disk.pending() > 0, "w4"); await disk.complete(true); await w4;
+-  assert.equal(disk.durable().member.n, 3, "a failed older write never blocks or overwrites the newer one");
++  assert.equal(disk.durable().independentDkg.n, 3, "a failed older write never blocks or overwrites the newer one");
++  assert.equal(disk.durable().member.n, 2, "...and the failed member write is not carried by the newer independent write");
+ });
+ 
+ test("W2 the member store returns its write: a failure reaches the caller", async () => {

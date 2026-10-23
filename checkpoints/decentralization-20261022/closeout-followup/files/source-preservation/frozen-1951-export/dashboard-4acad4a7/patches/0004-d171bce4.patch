@@ -1,0 +1,624 @@
+From d171bce480a790ae654cc1317dae48d5f705b25f Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:11:16 -0700
+Subject: [PATCH] Dashboard: custody v2 owner flow in the Secrets panel
+ (verified vault, encrypt in page, migration, pause)
+
+- config.js: SECRET_VAULT_V2_ADDRESS from the book key "secretVaultV2" or an independent profile's pin. "" means UNSET,
+  and there is no default vault.
+- site/js/core/custody-v2.js:
+  - vaultState is unset | unreviewed | unreadable | mismatch | verified. Verified means the reviewed production table,
+    code and immutables, and the book still naming the vault at an agreed block.
+  - Committee status is exact t/W with seats; a BOOTSTRAP is never called decentralized.
+  - saveV2: encrypt in the page, one owner update, read back. It keeps rules, committee and pause.
+  - Config binding: inline in the envelope, else named by the owner.
+  - setPausedV2.
+  - migrateFromRelayV2: relay read, then v2 save; the old copy is kept and reported.
+  - clearRelayCopyV2: only with a v2 bundle on chain and a custody-aware relay; it claims nothing beyond the relay's
+    answer.
+  - A contract or passkey owner is refused, with the updateBySig seam named.
+- deployments.js: the Secrets panel shows the v2 state on unlock (every state, unset included) and offers save/admit,
+  migrate, pause/resume and the separate relay-copy deletion. Each step that needs the owner's signature says so.
+  v1 is labelled v1 and is not used when v2 is verified.
+---
+ site/components/deployments/deployments.js | 155 +++++++++-
+ site/js/core/config.js                     |  12 +
+ site/js/core/custody-v2.js                 | 336 +++++++++++++++++++++
+ 3 files changed, 501 insertions(+), 2 deletions(-)
+ create mode 100644 site/js/core/custody-v2.js
+
+diff --git a/site/components/deployments/deployments.js b/site/components/deployments/deployments.js
+index a1c2425c13ab32171360ca7b284f4a15238da96e..37fe58599f17e9a8e5ad0ef7be60e8b0c29408bd 100644
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -50,6 +50,7 @@
+ import { resizeAfterStop } from "../../js/core/share-resize.js";
+ import { depSnapshot } from "../../js/core/chain.js";
+ import { custodyAvailable, custodyStatus, saveToCustody, rulesFromPredictionPreview } from "../../js/core/custody.js";
++import * as C2 from "../../js/core/custody-v2.js";
+ import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
+ import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
+ import { currentIdentity, identityKey, actingOwner } from "../../js/core/identity.js";
+@@ -152,8 +153,14 @@
+     +     '<textarea class="es-ta" id="esTa' + label + '" rows="5" spellcheck="false" autocomplete="off" placeholder="S3_ACCESS_KEY_ID=&quot;…&quot;&#10;S3_SECRET_ACCESS_KEY=&quot;…&quot;"></textarea>'
+     +     '<span class="enc-sec-acts">'
+     +       '<button class="btn btn-sm es-save" type="button" title="One wallet signature stores the textarea as this deployment’s complete secret set">Save</button>'
+-    +       '<button class="btn btn-sm es-custody" type="button" hidden title="Encrypts the textarea IN THIS BROWSER to independent custodians and stores it on Base: the relay no longer holds or sees the values, and only this app, attested in hardware, can open them. One wallet transaction; replaces the whole set">Save to custody</button>'
++    +       '<button class="btn btn-sm es-custody" type="button" hidden title="Custody v1 (EnclaveSecretVault): encrypts the textarea IN THIS BROWSER to its custodians and stores it on Base. One wallet transaction; replaces the whole set">Save to custody (v1)</button>'
++    +       '<button class="btn btn-sm es-c2-save" type="button" hidden title="Custody v2: encrypts the textarea IN THIS BROWSER to the committee key read from EnclaveSecretVaultV2 and stores it with ONE owner transaction. The relay and the host never receive these values. Replaces the whole set">Save to custody v2</button>'
++    +       '<button class="btn btn-sm es-c2-pause" type="button" hidden title="One owner transaction: while paused, custodians release nothing for this deployment">Pause custody v2</button>'
++    +       '<button class="btn btn-sm es-c2-clear" type="button" hidden title="One owner signature to the relay: deletes the relay’s live plaintext copy, only once the v2 set is on chain and the relay reports the deployment custody-held">Delete the relay’s old copy</button>'
+     +     '</span>'
++    +     '<div class="es-c2-cfgrow" hidden><label>The exact config JSON these values may go into - this deployment’s config is not inline in its options, so the page does not take it from anyone’s word; the app refuses values bound to any other config '
++    +       '<textarea class="es-c2-cfg" rows="2" spellcheck="false" autocomplete="off"></textarea></label> <label><input type="checkbox" class="es-c2-nocfg"> it has no config</label></div>'
++    +     '<div class="term enc-c2-status" aria-live="polite"></div>'
+     +   '</div>'
+     +   '<div class="term enc-sec-status" role="status" aria-live="polite"></div>'
+     + '</div>';
+@@ -2939,6 +2946,52 @@
+           cust = box.querySelector(".es-custody"), st = box.querySelector(".enc-sec-status");
+     if (!id || !ta || !toggle || !body_ || !save || !st) return;
+     const paint = (cls, txt) => paintLine(st, cls, txt);
++    // ---- custody v2 (site/js/core/custody-v2.js): its state is ALWAYS shown when the panel opens - unset and
++    // unverified included - and no v2 action exists unless the vault is verified. Nothing falls back to v1 silently.
++    const c2save = box.querySelector(".es-c2-save"), c2pause = box.querySelector(".es-c2-pause"),
++          c2clear = box.querySelector(".es-c2-clear"), c2st = box.querySelector(".enc-c2-status"),
++          c2cfgRow = box.querySelector(".es-c2-cfgrow"), c2cfg = box.querySelector(".es-c2-cfg"), c2nocfg = box.querySelector(".es-c2-nocfg");
++    // the owner's explicit config binding, only when the panel asked for one (a config at a CID or the catalog version's)
++    const c2config = () => !c2cfgRow || c2cfgRow.hidden ? null : c2nocfg && c2nocfg.checked ? { none: true }
++      : c2cfg && c2cfg.value.trim() ? { json: c2cfg.value.trim() } : null;
++    const c2paint = (cls, txt) => { if (c2st) paintLine(c2st, cls, txt); };
++    let c2State = null, c2Admitted = null, c2Revealed = null, c2Verified = false;
++    const c2Hide = () => { for (const b of [c2save, c2pause, c2clear]) if (b) b.hidden = true; };
++    const c2Refresh = async () => {
++      c2Hide(); c2Verified = false; c2State = null;
++      if (c2st) c2st.innerHTML = "";
++      let s2;
++      try { s2 = await C2.statusV2(id); }
++      catch (e) { c2paint("warn", "// custody v2 could not be read just now (" + (e.message || e) + "): no v2 action is offered"); return null; }
++      const v = s2.vault;
++      if (v.state !== "verified") {
++        c2paint("dimln", "// custody v2: " + v.state.toUpperCase() + " - " + v.why + ". No v2 action is offered here.");
++        return (c2State = s2);
++      }
++      c2Verified = true;
++      c2paint("ok", "[✓] custody v2 vault " + v.vault + ": reviewed production code, matched at a block " + v.minAgree + " of " + v.rpcs + " RPCs agree on"
++        + (v.source === "book" ? ", named by the address book" : ", pinned by your network profile"));
++      if (!s2.policy) {
++        c2paint("dimln", "// no v2 custody policy for this deployment yet: a first save shows the images and the committee for your explicit admit");
++      } else {
++        const pol = s2.policy, c = s2.committee;
++        c2paint(pol.paused ? "warn" : "ok", "[" + (pol.paused ? "!" : "✓") + "] v2 policy rev " + pol.policyRev + " · secrets rev " + pol.secretRev
++          + (pol.hasBundle ? " · a set is stored (" + pol.bundleBytes + " bytes, unreadable here)" : " · no set stored") + (pol.paused ? " · PAUSED" : "")
++          + " · owner " + pol.owner + (pol.ownerMoved ? " (the ledger now names " + s2.beneficialOwner + ": use the CLI's claimPolicy)" : ""));
++        if (c) c2paint(c.kind === "mixed" ? "info" : "warn", "// committee " + c.committeeId.slice(0, 10) + "… epoch " + c.epoch + ": " + c.label);
++        if (pol.rulesError) c2paint("warn", "[x] its rules do not parse here: " + pol.rulesError);
++        if (s2.configNote) c2paint("dimln", "// config binding: " + s2.configNote + " - a save asks you for that exact JSON");
++        if (c2pause) { c2pause.hidden = false; c2pause.textContent = pol.paused ? "Resume custody v2" : "Pause custody v2"; }
++        if (c2clear && pol.hasBundle) c2clear.hidden = false;
++      }
++      if (c2save) c2save.hidden = false;
++      return (c2State = s2);
++    };
++    const c2sign = (m) => paint(m.needsOwnerSignature ? "warn" : "info", (m.needsOwnerSignature ? "[✍ owner signature] " : "[*] ") + m.text);
++    const c2signer = async () => {
++      if (await needsWallet()){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
++      return { address: Enclave.address, sendTx: (to, data) => walletSendTx(to, data), waitReceipt };
++    };
+     // dotenv-style value quoting, both directions: the reveal renders every
+     // value as KEY="…" (with " and \ escaped), and the parser strips one layer
+     // of matched quotes ('single' = literal, "double" = \" \\ unescape). Bare
+@@ -2963,6 +3016,20 @@
+       if (!r.ok) throw new Error(j.message || j.error || ("HTTP " + r.status));
+       return j;
+     };
++    // the relay's OWN owner-signed endpoints, as custody v2's migration steps use them (the values read here were already on
++    // the relay; nothing new is sent to it)
++    const relayApi = {
++      read: async () => {
++        const expiry = Math.floor(Date.now() / 1000) + 300;
++        return call("/secrets/" + id + "/get", { expiry, signature: await sign("enclave-secrets:get:" + id + ":" + expiry) });
++      },
++      exists: () => call("/secrets/exists", { id }),
++      clear: async () => {
++        const payload = '{"clear":true}', expiry = Math.floor(Date.now() / 1000) + 300;
++        const signature = await sign("enclave-secrets:put:" + id + ":" + expiry + ":" + await sha256hex(payload));
++        return call("/secrets/" + id, { payload, expiry, signature });
++      },
++    };
+     let hadKeys = 0, armedClear = false, custodyHeld = false, admitted = null;
+     // the textarea as an env map (both Save paths); throws naming the first bad line
+     const parseSet = () => {
+@@ -2989,6 +3056,9 @@
+         toggle.setAttribute("aria-expanded", "false");
+         armedClear = false; save.textContent = "Save";
+         st.innerHTML = "";
++        c2Hide(); if (c2st) c2st.innerHTML = ""; c2State = null; c2Admitted = null; c2Revealed = null;
++        if (c2cfgRow) { c2cfgRow.hidden = true; if (c2cfg) c2cfg.value = ""; if (c2nocfg) c2nocfg.checked = false; }
++        if (c2save) c2save.textContent = "Save to custody v2";
+         return;
+       }
+       toggle.disabled = true;
+@@ -2997,7 +3067,21 @@
+         // custody (docs/security/secret-custody.md): a custody-held set is readable by NOBODY here - not the relay,
+         // not this page - so there is nothing to reveal; the editor opens empty and saves a complete new set
+         custodyHeld = false;
+-        if (custodyAvailable()) {
++        // custody v2 first: a v2-held set is readable by nobody here, so nothing is revealed and the editor opens empty
++        const v2 = await c2Refresh();
++        if (v2 && v2.policy && v2.policy.hasBundle) {
++          custodyHeld = true; hadKeys = 0;
++          ta.value = "";
++          save.hidden = true; if (cust) cust.hidden = true;
++          body_.hidden = false;
++          toggle.dataset.open = "1";
++          toggle.setAttribute("aria-expanded", "true");
++          toggle.disabled = false;
++          ta.focus();
++          paint("ok", "[✓] custody v2 holds this set - its values cannot be shown here; enter a complete new set to replace (rotate) it");
++          return;
++        }
++        if (custodyAvailable() && !c2Verified) {
+           let cs = null;
+           try { cs = await custodyStatus(id); }
+           catch(e){ paint("dimln", "// the custody vault could not be read just now (" + (e.message || e) + ")"); }
+@@ -3022,6 +3106,7 @@
+         const r = await call("/secrets/" + id + "/get", { expiry, signature });
+         hadKeys = r.names.length;
+         ta.value = r.names.map(n => n + "=" + quo(r.env[n])).join("\n");
++        c2Revealed = r.names.length ? { r, text: ta.value } : null;
+         body_.hidden = false;
+         toggle.dataset.open = "1";
+         toggle.title = "Hide the revealed values (what’s stored is untouched)";
+@@ -3108,6 +3193,72 @@
+         paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
+       } finally { cust.disabled = false; save.disabled = false; }
+     });
++    const c2fail = (e) => {
++      const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
++      paint("warn", rejected ? "[x] rejected in wallet - nothing changed" : "[x] " + (e.message || String(e)));
++    };
++    // Save to custody v2: the textarea is encrypted HERE to the committee key; one owner transaction; read back. When the
++    // textarea is exactly the relay copy revealed with a signature, it is a MIGRATION: the same values, and the relay's copy
++    // is then reported separately - deleting it is its own explicit step (Delete the relay's old copy).
++    if (c2save) c2save.addEventListener("click", async () => {
++      let env;
++      try { env = parseSet(); } catch(e){ return paint("warn", "[x] " + e.message); }
++      if (!Object.keys(env).length) return paint("warn", "[x] custody v2 stores a complete set: add KEY=value lines");
++      c2save.disabled = true; save.disabled = true;
++      try {
++        const s2 = c2State || await c2Refresh();
++        if (!s2 || s2.vault.state !== "verified") throw new Error("custody v2 is " + (s2 ? s2.vault.state + ": " + s2.vault.why : "unreadable") + " - nothing was encrypted or sent");
++        if (!s2.policy && !c2Admitted) {
++          const pr = await fetch(Enclave.base + "/expected-guest?id=" + encodeURIComponent(id));
++          if (!pr.ok) throw new Error("no public prediction of this deployment's guest: set its v2 rules with the CLI (enclave custody set --v2 --rules)");
++          const plan = await C2.planFirstPolicy(id, await pr.json());
++          c2Admitted = plan.rules; c2save.textContent = "Admit and save to custody v2";
++          return paint("warn", "[!] a FIRST v2 policy: the values will only be released to app " + plan.rules.appId.slice(0, 16) + "… running in: "
++            + plan.rules.images.map((im) => "measurement " + im.measurement.slice(0, 16) + "… / runtime " + im.runtimeId.slice(0, 12) + "…").join("; ")
++            + " (as the relay predicts them), sealed to committee " + plan.committee.committeeId.slice(0, 10) + "… - " + plan.committee.label
++            + ". Check them, then click Admit and save to custody v2.");
++        }
++        const signer = await c2signer();
++        const migrating = !!(c2Revealed && hadKeys && ta.value === c2Revealed.text);
++        const r = migrating
++          ? await C2.migrateFromRelayV2({ id, relay: { read: async () => c2Revealed.r, exists: relayApi.exists }, signer, admittedRules: c2Admitted, configOverride: c2config(), onStep: c2sign })
++          : await C2.saveV2({ id, env, admittedRules: c2Admitted, configOverride: c2config(), signer, onStep: c2sign });
++        const relayHeld = hadKeys;
++        c2Admitted = null; c2Revealed = null; c2save.textContent = "Save to custody v2";
++        custodyHeld = true; hadKeys = 0; ta.value = ""; save.hidden = true; if (cust) cust.hidden = true;
++        paint("ok", "[✓] custody v2 secrets rev " + r.secretRev + " · policy rev " + r.policyRev + " · " + r.committee.label
++          + " · bound to config " + r.configSha256.slice(0, 12) + "… - the vault read back exactly this bundle. Restart applies it to the running app");
++        const old = r.oldCopy || (relayHeld ? await C2.relayCopyState({ id, relay: relayApi }) : null);
++        if (old) paint(old.state === "present" ? "warn" : "dimln", "// the relay's OLD plaintext copy: " + old.why
++          + (old.state === "present" ? " - Delete the relay's old copy (one signature), then rotate those credentials at their issuers" : ""));
++        await c2Refresh();
++        showToast("custody v2 updated for " + id.slice(0, 10) + "…");
++      } catch(e){
++        if (e && e.code === "config_unbound" && c2cfgRow) c2cfgRow.hidden = false;
++        c2fail(e);
++      }
++      finally { c2save.disabled = false; save.disabled = false; }
++    });
++    if (c2pause) c2pause.addEventListener("click", async () => {
++      const paused = !(c2State && c2State.policy && c2State.policy.paused);
++      c2pause.disabled = true;
++      try {
++        const r = await C2.setPausedV2({ id, paused, signer: await c2signer(), onStep: c2sign });
++        paint("ok", r.paused ? "[✓] custody v2 PAUSED (policy rev " + r.policyRev + "): custodians release nothing for this deployment until you resume"
++                             : "[✓] custody v2 resumed (policy rev " + r.policyRev + ")");
++        await c2Refresh();
++      } catch(e){ c2fail(e); }
++      finally { c2pause.disabled = false; }
++    });
++    if (c2clear) c2clear.addEventListener("click", async () => {
++      c2clear.disabled = true;
++      try {
++        paint("warn", "[✍ owner signature] deleting the relay's live plaintext copy (one signature to the relay)…");
++        const r = await C2.clearRelayCopyV2({ id, relay: relayApi });
++        paint("ok", "[✓] " + r.why);
++      } catch(e){ c2fail(e); }
++      finally { c2clear.disabled = false; }
++    });
+   }
+ 
+   /* ---- per-row Domains: attach a hostname you own ------------------------
+diff --git a/site/js/core/config.js b/site/js/core/config.js
+index 33420688f3f017a7f45f62e2f16a33f933cd10aa..f8774e9ff035d05dd6e020aaa4e7221c144a1eb6 100644
+--- a/site/js/core/config.js
++++ b/site/js/core/config.js
+@@ -138,6 +138,11 @@
+ export let HOST_REVIEWS_ADDRESS = "";                           // EnclaveHostReviews (1-5 star ratings for the ENCLAVES that run apps); book-resolved only - "" = the fleet panel shows no ratings
+ export let PAYMENT_ROUTER_ADDRESS = "";                         // PaymentRouter (order checkout, USDC -> treasury); resolved from the address book only - "" = card-only checkout
+ export let SECRET_VAULT_ADDRESS = "";                           // EnclaveSecretVault (secret custody, docs/security/secret-custody.md); book key "secretVault" only - "" = no custody option in the Secrets panel
++// EnclaveSecretVaultV2 (custody v2, docs/security/secret-custody-v2.md): book key "secretVaultV2", or an independent
++// profile's contracts.secretVaultV2 pin - and nothing else. "" = UNSET: the Secrets panel says so and offers no v2 action.
++// Unlike the CLI there is no built-in default vault: a vault this page encrypts to must be named by the book or the profile,
++// and is still judged against the reviewed table (network/custody-vaults.mjs) at an agreed block before any use.
++export let SECRET_VAULT_V2_ADDRESS = "";
+ // the custodian committee new custody policies seal to (a bytes32 committee id in EnclaveSecretVault); "" until one exists.
+ // An owner's existing policy keeps its own committee whatever this says.
+ // Independent mode: the pinned SessionVault factory (zero/"" = wallet sessions off there). Legacy mode resolves its
+@@ -150,6 +155,7 @@
+   APP_CATALOG_ADDRESS = IND ? IND.contracts.appCatalog : "";
+   DEPLOYMENTS_ADDRESS = IND ? IND.contracts.deployments : "";
+   REGISTRY_ADDRESS = IND ? IND.contracts.registry : "";
++  SECRET_VAULT_V2_ADDRESS = IND && /^0x[0-9a-fA-F]{40}$/.test(IND.contracts.secretVaultV2 || "") && !/^0x0{40}$/.test(IND.contracts.secretVaultV2) ? IND.contracts.secretVaultV2 : "";
+ }
+ export const CUSTODY_COMMITTEE = "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c";   // the bootstrap committee (3 of 4, Enclave-operated: NOT decentralized)
+ export const APP_CATALOG_CHAIN   = 8453;                        // Base mainnet (kept in sync by the deploy script; 84532 = Base Sepolia)
+@@ -182,6 +188,12 @@
+   if (map && optional(map.secretVault) && map.secretVault.toLowerCase() !== SECRET_VAULT_ADDRESS.toLowerCase()){
+     SECRET_VAULT_ADDRESS = map.secretVault; changed.push("SECRET_VAULT_ADDRESS");
+   }
++  // custody v2: only the book key; a book without it (zero, absent or malformed) leaves v2 UNSET - never a default vault.
++  // An independent profile's own pin (above) is not overridden by its book.
++  if (map && !IND) {
++    const v2 = ok(map.secretVaultV2) && !/^0x0{40}$/.test(map.secretVaultV2) ? map.secretVaultV2 : "";
++    if (v2.toLowerCase() !== SECRET_VAULT_V2_ADDRESS.toLowerCase()){ SECRET_VAULT_V2_ADDRESS = v2; changed.push("SECRET_VAULT_V2_ADDRESS"); }
++  }
+   if (map && optional(map.paymentRouter) && map.paymentRouter.toLowerCase() !== PAYMENT_ROUTER_ADDRESS.toLowerCase()){
+     PAYMENT_ROUTER_ADDRESS = map.paymentRouter; changed.push("PAYMENT_ROUTER_ADDRESS");
+   }
+diff --git a/site/js/core/custody-v2.js b/site/js/core/custody-v2.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..f94730dc6ced4effcf424a4f3e2a7951e3ea7ed2
+--- /dev/null
++++ b/site/js/core/custody-v2.js
+@@ -0,0 +1,336 @@
++/* ============================================================
++   Custody v2, owner side, in the browser (docs/security/secret-custody-v2.md).
++   The owner's env map is encrypted IN THIS PAGE to the committee key Y read from
++   EnclaveSecretVaultV2 and written by the owner's own wallet (one `update`). The
++   relay and the host never receive a v2 value from this path. The code that
++   encrypts, reads the chain and judges the vault is /vendor/custody-v2.js: the
++   repository's custody/v2 owner, chain-reader, rules and reviewed-vault code,
++   bundled same-origin (scripts/build-custody-v2-vendor.mjs).
++
++   Which vault: ONLY the one the administrator's EnclaveAddressBook names under
++   "secretVaultV2" (or an independent profile's own pin). There is no default:
++   unlike the CLI this page never falls back to 0xE486. A named vault is used only
++   after it is VERIFIED - it is in the reviewed table (network/custody-vaults.mjs)
++   as a production vault, its code hash and immutables match at a block the RPCs
++   agree on, and (book-named) the book still names it at that agreed block.
++   Anything else is a precise state the panel shows - unset, unreviewed,
++   unreadable, mismatch - and no v2 action exists in it. Nothing falls back to v1.
++
++   What the committee IS is stated, never badged: t of W shares, its seats and
++   how many are Enclave-operated. One seat, or every seat Enclave-operated, is a
++   BOOTSTRAP, not decentralized custody.
++
++   Who signs: the policy's owner (or, for a first write, the vault's
++   beneficialOwnerOf - the ledger owner, or a SessionVault's owner). An EOA owner
++   signs with the connected wallet. A contract owner (a Safe or passkey account)
++   is refused here with the exact EIP-712 update it would sign (updateBySig): the
++   dashboard does not drive contract-account signing for custody yet.
++   ============================================================ */
++import { SECRET_VAULT_V2_ADDRESS, ADDRESS_BOOK_ADDRESS, APP_CATALOG_RPCS, APP_CATALOG_CHAIN, INDEPENDENT } from "./config.js";
++
++export const VENDOR_V2 = "../../vendor/custody-v2.js";
++// The committee a FIRST v2 policy is sealed to unless the owner's policy already names one: the committee the Enclave
++// seat created on Base at genesis (2026-10-14; cli/custody-v2.mjs PLATFORM_COMMITTEE_V2). It is shown with its exact
++// t/W and seats before the owner admits anything; it is a single-seat Enclave bootstrap, and the panel says so.
++export const CUSTODY_COMMITTEE_V2 = "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3";
++export const BOOK_KEY_V2 = "secretVaultV2";
++const ADDR = /^0x[0-9a-f]{40}$/, ZERO_ADDR = "0x" + "00".repeat(20), ID32 = /^0x[0-9a-f]{64}$/;
++const lc = (x) => String(x || "").toLowerCase();
++const short = (e) => String((e && (e.shortMessage || e.message)) || e).slice(0, 240);
++const BOOK_ADDR_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ name: "key", type: "bytes32" }], outputs: [{ type: "address" }] }];
++
++export class CustodyV2Error extends Error {
++  constructor(message, code, extra = {}){ super(message); this.name = "CustodyV2Error"; this.code = code; Object.assign(this, extra); }
++}
++const refuse = (message, code, extra) => { throw new CustodyV2Error(message, code, extra); };
++
++let _lib = null, _deps = null, _vault = null;
++/** tests only: { lib, config: { vault, book, chainId, rpcs, independent }, now, sleep } */
++export function _setForTests(deps){ _deps = deps; _vault = null; }
++const lib = () => _deps?.lib ? Promise.resolve(_deps.lib) : (_lib ||= import(VENDOR_V2).catch((e) => { _lib = null; throw new CustodyV2Error("could not load the custody v2 client: " + short(e), "no_client"); }));
++const sleep = (ms) => (_deps?.sleep || ((m) => new Promise((r) => setTimeout(r, m))))(ms);
++function cfg(){
++  if (_deps?.config) return _deps.config;
++  return { vault: SECRET_VAULT_V2_ADDRESS, book: ADDRESS_BOOK_ADDRESS, chainId: APP_CATALOG_CHAIN, rpcs: APP_CATALOG_RPCS, independent: INDEPENDENT };
++}
++// the RPCs and agreement the reads use: an independent profile's own (never fewer routes or a weaker agreement than the
++// rest of its dashboard), else up to three of the site's public RPCs, two of which must agree
++function quorumOf(c){
++  const ind = c.independent;
++  if (ind && ind.state === "on"){
++    const p = ind.profile;
++    return { rpcs: [...p.rpcs], minAgree: Math.max(p.quorum, Math.floor(p.rpcs.length / 2) + 1), confirmations: p.confirmations, maxAgeSec: p.maxBlockAgeSeconds, source: "profile" };
++  }
++  const rpcs = c.rpcs.slice(0, 3);
++  return { rpcs, minAgree: Math.min(2, rpcs.length), confirmations: 0, maxAgeSec: 120, source: "book" };
++}
++
++/**
++ * The vault this page may use, judged now: { state, why, vault?, ... }.
++ *   unset       nothing names a v2 vault (book key secretVaultV2 is zero/absent, or the profile pins none)
++ *   unreviewed  the named address is not a reviewed PRODUCTION EnclaveSecretVaultV2 for this chain
++ *   unreadable  the RPCs did not agree (or did not answer): nothing about the vault is known
++ *   mismatch    its code, immutables or the book's agreed entry differ from what was reviewed / resolved
++ *   verified    usable; `reader` is the agreed custody v2 reader for it
++ * Only `verified` carries a reader. A state is recomputed per call unless it is a verified one for the same address.
++ */
++export async function vaultState(){
++  const c = cfg(), q = quorumOf(c);
++  const vault = lc(c.vault);
++  if (!vault || vault === ZERO_ADDR)
++    return { state: "unset", why: q.source === "profile" ? "your network profile pins no contracts.secretVaultV2" : "the EnclaveAddressBook names no " + BOOK_KEY_V2 + " (unset)" };
++  if (!ADDR.test(vault)) return { state: "unreviewed", vault, why: "the configured custody v2 address is malformed" };
++  if (_vault && _vault.vault === vault && _vault.state === "verified") return _vault;
++  const L = await lib();
++  const reviewed = L.REVIEWED_CUSTODY_VAULTS[vault];
++  if (!reviewed || reviewed.production !== true || reviewed.kind !== "book" || Number(reviewed.chainId) !== Number(c.chainId))
++    return { state: "unreviewed", vault, why: reviewed ? "a reviewed non-production EnclaveSecretVaultV2 variant: no production committee or policy uses it"
++                                                     : "not a reviewed EnclaveSecretVaultV2 (network/custody-vaults.mjs)" };
++  if (q.minAgree < 2) return { state: "unreadable", vault, why: "custody needs at least two agreeing RPCs, and only " + q.rpcs.length + " is configured" };
++  let reader;
++  try {
++    reader = L.createChainReaderV2({ rpcs: q.rpcs, vault, chainId: c.chainId, minAgree: q.minAgree, confirmations: q.confirmations, maxAgeSec: q.maxAgeSec,
++                                     vaultKind: "book", book: reviewed.immutable.book, timeoutMs: 15000 });
++  } catch (e) { return { state: "unreadable", vault, why: short(e) }; }
++  let identity;
++  try { identity = await reader.readVaultIdentity(); }
++  catch (e) { return { state: "unreadable", vault, why: "the RPCs did not agree on the vault's code: " + short(e) }; }
++  try { L.checkCustodyVaultIdentity(vault, identity); }
++  catch (e) { return { state: "mismatch", vault, why: short(e) }; }
++  // book-named: the book must still name THIS vault at an agreed block (the page's own book resolve is one RPC's word)
++  if (q.source === "book"){
++    const book = lc(c.book);
++    if (!ADDR.test(book) || book !== lc(reviewed.immutable.book))
++      return { state: "mismatch", vault, why: "the site's address book " + (book || "(none)") + " is not the book this vault reads" };
++    let named;
++    try { named = lc(await reader.snapshot(({ call }) => call(book, BOOK_ADDR_ABI, "addr", [L.stringToHex(BOOK_KEY_V2, { size: 32 })]))); }
++    catch (e) { return { state: "unreadable", vault, why: "the RPCs did not agree on the book's " + BOOK_KEY_V2 + ": " + short(e) }; }
++    if (named === ZERO_ADDR) return { state: "unset", why: "the EnclaveAddressBook names no " + BOOK_KEY_V2 + " at the agreed block" };
++    if (named !== vault) return { state: "mismatch", vault, why: "the book names " + named + " at the agreed block, not " + vault };
++  }
++  _vault = { state: "verified", vault, reader, reviewed, source: q.source, rpcs: q.rpcs.length, minAgree: q.minAgree, codeHash: identity.codeHash };
++  return _vault;
++}
++
++async function verified(){
++  const v = await vaultState();
++  if (v.state !== "verified") refuse("custody v2 is " + v.state + ": " + v.why, "vault_" + v.state, { vaultState: v });
++  return v;
++}
++
++/** What a committee is, exactly: never a badge. */
++export function describeCommittee(committee){
++  if (!committee) return null;
++  const seats = committee.machines.length, enclave = committee.machines.filter((m) => m.enclave).length;
++  const hosts = new Set(committee.machines.map((m) => m.registryId)).size;
++  const kind = seats === 1 ? "single-seat-bootstrap" : enclave === seats ? "enclave-operated" : "mixed";
++  const label = kind === "single-seat-bootstrap"
++    ? "SINGLE-SEAT BOOTSTRAP: one custodian machine (" + (enclave ? "Enclave-operated" : "not Enclave-operated") + "), " + committee.t + " of " + committee.W
++      + " shares - protection rests on that one TEE and its software, not on distribution"
++    : kind === "enclave-operated"
++      ? "ENCLAVE-OPERATED BOOTSTRAP: all " + seats + " seats run by Enclave, " + committee.t + " of " + committee.W + " shares - not decentralized custody"
++      : committee.t + " of " + committee.W + " shares over " + seats + " seats on " + hosts + " registered hosts, " + enclave + " Enclave-operated";
++  return { committeeId: committee.committeeId, epoch: committee.epoch, t: committee.t, W: committee.W, seats, enclaveSeats: enclave, hosts,
++           endpoints: committee.machines.map((m) => ({ endpoint: m.endpoint, enclave: !!m.enclave })), kind, label };
++}
++
++/** The deployment's v2 state for the panel: { vault, policy|null, committee|null, ... }; never throws for a non-verified vault. */
++export async function statusV2(id){
++  const v = await vaultState();
++  if (v.state !== "verified") return { vault: v, policy: null };
++  id = lc(id);
++  if (!ID32.test(id)) refuse("custody v2 needs an on-chain deployment id (bytes32)", "bad_id");
++  const L = await lib();
++  const st = await v.reader.readRelease({ id, endpoint: null });
++  const pol = st.policy;
++  let configSha256 = null, configNote = null;
++  try { configSha256 = L.configSha256(L.configTextFromEnvelope(st.lease ? st.lease.envelope : "")); }
++  catch (e) { configNote = short(e); }
++  const base = { vault: v, beneficialOwner: st.beneficialOwner, leaseOwner: st.lease ? st.lease.owner : null, configSha256, configNote };
++  if (!pol.policyRev) return { ...base, policy: null, committee: null };
++  let rules = null, rulesError = null;
++  try { rules = L.parseRules(pol.rules); } catch (e) { rulesError = short(e); }
++  return { ...base,
++    policy: { owner: pol.owner, policyRev: pol.policyRev, secretRev: pol.secretRev, paused: !!pol.paused, committeeId: pol.committeeId,
++              hasBundle: st.bundle.data.length > 0, bundleBytes: st.bundle.data.length, rules, rulesError,
++              ownerMoved: pol.owner !== st.beneficialOwner },
++    committee: describeCommittee(st.committee) };
++}
++
++// The owner this page must sign as, at the agreed block, and whether the connected wallet is it (EOA only).
++async function ownerCheck(v, st, signer){
++  const owner = st.policy.policyRev ? st.policy.owner : st.beneficialOwner;
++  if (!owner || owner === ZERO_ADDR) refuse("this deployment has no owner on the ledger the vault reads", "no_owner");
++  if (st.policy.policyRev && st.policy.owner !== st.beneficialOwner)
++    refuse("the ledger moved this deployment to " + st.beneficialOwner + ": only that owner's claimPolicy (which destroys the bundle) may follow - use the CLI", "owner_moved");
++  const code = await v.reader.snapshot(({ code }) => code(owner));
++  if (code && code !== "0x") refuse("the custody owner " + owner + " is a contract account (a Safe or passkey account): this dashboard does not sign custody updates for it yet. "
++    + "That account must sign the vault's EIP-712 Update digest itself (updateBySig, custody/v2/owner.mjs updateTypedDataV2); nothing was encrypted or sent", "contract_owner", { owner });
++  const me = lc(signer && signer.address);
++  if (!ADDR.test(me)) refuse("connect the owner's wallet first", "no_wallet");
++  if (me !== owner) refuse("the connected wallet " + me + " is not this deployment's custody owner " + owner + ": switch to that wallet", "not_owner", { owner });
++  return owner;
++}
++
++async function sendUpdate(v, signer, id, update, onStep, what){
++  const L = await lib();
++  const data = L.encodeFunctionData({ abi: L.UPDATE_V2_ABI, functionName: "update", args: [id, update] });
++  onStep({ step: "sign", needsOwnerSignature: true, text: "owner signature: one transaction to the vault " + v.vault + " (" + what + ")" });
++  const hash = await signer.sendTx(v.vault, data);
++  onStep({ step: "confirm", text: "waiting for the transaction " + String(hash).slice(0, 12) + "… to be mined" });
++  await signer.waitReceipt(hash);
++  return hash;
++}
++
++/**
++ * The rules a FIRST v2 policy would admit, from the relay's public prediction, plus the committee they would be sealed to.
++ * Shown to the owner, who admits them explicitly: the rules decide which code may receive the values.
++ */
++export async function planFirstPolicy(id, prediction){
++  const v = await verified(), L = await lib();
++  const rules = L.rulesFromPrediction(prediction);
++  const { committee } = await v.reader.readCommittee({ committeeId: CUSTODY_COMMITTEE_V2 });
++  if (!committee) refuse("the vault has no committee " + CUSTODY_COMMITTEE_V2.slice(0, 10) + "…: no new v2 policy can be made", "no_committee");
++  return { rules, committee: describeCommittee(committee) };
++}
++
++/**
++ * Encrypt `env` (a COMPLETE set: it replaces the stored one) in this page and store it in the vault with one owner
++ * transaction; then read it back. Rotation of values is the same call with the new set (secretRev + 1).
++ * A first policy needs `admittedRules` (planFirstPolicy, explicitly admitted). An existing policy keeps its committee,
++ * rules and pause state: only the bundle changes. -> { secretRev, policyRev, committee, configSha256, tx }
++ */
++// The config the values may be substituted into (the guest refuses any other): read off the chain when the deployment's
++// options envelope carries it inline. A config at a CID or the catalog version's own is NOT taken from anyone's word here:
++// the owner names that exact JSON (`configOverride: { json }`) or states there is none (`{ none: true }`), as the CLI's
++// --config-file / --no-config. A wrong one makes the app refuse the values; it never sends them anywhere else.
++function configTextFor(L, st, configOverride){
++  try { return L.configTextFromEnvelope(st.lease ? st.lease.envelope : ""); }
++  catch (e) {
++    if (configOverride && configOverride.none === true) return "";
++    if (configOverride && typeof configOverride.json === "string"){
++      try { return L.configTextOf(configOverride.json); } catch { refuse("the config you named is not JSON", "config_bad"); }
++    }
++    refuse(short(e).replace(/ \(CLI: [^)]*\)/, "").replace(/, or --no-config if it has none/, "") + " - name that exact config JSON, or state that it has none, before saving", "config_unbound");
++  }
++}
++
++export async function saveV2({ id, env, admittedRules = null, configOverride = null, signer, onStep = () => {} }){
++  const v = await verified(), L = await lib();
++  id = lc(id);
++  if (!ID32.test(id)) refuse("custody v2 needs an on-chain deployment id (bytes32)", "bad_id");
++  L.checkEnv(env);
++  if (!Object.keys(env).length) refuse("custody stores a complete set: add KEY=value lines", "empty_set");
++  onStep({ step: "read", text: "reading the vault at a block " + v.minAgree + " of " + v.rpcs + " RPCs agree on…" });
++  const st = await v.reader.readRelease({ id, endpoint: null });
++  const pol = st.policy;
++  await ownerCheck(v, st, signer);
++  const first = !pol.policyRev;
++  const committeeId = first ? CUSTODY_COMMITTEE_V2 : pol.committeeId;
++  let rules = null;
++  if (first){
++    if (!admittedRules) refuse("this deployment has no v2 custody rules yet: admit the predicted images first", "rules_not_admitted");
++    rules = L.validateRules(admittedRules);
++  }
++  const { committee } = await v.reader.readCommittee({ committeeId });
++  if (!committee) refuse("the vault has no committee " + committeeId.slice(0, 10) + "…", "no_committee");
++  const desc = describeCommittee(committee);
++  const configText = configTextFor(L, st, configOverride);
++  const secretRev = pol.secretRev + 1n;
++  onStep({ step: "encrypt", text: "encrypting " + Object.keys(env).length + " value(s) in this browser to committee " + committeeId.slice(0, 10) + "… (" + desc.label + ")" });
++  const bundle = L.buildBundleV2({ chainId: Number(cfg().chainId), vault: v.vault, id, secretRev, committeeId, Y: committee.Y, env, configText });
++  const update = L.makeUpdateV2({ expectPolicyRev: pol.policyRev, ...(first ? { policy: { committeeId, paused: false, rules } } : {}), bundle });
++  const tx = await sendUpdate(v, signer, id, update, onStep, first ? "a new v2 policy and its first bundle" : "secrets revision " + secretRev);
++  // read back: the vault must show THIS bundle at the next secret revision, or nothing is claimed
++  onStep({ step: "verify", text: "reading the vault back…" });
++  let after = null;
++  for (let i = 0; i < 20; i++){
++    after = await v.reader.readRelease({ id, endpoint: null });
++    if (after.policy.secretRev >= secretRev) break;
++    await sleep(1500);
++  }
++  if (!after || after.policy.secretRev !== secretRev || !sameBytes(after.bundle.data, bundle))
++    refuse("the vault does not show the bundle just written (re-read the status before trying again)", "readback_mismatch", { tx });
++  return { secretRev: after.policy.secretRev, policyRev: after.policy.policyRev, committee: desc, configSha256: L.configSha256(configText), tx };
++}
++
++/** Pause (custodians release nothing for this deployment) or resume, with one owner transaction; read back. */
++export async function setPausedV2({ id, paused, signer, onStep = () => {} }){
++  const v = await verified(), L = await lib();
++  id = lc(id);
++  const st = await v.reader.readRelease({ id, endpoint: null });
++  const pol = st.policy;
++  if (!pol.policyRev) refuse("no v2 custody policy to pause or resume", "no_policy");
++  await ownerCheck(v, st, signer);
++  if (!!pol.paused === !!paused) return { paused: !!pol.paused, policyRev: pol.policyRev, unchanged: true };
++  const update = L.makeUpdateV2({ expectPolicyRev: pol.policyRev, policy: { committeeId: pol.committeeId, paused: !!paused, rules: L.parseRules(pol.rules) } });
++  const tx = await sendUpdate(v, signer, id, update, onStep, paused ? "pause" : "resume");
++  let after = null;
++  for (let i = 0; i < 20; i++){
++    after = await v.reader.readRelease({ id, endpoint: null });
++    if (after.policy.policyRev > pol.policyRev) break;
++    await sleep(1500);
++  }
++  if (!after || after.policy.policyRev !== pol.policyRev + 1n || !!after.policy.paused !== !!paused)
++    refuse("the vault does not show the " + (paused ? "pause" : "resume") + " just written", "readback_mismatch", { tx });
++  return { paused: !!after.policy.paused, policyRev: after.policy.policyRev, tx };
++}
++
++/**
++ * MIGRATION of the relay's plaintext copy into custody v2, in the order that never loses the values:
++ *   1. the owner reveals the relay copy (the relay's own owner-signed read; those values were already on the relay);
++ *   2. they are encrypted HERE and stored in v2 (saveV2, read back);
++ *   3. the relay's copy is NOT touched here - deleting it is a separate, explicit owner step (clearRelayCopyV2).
++ * `relay`: { read(id) -> { env, rev }, exists(id) -> { custody } }.
++ */
++export async function migrateFromRelayV2({ id, relay, signer, admittedRules = null, configOverride = null, onStep = () => {} }){
++  // a v2 set that already exists is never replaced by the relay's (older) copy: the owner saves a new set instead
++  const now = await statusV2(id);
++  if (now.vault.state !== "verified") refuse("custody v2 is " + now.vault.state + ": " + now.vault.why, "vault_" + now.vault.state, { vaultState: now.vault });
++  if (now.policy && now.policy.hasBundle)
++    refuse("custody v2 already holds a set for this deployment (secrets revision " + now.policy.secretRev + "): migrating the relay's copy would replace it. "
++      + "Delete the relay's old copy instead, or save a new complete set", "v2_already_holds");
++  // the config binding is settled BEFORE the owner signs the relay read (no signature is spent on a save that cannot happen)
++  if (now.configNote && !(configOverride && (configOverride.none === true || typeof configOverride.json === "string")))
++    refuse(now.configNote.replace(/ \(CLI: [^)]*\)/, "").replace(/, or --no-config if it has none/, "") + " - name that exact config JSON, or state that it has none, before migrating", "config_unbound");
++  const r = await relay.read(id);
++  const env = (r && r.env) || {};
++  if (!Object.keys(env).length) refuse("the relay holds no secrets for this deployment: nothing to migrate", "nothing_to_migrate");
++  onStep({ step: "relay-read", text: "the relay's copy (rev " + r.rev + "): " + Object.keys(env).sort().join(", ") });
++  const saved = await saveV2({ id, env, admittedRules, configOverride, signer, onStep });
++  const oldCopy = await relayCopyState({ id, relay });
++  return { ...saved, migratedNames: Object.keys(env).sort(), relayRev: r.rev, oldCopy };
++}
++
++/** What can be said about the relay's old plaintext copy: { state: "present"|"present-relay-not-custody-aware"|"unknown", why } */
++export async function relayCopyState({ id, relay }){
++  let ex = null;
++  try { ex = await relay.exists(id); } catch (e) { return { state: "unknown", why: "the relay did not answer: " + short(e) }; }
++  if (!ex || ex.custody !== true)
++    return { state: "present-relay-not-custody-aware", why: "the relay does not report this deployment as custody-held, so its plaintext copy cannot be deleted from here yet" };
++  return { state: "present", why: "the relay still holds its old plaintext copy until you delete it" };
++}
++
++/**
++ * Delete the relay's old plaintext copy - ONLY after the v2 bundle is on chain (re-read now) and the relay itself reports
++ * the deployment custody-held. `relay.clear(id)` is the relay's owner-signed clear. Returns what is known afterwards; it
++ * never claims more than the relay's answer: backups, logs or replicas the relay operator keeps are outside this page.
++ */
++export async function clearRelayCopyV2({ id, relay }){
++  const v = await verified();
++  id = lc(id);
++  const st = await v.reader.readRelease({ id, endpoint: null });
++  if (!st.policy.policyRev || !st.bundle.data.length)
++    refuse("there is no v2 bundle for this deployment: the relay's copy is the only one, so it is not deleted", "no_v2_bundle");
++  const ex = await relay.exists(id).catch(() => null);
++  if (!ex || ex.custody !== true)
++    refuse("the relay does not report this deployment as custody-held: its copy is kept (deleting it now could leave the app with no values)", "relay_not_custody_aware");
++  const r = await relay.clear(id);
++  return { state: "relay-reports-deleted", relayRev: r && r.rev, why: "the relay answered that its stored copy is deleted. Backups, logs or replicas outside the relay's live store are not verifiable from this page: rotate those credentials at their issuers" };
++}
++
++function sameBytes(a, b){
++  if (!a || !b || a.length !== b.length) return false;
++  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
++  return true;
++}

@@ -1,0 +1,55 @@
+{
+  "at": "2026-10-23T19:15:37.556134+00:00",
+  "step": "prepare",
+  "scriptSha256": "c373d1ca8dc5538a6cb8fed6a313f163c120c7c6f24a63c474d276584a932b20",
+  "result": {
+    "ok": true,
+    "step": "prepare",
+    "prepared": {
+      "policySha256": "6f9d10b8553bdb6a3eddfb40c0c81107c2d7436521762347229852f8f87942c0",
+      "configSha256": "d688c172b44b21267067ed390803aff1c957f01e13549e6d82f1bd4e01496047",
+      "at": "2026-10-23T19:15:27.6939352Z"
+    },
+    "state": {
+      "tasks": [
+        {
+          "state": "Running",
+          "name": "Node"
+        },
+        {
+          "state": "Running",
+          "name": "Shield"
+        },
+        {
+          "state": "Running",
+          "name": "Network"
+        }
+      ],
+      "infrastructure": [
+        {
+          "Name": "enclave-storage",
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "state": "Running"
+        },
+        {
+          "Name": "enclave-control",
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "state": "Running"
+        }
+      ],
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 9600,
+          "OwningProcess": 17272
+        },
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 2376
+        }
+      ],
+      "at": "2026-10-23T19:15:34.7496968Z"
+    }
+  }
+}

@@ -1,0 +1,631 @@
+From 785f77af9b9d128f0d913d7708137be8996f1c2d Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:51:20 -0700
+Subject: [PATCH] Record full NucBox app recovery and verified TLS after
+ coupled share rollout
+
+---
+ README.md                 |   2 +-
+ cron-console.json         |  19 +++++
+ cron-console.py           |   4 +
+ cron-observe.json         |  75 +++++++++++++++++
+ cron-observe.py           |   4 +
+ recovery-logs.json        |  98 +++++++++++-----------
+ tls-20261023T193454Z.json | 162 ++++++++++++++++++++++++++++++++++++
+ tls-20261023T194101Z.json | 168 ++++++++++++++++++++++++++++++++++++++
+ 8 files changed, 482 insertions(+), 50 deletions(-)
+ create mode 100644 cron-console.json
+ create mode 100644 cron-console.py
+ create mode 100644 cron-observe.json
+ create mode 100644 cron-observe.py
+ create mode 100644 tls-20261023T193454Z.json
+ create mode 100644 tls-20261023T194101Z.json
+
+diff --git a/README.md b/README.md
+index 8bff30cbfca0772468b2593fd2820654a0448060..34b4bca9d4c069a10738467521dca49fb49cc470 100644
+--- a/README.md
++++ b/README.md
+@@ -4,7 +4,7 @@
+ 
+ Exact native canary: quota16 versus100 took30939ms versus4833ms (6.4016x); quota336 supplied3.242x four-worker throughput. Tested image c1619eec and loader e4eeb994 were installed under versioned paths. Guest launch measurement62ac7aab was added to local admission and relay marketplace policy, preserving existing entries and administrator authority.
+ 
+-Production activation: Node/Shield/Network wrappers restarted19:17–19:19UTC; control and storage VMs stayed running. Marketplace policy was corrected19:23. The node reconciled old VMs through its normal guarded recovery. All nine original apps were running on the new runtime19:31 with exact CPU quota and matching application-memory shares. TLS verification is separate and still underway; initial failures and recovery receipts are retained.
++Production activation: Node/Shield/Network wrappers restarted19:17–19:19UTC; control and storage VMs stayed running. Marketplace policy was corrected19:23. The node reconciled old VMs through its normal guarded recovery. All nine original apps were running on the new runtime19:31 with exact CPU quota and matching application-memory shares. At19:41UTC all nine passed CA/hostname-verified HTTPS and HTTP200 through all18 currently DNS-advertised addresses. Earlier TLS, DNS and cron readiness failures during recovery are retained as evidence; the final probe passed.
+ 
+ Rollback: preserve the original installed runtime.bin and shield-host.exe and staging backups. Verify current candidate hashes, stop only the three exact scheduled tasks, confirm listeners closed, then run the rollback phase and rollback-start-shield/network/node in order. The original stop phase intentionally checks PRE-UPGRADE hashes and must not be reused to stop the new runtime. Do not force-remove tenant VMs: let the node reconcile them. The relay policy rollback is a separate compare-and-swap operation using its pre-change backup. Restoring old software restores its known CPU enforcement defect. Reverify all apps, leases, ingress certificates, and secret-dependent operation.
+ 
+diff --git a/cron-console.json b/cron-console.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..78d79217eb31d2c9aefaa0f890a01804895e1acb
+--- /dev/null
++++ b/cron-console.json
+@@ -0,0 +1,19 @@
++{
++  "messages": [
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error",
++    "DOM front: tls handshake error"
++  ],
++  "at": "2026-10-23T19:38:12.2510197Z",
++  "bytes": 2553,
++  "exists": true
++}
+diff --git a/cron-console.py b/cron-console.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6427e542f16340636873f74cbea8a930ffb63664
+--- /dev/null
++++ b/cron-console.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
++p=r'''$f='C:\ProgramData\Enclave\logs\partitions\enclave-app-hv9556d033df8c02-3f770400.log';$o=@{at=(Get-Date).ToUniversalTime().ToString('o');exists=(Test-Path $f)};if(Test-Path $f){$o.bytes=(Get-Item $f).Length;$o.messages=@(Get-Content $f -Tail 100|Where-Object {$_ -match '\[cron\]|panic|oom|exited|timeout|APP refused|error|failed'}|Select-Object -Last 12|ForEach-Object {$l=[string]$_;$l=$l -replace '(?i)(token|password|signature|authorization|secret|key)([=: ]+)[^ ,;]+','$1=[redacted]';$l=$l -replace 'https?://[^ ]+','[url]';$l.Substring(0,[Math]::Min(500,$l.Length))})};$o|ConvertTo-Json -Depth 5 -Compress'''
++r=h.ps(p,20);pathlib.Path('work/cpu-quota-activation-20261023/cron-console.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/cron-observe.json b/cron-observe.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7d3092ea8a487c85f97e7c745106f5c0a18a1aed
+--- /dev/null
++++ b/cron-observe.json
+@@ -0,0 +1,75 @@
++{
++  "curlExit": 0,
++  "localHttp": "200 time=1.840277\r\n",
++  "at": "2026-10-23T19:39:15.8736623Z",
++  "vm": [
++    {
++      "Name": "enclave-app-hv9556d033df8c02-3f770400",
++      "CPUUsage": 0,
++      "MemoryAssigned": 2147483648,
++      "State": 2
++    }
++  ],
++  "view": {
++    "id": "hv9556d033df8c02d3103d2494bcfc016c",
++    "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++    "status": "running",
++    "reason": null,
++    "relay": {
++      "host": "127.0.0.1",
++      "port": 53694
++    },
++    "ports": null,
++    "appPort": null,
++    "relayPort": null,
++    "instanceId": "hv9556d033df8c02-3f770400",
++    "appId": "3f770400d06ed1c96601dfecc2446d0b5e51d15a0b0018616e340ecb03997995",
++    "cpu": {
++      "rule": "cpu-share",
++      "poolVcpus": 16,
++      "cpuShare": 0.01,
++      "entitlementUnits": 16000,
++      "vcpus": 1,
++      "limit": 16000,
++      "reservation": 16000,
++      "grantedUnits": 16000,
++      "policy": {
++        "vcpus": 1,
++        "cpuPercent": 100
++      },
++      "appCpuPercent": 16,
++      "readback": {
++        "reservation": 16000,
++        "weight": 100,
++        "count": 1,
++        "maximum": 16,
++        "limit": 16000,
++        "vcpus": 1,
++        "reserve": 16,
++        "units": "percent / 1000"
++      },
++      "guestOnlineVcpus": 1,
++      "enforcement": "guest-app-cgroup",
++      "enforcedUnits": 16000,
++      "blocker": null
++    },
++    "memory": {
++      "rule": "cpu-share",
++      "poolMiB": 98304,
++      "cpuShare": 0.01,
++      "appMiB": 983,
++      "vmMiB": 2048
++    },
++    "error": null
++  },
++  "network": [
++    "19:25:31 [privacy] local guest proof 0x38f368d6: deployment has no unique running partition (10 more since the last line)",
++    "19:26:31 [privacy] local guest proof 0x38f368d6: deployment has no unique running partition (9 more since the last line)",
++    "19:26:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "19:27:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:28:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "19:29:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:30:48 [privacy] app 0x38f368d6 egress back",
++    "19:33:11 [privacy] local route: app 0x38f368d6 -> app 0xef514ed3 on this host"
++  ]
++}
+diff --git a/cron-observe.py b/cron-observe.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b839d6df379bd8e5fb4f6e7512a861cdae777270
+--- /dev/null
++++ b/cron-observe.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
++p=r'''$v=(Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/vms).vms|Where-Object {$_.name -like '0x38f368d6*'};$o=@{at=(Get-Date).ToUniversalTime().ToString('o');view=($v|Select-Object id,name,status,reason,relay,ports,appPort,relayPort,instanceId,appId,cpu,memory,error);vm=@(Get-VM|Where-Object {$_.Name -like '*hv9556d*'}|Select-Object Name,CPUUsage,MemoryAssigned,State)};$hostName='38f368d6.app.enclave.host';if($v.relay.port){$u='https://'+$hostName+':'+$v.relay.port+'/';$resolve=$hostName+':'+$v.relay.port+':127.0.0.1';$o.localHttp=(& curl.exe --resolve $resolve --connect-timeout 5 --max-time 20 -sS -o NUL -w '%{http_code} time=%{time_total}' $u 2>&1|Out-String);$o.curlExit=$LASTEXITCODE};$o.network=@(Get-Content C:\ProgramData\Enclave\logs\network.log -Tail 500|Where-Object {$_ -match '38f368d6|hv9556d' }|Select-Object -Last 8|ForEach-Object {($_ -replace '(?i)(token|password|signature|authorization|secret)([=: ]+)[^ ,;]+','$1=[redacted]').Substring(0,[Math]::Min(500,$_.Length))});$o|ConvertTo-Json -Depth 9 -Compress'''
++r=h.ps(p,50);pathlib.Path('work/cpu-quota-activation-20261023/cron-observe.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/recovery-logs.json b/recovery-logs.json
+index 287e3dfcecddd95aa258b1b8b11a5b46b88dd9ac..e7c61736a8f73ceaf596eab5e306457646526d53 100644
+--- a/recovery-logs.json
++++ b/recovery-logs.json
+@@ -1,53 +1,36 @@
+ {
+-  "at": "2026-10-23T19:29:12.3753544Z",
++  "at": "2026-10-23T19:34:13.5406699Z",
+   "node": [
+-    "19:25:30 [node] [host] ledger: 21 active deployment(s) in scope (market)",
+-    "19:25:31 [node] [host] ledger: not taking 0x2215bad4: this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can",
+-    "19:25:32 [node] [host] ledger: not taking 0xa77d0c57: this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can",
+-    "19:25:33 [node] [host] ledger: not taking 0xc13d4b6a: this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can",
+-    "19:25:33 [node] [host] ledger: not taking 0x0f19412d: this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can",
+-    "19:25:37 [node] [host] ledger: not taking 0x4e62e60d: it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+-    "19:25:38 [node] [host] ledger: not taking 0x395bed3e: it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+-    "19:25:39 [node] [host] ledger: not taking 0x0ddbd824: it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
+-    "19:25:40 [node] [host] ledger: not taking 0x31136008: this box cannot establish how much of its app RAM pool is reserved (partition hv255b5ea98b99cf19c2e420f6a5a271ca was recovered from an earlier manager and its reservation is unknown until it is reconciled); it takes no new work until it can",
+-    "19:25:46 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+-    "19:26:13 [node] [host] 0x7ae476a3 isolation spawned: hv5f911b207b73731a32b0791d2408a8de status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:26:16 [node] 0x7ae476a3 certificate: none for 7ae476a3.app.enclave.host (the guest's attestation answered HTTP 500); retry in 30s",
+-    "19:26:30 [node] 0xa69dcbba certificate: none for a69dcbba.app.enclave.host (the order for a69dcbba.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:26:47 [node] [host] 0x38f368d6 isolation spawned: hv9556d033df8c02d3103d2494bcfc016c status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:27:28 [node] [host] 0xe64f7cba isolation spawned: hv6ff986b89fdc0db1c3c87287c148df2f status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:27:30 [node] 0x7ae476a3 certificate: none for 7ae476a3.app.enclave.host (the order for 7ae476a3.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:27:43 [node] 0x38f368d6 certificate: none for 38f368d6.app.enclave.host (the order for 38f368d6.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:27:57 [node] 0xe64f7cba certificate: none for e64f7cba.app.enclave.host (the order for e64f7cba.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:27:58 [node] [host] 0xd9798e4c isolation spawned: hv5b5a5d531625082f44fadd70092072c6 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:28:11 [node] 0xa69dcbba certificate: none for a69dcbba.app.enclave.host (the order for a69dcbba.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:28:25 [node] [host] 0x59f1273d isolation spawned: hve4547b4d3ddf4e5f883be35b3f38c913 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:28:30 [node] 0x7ae476a3 certificate: none for 7ae476a3.app.enclave.host (the order for 7ae476a3.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:28:44 [node] 0x38f368d6 certificate: none for 38f368d6.app.enclave.host (the order for 38f368d6.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+-    "19:28:52 [node] 0xe64f7cba certificate: e64f7cba.app.enclave.host installed in partition hv6ff986b89fdc0db1c3c87287c148df2f (key f6eef33452fa759f\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
+-    "19:28:53 [node] [host] 0xef514ed3 isolation spawned: hva8cb7356f41a2f39e4eccdb594a2feb5 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:29:00 [node] [host] 0xa69dcbba isolation adopted: hv37073dc3cd831367112daabb2387fdd0 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
+-    "19:29:05 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature=[redacted], 0 delegation(s)",
+-    "19:29:06 [node] 0xd9798e4c certificate: none for d9798e4c.app.enclave.host (the order for d9798e4c.app.enclave.host is in flight (the relay is still getting it)); retry in 30s"
++    "19:31:30 [node] 0xef514ed3 certificate: none for ef514ed3.app.enclave.host (the order for ef514ed3.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
++    "19:31:31 [node] [host] 0x59f1273d isolation adopted: hve4547b4d3ddf4e5f883be35b3f38c913 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:31:35 [node] [host] 0xef514ed3 isolation adopted: hva8cb7356f41a2f39e4eccdb594a2feb5 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:31:37 [node] [host] 0xa69dcbba isolation adopted: hv37073dc3cd831367112daabb2387fdd0 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:31:40 [node] [host] 0xa77d0c57 isolation adopted: hv4dc289901b731ff0b8bbadf17923de08 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:31:43 [node] [host] 0xc13d4b6a isolation adopted: hvdc847f1e505f43497d011ce17e0c6589 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:20 [node] [host] 0x7ae476a3 isolation adopted: hv5f911b207b73731a32b0791d2408a8de status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:22 [node] [host] 0x38f368d6 isolation adopted: hv9556d033df8c02d3103d2494bcfc016c status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:23 [node] 0xd9798e4c certificate: d9798e4c.app.enclave.host installed in partition hv5b5a5d531625082f44fadd70092072c6 (key 46f7ac287c6c1c5d\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
++    "19:32:26 [node] [host] 0xe64f7cba isolation adopted: hv6ff986b89fdc0db1c3c87287c148df2f status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:29 [node] 0xa77d0c57 certificate: a77d0c57.app.enclave.host installed in partition hv4dc289901b731ff0b8bbadf17923de08 (key 4ccf6d12f13d1a32\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
++    "19:32:29 [node] [host] 0xd9798e4c isolation adopted: hv5b5a5d531625082f44fadd70092072c6 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:32 [node] [host] 0x59f1273d isolation adopted: hve4547b4d3ddf4e5f883be35b3f38c913 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:34 [node] [host] 0xef514ed3 isolation adopted: hva8cb7356f41a2f39e4eccdb594a2feb5 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:35 [node] 0xc13d4b6a certificate: c13d4b6a.app.enclave.host installed in partition hvdc847f1e505f43497d011ce17e0c6589 (key 189f02426424fc8d\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
++    "19:32:37 [node] [host] 0xa69dcbba isolation adopted: hv37073dc3cd831367112daabb2387fdd0 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:40 [node] [host] 0xa77d0c57 isolation adopted: hv4dc289901b731ff0b8bbadf17923de08 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:32:41 [node] 0xef514ed3 certificate: ef514ed3.app.enclave.host installed in partition hva8cb7356f41a2f39e4eccdb594a2feb5 (key 9db54037700c8573\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)",
++    "19:32:43 [node] [host] 0xc13d4b6a isolation adopted: hvdc847f1e505f43497d011ce17e0c6589 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:21 [node] [host] 0x7ae476a3 isolation adopted: hv5f911b207b73731a32b0791d2408a8de status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:23 [node] [host] 0x38f368d6 isolation adopted: hv9556d033df8c02d3103d2494bcfc016c status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:25 [node] [host] 0xe64f7cba isolation adopted: hv6ff986b89fdc0db1c3c87287c148df2f status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:28 [node] [host] 0xd9798e4c isolation adopted: hv5b5a5d531625082f44fadd70092072c6 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:30 [node] [host] 0x59f1273d isolation adopted: hve4547b4d3ddf4e5f883be35b3f38c913 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:33 [node] [host] 0xef514ed3 isolation adopted: hva8cb7356f41a2f39e4eccdb594a2feb5 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:37 [node] [host] 0xa69dcbba isolation adopted: hv37073dc3cd831367112daabb2387fdd0 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:39 [node] [host] 0xa77d0c57 isolation adopted: hv4dc289901b731ff0b8bbadf17923de08 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591",
++    "19:33:42 [node] [host] 0xc13d4b6a isolation adopted: hvdc847f1e505f43497d011ce17e0c6589 status=running image=c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591"
+   ],
+   "network": [
+-    "19:06:12 [privacy] chain authorization=[redacted] failed: no fresh agreeing chain quorum; 9 running lease(s) held from their last agreeing read",
+-    "19:17:26 [privacy] local guest proof 0xe64f7cba: fetch failed",
+-    "19:17:26 [privacy] local guest proof 0x7ae476a3: fetch failed",
+-    "19:17:26 [privacy] local guest proof 0x38f368d6: fetch failed",
+-    "19:17:26 [privacy] local guest proof 0xc13d4b6a: fetch failed",
+-    "19:17:26 [privacy] local guest proof 0xd9798e4c: fetch failed",
+-    "19:17:26 [privacy] local guest proof 0xa77d0c57: fetch failed",
+-    "19:17:27 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:54003",
+-    "19:17:27 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:57459",
+-    "19:17:29 [privacy] app broker: fetch failed",
+-    "19:17:29 [privacy] app broker: fetch failed",
+-    "19:18:56 [privacy] wallet admission withheld: invalid or expired wallet admission document",
+-    "19:25:31 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+-    "19:26:16 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+-    "19:26:31 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
+-    "19:26:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+-    "19:27:16 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+     "19:27:27 [privacy] local guest proof 0xe64f7cba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+     "19:27:31 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+     "19:27:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+@@ -58,11 +41,28 @@
+     "19:28:36 [privacy] local guest proof 0xa69dcbba: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+     "19:28:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
+     "19:28:57 [privacy] local guest proof 0xd9798e4c: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
+-    "19:28:57 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca"
++    "19:28:57 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "19:29:16 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:29:27 [privacy] local guest proof 0x59f1273d: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:29:57 [privacy] local guest proof 0x38f368d6: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:29:57 [privacy] local guest proof 0xd9798e4c: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:29:57 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:30:02 [privacy] local guest proof 0xa77d0c57: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "19:30:16 [privacy] local guest proof 0x7ae476a3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:30:27 [privacy] local guest proof 0x59f1273d: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:30:31 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "19:30:57 [privacy] local guest proof 0xd9798e4c: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:30:57 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:31:03 [privacy] local guest proof 0xa77d0c57: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:31:31 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "19:31:57 [privacy] local guest proof 0xd9798e4c: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "19:31:57 [privacy] local guest proof 0xef514ed3: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "19:32:06 [privacy] local guest proof 0xa77d0c57: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "19:32:32 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)"
+   ],
+   "availability": {
+     "nodeRamGb": 96,
+-    "ramGbFree": 19.2,
++    "ramGbFree": 16.3,
+     "apps": {
+       "isolation": "hyperv-partition-per-app",
+       "tier": "enclave-shield",
+@@ -70,7 +70,7 @@
+       "hostOsExcluded": true,
+       "operatorExcluded": false,
+       "inTee": false,
+-      "running": 7,
++      "running": 9,
+       "capacity": 16,
+       "scope": "market",
+       "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
+diff --git a/tls-20261023T193454Z.json b/tls-20261023T193454Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b27f3daa98bf8b42f8f3955fcac12a3fcabb848f
+--- /dev/null
++++ b/tls-20261023T193454Z.json
+@@ -0,0 +1,162 @@
++{
++  "at": "2026-10-23T19:34:54.063844+00:00",
++  "results": [
++    {
++      "host": "7ae476a3.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "7ae476a3.app.enclave.host",
++      "address": "146.190.246.39",
++      "tlsVerified": true,
++      "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.209.248.172",
++      "ok": false,
++      "error": "The read operation timed out"
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "146.190.246.39",
++      "ok": false,
++      "error": "The read operation timed out"
++    },
++    {
++      "host": "e64f7cba.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "5B6DE8969B6061F8E2593A352795C749",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "e64f7cba.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "5B6DE8969B6061F8E2593A352795C749",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "d9798e4c.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "D5557DC04EAE8AAF8EC5D01E7718AB57",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "d9798e4c.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "D5557DC04EAE8AAF8EC5D01E7718AB57",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a77d0c57.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "460657A5E811CFD80F44824EFE746DF1",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a77d0c57.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "460657A5E811CFD80F44824EFE746DF1",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "F0370258D50946272E23AD9DADBAA188",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "F0370258D50946272E23AD9DADBAA188",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "59f1273d.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "10C3444B36187F139082F5573DB1D561",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "59f1273d.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "10C3444B36187F139082F5573DB1D561",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "ef514ed3.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "AE1E93FE6FEAEC984C6AB9F34655A469",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "ef514ed3.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "AE1E93FE6FEAEC984C6AB9F34655A469",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a69dcbba.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "1207B21A43F70D10F82353930BD57263",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a69dcbba.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "1207B21A43F70D10F82353930BD57263",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    }
++  ],
++  "ok": false
++}
+diff --git a/tls-20261023T194101Z.json b/tls-20261023T194101Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6f9205434907cf34d422fcea9b8990f8faebf55f
+--- /dev/null
++++ b/tls-20261023T194101Z.json
+@@ -0,0 +1,168 @@
++{
++  "at": "2026-10-23T19:41:01.182379+00:00",
++  "results": [
++    {
++      "host": "7ae476a3.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "7ae476a3.app.enclave.host",
++      "address": "146.190.246.39",
++      "tlsVerified": true,
++      "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "4C4242587AEA045006C0A8FD2446CA69",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "146.190.246.39",
++      "tlsVerified": true,
++      "serial": "4C4242587AEA045006C0A8FD2446CA69",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "e64f7cba.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "5B6DE8969B6061F8E2593A352795C749",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "e64f7cba.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "5B6DE8969B6061F8E2593A352795C749",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "d9798e4c.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "D5557DC04EAE8AAF8EC5D01E7718AB57",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "d9798e4c.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "D5557DC04EAE8AAF8EC5D01E7718AB57",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a77d0c57.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "460657A5E811CFD80F44824EFE746DF1",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a77d0c57.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "460657A5E811CFD80F44824EFE746DF1",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "F0370258D50946272E23AD9DADBAA188",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "F0370258D50946272E23AD9DADBAA188",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "59f1273d.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "10C3444B36187F139082F5573DB1D561",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "59f1273d.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "10C3444B36187F139082F5573DB1D561",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "ef514ed3.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "AE1E93FE6FEAEC984C6AB9F34655A469",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "ef514ed3.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "AE1E93FE6FEAEC984C6AB9F34655A469",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a69dcbba.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "1207B21A43F70D10F82353930BD57263",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a69dcbba.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "1207B21A43F70D10F82353930BD57263",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    }
++  ],
++  "ok": true
++}

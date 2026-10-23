@@ -1,0 +1,9 @@
+repo/
+repo-b/
+logs/
+*.out
+out/*/
+out/*.log
+canary/root-hardware-20261023/
+canary/*.out
+__pycache__/

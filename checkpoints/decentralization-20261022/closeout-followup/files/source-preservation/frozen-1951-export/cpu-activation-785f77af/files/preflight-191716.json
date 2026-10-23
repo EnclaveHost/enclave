@@ -1,0 +1,209 @@
+{
+  "at": "2026-10-23T19:17:16.118745+00:00",
+  "step": "preflight",
+  "scriptSha256": "c373d1ca8dc5538a6cb8fed6a313f163c120c7c6f24a63c474d276584a932b20",
+  "result": {
+    "ok": true,
+    "step": "preflight",
+    "state": {
+      "tasks": [
+        {
+          "state": "Running",
+          "name": "Node"
+        },
+        {
+          "state": "Running",
+          "name": "Shield"
+        },
+        {
+          "state": "Running",
+          "name": "Network"
+        }
+      ],
+      "infrastructure": [
+        {
+          "Name": "enclave-storage",
+          "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+          "state": "Running"
+        },
+        {
+          "Name": "enclave-control",
+          "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+          "state": "Running"
+        }
+      ],
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 9600,
+          "OwningProcess": 17272
+        },
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 2376
+        }
+      ],
+      "at": "2026-10-23T19:17:13.4531644Z"
+    },
+    "native": [
+      {
+        "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
+        "Id": "99581b30-de5f-450b-ac23-90d0735f3487",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hv2dd42ee0ca9d66-46de1836",
+        "Id": "3b8a3271-757c-4d96-9685-508af3e90fd4",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hv3c8e73d2d9c235-322c5206",
+        "Id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
+        "Id": "29b799d0-98e6-43bb-9adf-5274dfe89e19",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
+        "Id": "f38952e3-537b-4271-85cd-6c14e993ee5c",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hvc18d297da5a21b-a79db30f",
+        "Id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hvc6c4073c817dad-ad0f596e",
+        "Id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hvdc425d67f2b0e1-3f770400",
+        "Id": "07097d0e-65e3-4a84-8756-cc984cee2f1a",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
+        "Id": "dd22abf9-4ec1-4159-90fd-56b7115e986a",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-app-hve60d223d27d01b-9e2053bc",
+        "Id": "14df250c-65f8-4218-8838-086d4f77cb6a",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-control",
+        "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
+        "state": "Running"
+      },
+      {
+        "Name": "enclave-storage",
+        "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
+        "state": "Running"
+      }
+    ],
+    "deployments": [
+      {
+        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
+        "status": "queued",
+        "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)"
+      },
+      {
+        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
+        "status": "refused",
+        "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing."
+      },
+      {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "status": "running",
+        "reason": null
+      },
+      {
+        "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
+        "status": "stopped",
+        "reason": "the lease expired; a new claim must pass the current funding and hosting policy"
+      },
+      {
+        "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
+        "status": "stopped",
+        "reason": "the lease expired; a new claim must pass the current funding and hosting policy"
+      },
+      {
+        "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
+        "status": "refused",
+        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
+      },
+      {
+        "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
+        "status": "refused",
+        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer"
+      },
+      {
+        "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+        "status": "refused",
+        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+      },
+      {
+        "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
+        "status": "refused",
+        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+      },
+      {
+        "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
+        "status": "refused",
+        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app"
+      },
+      {
+        "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
+        "status": "refused",
+        "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled."
+      }
+    ]
+  }
+}

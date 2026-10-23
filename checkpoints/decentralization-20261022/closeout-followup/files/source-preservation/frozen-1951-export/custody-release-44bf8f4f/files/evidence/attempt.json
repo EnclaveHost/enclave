@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-23T19:31:04.200178+00:00",
+  "memoryCapMiB": 5120,
+  "reserveMiB": 16384,
+  "exclusiveBothQueueLanes": true,
+  "hashes": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/manifest.json": "b16d2eae453a161bc508b1b4e93c7c644e6b8607d8a8ac816ad74cffd726802d",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/initramfs.cpio.gz": "56711f82f32cb23f7a75ef6f6c30c4b559444c2d0dac15158f99239fe5407ecb",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out/A-custodian/cmdline": "17a9bc3bc93234905381927cbbcf17522b85a3a2596f9a4b320966259d604827",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo/custody/v2/host.mjs": "745523476b7a8bc5d3f896addf36bd2cc3739be9dadeee569fb4e88e4e5b06bb",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/verify-custodian-quote.mjs": "5acfa74a659c95cf7706a783558f8d0bf392d7588d99940e05876d7e26050579",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/canary/root-hardware-canary.py": "89a8220662ec9e89c465bab1de4f42fc29038d1e846b3818e62ccbf6ed0d38c4",
+    "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9"
+  }
+}

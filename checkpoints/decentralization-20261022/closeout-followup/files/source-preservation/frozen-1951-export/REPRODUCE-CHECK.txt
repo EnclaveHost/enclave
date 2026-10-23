@@ -1,0 +1,43 @@
+cpu-activation base rebuilt from empty + 0 stored patch(es) in 45bf6552f: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+cpu-activation 3451c90a5: tree a2e2196e08000b94a2a1a84b3fa4b5a5b3412cb7 OK
+cpu-activation 785f77af9: tree d8d44a53c320f6c0963e6dcbe814b1e83455766d OK
+sched-manager base rebuilt from f58e03ec4 + 10 stored patch(es) in 45bf6552f: tree 5b1d4b5ae5a446ad37ac9a94e5d162f402b34757 OK
+sched-manager ab2ed9a20: tree 58dc17cc6ea7843f54649d517a9cdb5d533a96c2 OK
+sched-manager 2cea9ead5: tree ddf623f57e7516f846cd4413f954a247a0977ebd OK
+sched-manager 1bda7b79c: tree 5aa32ffb27249d467653f6a59c17f8b083868588 OK
+durability2 base file custody/v2/daemon.mjs: blob a2c2dbc00 OK
+durability2 base file custody/v2/host-binding.mjs: blob b664e738a OK
+durability2 base file custody/v2/host.mjs: blob b7969f3cf OK
+durability2 base file custody/v2/ingress.mjs: blob 7660720eb OK
+durability2 base file custody/v2/member.mjs: blob a5872f243 OK
+durability2 base file custody/v2/sealed-state.mjs: blob ec717869a OK
+durability2 base file docs/security/secret-custody-v2.md: blob 393f9d310 OK
+durability2 base file test/custody-direct-host.test.mjs: blob 2aa0973f8 OK
+durability2 base file test/custody-direct-ingress.test.mjs: blob 4f6eaebaa OK
+durability2 base file test/custody-v2-e2e.test.mjs: blob 6625af0da OK
+durability2 base file test/custody-v2-persist-barrier.test.mjs: blob b4f6c04da OK
+durability2 3ccd4333c: 15 touched path blobs OK
+durability2 0a6b108ee: 15 touched path blobs OK
+durability2 c95dcd3ae: 15 touched path blobs OK
+durability2 a5eae96cd: 15 touched path blobs OK
+durability2: full tree d8afe7ffb on base 415483ff9 NOT reproduced (base not in pushed material; see baseTreeNotReproduced)
+custody-release base rebuilt from empty + 0 stored patch(es) in 45bf6552f: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+custody-release 44bf8f4fb: tree afec64f0a7b8d4f0a76af4287833f4e1e3060c81 OK
+dashboard base rebuilt from dfe020abf + 20 stored patch(es) in 45bf6552f: tree 1cece8e6571631ab23ca8403c706ee5166c69c64 OK
+dashboard 2cf89ae23: tree fba0994fd5f5c77eac7717405c66fd57c66be76c OK
+dashboard 5843da8cd: tree ab742f6c3cbaa28433ebe0057bd62735b89d9aca OK
+dashboard da56c2384: tree dae99d90cd49abbd8a47157cafcf1710113ac190 OK
+dashboard d171bce48: tree 971dbca46610bef7a30d916f0db45e2229670cfc OK
+dashboard 5b2a00926: tree f5e77f49bd1712beadc3034b1e6b95c64c27af70 OK
+dashboard 4acad4a7a: tree cfaa8d49b8bdc9acc70477f51a7895b347507340 OK
+custody-live2 base rebuilt from empty + 1 stored patch(es) in 45bf6552f: tree b48a5ff5963de710ba4f550ffec8fc6d121f1525 OK
+custody-live2 70019fdf9: tree bb19b19a251d290cbd31691adc6078c55d901879 OK
+root-native2 base rebuilt from empty + 4 stored patch(es) in 45bf6552f: tree 56f0e35c1634abc562a3770db2fc06c2612c74c6 OK
+root-native2 e859355e6: tree 3b44552184778fe25120c42b514d1338d13f1adf OK
+sched-guest base rebuilt from empty + 0 stored patch(es) in 45bf6552f: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+sched-guest f7b6ff559: tree 75c2994e33d3831981564099dff80bff33b0adbf OK
+sched-guest 3dbbf8359: tree cd5a27d91c5fe9c7912ab26e0d636ea05290a1cd OK
+sched-guest 216c38075: tree 60a7c16ff1705e8a1ff59a064899570015cfec69 OK
+sched-guest f6d5fbedf: tree 7b29e50c76023ca6a8a23993910aa12bc348b08b OK
+sched-guest trees are the ORIGINAL trees minus ['isolation/m3/hv-accept-check-2026-09-25.txt'] held at the base (head original b424a5c4b); exact originals NOT reproduced
+RESULT cpu-activation reproduced: True, sched-manager reproduced: True, durability2 reproduced: True (touched files only), custody-release reproduced: True, dashboard reproduced: True, custody-live2 reproduced: True, root-native2 reproduced: True, sched-guest reproduced: True

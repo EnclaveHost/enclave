@@ -1,0 +1,46 @@
+{
+  "at": "2026-10-23T19:23:26.386366+00:00",
+  "mode": "apply",
+  "pidBefore": 816,
+  "policyPath": "/etc/nan-relay/shield-policy.json",
+  "beforeSha256": "efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41",
+  "addedEntry": {
+    "measurement": "62ac7aab7700ea41ace82549751ee8797a8e087502bf04ad96c0003727a6b535",
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "configBundleV5": true,
+    "secretsV1": true,
+    "configSocketServer": true,
+    "protectedPorts": true
+  },
+  "unchangedOriginalPolicy": true,
+  "backup": "/etc/nan-relay/shield-policy.json.pre-cpu-quota-20261023",
+  "health": 200,
+  "pidAfter": 22148,
+  "policySha256": "1b3ff5724441ae5b6a21d2be56ff1277b2717bb5cdfde017970bf483687325b7",
+  "cpu": {
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "configBundleV5": true,
+    "secretsV1": true,
+    "configSocketServer": true,
+    "protectedPorts": true
+  },
+  "matchingImages": [
+    {
+      "measurement": "8414496cd0d2af2a49ec0476f69b901bef04cea5d3b52b2347b81e1ef3f14b23",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "configBundleV5": true,
+      "secretsV1": true,
+      "configSocketServer": true,
+      "protectedPorts": true
+    },
+    {
+      "measurement": "62ac7aab7700ea41ace82549751ee8797a8e087502bf04ad96c0003727a6b535",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "configBundleV5": true,
+      "secretsV1": true,
+      "configSocketServer": true,
+      "protectedPorts": true
+    }
+  ],
+  "imageCount": 12
+}

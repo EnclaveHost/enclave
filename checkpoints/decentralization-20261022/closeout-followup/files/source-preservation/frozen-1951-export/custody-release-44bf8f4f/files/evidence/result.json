@@ -1,0 +1,52 @@
+{
+  "startedAt": "2026-10-23T19:31:04.553989+00:00",
+  "quoteOnly": true,
+  "noRegistryKey": true,
+  "noSubmitterKey": true,
+  "noCommittee": true,
+  "genesis": false,
+  "productionActivated": false,
+  "verifierExit": 0,
+  "verdict": {
+    "ok": true,
+    "reasons": [],
+    "expected": {
+      "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
+      "measurementSha256": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1",
+      "commit": "c95dcd3aee901b503751c02918a687c83b227511"
+    },
+    "verifier": {
+      "ok": true,
+      "reasons": [
+        "report is from VMPL0 (full privilege inside the CVM)",
+        "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
+        "measurement on Metal release allowlist",
+        "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
+        "AMD signature chain verified (VCEK KDS/Turin \u2192 ASK \u2192 ARK, Turin)",
+        "VCEK chip ID and TCB extensions match the report",
+        "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
+      ]
+    },
+    "observed": {
+      "measurement": "e01206d386011e8fe925bf81f3a69246eb1b094aec36c22c34e7313b45e2e4690cd8de7cf46a992dc286dc5083b8ff71",
+      "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
+      "policy": "0x30000",
+      "vmpl": 0,
+      "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+      "machine": {
+        "identity": "0xd7d539b09e82c5d3abd90b28c6495dd507b41299",
+        "encKey": "0xc6eac8731b17ccc8ced734f526fd9faf545a37d7139b2df62985aa70bdb88008",
+        "endpoint": "https://custody-release-canary.invalid",
+        "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+        "registryId": "0x0fcd528cd5feab2ff62ea9489203a28075cc90b194ec041d2d676bbc47d8f2f0",
+        "measurement": "0x2f442b3486001f4b2ef4c23b60412aa7e1a67619d9825adb43d09b16c255e3f1"
+      }
+    },
+    "nonce": "4186e020845a7188f53ddd47c181645082620cfeb04bf7d0518602d3ead6fb81",
+    "checkedAt": "2026-10-23T19:31:21.278Z"
+  },
+  "ok": true,
+  "protectedQemuIdentitiesUnchanged": true,
+  "finishedAt": "2026-10-23T19:31:24.365782+00:00",
+  "freshStateRemoved": true
+}

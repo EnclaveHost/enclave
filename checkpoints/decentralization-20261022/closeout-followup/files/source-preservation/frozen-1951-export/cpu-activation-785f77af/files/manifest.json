@@ -1,0 +1,56 @@
+{
+  "source": "ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f",
+  "stage": "C:\\ProgramData\\Enclave\\hotfix\\cpu-quota-20261023",
+  "files": [
+    {
+      "name": "cpu-share.mjs",
+      "live": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\cpu-share.mjs",
+      "before": "absent",
+      "after": "ad792116e5c3939fcd287f76b9131eacf738cb7060f7ff19f94039a3e340e48f"
+    },
+    {
+      "name": "main.mjs",
+      "live": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\main.mjs",
+      "before": "11b42b3a3c66967fa4b260f9adca288f618e2e2b4f28e7487f2632ebcd6cb876",
+      "after": "c051724ba86e4007ef1f14086e3bad8ce6ef4dd8286c45eabee8f835ca35c8ce"
+    },
+    {
+      "name": "server.mjs",
+      "live": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\server.mjs",
+      "before": "58b5d7fd76e7d3bbd3c64780a27e8475dce4dd1aa21753f1e44aaee9c5ea8beb",
+      "after": "1bbb64ffff2bdefe8f15ecf804720e15dc3c322adb93cf8f2fe50a5191ecea66"
+    },
+    {
+      "name": "wmi-launcher.mjs",
+      "live": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmi-launcher.mjs",
+      "before": "33ef5f0e57755e596a50a11a256d8a4b831a90dfd4cda6a9699f8761be4a4592",
+      "after": "17a591f6a1d06605d276705f6f000017c73849d6a9ab8e9523f031029c3003aa"
+    },
+    {
+      "name": "wmiserve-run.mjs",
+      "live": "C:\\Program Files\\Enclave\\control\\windows\\vbslike\\manager\\wmiserve-run.mjs",
+      "before": "8107f272741c40a3d6ea51c0054d5fdc0904cd277346265cd01ca9de1c74ed17",
+      "after": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14"
+    }
+  ],
+  "config": {
+    "path": "C:\\ProgramData\\Enclave\\shield-config.cmd",
+    "before": "5e7f983d7897308345344b117bf2388f64a838cda06416423c0f8aa8287df518"
+  },
+  "policy": {
+    "path": "C:\\Program Files\\Enclave\\network\\admitted-shield-policy.json",
+    "before": "efee77a65fe904ac1d315effecf7fa3a62dd147a9be83fbe5fe944572f3dea41",
+    "oldMeasurement": "8414496cd0d2af2a49ec0476f69b901bef04cea5d3b52b2347b81e1ef3f14b23",
+    "newMeasurement": "62ac7aab7700ea41ace82549751ee8797a8e087502bf04ad96c0003727a6b535"
+  },
+  "image": {
+    "source": "C:\\ProgramData\\Enclave\\hotfix\\cpu-workload-exact-20261023\\runtime.bin",
+    "live": "C:\\Program Files\\Enclave\\guest\\runtime-cpu-c1619eec.bin",
+    "sha256": "c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591"
+  },
+  "loader": {
+    "source": "C:\\ProgramData\\Enclave\\hotfix\\cpu-workload-exact-20261023\\shield-host.exe",
+    "live": "C:\\Program Files\\Enclave\\bin\\shield-host-e4eeb994.exe",
+    "sha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2"
+  }
+}

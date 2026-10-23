@@ -1,0 +1,336 @@
+From ab2ed9a20dcb6a1cb5d0a758d2a1322964e0f46f Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 11:56:55 -0700
+Subject: [PATCH] Manager: every purchased CPU share is confined by its exact
+ guest quota, below one processor too
+
+Hyper-V's root scheduler (the NucBox's Windows 11 client host, scheduler type 0x4) does not enforce
+a VM's processor Limit/Reservation: root's sustained native run burned 4000M in 4813 ms at 100% of
+one VP and 4824 ms at a read-back 16%. The guest app cgroup quota (wmiserve --app-cpu, monitor
+allocatedPolicy) is the only cap, and the launcher sent it only above the catalog's cpuPercent 100,
+so every share up to 6.25% of 16 processors (1%, 2%, 4%...) ran uncapped within its whole VP.
+
+cpuForShare now states appCpuPercent = floor(entitlement / 1000), the purchased share in percent of
+one processor (1% of 16 -> 16, 2% -> 32, 4% -> 64, 13% -> 208, 21% -> 336, 25% -> 400; exact for
+whole-percent shares, rounded down otherwise, never up past what was bought). With
+ENCLAVE_GUEST_CPU_ALLOWANCE=1 the launcher sends it for EVERY share, and wmiserve-run's strict echo
+(unchanged) refuses to serve, removing the VM, unless the monitor applied exactly it.
+The record no longer states a realizable capacity built from the catalog cap or the (unenforced) WMI
+read-back: enforcement is 'guest-app-cgroup' with enforcedUnits only on the exact echo, otherwise
+'none' with the reason. VP sizing, the WMI processor step and its read-back check, pool admission,
+RAM, the readiness witness and the GPU image's settings are unchanged; the node's catalog GFLOPS floor
+(effectiveCpuShare) still decides the share.
+Tests: 1/2/4/13/21/25% quotas through the real launcher chain, missing / catalog-100 / pre-fix-guest
+refusals, the node's floor carried by the quota, no read-back claims.
+---
+ .../vbslike/manager/cpu-allocation.test.mjs   | 78 ++++++++++---------
+ windows/vbslike/manager/cpu-share.mjs         | 18 ++---
+ windows/vbslike/manager/cpu-share.test.mjs    | 39 ++++++++--
+ windows/vbslike/manager/main.mjs              |  3 +-
+ windows/vbslike/manager/server.mjs            | 18 +++--
+ .../manager/testdata/fake-wmiserve.mjs        |  8 +-
+ windows/vbslike/manager/wmi-launcher.mjs      | 10 ++-
+ 7 files changed, 107 insertions(+), 67 deletions(-)
+
+diff --git a/windows/vbslike/manager/cpu-allocation.test.mjs b/windows/vbslike/manager/cpu-allocation.test.mjs
+index d3856ed91291e9178dc43169980c11da44e4c8bc..cfd3cd80416010a50686a4b4d780ed3d8ac22426 100644
+--- a/windows/vbslike/manager/cpu-allocation.test.mjs
++++ b/windows/vbslike/manager/cpu-allocation.test.mjs
+@@ -104,24 +104,25 @@
+     assert.equal(argv[argv.indexOf("--vcpus") + 1], "4", "the signed report's partition.vcpus states the VPs the VM has");
+     assert.equal(argv[argv.indexOf("--app-mem") + 1], String(Math.floor(98304 * .21)));
+     assert.equal(r.cpu.guestOnlineVcpus, 4);
+-    // the measured guest still confines the app to its catalog cpuPercent: said, not hidden
+-    assert.equal(r.cpu.realizableUnits, 100000);
+-    assert.match(r.cpu.blocker, /catalog cpuPercent 100/);
++    // without the guest allowance nothing confines the app to its share, whatever Hyper-V read back: said, not hidden
++    assert.equal(argv.includes("--app-cpu"), false);
++    assert.equal(r.cpu.enforcement, "none"); assert.equal(r.cpu.enforcedUnits, null);
++    assert.match(r.cpu.blocker, /not confined to the 336% of one processor purchased: the guest applied 100%, and the VM's processor Limit is not enforced by Hyper-V's root scheduler/);
++    for (const k of ["realizableUnits", "appCapUnits"]) assert.equal(k in r.cpu, false, `no ${k} built from the read-back`);
+   } finally { await stopAll(m); }
+ });
+ 
+ test("a guest that brings fewer processors online than it was given is recorded as such, not as the full allocation", async () => {
+   const { m } = stack({ hostOver: { head: "\nMON snp=0 vcpus=1 memMiB=8000 boot_ms=300\nMON ready" } });
+   await m.probe(); await m.recover();
+-  const r = await m.spawn(body(.05));                       // 0.8 vCPU on 1 VP: nothing lost
+-  assert.equal(r.cpu.realizableUnits, 80000); assert.equal(r.cpu.blocker, null);
++  const r = await m.spawn(body(.05));                       // 0.8 vCPU on 1 VP: every VP it was given is online
++  assert.doesNotMatch(r.cpu.blocker, /virtual processors online/);
+   await stopAll(m);
+   const s = stack({ hostOver: { head: "\nMON snp=0 vcpus=1 memMiB=8000 boot_ms=300\nMON ready" } });
+   await s.m.probe(); await s.m.recover();
+   const r2 = await s.m.spawn(body(.0625 * 2));              // 2 VPs at 100%
+   try {
+     assert.equal(r2.cpu.vcpus, 2); assert.equal(r2.cpu.guestOnlineVcpus, 1);
+-    assert.equal(r2.cpu.realizableUnits, 100000);
+     assert.match(r2.cpu.blocker, /brought 1 of 2 virtual processors online/);
+   } finally { await stopAll(s.m); }
+ });
+@@ -219,38 +220,39 @@
+   } finally { await stopAll(m); }
+ });
+ 
+-test("a guest image with the CPU allowance: the app's own cgroup quota is raised to the VM allocation, and confirmed", async () => {
+-  const { m, argsFiles } = stack({ serve: true, guestCpuAllowance: true, hostOver: { head: "\nMON snp=0 vcpus=4 memMiB=8000 boot_ms=300\nMON ready" } });
+-  await m.probe(); await m.recover();
+-  const r = await m.spawn(body(.21));
+-  try {
+-    const argv = JSON.parse(fs.readFileSync(argsFiles[0], "utf8"));
+-    assert.equal(argv[argv.indexOf("--app-cpu") + 1], "336", "4 VPs at 84% = 336% of one CPU");
+-    assert.equal(r.cpu.appCpuPercent, 336, "as the monitor applied it (wmiserve's load step)");
+-    assert.equal(r.cpu.realizableUnits, 336000); assert.equal(r.cpu.blocker, null);
+-  } finally { await stopAll(m); }
+-  // 13%: 207999 units -> 208%, rounded UP so the VM's exact Limit, not the cgroup, is the binding cap
+-  const t = stack({ serve: true, guestCpuAllowance: true, hostOver: { head: "\nMON snp=0 vcpus=3 memMiB=8000 boot_ms=300\nMON ready" } });
+-  await t.m.probe(); await t.m.recover();
+-  const r13 = await t.m.spawn(body(.13));
+-  try {
+-    const argv = JSON.parse(fs.readFileSync(t.argsFiles[0], "utf8"));
+-    assert.equal(argv[argv.indexOf("--app-cpu") + 1], "208");
+-    assert.equal(r13.cpu.realizableUnits, 207999);
+-  } finally { await stopAll(t.m); }
+-  // at or below the catalog share there is nothing to raise, and nothing is sent
+-  const u = stack({ serve: true, guestCpuAllowance: true });
+-  await u.m.probe(); await u.m.recover();
+-  const r1 = await u.m.spawn(body(.01));
+-  try { assert.equal(JSON.parse(fs.readFileSync(u.argsFiles[0], "utf8")).includes("--app-cpu"), false); }
+-  finally { await stopAll(u.m); }
++test("a guest image with the CPU allowance: EVERY share's exact quota is sent, below the catalog's 100% too, and confirmed", async () => {
++  // 16 logical processors: 1% -> 16% of one processor (the pre-fix manager sent nothing at or below the catalog's 100,
++  // so a 1% app ran under the catalog's whole processor: 6.25% of the host), 2% -> 32, 4% -> 64, 13% -> 208 (its exact
++  // 2.08 processors, not the 207.999 the VM's rounded Limit carries), 21% -> 336, 25% -> 400
++  for (const [share, vps, quota] of [[.01, 1, 16], [.02, 1, 32], [.04, 1, 64], [.13, 3, 208], [.21, 4, 336], [.25, 4, 400]]) {
++    const { m, argsFiles } = stack({ serve: true, guestCpuAllowance: true, hostOver: { head: `\nMON snp=0 vcpus=${vps} memMiB=8000 boot_ms=300\nMON ready` } });
++    await m.probe(); await m.recover();
++    const r = await m.spawn(body(share));
++    try {
++      assert.equal(r.status, "starting", `${share}: ${r.reason}`);
++      const argv = JSON.parse(fs.readFileSync(argsFiles[0], "utf8"));
++      assert.equal(argv[argv.indexOf("--app-cpu") + 1], String(quota), `${share}: --app-cpu`);
++      assert.equal(argv[argv.indexOf("--vcpus") + 1], String(vps));
++      assert.equal(r.cpu.appCpuPercent, quota, `${share}: as the monitor applied it (wmiserve's load step)`);
++      assert.equal(r.cpu.enforcement, "guest-app-cgroup"); assert.equal(r.cpu.enforcedUnits, quota * 1000);
++      assert.equal(r.cpu.blocker, null);
++      assert.deepEqual(r.policy, REC.policy, "the catalog policy (and so the AppID) is unchanged");
++      assert.equal(r.appId, v.ok[0].mapping.appId);
++    } finally { await stopAll(m); }
++  }
+ });
+ 
+-test("an allowance the guest path did not apply is refused, not served under the catalog cap", async () => {
+-  const { m, h } = stack({ serve: true, guestCpuAllowance: true, mode: "cpu-ignored" });
+-  await m.probe(); await m.recover();
+-  const r = await m.spawn(body(.21));
+-  assert.equal(r.status, "failed");
+-  assert.match(r.reason, /loaded with cpuPercent null, not the 336 allocated/);
+-  assert.equal(h.scripts("removeById").length, 1, "and the VM is removed");
++test("an allowance the guest path did not apply EXACTLY is refused, never served: missing, the catalog's 100, or refused", async () => {
++  for (const [mode, share, why] of [["cpu-ignored", .21, /loaded with cpuPercent null, not the 336 allocated/],
++                                    ["cpu-ignored", .01, /loaded with cpuPercent null, not the 16 allocated/],
++                                    ["cpu-catalog", .01, /loaded with cpuPercent 100, not the 16 allocated/],
++                                    // the pre-fix guest image with the new manager: refused, not served under a whole processor
++                                    ["cpu-below-catalog-refused", .01, /step load failed: cpu allocation 16% is below the catalog cpuPercent 100/]]) {
++    const { m, h } = stack({ serve: true, guestCpuAllowance: true, mode });
++    await m.probe(); await m.recover();
++    const r = await m.spawn(body(share));
++    assert.equal(r.status, "failed", `${mode} ${share}`);
++    assert.match(r.reason, why);
++    assert.equal(h.scripts("removeById").length, 1, `${mode} ${share}: and the VM is removed`);
++  }
+ });
+diff --git a/windows/vbslike/manager/cpu-share.mjs b/windows/vbslike/manager/cpu-share.mjs
+index a1727a5a5a1571803d16dc069849035299917f01..bbf18cdd55256bb6662dc92c0f9e72626f3c3d67 100644
+--- a/windows/vbslike/manager/cpu-share.mjs
++++ b/windows/vbslike/manager/cpu-share.mjs
+@@ -25,16 +25,16 @@
+   if (limit < CPU_MIN_LIMIT)
+     throw new Error(`CPU share allows ${entitlementUnits} units over ${vcpus} VP(s), below ${CPU_MIN_LIMIT} per VP`);
+   const grantedUnits = vcpus * limit;
+-  // The measured guest monitor confines the app to cgroup cpu.max = catalog cpuPercent (EffectivePolicy: the
+-  // bundle wins), so the app itself can use no more than that, whatever the VM is given.
+-  const appCapUnits = cpuPercent * 1000;
+-  const realizableUnits = Math.min(grantedUnits, appCapUnits);
++  // THE CAP THAT BINDS. Hyper-V's root scheduler (Windows client hosts, scheduler type 0x4) does not enforce a VM's
++  // processor Limit/Reservation (Microsoft's "VM CPU resource controls and the root scheduler"; on the NucBox a sustained
++  // burn ran as fast at 16% as at 100% of its VP), so the VP count and those settings only SHAPE the VM. What confines the
++  // app is its guest cgroup quota, cpu.max in percent of one processor: the purchased entitlement exactly, rounded DOWN
++  // (never past what was bought; exact for whole-percent shares of a whole pool: 1% of 16 = 16, 21% = 336), applied
++  // below the catalog's default cpuPercent too. The guest monitor states what it applied, and the launcher serves
++  // nothing else (ENCLAVE_GUEST_CPU_ALLOWANCE=1). It is at least 1 (CPU_MIN_LIMIT) and at most vcpus * 100.
++  const appCpuPercent = Math.floor(entitlementUnits / 1000);
+   return { rule: "cpu-share", poolVcpus, cpuShare, entitlementUnits, vcpus, limit, reservation: limit, grantedUnits,
+-           policy: { vcpus: minVcpus, cpuPercent }, appCapUnits, realizableUnits,
+-           blocker: realizableUnits < grantedUnits
+-             ? `the measured guest confines the app to its catalog cpuPercent ${cpuPercent} (cgroup cpu.max); `
+-               + `${grantedUnits - realizableUnits} of ${grantedUnits} granted units are not usable by the app until the guest honours a runtime CPU allowance`
+-             : null };
++           policy: { vcpus: minVcpus, cpuPercent }, appCpuPercent };
+ }
+ 
+ /** The fixed legacy policy, for the synthetic readiness witness and for managers with no pools (labs). */
+diff --git a/windows/vbslike/manager/cpu-share.test.mjs b/windows/vbslike/manager/cpu-share.test.mjs
+index 533abcf3082018130198895e5a8cc7993a045bea..138220789ece1f2a966f145ba49fdb4bd8630ca6 100644
+--- a/windows/vbslike/manager/cpu-share.test.mjs
++++ b/windows/vbslike/manager/cpu-share.test.mjs
+@@ -33,7 +33,7 @@
+   assert.deepEqual([cpuForShare(16, .25, shield).vcpus, cpuForShare(16, .25, shield).limit], [4, 100000]);
+   assert.deepEqual([cpuForShare(8, .25, shield).vcpus, cpuForShare(8, .25, shield).limit], [4, 50000], "2 vCPU of an 8-VP pool over the 4 VPs it requires");
+   assert.throws(() => cpuForShare(2, .5, shield), /needs 4 virtual processors, but the CPU pool has 2/);
+-  assert.equal(cpuForShare(16, .25, shield).blocker, null, "a 400% catalog cap can use all 4 VPs");
++  assert.equal(cpuForShare(16, .25, shield).appCpuPercent, 400, "a 25% share confines the app to 4 processors' worth");
+ });
+ 
+ test("bad shares, pools and policies are refused, and a cap below 1% of a VP is not an allocation", () => {
+@@ -45,16 +45,41 @@
+   assert.equal(cpuForShare(16, .000625, P1).limit, 1000);
+ });
+ 
+-test("what the app can use is stated beside what the VM is given: the measured guest caps it at catalog cpuPercent", () => {
+-  const small = cpuForShare(16, .01, P1);
+-  assert.deepEqual([small.appCapUnits, small.realizableUnits, small.blocker], [100000, 16000, null]);
+-  const big = cpuForShare(16, .25, P1);
+-  assert.equal(big.grantedUnits, 400000); assert.equal(big.realizableUnits, 100000);
+-  assert.match(big.blocker, /cgroup cpu\.max.*300000 of 400000 granted units are not usable/);
++test("the guest app quota is the purchased share exactly, below the catalog's 100% too, never rounded up", () => {
++  // percent of ONE processor (cgroup cpu.max): whole-percent shares of the 16-processor pool are exact
++  for (const [share, pct] of [[.01, 16], [.02, 32], [.04, 64], [.0625, 100], [.13, 208], [.21, 336], [.25, 400], [1, 1600], [.29, 464]])
++    assert.equal(cpuForShare(16, share, P1).appCpuPercent, pct, `${share}`);
++  // a fractional entitlement rounds DOWN (never past what was bought): 1.25% of 16 = 20%, 1.3% = 20.8% -> 20
++  assert.equal(cpuForShare(16, .0125, P1).appCpuPercent, 20);
++  assert.equal(cpuForShare(16, .013, P1).appCpuPercent, 20);
++  assert.equal(cpuForShare(16, 0.16999999999999998, P1).appCpuPercent, 272, "a float share the node can produce lands on its percent");
++  assert.equal(cpuForShare(8, .01, P1).appCpuPercent, 8, "another pool: 1% of 8 processors");
++  assert.equal(cpuForShare(16, .000625, P1).appCpuPercent, 1, "the cgroup's smallest quota");
++  for (const s of [.000625, .001, .01, .013, .05, .13, .21, .33, .5, .99, 1]) {
++    const c = cpuForShare(16, s, P1);
++    assert.ok(c.appCpuPercent >= 1 && c.appCpuPercent <= c.vcpus * 100, `${s}: within what the VM's processors can carry`);
++    assert.ok(c.appCpuPercent * 1000 <= c.entitlementUnits && c.entitlementUnits - c.appCpuPercent * 1000 < 1000, `${s}: never over, under by < 1%`);
++  }
++  // no claim built from the catalog cap or the VM's (unenforced) Limit
++  const c = cpuForShare(16, .25, P1);
++  for (const k of ["realizableUnits", "appCapUnits", "blocker"]) assert.equal(k in c, false, k);
+   assert.deepEqual(cpuFixedPolicy({ vcpus: 1 }, "readiness-witness-fixed"),
+                    { rule: "readiness-witness-fixed", vcpus: 1, limit: 100000, reservation: 0, grantedUnits: 100000 });
+ });
+ 
++test("the catalog's real compute minimum is kept by the node's share, so a quota below the catalog's 100% never goes under it", async () => {
++  // windows/node/chain.mjs effectiveCpuShare (the CPU rule the activated node a5e155ec keeps unchanged): a version's GFLOPS
++  // floor raises the share to whole percents, rounded UP, of this box; the manager then confines the app to that share
++  const { effectiveCpuShare } = await import("../../node/chain.mjs");
++  const BOX_GFLOPS = 800;                                              // what the node measures for the whole 16-LP box
++  for (const [gflops, dial, share] of [[8, 0, .01], [8.1, 0, .02], [30, .01, .04], [168, 0, .21], [8, .25, .25]]) {
++    const s = effectiveCpuShare({ cpuMilli: dial * 1000 }, { cpuGflops: gflops, memMb: 256 }, BOX_GFLOPS);
++    assert.equal(s, share, `${gflops} GFLOPS dialed ${dial}`);
++    const q = cpuForShare(16, s, P1).appCpuPercent;                    // percent of one of 16 processors
++    assert.ok(q / 1600 * BOX_GFLOPS >= gflops - 1e-9, `${gflops} GFLOPS: the ${q}% quota still carries the catalog floor`);
++  }
++});
++
+ const MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), "main.mjs");
+ function runMain(env, ms = 6000) {
+   return new Promise((resolve) => {
+diff --git a/windows/vbslike/manager/main.mjs b/windows/vbslike/manager/main.mjs
+index 0c31971eadbbe07b58f6f63148831deb5efe0b8e..4579edf314ad1c851fdc28f04babe62fb20bf9da 100644
+--- a/windows/vbslike/manager/main.mjs
++++ b/windows/vbslike/manager/main.mjs
+@@ -115,7 +115,8 @@
+       hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
+       serve,
+       // set ONLY with a guest image whose monitor applies a launcher CPU allowance (allocatedPolicy) and a wmiserve with
+-      // --app-cpu; with it, a domain the guest did not raise is refused rather than served under its catalog cap
++      // --app-cpu; with it, EVERY share's exact guest quota is sent (below the catalog cpuPercent too) and a domain the guest
++      // did not apply exactly is refused. Without it the app is NOT confined to its share on a root-scheduler host.
+       guestCpuAllowance: env("ENCLAVE_GUEST_CPU_ALLOWANCE") === "1",
+       ...(egress ? { startEgress: egressHook, egressService: EGRESS_SERVICE_GUID } : {}),
+     };
+diff --git a/windows/vbslike/manager/server.mjs b/windows/vbslike/manager/server.mjs
+index b5b1ca401b996b8b74cf2c9bb48dd8646faedcc4..51a1a5d3e0a661e59b325337c2fc3344f9f55789 100644
+--- a/windows/vbslike/manager/server.mjs
++++ b/windows/vbslike/manager/server.mjs
+@@ -460,7 +460,7 @@
+     try {
+       const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}),
+         // the witness keeps its qualified launch exactly (Hyper-V's default, no processor step); every deployment is sized
+-        ...(cpu?.rule === "cpu-share" ? { appCpu: { vcpus: cpu.vcpus, limit: cpu.limit, reservation: cpu.reservation } } : {}),
++        ...(cpu?.rule === "cpu-share" ? { appCpu: { vcpus: cpu.vcpus, limit: cpu.limit, reservation: cpu.reservation, appCpuPercent: cpu.appCpuPercent } } : {}),
+         identity: { id, name, instanceId, appId: mapping.appId } });
+       if (h?.transport?.exited) h.transport.exited.then(() => {
+         if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped") {
+@@ -488,20 +488,24 @@
+       rec.startedAt = Date.now(); rec.handle = h;
+       if (memory && h?.memory) rec.memory = { ...memory, vmMiB: h.memory.vmMiB };
+       if (cpu && h?.cpu) {
+-        // WHAT THE APP CAN USE: the VM's read-back allocation, bounded by the processors the guest brought online and by
+-        // the cgroup quota the monitor applied (its catalog cpuPercent unless it confirmed a raised allowance)
++        // WHAT CONFINES THE APP. The VM's processor Limit/Reservation is set and read back (readback), but Hyper-V's root
++        // scheduler does not enforce it, so a read-back is never stated as a cap. The cap is the guest app cgroup quota the
++        // monitor applied, and only when it is exactly the purchased one (cpu-share.mjs appCpuPercent; wmiserve-run has
++        // already refused any other answer). The guest kernel, monitor, front and relay in the VM are outside that quota.
+         const online = Number.isSafeInteger(h.cpu.guestOnlineVcpus) ? h.cpu.guestOnlineVcpus : null;
+         const applied = Number.isSafeInteger(h.cpu.appCpuPercent) ? h.cpu.appCpuPercent : null;
+         rec.cpu = { ...cpu, readback: h.cpu.readback ?? null, guestOnlineVcpus: online, appCpuPercent: applied };
+         if (cpu.rule === "cpu-share") {
+-          const appCap = Math.max(cpu.appCapUnits, (applied ?? 0) * 1000);
++          const enforced = applied !== null && applied === cpu.appCpuPercent;
++          rec.cpu.enforcement = enforced ? "guest-app-cgroup" : "none";
++          rec.cpu.enforcedUnits = enforced ? applied * 1000 : null;
+           const why = [];
++          if (!enforced) why.push(`the app is not confined to the ${cpu.appCpuPercent}% of one processor purchased: `
++            + (applied === null ? "no guest app CPU quota was confirmed" : `the guest applied ${applied}%`)
++            + ", and the VM's processor Limit is not enforced by Hyper-V's root scheduler");
+           if (online !== null && online < cpu.vcpus) why.push(`the guest brought ${online} of ${cpu.vcpus} virtual processors online`);
+           // unobserved is not "all of them": only the one VP any booted guest has is counted
+           if (online === null && cpu.vcpus > 1) why.push("the guest's online processor count was not seen on its console");
+-          if (appCap < cpu.grantedUnits) why.push(cpu.blocker);
+-          rec.cpu.appCapUnits = appCap;
+-          rec.cpu.realizableUnits = Math.min(cpu.grantedUnits, appCap, (online ?? 1) * cpu.limit);
+           rec.cpu.blocker = why.length ? why.join("; ") : null;
+         }
+       }
+diff --git a/windows/vbslike/manager/testdata/fake-wmiserve.mjs b/windows/vbslike/manager/testdata/fake-wmiserve.mjs
+index fad3d57f5cc40bb810ededf19d69772dccdf2ef3..3a09af8af28702abfd2e9a68148e35a6d686f00e 100644
+--- a/windows/vbslike/manager/testdata/fake-wmiserve.mjs
++++ b/windows/vbslike/manager/testdata/fake-wmiserve.mjs
+@@ -29,12 +29,18 @@
+ if (mode === "out-of-order") out({ step: "load", ok: true, id: 1, appSha256: app, guestPort: 40001, agreed: true });
+ out({ step: "report-service", port: 9001, bound: mode !== "report-unbound", ...(mode === "report-unbound" ? { error: "os error 10013" } : {}) });
+ if (mode === "load-fail") { out({ step: "load", ok: false, error: "hash disagreement: the domain was destroyed (load-reclaim)" }); process.exit(1); }
++// "cpu-below-catalog-refused" plays the pre-fix guest monitor (allocatedPolicy refused a cpu below the catalog's 100)
++if (mode === "cpu-below-catalog-refused" && arg("--app-cpu") && Number(arg("--app-cpu")) < 100) {
++  out({ step: "load", ok: false, error: `cpu allocation ${arg("--app-cpu")}% is below the catalog cpuPercent 100 or above this guest's 1 online processors` });
++  process.exit(1);
++}
+ out({ step: "load", ok: true, id: 1, guestPort: 40001,
+       appSha256: mode === "wrong-app" ? "ee".repeat(32) : app, agreed: mode !== "not-agreed",
+       ...(mode === "no-boot" ? {} : { boot: mode === "bad-boot" ? "xyz" : "39725c19e15c91afe488ce62251055f5" }),
+       certName: loadedName,
+       // the cpuPercent the monitor applied (a new wmiserve states it); "cpu-ignored" plays a wmiserve that predates --app-cpu
+-      ...(mode === "cpu-ignored" ? {} : { cpuPercent: arg("--app-cpu") ? Number(arg("--app-cpu")) : 100 }) });
++      // "cpu-catalog" one that answers the catalog's 100 whatever it was asked
++      ...(mode === "cpu-ignored" ? {} : { cpuPercent: mode === "cpu-catalog" ? 100 : arg("--app-cpu") ? Number(arg("--app-cpu")) : 100 }) });
+ out({ step: "relay", ok: true, tcp: mode === "relay-wrong-port" ? tcp + 1 : tcp, guestPort: 40001 });
+ if (mode === "hang") { setInterval(() => {}, 1 << 30); }
+ else {
+diff --git a/windows/vbslike/manager/wmi-launcher.mjs b/windows/vbslike/manager/wmi-launcher.mjs
+index 3b5ee5f5edbfebe6632addb638e457d02e9bd71e..3e9d01cfa62d1d1c8c7e4ba6436b1d1fd71d1fe8 100644
+--- a/windows/vbslike/manager/wmi-launcher.mjs
++++ b/windows/vbslike/manager/wmi-launcher.mjs
+@@ -1096,10 +1096,12 @@
+       // OUTBOUND HTTPS (egress.mjs): the partition's bridge and egress endpoint, now that the VM runs and before its app is
+       // served; the hook decides which mappings get one (main.mjs: secret deployments) and answers null for the rest
+       if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping)) || null;
+-      // the app's own cgroup quota, raised to the VM's allocation where it exceeds the catalog cpuPercent (rounded UP:
+-      // the VM's exact Limit stays the binding cap)
+-      const want = this.guestCpuAllowance && appCpu ? Math.ceil(vcpus * cpu.limit / 1000) : null;
+-      const appCpuPercent = want !== null && want > mapping.record.policy.cpuPercent ? want : null;
++      // THE APP'S OWN CGROUP QUOTA, for EVERY purchased share (cpu-share.mjs appCpuPercent): above the catalog cpuPercent
++      // and below it alike. Under Hyper-V's root scheduler the VM's processor Limit binds nothing, so this quota is the cap;
++      // wmiserve-run refuses to serve unless the monitor states exactly this cpuPercent.
++      const appCpuPercent = this.guestCpuAllowance && appCpu ? appCpu.appCpuPercent : null;
++      if (appCpuPercent !== null && !(Number.isSafeInteger(appCpuPercent) && appCpuPercent >= 1 && appCpuPercent <= vcpus * 100))
++        throw new Error(`the app CPU quota ${JSON.stringify(appCpuPercent ?? null)}% is not a whole percent within 1..${vcpus * 100}`);
+       if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, appCpuPercent, certName: certNameFor(identity && identity.name) });
+       const guestIdentity = uefi
+         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })

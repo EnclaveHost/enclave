@@ -1,0 +1,25 @@
+From 5843da8cd82470b91004d91ff05c6a87f0b55dae Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:06:41 -0700
+Subject: [PATCH] Custody v2 browser entry: also export configTextOf (the owner
+ names a non-inline config)
+
+The dashboard binds values to a config read off the chain only when the deployment's options envelope carries it
+inline; otherwise the owner names that exact JSON (or states there is none), as the CLI's --config-file/--no-config,
+and configTextOf gives the text the guest compares against.
+---
+ custody/v2/browser.mjs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/custody/v2/browser.mjs b/custody/v2/browser.mjs
+index 25a7c2d91d6ece7ef6a695e205456e8de425dddb..fcab2a1ce28b9e8930e7b364f5875cef6261bd97 100644
+--- a/custody/v2/browser.mjs
++++ b/custody/v2/browser.mjs
+@@ -5,6 +5,6 @@
+ export { createChainReaderV2, VAULT_V2_ABI } from "./chain.mjs";
+ export { buildBundleV2, makeUpdateV2, UPDATE_V2_ABI, updateTypedDataV2, contentHashV2 } from "./owner.mjs";
+ export { parseRules, validateRules, canonicalRules, rulesFromPrediction } from "../rules.mjs";
+-export { configTextFromEnvelope, configSha256, checkEnv } from "../protocol.mjs";
++export { configTextFromEnvelope, configTextOf, configSha256, checkEnv } from "../protocol.mjs";
+ export { REVIEWED_CUSTODY_VAULTS, PRODUCTION_CUSTODY_VAULT, custodyVaultKind, checkCustodyVaultIdentity } from "../../network/custody-vaults.mjs";
+ export { encodeFunctionData, bytesToHex, stringToHex } from "viem";

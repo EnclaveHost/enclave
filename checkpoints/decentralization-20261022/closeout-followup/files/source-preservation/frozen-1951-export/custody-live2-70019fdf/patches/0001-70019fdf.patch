@@ -1,0 +1,683 @@
+From 70019fdf9c7c4628cd852af7ac6ebae55843a610 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 12:10:51 -0700
+Subject: [PATCH] Record live custody configuration, sealed-state retention and
+ relay metadata without reading secrets
+
+---
+ SCAN-REVIEW.txt                              |   1 +
+ evidence/dns-policy-inventory.guard.log      |   1 +
+ evidence/dns-policy-inventory.json           |  66 ++++++
+ evidence/local-config-retention-4.guard.log  |   1 +
+ evidence/local-config-retention.json         | 153 ++++++++++++++
+ evidence/provider-policy-inventory.guard.log |   1 +
+ evidence/provider-policy-inventory.json      | 204 +++++++++++++++++++
+ evidence/relay-public-config-3.guard.log     |   1 +
+ evidence/relay-public-config.json            |  42 ++++
+ probes/dns-policy-inventory.py               |  28 +++
+ probes/local-config-retention.py             |  16 ++
+ probes/provider-policy-inventory.py          |  10 +
+ probes/relay-public-config.py                |  34 ++++
+ probes/service-command-paths.py              |   4 +
+ 14 files changed, 562 insertions(+)
+ create mode 100644 SCAN-REVIEW.txt
+ create mode 100644 evidence/dns-policy-inventory.guard.log
+ create mode 100644 evidence/dns-policy-inventory.json
+ create mode 100644 evidence/local-config-retention-4.guard.log
+ create mode 100644 evidence/local-config-retention.json
+ create mode 100644 evidence/provider-policy-inventory.guard.log
+ create mode 100644 evidence/provider-policy-inventory.json
+ create mode 100644 evidence/relay-public-config-3.guard.log
+ create mode 100644 evidence/relay-public-config.json
+ create mode 100644 probes/dns-policy-inventory.py
+ create mode 100644 probes/local-config-retention.py
+ create mode 100644 probes/provider-policy-inventory.py
+ create mode 100644 probes/relay-public-config.py
+ create mode 100644 probes/service-command-paths.py
+
+diff --git a/SCAN-REVIEW.txt b/SCAN-REVIEW.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..a764a5bfd18ae78650b432da35776bab56b4db1b
+--- /dev/null
++++ b/SCAN-REVIEW.txt
+@@ -0,0 +1 @@
++Root reviewed the two staged gitleaks generic-api-key findings at diff lines490/491: exact SHA256 values of public source files api-relay.js (481f0041...) and secrets.js (4c491271...), not credentials. No private value was present. Metadata schema clarified as [{path,sha256}], preserving exact observed hashes and original timestamp. No blanket scanner rule disabled. The unmodified scanner is rerun over the final staged diff.
+diff --git a/evidence/dns-policy-inventory.guard.log b/evidence/dns-policy-inventory.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a9b65c20724de18ced54c24e4cc45f9fd12a12b
+--- /dev/null
++++ b/evidence/dns-policy-inventory.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=27 minHostAvailableMiB=26467
+diff --git a/evidence/dns-policy-inventory.json b/evidence/dns-policy-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..79bac8e0fdba8ff5e4cf8bea5f977e8ae6bb85d6
+--- /dev/null
++++ b/evidence/dns-policy-inventory.json
+@@ -0,0 +1,66 @@
++{
++  "at": "2026-10-23T19:08:28.754616+00:00",
++  "readOnly": true,
++  "services": [
++    {
++      "unit": "enclave-api-relay.service",
++      "pid": 816,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tls.service",
++      "pid": 777,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-ap-southeast.service",
++      "pid": 11372,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-ca-east.service",
++      "pid": 779,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-eu-central.service",
++      "pid": 11373,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-control-tunnel-us-west.service",
++      "pid": 782,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-dns.service",
++      "pid": 783,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-native-discovery.service",
++      "pid": 828,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-policy-migration-bridge.service",
++      "pid": 839,
++      "policyPaths": {},
++      "policies": []
++    },
++    {
++      "unit": "enclave-provider-migration-mirror.service",
++      "pid": 840,
++      "policyPaths": {},
++      "policies": []
++    }
++  ]
++}
+diff --git a/evidence/local-config-retention-4.guard.log b/evidence/local-config-retention-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/evidence/local-config-retention-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/evidence/local-config-retention.json b/evidence/local-config-retention.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..375a243172d0d02d45903e309cdec25b7200eb28
+--- /dev/null
++++ b/evidence/local-config-retention.json
+@@ -0,0 +1,153 @@
++{
++  "at": "2026-10-23T19:01:15.445641+00:00",
++  "readOnly": true,
++  "pid": 3817646,
++  "configPath": "/home/steven/enclave-prod/custodian-v2/config.json",
++  "publicConfig": {
++    "dist": "/home/steven/enclave-prod/custodian-v2-9d43e63e8",
++    "stateDir": "/home/steven/enclave-prod/custodian-v2/state",
++    "endpoint": "https://api.enclave.host/t/custody-metal0",
++    "registryEndpoint": "https://api.enclave.host/t/metal0",
++    "vault": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
++    "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++    "genesis": false,
++    "cpus": 2,
++    "memMiB": 3072,
++    "hostPort": 8796,
++    "mgmtPort": 18787,
++    "tunnelName": "custody-metal0"
++  },
++  "sealedBlobMetadata": [
++    {
++      "name": "state.bin",
++      "bytes": 540,
++      "modified": "2026-10-23T19:00:31.031853+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792780872334",
++      "bytes": 540,
++      "modified": "2026-10-23T18:41:12.334815+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792780932901",
++      "bytes": 540,
++      "modified": "2026-10-23T18:42:12.901696+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792780993531",
++      "bytes": 540,
++      "modified": "2026-10-23T18:43:13.531859+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781054666",
++      "bytes": 540,
++      "modified": "2026-10-23T18:44:14.666448+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781115838",
++      "bytes": 540,
++      "modified": "2026-10-23T18:45:15.838085+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781176915",
++      "bytes": 540,
++      "modified": "2026-10-23T18:46:16.915590+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781237679",
++      "bytes": 540,
++      "modified": "2026-10-23T18:47:17.679582+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781298280",
++      "bytes": 540,
++      "modified": "2026-10-23T18:48:18.280976+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781359432",
++      "bytes": 540,
++      "modified": "2026-10-23T18:49:19.432230+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781420904",
++      "bytes": 540,
++      "modified": "2026-10-23T18:50:20.904499+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781482331",
++      "bytes": 540,
++      "modified": "2026-10-23T18:51:22.331196+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781542952",
++      "bytes": 540,
++      "modified": "2026-10-23T18:52:22.952501+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781603530",
++      "bytes": 540,
++      "modified": "2026-10-23T18:53:23.531000+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781664396",
++      "bytes": 540,
++      "modified": "2026-10-23T18:54:24.396591+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781725818",
++      "bytes": 540,
++      "modified": "2026-10-23T18:55:25.818670+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781786963",
++      "bytes": 540,
++      "modified": "2026-10-23T18:56:26.963501+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781847662",
++      "bytes": 540,
++      "modified": "2026-10-23T18:57:27.662169+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781908890",
++      "bytes": 540,
++      "modified": "2026-10-23T18:58:28.890518+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792781969557",
++      "bytes": 540,
++      "modified": "2026-10-23T18:59:29.558075+00:00",
++      "mode": "0o600"
++    },
++    {
++      "name": "state.bin.1792782031031",
++      "bytes": 540,
++      "modified": "2026-10-23T19:00:31.031853+00:00",
++      "mode": "0o600"
++    }
++  ],
++  "limits": [
++    "No state blob bytes or signer environment values read.",
++    "File count is current directory metadata, not an exhaustive backup inventory.",
++    "No service or VM changed."
++  ]
++}
+diff --git a/evidence/provider-policy-inventory.guard.log b/evidence/provider-policy-inventory.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d000b0a74faede002a51d5e99094d86d4f7e1dfb
+--- /dev/null
++++ b/evidence/provider-policy-inventory.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=26457
+diff --git a/evidence/provider-policy-inventory.json b/evidence/provider-policy-inventory.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..60fcc208fbffb6a7c21e99ca7e21d7ec5aaa8a9b
+--- /dev/null
++++ b/evidence/provider-policy-inventory.json
+@@ -0,0 +1,204 @@
++[
++  {
++    "at": "2026-10-23T19:09:02.141029+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 388529,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 242499,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 69964,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 297365,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 242641,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 323245,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 245726,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "us-west"
++  },
++  {
++    "at": "2026-10-23T19:09:05.251703+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 245258,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 220296,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 64792,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 314772,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-lease-relay.service",
++        "pid": 266988,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 220286,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 296254,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 223263,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "eu-central"
++  },
++  {
++    "at": "2026-10-23T19:09:07.145996+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 253047,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 227529,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 67654,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 322201,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 227519,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 303512,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 230360,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "ap-southeast"
++  },
++  {
++    "at": "2026-10-23T19:09:05.884433+00:00",
++    "readOnly": true,
++    "services": [
++      {
++        "unit": "enclave-bootstrap-gateway.service",
++        "pid": 243376,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-bootstrap-tls.service",
++        "pid": 220071,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-custodian.service",
++        "pid": 64446,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-dns-front.service",
++        "pid": 278729,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-network-provider.service",
++        "pid": 302827,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-public-directory.service",
++        "pid": 299190,
++        "policyPaths": {},
++        "policies": []
++      },
++      {
++        "unit": "enclave-route-dns.service",
++        "pid": 222936,
++        "policyPaths": {},
++        "policies": []
++      }
++    ],
++    "host": "ca-east"
++  }
++]
+diff --git a/evidence/relay-public-config-3.guard.log b/evidence/relay-public-config-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b83e60f24b05844e591bbd8d18f04567647cfcee
+--- /dev/null
++++ b/evidence/relay-public-config-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=26557
+diff --git a/evidence/relay-public-config.json b/evidence/relay-public-config.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..34e1670a71c8b250dc484bbe87593e94c1030d56
+--- /dev/null
++++ b/evidence/relay-public-config.json
+@@ -0,0 +1,42 @@
++{
++  "at": "2026-10-23T19:07:03.004741+00:00",
++  "readOnly": true,
++  "pid": 816,
++  "publicEnvironment": {
++    "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
++    "CUSTODY_VAULT": "0x08074300f75e78212ae10ebd14984f78e17811a6",
++    "CUSTODY_VAULT_V2": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++    "CUSTODY_COMMITTEE": null,
++    "CUSTODY_COMMITTEE_V2": null,
++    "AUTH_DATA_DIR": "/var/lib/enclave-relay",
++    "ATTESTED_SHIELD_POLICY": null
++  },
++  "sourceHashes": [
++    {
++      "path": "api-relay.js",
++      "sha256": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d"
++    },
++    {
++      "path": "secrets.js",
++      "sha256": "4c49127164e716a7431b1e2d62cd703f82b7a849641205e5bdf28d3bd17a198b"
++    },
++    {
++      "path": "relay/custody-state.mjs",
++      "sha256": null
++    }
++  ],
++  "shieldPolicy": null,
++  "activeEncryptedStore": {
++    "path": "/var/lib/enclave-relay/secrets.json",
++    "bytes": 25638,
++    "mode": "0o644",
++    "recordCount": 37,
++    "knownExistingCustodyCanaryPresent": false
++  },
++  "boundedBackupMetadata": [],
++  "limits": [
++    "No secret values or private environment values emitted. No decryption performed.",
++    "Only direct /root/relay-*/secrets.json* backup metadata checked, not an exhaustive retention inventory.",
++    "No service or configuration changed."
++  ]
++}
+diff --git a/probes/dns-policy-inventory.py b/probes/dns-policy-inventory.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..07d15b994ee79e9940c8090af4615b6692cf77b9
+--- /dev/null
++++ b/probes/dns-policy-inventory.py
+@@ -0,0 +1,28 @@
++"""Public policy metadata from running control-VM services; never print arbitrary environment."""
++import subprocess,json,pathlib
++ssh=['ssh','-p32423','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','UserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts','-i','/home/steven/.ssh/minipc','controladmin@127.0.0.1','sudo python3 -']
++src=r'''
++import subprocess,pathlib,json,hashlib,datetime
++lines=subprocess.check_output(['systemctl','list-units','--type=service','--state=running','--no-legend','--plain'],text=True).splitlines()
++rows=[]
++for line in lines:
++ unit=line.split()[0]
++ if not any(w in unit for w in ['enclave','dns','relay']):continue
++ p=int(subprocess.check_output(['systemctl','show',unit,'-p','MainPID','--value'],text=True).strip())
++ if p<2:continue
++ env={}
++ for v in pathlib.Path(f'/proc/{p}/environ').read_bytes().split(b'\0'):
++  if b'=' in v:
++   k,val=v.split(b'=',1)
++   if k in [b'ATTESTED_SHIELD_POLICY',b'ENCLAVE_NETWORK_SHIELD_POLICY']:env[k.decode()]=val.decode()
++ row={'unit':unit,'pid':p,'policyPaths':env,'policies':[]}
++ for path in env.values():
++  f=pathlib.Path(path);assert f.is_absolute()
++  if f.is_file():
++   b=f.read_bytes();j=json.loads(b);row['policies'].append({'path':path,'sha256':hashlib.sha256(b).hexdigest(),'schema':j.get('schema'),'images':j.get('images',[]),'cpu':j.get('cpu')})
++ rows.append(row)
++print(json.dumps({'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'services':rows}))
++'''
++r=subprocess.run(ssh,input=src,capture_output=True,text=True,timeout=40)
++if r.returncode:raise SystemExit(r.stderr[-350:])
++o=json.loads(r.stdout);pathlib.Path('work/custody-v2-live-20261023/evidence/dns-policy-inventory.json').write_text(json.dumps(o,indent=2)+'\n');print(json.dumps(o))
+diff --git a/probes/local-config-retention.py b/probes/local-config-retention.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9bfcdb50981b4000f9604c2cdd8f20049a00000c
+--- /dev/null
++++ b/probes/local-config-retention.py
+@@ -0,0 +1,16 @@
++"""Read public custody settings and sealed-blob metadata only; never read state blob contents or signer environment."""
++import pathlib,subprocess,json,datetime
++unit='enclave-custodian-v2.service'
++r=subprocess.run(['systemctl','--user','show',unit,'-p','MainPID','--value'],capture_output=True,text=True,timeout=10,check=True)
++pid=int(r.stdout.strip());assert pid>1
++args=pathlib.Path(f'/proc/{pid}/cmdline').read_bytes().decode().split('\0')
++assert any(x == '/home/steven/enclave-prod/custodian-v2/host.mjs' for x in args),'Unexpected service command'
++i=next(i for i,x in enumerate(args) if x == '/home/steven/enclave-prod/custodian-v2/host.mjs');cfgPath=pathlib.Path(args[i+1]);cfgPath=cfgPath if cfgPath.is_absolute() else pathlib.Path(f'/proc/{pid}/cwd').resolve()/cfgPath;assert cfgPath.is_absolute() and cfgPath.suffix=='.json'
++cfg=json.loads(cfgPath.read_text());allowed=['dist','stateDir','endpoint','registryEndpoint','registryId','vault','committeeId','genesis','cpus','memMiB','hostPort','mgmtPort','tunnelName']
++public={k:cfg[k] for k in allowed if k in cfg}
++state=pathlib.Path(cfg['stateDir']);assert state.is_absolute()
++blobs=[]
++for f in sorted(state.glob('state.bin*')):
++ st=f.stat();blobs.append({'name':f.name,'bytes':st.st_size,'modified':datetime.datetime.fromtimestamp(st.st_mtime,datetime.timezone.utc).isoformat(),'mode':oct(st.st_mode&0o777)})
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'pid':pid,'configPath':str(cfgPath),'publicConfig':public,'sealedBlobMetadata':blobs,'limits':['No state blob bytes or signer environment values read.','File count is current directory metadata, not an exhaustive backup inventory.','No service or VM changed.']}
++pathlib.Path('work/custody-v2-live-20261023/evidence/local-config-retention.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/provider-policy-inventory.py b/probes/provider-policy-inventory.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6c9a3258bb758a059fea3669e6208a1263055c74
+--- /dev/null
++++ b/probes/provider-policy-inventory.py
+@@ -0,0 +1,10 @@
++import ast,pathlib,subprocess,json,concurrent.futures
++p=pathlib.Path(__file__).parent
++mod=ast.parse((p/'dns-policy-inventory.py').read_text());src=next(ast.literal_eval(x.value) for x in mod.body if isinstance(x,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='src' for t in x.targets))
++def check(host):
++ r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=10',host,'python3 -'],input=src,capture_output=True,text=True,timeout=45)
++ if r.returncode:return {'host':host,'error':r.stderr[-300:]}
++ o=json.loads(r.stdout);o['host']=host;return o
++with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:out=list(ex.map(check,['us-west','eu-central','ap-southeast','ca-east']))
++(p.parent/'evidence/provider-policy-inventory.json').write_text(json.dumps(out,indent=2)+'\n')
++for r in out:print(json.dumps({'host':r['host'],'error':r.get('error'),'services':[{'unit':x['unit'],'policyPaths':x['policyPaths'],'policyCount':len(x['policies'])} for x in r.get('services',[])]}))
+diff --git a/probes/relay-public-config.py b/probes/relay-public-config.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c880f16f2e9c45bc8f25e15e3ad1677e0b64527a
+--- /dev/null
++++ b/probes/relay-public-config.py
+@@ -0,0 +1,34 @@
++"""Read-only relay inventory: public environment allowlist, source hashes, encrypted-store metadata/count only."""
++import subprocess,json,pathlib,datetime,hashlib
++ssh=['ssh','-p32423','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','UserKnownHostsFile=/home/steven/Documents/Codex/2026-10-18/wo/work/control-vm/known_hosts','-i','/home/steven/.ssh/minipc','controladmin@127.0.0.1','sudo python3 -']
++remote=r'''
++import subprocess,json,pathlib,hashlib,datetime
++pid=int(subprocess.check_output(['systemctl','show','enclave-api-relay','-p','MainPID','--value'],text=True).strip());assert pid>1
++raw=pathlib.Path(f'/proc/{pid}/environ').read_bytes().split(b'\0')
++env={x.split(b'=',1)[0].decode():x.split(b'=',1)[1].decode() for x in raw if b'=' in x};del raw
++allowed=['ADDRESS_BOOK_ADDRESS','CUSTODY_VAULT','CUSTODY_VAULT_V2','CUSTODY_COMMITTEE','CUSTODY_COMMITTEE_V2','AUTH_DATA_DIR','ATTESTED_SHIELD_POLICY']
++public={k:env.get(k) for k in allowed};del env
++root=pathlib.Path('/opt/nan-relay');names=['api-relay.js','secrets.js','relay/custody-state.mjs']
++source={n:hashlib.file_digest(open(root/n,'rb'),'sha256').hexdigest() if (root/n).is_file() else None for n in names}
++policy=None
++pp=public.get('ATTESTED_SHIELD_POLICY')
++if pp:
++ p=pathlib.Path(pp);assert p.is_absolute()
++ if p.is_file():
++  b=p.read_bytes();j=json.loads(b);policy={'path':str(p),'sha256':hashlib.sha256(b).hexdigest(),'schema':j.get('schema'),'images':j.get('images',[]),'cpu':j.get('cpu')}
++store=None
++if public.get('AUTH_DATA_DIR'):
++ p=pathlib.Path(public['AUTH_DATA_DIR'])/'secrets.json';assert p.is_absolute()
++ if p.is_file():
++  st=p.stat();data=json.loads(p.read_text());by=data.get('byId');assert isinstance(by,dict),'Unexpected encrypted store schema'
++  store={'path':str(p),'bytes':st.st_size,'mode':oct(st.st_mode&0o777),'recordCount':len(by),'knownExistingCustodyCanaryPresent':'0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e' in by};del data,by
++backs=[]
++for base in pathlib.Path('/root').glob('relay-*'):
++ if not base.is_dir():continue
++ for p in base.glob('secrets.json*'):
++  st=p.stat();backs.append({'path':str(p),'bytes':st.st_size,'modified':datetime.datetime.fromtimestamp(st.st_mtime,datetime.timezone.utc).isoformat()})
++print(json.dumps({'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True,'pid':pid,'publicEnvironment':public,'sourceHashes':[{'path':k,'sha256':v} for k,v in source.items()],'shieldPolicy':policy,'activeEncryptedStore':store,'boundedBackupMetadata':backs,'limits':['No secret values or private environment values emitted. No decryption performed.','Only direct /root/relay-*/secrets.json* backup metadata checked, not an exhaustive retention inventory.','No service or configuration changed.']}))
++'''
++r=subprocess.run(ssh,input=remote,text=True,capture_output=True,timeout=40)
++if r.returncode:raise SystemExit('Read-only relay probe failed: '+r.stderr[-350:])
++out=json.loads(r.stdout);pathlib.Path('work/custody-v2-live-20261023/evidence/relay-public-config.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
+diff --git a/probes/service-command-paths.py b/probes/service-command-paths.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..13056d9821fd701534f5d13fa398f02445519b32
+--- /dev/null
++++ b/probes/service-command-paths.py
+@@ -0,0 +1,4 @@
++import subprocess,pathlib,json
++pid=int(subprocess.check_output(['systemctl','--user','show','enclave-custodian-v2.service','-p','MainPID','--value'],text=True).strip())
++a=pathlib.Path(f'/proc/{pid}/cmdline').read_bytes().decode().split('\0')
++print(json.dumps({'pid':pid,'program':pathlib.Path(a[0]).name,'scriptOrConfigPaths':[v for v in a[1:] if v.endswith(('.mjs','.json','.sh')) and not v.startswith('-')],'cwd':str(pathlib.Path(f'/proc/{pid}/cwd').resolve())}))

@@ -1,0 +1,107 @@
+{
+  "at": "2026-10-23T19:31:41.837721+00:00",
+  "results": [
+    {
+      "host": "7ae476a3.app.enclave.host",
+      "address": "134.209.248.172",
+      "tlsVerified": true,
+      "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "7ae476a3.app.enclave.host",
+      "address": "146.190.246.39",
+      "tlsVerified": true,
+      "serial": "DF529EA86D47CABAA87E9BC3AA52F23D",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "38f368d6.app.enclave.host",
+      "address": "134.209.248.172",
+      "tlsVerified": true,
+      "serial": "4C4242587AEA045006C0A8FD2446CA69",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 503 Service Unavailable",
+      "ok": false
+    },
+    {
+      "host": "38f368d6.app.enclave.host",
+      "address": "146.190.246.39",
+      "tlsVerified": true,
+      "serial": "4C4242587AEA045006C0A8FD2446CA69",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 503 Service Unavailable",
+      "ok": false
+    },
+    {
+      "host": "e64f7cba.app.enclave.host",
+      "address": "134.199.235.187",
+      "tlsVerified": true,
+      "serial": "5B6DE8969B6061F8E2593A352795C749",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "e64f7cba.app.enclave.host",
+      "address": "165.245.191.129",
+      "tlsVerified": true,
+      "serial": "5B6DE8969B6061F8E2593A352795C749",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "d9798e4c.app.enclave.host",
+      "ok": false,
+      "error": "[Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "host": "a77d0c57.app.enclave.host",
+      "ok": false,
+      "error": "[Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "host": "c13d4b6a.app.enclave.host",
+      "ok": false,
+      "error": "[Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "host": "59f1273d.app.enclave.host",
+      "address": "134.199.235.187",
+      "tlsVerified": true,
+      "serial": "10C3444B36187F139082F5573DB1D561",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "ef514ed3.app.enclave.host",
+      "ok": false,
+      "error": "[Errno -3] Temporary failure in name resolution"
+    },
+    {
+      "host": "a69dcbba.app.enclave.host",
+      "address": "134.199.235.187",
+      "tlsVerified": true,
+      "serial": "1207B21A43F70D10F82353930BD57263",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "a69dcbba.app.enclave.host",
+      "address": "165.245.191.129",
+      "tlsVerified": true,
+      "serial": "1207B21A43F70D10F82353930BD57263",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    }
+  ],
+  "ok": false
+}
