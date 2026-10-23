@@ -232,7 +232,7 @@ test("gsup and the launcher wire the conduit, and only the conduit", () => {
   assert.match(gsup, /const LEASE_GAS = CONTROL \? null : leaseGasGuest\(fw\.leaseGas\);/);
   // the lease-gas names come from the conduit only; the owner nomination's wrapper adds/drops only its own name (owner-nomination.mjs)
   // (and the platform policy carriers' wrapper, applied last, adds/drops only its own name: measured-control.mjs withPolicyCarriersEnv)
-  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), \{ cwd: '\/app' \}\);/);
+  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);
   assert.equal((gsup.match(/LEASE_GAS_/g) || []).length, 0, "gsup names no lease-gas variable itself");
   assert.match(launcher, /^import \{ leaseGasTransit \} from '\.\/guest\/lease-gas-conduit\.bundle\.mjs';$/m);
   assert.match(launcher, /\.\.\.\(LEASE_GAS \? \{ leaseGas: LEASE_GAS \} : \{\}\),/);
@@ -274,6 +274,6 @@ f,p=m.supervisor_closure(read,m.SUPERVISOR_ROOTS);print(json.dumps({'files':f,'p
   assert.match(b, /const packages = checkPackages\(closure\.packages,/);
   assert.match(b, /'host-policy\.bundle\.mjs', 'lease-gas-conduit\.bundle\.mjs'/);
   assert.match(o, /installed_app, packages = app_files\(commit, repo\)/);
-  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs'\]/);
+  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
   assert.deepEqual(SUPERVISOR_ROOTS, ["supervisor.js", "addressbook.js"]);
 });

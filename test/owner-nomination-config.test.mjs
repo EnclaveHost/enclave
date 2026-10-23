@@ -167,8 +167,8 @@ test("the real launcher, direct control: only the HOST_DATA-bound copy; a host-l
 test("the image carries it: supervisor closure, the overlay's guest helpers and the image builder's list", () => {
   const { files } = supervisorClosure(REPO);
   for (const f of ["metal/guest/owner-nomination.mjs", "network/host-owner-nomination.mjs", "client/lease-executor-authority.mjs"]) assert.ok(files.includes(f), f);
-  assert.match(fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8"), /OPTIONAL_GUEST_FILES = \[.*'owner-nomination\.mjs'\]/);
-  assert.match(fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8"), /'measured-control\.mjs', 'owner-nomination\.mjs'\]\)/);
+  assert.match(fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8"), /OPTIONAL_GUEST_FILES = \[.*'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
+  assert.match(fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8"), /'measured-control\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]\)/);
   // dependency-free: the guest copy imports nothing
   assert.doesNotMatch(fs.readFileSync(path.join(REPO, "metal/guest/owner-nomination.mjs"), "utf8"), /^import /m);
 });

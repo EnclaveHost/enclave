@@ -128,11 +128,14 @@ test("gsup: the legacy path is untouched; the direct branch runs only for metal.
   assert.equal(legacy(now).split(NOMINATED).length, 2, "...wrapped once by the owner nomination's env");
   // and the third: the platform policy carriers' name, from fw_cfg only, applied last (measured-control.mjs withPolicyCarriersEnv)
   const CARRIED = "MC_LEGACY.withPolicyCarriersEnv(" + NOMINATED + ", POLICY_CARRIERS)";
-  assert.equal(legacy(now).split(CARRIED).length, 2, "...wrapped once, last, by the policy carriers' env");
+  assert.equal(legacy(now).split(CARRIED).length, 2, "...wrapped once by the policy carriers' env");
+  // and the fourth: the local chain verifier's two names, from fw_cfg only, applied last (metal/guest/chain-verifier.mjs)
+  const VERIFIED = "withChainVerifierEnv(" + CARRIED + ", CHAIN_VERIFIER)";
+  assert.equal(legacy(now).split(VERIFIED).length, 2, "...wrapped once, last, by the chain verifier's env");
   // and the reviewed metal host policy (6f2c7da4, network/metal-host-policy.mjs): the fw_cfg wallet-policy names, after the flavor
   const HOSTED = "  ...HOST_POLICY_ENV,\n";
   assert.equal(legacy(now).split(HOSTED).length, 2, "...the metal host policy's names, once, right after the flavor");
-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(CARRIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
+  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(VERIFIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);
@@ -370,11 +373,11 @@ test("the real launcher refuses legacy inputs, a bypassing port forward, another
 
 test("builder and overlay carry the helper and the measured token", () => {
   const b = fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8");
-  assert.match(b, /'shielded-shm\.mjs', 'measured-control\.mjs', 'owner-nomination\.mjs'\]\)/);
+  assert.match(b, /'shielded-shm\.mjs', 'measured-control\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]\)/);
   assert.match(b, /\+ \(CONTROL \? ` metal\.control=\$\{CONTROL\}` : ''\);/);
   assert.match(b, /--control direct needs --isolation snp-guest-per-app/);
   const tpl = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE}' + ' metal.isolation=snp-guest-per-app' + ' metal.control=direct';
   assert.equal(tpl.replace('${MODE}', 'snp'), CMDLINE, "builder template == launcher cmdline");
   const o = fs.readFileSync(path.join(REPO, "metal/overlay-control-image.py"), "utf8");
-  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs'\]/);
+  assert.match(o, /OPTIONAL_GUEST_FILES = \['measured-control\.mjs', 'lease-gas-conduit\.bundle\.mjs', 'owner-nomination\.mjs', 'chain-verifier\.mjs'\]/);
 });

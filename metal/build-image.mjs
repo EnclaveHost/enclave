@@ -282,7 +282,9 @@ const md = path.join(ROOT, 'opt/metal'); fs.mkdirSync(md, { recursive: true });
 // the guest half of the shielded tier is trusted code and must be attested. The
 // worker it talks to is not, and is not shipped here: it runs on the host, is
 // assumed hostile, and its address arrives unmeasured over fw_cfg.
-for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs', 'owner-nomination.mjs'])
+// chain-verifier.mjs is gsup's opt-in checker for the local chain verifier. This builder installs no verifier runtime (no
+// /opt/rpc-runtime/IMAGE.json; metal/overlay-control-image.py --chain-verifier-dir does), so an opt-in on its image refuses.
+for (const f of ['gsup.mjs', 'host-policy.bundle.mjs', 'lease-gas-conduit.bundle.mjs', 'agent.mjs', 'shielded.mjs', 'shielded-probe.mjs', 'shielded-shm.mjs', 'measured-control.mjs', 'owner-nomination.mjs', 'chain-verifier.mjs'])
   fs.copyFileSync(path.join(HERE, 'guest', f), path.join(md, f));
 // the hosted independent MCP adapter (docs/network/hosted-mcp.md): a reproducible bundle of mcp/server.mjs and its closure
 // (scripts/build-mcp-guest-bundle.mjs --check), started by gsup only for a bound config with an mcp member

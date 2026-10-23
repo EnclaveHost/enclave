@@ -132,7 +132,7 @@ test('boot env boundary: ONLY fw_cfg platformPolicyCarriers supplies the name; l
 test('gsup and the launcher wire it exactly once; the supervisor gate call and its refuse-on-error branch are unchanged', () => {
   const gsup = fs.readFileSync(path.join(REPO, 'metal/guest/gsup.mjs'), 'utf8'), launcher = fs.readFileSync(path.join(REPO, 'metal/enclave-metal.mjs'), 'utf8');
   assert.match(gsup, /const POLICY_CARRIERS = CONTROL \? null : await MC_LEGACY\.guestPolicyCarriers\(fw\.platformPolicyCarriers, \{ publicUrl: PUBLIC_URL \}\);/);
-  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), \{ cwd: '\/app' \}\);/);
+  assert.match(gsup, /start\('supervisor', \['\/usr\/local\/bin\/node', '\/app\/supervisor\.js'\], withChainVerifierEnv\(MC_LEGACY\.withPolicyCarriersEnv\(withOwnerNominationEnv\(withLeaseGasEnv\(supEnv, LEASE_GAS\), OWNER_NOMINATION\.nomination\), POLICY_CARRIERS\), CHAIN_VERIFIER\), \{ cwd: '\/app' \}\);/);
   assert.equal((gsup.match(/ENCLAVE_PLATFORM_HOST_POLICY/g) || []).length, 0, 'gsup names no policy variable itself');
   assert.match(launcher, /takes platformPolicyCarriers only inside the bound direct config/);
   assert.match(launcher, /\.\.\.\(POLICY_CARRIERS \? \{ platformPolicyCarriers: POLICY_CARRIERS \} : \{\}\),/);
