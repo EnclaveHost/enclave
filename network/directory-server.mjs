@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {PublicDirectory} from './public-directory.mjs';
 import {DirectoryClient} from './directory-client.mjs';
-import {LeaseReader} from './lease-reader.mjs';
+import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
 import {verifyOwnerSignature} from './owner-signature.mjs';
 
 export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
@@ -47,7 +47,7 @@ export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
 // reader: an injected chain reader with the LeaseReader interface (refresh, registryEntries, bookAddress); tests only.
 export async function runDirectory(config,{reader:injected}={}){
   const log=m=>console.log(new Date().toISOString(),m);
-  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true});
+  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true,...chainAuthorityOptions(config)});
   const leases=new Map(),operators=new Map();let registry=null,registryAt=0,refreshLeases=null;
   const leaseOf=async id=>{
     const cached=leases.get(id);if(cached&&cached.at+15000>Date.now())return cached.row;

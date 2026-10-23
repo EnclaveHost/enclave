@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import {constants} from 'node:fs';
 import path from 'node:path';
 import {parseAbi} from 'viem';
-import {LeaseReader} from './lease-reader.mjs';
+import {LeaseReader,chainAuthorityOptions,chainAuthorityFromEnv} from './lease-reader.mjs';
 import {readHostAdmissionPolicy,hostAdmissionRefusal,hostAdmissionPolicyHash} from './host-admission-policy.mjs';
 import {loadContractPins} from './contract-pins.mjs';
 import {boundedJSON,directoryOrigins} from './directory-client.mjs';
@@ -73,11 +73,12 @@ export function publicHostPolicyLoader({directory,origins=[],fetch=globalThis.fe
 }
 
 export function createHostAdmission({hostId,ownershipContract,registry,catalog,rpc,addressBook,policyDirectory,policyOrigins,
-  reader,loadPolicy,now=Date.now,cacheMs=15000}) {
+  reader,loadPolicy,now=Date.now,cacheMs=15000,chainAuthority,chainVerifier}) {
   if(!id.test(hostId)||![ownershipContract,registry,catalog].every(nonzero))throw Error('explicit host, ownership, registry and catalog pins required');
   if(!Number.isSafeInteger(cacheMs)||cacheMs<0||cacheMs>15000)throw Error('invalid host policy cache lifetime');
   // the wallet admission's own reader rides out short public-RPC 429 windows (10 s budget inside the 30 s deadline)
-  reader ||= new LeaseReader({rpc,addressBook,now,rateLimitRetryMs:10000});
+  // (authority 'verifier': the local proof-backed verifier instead; rpc is then never used)
+  reader ||= new LeaseReader({rpc,addressBook,now,rateLimitRetryMs:10000,...chainAuthorityOptions({chainAuthority,chainVerifier})});
   loadPolicy ||= publicHostPolicyLoader({directory:policyDirectory||'',origins:policyOrigins});
   let cached=null,pending=null;
   const policy=async()=>{
@@ -142,5 +143,6 @@ export function hostAdmissionFromEnv({hostId,rpc,addressBook,env=process.env}) {
     throw Error('wallet host admission requires matching immutable contract pins');
   return createHostAdmission({hostId,ownershipContract:env.ENCLAVE_HOST_OWNERSHIP.toLowerCase(),
     registry:env.ENCLAVE_HOST_REGISTRY_PIN.toLowerCase(),catalog:env.ENCLAVE_HOST_CATALOG_PIN.toLowerCase(),
-    policyDirectory:env.ENCLAVE_HOST_POLICY_DIR,policyOrigins:env.ENCLAVE_HOST_POLICY_ORIGINS?JSON.parse(env.ENCLAVE_HOST_POLICY_ORIGINS):[],rpc,addressBook});
+    policyDirectory:env.ENCLAVE_HOST_POLICY_DIR,policyOrigins:env.ENCLAVE_HOST_POLICY_ORIGINS?JSON.parse(env.ENCLAVE_HOST_POLICY_ORIGINS):[],rpc,addressBook,
+    ...(chainAuthorityFromEnv(env).authority?{chainAuthority:'verifier',chainVerifier:env.ENCLAVE_CHAIN_VERIFIER}:{})});
 }

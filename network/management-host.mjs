@@ -13,7 +13,7 @@ import {X509Certificate, createHash} from 'node:crypto';
 import {isIP} from 'node:net';
 import {pathToFileURL} from 'node:url';
 import {privateKeyToAccount} from 'viem/accounts';
-import {LeaseReader} from './lease-reader.mjs';
+import {LeaseReader,chainAuthorityOptions} from './lease-reader.mjs';
 import {DurableState} from './durable-state.mjs';
 import {directoryOrigins} from './directory-client.mjs';
 import {validateNetworkAuthorities} from './network-authorities.mjs';
@@ -76,7 +76,7 @@ export async function startManagementHost(config, {account, reader, fetch = glob
   validateManagementRecord(probe, probe.issuedAt);   // the record (and browser origin) must be valid before listening
   const state = config.stateDir ? new DurableState(config.stateDir) : null;
   let last = Number((await state?.get('management-sequence'))?.sequence || 0);
-  reader ||= new LeaseReader({rpc: config.rpc, chainId, addressBook: '0x' + '0'.repeat(40), authorityPins: pins, includeHostPayout: true});
+  reader ||= new LeaseReader({rpc: config.rpc, chainId, addressBook: '0x' + '0'.repeat(40), authorityPins: pins, includeHostPayout: true, ...chainAuthorityOptions(config)});
   if (typeof reader?.agreed !== 'function' || reader.chainId !== chainId) throw Error('management host needs an agreeing chain reader for its chain');
   // The secret the supervisor requires (MANAGEMENT_GATEWAY_TOKEN) before it accepts this runner's management base.
   const upstreamToken = config.upstreamTokenFile ? await readPrivateHex(config.upstreamTokenFile) : null;

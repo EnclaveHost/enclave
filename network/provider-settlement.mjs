@@ -53,6 +53,10 @@ export class ProviderUSDCSettlement extends USDCBandwidthSettlement {
 // Provider-side co-signer. observedBytes must read its own durable transport
 // meter for this app, runner and policy; it must never read the peer's claim.
 // No customer balance or signature is trusted from the request.
+// LeaseReader.blockHashIs (quorum: two clients report the hash; verifier: the local verifier's block). An injected reader
+// without it keeps the original two-client rule.
+const anchorIs=(reader,n,hash)=>typeof reader.blockHashIs==='function'?reader.blockHashIs(n,hash)
+  :Promise.all(reader.clients.map(client=>client.getBlock({blockNumber:BigInt(n)}).then(b=>b.hash).catch(()=>null))).then(hashes=>hashes.filter(h=>h===hash).length>=2);
 export class ProviderReceiptSigner {
  constructor({providerId,proofAccount,leaseReader,observedBytes,now=Date.now}){
   if(!/^0x[0-9a-f]{64}$/.test(providerId||'')||typeof observedBytes!=='function')throw Error('provider transport meter required');
@@ -63,9 +67,9 @@ export class ProviderReceiptSigner {
   const {lease,c,provider}=providerContext(this.leaseReader.get(r.id),this.providerId,r.policyNonce,r.pricePerGiB6,this.now());
   if(r.providerId!==this.providerId||r.runnerId!==lease.runner||BigInt(r.leaseUntil)!==BigInt(Math.floor(lease.leaseUntil/1000))||provider.proofKey.toLowerCase()!==this.proofAccount.address.toLowerCase()||
     BigInt(r.issuedAt)>BigInt(Math.floor(this.now()/1000))||BigInt(r.issuedAt)<BigInt(Math.floor(this.now()/1000)-30)||BigInt(r.anchor)>BigInt(lease.blockNumber)||BigInt(lease.blockNumber)-BigInt(r.anchor)>128n)throw Error('stale or misbound provider receipt');
-  // Quorum on the receipt's exact anchor, even when this provider has a newer lease snapshot.
-  const hashes=await Promise.all(this.leaseReader.clients.map(client=>client.getBlock({blockNumber:BigInt(r.anchor)}).then(b=>b.hash).catch(()=>null)));
-  if(hashes.filter(h=>h===anchorHash).length<2)throw Error('receipt anchor quorum unavailable');
+  // The receipt's exact anchor, even when this provider has a newer lease snapshot: two agreeing clients (quorum) or the
+  // local verifier's own block at that number (verifier authority). Never a single unverified answer.
+  if(!await anchorIs(this.leaseReader,r.anchor,anchorHash))throw Error(this.leaseReader.authority==='verifier'?'receipt anchor not verified at its block':'receipt anchor quorum unavailable');
   const digest=providerReceiptDigest({chainId:lease.chainId,connectivity:c.address,ledger:lease.deployments,receipt:r,anchorHash});
   if((await recoverMessageAddress({message:{raw:digest},signature:runnerSignature})).toLowerCase()!==lease.runnerProofKey?.toLowerCase())throw Error('runner receipt signature mismatch');
   const observed=await this.observedBytes({deploymentId:r.id,runnerId:r.runnerId,providerId:this.providerId,nonce:String(r.policyNonce)});

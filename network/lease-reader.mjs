@@ -1,6 +1,12 @@
-// Serving authorization comes from two independently configured chain RPCs at
-// the same recent block. Nan is neither a bootstrap nor an admission dependency.
-import {createPublicClient, http, stringToHex} from 'viem';
+// Serving authorization comes from one of two EXPLICIT chain authorities (never mixed, never a fallback for each other):
+//  * 'quorum' (default, legacy): two independently configured chain RPCs agree at the same recent block. Agreement of
+//    providers is not proof and not independence from them.
+//  * 'verifier': ONE local validating endpoint (Helios, branch enclave-base-evm) that follows a sequencer-signed Base
+//    head and answers every read from proofs verified against that block's state root, executing calls with the
+//    maintained Base EVM. Its tier is the UNSAFE head (sequencer-signed, not L1-final). It is never a quorum vote, and
+//    with it no provider client exists, so a failed proof or missing fresh evidence can only refuse.
+// Nan is neither a bootstrap nor an admission dependency.
+import {createPublicClient, http, stringToHex, encodeFunctionData, decodeFunctionResult} from 'viem';
 import {base} from 'viem/chains';
 import {canonical} from './route-record.mjs';
 import {readConnectivity} from './connectivity-chain.mjs';
@@ -72,14 +78,70 @@ function header(block,blockNumber) {
   if(!Number.isSafeInteger(ms))throw new Error('malformed chain block timestamp');
   return {number:blockNumber,hash:hash.toLowerCase(),timestamp:ms};
 }
+/**
+ * Explicit chain-authority options for a LeaseReader from a runtime config ({chainAuthority, chainVerifier}): {} (the
+ * legacy provider quorum, unchanged) unless chainAuthority is 'verifier', which needs the local verifier URL.
+ */
+export function chainAuthorityOptions({chainAuthority,chainVerifier}={}) {
+  if(chainAuthority===undefined||chainAuthority===null||chainAuthority==='quorum'){
+    if(chainVerifier!==undefined&&chainVerifier!==null)throw new Error('chainVerifier is set but chainAuthority is not verifier');
+    return {};
+  }
+  if(chainAuthority!=='verifier')throw new Error('chainAuthority must be quorum or verifier');
+  if(!chainVerifier)throw new Error('chainAuthority verifier needs chainVerifier (the local verifier URL)');
+  return {authority:'verifier',verifier:chainVerifier};
+}
+/** The same from the environment: ENCLAVE_CHAIN_AUTHORITY=verifier and ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/ */
+export const chainAuthorityFromEnv=(env=process.env)=>chainAuthorityOptions({chainAuthority:env.ENCLAVE_CHAIN_AUTHORITY||undefined,chainVerifier:env.ENCLAVE_CHAIN_VERIFIER||undefined});
+// The local validating endpoint behind authority 'verifier': a loopback JSON-RPC URL (the Helios process on this host)
+// or, in-process, an object with request(method, params, timeoutMs). A remote URL is refused: a remote "verifier" would
+// be one unverified server, exactly what this authority must never be.
+function verifierEndpoint(v) {
+  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms)=>v.request(m,p,ms),label:'verifier'};
+  const url=typeof v==='string'?v:v?.url;
+  let e;try{e=rpcEndpoint(url);}catch(err){throw new Error('verifier endpoint: '+err.message);}
+  if(!e.loopback)throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
+  let id=0;
+  return {label:'verifier '+e.label,request:async(method,params,ms)=>{
+    const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params}),
+      redirect:'error',signal:AbortSignal.timeout(Math.max(1,ms))});
+    if(!r.ok)throw Object.assign(new Error(`verifier HTTP ${r.status}`),{status:r.status});
+    const j=await r.json();
+    if(j?.error)throw Object.assign(new Error('verifier: '+String(j.error.message||'error').slice(0,300)),{code:j.error.code});
+    return j?.result;
+  }};
+}
+const hexBlock=b=>'0x'+b.toString(16);
+// A block the verifier returned for number b (from its signed head chain): that number, a 32-byte hash and state root,
+// a whole-second timestamp. -> {number, hash, stateRoot, timestamp (ms)}
+function verifiedHeader(block,b) {
+  if(!block||typeof block!=='object')throw new Error('the verifier has no block '+b);
+  let number;try{number=BigInt(block.number);}catch{throw new Error('malformed verified block number');}
+  if(number!==b)throw new Error('verified block number differs from the one requested');
+  if(!/^0x[0-9a-fA-F]{64}$/.test(block.hash||'')||!/^0x[0-9a-fA-F]{64}$/.test(block.stateRoot||''))throw new Error('malformed verified block hash or state root');
+  let ts;try{ts=Number(BigInt(block.timestamp))*1000;}catch{throw new Error('malformed verified block timestamp');}
+  if(!Number.isSafeInteger(ts)||ts<0)throw new Error('malformed verified block timestamp');
+  return {number:b,hash:block.hash.toLowerCase(),stateRoot:block.stateRoot.toLowerCase(),timestamp:ts};
+}
+const PINNED_METHODS=['getChainId','getBlockNumber','getBlock','readContract','getCode','getBytecode','getStorageAt','getBalance'];
 // The fields agreed() itself puts on every answer; a read callback returning one is a bug, refused loudly.
 const reservedFields=['hash','blockNumber','timestamp'];
 export class LeaseReader {
-  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0}) {
+  constructor({rpc,chainId=8453,addressBook,authorityPins,maxBlockAgeMs=90000,confirmations=2,deadlineMs=30000,clients,proxy,includeHostPayout=false,includeConnectivity=false,now=Date.now,rateLimitRetryMs=0,authority='quorum',verifier}) {
     if (!/^0x[0-9a-fA-F]{40}$/.test(addressBook||'')) throw new Error('invalid chain policy');
     Object.assign(this,{chainId,addressBook,maxBlockAgeMs,confirmations,deadlineMs,includeHostPayout,includeConnectivity,now});
     this.retryDelayMs=400;this.headGraceMs=250;
     const policy=policyProblem(this);if(policy)throw new Error(policy);
+    if(authority!=='quorum'&&authority!=='verifier')throw new Error('chain authority must be quorum or verifier');
+    if(authority==='quorum'&&verifier!==undefined)throw new Error('a verifier is configured but the chain authority is quorum: say authority: verifier');
+    Object.defineProperty(this,'authority',{value:authority,enumerable:true});
+    if(authority==='verifier'){
+      // rpc/clients (spread in from a shared chain config) are deliberately NOT turned into clients: no fallback exists
+      this.verifier=verifierEndpoint(verifier);
+      Object.defineProperty(this,'authorityPins',{value:authorityPins===undefined?null:validateNetworkAuthorities(authorityPins),enumerable:true});
+      this.clients=Object.freeze([]);this.labels=[];this.lastBlock=0n;this.cache=new Map();this.rateLimitRetryMs=0;this.lastEvidence=null;
+      return;
+    }
     if (!clients) {
       // one vote per public host: case, a trailing dot, the port and the path do not make another one
       if (!Array.isArray(rpc) || rpc.length<2 || rpc.length>maxClients) throw new Error('at least two independent HTTPS RPC origins required');
@@ -156,7 +218,14 @@ export class LeaseReader {
   //  * ONE deadline (`deadlineMs`) bounds the whole call. Each request is waited for at most the time left, and once the
   //    outcome is decided, a round is superseded, or the deadline has passed, no further request is sent.
   //  * One RPC never wins alone; there is no fallback to a first answer.
+  // What this reader's answers are worth, for evidence and status pages (never "independent").
+  authorityInfo() {
+    return this.authority==='verifier'
+      ?{authority:'local-verifier',head:'sequencer-signed Base unsafe head',tier:'unsafe',finality:'none',execution:'proof-backed (maintained Base EVM)',providerQuorum:false,last:this.lastEvidence}
+      :{authority:'provider-quorum',head:'provider-reported',tier:'provider-reported',finality:'none',execution:'provider eth_call',providerQuorum:true,independentOfProviders:false};
+  }
   agreed(read, failures=[]) {
+    if(this.authority==='verifier')return this.verifiedRead(read,failures);
     const problem=clientProblem(this.clients);
     if(problem)return Promise.reject(new Error('invalid chain clients: '+problem));
     const policy=policyProblem(this);
@@ -274,6 +343,120 @@ export class LeaseReader {
         else if(heads.size>=2&&grace===null)grace=setTimeout(()=>{grace='fired';headsSettled();},this.headGraceMs);
       },e=>{if(!closed)failures.push(failureText(this.labels[this.clients.indexOf(c)]||'rpc','head',e));}).finally(()=>{headsOutstanding--;headsSettled();});
     });
+  }
+  // ---- authority 'verifier' ------------------------------------------------------------------------------------------
+  // One read of verified state at ONE block, within ONE deadline:
+  //  * the verifier's head (Helios refuses a head older than 60 s) minus `confirmations`, never below the block this
+  //    reader already accepted (monotonic), and never a head behind it;
+  //  * that block's header as the verifier holds it (hash, state root, timestamp), fresh by `maxBlockAgeMs`;
+  //  * the caller's read, through a client pinned to that block HASH whose every answer is proof-backed;
+  //  * the header again (same hash and timestamp: no reorganization underneath), still fresh, still not older than a
+  //    block accepted meanwhile.
+  // Any failure refuses the whole read. There is no other source to fall back to.
+  verifiedRead(read, failures=[]) {
+    const policy=policyProblem(this);
+    if(policy)return Promise.reject(new Error(policy));
+    if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
+    const call=this.deadlineCall();
+    const fresh=ts=>ts+this.maxBlockAgeMs>this.now()&&ts<=this.now()+5000;
+    return (async()=>{
+      const chainId=Number(BigInt(await call('eth_chainId',[])));
+      if(chainId!==this.chainId)throw new Error('the verifier follows another chain');
+      const head=BigInt(await call('eth_blockNumber',[]));
+      if(head<this.lastBlock)throw new Error(`the verifier head ${head} is behind block ${this.lastBlock} already accepted`);
+      let b=head-BigInt(this.confirmations);
+      if(b<0n)throw new Error('the verifier head is too young');
+      if(b<this.lastBlock)b=this.lastBlock;
+      const first=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+      if(!fresh(first.timestamp))throw new Error('stale chain block');
+      const value=await read(this.pinnedClient(b,first.hash,call),b);
+      if(!value||typeof value!=='object'||Array.isArray(value))throw Object.assign(new Error('the chain read function must return an object'),{readerBug:true});
+      const reserved=reservedFields.find(k=>Object.hasOwn(value,k));
+      if(reserved)throw Object.assign(new Error('the chain read function returned the reserved field '+reserved),{readerBug:true});
+      const again=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+      if(again.hash!==first.hash||again.timestamp!==first.timestamp)throw new Error('chain reorganized during read');
+      if(!fresh(first.timestamp))throw new Error('chain block became stale during the read');
+      if(b<this.lastBlock)throw new Error(`block ${b} is older than block ${this.lastBlock} accepted meanwhile`);
+      this.lastBlock=b;
+      this.lastEvidence={authority:'local-verifier',tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
+      return {...value,hash:first.hash,blockNumber:String(b),timestamp:first.timestamp};
+    })().catch(e=>{
+      if(e?.readerBug)throw e;
+      failures.push(failureText(this.verifier.label,'read',e));
+      throw Object.assign(new Error('no fresh verified chain state: '+errText(e)),{cause:e});
+    });
+  }
+  // A request function bounded by ONE total deadline for everything issued through it.
+  deadlineCall() {
+    const endAt=performance.now()+this.deadlineMs;
+    return (method,params)=>{
+      const left=Math.floor(endAt-performance.now());
+      if(left<=0)return Promise.reject(new Error('the verified read deadline has passed'));
+      return timed(Promise.resolve().then(()=>this.verifier.request(method,params,left)),left);
+    };
+  }
+  // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
+  // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name.
+  pinnedClient(b,hash,call) {
+    const at=(blockNumber,blockTag)=>{
+      if(blockTag!==undefined)throw new Error('verified reads are pinned to block '+b+' (no block tags)');
+      if(blockNumber!==undefined&&BigInt(blockNumber)!==b)throw new Error('verified reads are pinned to block '+b);
+      return {blockHash:hash};
+    };
+    const code=async({address,blockNumber,blockTag})=>{const c=await call('eth_getCode',[address,at(blockNumber,blockTag)]);return c&&c!=='0x'?c:undefined;};
+    const methods={
+      getChainId:async()=>this.chainId,
+      getBlockNumber:async()=>b,
+      getBlock:async({blockNumber,blockTag,blockHash}={})=>{
+        if(blockHash!==undefined&&String(blockHash).toLowerCase()!==hash)throw new Error('verified reads are pinned to block '+b);
+        at(blockNumber,blockTag);
+        const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+        if(h.hash!==hash)throw new Error('chain reorganized during read');
+        return {number:b,hash:h.hash,stateRoot:h.stateRoot,timestamp:BigInt(h.timestamp/1000)};
+      },
+      readContract:async({address,abi,functionName,args,blockNumber,blockTag,account})=>{
+        const data=encodeFunctionData({abi,functionName,args});
+        const from=typeof account==='string'?account:account?.address;
+        const out=await call('eth_call',[{to:address,data,...(from?{from}:{})},at(blockNumber,blockTag)]);
+        return decodeFunctionResult({abi,functionName,data:out});
+      },
+      getCode:code,getBytecode:code,
+      getStorageAt:async({address,slot,blockNumber,blockTag})=>call('eth_getStorageAt',[address,slot,at(blockNumber,blockTag)]),
+      getBalance:async({address,blockNumber,blockTag})=>BigInt(await call('eth_getBalance',[address,at(blockNumber,blockTag)])),
+    };
+    return new Proxy(Object.freeze({}),{get(_t,key){
+      if(Object.hasOwn(methods,key))return methods[key];
+      if(typeof key==='symbol'||key==='then'||key==='toJSON')return undefined;
+      return ()=>{throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(', ')})`);};
+    }});
+  }
+  // Is `hash` the canonical hash of block `number`? quorum: two clients report exactly that hash (the original rule).
+  // verifier: the verifier's own block at that number (its signed head chain, or verified history) has that hash.
+  async blockHashIs(number,hash) {
+    const b=BigInt(number);
+    if(this.authority==='verifier'){
+      try{return verifiedHeader(await this.deadlineCall()('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase();}
+      catch{return false;}
+    }
+    const hashes=await Promise.all(this.clients.map(client=>client.getBlock({blockNumber:b}).then(x=>x.hash).catch(()=>null)));
+    return hashes.filter(h=>h===hash).length>=2;
+  }
+  // `read(client, blockNumber)` at a block this reader already accepted (pin = {blockNumber, blockHash} from a snapshot):
+  // history bound to an accepted snapshot, never new fresh authority. quorum: the first value two clients return
+  // identically (the original rule; null when none). verifier: proof-backed at that block, refused if the block's hash
+  // is no longer the pinned one.
+  async readAt({blockNumber,blockHash},read) {
+    const b=BigInt(blockNumber);
+    if(this.authority==='verifier'){
+      const call=this.deadlineCall();
+      const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+      if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
+      return read(this.pinnedClient(b,h.hash,call),b);
+    }
+    const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
+    const values=await Promise.all(this.clients.map(client=>Promise.resolve().then(()=>read(client,b)).catch(()=>null)));
+    for(const v of values)if(v!==null&&values.filter(x=>x!==null&&key(x)===key(v)).length>=2)return v;
+    return null;
   }
   async readSnapshot(ids) {
     if(!Array.isArray(ids)||ids.length>256||ids.some(id=>!/^0x[0-9a-f]{64}$/.test(id))) throw new Error('exact deployment ids required');

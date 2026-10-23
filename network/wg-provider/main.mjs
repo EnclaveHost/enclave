@@ -13,7 +13,7 @@ import {privateKeyToAccount} from 'viem/accounts';
 import {createPublicClient,http} from 'viem';
 import {base} from 'viem/chains';
 import {DirectoryClient} from '../directory-client.mjs';
-import {LeaseReader} from '../lease-reader.mjs';
+import {LeaseReader,chainAuthorityOptions} from '../lease-reader.mjs';
 import {WgProvider} from './provider.mjs';
 import {Kernel} from './kernel.mjs';
 import {createRouter} from './router.mjs';
@@ -49,7 +49,7 @@ if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC en
 // A paid provider charges through the on-chain connectivity contract: it must be a registry host that can sign receipts.
 const paid=(cfg.pricePerGiB6||0)>0;
 if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
-const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{})});
+const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuthorityOptions(cfg)});
 const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
 // Owner signatures use the same fresh chain quorum and explicit factory binding.
 const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
