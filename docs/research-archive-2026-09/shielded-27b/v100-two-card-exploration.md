@@ -50,8 +50,4 @@ events bracket the whole timed loop including enqueue and host-wait gaps.
 They do not measure each card's busy time or determine the effect of the
 72-versus-80 SM difference.
 
-Pad generation and delivery, phone transport, verification, reply byte counts
-and actual model inference are outside this experiment. The verified 27B Q8
-phone result remains **0.92 tokens/s steady, 0.66 across the decode interval**.
-
 [Structured evidence](/home/steven/Documents/Codex/2026-09-07/i-w/outputs/v100-two-card-exploration-evidence.json).

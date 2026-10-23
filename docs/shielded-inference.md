@@ -7,10 +7,10 @@ As of 2026-10-14 Shield GPU offload is live on two hosts: metal0 (one SEV-SNP gu
 two NVIDIA V100-class cards with no confidential-computing mode, reached over AF_VSOCK, serving
 `qwen3.8-27b-mtp-q4-vl-gguf`; `isolation/m4/SHIELDED-GPU.md`) and nucbox-k11-4 (Hyper-V
 partition per app, AMD Radeon 780M via Vulkan, `qwen2.5-0.5b`). Much of the design text
-below is historical; the throughput and pad-mode summary below supersedes its original
+below is historical; the throughput summary below supersedes its original
 performance estimates. Deployment dates describe recorded rollouts, not live availability.
 
-## Performance and pad modes: evidence update (2026-10-23)
+## Performance: evidence update (2026-10-23)
 
 **The old ~7 tok/s 8B refill ceiling and blanket exclusion of 32B-class models are
 superseded.** That ceiling used stock fp64 BLAS on a contended CPU. Exact int8/VNNI
@@ -39,14 +39,10 @@ needs its own identified, matched baseline; the guest and native results above a
 different execution environments and should not be combined into a controlled overhead
 measurement.
 
-**Metal self-minting and dealt pads have different trust assumptions.** The documented
-metal0 path generates fresh pads inside the SNP guest; it does not depend on an external
-dealer. Dealt mode shares the mask seed with a platform-run dealer and therefore requires
-that dealer not to collude with the accelerator. The separate sparse-v3 work reduces
-unneeded pad cells in offline shipments; it is not integrated into the live dealer or
-consumer and does not explain the measured inference rates. See
-[throughput](#what-actually-binds-throughput), [dealt pads](#dealt-pads-the-mask-work-off-the-trusted-half)
-and [sparse delivery](#sparse-pad-delivery-status).
+**Pads are generated inside the trusted guest.** The documented metal0 path generates
+fresh masks and computes `u = r·W` inside its SNP guest. Mask seeds remain within that
+boundary. The performance improvements come from exact integer refill, scheduling,
+buffering and the GPU/CPU optimizations described [below](#what-actually-binds-throughput).
 
 ## Original design and implementation history
 
@@ -447,7 +443,7 @@ remove the trusted `r·W` work or export its seed. Evidence is in
 [pool/refill qualification](../isolation/m4/evidence/shield-target25-2026-09-27/README.md)
 and [compact weights](operations/shield-compact-weights.md).
 
-The implemented 27B results in the [summary](#performance-and-pad-modes-evidence-update-2026-10-23)
+The implemented 27B results in the [summary](#performance-evidence-update-2026-10-23)
 supersede the old blanket claim that models in this size range are out of reach. They do
 not establish performance for every 32B model or context. Pad misses, memory capacity,
 CPU contention and guest scheduling still matter; a short buffered burst is not a
@@ -486,206 +482,6 @@ per-node backend assignment wobbles between steps.
 Prefill: one masked round trip per linear op over the whole m×d prompt matrix (m = padded
 bucket length) — Freivalds batching makes verification ~1 mult/element; this is the
 friendly regime, as is diffusion (per-step batched denoiser, seconds-tolerant users).
-
-## Dealt pads: the mask work off the trusted half
-
-The self-minting path above has the trusted half compute `u = r·W` for every
-row it will ever mask, three residue planes of the model's MACs, on cores,
-inside the boundary. In the early 27B measurement (2026-09-06), one chat kept the
-refill threads 85% busy through speculation, prefill used the same pads, and the
-accelerators sat at a few percent. That historical result motivated dealt pads;
-the later self-minting improvements above do not require a dealer. Dealt mode moves
-the work to a party
-that never sees `x + r`, and keeps the masking construction exactly as it is.
-
-**Parties.** The *dealer* holds a seed the trusted half also holds, derives
-`r` from it, mints `u = r·W` in batch on any hardware, and ships `u`
-encrypted to the trusted half's pad key. The *accelerator* still sees only
-`x + r`. The *trusted half* derives the same `r`, masks, unmasks with the
-shipped `u`, verifies every product as before (SECURITY.md section 5), and
-never mints. The *platform* keeps a consumption ledger. Privacy now rests
-on the dealer and the accelerator not colluding (the dealer knows `r`, the
-accelerator knows `x + r`, neither knows both); integrity rests on the same
-Freivalds check as before plus an import-time check of each pad. The platform
-runs the dealer, so dealt-pad privacy means trusting the platform not to collude
-with the GPU operator. As of 2026-10-14 dealt pads are verified on CPU and on a
-Pixel 8 Pro pVM and are not in production on metal boxes: the pad-bank transport
-for a metal box is not built, so metal0 mints its own pads.
-
-In the implementation, `SHIELDED_PAD_SOURCE` selects dealt mode and requires the
-associated `SHIELDED_PAD_SEED`, seed identity and pad-decryption key
-([`shielded-tee.c`](../wasm/ggml-shielded/shielded-tee.c)). Those deployment inputs are
-specific to dealt mode; they are not evidence that the self-minted metal path exposes
-its mask seed. Encrypting shipments does not remove the dealer's knowledge of `r`:
-an operator who controls both the dealer and accelerator can recover `x` from `x + r`.
-Dealt mode therefore does not provide confidentiality against that combined adversary.
-
-### Sparse pad delivery status
-
-Sparse v3 implements per-group requested pad ranges, avoiding the unused cells of a
-rectangular shipment. It does **not** make individual masks sparse, weaken their
-distribution, or remove `r·W` for cells that are actually needed. The
-[standalone 27B comparison](research-archive-2026-09/shielded-27b/sparse-mint-27b-measurement.md)
-measured 4.522 s versus 5.543 s median CPU mint time (18.4% less) and 26.5% fewer shipment
-bytes across three pairs with synthetic per-group demand. All 20,992 requested cells
-matched the v2 values in the first pair. This measures pad generation, not tok/s.
-
-The [v3 implementation status](../shielded/dealer/SPARSE-DELIVERY.md) records standalone
-file/mint APIs and tests, with no live dealer, relay or consumer integration. It cannot
-be credited for the measured near-20 tok/s inference results, and does not change the
-dealer/accelerator non-collusion requirement.
-
-### Dealt-pad format and lifecycle
-
-**The pad.** `r = ChaCha20(seed, (group << 48) | (index << 24) | block)`
-reduced to `[0, M)` exactly as the mask bank draws; `u` ships as 3 bytes per
-column (`M ~ 2^23.8`), 12.6 MB per token row on the 27B, 1.9 MB on the
-0.8B, incompressible. A shipment (`.pads`) is row-major by index with one
-ChaCha20-Poly1305 cell per `(index, group)` under a per-shipment key boxed
-to the consumer's X25519 pad key; the operator's bank sees ciphertext and
-sizes.
-
-**Single use across reboots.** The consumer reserves a window `[mark,
-mark + W)` from the platform's ledger and the mark advances before the
-window is signed and returned; a restart resumes at the mark. The ledger
-is not on the operator's box, so it cannot be rolled back.
-
-**Integrity.** The product check is unchanged and already covers a wrong
-`u`. With `SHIELDED_PAD_CHECK` the consumer also checks each imported cell,
-`(u·s) == (r·(W s)) mod M` with a per-node random `s` and one weight pass at
-registration, so a wrong dealer is refused at import and named, before any
-use, instead of surfacing later as a worker failure.
-
-**What binds throughput now.** The dealer's egress and the consumer's link
-(rows per second), the bank (burst), the exchange chain (latency), and
-memory (context). Speculation costs rows, so plain decode is the
-bandwidth-efficient mode; prefill needs a pad per prompt token, so the bank
-is sized for the largest prompt burst.
-
-**Status.** `shielded/dealer/PLAN.md` is the design and log. Built:
-`shielded-pads.{h,c}` (format, derivation, reader, writer, ledger window),
-dealt mode in `shielded-tee.c` (`SHIELDED_PAD_*`), `shielded-dealer` and
-`shielded/dealer/dealer-loop.py` (mint ahead of the mark, push to the
-platform), `relay/pads.mjs` (seeds, ledger, shipment store; `/v1/pads/*`),
-the Pixel anchor's pad key, seed, windows and bank. Verified: the 0.8B on
-CPU end to end (exact text, no local minting), and twice on a Pixel 8 Pro's
-protected VM against a workstation hub (2363 nodes offloaded, 0 local, 0
-verification failures, the same text). For a CVM tenant the manager keys are
-`nnShieldedPad{Source,Seed,SeedId,Sk,Ledger,ModelDigest,Window,Check}`,
-seed and sk as deployment secrets; the bank transport for a metal box is
-not built yet.
-
-### The CVM tier as a consumer: bank over HTTP, windows from an agent
-
-A metal box's trusted half has no phone app to stream shipments and relay
-windows, so the engine does both itself over plain HTTP (no TLS in the
-enclave; shipments are ciphertext to the pad key and windows are signed, so
-the transport carries no trust):
-
-- `nnShieldedPadSource: "http://<bank>/v1/pads/shipments"` - a bank that
-  speaks the platform store's shape (the relay itself, or the operator's NVMe
-  box on the LAN). The engine fetches shipments into `nnShieldedPadCache`
-  (default `/tmp/shielded-pads-<seed_id>`) in index order: everything covering
-  the current ledger window plus one ahead regardless of budget, then up to
-  `nnShieldedPadCacheMb` (default 2048) further. Spent shipments (wholly below
-  the lowest live group cursor, never a window edge alone) are unlinked
-  (`nnShieldedPadPrune`, default on for a bank cache, off for a directory).
-- `nnShieldedPadWindowUrl: "http://127.0.0.1:<port>/window"` with
-  `nnShieldedPadLedgerPk` (64 hex): the engine POSTs `{want, seed_id}` to a
-  loopback agent and verifies the answer's Ed25519 signature against the
-  pinned platform ledger key, exactly as the pVM verifies windows relayed by
-  its owner app. `shielded/dealer/window-agent.mjs` is that agent: `--relay`
-  mode signs `/v1/pads/reserve` requests with the tunnel's transport key,
-  `--ledger` mode is a self-signed local ledger for tests and single boxes.
-  The two knobs are refused separately: an agent without a pinned key could
-  sign its own windows. On a metal box the guest agent (`metal/guest/agent.mjs`)
-  is that agent: it mints an X25519 pad key in-CVM (published in the RAD
-  document, recorded by the relay at attach), fetches and opens this box's seed
-  after a successful attach, leaves `{seed, seed_id, sk, ledger_pk, window_url}`
-  root-only at `/run/enclave/pads/bootstrap.json`, and serves
-  `POST /pads/window` on its loopback RAD port with a reserve signed by the
-  P-256 transport key. The wasm manager fills a deployment whose
-  `nnShieldedPadSource` is a bank and that names no keys from that file, so a
-  tenant config carries only the bank URL; `nnShieldedPadSource: "platform"`
-  means the platform's own store through the agent's loopback proxy
-  (`GET /pads/shipments`, the store's two shapes only, so the engine never
-  speaks TLS). With no bootstrap file yet the manager drops the dealt env
-  entirely rather than open a half-configured link. The model digest pin
-  comes from the calibration file (SHA-512, first 32 bytes, the dealer's own
-  label) when the config names none (`test/metal-agent-pads.test.mjs`).
-
-**The shared-prefix KV.** The shared prefix of a chat (system prompt, tool
-schemas) is public text, so the platform prefills it once, in the clear, and
-publishes the KV cache for (model, prefix) as a signed artifact
-(`prefix-kv-mint`: `llama_state_seq_save_file` of the prefix sequence plus a
-sidecar `<file>.sig`, Ed25519 over the model digest, the prefix text's SHA-512,
-the token count and the file's SHA-512). A consumer pins the platform's prefix
-key (`SHIELDED_PREFIX_KV_PK`), verifies the sidecar against this model and the
-exact prefix text before loading a byte (`prefix-kv.c`, `prefix-kv-selftest`),
-loads the state into its sequence and prefills only the remainder: no pad rows
-for the prefix, no minutes of phone prefill, a one-second re-park after a
-restart. Proved in `shielded-run` (`SHIELDED_PREFIX_KV`, `SHIELDED_PREFIX_FILE`)
-on the 0.8B: a 25-token prefix loaded, 2 remainder tokens prefilled, text
-identical to the full 27-token prefill. The platform store keeps the
-artifacts per model digest (`PUT/GET /v1/prefix-kv/<digest>/<name>.kv|.kv.sig|.txt`,
-uploads with the dealer's bearer, reads public); the owner app fetches a
-named set (`--es prefixname`, `--es prefixdigest`) or takes a local
-directory (`--es prefix`), pins the platform's prefix key in the VM
-(`PREFIXPK`), and streams the three files over the pads port; the pVM engine
-waits for them, verifies, loads and prefills only the user's part. On the
-Pixel 8 Pro the same 27-token prompt generates identical tokens either way,
-and the usage receipts show the saving (39 pad rows for the full prefill,
-14 with the prefix loaded). The wasm tenants (through the shim) are next.
-
-**The dealer daemon.** `GET /v1/pads/consumers` lists every attached tunnel
-that offered a pad key with its seed id, ledger mark and whether it has asked
-for its seed; `shielded/dealer/dealer-loop.py --all --master <hex> --push
-[--worker host:port]` keeps each issued consumer's bank ahead of its mark
-every pass, pruning spent shipments from the store. A consumer that never
-asked for its seed gets nothing minted.
-
-**The agent's per-boot token.** Tenants share the loopback namespace, so the
-guest agent mints a token per boot, hands it to the manager in the bootstrap
-file, and refuses a window or a receipt without it (`401`); the manager passes
-it to the engine as `SHIELDED_PAD_AGENT_TOKEN`, sent as a bearer on those
-POSTs. With dealt pads configured and no way to run them (no window, no
-shipment, no worker) the engine fails the request rather than computing the
-model in the clear, exactly as it does on pad exhaustion.
-
-**Usage receipts from the CVM tier.** With a window agent configured the
-engine also reports usage: after every reserved window (outside the pool lock)
-and once more when the link closes, it POSTs the delta of cells consumed and
-rows reserved since its last receipt to the agent's `/receipt` sibling of the
-window URL; the guest agent signs it as this box (`enclave-pads-receipt`,
-P-256) and relays it to `POST /v1/pads/receipt`, so the platform's per-seed
-totals add up to exactly what the engine drew (2,033 pads / 56 rows on the
-x86 proof, 7 receipts). A missing route is logged once and never blocks a
-window. The pVM signs its own receipt on the control channel instead.
-
-**Minting at GPU speed.** `shielded-dealer --worker host:port` mints through a
-worker the dealer owns: with `SHIELDED_ZERO_PADS=1` every ring pad is zero, so
-the "masked" planes carry the seed's mask row r itself and the exchange returns
-r·W mod M, which is u. The dealer checks each row against the worker with the
-same identity a consumer uses for a shipment, (u·s) ≡ (r·(W s)) mod M
-(`SHIELDED_PAD_CHECK=1` builds the vectors), because the field-range product
-check cannot hold for a 24-bit input. Never point it at an operator's worker:
-that worker would learn every mask it later unmasks. The dealer never sees a
-tenant's x either way. The zero-pad path exists only in the dealer's own
-build of the trusted half (`libggml-shielded-dealer.so`, `SHIELDED_DEALER_MODE`);
-the production and phone libraries compile without it, so no environment can
-turn it on there (`nm -D libggml-shielded.so` shows no `mint_worker`). On the 0.8B, 16 rows through the CPU reference worker
-are byte-identical to the in-process mint on all 1,552 cells
-(`dealt-selftest` with `SHIELDED_WORKER=`, in `test/shielded-cbackend.test.mjs`);
-`dealer-loop.py --worker` passes the address through. For the 27B this turns
-minting from a 30 GB weight stream per row on CPU cores into a batched GEMV on
-whatever GPU the platform dealer owns.
-
-Proved on x86 against the local hub: four 16-row shipments in the store,
-8-row windows from the agent, 16 tokens: 2363 nodes offloaded, 0 local, 0
-missed, pad check clean, text identical to self-minting; shipments dropped at
-floors 20 and 36 and the cache never held more than its 64 MB budget
-(`test/pads-bank-client.test.mjs` pins the fetcher and the agent without a
-model).
 
 ## Worker protocol (hardened ggml-rpc derivative)
 
@@ -951,7 +747,7 @@ in force. These checks add no adaptive scaling or secret-dependent wire metadata
    corrected 8B primitive capacity exceeds the measured GPU baseline. Larger models,
    prefill and speculation still need adequate CPU, pool depth and memory; shortages
    can put minting back on the request path. See [throughput](#what-actually-binds-throughput)
-   for the measured limits and the separate trust assumption of dealt mode.
+   for the measured limits.
 
 
 1. **Performance across GPU families and model shapes.** Exact field kernels and

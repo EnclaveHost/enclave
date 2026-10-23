@@ -4,7 +4,7 @@ The opt-in measured Shield runtime (`--original-source-reclaim` in
 `isolation/m4/build-shielded-engine.py`) retires the original quantized GGUF
 pages after a registration batch finishes authenticated encoding and allocation.
 It does **not** remove the encoded int8 rows used for local mask generation,
-change the pad dealer, relax GPU result verification, or reduce the KV/MTP caches.
+relax GPU result verification, or reduce the KV/MTP caches.
 
 ## Trust and ownership
 

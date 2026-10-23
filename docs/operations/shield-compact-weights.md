@@ -48,8 +48,6 @@ library teardown, discards unused pad pools and disconnects GPU links. Verified
 weight storage, integrity latches and mask-bank counters survive for a later
 context. This avoids background GEMM calls racing oneDNN's global destruction;
 reconnect cannot reset a verification failure or recycle discarded pads.
-The sparse offline v3 dealer remains unsupported for compact nodes because its
-independent scratch-budget contract has not been extended.
 
 ## Build and test
 

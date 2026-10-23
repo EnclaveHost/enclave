@@ -20,12 +20,6 @@ The `profile registration <weight>` line divides successful registration into:
 - `link`: entry publication and the link's verification setup.
 - `commit`: reader installation, encoded-buffer release and group bookkeeping.
 
-The six outer phases sum to `total` before rounding. The nested
-`profile registration checks <weight>` line breaks down link setup into weight
-range scanning/allocation, Freivalds setup (`fv`), dealt-pad verification setup
-(`pad`), optional public cache identity hashing, and final node publication.
-These nested timings are already included in `link`; do not add them again.
-
 These lines are written to engine stderr. The phone engine's current summary
 filter forwards selected exchange summaries, not every registration line;
 capture the full stderr or explicitly extend its filter to inspect registration.

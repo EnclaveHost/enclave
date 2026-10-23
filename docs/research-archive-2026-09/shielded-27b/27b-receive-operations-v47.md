@@ -23,6 +23,4 @@ The following ten entries are phase/operation combinations, using five source ca
 
 Preparation improved in a descriptive comparison against v46: pad-check time fell from 80.264 to 34.055 seconds, while total registration fell from 384.084 to 372.844 seconds. Other stages grew. This is one run per build, not an isolated or replicated thread-limit effect, and not a decode speed gain.
 
-The full cycle completed in 535.054 seconds including cleanup. The phone stopped, owned processes exited and the bank cleared. All 6,820 receive records and the standard, receive, TCP, fault, traffic, pad-delivery and poll-stall analyses passed. Wire source was verified byte-identical to v46 and bound to the measured v47 APK and its source revision.
-
 [Measurements and provenance](/home/steven/Documents/Codex/2026-09-07/i-w/outputs/27b-receive-operations-v47.json).

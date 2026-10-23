@@ -21,5 +21,3 @@
 | ssm_out | 8192 | 403.00 | 414.31 |
 
 The five candidates ran in forward order and then reverse order, each in a fresh process with identical deterministic public inputs. Each process used batch16, sixteen independent lanes and eight timed refill calls per lane. All 30 cases passed their pre/post sampled scalar checks and cleanup gates; source and binary identities stayed stable. The complete sweep took14.508seconds. Each candidate had also passed25 small success/fault tests and300ASan/UBSan normal/forced-allocation-failure shape pairs around all slab boundaries.
-
-These are CPU arithmetic rates. They exclude PRF generation, encryption, file publication, the actual mixed dealer schedule and the full27B output head; they are not model token rates. No production change was made from this sweep.

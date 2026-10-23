@@ -6,12 +6,11 @@ from `0` through `100`. Unset preserves the linked library's default.
 An invalid value, missing persistent pool API, or failed pool allocation
 with an explicit override refuses the run instead of ignoring the setting.
 
-In the current Android ggml build, the default is `50`, and each idle
-worker can execute up to `1024 * 128 * poll` relax iterations before
-parking. Those workers can compete with the app's bridge and pad delivery
-threads for the phone's cores while the main VM thread waits on the link.
-Reducing polling may free CPU time for that work, at the cost of more
-thread wakeups. The effect on end-to-end throughput is unmeasured.
+In the current Android ggml build, the default is `50`, and each idle worker can
+execute up to `1024 * 128 * poll` relax iterations before parking. These workers
+can compete with the app's bridge for the phone's cores while the main VM thread
+waits on the link. Reducing polling may free CPU time at the cost of more thread
+wakeups. The effect on end-to-end throughput is unmeasured.
 
 The payload forwards this knob through the existing `shenv` allowlist.
 For a controlled comparison, keep the APK, model, prompt, MTP settings,
