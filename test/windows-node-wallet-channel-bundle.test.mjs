@@ -1,0 +1,100 @@
+// The wallet hold channel on the SHIPPED admission bundle: the real Host (windows/node/host.mjs) with the real
+// windows/node/host-admission.bundle.mjs (createHostAdmission on a scripted agreeing reader, as test/host-admission-runtime
+// does) and the real channel writer. The other wallet-hold suites hand the Host a mock admission, so none of them notices a
+// bundle that predates decision(): the channel then stays OFF and an UNKNOWN policy retires the domain as before.
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import http from 'node:http';
+import {fakeBaseRpc,DEPLOYMENTS,CATALOG} from './helpers/fake-base-rpc.mjs';
+process.env.NODE_OPERATOR_KEY='0x'+'7f'.repeat(32);
+delete process.env.ENCLAVE_NETWORK_WALLET_HOLD;
+const rpc=await fakeBaseRpc();
+const chain=await import('../windows/node/chain.mjs');
+chain.addresses.deployments=DEPLOYMENTS;chain.addresses.appCatalog=CATALOG;chain.loadOperator();
+const {Host}=await import('../windows/node/host.mjs');
+const {createHostAdmission}=await import('../windows/node/host-admission.bundle.mjs');
+const {hostAdmissionPolicyHash}=await import('../network/host-admission-policy.mjs');
+const dirs=[];
+const endpoint='https://api.enclave.host/t/wallet-channel-bundle',hostId=chain.enclaveIdOf(endpoint),runner=hostId.toLowerCase();
+const app='0x'+'cd'.repeat(32),id='0x'+'ab'.repeat(32),ref=`catalog://${app}/1`,INSTANCE='hv'+'2'.repeat(32);
+const ownership='0x'+'11'.repeat(20),registry='0x'+'22'.repeat(20),catalog='0x'+'33'.repeat(20),owner='0x'+'44'.repeat(20);
+const version={cid:'bafy',version:'1',vramMb:0,gpuGflops:0,memMb:512,cpuGflops:0,createdAt:1n,verified:true,yanked:false,ports:'',approval:1,config:'{}'};
+
+const mgr={vms:[],removed:[]};
+const srv=http.createServer((q,s)=>{const send=(c,b)=>{s.writeHead(c,{'content-type':'application/json'});s.end(JSON.stringify(b));};
+ const m=q.url.match(/^\/vms(?:\/([^/?]+))?$/);if(!m)return send(404,{error:'no'});
+ const vid=m[1]&&decodeURIComponent(m[1]);
+ if(q.method==='GET'&&!vid)return send(200,{vms:mgr.vms});
+ if(q.method==='GET'){const v=mgr.vms.find(x=>x.id===vid);return v?send(200,v):send(404,{error:'gone'});}
+ if(q.method==='DELETE'){const i=mgr.vms.findIndex(x=>x.id===vid);if(i<0)return send(404,{error:'gone'});mgr.removed.push(vid);mgr.vms.splice(i,1);return send(200,{removed:vid});}
+ send(405,{});});
+await new Promise(r=>srv.listen(0,'127.0.0.1',r));
+const MANAGER=`http://127.0.0.1:${srv.address().port}`;
+after(()=>{rpc.close();srv.close();for(const dir of dirs)fs.rmSync(dir,{recursive:true,force:true});});
+
+// the shipped bundle's admission: this host's wallet policy (no extra restriction) and the platform catalog, both read
+// through a scripted agreeing reader whose snapshots carry block timestamps (authority 40 s old, catalog fresh)
+function admission(){
+ const doc={version:1,chainId:8453,ownershipContract:ownership,hostId,requireCatalogApproval:false,denyDeployments:[],denyAppRefs:[]};
+ const state={catalog:{active:true,approval:1,yanked:false},authorityAge:40_000,authorityAt:[]};
+ const client={readContract:async q=>{
+  if(q.functionName==='registry')return registry;
+  if(q.functionName==='authority')return [owner,owner,1n,hostAdmissionPolicyHash(doc)];
+  if(q.functionName==='getApp')return {appId:app,versionCount:2,...state.catalog};
+  if(q.functionName==='getVersion')return state.catalog;
+  throw Error('unexpected read '+q.functionName);
+ }};
+ const reader={agreed:async fn=>{const value=await fn(client,100n);const timestamp=Date.now()-(value.owner?state.authorityAge:0);
+  if(value.owner)state.authorityAt.push(timestamp);return {timestamp,...value};}};
+ return {state,admission:createHostAdmission({hostId,ownershipContract:ownership,registry,catalog,reader,loadPolicy:async()=>doc,now:()=>Date.now()})};
+}
+const row=()=>({id,owner:chain.operatorAddress(),appRef:ref,ports:'',configCid:'',gpuMilli:0,cpuMilli:100,appPort:8000,isPublic:true,
+ active:true,createdAt:1n,rate:1n,balance6:1000000n,spent6:0n,runner,runnerOperator:chain.operatorAddress(),
+ leaseUntil:BigInt(Math.floor(Date.now()/1000)+3600)});
+async function box(){
+ mgr.removed=[];mgr.vms=[{id:INSTANCE,name:id,status:'running',appId:'b'.repeat(64)}];
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'wallet-channel-bundle-'));dirs.push(dir);
+ const agentDir=path.join(dir,'agent');fs.mkdirSync(path.join(agentDir,'state'),{recursive:true});
+ const walletAdmission={file:path.join(agentDir,'wallet-admission.json'),statusFile:path.join(agentDir,'state','status.json')};
+ const a=admission();
+ const h=new Host({dir,endpoint,name:'test',appsEnabled:true,vcpus:8,ramGb:16,cpuPricePerSec6:0,isolationManager:MANAGER,walletAdmission,hostAdmission:a.admission});
+ h.chainReady=true;h.registered={cpuPricePerSec6:'0'};await h.refreshOwners();
+ for(const name of ['followBook','enforceOff','ensureRegistered','ensurePriced','scanLedger','retireForeignRecovered'])h[name]=async()=>{};
+ rpc.row.current=row();rpc.catalog.current=version;rpc.chainTx.mine=true;
+ h.ensureApp=async()=>{h.records.set(id,{...h.records.get(id),status:'running',isolation:{instance:INSTANCE,appId:'b'.repeat(64)}});return h.records.get(id);};
+ const channel=()=>JSON.parse(fs.readFileSync(walletAdmission.file,'utf8'));
+ return {h,a,channel,walletAdmission};
+}
+
+test('the shipped admission bundle has decision(): the channel starts EMPTY and a definite allow carries the original chain deadline',{timeout:30_000},async()=>{
+ const {h,a,channel}=await box();
+ assert.equal(typeof a.admission.decision,'function','the shipped bundle predates decision(): the hold channel would stay OFF');
+ assert.ok(await h.walletChannelStart(),`channel OFF: ${h.walletChannelOff}`);assert.equal(h.walletChannelOff,null);
+ const first=channel();
+ assert.equal(first.runner,runner);assert.deepEqual(first.allows,{},'a fresh generation admits nothing before a fresh allow');
+ h.tracked.add(id);h.records.set(id,{id});
+ await h.tick();
+ const allow=channel().allows[id];
+ assert.ok(allow,'the definite allow is published to the network agent');
+ assert.equal(allow.appRef,ref);
+ // decision(): min(authority snapshot + 90 s, catalog snapshot + 90 s, now + 90 s); the authority snapshot is 40 s old
+ assert.equal(allow.validUntil,a.state.authorityAt[0]+90_000,'the allow lives to the chain snapshot\'s own deadline, not a fresh lifetime');
+ assert.ok(allow.validUntil>Date.now()&&allow.validUntil<=Date.now()+50_000);
+ assert.equal(h.records.get(id).status,'running');
+ assert.equal(await a.admission.refusal({deploymentId:id,appRef:ref}),(await a.admission.decision({deploymentId:id,appRef:ref})).refusal,'refusal() is decision().refusal');
+});
+
+test('platform moderation through the same bundle: an administrator yank refuses the deployment and withdraws its published allow',{timeout:30_000},async()=>{
+ const {h,a,channel}=await box();
+ assert.ok(await h.walletChannelStart());
+ h.tracked.add(id);h.records.set(id,{id});
+ await h.tick();assert.ok(channel().allows[id]);
+ a.state.catalog={...a.state.catalog,yanked:true};
+ assert.ok((await a.admission.decision({deploymentId:id,appRef:ref})).refusal,'the yank is a refusal, not an unknown');
+ await h.tick();
+ assert.equal(channel().allows[id],undefined,'the allow is withdrawn from the network channel');
+ assert.notEqual(h.records.get(id)?.status,'running','not served after the administrator refused it');
+});
