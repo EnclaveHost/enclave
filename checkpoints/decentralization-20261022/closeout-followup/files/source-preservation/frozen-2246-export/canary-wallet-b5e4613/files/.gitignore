@@ -1,0 +1,7 @@
+node_modules/
+logs/
+journals/
+out/
+ROOT-*.txt
+*.err
+*-progress.txt

@@ -1,0 +1,34 @@
+[queue] START available=23670MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_any_other_file_refuses (tests.test_precheck.Precheck.test_any_other_file_refuses) ... ok
+test_approval_format (tests.test_precheck.Precheck.test_approval_format) ... ok
+test_good_child_passes_with_parent_anchored_patch (tests.test_precheck.Precheck.test_good_child_passes_with_parent_anchored_patch) ... ok
+test_gsup_needs_explicit_review_both_ways (tests.test_precheck.Precheck.test_gsup_needs_explicit_review_both_ways) ... ok
+test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses (tests.test_precheck.Precheck.test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses) ... ERROR
+test_parent_must_be_exactly_9f6d37bd (tests.test_precheck.Precheck.test_parent_must_be_exactly_9f6d37bd) ... ok
+test_tests_must_be_exactly_the_approved_ones (tests.test_precheck.Precheck.test_tests_must_be_exactly_the_approved_ones) ... ok
+test_entry_deviations_refuse (tests.test_verify.Verify.test_entry_deviations_refuse) ... ok
+test_exact_supervisor_and_gsup_deltas_pass (tests.test_verify.Verify.test_exact_supervisor_and_gsup_deltas_pass) ... ok
+test_manifest_deviations_refuse (tests.test_verify.Verify.test_manifest_deviations_refuse) ... ok
+
+======================================================================
+ERROR: test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses (tests.test_precheck.Precheck.test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-release-20261023/tests/test_precheck.py", line 71, in test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses
+    rec, patch, form = self.check(appr(near)); self.assertTrue(form.startswith('zero context')); self.assertFalse(pc.has_old(patch))
+                       ~~~~~~~~~~^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-release-20261023/tests/test_precheck.py", line 38, in check
+    def check(self, text): return pc.check(FX, text)
+                                  ~~~~~~~~^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-price-release-20261023/precheck.py", line 55, in check
+    if has_old(patch): raise Refused('the source patch carries the rewritten provider literal even at zero context')
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+precheck.Refused: the source patch carries the rewritten provider literal even at zero context
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.529s
+
+FAILED (errors=1)
+[memory-guard] exit=1 peakTreeRssMiB=21 minHostAvailableMiB=23569
+[memory-guard] at peak: python3:21
+[queue] EXIT 1

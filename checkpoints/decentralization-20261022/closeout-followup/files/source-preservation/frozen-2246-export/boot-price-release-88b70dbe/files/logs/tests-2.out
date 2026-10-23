@@ -1,0 +1,19 @@
+[queue] START available=22848MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_any_other_file_refuses (tests.test_precheck.Precheck.test_any_other_file_refuses) ... ok
+test_approval_format (tests.test_precheck.Precheck.test_approval_format) ... ok
+test_good_child_passes_with_parent_anchored_patch (tests.test_precheck.Precheck.test_good_child_passes_with_parent_anchored_patch) ... ok
+test_gsup_needs_explicit_review_both_ways (tests.test_precheck.Precheck.test_gsup_needs_explicit_review_both_ways) ... ok
+test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses (tests.test_precheck.Precheck.test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses) ... ok
+test_parent_must_be_exactly_9f6d37bd (tests.test_precheck.Precheck.test_parent_must_be_exactly_9f6d37bd) ... ok
+test_tests_must_be_exactly_the_approved_ones (tests.test_precheck.Precheck.test_tests_must_be_exactly_the_approved_ones) ... ok
+test_entry_deviations_refuse (tests.test_verify.Verify.test_entry_deviations_refuse) ... ok
+test_exact_supervisor_and_gsup_deltas_pass (tests.test_verify.Verify.test_exact_supervisor_and_gsup_deltas_pass) ... ok
+test_manifest_deviations_refuse (tests.test_verify.Verify.test_manifest_deviations_refuse) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.534s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=31 minHostAvailableMiB=22816
+[memory-guard] at peak: python3:21 git:9
+[queue] EXIT 0

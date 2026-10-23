@@ -43733,6 +43733,902 @@
       "stored": "files/source-preservation/frozen-2217-labels.json",
       "sha256": "62fbcbde31fdd8a5ecbba68fb5587b553332b3c0d4d9194e84c9da6e36d8bcaa",
       "bytes": 2935
+    },
+    {
+      "label": "FROZEN 2246 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed 7ca36e11 material and every recorded tree reproduced (boot-source2: patch-only) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, activated or published by this capture; control recovery NOT done",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-2246-export/INVENTORY.json",
+      "sha256": "7a40d80ba2bd2f71380c8c78fce2819e0e1c7004d03e207a87b1cb8472df4bce",
+      "bytes": 46030
+    },
+    {
+      "label": "FROZEN 2246 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed 7ca36e11 material and every recorded tree reproduced (boot-source2: patch-only) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, activated or published by this capture; control recovery NOT done",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-2246-export/REBUILD.md",
+      "sha256": "026e788b9873a97ef9e8476cdb5c4e18a0ed776c81085cb03e8a3dddbfcc7a6a",
+      "bytes": 3705
+    },
+    {
+      "label": "FROZEN 2246 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed 7ca36e11 material and every recorded tree reproduced (boot-source2: patch-only) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, activated or published by this capture; control recovery NOT done",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-2246-export/REPRODUCE-CHECK.txt",
+      "sha256": "f0425c1a8b1f28c5504cceb1cc3701f1c41ca57280578ef66cdc358ac995fb2c",
+      "bytes": 2296
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/patches/0001-d64f0443.patch",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/patches/0001-d64f0443.patch",
+      "sha256": "865a100b20f8f5f12b5896930cbcc9ec6bdd3f9d4da2567d429870386d78ea7a",
+      "bytes": 3584
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/patches/0002-b4e1f14f.patch",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/patches/0002-b4e1f14f.patch",
+      "sha256": "d68b0e893df87fd596aff3d28f35897af9a5879cd05acfa986c6162717ea5606",
+      "bytes": 10464
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/known-state.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/known-state.json",
+      "sha256": "1f4e32b0e7220b73c59a77b839864f843ad7c48f6835b7c6af7ce0ea55204dfc",
+      "bytes": 2604
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-public-health-2216.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-public-health-2216.json",
+      "sha256": "852ab23ac8a29437bab8a38a02a5b4c231adb82c376efee937594f36dab59203",
+      "bytes": 365
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2211/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2211/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+      "sha256": "22deb874b3c464d19239cf237888b8decc49af2c052b4009243a919f3dc4a515",
+      "bytes": 753
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2211/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2211/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+      "sha256": "f0b6be6ec4be545a543568f9e8cc736122a507cad9edd339b942017c8a04277e",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+      "sha256": "cc5ed1a39352738dadef14097d0c6444acb97f2c78aebcc25969be4c059d3134",
+      "bytes": 753
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+      "sha256": "61618cf519d63858d6653165970e6002332ffc67a54578b48a4aadc3ba1052f3",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+      "sha256": "4f14c148e72b8304007a7036e894ce830679feb5d5512fddb3076a973b009328",
+      "bytes": 753
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/evidence/protected-renewals-2239/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+      "sha256": "30b3c663d2bf49561f2d4e8f37d39e5b85b9133944364d6ad698f77a6ac5e20e",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT live records on ed284731: second EyesOff renewal and public health, known-state 22:20, the 22:39 protected renewals and probe; read-only metadata, no logs or raw quotes",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/probes/renew-protected-2239.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/custody-live7-b4e1f14/files/probes/renew-protected-2239.mjs",
+      "sha256": "cb6fb0a5ee99551e49dce3297a9e252ddef4cc0b164e5b4ff04ebfecb5c2bf07",
+      "bytes": 3933
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/patches/0001-a340762b.patch",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/patches/0001-a340762b.patch",
+      "sha256": "e241e996940552620de6fa5c6dd166095bffc4429ce120eb78cae70cbaa5bb42",
+      "bytes": 51825
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/patches/0002-88b70dbe.patch",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/patches/0002-88b70dbe.patch",
+      "sha256": "96869f9e003477a8ce9331f99918b2f8d173b19fb8bac4ac98d6de4a0d2f824d",
+      "bytes": 75332
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/.gitignore",
+      "sha256": "f72d1f19a643ed66ed21162b39bf79591ca228c10198eee1df439566c4c2e126",
+      "bytes": 112
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/APPROVED-COMMIT.txt",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/APPROVED-COMMIT.txt",
+      "sha256": "7552355f7aa2ac0113a500ef3c9e083e5e4618e9582d795373ecf662d9c33c32",
+      "bytes": 136
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/README.md",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/README.md",
+      "sha256": "a1a43b23da05c295b9b57c5487ef8f6cdb2fc8939f7071f4b85e76754475a32b",
+      "bytes": 3819
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/build-price.sh",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/build-price.sh",
+      "sha256": "32e65e0b30e9a5c8caa692b5e9313f0f8e8512a98d74d89cd935922158dce039",
+      "bytes": 6573
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/commit.sh",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/commit.sh",
+      "sha256": "75b5fa996274fdcbbc9b0b5784afd3e5b5f76c964ecb6bb3c832c3d09a74aaf2",
+      "bytes": 1149
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/entries.py",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/entries.py",
+      "sha256": "540c313603e42fa3cfaac57eefc782655bb27c5d163b058729939bf2865c8d75",
+      "bytes": 1314
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/root-build-price.guard.log",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/root-build-price.guard.log",
+      "sha256": "87759301c6d7d88d388e5edf291befc37a5e9e4f136001dbc757e4a8a4a5ecb5",
+      "bytes": 67
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/root-build-price.out",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/root-build-price.out",
+      "sha256": "09329c3314dd118093c2e1d021e6a3bba3b8e085c54e022075804d123999c43e",
+      "bytes": 2627
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/root-build-price.rc",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/root-build-price.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.guard.log",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.guard.log",
+      "sha256": "f3cd4e2e939847612197ff13f672d6929431ecae952c66ec53d102f038a5fa71",
+      "bytes": 66
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.out",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.out",
+      "sha256": "6e85fddb626184d4ec0c72eec2612a662ee2485fc9c0dff4f6065fbe28a93204",
+      "bytes": 2946
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.rc",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.try2.out",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-1.try2.out",
+      "sha256": "cf69f3b7c712f2914f43dc2f8757cc3ee3020192d2d66db85dd91f27ee828c51",
+      "bytes": 42
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-2.guard.log",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-2.guard.log",
+      "sha256": "a2885b07653b6a9290d70d50af2bc6604ec19e9a288ccfeaccba20508ce0643e",
+      "bytes": 66
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-2.out",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-2.out",
+      "sha256": "48a6d30b4b1913e7c16c43dcb0610662ccc50e04c1aaa4ccb9ec3ac77357dd85",
+      "bytes": 1491
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-2.rc",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-3.guard.log",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-3.guard.log",
+      "sha256": "c7327daad84e9ccc49df0154db87db727f7ad5a4c94e2a1396ead7e7c0142209",
+      "bytes": 66
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-3.out",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-3.out",
+      "sha256": "230380b6ac2f0941b4c8655a849ef214e2e4de2780b2b4aeed12f18e933db32b",
+      "bytes": 1919
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-3.rc",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/logs/tests-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/precheck.py",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/precheck.py",
+      "sha256": "e6f3cb97502d4cdc0cc577178cb17b1967e147520d0e58c81d24841e2611bec3",
+      "bytes": 5159
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/q.sh",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/q.sh",
+      "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+      "bytes": 565
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/refusal-tests/run.sh",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/refusal-tests/run.sh",
+      "sha256": "cdf6eaa9d236f9743ab260d46528594d1d157d8a0a2658bf80910328e1cb17f6",
+      "bytes": 1054
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/review-progress.txt",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/review-progress.txt",
+      "sha256": "c79f471b2e7bef0be4c0b3006fddcd428517ba11de0ee93b4246ffe7eedcf421",
+      "bytes": 2358
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/scan.sh",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/scan.sh",
+      "sha256": "5166bc96c43a56314e974c4e386719382c94204d49441cfbca41595d6374d3a8",
+      "bytes": 1139
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/7dd3acd06-on-9f6d37bd.patch",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/7dd3acd06-on-9f6d37bd.patch",
+      "sha256": "7283a33ae0325ea837841175d87ecd96d48f8b99e04fa7cbc433da7218efbd3d",
+      "bytes": 38322
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/INVENTORY.sha256",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/INVENTORY.sha256",
+      "sha256": "c800a4e684dd012ed1cb89765cababd98379f393512a789cd6fea0c60cd5cbf9",
+      "bytes": 510
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/build-record.json",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/build-record.json",
+      "sha256": "5657ee215f27072919cf35f11ebf3a569979f3a6d20e1a0f83a25fcf8aed1c85",
+      "bytes": 1501
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/dist-leasegas-7dd3acd06/MEASUREMENT",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/dist-leasegas-7dd3acd06/MEASUREMENT",
+      "sha256": "671666403f2edf2ece449f7e79e4b45fe9b385744cf282fe47137123aa6ae9b6",
+      "bytes": 97
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/dist-leasegas-7dd3acd06/cmdline",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/dist-leasegas-7dd3acd06/cmdline",
+      "sha256": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
+      "bytes": 105
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/dist-leasegas-7dd3acd06/manifest.json",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/stage/dist-leasegas-7dd3acd06/manifest.json",
+      "sha256": "6e0029f58700253289062856d89d93c3ee049d39da211fe4b072c229146cf44a",
+      "bytes": 26105
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/tests/test_precheck.py",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/tests/test_precheck.py",
+      "sha256": "5df808903c5fbb7be75cc2594982e50a2116dcdbc1a484d9ce676315c762c3d9",
+      "bytes": 6983
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/tests/test_verify.py",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/tests/test_verify.py",
+      "sha256": "680d860eac09b7da4bd2b0be9589ee76dc9f09fa4c80bbebfcbb0976848383f1",
+      "bytes": 3036
+    },
+    {
+      "label": "approval-gated build template for the child of 9f6d37bd and the root-granted PUBLIC metadata of root's 7dd3acd build (approval, build record, INVENTORY.sha256, patch, root build log/guard/rc, MEASUREMENT, manifest, cmdline); image binaries not committed. Candidate only, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/verify.py",
+      "stored": "files/source-preservation/frozen-2246-export/boot-price-release-88b70dbe/files/verify.py",
+      "sha256": "ba363e842837f11e457b9fba8bd17d5391cdae6c44fcbeda6fa3cdf0c210c87b",
+      "bytes": 3966
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/patches/0001-f161ceb3.patch",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/patches/0001-f161ceb3.patch",
+      "sha256": "586550353664dea365dfff63c09f46769396a197360fb35f3a86c5bff24f2bd4",
+      "bytes": 231093
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/patches/0002-b5e4613c.patch",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/patches/0002-b5e4613c.patch",
+      "sha256": "60d3cbd9843e21ee437f976b5e9040f97e93aef45a71686a468760d2bdccfb00",
+      "bytes": 37539
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/.gitignore",
+      "sha256": "5df7359767e0b62fd889d5e478dff4b970c4de5be4581d8ddf2801d1b25b8b36",
+      "bytes": 67
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/PROGRESS.txt",
+      "sha256": "5336602aaf4889921896270080aee8ed34f4c85b70da20848351f850f6d37332",
+      "bytes": 1614
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/README.md",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/README.md",
+      "sha256": "5606a592dcd25d90e41e39aec07e6a365fe4aa0ae2ad0d6e76630369e493eb6f",
+      "bytes": 13167
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/app.css",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/app.css",
+      "sha256": "e20ba2b9793af513baff2533cfa10f539688e0fa77bda525bbbb264824f1e4f9",
+      "bytes": 399
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/app.js",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/app.js",
+      "sha256": "505231701de13ddea46d7895e1b816f0828643d35af93c7999603d5084f72d2a",
+      "bytes": 13849
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/evidence/handoff-server.diff",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/evidence/handoff-server.diff",
+      "sha256": "0d8304fa682b0c1218c254db1585408ebf3c86cb2c0df7325172ec2c3863f0f5",
+      "bytes": 3397
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/handoff-server.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/handoff-server.mjs",
+      "sha256": "77ce452e41ff000a1de4d9907e1c494ea75c921938b98de55c7e4735bcf8bf51",
+      "bytes": 6087
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/package.json",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/package.json",
+      "sha256": "4844744314c644d890e7c388292f447c6bcd02425b358ce743758204e85af4b8",
+      "bytes": 268
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/page.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/page.mjs",
+      "sha256": "759a79c735745aede47e7e4e4c5e40b9a21b3fd7d77d1520291a3ec157753c0c",
+      "bytes": 2656
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/publish-stage.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/publish-stage.mjs",
+      "sha256": "23f66d1b8db0872685853cc1d3e398ccdafc9fcb6f6431f65f1457405afadd69",
+      "bytes": 14322
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/q.sh",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/q.sh",
+      "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+      "bytes": 904
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/rpc.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/rpc.mjs",
+      "sha256": "df00a18b6c454acaa95f4634dcf64941447bc019dd16d61379ce94f8ff3a86aa",
+      "bytes": 3755
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/run-tests.sh",
+      "sha256": "8bd7309a8180f31a6dda0188d3fabe1507bf815b2a1c2e315c3b8adb0aa1f002",
+      "bytes": 671
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/serve.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/serve.mjs",
+      "sha256": "0a86fe3f5c2cece9c76a91608704f48a758c6c0280551c3ae190237e0305f408",
+      "bytes": 1844
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/stage-app.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/stage-app.mjs",
+      "sha256": "6cdc76d651374ca6a6893ac47ae08e820d32d2aa5cac4969f3f7f3b89a72c41c",
+      "bytes": 2606
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/stage.html",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/stage.html",
+      "sha256": "e3e96eddc7969515a899025036c772626495c95bb2fdc8af28e8dab0c174a864",
+      "bytes": 2609
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/style.css",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/style.css",
+      "sha256": "b055f0427d9b28ef9d10b27593c532755f864413869d2b926136f526af82e3c6",
+      "bytes": 919
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/browser.test.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/browser.test.mjs",
+      "sha256": "5b1fd772e1cbbdb496e91faf7fdbd4d7134a6463ec1cb285c1d8965d50da4ac7",
+      "bytes": 10287
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/env.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/env.mjs",
+      "sha256": "075a45af6785d9b85c74ab4b39f16a89008d8a8953817c8f7c62ee24fcf5a474",
+      "bytes": 10717
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/fixtures/book-build.json",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/fixtures/book-build.json",
+      "sha256": "cf3cc80b0357e8292de858de844314c676d50f54c33796a091ab55926712c2a1",
+      "bytes": 5553
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/fixtures/catalog-build.json",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/fixtures/catalog-build.json",
+      "sha256": "b7c70ae8af9d1ab46575c5d8f14c68fe7a4a3ce32e32c9c1efc33075cbe029d9",
+      "bytes": 62880
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/fixtures/oracle-mock.json",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/fixtures/oracle-mock.json",
+      "sha256": "240cef794412fd05d29eefa2b38e991001896b1e8e5375d8f32054adeaa2e939",
+      "bytes": 1570
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/handoff.test.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/handoff.test.mjs",
+      "sha256": "11f84392c7610ebc01196a7507ecf3b7e598e8126358c16ed2c1c9dd8c73f7e3",
+      "bytes": 24936
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/mutants.sh",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/test/mutants.sh",
+      "sha256": "10988f0f4df2193b370cec84ef90f909a9ec061caf5f6c12400df5c6e76b95db",
+      "bytes": 4387
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/trust.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/trust.mjs",
+      "sha256": "4f55817f6efdb1df684fa72c5141680be267fa8a4e73f4bfe9b3082992f10e60",
+      "bytes": 2603
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/upload.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/upload.mjs",
+      "sha256": "170a39408fdfa1b0e268980e866612584a7e7f085d2b538981a6f29a85233679",
+      "bytes": 13872
+    },
+    {
+      "label": "canary app upload + catalog publish administrator MetaMask handoff and the upload-stage fix; source/tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/vendor/publish.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/canary-wallet-b5e4613/files/vendor/publish.mjs",
+      "sha256": "d255587b66acb6afa9aebe14fd2d7bec86083213cdc07242d268a8e21d88cd41",
+      "bytes": 26745
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0001-ac4d9da2.patch",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0001-ac4d9da2.patch",
+      "sha256": "17384aeb8b6abe89e63688bcae52bf3c63e2283210dd94a5717af1210dc5f65a",
+      "bytes": 23065
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0002-c571a3f6.patch",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0002-c571a3f6.patch",
+      "sha256": "225132f924795b60caaeab2713e327ae3af07a8dbe365f3d9d4bb908e41f1d04",
+      "bytes": 10617
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0003-8fda71f2.patch",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0003-8fda71f2.patch",
+      "sha256": "0896f7ea2d4c9c03d4cfb7764d4855d3b97007300f67e134e1a0883063a85283",
+      "bytes": 7722
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0004-1b3c2611.patch",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/patches/0004-1b3c2611.patch",
+      "sha256": "93367b86966b9bdac6a98cc9ae0b7de8847b5265309ff2d54ca120f574b1717b",
+      "bytes": 15282
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/CURRENT-STATE.md",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/CURRENT-STATE.md",
+      "sha256": "e2181b522636637a0c5ea7405a841c84f7d64381e327e2c5f161a7d35aafa52d",
+      "bytes": 12074
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/ROLLBACK.md",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/ROLLBACK.md",
+      "sha256": "91384a86d76ff2d6cebd664c6091b53766ee95e20fe08947ae60bd9c0e125259",
+      "bytes": 6028
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/SIGNING-AUTHORITY.md",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/SIGNING-AUTHORITY.md",
+      "sha256": "8942bc15eba840d3fa20f2292c8b4d6b02839eeda6c6372bee775baea035db73",
+      "bytes": 3759
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/SOURCES.md",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/SOURCES.md",
+      "sha256": "8bc76690373ace8782539ce3c69202621aa253e6b581db8694005c36c5111201",
+      "bytes": 7314
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/commit3.sh",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/commit3.sh",
+      "sha256": "fdb4ad2b6944bb5c2058cc35b31feb8d7eccb1e2b7a102de30f8118137e7c423",
+      "bytes": 4462
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/commit4.sh",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/commit4.sh",
+      "sha256": "abae8ed84d47468bbb98da715aabe248b994d32e143792665cd818ebc2ba4203",
+      "bytes": 574
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/commit5.sh",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/commit5.sh",
+      "sha256": "4973d7a2be1cbf68e65253e919384436c2bf4162cdd4d5683e1d7c341387a8fe",
+      "bytes": 1299
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/docs/security/secret-custody-v2.md",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/docs/security/secret-custody-v2.md",
+      "sha256": "e0e9ba7020709c9ed9ba5b496c2083fc47c3d9c7931d7e5749721291f3da6dc4",
+      "bytes": 39629
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-2.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-2.out",
+      "sha256": "b583f327333ca7fde97f06fc4c1fa75f2c1e4541b3681c6be9ede2c5fbefb3be",
+      "bytes": 433
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-2.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-3.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-3.out",
+      "sha256": "2526fc0481ab07bdd6d4151252b5c43f503dd6de8e63cd78aa2c51fb5b18dd3c",
+      "bytes": 1672
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-3.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-4.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-4.out",
+      "sha256": "69e7a7c6bf320e328518a1b1029605ef635ef1f4c2de0453aadf62ba881974f4",
+      "bytes": 366
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-4.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/commit-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-2.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-2.out",
+      "sha256": "b45b2b7e9cc9bacef9e49685f5d93560f8fa6b4002e510069f5df30853bbd353",
+      "bytes": 414
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-2.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-3.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-3.out",
+      "sha256": "f40fc18290b2122efbad79917db1d7f2a91ffd940982b1813b75513b5093f9a1",
+      "bytes": 414
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-3.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-4.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-4.out",
+      "sha256": "477c45a6997f90ff9ad7f2c0baa68479a82baa25ca5816ba123445b3f7387b70",
+      "bytes": 414
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-4.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/rangescan-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-3.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-3.out",
+      "sha256": "09bfc04bd6f74934837a2c359e99cfa87d9cb5424f6d8a393b7cabe9d4ff9c4e",
+      "bytes": 370
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-3.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-4.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-4.out",
+      "sha256": "0e14d68db172c08bfe8003f839ee46fa8f3f1846d8346631c25c47d60805150b",
+      "bytes": 370
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-4.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-5.out",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-5.out",
+      "sha256": "3e8d10586a757c4965085914f8521665f0bc9abf382a355b00a114b9fd70e3bf",
+      "bytes": 360
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-5.rc",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/logs/scan-5.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch",
+      "sha256": "64675f5b2444d6300dff97953e429250c9c3cf4d8681f712cad6116db1172b3e",
+      "bytes": 3313
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/patches/against-checkpoint-dfb4b55e.diff",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/patches/against-checkpoint-dfb4b55e.diff",
+      "sha256": "ed913328449d48d0a33606f6ee7c30ac2b39b789391dda75182330c7f25e9503",
+      "bytes": 21734
+    },
+    {
+      "label": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics, patch 0003 + regenerated cumulative diffs, measured timestamps, root 22:45Z status (candidate NOT activated, recovery NOT done); not published, no rollout claimed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/patches/against-main-68b82926.diff",
+      "stored": "files/source-preservation/frozen-2246-export/current-docs2-1b3c2611/files/patches/against-main-68b82926.diff",
+      "sha256": "d411635919a1472c85e21553d84ba388a3efd6d1e46c1f3963238272aefd541e",
+      "bytes": 28803
+    },
+    {
+      "label": "H boot-pricing source 7dd3acd0 on 9f6d37bd (pending shielded GPU price, failed registry read never registers, tests). PATCH-ONLY: exact literal-free patch + gsup.mjs and tests at base/head; supervisor.js held back (rewritten literal), base blobs anchored to the pushed 2217/2146 records; real parent + patch == 7dd3acd0 tree asserted. Root-approved candidate b007d471, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/patches/0001-7dd3acd0.patch",
+      "stored": "files/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/patches/0001-7dd3acd0.patch",
+      "sha256": "08ac98d4b50d193018098b4d50482e434d6973608bc764a7133d214fc1bf0ad3",
+      "bytes": 38574
+    },
+    {
+      "label": "H boot-pricing source 7dd3acd0 on 9f6d37bd (pending shielded GPU price, failed registry read never registers, tests). PATCH-ONLY: exact literal-free patch + gsup.mjs and tests at base/head; supervisor.js held back (rewritten literal), base blobs anchored to the pushed 2217/2146 records; real parent + patch == 7dd3acd0 tree asserted. Root-approved candidate b007d471, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/files/metal/guest/gsup.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/files/metal/guest/gsup.mjs",
+      "sha256": "f8dee4dc1d734c3a69854d58bc7d710ad4539c49e483e0a8ddf1d10bfa53e7f0",
+      "bytes": 50897
+    },
+    {
+      "label": "H boot-pricing source 7dd3acd0 on 9f6d37bd (pending shielded GPU price, failed registry read never registers, tests). PATCH-ONLY: exact literal-free patch + gsup.mjs and tests at base/head; supervisor.js held back (rewritten literal), base blobs anchored to the pushed 2217/2146 records; real parent + patch == 7dd3acd0 tree asserted. Root-approved candidate b007d471, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/files/test/boot-gpu-price.test.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/files/test/boot-gpu-price.test.mjs",
+      "sha256": "c1288638d356d3da989b9dc14d2d9bdac0e6fe5eeaba4d873550386f816f518e",
+      "bytes": 19559
+    },
+    {
+      "label": "H boot-pricing source 7dd3acd0 on 9f6d37bd (pending shielded GPU price, failed registry read never registers, tests). PATCH-ONLY: exact literal-free patch + gsup.mjs and tests at base/head; supervisor.js held back (rewritten literal), base blobs anchored to the pushed 2217/2146 records; real parent + patch == 7dd3acd0 tree asserted. Root-approved candidate b007d471, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/files/test/registry-advertise-retry.test.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/files/test/registry-advertise-retry.test.mjs",
+      "sha256": "19f3365ed3593eb36dbf162db3c8fce50af19669dd620ba218694e9c152c5338",
+      "bytes": 19868
+    },
+    {
+      "label": "H boot-pricing source 7dd3acd0 on 9f6d37bd (pending shielded GPU price, failed registry read never registers, tests). PATCH-ONLY: exact literal-free patch + gsup.mjs and tests at base/head; supervisor.js held back (rewritten literal), base blobs anchored to the pushed 2217/2146 records; real parent + patch == 7dd3acd0 tree asserted. Root-approved candidate b007d471, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/base-files/metal/guest/gsup.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/base-files/metal/guest/gsup.mjs",
+      "sha256": "2981a5feb98fe46b13968fd8d1ef2d503f624fc84b3d22824fe000bf45bb6a5a",
+      "bytes": 50341
+    },
+    {
+      "label": "H boot-pricing source 7dd3acd0 on 9f6d37bd (pending shielded GPU price, failed registry read never registers, tests). PATCH-ONLY: exact literal-free patch + gsup.mjs and tests at base/head; supervisor.js held back (rewritten literal), base blobs anchored to the pushed 2217/2146 records; real parent + patch == 7dd3acd0 tree asserted. Root-approved candidate b007d471, NOT activated",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/base-files/test/registry-advertise-retry.test.mjs",
+      "stored": "files/source-preservation/frozen-2246-export/boot-source2-7dd3acd0/base-files/test/registry-advertise-retry.test.mjs",
+      "sha256": "2dd967cdd96e404c9c32610e805236194cf29b1ce6bcbd11634022e9065af9da",
+      "bytes": 18295
+    },
+    {
+      "label": "receipt of the 2217 batch (7ca36e11, committed 22:21:33Z, pushed by 22:22:14Z; main 68b82926 unchanged; root verified remote 22:25Z)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-2217-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-2217-checkpoint.md",
+      "sha256": "533ba69384c201dd324a051cb5ec7046505c389548700bc669f2d297b3377330",
+      "bytes": 7376
+    },
+    {
+      "label": "Dated SNAPSHOT (2246 batch): ROOT's living public output outputs/decentralization-audit/custody-v2-live-verification-20261023.md as at 22:42:35Z (sha256 d57763d1...); its earlier stored bytes (23c9aeba, the 2025 and 2100 snapshots) unchanged",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-2246/custody-v2-live-verification-20261023.snapshot-2246.md",
+      "stored": "files/source-preservation/snapshots-2246/custody-v2-live-verification-20261023.snapshot-2246.md",
+      "sha256": "d57763d11d84185a621ad0b944f0773aa539a108366f56ebc37b9f6deaeaef03",
+      "bytes": 19877
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-2246.py",
+      "stored": "files/source-preservation/export-frozen-2246.py",
+      "sha256": "8dcaa8a54c877987c7b9a128de70bee0cf08075e79d77b61f5a65095cf6ab1db",
+      "bytes": 24344
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-2246-export.py",
+      "stored": "files/source-preservation/verify-frozen-2246-export.py",
+      "sha256": "520ab033da60df641591f58e56cc40fe5bccf98a97d640313ba979c6837b516c",
+      "bytes": 11433
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-2246.py",
+      "stored": "files/source-preservation/capture-frozen-2246.py",
+      "sha256": "e2f0318adf5d8bae77a81a10544c34ebe49110d9c19a012249025df2dd5cf9b6",
+      "bytes": 8601
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-pins.json",
+      "stored": "files/source-preservation/frozen-2246-pins.json",
+      "sha256": "6c4a1b1c4064468d14eaa6781624bfa1d567f4f7742aca5b495a30cb26f80905",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-q.sh",
+      "stored": "files/source-preservation/frozen-2246-q.sh",
+      "sha256": "314a94c90c15eb4e8af5b4728a1a971d1102e59747355af3baf5d8929b187cca",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-export.sh",
+      "stored": "files/source-preservation/frozen-2246-export.sh",
+      "sha256": "77345b292e2fa32b01d0ac42efff55e6fd225a2636f2d14787016262d5eef926",
+      "bytes": 3674
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-capture.sh",
+      "stored": "files/source-preservation/frozen-2246-capture.sh",
+      "sha256": "067bf37989b81673ef5668de26c9f961fdb0789c7489907e91e993e919198283",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2246-labels.json",
+      "stored": "files/source-preservation/frozen-2246-labels.json",
+      "sha256": "277535b9718f42f4b04e2d3cea6ebe2ec352767115dee2092ba7472ecfa20822",
+      "bytes": 2740
+    },
+    {
+      "label": "frozen-2246 checkpoint tooling (\"2246\" = batch start 2026-10-23T22:46:00Z, an identifier): first-parent Git-object export, offline verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-2246-snapshots.py",
+      "stored": "files/source-preservation/make-frozen-2246-snapshots.py",
+      "sha256": "d5157137dc7411173974cf7a5746c880dff2ec56733f1c705209a06908a22e7c",
+      "bytes": 1132
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -43950,6 +44846,15 @@
       "added": 197,
       "bytes": 1671326,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2217\" is a batch identifier (start 22:17:46Z), not this time"
+    },
+    {
+      "at": "2026-10-23T22:51:32.179928+00:00",
+      "by": "source-preservation/capture-frozen-2246.py",
+      "onCheckpoint": "7ca36e11f65c76feaf6c26405b5a27a7457f113d",
+      "entriesBefore": 6333,
+      "added": 128,
+      "bytes": 1288598,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2246\" is a batch identifier (start 22:46:00Z), not this time"
     }
   ]
 }

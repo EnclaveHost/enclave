@@ -1,0 +1,1407 @@
+From 88b70dbefdff5c2433317da6d184b5e09e363e78 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:47:57 -0700
+Subject: [PATCH] Record root's approved 7dd3acd build metadata (public):
+ approval, build record, inventory, patch, log, measurement
+
+Root-granted metadata commit (ROOT-PRESERVE-2245); the build scripts and approval are unchanged:
+- APPROVED-COMMIT.txt (7dd3acd061af765c..., gsup REVIEWED, tests)
+- stage/build-record.json (measurement b007d471..., parent 9f6d37bd, patch sha256 7283a33a...), stage/INVENTORY.sha256,
+  stage/7dd3acd06-on-9f6d37bd.patch
+- logs/root-build-price.{out,guard.log,rc} (root build 22:29Z, EXIT 0)
+- stage/dist-leasegas-7dd3acd06/{MEASUREMENT,manifest.json,cmdline}; the image binaries (initramfs.cpio.gz, vmlinuz) are
+  NOT committed (sha256 only, in INVENTORY.sha256)
+Candidate only: not activated.
+---
+ APPROVED-COMMIT.txt                         |   3 +
+ logs/root-build-price.guard.log             |   1 +
+ logs/root-build-price.out                   |  37 ++
+ logs/root-build-price.rc                    |   1 +
+ stage/7dd3acd06-on-9f6d37bd.patch           | 539 +++++++++++++++
+ stage/INVENTORY.sha256                      |   5 +
+ stage/build-record.json                     |  34 +
+ stage/dist-leasegas-7dd3acd06/MEASUREMENT   |   1 +
+ stage/dist-leasegas-7dd3acd06/cmdline       |   1 +
+ stage/dist-leasegas-7dd3acd06/manifest.json | 688 ++++++++++++++++++++
+ 10 files changed, 1310 insertions(+)
+ create mode 100644 APPROVED-COMMIT.txt
+ create mode 100644 logs/root-build-price.guard.log
+ create mode 100644 logs/root-build-price.out
+ create mode 100644 logs/root-build-price.rc
+ create mode 100644 stage/7dd3acd06-on-9f6d37bd.patch
+ create mode 100644 stage/INVENTORY.sha256
+ create mode 100644 stage/build-record.json
+ create mode 100644 stage/dist-leasegas-7dd3acd06/MEASUREMENT
+ create mode 100644 stage/dist-leasegas-7dd3acd06/cmdline
+ create mode 100644 stage/dist-leasegas-7dd3acd06/manifest.json
+
+diff --git a/APPROVED-COMMIT.txt b/APPROVED-COMMIT.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0346867ee329de95c5b53a174dcf6e13c88ab380
+--- /dev/null
++++ b/APPROVED-COMMIT.txt
+@@ -0,0 +1,3 @@
++commit 7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b
++gsup REVIEWED
++tests test/boot-gpu-price.test.mjs test/registry-advertise-retry.test.mjs
+diff --git a/logs/root-build-price.guard.log b/logs/root-build-price.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7185d8dd8797b55c7b30f17607df8f2024ab3d4d
+--- /dev/null
++++ b/logs/root-build-price.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=22100
+diff --git a/logs/root-build-price.out b/logs/root-build-price.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..54e94eefb5ee796e0a85721fad0327eeb93617d7
+--- /dev/null
++++ b/logs/root-build-price.out
+@@ -0,0 +1,37 @@
++[queue] START available=24063MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++PRECHECK-PASS {"commit": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b", "delta": ["metal/guest/gsup.mjs", "supervisor.js", "test/boot-gpu-price.test.mjs", "test/registry-advertise-retry.test.mjs"], "gsupReviewed": true, "imageFiles": ["/app/supervisor.js", "/opt/metal/gsup.mjs"], "parent": "9f6d37bd858ad44be1171b6415353910214c2fa5", "patch": {"file": "patch", "form": "full context", "sha256": "7283a33ae0325ea837841175d87ecd96d48f8b99e04fa7cbc433da7218efbd3d"}, "tests": ["test/boot-gpu-price.test.mjs", "test/registry-advertise-retry.test.mjs"]}
++2026-10-23T22:25:06Z
++== 1. control: 9f6d37bd from H's repo == the root-built 08d1f838 image
++{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
++CONTROL-IDENTICAL initramfs.cpio.gz
++CONTROL-IDENTICAL vmlinuz
++CONTROL-IDENTICAL cmdline
++CONTROL-IDENTICAL manifest.json
++== 2. candidate twice
++{"sha256": "3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50", "bytes": 279390019}
++{"sha256": "3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50", "bytes": 279390019}
++REPRODUCIBLE initramfs.cpio.gz
++REPRODUCIBLE vmlinuz
++REPRODUCIBLE cmdline
++REPRODUCIBLE manifest.json
++== 3. exact delta
++MANIFEST-DELTA-EXACT ['/app/supervisor.js', '/opt/metal/gsup.mjs']
++ENTRY-DELTA-EXACT vs 08d1 ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json'] vs production ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']
++IMAGE-FILES-ARE-SOURCE ['app/supervisor.js', 'opt/metal/gsup.mjs']
++UNCHANGED vmlinuz
++UNCHANGED cmdline
++== 4. measurement
++MEASURE-RECIPE-REPRODUCES ed918e4b
++MEASURE-RECIPE-REPRODUCES ee5df6b8
++MEASURE-RECIPE-REPRODUCES 08d1f838
++MEASURE-CANDIDATE b007d47147d52ea01780abdee5f7b28d2eb02102a7915bf5f8dcafbf7d2a77b6a9ebb9d8b848acb8dd6377be5f1c09c6
++671666403f2edf2ece449f7e79e4b45fe9b385744cf282fe47137123aa6ae9b6  dist-leasegas-7dd3acd06/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-7dd3acd06/cmdline
++3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50  dist-leasegas-7dd3acd06/initramfs.cpio.gz
++6e0029f58700253289062856d89d93c3ee049d39da211fe4b072c229146cf44a  dist-leasegas-7dd3acd06/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-7dd3acd06/vmlinuz
++BUILD-RECORD 5657ee215f27072919cf35f11ebf3a569979f3a6d20e1a0f83a25fcf8aed1c85
++2026-10-23T22:29:26Z
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=22100
++[memory-guard] at peak: sev-snp-measure:295 bash:6
++[queue] EXIT 0
+diff --git a/logs/root-build-price.rc b/logs/root-build-price.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/root-build-price.rc
+@@ -0,0 +1 @@
++0
+diff --git a/stage/7dd3acd06-on-9f6d37bd.patch b/stage/7dd3acd06-on-9f6d37bd.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..4041dd3fcfc722e563a5ef9b7e6d22889acca2a0
+--- /dev/null
++++ b/stage/7dd3acd06-on-9f6d37bd.patch
+@@ -0,0 +1,539 @@
++From 7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b Mon Sep 17 00:00:00 2001
++From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++Date: Fri, 23 Oct 2026 15:20:47 -0700
++Subject: [PATCH] metal boot: a shielded card's GPU price is pending until
++ discovered; a failed registry read never registers
++
++gsup starts the supervisor with GPU_COUNT=0, so IS_GPU is false and SELL_GPU_PRICE6 is 0 until the
++shielded card's probe passes (adoptShieldedCards), while advertise() runs at start. On metal0's row
++(gpu 1667) the boot therefore sent a full register(gpu=0) instead of setProofKey, and
++syncRegisteredPrice (called right after any registration/adoption, and each reconcile pass) would
++send setPrices(cpu, 0); discovery then paid another setPrices back to 1667.
++
++- gsup states the expectation in the measured supervisor env: SHIELDED_GPU_EXPECTED = the configured
++  shielded workers it probes (with a port). Absent on CPU-only hosts.
++- supervisor: gpuPricePending() = expected && !IS_GPU && < 15 min since start. While pending the boot
++  decision does not compare the GPU price, a register() needed for another reason restates this
++  operator's row's own GPU price exactly (uint64 BigInt as read), and syncRegisteredPrice keeps that
++  exact GPU price (a CPU re-price restates it). After discovery the real price is synced on an actual
++  difference (owner re-pricing); after the bounded wait without a card, 0 is published as before.
++  CPU-only hosts and in-CVM GPUs never pend; the old gsup env behaves exactly as before.
++- A FAILED registry read decides nothing in any state (pending, discovered, CPU-only): it throws, zero
++  writes, and advertise() retries with its normal backoff. A full register() happens only for a
++  successfully read missing / inactive / foreign / differing row (root review 22:18).
++
++test/boot-gpu-price.test.mjs runs the real gsup (env harness), the real supervisor declarations and
++registry functions against a stub registry, the 9f6d37bd baseline counterexample, failed reads in each
++state followed by a successful read, and exact preservation of a uint64 GPU price beyond 2^53.
++---
++ metal/guest/gsup.mjs                   |  10 +-
++ supervisor.js                          |  54 +++--
++ test/boot-gpu-price.test.mjs           | 283 +++++++++++++++++++++++++
++ test/registry-advertise-retry.test.mjs |  25 ++-
++ 4 files changed, 355 insertions(+), 17 deletions(-)
++ create mode 100644 test/boot-gpu-price.test.mjs
++
++diff --git a/metal/guest/gsup.mjs b/metal/guest/gsup.mjs
++index 198dca4..5dbf05e 100644
++--- a/metal/guest/gsup.mjs
+++++ b/metal/guest/gsup.mjs
++@@ -462,6 +462,13 @@
++ } else if (LEASE_GAS?.configured)
++   log(`app-funded lease gas REFUSED (${LEASE_GAS.reason}): every claim, renewal and release refuses; the operator's ETH is never used for them`);
++ 
+++// The shielded workers this box is configured to probe (the probe loop below). Declared here because the supervisor's env
+++// states how many cards are EXPECTED (SHIELDED_GPU_EXPECTED): it starts with GPU_COUNT=0 and learns a card only when that card's
+++// probe passes, so until then a 0 GPU price means "not discovered yet", not "no card" (supervisor.js gpuPricePending).
+++const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
+++const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
+++const SHIELDED_GPU_EXPECTED = shieldedWorkers.filter((sw) => sw && sw.port).length;
+++
++ // --- supervisor (base root) --------------------------------------------------
++ if (!CONTROL) {
++ const supEnv = {
++@@ -474,6 +481,7 @@
++   PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
++   PORT: '8080',
++   GPU_COUNT: '0',
+++  ...(SHIELDED_GPU_EXPECTED > 0 ? { SHIELDED_GPU_EXPECTED: String(SHIELDED_GPU_EXPECTED) } : {}),
++   PROVISION_BACKEND: 'vm',
++   VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
++   ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
++@@ -587,8 +595,6 @@
++ // It is deliberately at boot rather than on demand. The failure this catches --
++ // a worker that is absent, wrong-version, or quietly returning garbage -- is one
++ // you want to find before a tenant's request depends on it.
++-const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
++-const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
++ const shieldedVerdicts = new Map();
++ const VERDICT = '/run/shielded-gpu.json';
++ const publishShieldedVerdicts = () => {
++diff --git a/supervisor.js b/supervisor.js
++index 66ad07d..3187719 100644
++--- a/supervisor.js
+++++ b/supervisor.js
++@@ -657,7 +657,7 @@
++         // Fail closed: adopt ONLY when a fresh read shows the whole row current (this key included). A failed or lagging
++         // read, a superseded key, a deactivation or any other changed field throws; the next normal attempt reads again
++         // and adopts without a transaction if the row is current by then.
++-        const after = await bootRegistration(id, endpoint, proofKey);
+++        const after = await bootRegistration(id, endpoint, proofKey).catch((e) => ({ action: "unread", reason: e.message }));
++         if (after.action !== "adopt")
++           throw new Error(`after setProofKey ${tx} the row is not adoptable yet (${after.reason}); the next attempt reads it again`);
++       }
++@@ -666,18 +666,19 @@
++       console.log(`[registry] adopted the existing registration of ${endpoint} id=${id} (${boot.reason})`
++         + (tx ? `: proofKey=${proofKey} tx=${tx}` : `: no transaction, proofKey=${proofKey}`));
++     } else {
+++    const gpuPrice = boot.gpuPrice ?? BigInt(SELL_GPU_PRICE6);   // pending: the row's own exact price, never a not-yet-discovered 0
++     const hash = rev >= 3
++       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
++-          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6), proofKey])
+++          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(gpuPrice), proofKey])
++       : rev >= 2
++       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V2, "register",
++-          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)])
+++          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(gpuPrice)])
++       : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
++           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
++     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
++     _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
++     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
++-      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
+++      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU || gpuPrice ? ` + ${gpuPrice}/sec card` : ""}` : " (schema 1: unpriced)")
++       + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)")
++       + (rev >= 3 ? ` (${boot.reason})` : ""));
++     }
++@@ -707,16 +708,26 @@
++ }
++ 
++ // Boot registration choice (registerOnChain): read THIS row once and compare it with exactly what register() would write.
++-//   register     no row / another operator (register() reverts "not operator", as before) / inactive (boot re-activates,
++-//                as before) / any of endpoint, repo, measurement, cpu or gpu price differs / the read failed
+++//   register     a SUCCESSFULLY read row that is missing / another operator's (register() reverts "not operator", as before) /
+++//                inactive (boot re-activates, as before) / differs in endpoint, repo, measurement, cpu or gpu price (gpu: unless pending)
++ //   setProofKey  this operator's active row, every field equal except the proof key
++ //   adopt        this operator's active row, every field equal including the proof key
+++// A FAILED read decides nothing: it throws, so the attempt sends nothing and advertise() retries with its normal backoff. A
+++// failed RPC is no evidence that the row is missing or different, and a blind register() would spend the operator's one boot
+++// transaction (in every state: GPU price pending, card discovered, CPU-only).
+++// While the GPU price is pending (gpuPricePending): the GPU price is not compared, and a register() restates this operator's
+++// row's own GPU price, exactly (the uint64 as read), instead of the 0 that only means "not discovered yet" (gpuPrice).
++ async function bootRegistration(id, endpoint, proofKey) {
+++  const pending = gpuPricePending();
++   let row;
++   try { row = await registryEntry(id); }
++-  catch (e) { return { action: "register", reason: `registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): full register` }; }
++-  return bootRegistrationAction(row, { operator: claimSigner().account.address, endpoint, repo: ENCLAVE_REPO,
++-    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: SELL_GPU_PRICE6, proofKey });
+++  catch (e) { throw new Error(`registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): no decision; the next attempt reads again`); }
+++  const operator = claimSigner().account.address;
+++  const b = bootRegistrationAction(row, { operator, endpoint, repo: ENCLAVE_REPO,
+++    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: pending ? null : SELL_GPU_PRICE6, proofKey });
+++  if (!pending) return b;
+++  const own = !!row && String(row.operator || "").toLowerCase() === String(operator).toLowerCase();
+++  return { ...b, reason: `${b.reason}; GPU price pending shielded discovery`, gpuPrice: own ? BigInt(row.gpuPricePerSec6) : BigInt(SELL_GPU_PRICE6) };
++ }
++ function bootRegistrationAction(row, want) {
++   const lc = (x) => String(x == null ? "" : x).toLowerCase();
++@@ -724,7 +735,8 @@
++   if (lc(row.operator) !== lc(want.operator)) return { action: "register", reason: "registered to another operator" };
++   if (row.active !== true) return { action: "register", reason: "inactive on chain: boot re-registers" };
++   const same = row.endpoint === want.endpoint && row.repo === want.repo && lc(row.measurement) === lc(want.measurement)
++-    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6) && String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6);
+++    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6)
+++    && (want.gpuPricePerSec6 == null || String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6));   // null: pending, not compared
++   if (!same) return { action: "register", reason: "the registered fields differ" };
++   if (lc(row.proofKey) === lc(want.proofKey)) return { action: "adopt", reason: "already registered exactly" };
++   return { action: "setProofKey", reason: "only the proof key differs" };
++@@ -770,11 +782,14 @@
++   let e;
++   try { e = await registryEntry(id); }
++   catch { return; }                                         // transient read: try again next pass
++-  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
+++  // pending (gpuPricePending): the row keeps its exact GPU price (uint64, as read) until the card is adopted (adoptShieldedCards
+++  // syncs then) or the wait ends
+++  const gpu = gpuPricePending() ? BigInt(e.gpuPricePerSec6) : BigInt(SELL_GPU_PRICE6);
+++  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && BigInt(e.gpuPricePerSec6) === gpu) return;
++   if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is not re-priced
++   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
++-    [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
++-  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
+++    [id, BigInt(SELL_CPU_PRICE6), gpu]);
+++  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${gpu}/sec card `
++     + `(was ${e.cpuPricePerSec6}/${e.gpuPricePerSec6}) tx=${h}`);
++ }
++ 
++@@ -3053,6 +3068,19 @@
++ // CPU-only enclave has no card to sell (0).
++ const SELL_CPU_PRICE6 = Math.max(1, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "") || 834));
++ let SELL_GPU_PRICE6   = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "") || 1667)) : 0;
+++// A SHIELDED card's price is not known at boot: gsup starts this process with GPU_COUNT=0, so IS_GPU is false and the price
+++// above is 0 until the card's probe passes (adoptShieldedCards). gsup states how many shielded cards this box is configured to
+++// probe (SHIELDED_GPU_EXPECTED, from host config). While such a card is expected and not yet adopted, the GPU price is PENDING:
+++// the boot registry decision does not compare it, and no registry write replaces the row's GPU price with that 0 (registering
+++// or re-pricing to 0 only because the probe has not finished yet). Bounded: GPU_DISCOVERY_WAIT_MS after start without an
+++// adopted card, 0 is a fact again (no card to sell) and everything behaves as before. A CPU-only box (nothing expected) and a
+++// card inside the CVM (GPU_COUNT > 0) never pend.
+++const SHIELDED_GPU_EXPECTED = Math.max(0, parseInt(process.env.SHIELDED_GPU_EXPECTED || "0", 10) || 0);
+++const GPU_DISCOVERY_WAIT_MS = 15 * 60_000;
+++const GPU_DISCOVERY_FROM    = Date.now();
+++function gpuPricePending(now = Date.now()) {
+++  return SHIELDED_GPU_EXPECTED > 0 && !IS_GPU && now - GPU_DISCOVERY_FROM < GPU_DISCOVERY_WAIT_MS;
+++}
++ // Whether the operator STATED that price or inherited the default. Only the
++ // pre-rev-8 floor cares: on those ledgers the price is global and a record may
++ // have been created at an older, lower one, so applying our default as a floor
++diff --git a/test/boot-gpu-price.test.mjs b/test/boot-gpu-price.test.mjs
++new file mode 100644
++index 0000000..0c963a0
++--- /dev/null
+++++ b/test/boot-gpu-price.test.mjs
++@@ -0,0 +1,283 @@
+++// The boot GPU-price race (2026-10-23, metal0; D's review of 9f6d37bd): gsup starts the supervisor with GPU_COUNT=0, so its
+++// GPU price is 0 until the shielded card's probe passes, and advertise() runs before that. Tested on the REAL code paths:
+++//   - gsup.mjs is actually RUN (test/helpers/gsup-env-harness.mjs) on a metal0-shaped host config to capture the supervisor env;
+++//   - the supervisor's own price declarations (GPU_COUNT, IS_GPU, SELL_*_PRICE6, the pending state) are evaluated with exactly
+++//     that env, and its registerOnChain / bootRegistration(Action) / advertise / syncRegisteredPrice / adoptShieldedCards run
+++//     against a stub registry that applies register / setProofKey / setPrices on their receipts;
+++//   - BASELINE COUNTEREXAMPLE: the same scenario on 9f6d37bd's gsup + supervisor (the staged 08d1f838 image).
+++import { test } from 'node:test';
+++import assert from 'node:assert/strict';
+++import { execFile, execFileSync } from 'node:child_process';
+++import { promisify } from 'node:util';
+++import fs from 'node:fs';
+++import os from 'node:os';
+++import path from 'node:path';
+++import { fileURLToPath } from 'node:url';
+++import { mayReconcile } from '../network/registry-reconcile.mjs';
+++
+++const pexec = promisify(execFile);
+++const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+++const HARNESS = path.join(REPO, 'test/helpers/gsup-env-harness.mjs');
+++const BASE = '9f6d37bd858ad44be1171b6415353910214c2fa5';
+++const CMDLINE = 'console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app';
+++const FWCFG = '/sys/firmware/qemu_fw_cfg/by_name/opt/org.enclave.metal/raw';
+++const OP = '0x00000000000000000000000000000000000000aa';
+++const URL0 = 'https://api.enclave.host/t/metal0';
+++// metal0-shaped host config: per-app isolation, one shielded card on the untrusted host priced at $6/card-hr (= 1667/sec)
+++const ISO = { managerUrl: 'http://10.0.2.2:8095', pairingKey: 'ab'.repeat(32), dataAddr: '10.0.2.2:8096', release: true };
+++const FW_GPU = { name: 'metal0', publicUrl: URL0, relayUrl: 'wss://api.enclave.host/v1/fleet-tunnel', registryKey: '0x' + '11'.repeat(32),
+++  nodeRamGb: 96, isolation: ISO, isolationShieldedWorkers: [{ port: 9555, priceUsdHr: 6 }] };
+++const FW_CPU = { ...FW_GPU, isolationShieldedWorkers: undefined };
+++
+++async function runGsup(gsupFile, fw) {
+++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gsup-env-'));
+++  try {
+++    const out = path.join(dir, 'supervisor-spawn.json');
+++    const H = { out, files: { '/proc/cmdline': CMDLINE + '\n', [FWCFG]: JSON.stringify(fw), '/opt/metal/flavor-env.json': '{}' } };
+++    await pexec(process.execPath, ['--import', HARNESS, gsupFile], { env: { PATH: process.env.PATH, GSUP_HARNESS: JSON.stringify(H) }, cwd: dir, timeout: 30000 });
+++    return JSON.parse(fs.readFileSync(out, 'utf8')).env;
+++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+++}
+++// 9f6d37bd's gsup, run as a byte copy beside the real bundles it imports (same relative paths), as the custody env test does
+++async function runBaseGsup(fw) {
+++  const dir = fs.mkdtempSync(path.join(REPO, 'metal/guest/.base-'));
+++  try {
+++    for (const f of fs.readdirSync(path.join(REPO, 'metal/guest'))) if (/\.mjs$/.test(f) && f !== 'gsup.mjs') fs.copyFileSync(path.join(REPO, 'metal/guest', f), path.join(dir, f));
+++    fs.writeFileSync(path.join(dir, 'gsup.mjs'), execFileSync('git', ['-C', REPO, 'show', `${BASE}:metal/guest/gsup.mjs`]));
+++    return await runGsup(path.join(dir, 'gsup.mjs'), fw);
+++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+++}
+++// mutation runs (../mutants-price.sh) point these at a mutated copy; normally the repo's own files
+++const GSUP = process.env.BOOT_PRICE_GSUP || path.join(REPO, 'metal/guest/gsup.mjs');
+++const CURRENT_SRC = fs.readFileSync(process.env.BOOT_PRICE_SUPERVISOR || path.join(REPO, 'supervisor.js'), 'utf8');
+++const BASE_SRC = execFileSync('git', ['-C', REPO, 'show', `${BASE}:supervisor.js`], { maxBuffer: 64 << 20 }).toString();
+++
+++function pieces(src) {
+++  const one = (re, what, optional = false) => { const m = re.exec(src); if (!m && !optional) throw new Error(`${what} not in supervisor.js`); return m ? m[0] : ''; };
+++  return [
+++    one(/^let GPU_COUNT .*$/m, 'GPU_COUNT'), one(/^let IS_GPU .*$/m, 'IS_GPU'),
+++    one(/^const SELL_CPU_PRICE6 = .*$/m, 'SELL_CPU_PRICE6'), one(/^let SELL_GPU_PRICE6 .*$/m, 'SELL_GPU_PRICE6'),
+++    one(/^const SHIELDED_GPU_EXPECTED[\s\S]*?\nfunction gpuPricePending\(now = Date\.now\(\)\) \{[\s\S]*?\n\}/m, 'the pending state', true),
+++    one(/function registryRepointed\(\) \{[\s\S]*?\n\}/, 'registryRepointed'),
+++    one(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, 'registerOnChain'),
+++    one(/async function bootRegistration\(id, endpoint, proofKey\) \{[\s\S]*?\n\}/, 'bootRegistration'),
+++    one(/function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/, 'bootRegistrationAction'),
+++    one(/async function syncRegisteredPrice\(id\) \{[\s\S]*?\n\}/, 'syncRegisteredPrice'),
+++    one(/function adoptShieldedCards\(values\) \{[\s\S]*?\n\}/, 'adoptShieldedCards'),
+++    one(/async function registerSelf\(\) \{[\s\S]*?\n\}/, 'registerSelf'),
+++    one(/function advertised\(\) \{[\s\S]*?\n\}/, 'advertised'),
+++    one(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, 'advertise'),
+++  ].join('\n');
+++}
+++
+++// One supervisor process: its env (as gsup handed it), a clock, and the registry row it will find.
+++function box(src, env, { row = null, failReads = 0, sendFails = 0 } = {}) {
+++  const chain = { row: row && { ...row }, txs: [], reads: 0 };
+++  const clock = { t: 1_000_000 };
+++  const logs = [], sleeps = [], passes = [];
+++  const make = new Function('process', 'Date', 'chain', 'clock', 'logs', 'sleeps', 'passes', 'mayReconcile', 'failReads', 'sendFails', `
+++    let REGISTRY_ADDRESS = "0xAAAA";
+++    const REGISTRY_READY = true, PUBLIC_URL = process.env.PUBLIC_URL || "", RECONCILE_SEC = 900;
+++    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null, _activeSeen = null;
+++    const keccak256 = (b) => "id(" + b + ")", stringToBytes = (s) => s;
+++    const registryRev = async () => 4;
+++    const PROOF_ACCOUNT = { address: "0x000000000000000000000000000000000000bEEF" }, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
+++    const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x" + "00".repeat(32);
+++    const claimSigner = () => ({ account: { address: "${OP}" } });
+++    let reads = 0, sends = 0;
+++    const registryEntry = async (id) => {
+++      chain.reads++;
+++      if (++reads <= failReads) throw new Error("HTTP request failed.");
+++      return chain.row ? { ...chain.row } : null;
+++    };
+++    const sendOperatorTx = (address, _abi, fn, args) => {
+++      const p = Promise.resolve().then(() => {
+++        if (++sends <= sendFails) throw new Error("insufficient funds for gas * price + value");
+++        chain.txs.push({ fn, args: [...args] });   // exactly as sent: uint64 prices stay BigInt
+++        return "0xtx" + chain.txs.length;
+++      });
+++      p.receipt = p.then(() => {
+++        const a = chain.txs[chain.txs.length - 1].args;
+++        if (fn === "register") chain.row = { endpoint: a[0], repo: a[1], measurement: a[2], operator: "${OP}", active: true,
+++          cpuPricePerSec6: BigInt(a[3]), gpuPricePerSec6: BigInt(a[4]), proofKey: a[5] };
+++        if (fn === "setProofKey") chain.row = { ...chain.row, proofKey: a[1] };
+++        if (fn === "setPrices") chain.row = { ...chain.row, cpuPricePerSec6: BigInt(a[1]), gpuPricePerSec6: BigInt(a[2]) };
+++        return { status: "success" };
+++      });
+++      p.receipt.catch(() => {});
+++      return p;
+++    };
+++    const setInterval = (fn) => { passes.push(fn); return { unref() {} }; };
+++    const setTimeout = (fn, ms) => { if (sleeps.length >= 50) throw new Error("still not registered after 50 retries"); sleeps.push(ms / 1000); setImmediate(fn); return { unref() {} }; };
+++    const syncRegisteredProofKey = async () => {}, syncDeclaredPayoutWallet = async () => {}, syncRegisteredActive = async () => {};
+++    // what adoptShieldedCards touches besides the price
+++    let gpuCards = [], _shieldedAdopted = false, _shieldedPool = null, CARD_VRAM_SRC = "default", CARD_VRAM_GB = 141, CARD_TFLOPS = 989, SM_TOTAL = 0;
+++    const round1 = (x) => Math.round(x * 10) / 10, reconcilePools = () => {};
+++    const console = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
+++    ${pieces(src)}
+++    return { advertise, sell: () => ({ IS_GPU, SELL_CPU_PRICE6, SELL_GPU_PRICE6, pending: typeof gpuPricePending === "function" ? gpuPricePending() : null }),
+++      // the shielded probe passes: the card's verdict reaches adoptShieldedCards (pricePerSec6 as gsup writes it)
+++      discover: (pricePerSec6) => adoptShieldedCards([{ id: 0, vramGb: 24, vramBudgetGb: 20, cardTflops: 82, pricePerSec6 }]),
+++      enclaveId: () => _enclaveId };`);
+++  const b = make({ env }, { now: () => clock.t }, chain, clock, logs, sleeps, passes, mayReconcile, failReads, sendFails);
+++  const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); };
+++  return Object.assign(b, { chain, clock, logs, sleeps, settle,
+++    pass: async () => { for (const fn of passes) await fn(); await settle(); } });
+++}
+++// metal0's actual row (root's 2-RPC read, block 53001451): this operator's, active, every field exact but the old boot's proof key
+++const METAL0_ROW = { endpoint: URL0, repo: 'EnclaveHost/enclave', measurement: '0x' + '00'.repeat(32), operator: OP, active: true,
+++  cpuPricePerSec6: 834n, gpuPricePerSec6: 1667n, proofKey: '0x8604ce59f394daf05b235122E5Dc054F5C2bB453' };
+++const fns = (b) => b.chain.txs.map((t) => t.fn);
+++
+++test('the captured gsup env: GPU_COUNT=0, no GPU price, and (fix) the expected shielded card', async () => {
+++  const now = await runGsup(GSUP, FW_GPU);
+++  assert.equal(now.GPU_COUNT, '0'); assert.equal(now.SELL_GPU_PRICE6, undefined); assert.equal(now.SHIELDED_GPU_EXPECTED, '1');
+++  assert.equal((await runGsup(GSUP, FW_CPU)).SHIELDED_GPU_EXPECTED, undefined, 'a CPU-only host expects nothing');
+++  assert.equal((await runGsup(GSUP, { ...FW_GPU, isolationShieldedWorkers: [{ priceUsdHr: 6 }] })).SHIELDED_GPU_EXPECTED, undefined,
+++    'a worker without a port is never probed, so it is not expected either');
+++  const base = await runBaseGsup(FW_GPU);
+++  assert.equal(base.GPU_COUNT, '0'); assert.equal(base.SHIELDED_GPU_EXPECTED, undefined);
+++});
+++
+++test('BASELINE COUNTEREXAMPLE (9f6d37bd = staged 08d1f838): advertise before discovery sends a full register(gpu=0), then re-prices to 1667', async () => {
+++  const b = box(BASE_SRC, await runBaseGsup(FW_GPU), { row: METAL0_ROW });
+++  assert.deepEqual(b.sell(), { IS_GPU: false, SELL_CPU_PRICE6: 834, SELL_GPU_PRICE6: 0, pending: null });
+++  await b.advertise(); await b.settle();
+++  assert.deepEqual(fns(b), ['register'], 'not the setProofKey the funding preflight priced');
+++  assert.equal(b.chain.txs[0].args[4], 0n, 'register() writes GPU price 0: the row loses its 1667');
+++  assert.ok(b.logs.some((l) => /the registered fields differ/.test(l)));
+++  b.discover(1667); await b.settle();
+++  assert.deepEqual(fns(b), ['register', 'setPrices'], 'and discovery pays a second transaction to put 1667 back');
+++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, 1667n]);
+++});
+++
+++test('FIX: before discovery the boot takes ONE setProofKey, keeps the row\'s 1667, and discovery sends nothing', async () => {
+++  const b = box(CURRENT_SRC, await runGsup(GSUP, FW_GPU), { row: METAL0_ROW });
+++  assert.deepEqual(b.sell(), { IS_GPU: false, SELL_CPU_PRICE6: 834, SELL_GPU_PRICE6: 0, pending: true });
+++  await b.advertise(); await b.settle();
+++  assert.deepEqual(fns(b), ['setProofKey']);
+++  assert.ok(b.enclaveId(), 'adopted after the receipt and an exact re-read');
+++  assert.ok(b.logs.some((l) => /only the proof key differs; GPU price pending shielded discovery/.test(l)));
+++  await b.pass();                                   // the reconcile pass (and the immediate sync after adoption) before discovery
+++  assert.deepEqual(fns(b), ['setProofKey'], 'no setPrices(834, 0) while the card is still being discovered');
+++  assert.equal(b.chain.row.gpuPricePerSec6, 1667n);
+++  b.discover(1667); await b.settle(); await b.pass();
+++  assert.deepEqual(b.sell(), { IS_GPU: true, SELL_CPU_PRICE6: 834, SELL_GPU_PRICE6: 1667, pending: false });
+++  assert.deepEqual(fns(b), ['setProofKey'], 'the discovered price is the row\'s: nothing to publish');
+++});
+++
+++test('the fix needs gsup\'s expectation: the new supervisor under the old gsup env behaves exactly as before (no silent pending)', async () => {
+++  const b = box(CURRENT_SRC, await runBaseGsup(FW_GPU), { row: METAL0_ROW });
+++  assert.equal(b.sell().pending, false);
+++  await b.advertise(); await b.settle();
+++  assert.deepEqual(fns(b), ['register']); assert.equal(b.chain.txs[0].args[4], 0n);
+++});
+++
+++test('CPU-only host: never pending; an exact row takes setProofKey, a row still carrying a GPU price is corrected as before', async () => {
+++  const env = await runGsup(GSUP, FW_CPU);
+++  const a = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, gpuPricePerSec6: 0n } });
+++  assert.equal(a.sell().pending, false);
+++  await a.advertise(); await a.settle(); await a.pass();
+++  assert.deepEqual(fns(a), ['setProofKey']);
+++  const b = box(CURRENT_SRC, env, { row: METAL0_ROW });
+++  await b.advertise(); await b.settle();
+++  assert.deepEqual(fns(b), ['register']); assert.equal(b.chain.txs[0].args[4], 0n, 'no card: no GPU price claimed');
+++});
+++
+++test('failed or absent discovery is bounded: no re-price during the 15 min wait, then 0 is published as before (no permanent stall)', async () => {
+++  const b = box(CURRENT_SRC, await runGsup(GSUP, FW_GPU), { row: METAL0_ROW });
+++  await b.advertise(); await b.settle();
+++  b.clock.t += 14 * 60_000; await b.pass();
+++  assert.deepEqual(fns(b), ['setProofKey']);
+++  b.clock.t += 61_000; await b.pass();
+++  assert.equal(b.sell().pending, false);
+++  assert.deepEqual(fns(b), ['setProofKey', 'setPrices']);
+++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, 0n], 'no card after the wait: the row stops claiming one');
+++  // a late card still takes the box back to its price
+++  b.discover(1667); await b.settle();
+++  assert.deepEqual(b.chain.txs[2].args.slice(1), [834n, 1667n]);
+++});
+++
+++test('while pending: a failed read defers (no register at an unknown price), another differing field registers with the row\'s own GPU price', async () => {
+++  const env = await runGsup(GSUP, FW_GPU);
+++  const a = box(CURRENT_SRC, env, { row: METAL0_ROW, failReads: 2 });
+++  await a.advertise(); await a.settle();
+++  assert.deepEqual(fns(a), ['setProofKey'], 'two failed reads: retried, never a full register');
+++  assert.deepEqual(a.sleeps, [5, 10]);
+++  assert.ok(a.logs.some((l) => /registry read failed \(HTTP request failed\.\): no decision; the next attempt reads again/.test(l)));
+++  const b = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, cpuPricePerSec6: 900n } });
+++  await b.advertise(); await b.settle();
+++  assert.deepEqual(fns(b), ['register']);
+++  assert.deepEqual(b.chain.txs[0].args.slice(3, 5), [834n, 1667n], 'the CPU price is restated, the GPU price stays the row\'s own');
+++  const f = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, operator: '0x' + 'bb'.repeat(20) } });
+++  await f.advertise(); await f.settle();
+++  assert.equal(f.chain.txs[0].fn, 'register'); assert.equal(f.chain.txs[0].args[4], 0n, 'another operator\'s GPU price is not ours to restate');
+++  // no row of ours to keep a price from: 0 (nothing discovered), and discovery publishes the card's price afterwards
+++  const c = box(CURRENT_SRC, env, { row: null });
+++  await c.advertise(); await c.settle();
+++  assert.equal(c.chain.txs[0].args[4], 0n);
+++  c.discover(1667); await c.settle();
+++  assert.deepEqual(fns(c), ['register', 'setPrices']);
+++});
+++
+++test('owner re-pricing is published only once the card is adopted; a CPU re-price while pending keeps the GPU price', async () => {
+++  const env = await runGsup(GSUP, FW_GPU);
+++  const b = box(CURRENT_SRC, env, { row: METAL0_ROW });
+++  await b.advertise(); await b.settle(); await b.pass();
+++  assert.deepEqual(fns(b), ['setProofKey']);
+++  b.discover(556); await b.settle();                   // the operator changed the card to $2/hr
+++  assert.deepEqual(fns(b), ['setProofKey', 'setPrices']);
+++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, 556n]);
+++  const c = box(CURRENT_SRC, { ...env, SELL_CPU_PRICE6: '900' }, { row: METAL0_ROW });
+++  await c.advertise(); await c.settle();
+++  assert.deepEqual(fns(c), ['register'], 'a CPU difference still re-registers (the boot restates prices)');
+++  assert.deepEqual(c.chain.txs[0].args.slice(3, 5), [900n, 1667n]);
+++});
+++
+++test('a FAILED registry read sends nothing in every state (pending, discovered, CPU-only); only a later successful read decides', async () => {
+++  const gpuEnv = await runGsup(GSUP, FW_GPU), cpuEnv = await runGsup(GSUP, FW_CPU);
+++  const states = [
+++    ['pending', gpuEnv, false, METAL0_ROW],
+++    ['card discovered before the first read', gpuEnv, true, METAL0_ROW],
+++    ['CPU-only', cpuEnv, false, { ...METAL0_ROW, gpuPricePerSec6: 0n }],
+++  ];
+++  for (const [state, env, discoverFirst, exact] of states) {
+++    for (const [what, row, want, gpu] of [
+++      ['exact row (old proof key)', exact, ['setProofKey'], null],
+++      ['missing row', null, ['register'], discoverFirst ? 1667n : 0n],
+++      ['inactive row', { ...exact, active: false }, ['register'], exact.gpuPricePerSec6],
+++      ['differing row', { ...exact, repo: 'Other/repo' }, ['register'], exact.gpuPricePerSec6]]) {
+++      const label = `${state} / ${what}`;
+++      const b = box(CURRENT_SRC, env, { row, failReads: 2 });
+++      if (discoverFirst) b.discover(1667);
+++      assert.equal(b.sell().pending, state === 'pending', label);
+++      // the first attempt: one failed read, nothing sent; the loop retries (5 s, then 10 s)
+++      await b.advertise(); await b.settle();
+++      assert.deepEqual(b.sleeps, [5, 10], label);
+++      assert.ok(b.logs.filter((l) => /registry read failed \(HTTP request failed\.\): no decision/.test(l)).length === 2, label);
+++      assert.deepEqual(fns(b), want, `${label}: the later successful read decides`);
+++      if (gpu !== null) assert.equal(b.chain.txs[0].args[4], gpu, `${label}: GPU price written`);
+++      assert.ok(b.enclaveId(), label);
+++    }
+++  }
+++});
+++
+++test('the pending GPU price is restated EXACTLY: a uint64 beyond Number precision survives a register and a CPU re-price', async () => {
+++  const HUGE = 2n ** 63n + 12345n;                     // > Number.MAX_SAFE_INTEGER: Number() would round it
+++  assert.notEqual(BigInt(Number(HUGE)), HUGE);
+++  const env = await runGsup(GSUP, FW_GPU);
+++  // a CPU difference at boot while pending: register() restates the row's exact GPU price
+++  const a = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, cpuPricePerSec6: 900n, gpuPricePerSec6: HUGE } });
+++  await a.advertise(); await a.settle();
+++  assert.deepEqual(fns(a), ['register']);
+++  assert.equal(a.chain.txs[0].args[3], 834n); assert.equal(a.chain.txs[0].args[4], HUGE);
+++  assert.equal(a.chain.row.gpuPricePerSec6, HUGE);
+++  // an adopted row whose CPU price then differs: the reconcile pass re-prices the CPU and restates the exact GPU price
+++  const b = box(CURRENT_SRC, env, { row: { ...METAL0_ROW, gpuPricePerSec6: HUGE } });
+++  await b.advertise(); await b.settle(); await b.pass();
+++  assert.deepEqual(fns(b), ['setProofKey'], 'the huge price compares equal: nothing to re-price');
+++  b.chain.row = { ...b.chain.row, cpuPricePerSec6: 900n };
+++  await b.pass();
+++  assert.deepEqual(fns(b), ['setProofKey', 'setPrices']);
+++  assert.deepEqual(b.chain.txs[1].args.slice(1), [834n, HUGE]);
+++});
++diff --git a/test/registry-advertise-retry.test.mjs b/test/registry-advertise-retry.test.mjs
++index 0fa1221..78150d5 100644
++--- a/test/registry-advertise-retry.test.mjs
+++++ b/test/registry-advertise-retry.test.mjs
++@@ -15,6 +15,7 @@
++   slice(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, "registerOnChain"),
++   slice(/async function bootRegistration\(id, endpoint, proofKey\) \{[\s\S]*?\n\}/, "bootRegistration"),
++   slice(/function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/, "bootRegistrationAction"),
+++  slice(/function gpuPricePending\(now = Date\.now\(\)\) \{[\s\S]*?\n\}/, "gpuPricePending"),
++   slice(/async function registerSelf\(\) \{[\s\S]*?\n\}/, "registerSelf"),
++   slice(/function advertised\(\) \{[\s\S]*?\n\}/, "advertised"),
++   slice(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, "advertise"),
++@@ -36,6 +37,8 @@
++     const claimSigner = () => ({ account: { address: env.operator || "0x00000000000000000000000000000000000000aa" } });
++     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
++     const IS_GPU = false, RECONCILE_SEC = 60;
+++    // nothing shielded expected here (test/boot-gpu-price.test.mjs covers the pending GPU price)
+++    const SHIELDED_GPU_EXPECTED = 0, GPU_DISCOVERY_WAIT_MS = 15 * 60_000, GPU_DISCOVERY_FROM = 0;
++     // like the real queue: the promise is the HASH (at send), .receipt the confirmed outcome
++     const sendOperatorTx = (address, _abi, fn, args) => {
++       txs.push({ address, fn, endpoint: args[0], args });
++@@ -176,12 +179,11 @@
++   }
++ });
++ 
++-test("unchanged paths: not registered, another operator's row, an inactive row, a failed read, a pre-schema-3 registry", async () => {
+++test("unchanged paths: not registered, another operator's row, an inactive row, a pre-schema-3 registry", async () => {
++   const cases = [
++     [() => null, /not registered yet/], [() => row({ operator: "0x0000000000000000000000000000000000000000" }), /not registered yet/],
++     [() => row({ operator: "0x00000000000000000000000000000000000000bb" }), /another operator/],
++     [() => row({ active: false }), /inactive on chain/],
++-    [() => { throw new Error("HTTP request failed."); }, /registry read failed/],
++   ];
++   for (const [r, re] of cases) {
++     const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: r, send: ok });
++@@ -197,6 +199,25 @@
++   assert.deepEqual(fns(f), ["register", "register", "register"]);
++ });
++ 
+++test("a FAILED registry read sends nothing and retries; only a later SUCCESSFUL read decides (never a blind register)", async () => {
+++  // a failed RPC is no evidence that the row is missing or different: every outcome after two failed reads
+++  for (const [label, ok, want] of [["exact row", () => row({ proofKey: KEY_NEW }), []], ["old proof key", () => row(), ["setProofKey"]],
+++    ["missing row", () => null, ["register"]], ["inactive row", () => row({ active: false }), ["register"]],
+++    ["differing row", () => row({ repo: "Other/repo" }), ["register"]]]) {
+++    let reads = 0, sentDuringFailures = -1;
+++    const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, send: () => "0xtx",
+++      receipt: (fn) => ({ status: "success" }),
+++      row: () => { if (++reads <= 2) { sentDuringFailures = b.txs.length; throw new Error("HTTP request failed."); }
+++                   return label === "old proof key" && reads > 3 ? row({ proofKey: KEY_NEW }) : ok(); } });
+++    await b.advertise();
+++    assert.equal(sentDuringFailures, 0, `${label}: zero writes while the reads fail`);
+++    assert.deepEqual(b.sleeps, [5, 10], `${label}: the normal backoff`);
+++    assert.ok(b.logs.some((l) => /registry read failed \(HTTP request failed\.\): no decision; the next attempt reads again/.test(l)), label);
+++    assert.deepEqual(fns(b), want, label);
+++    assert.ok(b.state().enclaveId, label);
+++  }
+++});
+++
++ test("setProofKey failure: a reverted receipt or a failed send is not adopted and is retried; never escalated to register()", async () => {
++   let n = 0, key = KEY_OLD;
++   const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: () => row({ proofKey: key }), send: () => "0xpk" + (++n),
++-- 
++2.56.0
++
+diff --git a/stage/INVENTORY.sha256 b/stage/INVENTORY.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..1f9d608bfe071c1c0d688d51a81c18b8a679953e
+--- /dev/null
++++ b/stage/INVENTORY.sha256
+@@ -0,0 +1,5 @@
++671666403f2edf2ece449f7e79e4b45fe9b385744cf282fe47137123aa6ae9b6  dist-leasegas-7dd3acd06/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-7dd3acd06/cmdline
++3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50  dist-leasegas-7dd3acd06/initramfs.cpio.gz
++6e0029f58700253289062856d89d93c3ee049d39da211fe4b072c229146cf44a  dist-leasegas-7dd3acd06/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-7dd3acd06/vmlinuz
+diff --git a/stage/build-record.json b/stage/build-record.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3b612322a9de58d7c1f58ce99da1d03362b40cc2
+--- /dev/null
++++ b/stage/build-record.json
+@@ -0,0 +1,34 @@
++{
++  "commit": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b",
++  "controlImage": "08d1f838 (9f6d37bd, root-built 21:54Z)",
++  "delta": [
++    "metal/guest/gsup.mjs",
++    "supervisor.js",
++    "test/boot-gpu-price.test.mjs",
++    "test/registry-advertise-retry.test.mjs"
++  ],
++  "gsupReviewed": true,
++  "imageFiles": [
++    "/app/supervisor.js",
++    "/opt/metal/gsup.mjs"
++  ],
++  "inventory": {
++    "dist-leasegas-7dd3acd06/MEASUREMENT": "671666403f2edf2ece449f7e79e4b45fe9b385744cf282fe47137123aa6ae9b6",
++    "dist-leasegas-7dd3acd06/cmdline": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
++    "dist-leasegas-7dd3acd06/initramfs.cpio.gz": "3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50",
++    "dist-leasegas-7dd3acd06/manifest.json": "6e0029f58700253289062856d89d93c3ee049d39da211fe4b072c229146cf44a",
++    "dist-leasegas-7dd3acd06/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "measurement": "b007d47147d52ea01780abdee5f7b28d2eb02102a7915bf5f8dcafbf7d2a77b6a9ebb9d8b848acb8dd6377be5f1c09c6",
++  "note": "source patch only; parent anchor = 9f6d37bd (prior build record: custody-recipient-restore-20261023 BUILD-APPROVED-RESULT.md)",
++  "parent": "9f6d37bd858ad44be1171b6415353910214c2fa5",
++  "patch": {
++    "file": "patch",
++    "form": "full context",
++    "sha256": "7283a33ae0325ea837841175d87ecd96d48f8b99e04fa7cbc433da7218efbd3d"
++  },
++  "tests": [
++    "test/boot-gpu-price.test.mjs",
++    "test/registry-advertise-retry.test.mjs"
++  ]
++}
+diff --git a/stage/dist-leasegas-7dd3acd06/MEASUREMENT b/stage/dist-leasegas-7dd3acd06/MEASUREMENT
+new file mode 100644
+index 0000000000000000000000000000000000000000..80e7a6f2f3f41e01efbc70f68f32fede694e8119
+--- /dev/null
++++ b/stage/dist-leasegas-7dd3acd06/MEASUREMENT
+@@ -0,0 +1 @@
++b007d47147d52ea01780abdee5f7b28d2eb02102a7915bf5f8dcafbf7d2a77b6a9ebb9d8b848acb8dd6377be5f1c09c6
+diff --git a/stage/dist-leasegas-7dd3acd06/cmdline b/stage/dist-leasegas-7dd3acd06/cmdline
+new file mode 100644
+index 0000000000000000000000000000000000000000..d9f86e16de4d4907ce04625e88ba168c6b2d6f88
+--- /dev/null
++++ b/stage/dist-leasegas-7dd3acd06/cmdline
+@@ -0,0 +1 @@
++console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app
+diff --git a/stage/dist-leasegas-7dd3acd06/manifest.json b/stage/dist-leasegas-7dd3acd06/manifest.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7cc08678b42f937fe02950b4b51559b8d5e3b69b
+--- /dev/null
++++ b/stage/dist-leasegas-7dd3acd06/manifest.json
+@@ -0,0 +1,688 @@
++{
++  "builtWith": "metal/build-image.mjs",
++  "flavor": "cpu",
++  "images": {
++    "supervisor": {
++      "ref": "ghcr.io/enclavehost/enclave-supervisor@sha256:2f8e84f803eb058a9cff18aa4e44dcb236cf0d326cf1c95ab59f69816d8131f4",
++      "digest": "sha256:fa7aabd91d236e7d98608520f5cfd0e8198f9eec086e68d5244231a795e6e174",
++      "pinned": true
++    },
++    "wasmManager": {
++      "ref": "ghcr.io/enclavehost/enclave-wasm-manager@sha256:460240856a31722907514cbd6efe0c4ef2d1f58b23b0d9ac1cf721aa25d994e4",
++      "digest": "sha256:43fbb0e8c46acab6c6080c30775b5db636ca017562305bea0d57d63621afb9a2",
++      "pinned": true
++    }
++  },
++  "reproducible": true,
++  "supervisorOverlay": {
++    "commit": "5a4eb9a6c070083e72a7b90f42fc58f6819821c2",
++    "dirty": false,
++    "files": [
++      {
++        "path": "/app/supervisor.js",
++        "sha256": "8ab45ab266188bcdf0ff57ddb2004b724e6ed979c6e41605448c81c7e36f8931"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/supervisor-transport.mjs",
++        "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/control-client.mjs",
++        "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
++        "sha256": "c841ac7c0d1459c49630224e346890672358256b5616fe51c9d65795ff8072aa"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
++        "sha256": "1b91d46464d60ed46ff2fce43fbe53b95a5c276c7cffd0e6ff4517b4c20c83ca"
++      },
++      {
++        "path": "/app/isolation/m2/judge.mjs",
++        "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
++      },
++      {
++        "path": "/app/isolation/contract/runtime.mjs",
++        "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
++      },
++      {
++        "path": "/app/relay/snp-verify.mjs",
++        "sha256": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206"
++      }
++    ]
++  },
++  "isolation": "snp-guest-per-app",
++  "isolationMinTcb": {
++    "path": "/opt/metal/isolation-min-tcb.json",
++    "sha256": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
++    "policy": {
++      "Turin": {
++        "fmc": 1,
++        "bootloader": 3,
++        "tee": 2,
++        "snp": 5,
++        "microcode": 117
++      }
++    }
++  },
++  "kernel": {
++    "path": "/boot/vmlinuz-linux",
++    "kver": "7.2.3-arch1-2",
++    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
++  },
++  "modules": [
++    "kernel/drivers/firmware/qemu_fw_cfg.ko",
++    "kernel/net/core/failover.ko",
++    "kernel/drivers/net/net_failover.ko",
++    "kernel/drivers/net/virtio_net.ko",
++    "kernel/drivers/virt/coco/guest/tsm_report.ko",
++    "kernel/drivers/virt/coco/sev-guest/sev-guest.ko",
++    "kernel/drivers/virt/coco/tdx-guest/tdx-guest.ko",
++    "kernel/drivers/md/dm-mod.ko",
++    "kernel/drivers/md/dm-bufio.ko",
++    "kernel/lib/reed_solomon/reed_solomon.ko",
++    "kernel/drivers/md/dm-verity.ko",
++    "kernel/net/vmw_vsock/vsock.ko",
++    "kernel/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko",
++    "kernel/net/vmw_vsock/vmw_vsock_virtio_transport.ko",
++    "kernel/drivers/cpuidle/cpuidle-haltpoll.ko"
++  ],
++  "shielded": [
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/libggml-shielded.so",
++      "tenantPath": "/opt/enclave/shielded/libggml-shielded.so",
++      "bytes": 613832,
++      "sha256": "bbcb5dd1b8f0ef451a2bc862874fdb3c182b93e504053c832b40ed2de7dad4a7"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/libenclave-omp-profile.so",
++      "tenantPath": "/opt/enclave/shielded/libenclave-omp-profile.so",
++      "bytes": 16720,
++      "sha256": "5584a61e136983539ae2a88a3ba8dd61ff3aefe6af6823177ea8005c97a3f58e"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen2.5-0.5b-q8-gguf.calib",
++      "tenantPath": "/opt/enclave/shielded/calib/qwen2.5-0.5b-q8-gguf.calib",
++      "bytes": 4346,
++      "sha256": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3-4b-q8-gguf.calib",
++      "tenantPath": "/opt/enclave/shielded/calib/qwen3-4b-q8-gguf.calib",
++      "bytes": 6987,
++      "sha256": "e6af35a3e1632e9566c06afb397dc556805fff4e2fa30a463acbafdf765d7760"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.5-0.8b-mtp-gguf.calib",
++      "tenantPath": "/opt/enclave/shielded/calib/qwen3.5-0.8b-mtp-gguf.calib",
++      "bytes": 4312,
++      "sha256": "dc4031281b7b7af07bece85651cd7591ed1c2834e045bcc70c8e93c184820c77"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-gguf.calib",
++      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-gguf.calib",
++      "bytes": 10214,
++      "sha256": "6e1cb90e61c365d6632612755fdbb473265b0b8134622b972215945442d3ac22"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
++      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
++      "bytes": 13597,
++      "sha256": "1220f83cb518e0354a6d554e517ceeeb83ee8bab44733fae1e4801ae1982ddbd"
++    },
++    {
++      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib",
++      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib",
++      "bytes": 13006,
++      "sha256": "ab32618ebb813d2579e107a6c75d1dace7d0c4e8c6e32f1b02e89a5670d4645d"
++    }
++  ],
++  "shieldedBuild": {
++    "ggml": "0.18.0",
++    "cc": "cc (GCC) 16.2.1 20260810",
++    "cxx": "c++ (GCC) 16.2.1 20260810",
++    "sources": [
++      {
++        "name": "shielded-field.c",
++        "sha256": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4"
++      },
++      {
++        "name": "shielded-wire.c",
++        "sha256": "1a1630b05baf229bcfb0a4ede3c430a4126a2abe3a3da5c1ac36e554875df11e"
++      },
++      {
++        "name": "shielded-tee.c",
++        "sha256": "eb9105ce6a3139d0f2b21093edce9cff349ffba25a9b7be319138fbece6db4e8"
++      },
++      {
++        "name": "shielded-parwork.c",
++        "sha256": "ee8acafb08e373647191505d5df6e9b6274cae56d1ab5544eb9b5f4e9962038a"
++      },
++      {
++        "name": "shielded-pads.c",
++        "sha256": "a1ca4b8f8d3d1acf1cd0d7ad0d980170a07c8c4b7c1f1f1075291d0e4406bfec"
++      },
++      {
++        "name": "shielded-bank.c",
++        "sha256": "9375e1ae4db84ed9b103068a05cd3d2754f606cce8aa9fc1e742d9a633d1054b"
++      },
++      {
++        "name": "shielded-http.c",
++        "sha256": "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e"
++      },
++      {
++        "name": "prefix-kv.c",
++        "sha256": "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c"
++      },
++      {
++        "name": "tweetnacl.c",
++        "sha256": "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749"
++      },
++      {
++        "name": "poly1305-donna.c",
++        "sha256": "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999"
++      },
++      {
++        "name": "shielded-simd.c",
++        "sha256": "5810f7dacd32711e2c624f9ae8498df6c47cee2ec79d401821e1e1e922c51d2e"
++      },
++      {
++        "name": "ggml-shielded.cpp",
++        "sha256": "ea3f5edaee3262c75fb139e57abc7c686ba18ab846c4061ca4638d0d82df425f"
++      },
++      {
++        "name": "ggml-shielded.h",
++        "sha256": "fcb74fc15280198325fd1734348c5d540fa8c1acd74e0a58f0372822a3590c90"
++      },
++      {
++        "name": "poly1305-donna-32.h",
++        "sha256": "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6"
++      },
++      {
++        "name": "poly1305-donna-64.h",
++        "sha256": "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df"
++      },
++      {
++        "name": "poly1305-donna.h",
++        "sha256": "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e"
++      },
++      {
++        "name": "prefix-kv-llama.h",
++        "sha256": "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc"
++      },
++      {
++        "name": "prefix-kv.h",
++        "sha256": "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29"
++      },
++      {
++        "name": "prefix-mtp.h",
++        "sha256": "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156"
++      },
++      {
++        "name": "shielded-avf-binding.h",
++        "sha256": "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46"
++      },
++      {
++        "name": "shielded-bank.h",
++        "sha256": "4ce0d4280f8c691fb1af1a17583a0419beed8edcd17b18263a723bdb6ac7f821"
++      },
++      {
++        "name": "shielded-dealer-stream.h",
++        "sha256": "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3"
++      },
++      {
++        "name": "shielded-encoded-source.h",
++        "sha256": "c5b5accc0baa91b02895b7a9ec075f462e68e8f646a0803796cf39ff27bfc083"
++      },
++      {
++        "name": "shielded-field.h",
++        "sha256": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31"
++      },
++      {
++        "name": "shielded-fusion.h",
++        "sha256": "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637"
++      },
++      {
++        "name": "shielded-http.h",
++        "sha256": "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052"
++      },
++      {
++        "name": "shielded-idle.h",
++        "sha256": "c0507b1adcf8fd83fcf24137ec971b06b01a3bcb62a9167b3a4ce44a64ab3945"
++      },
++      {
++        "name": "shielded-latency.h",
++        "sha256": "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d"
++      },
++      {
++        "name": "shielded-mint-balance.h",
++        "sha256": "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd"
++      },
++      {
++        "name": "shielded-overlap.h",
++        "sha256": "5c5b8e4e4d3f5f117f70e8ad524b7f42f2f02d0561c50732bfa71f5012b0e090"
++      },
++      {
++        "name": "shielded-pad-budget.h",
++        "sha256": "a5d1409e4e1deb49c4f00de894be83a210b76dc3227623a40020544d995df70a"
++      },
++      {
++        "name": "shielded-pad-check.h",
++        "sha256": "046b2b174e9d20a1638f2867a54226c41de1423b569312baea52fdcea9b63ebc"
++      },
++      {
++        "name": "shielded-pad-grant.h",
++        "sha256": "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5"
++      },
++      {
++        "name": "shielded-pad-layout.h",
++        "sha256": "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd"
++      },
++      {
++        "name": "shielded-pad-manifest.h",
++        "sha256": "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1"
++      },
++      {
++        "name": "shielded-pad-mint-v3.h",
++        "sha256": "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d"
++      },
++      {
++        "name": "shielded-pad-parallel.h",
++        "sha256": "1ad2b30cead53062a4c98a8364f9332a74f6287e12a3daaefbc9331e6763cbd0"
++      },
++      {
++        "name": "shielded-pad-r4.h",
++        "sha256": "ac5d551f754f9f037b34a6d53b93057b916e95836f2cd995f35d235946f6b9f2"
++      },
++      {
++        "name": "shielded-pad-sparse-plan.h",
++        "sha256": "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2"
++      },
++      {
++        "name": "shielded-pad-sparse-table.h",
++        "sha256": "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc"
++      },
++      {
++        "name": "shielded-pads-v3.h",
++        "sha256": "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d"
++      },
++      {
++        "name": "shielded-pads.h",
++        "sha256": "782c67a8fed4f31d020275a2b5326a8013d17e2f695605a86a39b5602920bb50"
++      },
++      {
++        "name": "shielded-parwork.h",
++        "sha256": "62eebcf421528169da9b201a8f451d8b802a29a3bb66e77a3372342c827c8ce2"
++      },
++      {
++        "name": "shielded-recv-profile.h",
++        "sha256": "d5949d0353bc08868bc54dcd1ee69f28d36917d6132d60208c35ff96929c7894"
++      },
++      {
++        "name": "shielded-sha256.h",
++        "sha256": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c"
++      },
++      {
++        "name": "shielded-simd.h",
++        "sha256": "a440b5b45aaf3ec0fe5c558de9bc34eabcf427210d9c197206fe5eb53d88f010"
++      },
++      {
++        "name": "shielded-source-prefetch.h",
++        "sha256": "98b7da83f84d676ff48c4f360afb34ea724ad9e03ac5f2c3a688bc5d55558ee8"
++      },
++      {
++        "name": "shielded-source-profile.h",
++        "sha256": "df936df021db0106d8d2a44d373f82d0943246988625e2d9223c36de48e32641"
++      },
++      {
++        "name": "shielded-source-quant.h",
++        "sha256": "cc5a00dfdb46cb7ab763c13c5d4a26cc5561d1fe0f49c60f14c65013e60d0f34"
++      },
++      {
++        "name": "shielded-tee.h",
++        "sha256": "0b157f46616238912d5b6d57451e1cb03e11bdebdca3a634e1c7641c8c7f5221"
++      },
++      {
++        "name": "shielded-weight-cache.h",
++        "sha256": "4b9210ebe85c701d99f9f174fbe816f5b22e2bc434b9073727394210a5cbdb32"
++      },
++      {
++        "name": "shielded-weight-source.h",
++        "sha256": "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca"
++      },
++      {
++        "name": "shielded-wide.h",
++        "sha256": "5dc5ba2c59c4dacc58f413707bd95bdac94640d990977a93dd1d5e2160e4f352"
++      },
++      {
++        "name": "shielded-wire-sched.h",
++        "sha256": "0d999b52941bb1b486cccece6119d3aa90d961146534fba9f4a50a0918558796"
++      },
++      {
++        "name": "shielded-wire.h",
++        "sha256": "5c50c72084ccd6567d4651669c8cea307d84bbbb96c3a49d0ac946e215424156"
++      },
++      {
++        "name": "tweetnacl.h",
++        "sha256": "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287"
++      },
++      {
++        "name": "shielded-omp-profile.c",
++        "sha256": "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee"
++      }
++    ],
++    "vendoredHeaders": [
++      {
++        "name": "ggml-alloc.h",
++        "sha256": "94e4cd069b9313b2ceb35dacec901981e0bb478d8bb31035b7126be091998c23"
++      },
++      {
++        "name": "ggml-backend-impl.h",
++        "sha256": "d9c62d72b13bff67ef7ada8feccf90c9cd1b6d176eae85df3ed1d4f3d2240e52"
++      },
++      {
++        "name": "ggml-backend.h",
++        "sha256": "a620e815b43a44cc72d5f216629a3a91980335b61bc37eb6b2d0813368c3704f"
++      },
++      {
++        "name": "ggml-impl.h",
++        "sha256": "2ed56e264202906d107e26d08eabb242d3107b026ebfb78096fa1e5f94bdbbb8"
++      },
++      {
++        "name": "ggml.h",
++        "sha256": "c65c30fdb4dce95eac71c26bb38ae8423fbc80d79db91d2b2ffaea8c4e46276a"
++      },
++      {
++        "name": "gguf.h",
++        "sha256": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
++      }
++    ]
++  },
++  "cmdlineTemplate": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app",
++  "volumeBinding": {
++    "field": "HOST_DATA (SNP report offset 0xC0, 32 bytes); MRCONFIGID on TDX",
++    "canonicalLine": "name|alg|root|salt|dataBlockSize|hashBlockSize|dataBlocks|hashStartBlock|sd(1/0)|gguf",
++    "digest": "sha256(lines.sort().join(\"\\n\") + \"\\n\")",
++    "note": "Volume images are built by metal/volumes.mjs and are themselves reproducible: same source tree in, same verity root hash out. The guest reads HOST_DATA back from its own report and refuses to mount a table that does not hash to it."
++  },
++  "note": "The SEV-SNP launch measurement is a function of (OVMF, this kernel, the initramfs, and the final cmdline). Recompute it independently with sev-snp-measure using the sha256 fields here; metal/verify.mjs checks a live report against the pinned launch measurement.",
++  "controlOverlayHistory": [
++    {
++      "baseInitramfsSha256": "849d6f8cc6d572fffabdbe8b13e4a7bc82ee7e6136fdfa92d908128aa37db322",
++      "commit": "2857356cde9b35c1b9b046c201d74ec8a517bca0",
++      "builder": "metal/overlay-control-image.py",
++      "files": [
++        {
++          "path": "/app/supervisor.js",
++          "sha256": "4beb671705222c5401bd83f49589bda68721a92b80bacbddff6f10d51a899401"
++        },
++        {
++          "path": "/opt/metal/gsup.mjs",
++          "sha256": "4cf28fd2782f66fb5d06e70fee1c35c0c0c84e39a7abdb6082b3dc7ffccada51"
++        },
++        {
++          "path": "/opt/metal/agent.mjs",
++          "sha256": "7639e0ffb4e24cd7146ce89e9168e2a073dec12d2285aff615ba9105b53d25dc"
++        },
++        {
++          "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
++          "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
++        },
++        {
++          "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
++          "sha256": "a61e8c17f4a4fb280b61c692a25b7c1be1ab6df233ff69c4295a85797def158f"
++        },
++        {
++          "path": "/app/session-api-auth.mjs",
++          "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29"
++        },
++        {
++          "path": "/app/verification-checkpoints.mjs",
++          "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
++        }
++      ]
++    }
++  ],
++  "controlOverlay": {
++    "baseInitramfsSha256": "516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc",
++    "commit": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b",
++    "builder": "metal/overlay-control-image.py",
++    "builderSha256": "ea4d65948d62cd431080f88d7a3fced484c7d9e3368accda3744e308cfc9c9ce",
++    "files": [
++      {
++        "path": "/app/supervisor.js",
++        "source": "supervisor.js",
++        "sha256": "916780f954326b2c55a8ba8737408dba2dd1bc135900e4c6599f053662e6840c"
++      },
++      {
++        "path": "/app/addressbook.js",
++        "source": "addressbook.js",
++        "sha256": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92"
++      },
++      {
++        "path": "/app/egress.js",
++        "source": "egress.js",
++        "sha256": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8"
++      },
++      {
++        "path": "/app/net-guard.mjs",
++        "source": "net-guard.mjs",
++        "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
++      },
++      {
++        "path": "/app/windows/node/session-api-auth.mjs",
++        "source": "windows/node/session-api-auth.mjs",
++        "sha256": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb"
++      },
++      {
++        "path": "/app/windows/node/verification-checkpoints.mjs",
++        "source": "windows/node/verification-checkpoints.mjs",
++        "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
++      },
++      {
++        "path": "/app/windows/node/host-admission.bundle.mjs",
++        "source": "windows/node/host-admission.bundle.mjs",
++        "sha256": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c"
++      },
++      {
++        "path": "/app/sdk/bootstrap/package.mjs",
++        "source": "sdk/bootstrap/package.mjs",
++        "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a"
++      },
++      {
++        "path": "/app/sdk/bootstrap/storage.mjs",
++        "source": "sdk/bootstrap/storage.mjs",
++        "sha256": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3"
++      },
++      {
++        "path": "/app/sdk/storage/gateways.mjs",
++        "source": "sdk/storage/gateways.mjs",
++        "sha256": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119"
++      },
++      {
++        "path": "/app/sdk/storage/upload-auth.mjs",
++        "source": "sdk/storage/upload-auth.mjs",
++        "sha256": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1"
++      },
++      {
++        "path": "/app/sdk/storage/replicas.mjs",
++        "source": "sdk/storage/replicas.mjs",
++        "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25"
++      },
++      {
++        "path": "/app/site/js/core/upload-auth.js",
++        "source": "site/js/core/upload-auth.js",
++        "sha256": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/supervisor-transport.mjs",
++        "source": "isolation/m4/guestd/supervisor-transport.mjs",
++        "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/control-client.mjs",
++        "source": "isolation/m4/guestd/control-client.mjs",
++        "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
++        "source": "isolation/m4/guestd/supervisor-splice.mjs",
++        "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
++      },
++      {
++        "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
++        "source": "isolation/m4/guestd/supervisor-guestcert.mjs",
++        "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597"
++      },
++      {
++        "path": "/app/isolation/m2/judge.mjs",
++        "source": "isolation/m2/judge.mjs",
++        "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
++      },
++      {
++        "path": "/app/isolation/contract/runtime.mjs",
++        "source": "isolation/contract/runtime.mjs",
++        "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
++      },
++      {
++        "path": "/app/relay/snp-verify.mjs",
++        "source": "relay/snp-verify.mjs",
++        "sha256": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91"
++      },
++      {
++        "path": "/app/client/lease-executor-authority.mjs",
++        "source": "client/lease-executor-authority.mjs",
++        "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
++      },
++      {
++        "path": "/app/client/lease-executor-client.mjs",
++        "source": "client/lease-executor-client.mjs",
++        "sha256": "5193da71542098cbad98a723be575abc575147e0a9649e804d27697c8e3c7dfe"
++      },
++      {
++        "path": "/app/network/canonical.mjs",
++        "source": "network/canonical.mjs",
++        "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
++      },
++      {
++        "path": "/app/network/host-capacity-producer.mjs",
++        "source": "network/host-capacity-producer.mjs",
++        "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0"
++      },
++      {
++        "path": "/app/network/host-capacity-record.mjs",
++        "source": "network/host-capacity-record.mjs",
++        "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551"
++      },
++      {
++        "path": "/app/network/lease-executor-authority.mjs",
++        "source": "network/lease-executor-authority.mjs",
++        "sha256": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
++      },
++      {
++        "path": "/app/network/lease-executor-client.mjs",
++        "source": "network/lease-executor-client.mjs",
++        "sha256": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a"
++      },
++      {
++        "path": "/app/network/lease-gas-owner.mjs",
++        "source": "network/lease-gas-owner.mjs",
++        "sha256": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9"
++      },
++      {
++        "path": "/app/network/lease-gas-runtime.mjs",
++        "source": "network/lease-gas-runtime.mjs",
++        "sha256": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75"
++      },
++      {
++        "path": "/app/network/lease-release-journal.mjs",
++        "source": "network/lease-release-journal.mjs",
++        "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6"
++      },
++      {
++        "path": "/app/network/registry-reconcile.mjs",
++        "source": "network/registry-reconcile.mjs",
++        "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e"
++      },
++      {
++        "path": "/app/network/rpc-identity.mjs",
++        "source": "network/rpc-identity.mjs",
++        "sha256": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
++      },
++      {
++        "path": "/opt/metal/gsup.mjs",
++        "source": "metal/guest/gsup.mjs",
++        "sha256": "f8dee4dc1d734c3a69854d58bc7d710ad4539c49e483e0a8ddf1d10bfa53e7f0"
++      },
++      {
++        "path": "/opt/metal/agent.mjs",
++        "source": "metal/guest/agent.mjs",
++        "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a"
++      },
++      {
++        "path": "/opt/metal/host-policy.bundle.mjs",
++        "source": "metal/guest/host-policy.bundle.mjs",
++        "sha256": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9"
++      },
++      {
++        "path": "/opt/metal/shielded.mjs",
++        "source": "metal/guest/shielded.mjs",
++        "sha256": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f"
++      },
++      {
++        "path": "/opt/metal/shielded-probe.mjs",
++        "source": "metal/guest/shielded-probe.mjs",
++        "sha256": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f"
++      },
++      {
++        "path": "/opt/metal/shielded-shm.mjs",
++        "source": "metal/guest/shielded-shm.mjs",
++        "sha256": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731"
++      },
++      {
++        "path": "/opt/metal/measured-control.mjs",
++        "source": "metal/guest/measured-control.mjs",
++        "sha256": "bf7d4ddf25bc2f173450fd4658ccd5c4e6a913de57b0ae8709d8486779b2f94a"
++      },
++      {
++        "path": "/opt/metal/lease-gas-conduit.bundle.mjs",
++        "source": "metal/guest/lease-gas-conduit.bundle.mjs",
++        "sha256": "d0b8ef9c4842030c6bfd1173bdad1dd76e096da998a2046a6d70f0fce8528247"
++      }
++    ],
++    "supervisorClosure": {
++      "rules": "metal/supervisor-closure.mjs",
++      "packages": [
++        {
++          "name": "cors",
++          "version": "2.8.6"
++        },
++        {
++          "name": "express",
++          "version": "4.22.2"
++        },
++        {
++          "name": "jose",
++          "version": "5.10.0"
++        },
++        {
++          "name": "viem",
++          "version": "2.53.1"
++        },
++        {
++          "name": "ws",
++          "version": "8.21.1"
++        }
++      ]
++    },
++    "collapsedIdenticalDuplicates": {
++      "app/session-api-auth.mjs": 9,
++      "app/verification-checkpoints.mjs": 1
++    }
++  },
++  "initramfs": {
++    "sha256": "3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50",
++    "bytes": 279390019
++  }
++}

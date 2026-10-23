@@ -1,0 +1,468 @@
+From b5e4613c632b47056fba3de6064bc56b00bedcb5 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:31:26 -0700
+Subject: [PATCH] Upload stage: never keep remote response bodies; an unknown
+ upload stays unknown (root review)
+
+1) Relay, gateway and storage-fetch failures are reported, journaled and shown only as a
+   fixed diagnostic plus at most an HTTP status; an upstream body may reflect the signature
+   or token. A gateway CID is kept only if CID-shaped; signature-recovery errors are generic.
+   Test: fake relay/gateway reflect signature and token in error bodies and the CID field.
+2) verify-storage never resets upload-unknown on a failed fetch (timeout, 5xx, network or
+   404 prove nothing); the reason says so. The only way back to an authorization is the
+   administrator's explicit same-bytes/same-CID retry; nothing re-uploads by itself.
+Tests (queue 512): handoff 12/12, browser 2/2, mutants 21/21. Still inactive.
+---
+ PROGRESS.txt          |  7 ++++
+ README.md             | 24 +++++++++---
+ app.js                | 12 +++++-
+ stage.html            |  2 +-
+ test/env.mjs          | 14 +++++--
+ test/handoff.test.mjs | 69 +++++++++++++++++++++++++++++++---
+ test/mutants.sh       |  6 +++
+ upload.mjs            | 86 +++++++++++++++++++++++++++++--------------
+ 8 files changed, 176 insertions(+), 44 deletions(-)
+
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+index c15d3e064d9d823dc002c20bf40c95c04d4c09ef..21a17456cd02c09d09131dc450fee24b5cd24acc 100644
+--- a/PROGRESS.txt
++++ b/PROGRESS.txt
+@@ -6,3 +6,10 @@
+   (fb189e46) + gate/routes/reconcile additions (evidence/handoff-server.diff); exact-field accept; 2-provider verify with
+   catalog event + getApp/getVersion readback; chain-based reconcile for a lost hash.
+ - Port 39675 (factory 39672 untouched). Tests: handoff 11/11, browser 2/2 (464 MiB), mutants 15/15.
++2026-10-23T22:31Z ROOT-REVIEW corrections:
++- Privacy: no remote response body is kept, logged or returned. Relay/gateway/storage-fetch failures become a fixed
++  diagnostic plus at most an HTTP status; a gateway "CID" is kept only if it is CID-shaped; recovery errors are generic.
++  A test reflects signature/token in fake error bodies and the CID field: no leak anywhere.
++- Unknown upload: a failed verify-storage (timeout/5xx/network/404) keeps upload-unknown with an honest reason; the only
++  way back to an authorization is the administrator's explicit same-bytes retry (no automatic re-upload).
++- Tests (queue 512): handoff 12/12, browser 2/2 (464 MiB), mutants 21/21. Still INACTIVE: no server, browser or network.
+diff --git a/README.md b/README.md
+index e2442004d321face3c84e5e68220fc19f192914a..65bd1c2d18b171155a944c454a0986ca8237386d 100644
+--- a/README.md
++++ b/README.md
+@@ -22,6 +22,11 @@
+   so the token is reusable until it expires, but it only covers these bytes. This server sends the signature once and
+   never writes or logs it: the journals hold only states, the expiry, the CID and the fetch results, and the tests
+   check this.
++- **No remote response bodies (root review of f161ceb).** An upstream error could echo the submitted signature or
++  token, so relay, gateway and storage-fetch failures keep and show only a fixed diagnostic plus at most an HTTP status.
++  - A gateway "CID" is kept only if it has the shape of a CID; a signature-recovery error never carries library text.
++  - A test makes the fake relay and gateway reflect the signature and the token in their error bodies, and in the CID
++    field. Neither appears in any response, page state or journal (on disk).
+ - **Rollback:** the catalog owner can later reject (`setApproval`) or yank the version. The listing record stays in the
+   catalog's history.
+ - **Out of scope:**
+@@ -39,8 +44,13 @@
+   - **pinned-unverified:** the CID matched but the fetch-back did not verify yet. Only *Verify storage again* moves
+     on.
+   - **upload-unknown:** the add request was sent and no answer came back, so it may have pinned. A process that stopped
+-    mid-upload restarts here. Only *Verify storage again* moves on: a fetch, never a blind re-upload. If nothing is
+-    servable, the state returns to ready.
++    mid-upload restarts here. *Verify storage again* (a fetch) moves on only when the bytes verify.
++    - Any failed fetch keeps upload-unknown, with an honest reason. A timeout, 5xx or network error proves nothing, and
++      a 404 is reported as "does not prove the earlier upload was not stored" (root review of f161ceb; the earlier
++      version wrongly reset to ready).
++    - There is no automatic re-upload. *Upload the same bytes again (outcome unknown)* is the administrator's explicit
++      choice: it reopens a signed authorization for the SAME bytes and CID, and the earlier outcome stays recorded as
++      never established.
+   - **ready + lastError:** a definite refusal BEFORE anything reached the gateway.
+   - **cid-mismatch:** TERMINAL. The gateway named another CID: nothing can be published; stop and ask root.
+ - **The signature:** checked locally before any network request. The signer is recovered and must be the
+@@ -129,9 +139,9 @@
+ 
+ | suite | result | peak |
+ |---|---|---|
+-| `./q.sh 512 handoff-N ./run-tests.sh handoff` | 11/11 | 242 MiB |
++| `./q.sh 512 handoff-N ./run-tests.sh handoff` | 12/12 | 244 MiB |
+ | `./q.sh 512 browser-N ./run-tests.sh browser` (headless Chromium, single process) | 2/2 | 464 MiB |
+-| `./q.sh 512 mutants-N test/mutants.sh` | 15/15 killed | 252 MiB |
++| `./q.sh 512 mutants-N test/mutants.sh` | 21/21 killed | 252 MiB |
+ 
+ **Test environment:**
+ - anvil (chain 8453) with the deployed catalog's and book's exact runtimes at their production addresses, and a mock
+@@ -147,6 +157,8 @@
+ - a wrong signer, a relay refusal, a changed file, expiry, 4001 versus other wallet errors;
+ - a wrong CID (terminal), wrong bytes served back (gate blocks; re-fetch at every prepare);
+ - a gateway that never answers, a crash mid-upload, and restart reconciliation by fetch;
++- 404 and 502 fetch-backs keeping the outcome unknown, and the explicit same-bytes retry;
++- reflected signature or token in upstream error bodies and in the CID field, plus a malformed signature: nothing leaks;
+ - a refreshed prepare refusing once the listing exists or the catalog owner changed;
+ - publish 4001 versus -32603, and a raised fee never recorded;
+ - every reconcile branch;
+@@ -158,7 +170,9 @@
+ - the signer, CID, fetch-hash, gate, re-fetch and crash-state checks;
+ - re-authorization while the upload is unknown, any-error reset, changed file;
+ - transport gate, reconcile minimum age, published reset and pending checks;
+-- the raised-fee check and the readback.
++- the raised-fee check and the readback;
++- the privacy and unknown-outcome corrections: relay or gateway error body kept, a non-CID answer stored, a recovery
++  error echoed, a failed fetch resetting an unknown upload, a retry without confirmation.
+ 
+ ## Not verified / limits
+ 
+diff --git a/app.js b/app.js
+index 4e293c692b982e75f06765cdb28d8396d3e78de5..38afb56e18d49b1fe9ba3b609f33a84f22efbcd1 100644
+--- a/app.js
++++ b/app.js
+@@ -32,7 +32,7 @@
+ const UPLOAD_TEXT = { ready: 'Not uploaded.', authorizing: 'Waiting for the signed authorization.', uploading: 'Uploading…',
+   'stored-verified': 'Stored and verified: the gateway returned the pinned CID and serves exactly the pinned bytes.',
+   'pinned-unverified': 'The gateway returned the pinned CID, but the bytes have not been fetched back yet. Click Verify storage again.',
+-  'upload-unknown': 'The gateway did not answer the upload. It may have stored it: click Verify storage again (a fetch, not a new upload).',
++  'upload-unknown': 'The gateway did not answer the upload, so it is NOT known whether it stored the component. Click Verify storage again (a fetch, not a new upload). A failed check does not prove it was not stored. Only if you choose to, Upload the same bytes again authorizes the same file and CID once more.',
+   'cid-mismatch': 'STOP: the gateway returned another CID. Nothing may be published. Ask root.' };
+ function render(keep) {
+   const s = config.state, tx = config.request.transaction, up = config.stages.upload, comp = config.stages.component;
+@@ -44,6 +44,8 @@
+   el('authorize').disabled = busy || !connected || !(up.status === 'ready' || expired);
+   el('verify-storage').hidden = !['pinned-unverified', 'upload-unknown'].includes(up.status);
+   el('verify-storage').disabled = busy;
++  el('retry-same').hidden = up.status !== 'upload-unknown';
++  el('retry-same').disabled = busy || !connected;
+   hash = s.hash || hash || stored();
+   const open = s.status === 'awaiting-wallet' || s.status === 'submitted';
+   el('recover').hidden = !open;
+@@ -101,7 +103,7 @@
+ 
+ el('verify-storage').onclick = async () => {
+   if (busy) return; busy = true; render(true);
+-  try { const st = await api('/upload/verify-storage'); say(UPLOAD_TEXT[st.status] || st.status, st.status === 'stored-verified' ? 'ok' : 'wait'); }
++  try { const st = await api('/upload/verify-storage'); say(st.status === 'stored-verified' ? UPLOAD_TEXT[st.status] : 'Not verified: ' + (st.lastError || st.status), st.status === 'stored-verified' ? 'ok' : 'wait'); }
+   catch (e) { say(e.message, 'error'); } finally { busy = false; await load(true).catch(() => {}); }
+ };
+ 
+@@ -148,3 +150,9 @@
+   try { const r = await api('/reconcile'); await load(true); say(r.reason + (r.reset ? ' The attempt was closed; you may review again.' : ''), r.reset ? 'ok' : 'wait'); }
+   catch (e) { say(e.message, 'error'); } finally { busy = false; await load(true).catch(() => {}); }
+ };
++el('retry-same').onclick = async () => {
++  // the administrator's explicit choice; nothing uploads until the next signed authorization
++  if (busy) return; busy = true; render(true);
++  try { await api('/upload/retry-same-bytes', { confirm: 'retry-same-bytes' }); say('The earlier outcome stays unknown. Sign a new authorization for the SAME bytes and CID to upload them again.', 'wait'); }
++  catch (e) { say(e.message, 'error'); } finally { busy = false; await load(true).catch(() => {}); }
++};
+diff --git a/stage.html b/stage.html
+index ce412321525d0e07b17e9644a2063b318214d76e..3ead10b798359750a0b968bb027f25ef5158ff89 100644
+--- a/stage.html
++++ b/stage.html
+@@ -9,7 +9,7 @@
+ <h2>1 · Upload authorization (message, no transaction)</h2>
+ <dl><dt>Component</dt><dd id="component"></dd><dt>Message</dt><dd id="message">enclave-upload:&lt;sha256&gt;:&lt;expiry&gt; (shown when you start)</dd><dt>Upload state</dt><dd id="upload"></dd></dl>
+ <p class="scope">{{UPLOAD}}</p>
+-<div class="actions"><button id="authorize" disabled>Sign upload authorization in MetaMask</button><button id="verify-storage" hidden disabled>Verify storage again</button></div>
++<div class="actions"><button id="authorize" disabled>Sign upload authorization in MetaMask</button><button id="verify-storage" hidden disabled>Verify storage again</button><button id="retry-same" hidden disabled>Upload the same bytes again (outcome unknown)</button></div>
+ <h2>2 · Catalog publication (transaction)</h2>
+ <dl><dt>Destination</dt><dd id="to"></dd><dt>Call</dt><dd>{{CALL}}</dd><dt>Value</dt><dd id="value"></dd><dt>Network fee</dt><dd>Shown by MetaMask. The server re-runs the reviewed preparation first: L2 fee cap + L1 data-fee bound for the signed size + the Isthmus operator fee, against fixed caps. Do not edit gas or fees.</dd></dl>
+ <p class="scope">{{EFFECT}}</p>
+diff --git a/test/env.mjs b/test/env.mjs
+index 5a8dfca1a4c45165d390f1a81ce543f9df4a4a72..22bf02756593ad0a7d3c85a6b704ac59738661f9 100644
+--- a/test/env.mjs
++++ b/test/env.mjs
+@@ -67,10 +67,12 @@
+     close: async () => { for (const p of proxies) { p.s.closeAllConnections(); await new Promise((r) => p.s.close(r)); } proc.kill(); } };
+ }
+ 
+-/** The fake relay + gateway (127.0.0.3). mode: { token: 200|4xx, add: "ok"|"wrongcid"|"hang"|"500", serve: "ok"|"wrong"|"404" } */
++/** The fake relay + gateway (127.0.0.3). mode: { token: 200|4xx, reflect: bool (error bodies echo the request's signature),
++ *  add: "ok"|"wrongcid"|"hang"|"500"|"reflect403" (echoes the token)|"cidecho" (answers the token as the "cid"),
++ *  serve: "ok"|"wrong"|"404"|"502" } */
+ export async function startUploadServices(component) {
+-  const KEY = "test-upload-key", store = new Map(), calls = { token: 0, add: 0, fetch: 0, signatures: [] };
+-  const mode = { token: 200, add: "ok", serve: "ok" };
++  const KEY = "test-upload-key", store = new Map(), calls = { token: 0, add: 0, fetch: 0, signatures: [], tokens: [] };
++  const mode = { token: 200, add: "ok", serve: "ok", reflect: false };
+   const s = http.createServer(async (req, res) => {
+     const json = (code, v) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(v)); };
+     const u = new URL(req.url, "http://x");
+@@ -78,8 +80,8 @@
+     const body = Buffer.concat(chunks);
+     if (req.method === "POST" && u.pathname === "/v1/apps/upload-token") {
+       calls.token++;
+-      if (mode.token !== 200) return json(mode.token, { error: "refused_by_test" });
+       const b = JSON.parse(body.toString()); calls.signatures.push(b.signature);
++      if (mode.token !== 200) return json(mode.token, mode.reflect ? { error: "bad signature " + b.signature, got: b } : { error: "refused_by_test" });
+       const now = Math.floor(Date.now() / 1000);
+       if (!/^[0-9a-f]{64}$/.test(b.hash) || !(b.expiry >= now && b.expiry <= now + 600) || !/^0x[0-9a-fA-F]{130}$/.test(b.signature)) return json(422, { error: "bad" });
+       const address = (await recoverMessageAddress({ message: `enclave-upload:${b.hash}:${b.expiry}`, signature: b.signature })).toLowerCase();
+@@ -90,6 +92,9 @@
+       if (mode.add === "hang") { store.set(rawCid(body), body); return; }          // stores, never answers
+       if (mode.add === "500") return json(502, { error: "ipfs add failed" });
+       const address = req.headers["x-upload-address"], exp = Number(req.headers["x-upload-expiry"]), token = req.headers["x-upload-token"];
++      calls.tokens.push(token);
++      if (mode.add === "reflect403") return json(403, { error: "token " + token + " does not cover these bytes", signatureSeen: calls.signatures.at(-1) });
++      if (mode.add === "cidecho") return json(200, { cid: token });
+       const want = createHmac("sha256", KEY).update(`${address}:${createHash("sha256").update(body).digest("hex")}:${exp}`).digest("hex");
+       if (token !== want) return json(403, { error: "upload authorization does not cover these bytes" });
+       if (body.length < 8 || body.readUInt32LE(0) !== 0x6d736100 || (body[6] | (body[7] << 8)) !== 1) return json(415, { error: "not a component" });
+@@ -99,6 +104,7 @@
+     if (req.method === "GET" && u.pathname.startsWith("/ipfs/")) {
+       calls.fetch++;
+       const b = store.get(u.pathname.slice(6));
++      if (mode.serve === "502") return json(502, { error: "upstream " + (calls.tokens.at(-1) || "") });
+       if (!b || mode.serve === "404") return json(404, { error: "not found" });
+       res.writeHead(200, { "content-type": "application/vnd.ipld.raw" });
+       return res.end(mode.serve === "wrong" ? Buffer.concat([b.subarray(0, b.length - 1), Buffer.from([b[b.length - 1] ^ 1])]) : b);
+diff --git a/test/handoff.test.mjs b/test/handoff.test.mjs
+index c6df9982f40388ddecedcece522e906be0cb7083..69dff8d1f3666ae3c18b8e4759e0d178cfcfaf96 100644
+--- a/test/handoff.test.mjs
++++ b/test/handoff.test.mjs
+@@ -165,7 +165,7 @@
+   const h = await open(t);
+   up.mode.add = "wrongcid";
+   const r = await authorizeAndUpload(h);
+-  assert.equal(r.status, 400); assert.match(r.body.error, /STOP: the gateway answered CID/);
++  assert.equal(r.status, 400); assert.match(r.body.error, /STOP: the gateway answered bafk[a-z2-7]+, not the pinned/);
+   assert.equal(h.journals.upload.read().status, "cid-mismatch");
+   assert.equal((await h.post("/upload/begin")).status, 400); assert.equal((await h.post("/upload/verify-storage")).status, 400);
+   const p = await h.post("/prepare"); assert.equal(p.status, 409); assert.match(p.body.error, /cid-mismatch/);
+@@ -190,7 +190,7 @@
+   const h = await open(t, { journals: journals() });
+   up.mode.add = "hang";                                           // the gateway stores the bytes but never answers
+   const r = await authorizeAndUpload(h);
+-  assert.equal(r.status, 400); assert.match(r.body.error, /may have pinned/);
++  assert.equal(r.status, 400); assert.match(r.body.error, /may have stored the component/);
+   assert.equal(h.journals.upload.read().status, "upload-unknown");
+   assert.equal((await h.post("/upload/begin")).status, 400, "no new authorization while the outcome is unknown");
+   await h.app.close();
+@@ -200,16 +200,75 @@
+   const adds = up.calls.add;
+   const v = await h2.post("/upload/verify-storage");
+   assert.equal(v.body.status, "stored-verified"); assert.equal(up.calls.add, adds, "verified by fetching, not by uploading again");
+-  // a process that died DURING the upload restarts as upload-unknown; if nothing is servable, a new authorization is allowed
++  // a process that died DURING the upload restarts as upload-unknown; a failed fetch proves nothing, so it STAYS unknown
+   up.store.clear();
+   fs.writeFileSync(path.join(dir, "upload.json"), JSON.stringify({ status: "uploading", expiry: 1 }));
+   const h3 = await open(t, { journals: journals() });
+   assert.equal(h3.cfg.stages.upload.status, "upload-unknown");
+-  const v3 = await h3.post("/upload/verify-storage");
+-  assert.equal(v3.body.status, "ready"); assert.match(v3.body.note, /not servable/);
++  const v404 = await h3.post("/upload/verify-storage");                                    // a definitive 404 from the gateway
++  assert.equal(v404.body.status, "upload-unknown"); assert.match(v404.body.lastError, /HTTP 404.*does not prove the earlier upload was not stored/);
++  up.mode.serve = "502";
++  const v502 = await h3.post("/upload/verify-storage");                                    // transient: nothing is concluded
++  assert.equal(v502.body.status, "upload-unknown"); assert.match(v502.body.lastError, /HTTP 502 for the CID; the outcome stays unknown/);
++  up.mode.serve = "ok";
++  assert.equal((await h3.post("/upload/begin")).status, 400, "still no automatic re-authorization");
++  assert.equal((await h3.post("/prepare")).status, 409);
++  // only the administrator's explicit same-bytes retry reopens the authorization; nothing is uploaded by it
++  const adds3 = up.calls.add;
++  assert.equal((await h3.post("/upload/retry-same-bytes", {})).status, 400, "the page's explicit confirmation is required");
++  const rs = await h3.post("/upload/retry-same-bytes", { confirm: "retry-same-bytes" });
++  assert.equal(rs.body.status, "ready"); assert.match(rs.body.note, /outcome was never established/); assert.equal(up.calls.add, adds3);
++  assert.equal((await h3.post("/upload/retry-same-bytes", { confirm: "retry-same-bytes" })).status, 400, "only from an unknown outcome");
++  const again = await authorizeAndUpload(h3);
++  assert.equal(again.body.status, "stored-verified"); assert.equal(again.body.cid, PRODUCTION.component.cid);
+   assert.ok(!fs.readFileSync(path.join(dir, "upload.json"), "utf8").includes("signature"), "no signature on disk");
+ });
+ 
++test("privacy: upstream error bodies that reflect the signature or token are never journaled, returned or shown", async (t) => {
++  await fresh();
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "canary-p-"));
++  const journals = () => ({ upload: fileJournal(path.join(dir, "upload.json")), publish: fileJournal(path.join(dir, "publish.json")) });
++  const h = await open(t, { journals: journals() });
++  const seen = [];
++  const run = async (setup) => {
++    setup();
++    const b = await h.post("/upload/begin"); assert.equal(b.status, 200, JSON.stringify(b.body));
++    const sig = await signer.sign(b.body.message);
++    const r = await h.post("/upload/signature", { signature: sig });
++    seen.push({ sig, r: JSON.stringify(r.body), stages: JSON.stringify((await h.get()).stages) });
++    return r;
++  };
++  // the relay refuses and echoes the signature in its error body
++  let r = await run(() => { up.mode.reflect = true; up.mode.token = 403; });
++  assert.equal(r.status, 400); assert.match(r.body.error, /^the relay refused the authorization \(HTTP 403\); nothing was uploaded$/);
++  up.mode.token = 200; up.mode.reflect = false;
++  // the gateway refuses and echoes the token (and the signature) in its error body
++  r = await run(() => { up.mode.add = "reflect403"; });
++  assert.equal(r.status, 400); assert.equal(r.body.error, "the gateway refused the upload (HTTP 403)");
++  // the gateway answers the token itself as the "cid"
++  up.mode.add = "ok";
++  const h2 = await open(t, { journals: { upload: memoryJournal(), publish: memoryJournal() } });
++  up.mode.add = "cidecho";
++  const b2 = await h2.post("/upload/begin"); const sig2 = await signer.sign(b2.body.message);
++  const r2 = await h2.post("/upload/signature", { signature: sig2 });
++  assert.match(r2.body.error, /STOP: the gateway answered \(an answer that is not a CID\)/);
++  assert.equal(h2.journals.upload.read().gatewayCid, "(an answer that is not a CID)");
++  seen.push({ sig: sig2, r: JSON.stringify(r2.body), stages: JSON.stringify((await h2.get()).stages), journal: h2.journals.upload.text });
++  // a malformed signature of the right length: the recovery error never echoes it
++  const h3 = await open(t, { journals: { upload: memoryJournal(), publish: memoryJournal() } });
++  await h3.post("/upload/begin");
++  const junk = "0x" + "11".repeat(64) + "05";
++  const r3 = await h3.post("/upload/signature", { signature: junk });
++  assert.equal(r3.status, 400); assert.ok(!JSON.stringify(r3.body).includes("1111111111"), JSON.stringify(r3.body));
++  // nothing anywhere carries a signature or a token
++  const disk = fs.readFileSync(path.join(dir, "upload.json"), "utf8");
++  const secrets = [...seen.map((x) => x.sig), ...up.calls.tokens].map((x) => String(x).replace(/^0x/, "").slice(0, 40));
++  for (const x of seen) for (const k of secrets) { assert.ok(!x.r.includes(k), "response: " + x.r); assert.ok(!x.stages.includes(k)); if (x.journal) assert.ok(!x.journal.includes(k)); }
++  for (const k of secrets) assert.ok(!disk.includes(k), "journal on disk");
++  assert.ok(up.calls.tokens.length >= 2, "the fake really issued tokens that could have leaked");
++  up.mode.add = "ok";
++});
++
+ test("publish: 4001 resets; any other wallet error keeps the attempt; a raised fee is never recorded", async (t) => {
+   await fresh();
+   const h = await open(t, { journals: { upload: storedJournal(), publish: memoryJournal() } });
+diff --git a/test/mutants.sh b/test/mutants.sh
+index ea9038866636206bc7d4000308fb0647cace6b14..caa156b740ea0655831e667d974016ba5b30b3df 100755
+--- a/test/mutants.sh
++++ b/test/mutants.sh
+@@ -24,5 +24,11 @@
+ mutant "reconcile ignores a pending tx"      publish-stage.mjs 's/if \(pending !== latest\) return \{ reset: false/if (false) return { reset: false/'
+ mutant "raised fee accepted"                 publish-stage.mjs 's/if \(BigInt\(tx\.maxFeePerGas\) > BigInt\(w\.maxFeePerGas\)\) throw/if (false) throw/'
+ mutant "stored version not read back"        publish-stage.mjs 's/throw Error\("the stored version differs from the request"\);/void 0;/' 
++mutant "relay error body kept"               upload.mjs        's/refuseBeforeGateway\(`the relay refused the authorization \(HTTP \$\{r\.status\}\)`\)/refuseBeforeGateway(`the relay refused the authorization (HTTP \${r.status}) \${body}`)/'
++mutant "gateway error body kept"             upload.mjs        's/lastError: `the gateway refused the upload \(HTTP \$\{r\.status\}\)`/lastError: `the gateway refused the upload (HTTP \${r.status}) \${body}`/'
++mutant "non-CID gateway answer stored"       upload.mjs        's/typeof cid === "string" && CID_SHAPE\.test\(cid\) \? cid : "\(an answer that is not a CID\)"/String(cid)/'
++mutant "recovery error echoed"               upload.mjs        's/catch \{ throw Error\("the signature could not be recovered; nothing was uploaded"\); \}/catch (e) { throw Error(String(e.message) + " " + sig); }/'
++mutant "failed fetch resets an unknown upload" upload.mjs      's/set\(\{ \.\.\.state, lastError: state\.status === "upload-unknown" \? why : e\.message, checkedAt/set({ ...state, status: state.status === "upload-unknown" ? "ready" : state.status, lastError: state.status === "upload-unknown" ? why : e.message, checkedAt/'
++mutant "same-bytes retry without confirmation" upload.mjs      's/if \(b\.confirm !== "retry-same-bytes"\) throw/if (false) throw/'
+ echo "MUTANTS killed $killed/$total"
+ [ "$killed" = "$total" ]
+diff --git a/upload.mjs b/upload.mjs
+index dc5472d7f7e79ae687068b3580ac657f15cabc97..5f421d7742df38b802db068d5593ce23bde96c3b 100644
+--- a/upload.mjs
++++ b/upload.mjs
+@@ -8,11 +8,18 @@
+ //                                                    hash to the pinned sha256
+ //   uploading --> pinned-unverified {cid}            the gateway answered the pinned CID but the fetch-back did not verify
+ //   uploading --> upload-unknown                     the add request was sent and no answer arrived (it may have pinned):
+-//                                                    only /upload/verify-storage moves on (a fetch, never a re-upload)
++//                                                    /upload/verify-storage (a fetch) moves on ONLY when the bytes verify;
++//                                                    any failed fetch (timeout, 5xx, network, even 404) proves nothing and
++//                                                    keeps upload-unknown. /upload/retry-same-bytes is the administrator's
++//                                                    EXPLICIT choice to authorize the same bytes/CID again while the earlier
++//                                                    outcome stays unknown; nothing re-uploads by itself
+ //   uploading --> ready {lastError}                  a definite refusal BEFORE anything was sent to the gateway
+ //   uploading --> cid-mismatch {gatewayCid}          TERMINAL: the gateway named another CID; stop and ask root
+ // A process that stops in "uploading" restarts in "upload-unknown". "authorizing" returns to ready on an explicit
+ // wallet rejection (4001) or once its expiry has passed; any other wallet error leaves it as it is.
++// PRIVACY: no remote response body is ever kept, logged or returned. Upstream errors become a fixed diagnostic plus at
++// most an HTTP status (an error body could reflect the submitted signature or token); a CID from the gateway is kept
++// only if it has the shape of a CID. Local errors that could echo the signature (recovery) are replaced as well.
+ import fs from "node:fs";
+ import { createHash } from "node:crypto";
+ import { recoverMessageAddress, stringToHex } from "viem";
+@@ -44,12 +51,14 @@
+ /** A body capped at `max` bytes (a longer answer is refused, not truncated). */
+ async function cappedBody(r, max) {
+   const len = Number(r.headers.get("content-length") || 0);
+-  if (len > max) throw Error(`answer of ${len} bytes is over the ${max}-byte cap`);
++  if (len > max) throw Object.assign(Error(`answer of ${len} bytes is over the ${max}-byte cap`), { capped: true });
+   const parts = []; let n = 0;
+-  for await (const ch of r.body) { n += ch.length; if (n > max) throw Error(`answer over the ${max}-byte cap`); parts.push(Buffer.from(ch)); }
++  for await (const ch of r.body) { n += ch.length; if (n > max) throw Object.assign(Error(`answer over the ${max}-byte cap`), { capped: true }); parts.push(Buffer.from(ch)); }
+   return Buffer.concat(parts);
+ }
+-const text = (b) => b.toString("utf8").replace(/[^\x20-\x7e]/g, "?").slice(0, 300);
++/** A transport failure as a FIXED phrase (never the error's own text, which may carry request data). */
++const netFailure = (e) => (e?.capped ? "was over the size cap" : e?.name === "TimeoutError" || e?.name === "AbortError" ? "timed out" : "could not be reached or the connection failed");
++const CID_SHAPE = /^(b[a-z2-7]{20,110}|Qm[1-9A-HJ-NP-Za-km-z]{44})$/;
+ 
+ export function uploadStage({ trust, journal, fetchImpl = fetch, now = () => Date.now() }) {
+   const U = trust.upload, C = trust.component;
+@@ -61,10 +70,12 @@
+ 
+   /** Fetch the pinned CID back (raw block) and check every byte. -> { bytes, sha256 } or throws. */
+   async function fetchBack() {
+-    const r = await call(U.fetchUrl + C.cid + "?format=raw", { headers: { accept: "application/vnd.ipld.raw" } });
+-    if (!r.ok) throw Error(`the gateway does not serve the CID yet (HTTP ${r.status})`);
+-    const b = await cappedBody(r, C.size);
+-    if (b.length !== C.size || sha256(b) !== C.sha256 || rawCid(b) !== C.cid) throw Error("the bytes served for the CID are not the pinned component");
++    let r, b;
++    try { r = await call(U.fetchUrl + C.cid + "?format=raw", { headers: { accept: "application/vnd.ipld.raw" } }); }
++    catch (e) { throw Object.assign(Error(`the storage fetch ${netFailure(e)}`), { kind: "transient" }); }
++    if (!r.ok) throw Object.assign(Error(`the gateway answered HTTP ${r.status} for the CID`), { kind: r.status === 404 ? "not-served" : "transient", status: r.status });
++    try { b = await cappedBody(r, C.size); } catch (e) { throw Object.assign(Error(`the storage fetch ${netFailure(e)}`), { kind: e?.capped ? "mismatch" : "transient" }); }
++    if (b.length !== C.size || sha256(b) !== C.sha256 || rawCid(b) !== C.cid) throw Object.assign(Error("the bytes served for the CID are not the pinned component"), { kind: "mismatch" });
+     return { bytes: b.length, sha256: sha256(b), at: new Date(now()).toISOString() };
+   }
+ 
+@@ -88,45 +99,66 @@
+       const sig = String(b.signature || "");
+       if (!/^0x[0-9a-fA-F]{130}$/.test(sig)) throw Error("that is not a 65-byte personal_sign signature");
+       if (now() / 1000 > state.expiry - 30) throw Error("the authorization is about to expire or has expired; start the upload again");
+-      const signer = lc(await recoverMessageAddress({ message: uploadMessage(C.sha256, state.expiry), signature: sig }));
++      let signer;
++      try { signer = lc(await recoverMessageAddress({ message: uploadMessage(C.sha256, state.expiry), signature: sig })); }
++      catch { throw Error("the signature could not be recovered; nothing was uploaded"); }   // never the library's text (it may echo the signature)
+       // trust.uploadSigner exists ONLY in test fixtures (no real administrator key there); production recovers to trust.admin
+       if (signer !== lc(trust.uploadSigner ?? trust.admin)) throw Error("the message was not signed by the administrator account; nothing was uploaded");
+       const bytes = readComponent(C), expiry = state.expiry;
+       set({ status: "uploading", expiry, startedAt: new Date(now()).toISOString() });   // no signature in the journal
+-      // 1. the relay's token (a refusal here means nothing reached the gateway)
+-      let tok;
+-      try {
+-        const r = await call(U.tokenUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: C.sha256, expiry, signature: sig }) });
+-        const body = await cappedBody(r, 4096);
+-        if (!r.ok) throw Error(`the relay refused the authorization (HTTP ${r.status}: ${text(body)})`);
+-        tok = JSON.parse(body.toString("utf8"));
+-        if (!/^[0-9a-f]{64}$/.test(tok.token || "") || lc(tok.address) !== signer || Number(tok.expiry) !== expiry) throw Error("the relay's token does not name the administrator and this expiry");
+-      } catch (e) { set({ status: "ready", lastError: String(e.message).slice(0, 300) }); throw e; }
++      // 1. the relay's token (a refusal here means nothing reached the gateway). Fixed diagnostics only.
++      const refuseBeforeGateway = (why) => { set({ status: "ready", expiry, lastError: why }); return Error(why + "; nothing was uploaded"); };
++      let r, tok;
++      try { r = await call(U.tokenUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hash: C.sha256, expiry, signature: sig }) }); }
++      catch (e) { throw refuseBeforeGateway(`the relay ${netFailure(e)}`); }
++      let body;
++      try { body = await cappedBody(r, 4096); } catch (e) { throw refuseBeforeGateway(`the relay's answer ${netFailure(e)}`); }
++      if (!r.ok) throw refuseBeforeGateway(`the relay refused the authorization (HTTP ${r.status})`);
++      try { tok = JSON.parse(body.toString("utf8")); } catch { tok = null; }
++      if (!tok || !/^[0-9a-f]{64}$/.test(tok.token || "") || lc(tok.address) !== signer || Number(tok.expiry) !== expiry)
++        throw refuseBeforeGateway("the relay's answer is not a token for the administrator and this expiry");
+       // 2. the gateway: from here an unanswered request may still have pinned
+-      let r, body;
+       try {
+         r = await call(U.addUrl, { method: "POST", body: bytes, headers: { "content-type": "application/wasm", "x-upload-address": signer,
+           "x-upload-expiry": String(expiry), "x-upload-token": tok.token } });
+         body = await cappedBody(r, 4096);
+-      } catch (e) { set({ status: "upload-unknown", lastError: String(e.message).slice(0, 300) }); throw Error("the gateway did not answer; it may have pinned. Verify storage before anything else."); }
+-      if (!r.ok) { set({ status: "ready", lastError: `the gateway refused the upload (HTTP ${r.status}: ${text(body)})` }); throw Error(state.lastError); }
++      } catch (e) {
++        set({ status: "upload-unknown", expiry, lastError: `the gateway's answer ${netFailure(e)}` });
++        throw Error("the gateway did not answer; it may have stored the component. Verify storage before anything else.");
++      }
++      tok = null;
++      if (!r.ok) { set({ status: "ready", expiry, lastError: `the gateway refused the upload (HTTP ${r.status})` }); throw Error(state.lastError); }
+       let cid; try { cid = JSON.parse(body.toString("utf8")).cid; } catch { cid = null; }
+-      if (cid !== C.cid) { set({ status: "cid-mismatch", gatewayCid: String(cid).slice(0, 120) }); throw Error(`STOP: the gateway answered CID ${String(cid).slice(0, 120)}, not the pinned ${C.cid}. Nothing may be published; ask root.`); }
++      if (cid !== C.cid) {
++        const shown = typeof cid === "string" && CID_SHAPE.test(cid) ? cid : "(an answer that is not a CID)";
++        set({ status: "cid-mismatch", expiry, gatewayCid: shown });
++        throw Error(`STOP: the gateway answered ${shown}, not the pinned ${C.cid}. Nothing may be published; ask root.`);
++      }
+       const uploadedAt = new Date(now()).toISOString();
+       try { set({ status: "stored-verified", cid, expiry, uploadedAt, fetched: await fetchBack(), verifiedAt: new Date(now()).toISOString() }); }
+-      catch (e) { set({ status: "pinned-unverified", cid, expiry, uploadedAt, lastError: String(e.message).slice(0, 300) }); }
++      catch (e) { set({ status: "pinned-unverified", cid, expiry, uploadedAt, lastError: e.message }); }
+       return pub();
+     },
+     "/upload/verify-storage": async () => {
+       if (!["pinned-unverified", "upload-unknown"].includes(state.status)) throw Error(`the upload is ${state.status}; there is nothing to verify`);
+-      try { set({ ...state, status: "stored-verified", cid: C.cid, fetched: await fetchBack(), verifiedAt: new Date(now()).toISOString(), lastError: undefined }); }
++      try { set({ ...state, status: "stored-verified", cid: C.cid, fetched: await fetchBack(), verifiedAt: new Date(now()).toISOString(), lastError: undefined, note: undefined }); }
+       catch (e) {
+-        // an unknown upload that is not servable was not stored: a new authorization (same bytes, same CID) is allowed
+-        if (state.status === "upload-unknown") set({ status: "ready", lastError: String(e.message).slice(0, 300), note: "the earlier upload is not servable; authorize again" });
+-        else set({ ...state, lastError: String(e.message).slice(0, 300) });
++        // a failed fetch proves nothing about an earlier upload: the state stays as it was, with an honest reason
++        const why = e.kind === "not-served"
++          ? `${e.message} just now. That does not prove the earlier upload was not stored (the outcome stays unknown); try again later, or choose to upload the same bytes again`
++          : `${e.message}; the outcome stays unknown. Try again later`;
++        set({ ...state, lastError: state.status === "upload-unknown" ? why : e.message, checkedAt: new Date(now()).toISOString() });
+       }
+       return pub();
+     },
++    "/upload/retry-same-bytes": async (b) => {
++      // the administrator's explicit choice: authorize the SAME bytes (same sha256, same CID) again although the earlier
++      // upload's outcome is unknown. Nothing is uploaded here; the normal begin/signature steps follow.
++      if (state.status !== "upload-unknown") throw Error(`the upload is ${state.status}; a same-bytes retry is only for an unknown outcome`);
++      if (b.confirm !== "retry-same-bytes") throw Error("a same-bytes retry needs the explicit confirmation from the page");
++      set({ status: "ready", note: "the administrator chose to upload the same bytes again; the earlier upload's outcome was never established", previous: { expiry: state.expiry, lastError: state.lastError } });
++      return pub();
++    },
+   };
+   /** Publishing needs the stored, verified component, re-fetched NOW (not only the journal's word). */
+   async function gate() {

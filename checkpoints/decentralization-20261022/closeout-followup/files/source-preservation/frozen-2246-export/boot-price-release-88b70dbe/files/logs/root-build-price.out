@@ -1,0 +1,37 @@
+[queue] START available=24063MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+PRECHECK-PASS {"commit": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b", "delta": ["metal/guest/gsup.mjs", "supervisor.js", "test/boot-gpu-price.test.mjs", "test/registry-advertise-retry.test.mjs"], "gsupReviewed": true, "imageFiles": ["/app/supervisor.js", "/opt/metal/gsup.mjs"], "parent": "9f6d37bd858ad44be1171b6415353910214c2fa5", "patch": {"file": "patch", "form": "full context", "sha256": "7283a33ae0325ea837841175d87ecd96d48f8b99e04fa7cbc433da7218efbd3d"}, "tests": ["test/boot-gpu-price.test.mjs", "test/registry-advertise-retry.test.mjs"]}
+2026-10-23T22:25:06Z
+== 1. control: 9f6d37bd from H's repo == the root-built 08d1f838 image
+{"sha256": "02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf", "bytes": 279388203}
+CONTROL-IDENTICAL initramfs.cpio.gz
+CONTROL-IDENTICAL vmlinuz
+CONTROL-IDENTICAL cmdline
+CONTROL-IDENTICAL manifest.json
+== 2. candidate twice
+{"sha256": "3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50", "bytes": 279390019}
+{"sha256": "3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50", "bytes": 279390019}
+REPRODUCIBLE initramfs.cpio.gz
+REPRODUCIBLE vmlinuz
+REPRODUCIBLE cmdline
+REPRODUCIBLE manifest.json
+== 3. exact delta
+MANIFEST-DELTA-EXACT ['/app/supervisor.js', '/opt/metal/gsup.mjs']
+ENTRY-DELTA-EXACT vs 08d1 ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json'] vs production ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']
+IMAGE-FILES-ARE-SOURCE ['app/supervisor.js', 'opt/metal/gsup.mjs']
+UNCHANGED vmlinuz
+UNCHANGED cmdline
+== 4. measurement
+MEASURE-RECIPE-REPRODUCES ed918e4b
+MEASURE-RECIPE-REPRODUCES ee5df6b8
+MEASURE-RECIPE-REPRODUCES 08d1f838
+MEASURE-CANDIDATE b007d47147d52ea01780abdee5f7b28d2eb02102a7915bf5f8dcafbf7d2a77b6a9ebb9d8b848acb8dd6377be5f1c09c6
+671666403f2edf2ece449f7e79e4b45fe9b385744cf282fe47137123aa6ae9b6  dist-leasegas-7dd3acd06/MEASUREMENT
+d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-7dd3acd06/cmdline
+3e0269bcababbec4d4509b40bed6aac3d07e3a393fd5fae15036cbdf96665b50  dist-leasegas-7dd3acd06/initramfs.cpio.gz
+6e0029f58700253289062856d89d93c3ee049d39da211fe4b072c229146cf44a  dist-leasegas-7dd3acd06/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-7dd3acd06/vmlinuz
+BUILD-RECORD 5657ee215f27072919cf35f11ebf3a569979f3a6d20e1a0f83a25fcf8aed1c85
+2026-10-23T22:29:26Z
+[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=22100
+[memory-guard] at peak: sev-snp-measure:295 bash:6
+[queue] EXIT 0

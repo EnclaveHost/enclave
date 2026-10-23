@@ -1,0 +1,25 @@
+custody-live7 base rebuilt from empty + 11 stored patch(es) in 7ca36e11f: tree b84ef92125d55a73f902ce54637a0fa8ae5121f7 OK
+custody-live7 d64f0443a: tree 48c7bb50d604a68239328c302acb9eb8e1854b65 OK
+custody-live7 b4e1f14f2: tree 3e070b68dd36701d9c956982dc38c6caae407730 OK
+boot-price-release base rebuilt from empty + 0 stored patch(es) in 7ca36e11f: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+boot-price-release a340762bb: tree 0340ad398e1b31dca121b816a2f130f88b095b3d OK
+boot-price-release 88b70dbef: tree ff2085e8324ddb646f29e78a1bb37a2b2ca332a1 OK
+canary-wallet base rebuilt from empty + 0 stored patch(es) in 7ca36e11f: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+canary-wallet f161ceb3e: tree 26ab514752210b00a9cc136b943195d4d7496ec3 OK
+canary-wallet b5e4613c6: tree a05c75876f34021989068372ba27d4fd11c8d84d OK
+current-docs2 base rebuilt from empty + 5 stored patch(es) in 7ca36e11f: tree 89f863af8b6df65b5c0153d45e4f410a453efe35 OK
+current-docs2 ac4d9da2b: tree efce0936319b07c187c9ea79bd97d1ae488f919c OK
+current-docs2 c571a3f68: tree c4be1de73f7bb1add319b61fc947aede6366d18d OK
+current-docs2 8fda71f2e: tree 6cf982a35ff2388c7ce3079357bf15bca181dc76 OK
+current-docs2 1b3c26117: tree 078a51a914c5955ed471a3053b9cf4a035ac6c8d OK
+boot-source2 base file metal/guest/gsup.mjs: blob 198dca467 OK
+boot-source2 base file test/registry-advertise-retry.test.mjs: blob 0fa12218e OK
+boot-source2 metal/guest/gsup.mjs: base blob 198dca467 == pushed record OK
+boot-source2 metal/guest/gsup.mjs (M): base + patch -> head blob 5dbf05eb3 OK
+boot-source2 supervisor.js: base blob 66ad07d37 == pushed record OK
+boot-source2 supervisor.js: held back (rewritten literal); patch index names 66ad07d37..3187719ba OK
+boot-source2 test/boot-gpu-price.test.mjs (A): base + patch -> head blob 0c963a002 OK
+boot-source2 test/registry-advertise-retry.test.mjs: base blob 0fa12218e == pushed record OK
+boot-source2 test/registry-advertise-retry.test.mjs (M): base + patch -> head blob 78150d58b OK
+boot-source2: full tree d1754a009 NOT reproduced (patch-only; supervisor.js and the parent lineage carry the rewritten literal)
+RESULT custody-live7 reproduced: True, boot-price-release reproduced: True, canary-wallet reproduced: True, current-docs2 reproduced: True, boot-source2 reproduced: True (patch-only)

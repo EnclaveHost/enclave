@@ -1,0 +1,214 @@
+From 1b3c26117d2ca4bb6488ea51f9180c6004abe2bd Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:47:41 -0700
+Subject: [PATCH] Status at root's 22:45Z: 7dd3acd candidate built (b007d471),
+ not activated; control still unregistered; renewals 22:39/22:43
+
+PROVISIONAL incident data; the candidate is NOT activated and recovery is NOT done:
+- 7dd3acd built twice byte-identical 22:29 (measurement b007d471...); a new activation kit is under review, not ready
+- control still ed918e4b, unregistered; both tenants' original guest IDs running
+- app-reserve renewals: imagegen 22:39:27 tx 0x843c4aa8..., EyesOff 22:43:54 tx 0xeb9279fd... (confirmed)
+- factory page 39672 still pending the human; canary-wallet page 39675 ready, awaiting the human (upload + 0-ETH catalog tx)
+- original custodian/committee unchanged; no secret lifecycle tests; no committee/admin contract/book/dashboard change
+Rollback docs and the docs/security patch chain unchanged.
+---
+ CURRENT-STATE.md     | 16 +++++++++++-----
+ SIGNING-AUTHORITY.md | 11 ++++++-----
+ SOURCES.md           |  6 ++++++
+ commit5.sh           | 18 ++++++++++++++++++
+ logs/commit-4.out    |  5 +++++
+ logs/commit-4.rc     |  1 +
+ logs/rangescan-4.out |  8 ++++++++
+ logs/rangescan-4.rc  |  1 +
+ logs/scan-5.out      |  7 +++++++
+ logs/scan-5.rc       |  1 +
+ 10 files changed, 64 insertions(+), 10 deletions(-)
+ create mode 100755 commit5.sh
+ create mode 100644 logs/commit-4.out
+ create mode 100644 logs/commit-4.rc
+ create mode 100644 logs/rangescan-4.out
+ create mode 100644 logs/rangescan-4.rc
+ create mode 100644 logs/scan-5.out
+ create mode 100644 logs/scan-5.rc
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+index a1e6aff54031f4fafccb2ca0d71f021deb35ab5c..f0030fad23bfad46685b216cc8489650b611ada1 100644
+--- a/CURRENT-STATE.md
++++ b/CURRENT-STATE.md
+@@ -1,4 +1,4 @@
+-# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review)
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review; 22:47Z from root's 22:45Z state)
+ 
+ **Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
+ production state, and it is not root's public output.
+@@ -87,8 +87,10 @@
+ 
+ **Admin rights are kept.** The book owner `0x0b2d…eE61` keeps every admin and business control, and no existing contract is
+ modified [S5, S6].
+-- The `sessionVaultFactory` activation handoff serves a page on localhost:39672 [S15]. It was **still pending the human** at 22:11Z,
+-  with an empty journal and no chain write [S16].
++- The `sessionVaultFactory` activation handoff serves a page on localhost:39672 [S15]. It was **still pending the human** at 22:45Z,
++  with no chain write [S16, S20].
++- The canary-wallet handoff page on localhost:39675 is started and ready. It is **awaiting the human** for the upload message and a
++  catalog transaction with 0 ETH value [S20].
+ - `secretVaultV2` activation is an unsigned plan, deliberately held.
+ 
+ ## I. Incident: metal0 control recovery IN PROGRESS (PROVISIONAL, from root's journal [S16], as read 22:16Z)
+@@ -111,8 +113,12 @@
+ | by 22:14 | D's review found a race before GPU discovery: the price is 0 against 1667 on chain, which leads to a full register before Shield adopts. **Root STOPPED the cutover before any mutation.** A new boot-pricing fix (H, a child of `9f6d37bd`) is source-only, pending and not frozen. `08d1` must NOT be activated until that is resolved, rebuilt and approved by root. |
+ | 22:20:34 | Root's chain read (block 53,002,331): the original vault, its one committee and the zero book entries are unchanged. |
+ | 22:25 | The new host recovery source `7dd3acd` is root-approved and its BUILD started. **No activation.** The fix does NOT defer registration by 15 min. It keeps the known GPU price while discovery is pending and proceeds with `setProofKey`, then updates the actual price after discovery. Every registry read failure now defers. [S18] |
++| 22:29 | `7dd3acd` built twice, byte-identical: measurement `b007d47147d52ea01780abdee5f7b28d2eb02102a7915bf5f8dcafbf7d2a77b6a9ebb9d8b848acb8dd6377be5f1c09c6`. It is a CANDIDATE: built and approved as source, **NOT activated**. A NEW activation kit is under D's review and NOT ready. [S20] |
++| 22:39:27 | imagegen app-reserve renewal, tx `0x843c4aa800b6ad2471d704b857811691243f9fdf9329219eef5e9bf30da1b835`, charged 1,265,909,891,753 wei; confirmed. [S20] |
++| 22:43:54 | EyesOff app-reserve renewal, tx `0xeb9279fd08a5fe682bdd636d757896ea4187cf173c47b2f65cb2fcd3c748af29`, charged 1,237,616,215,992 wei; confirmed. [S20] |
++| 22:45 | Root state: the control is STILL on `ed918e4b` and unregistered. Both tenants' original guest IDs are running. The original custodian and committee are unchanged. No change to the committee, the admin contracts, the book or the dashboard. [S20] |
+ 
+-**Not yet recovered (as of 22:25Z; the control is NOT restored):**
++**Not yet recovered (as of 22:45Z; the control is NOT restored; recovery is NOT done):**
+ - The metal0 control is still on the old `ed918e4b` image and is **unregistered**. Registration and adoption are not recovered.
+ - **Correction:** a protected renewal extends a lease by about **30 min, not 1 h**.
+   - At 22:10 imagegen had 176 s left and EyesOff 734 s.
+@@ -123,7 +129,7 @@
+ 
+ ## U. Unresolved actions (owner of each in `SIGNING-AUTHORITY.md`)
+ 
+-1. metal0 control recovery: finish the `7dd3acd` build (started 22:25), verify it, then activate and register. `08d1` is admitted but must not be activated as it stands. **Root.**
++1. metal0 control recovery: the `7dd3acd` candidate (`b007d471…`, built twice at 22:29) still needs a reviewed activation kit (D's review is in progress), activation and registration. `08d1` is admitted but must not be activated. **Root.**
+ 2. metal0 owner enrollment: TX1 by operator `0xc9d0` (needs gas), TX2 by admin `0x0b2d`.
+ 3. A new committee from the corrected image: an HTTPS origin, a funded submitter, and genesis.
+ 4. The full secret lifecycle canary on that committee: save, release, rotate, pause, migrate, restart, and the failure cases.
+diff --git a/SIGNING-AUTHORITY.md b/SIGNING-AUTHORITY.md
+index 03081a9fcea4cf52e15d41945b6f2d9142567169..915c9ec7f7d13ff749921fc1799e979c080f4f86 100644
+--- a/SIGNING-AUTHORITY.md
++++ b/SIGNING-AUTHORITY.md
+@@ -1,4 +1,4 @@
+-# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z)
++# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z and 22:47Z)
+ 
+ The agents in this table are:
+ - **admin**: the Enclave admin wallet `0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`. It is the book owner and the vault `enclaveOwner`,
+@@ -7,10 +7,10 @@
+ - **TEE identity**: a custodian machine's key, generated and sealed inside its SNP guest.
+ - **submitter**: any funded EOA. It can drop transactions, but never forge them.
+ 
+-| action | must sign | pays gas | status (22:20Z) |
++| action | must sign | pays gas | status (22:45Z) |
+ |---|---|---|---|
+ | `book.set("secretVaultV2", 0xE486…)` | admin | admin | unsigned plan; deliberately held |
+-| `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (22:11Z: journal empty, no chain write) |
++| `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (22:45Z: no chain write) |
+ | metal0 enrollment TX1 `proposeOwner(metal0, 0x0b2d…)` | operator | operator | **blocked**: balance 376,132,087,579 wei, below the 1.038e12 wei bound; no funding workaround |
+ | metal0 enrollment TX2 `acceptOwner(metal0)` | admin | admin | after TX1 |
+ | `proposeCode` / `removeCode` on the original `0x4774` | the current machine `0xF0F8…` over `codeDigest` | submitter | **IMPOSSIBLE**: the running image has no code-signing route; the committee is permanently code-frozen |
+@@ -21,8 +21,9 @@
+ | policy `update` / pause / switch committee | the policy owner: an EOA directly, or its SessionVault's beneficial EOA once the factory is set | the owner | the known canary owner is EOA `0x2947…` |
+ | owner-authorized rewrap | the policy owner (rules update, EIP-712 Rewrap ≤ 3 d, switch update) | the owner | proven on anvil with synthetic attestation only |
+ | relay copy delete | the owner (signed relay request) | none | per owner |
+-| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37. `08d1` was admitted (allowlist 37) at 22:10 but NOT activated. The cutover was stopped before mutation (GPU-price race); a new fix is pending. |
+-| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18, 21:52:36 and 22:10:58 (imagegen's second). Each adds about 30 min; root maintains them. |
++| metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37. `08d1` was admitted (allowlist 37) at 22:10 but NOT activated. The cutover was stopped before mutation (GPU-price race). The new candidate `7dd3acd` (`b007d471…`) was built twice at 22:29 and is NOT activated; its activation kit is under review. At 22:45 the control was still on `ed918e4b`, unregistered. |
++| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18, 21:52:36, 22:10:58, 22:39:27 (imagegen) and 22:43:54 (EyesOff). Each adds about 30 min; root maintains them. |
++| canary app upload message + catalog publish (0-ETH tx) | admin (MetaMask handoff on localhost:39675) | admin | **awaiting the human** (22:45Z) |
+ | site r2 delivery (fronts) | root | none | not delivered |
+ | IPNS `setConfig` `/ipfs/<CID>` | the publisher deployment owner | the owner | blocked: the local publisher is at sequence 0, not durable |
+ 
+diff --git a/SOURCES.md b/SOURCES.md
+index a88e1bd4edd05a01da91e35acaa8f7f09e7bc309..9018dcb194d11fcf06b0f46d4061758dc7d6018b 100644
+--- a/SOURCES.md
++++ b/SOURCES.md
+@@ -69,6 +69,12 @@
+   - The original custodian's release refuses `owner_mismatch` when the beneficial owner is not the pinned owner
+     (`custody/v2/custodian.mjs` L110-111).
+ 
++- **S20:** root's freeze instruction `work/custody-v2-current-docs-20261023/ROOT-PRESERVE-2245.txt` (as read 22:46Z): the 22:45Z
++  state, the 7dd3acd builds and measurement, the activation kit under review, and the factory and canary-wallet pages. Also:
++  - the renewal receipts `work/custody-v2-live-20261023/evidence/protected-renewals-2239/*.result.json` (commit b4e1f14):
++    imagegen tx 0x843c4aa8… at 22:39:27.772Z, EyesOff tx 0xeb9279fd… at 22:43:54.255Z;
++  - the build record `work/custody-boot-price-release-20261023/stage/build-record.json` (measurement b007d471…).
++
+ ## Document originals
+ 
+ - **Checkpoint:** `work/source-checkpoint-20261022/main-repo` at checkpoint dfb4b55e627ebd95b647abebf09627296f099862 holds
+diff --git a/commit5.sh b/commit5.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..7e7cf96c8d3b75b2c263eeb5f0dda04674ffc84f
+--- /dev/null
++++ b/commit5.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")"
++HOOKS=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-dashboard-20261023/repo/.githooks
++[ "$(git rev-parse --short=7 HEAD)" = 8fda71f ]
++git add CURRENT-STATE.md SIGNING-AUTHORITY.md SOURCES.md commit5.sh logs/commit-4.out logs/commit-4.rc logs/rangescan-4.out logs/rangescan-4.rc logs/scan-5.out logs/scan-5.rc logs/scan-gitleaks.json
++git -c core.hooksPath=$HOOKS commit -q -F - <<'MSG'
++Status at root's 22:45Z: 7dd3acd candidate built (b007d471), not activated; control still unregistered; renewals 22:39/22:43
++
++PROVISIONAL incident data; the candidate is NOT activated and recovery is NOT done:
++- 7dd3acd built twice byte-identical 22:29 (measurement b007d471...); a new activation kit is under review, not ready
++- control still ed918e4b, unregistered; both tenants' original guest IDs running
++- app-reserve renewals: imagegen 22:39:27 tx 0x843c4aa8..., EyesOff 22:43:54 tx 0xeb9279fd... (confirmed)
++- factory page 39672 still pending the human; canary-wallet page 39675 ready, awaiting the human (upload + 0-ETH catalog tx)
++- original custodian/committee unchanged; no secret lifecycle tests; no committee/admin contract/book/dashboard change
++Rollback docs and the docs/security patch chain unchanged.
++MSG
++git log --format='%H %s' -1
+diff --git a/logs/commit-4.out b/logs/commit-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..271d6ada3a67d18becd23c50fcf66c31dc40be91
+--- /dev/null
++++ b/logs/commit-4.out
+@@ -0,0 +1,5 @@
++[queue] START available=23561MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++8fda71f2edc036bf49b223e082e330a18f9dadd5 Timestamps: rollback-review headers to the measured 22:29Z (were estimated 22:35Z); known-state read time ~22:28Z
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/commit-4.rc b/logs/commit-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-4.out b/logs/rangescan-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..7447b5c88a38e3486f597188f38c5932345cdb1d
+--- /dev/null
++++ b/logs/rangescan-4.out
+@@ -0,0 +1,8 @@
++[queue] START available=23541MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++3:30PM INF 8 commits scanned.
++3:30PM INF scanned ~194461 bytes (194.46 KB) in 141ms
++3:30PM INF no leaks found
++[rangescan] gitleaks-all-commits=0 scan-crypto-keys-tracked=0
++[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23578
++[memory-guard] at peak: gitleaks:60 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/rangescan-4.rc b/logs/rangescan-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/rangescan-4.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-5.out b/logs/scan-5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e76b203a73c9dbe519e11edcff9f4cc238716ab0
+--- /dev/null
++++ b/logs/scan-5.out
+@@ -0,0 +1,7 @@
++[queue] START available=23751MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++3:47PM INF scanned ~192317 bytes (192.32 KB) in 22.5ms
++3:47PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23679
++[memory-guard] at peak: gitleaks:48 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-5.rc b/logs/scan-5.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-5.rc
+@@ -0,0 +1 @@
++0

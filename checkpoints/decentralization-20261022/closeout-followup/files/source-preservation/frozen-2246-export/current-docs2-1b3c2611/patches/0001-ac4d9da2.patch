@@ -1,0 +1,265 @@
+From ac4d9da2bc84df97f0b417a3a806b9f7c854743e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:29:45 -0700
+Subject: [PATCH] Correct rollback docs against the actual vault semantics
+ (factory, committee switch-back, site/IPNS) and root's 22:25Z state
+
+Per root's rollback review; source/documentation only:
+- factory: unset only while no policy relies on it (live inventory); once SessionVault-held policies exist do NOT unset -
+  beneficialOwnerOf reads the factory live while the owner is pinned at first write, so updates revert NotOwner and the
+  custodian refuses owner_mismatch; claimPolicy destroys the bundle and is not a routine recovery
+- committee switch-back: one current bundle per deployment; going back needs a new owner update with a FRESH bundle to
+  0x4774 (re-entry or reverse rewrap, untested) while 0x4774 keeps serving; revisions and issuer rotation cannot be undone
+- site rollback: capture and verify the exact pre-cutover front release and IPNS sequence/CID at deployment time; never
+  reset or lower the IPNS sequence; no hardcoded CID; r2 unpublished
+- CURRENT-STATE: root 22:20:34Z read (block 53002331, unchanged vault/committee/zero book entries); 7dd3acd approved,
+  build started 22:25, NOT activated; control NOT restored
+- secret-custody-v2.md 10.2: the factory entry is not symmetric; committee moves are one-way per step
+---
+ CURRENT-STATE.md                   | 10 ++++---
+ ROLLBACK.md                        |  8 ++---
+ SOURCES.md                         | 15 ++++++++++
+ commit3.sh                         | 48 ++++++++++++++++++++++++++++++
+ docs/security/secret-custody-v2.md | 10 +++++++
+ logs/commit-2.out                  |  5 ++++
+ logs/commit-2.rc                   |  1 +
+ logs/rangescan-2.out               |  8 +++++
+ logs/rangescan-2.rc                |  1 +
+ logs/scan-3.out                    |  7 +++++
+ logs/scan-3.rc                     |  1 +
+ 11 files changed, 106 insertions(+), 8 deletions(-)
+ create mode 100755 commit3.sh
+ create mode 100644 logs/commit-2.out
+ create mode 100644 logs/commit-2.rc
+ create mode 100644 logs/rangescan-2.out
+ create mode 100644 logs/rangescan-2.rc
+ create mode 100644 logs/scan-3.out
+ create mode 100644 logs/scan-3.rc
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+index caa0f267c6861b0932a92f142ed7edf5cb1fac51..1ea0ca7132a36c0acc04bf09f22bb04434414212 100644
+--- a/CURRENT-STATE.md
++++ b/CURRENT-STATE.md
+@@ -1,4 +1,4 @@
+-# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:20Z from root's 22:14Z journal)
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:35Z from root's 22:14Z journal and 22:25Z review)
+ 
+ **Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
+ production state, and it is not root's public output.
+@@ -16,7 +16,7 @@
+ | committee | `0x4774…f7a3`: epoch 1, **n = 1 seat, t = 1, W = 1**. One machine `0xF0F8…506a` on metal0, measurement hash `0x2530eda0…`, full SNP measurement `c8663742…` (image `custodian-v2-9d43e63e8`). | S1, S3 |
+ | code set | `codeActiveAt(2530eda0)` = genesis; `codeActiveAt(fbe2f581)` (the corrected r2 image) = 0. `CODE_DELAY` 604800 s. | S2, S4 |
+ | known policy | canary `0x4e62…6c1e`: owner EOA `0x2947…647C`, policyRev 2, secretRev 2, on `0x4774`. The exhaustive event scan is INCOMPLETE, so other policies are not ruled out. | S1 |
+-| address book | `secretVaultV2` = 0 and `sessionVaultFactory` = 0, last read at block 53,000,163 (21:07:57Z). Owner `0x0b2d009c…eE61`, unchanged. | S5, S6 |
++| address book | `secretVaultV2` = 0 and `sessionVaultFactory` = 0, last read at block 53,000,163 (21:07:57Z). Owner `0x0b2d009c…eE61`, unchanged. Root's 22:20:34Z read (block 53,002,331) still shows `secretVaultV2`, `secretVault` and `hostOwnership` = 0. The vault code hash is unchanged, with one committee (epoch 1, n 1, t 1, W 1). | S5, S6, S17 |
+ 
+ **This is a SINGLE-SEAT BOOTSTRAP, not decentralized custody.** With t = 1 the one Enclave TEE holds the full key `x` (sealed,
+ never in host plaintext). Enclave alone unlocks, admits and upgrades.
+@@ -109,8 +109,10 @@
+ | 22:10:58 | imagegen SECOND protected renewal, tx `0x398217e371798b337c99de419260002ae88ac82aafb7dd8eb0d16c59f5e8041b`, charged 1,249,747,460,565 wei from the app reserve; receipt verified, no operator ETH. |
+ | 22:12:53 | Fresh SNP quote of the ORIGINAL custodian `c866`: PASS, exact chain machine. No secret flow. |
+ | by 22:14 | D's review found a race before GPU discovery: the price is 0 against 1667 on chain, which leads to a full register before Shield adopts. **Root STOPPED the cutover before any mutation.** A new boot-pricing fix (H, a child of `9f6d37bd`) is source-only, pending and not frozen. `08d1` must NOT be activated until that is resolved, rebuilt and approved by root. |
++| 22:20:34 | Root's chain read (block 53,002,331): the original vault, its one committee and the zero book entries are unchanged. |
++| 22:25 | The new host recovery source `7dd3acd` is root-approved and its BUILD started. **No activation.** The fix does NOT defer registration by 15 min. It keeps the known GPU price while discovery is pending and proceeds with `setProofKey`, then updates the actual price after discovery. Every registry read failure now defers. [S18] |
+ 
+-**Not yet recovered (as of 22:14Z):**
++**Not yet recovered (as of 22:25Z; the control is NOT restored):**
+ - The metal0 control is still on the old `ed918e4b` image and is **unregistered**. Registration and adoption are not recovered.
+ - **Correction:** a protected renewal extends a lease by about **30 min, not 1 h**.
+   - At 22:10 imagegen had 176 s left and EyesOff 734 s.
+@@ -121,7 +123,7 @@
+ 
+ ## U. Unresolved actions (owner of each in `SIGNING-AUTHORITY.md`)
+ 
+-1. metal0 control recovery: resolve the pre-discovery GPU-price race (a new source fix is pending), rebuild, get root approval, then activate and register. `08d1` is admitted but must not be activated as it stands. **Root.**
++1. metal0 control recovery: finish the `7dd3acd` build (started 22:25), verify it, then activate and register. `08d1` is admitted but must not be activated as it stands. **Root.**
+ 2. metal0 owner enrollment: TX1 by operator `0xc9d0` (needs gas), TX2 by admin `0x0b2d`.
+ 3. A new committee from the corrected image: an HTTPS origin, a funded submitter, and genesis.
+ 4. The full secret lifecycle canary on that committee: save, release, rotate, pause, migrate, restart, and the failure cases.
+diff --git a/ROLLBACK.md b/ROLLBACK.md
+index 5a157de62b46bc24cbc42549cb1a38a736645aa4..988087c1872703a16dcb57b0eebec7ea37ddb764 100644
+--- a/ROLLBACK.md
++++ b/ROLLBACK.md
+@@ -1,18 +1,18 @@
+-# Custody v2: rollback, cancel and protection limits (as of 2026-10-23T22:10Z)
++# Custody v2: rollback, cancel and protection limits (as of 2026-10-23T22:10Z; corrected 22:35Z per root's rollback review)
+ 
+ ## 1. Operational rollback per action (nothing here was executed by this worker)
+ 
+ | action | how to reverse | what it does NOT reverse | source |
+ |---|---|---|---|
+ | `book.set("secretVaultV2", 0xE486…)` (admin) | Sign the recorded rollback calldata. Pages stop at the next action. | Stored policies and bundles stay. | dashboard HANDOFF §4 step 4 |
+-| `book.set("sessionVaultFactory", 0x1f5c…)` (admin) | Set it back to 0. | A policy already pinned to a SessionVault is stranded once the factory exists, and only `claimPolicy` gets past that, which destroys the bundle. | dashboard HANDOFF §4 step 5; factory-consumer review |
++| `book.set("sessionVaultFactory", 0x1f5c…)` (admin) | **Unset it only while NO policy relies on the factory.** That means confirming, from a live inventory at the time, that no v2 policy's pinned owner is the beneficial EOA of a SessionVault-held deployment. **Once any SessionVault-held policy exists, do NOT unset:** keep the factory and fix the consumer instead. | `beneficialOwnerOf` reads the factory from the book on every call, while a policy's owner is pinned at its first write. Unsetting therefore makes the beneficial owner of those deployments the SessionVault again. `update` / `updateBySig` revert `NotOwner` ("the ledger moved the deployment"), and custodian release checks ownership too. The only contract route forward is `claimPolicy`, which **destroys the bundle**, so it is not a routine recovery. (Policies pinned to a SessionVault while the factory was unset are stranded by SETTING it; that is the activation risk, not this rollback.) | vault 9d43 `beneficialOwnerOf`, `_ownerFor`, `_apply`, `_claim`; dashboard HANDOFF §4 step 5 |
+ | metal0 owner enrollment (proposeOwner + acceptOwner) | **No renounce.** The only way out is a new propose/accept. | Consumers of the accepted owner (platform host gate, node holds). | custodian `RESULT-R2.md` §3 |
+ | new committee genesis | None on chain. Stop using the committee, and do not migrate policies to it. | The committee stays recorded. | vault source |
+ | `proposeCode` (corrected committee only) | `removeCode`, same approval weight, takes effect at once. It also blocks the final ack of a pending handover to that code. | The **same measurement cannot be re-proposed in that epoch** (single-use digest). | code-admission test 21/21 |
+ | pending handover | Expires after 86400 s; can then be replaced. | | vault source |
+-| owner switch to a new committee (re-entry or rewrap) | The owner sends a new `update` back. The old bundle on `0x4774` stays usable until replaced. | Values already released to guests. | rewrap.mjs header |
++| owner switch to a new committee (re-entry or rewrap) | **Before the switch update:** nothing on chain changed, and the old policy, rules, bundle and committee keep working. **After it**, there is no undo: the vault stores ONE current bundle per deployment, and the switch replaced the `0x4774` bundle. Going back is a NEW owner `update` (`setPolicy` committee `0x4774` plus `setBundle` with a FRESH bundle encrypted to `0x4774`'s key). That bundle comes from re-entry, or from a fresh owner-authorized rewrap in the reverse direction (not tested). It needs the original committee still serving. | Revisions only increase (policyRev and secretRev +1 at each step); the old ciphertext is not restorable as the current bundle; credentials rotated at their issuers stay rotated; values already released to guests stay released. Restoring files cannot undo any of these. | vault 9d43 `_apply` (committee change needs a fresh bundle or a clear; `_bundles[id]` holds the current revision only), rewrap.mjs header |
+ | relay copy delete | **None.** Re-enter the value. The owner must rotate it at its issuer. | Relay backups and snapshots (deleting removes `secrets.json` only). | rollout audit F6, S7 |
+-| site r2 delivery (fronts) | `site/deploy.sh rollback … --to bafybeig3rai3…`, then probe for the base stamp `166bf9d3 · 2026-10-19`. | IPNS (untouched). | r2 RELEASE-HANDOFF §5, §7 |
++| site release delivery (fronts) | Record and verify the EXACT pre-cutover state at deployment time: the front release (`/.well-known/enclave-site-release.json`, or the served `index.html` hash), the public IPNS sequence and CID. Then roll back ONLY to that validated previous artifact: `site/deploy.sh rollback --to <that CID>`, and probe its own stamp. No blind old-CID rollback. The CID and stamp in the r2 handoff were correct at the 2026-10-23 20:20Z public read only. | IPNS: never reset the sequence and never republish a lower-sequence record. If IPNS must roll back, publish a NEW signed record with a HIGHER sequence pointing to the previous CID. r2 is not published today, so nothing needs rolling back now. | r2 RELEASE-HANDOFF §5, §7; ipns-publisher assessment |
+ | metal0 control image activation (root) | Automatic rollback to the previous config. | **Observed 21:37Z (PROVISIONAL): the rollback restored the old image, not boot registration or adoption.** At 22:14Z the control was still on the old `ed918e4b` image and unregistered. `08d1` is admitted but not activated, because the cutover was stopped before mutation. | root journal L498, L521 |
+ 
+ ## 2. Rollback and replay protection of the custodian: limits
+diff --git a/SOURCES.md b/SOURCES.md
+index 78bcb6db398f27eaf9bf8263a03e413c66c9a9dc..22fce56974867db17ce9cbf672cf044d0144cada 100644
+--- a/SOURCES.md
++++ b/SOURCES.md
+@@ -54,6 +54,21 @@
+   - `work/custody-recipient-activation-20261023/logs/root-activate.out` and `ROOT-REGISTRATION-INCIDENT.txt`;
+   - `outputs/decentralization-audit/custody-v2-live-verification-20261023.md` L3-7 (root's public output; read only).
+ 
++- **S17:** `work/custody-v2-live-20261023/evidence/known-state.json` as read at 22:31Z. This is root's UNCOMMITTED modification
++  (the repo head is d64f0443), at 2026-10-23T22:20:34.005Z, block 53,002,331: code hash `0x4b949b37…`; book `secretVaultV2`,
++  `secretVault` and `hostOwnership` = 0; committee 0x4774 at epoch 1, t 1, W 1, with one machine.
++- **S18:** `work/custody-v2-current-docs-20261023/ROOT-ROLLBACK-REVIEW.txt` (root, as read 22:27Z): the `7dd3acd` approval and
++  build start at 22:25, and its behaviour as root describes it. This worker did not review the `7dd3acd` source.
++- **S19:** the vault's owner and bundle semantics are in 9d43e63e8 `contracts/EnclaveSecretVaultV2.sol` (blob 7a385bbc), in
++  `work/custody-code-admission-20261023/orig-9d43`:
++  - `beneficialOwnerOf` reads `book.addr("sessionVaultFactory")` live;
++  - `_ownerFor` and `_apply` pin the owner at the first write and revert `NotOwner` once the beneficial owner differs;
++  - a committee change with a stored bundle needs a fresh bundle or a clear;
++  - `_bundles[id]` holds the current revision only;
++  - `_claim` deletes the bundle and pauses.
++  - The original custodian's release refuses `owner_mismatch` when the beneficial owner is not the pinned owner
++    (`custody/v2/custodian.mjs` L110-111).
++
+ ## Document originals
+ 
+ - **Checkpoint:** `work/source-checkpoint-20261022/main-repo` at checkpoint dfb4b55e627ebd95b647abebf09627296f099862 holds
+diff --git a/commit3.sh b/commit3.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..07a20efdf7eac9852f249301746d05cb3156b9e1
+--- /dev/null
++++ b/commit3.sh
+@@ -0,0 +1,48 @@
++#!/bin/bash
++# commit3.sh: the rollback-review corrections (root ROOT-ROLLBACK-REVIEW.txt), then patch 0003 appended and both cumulative diffs
++# regenerated against the SAME baselines (checkpoint dfb4b55e, main 68b82926); earlier patches 0001/0002 kept byte-identical.
++set -euo pipefail
++cd "$(dirname "$0")"
++W=/home/steven/Documents/Codex/2026-10-18/wo/work; M=$W/source-checkpoint-20261022/main-repo
++HOOKS=$W/custody-v2-dashboard-20261023/repo/.githooks; C="git -c core.hooksPath=$HOOKS commit -q"
++[ "$(git rev-parse --short=7 HEAD)" = a257c0e ]
++p1=$(sha256sum patches/0001-*.patch patches/0002-*.patch)
++git add CURRENT-STATE.md ROLLBACK.md SOURCES.md docs/security/secret-custody-v2.md commit3.sh logs/commit-2.out logs/commit-2.rc logs/rangescan-2.out logs/rangescan-2.rc logs/scan-3.out logs/scan-3.rc logs/scan-gitleaks.json
++$C -F - <<'MSG'
++Correct rollback docs against the actual vault semantics (factory, committee switch-back, site/IPNS) and root's 22:25Z state
++
++Per root's rollback review; source/documentation only:
++- factory: unset only while no policy relies on it (live inventory); once SessionVault-held policies exist do NOT unset -
++  beneficialOwnerOf reads the factory live while the owner is pinned at first write, so updates revert NotOwner and the
++  custodian refuses owner_mismatch; claimPolicy destroys the bundle and is not a routine recovery
++- committee switch-back: one current bundle per deployment; going back needs a new owner update with a FRESH bundle to
++  0x4774 (re-entry or reverse rewrap, untested) while 0x4774 keeps serving; revisions and issuer rotation cannot be undone
++- site rollback: capture and verify the exact pre-cutover front release and IPNS sequence/CID at deployment time; never
++  reset or lower the IPNS sequence; no hardcoded CID; r2 unpublished
++- CURRENT-STATE: root 22:20:34Z read (block 53002331, unchanged vault/committee/zero book entries); 7dd3acd approved,
++  build started 22:25, NOT activated; control NOT restored
++- secret-custody-v2.md 10.2: the factory entry is not symmetric; committee moves are one-way per step
++MSG
++A=$(git rev-list --max-parents=0 HEAD); C2=$(git rev-parse HEAD)
++git format-patch -q --full-index --no-renames --start-number 3 -o patches HEAD~1..HEAD -- docs/security
++[ "$(sha256sum patches/0001-*.patch patches/0002-*.patch)" = "$p1" ]
++T=$(mktemp -d)
++for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show 68b82926968c99503d38ae78dbcb04694cc2c56c:docs/security/$f > "$T/main-$f"; done
++{ git diff --no-index --full-index "$T/main-secret-custody-v2.md" docs/security/secret-custody-v2.md || true; git diff --no-index --full-index "$T/main-secret-custody-v2-spec.md" docs/security/secret-custody-v2-spec.md || true; } \
++  | sed -e "s#a$T/main-secret-custody-v2.md#a/docs/security/secret-custody-v2.md#g" -e "s#a$T/main-secret-custody-v2-spec.md#a/docs/security/secret-custody-v2-spec.md#g" > patches/against-main-68b82926.diff
++git diff --full-index "$A" HEAD -- docs/security > patches/against-checkpoint-dfb4b55e.diff
++for base in 68b82926968c99503d38ae78dbcb04694cc2c56c:against-main-68b82926 dfb4b55e627ebd95b647abebf09627296f099862:against-checkpoint-dfb4b55e; do
++  rev=${base%%:*}; pf=${base##*:}; X=$(mktemp -d); mkdir -p "$X/docs/security"
++  for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show $rev:docs/security/$f > "$X/docs/security/$f"; done
++  (cd "$X" && git init -q && git apply "$OLDPWD/patches/$pf.diff")
++  cmp "$X/docs/security/secret-custody-v2.md" docs/security/secret-custody-v2.md && cmp "$X/docs/security/secret-custody-v2-spec.md" docs/security/secret-custody-v2-spec.md
++  echo "$pf.diff reproduces the final docs from $rev"; rm -rf "$X"
++done
++# the chained format-patches 0001..0003 on the checkpoint originals give the same final docs
++X=$(mktemp -d); mkdir -p "$X/docs/security"
++for f in secret-custody-v2.md secret-custody-v2-spec.md; do git -C "$M" show dfb4b55e627ebd95b647abebf09627296f099862:docs/security/$f > "$X/docs/security/$f"; done
++(cd "$X" && git init -q && for p in "$OLDPWD"/patches/000[123]-*.patch; do git apply "$p"; done)
++cmp "$X/docs/security/secret-custody-v2.md" docs/security/secret-custody-v2.md && echo "0001..0003 chain reproduces the final docs from dfb4b55e"; rm -rf "$X" "$T"
++git add patches
++$C -m "patches: append 0003 (rollback-review corrections); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926"
++git log --format='%h %an <%ae> %s' -3; sha256sum patches/*
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 76b73bc46c24e95b5e173da037398d29400a0f95..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -491,6 +491,16 @@
+     there, so the owner is told to rotate those credentials.
+ - **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
+   that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
++- **The factory entry is not symmetric.** The vault reads `sessionVaultFactory` from the book on every ownership check, but a
++  policy's owner is pinned at its first write. So:
++  - Clearing the factory after SessionVault-held policies exist makes those deployments' beneficial owner the SessionVault
++    again. Their owner updates then revert `NotOwner`, releases fail the ownership check, and only `claimPolicy` (which
++    destroys the bundle) follows.
++  - Clear it only while no policy relies on it, confirmed by a live inventory. Afterwards, keep the factory and fix the
++    consumer instead.
++- **Moving a deployment between committees is one-way per step.** The vault keeps only the current bundle. Switching back needs
++  a new owner update with a fresh bundle encrypted to the original committee (re-entry or a reverse rewrap), so that committee
++  must keep serving. Revisions only increase, and rotated credentials stay rotated.
+ - **Not in the panel:**
+   - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
+   - owner read of stored values;
+diff --git a/logs/commit-2.out b/logs/commit-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..5560b3ca847846e091b3b5310d1ed63555a585ad
+--- /dev/null
++++ b/logs/commit-2.out
+@@ -0,0 +1,5 @@
++[queue] START available=23467MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++a257c0e04bb8fe4d1ae14064758c411ed92c1f5b SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Refresh status from root's 22:14Z journal: control still old/unregistered, 08d1 admitted not activated, cutover stopped
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/commit-2.rc b/logs/commit-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-2.out b/logs/rangescan-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..85f68a0e3f77b5b68342d7230a5f6af191fb48d9
+--- /dev/null
++++ b/logs/rangescan-2.out
+@@ -0,0 +1,8 @@
++[queue] START available=23432MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++3:17PM INF 5 commits scanned.
++3:17PM INF scanned ~173346 bytes (173.35 KB) in 134ms
++3:17PM INF no leaks found
++[rangescan] gitleaks-all-commits=0 scan-crypto-keys-tracked=0
++[memory-guard] exit=0 peakTreeRssMiB=68 minHostAvailableMiB=23395
++[memory-guard] at peak: gitleaks:58 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/rangescan-2.rc b/logs/rangescan-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/rangescan-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-3.out b/logs/scan-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..35975d8d802ed8cf7b3599d04018ec6ee153b673
+--- /dev/null
++++ b/logs/scan-3.out
+@@ -0,0 +1,7 @@
++[queue] START available=23705MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++3:29PM INF scanned ~174978 bytes (174.98 KB) in 19.4ms
++3:29PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=23648
++[memory-guard] at peak: gitleaks:50 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-3.rc b/logs/scan-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-3.rc
+@@ -0,0 +1 @@
++0

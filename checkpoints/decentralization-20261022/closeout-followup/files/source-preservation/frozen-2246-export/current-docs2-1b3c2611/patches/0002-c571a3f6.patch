@@ -1,0 +1,140 @@
+From c571a3f687a2dbeb0d2996e513eb9b5d88e957f0 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:29:45 -0700
+Subject: [PATCH] patches: append 0003 (rollback-review corrections);
+ regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926
+
+---
+ ...-docs-against-the-actual-vault-seman.patch | 45 +++++++++++++++++++
+ patches/against-checkpoint-dfb4b55e.diff      | 14 +++++-
+ patches/against-main-68b82926.diff            | 14 +++++-
+ 3 files changed, 69 insertions(+), 4 deletions(-)
+ create mode 100644 patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch
+
+diff --git a/patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch b/patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..55fb82924623786118ada4418e902af083add5f5
+--- /dev/null
++++ b/patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch
+@@ -0,0 +1,45 @@
++From ac4d9da2bc84df97f0b417a3a806b9f7c854743e Mon Sep 17 00:00:00 2001
++From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++Date: Fri, 23 Oct 2026 15:29:45 -0700
++Subject: [PATCH] Correct rollback docs against the actual vault semantics
++ (factory, committee switch-back, site/IPNS) and root's 22:25Z state
++
++Per root's rollback review; source/documentation only:
++- factory: unset only while no policy relies on it (live inventory); once SessionVault-held policies exist do NOT unset -
++  beneficialOwnerOf reads the factory live while the owner is pinned at first write, so updates revert NotOwner and the
++  custodian refuses owner_mismatch; claimPolicy destroys the bundle and is not a routine recovery
++- committee switch-back: one current bundle per deployment; going back needs a new owner update with a FRESH bundle to
++  0x4774 (re-entry or reverse rewrap, untested) while 0x4774 keeps serving; revisions and issuer rotation cannot be undone
++- site rollback: capture and verify the exact pre-cutover front release and IPNS sequence/CID at deployment time; never
++  reset or lower the IPNS sequence; no hardcoded CID; r2 unpublished
++- CURRENT-STATE: root 22:20:34Z read (block 53002331, unchanged vault/committee/zero book entries); 7dd3acd approved,
++  build started 22:25, NOT activated; control NOT restored
++- secret-custody-v2.md 10.2: the factory entry is not symmetric; committee moves are one-way per step
++---
++ docs/security/secret-custody-v2.md | 10 ++++++++++
++ 1 file changed, 10 insertions(+)
++
++diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
++index 76b73bc46c24e95b5e173da037398d29400a0f95..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
++--- a/docs/security/secret-custody-v2.md
+++++ b/docs/security/secret-custody-v2.md
++@@ -491,6 +491,16 @@ The Secrets panel's v2 block (`site/js/core/custody-v2.js`, crypto and reads fro
++     there, so the owner is told to rotate those credentials.
++ - **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
++   that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
+++- **The factory entry is not symmetric.** The vault reads `sessionVaultFactory` from the book on every ownership check, but a
+++  policy's owner is pinned at its first write. So:
+++  - Clearing the factory after SessionVault-held policies exist makes those deployments' beneficial owner the SessionVault
+++    again. Their owner updates then revert `NotOwner`, releases fail the ownership check, and only `claimPolicy` (which
+++    destroys the bundle) follows.
+++  - Clear it only while no policy relies on it, confirmed by a live inventory. Afterwards, keep the factory and fix the
+++    consumer instead.
+++- **Moving a deployment between committees is one-way per step.** The vault keeps only the current bundle. Switching back needs
+++  a new owner update with a fresh bundle encrypted to the original committee (re-entry or a reverse rewrap), so that committee
+++  must keep serving. Revisions only increase, and rotated credentials stay rotated.
++ - **Not in the panel:**
++   - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
++   - owner read of stored values;
++-- 
++2.56.0
++
+diff --git a/patches/against-checkpoint-dfb4b55e.diff b/patches/against-checkpoint-dfb4b55e.diff
+index 4ca1330dc6a889738cc9000644c95fb7f825c3b4..283f9084b06e1dc0e6d20c9b68911416bf3bd362 100644
+--- a/patches/against-checkpoint-dfb4b55e.diff
++++ b/patches/against-checkpoint-dfb4b55e.diff
+@@ -17,7 +17,7 @@
+  - `book` is the EnclaveAddressBook (`addr(bytes32)`), consulted once at construction to pin `deploymentLedger` and `sessionVaultFactory`. The ledger must have code; the factory may be zero (no SessionVault unwrapping) or a contract. Later book edits cannot redirect ownership or release decisions.
+  - `hostOwnership` is a deployed `EnclaveHostOwnership`. It and its registry are pinned immutably. Registry operators nominate initial wallet owners; those wallets must accept.
+ diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+-index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..76b73bc46c24e95b5e173da037398d29400a0f95 100644
++index 393f9d31070e3b5f44580689c4a95bff91a3a4d5..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
+ --- a/docs/security/secret-custody-v2.md
+ +++ b/docs/security/secret-custody-v2.md
+ @@ -26,7 +26,53 @@ for the current implementation, validation and remaining activation gates.
+@@ -164,7 +164,7 @@
+  - Enclave cannot read secrets or admit its own members alone.
+  - No single host, operator or relay can block a release, as long as `t` qualified members answer.
+  - Stealing costs `t` seats that are each attested and capacity-proven, on distinct chips and within operator caps.
+-@@ -357,11 +441,94 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
++@@ -357,11 +441,104 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
+  7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
+  8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
+  
+@@ -218,6 +218,16 @@
+ +    there, so the owner is told to rotate those credentials.
+ +- **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
+ +  that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
+++- **The factory entry is not symmetric.** The vault reads `sessionVaultFactory` from the book on every ownership check, but a
+++  policy's owner is pinned at its first write. So:
+++  - Clearing the factory after SessionVault-held policies exist makes those deployments' beneficial owner the SessionVault
+++    again. Their owner updates then revert `NotOwner`, releases fail the ownership check, and only `claimPolicy` (which
+++    destroys the bundle) follows.
+++  - Clear it only while no policy relies on it, confirmed by a live inventory. Afterwards, keep the factory and fix the
+++    consumer instead.
+++- **Moving a deployment between committees is one-way per step.** The vault keeps only the current bundle. Switching back needs
+++  a new owner update with a fresh bundle encrypted to the original committee (re-entry or a reverse rewrap), so that committee
+++  must keep serving. Revisions only increase, and rotated credentials stay rotated.
+ +- **Not in the panel:**
+ +  - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
+ +  - owner read of stored values;
+diff --git a/patches/against-main-68b82926.diff b/patches/against-main-68b82926.diff
+index d68325726a2557a8368075e1d0b357cf3e08ccde..5407780aadbe00e2b9e6088db2b348755c452059 100644
+--- a/patches/against-main-68b82926.diff
++++ b/patches/against-main-68b82926.diff
+@@ -1,5 +1,5 @@
+ diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+-index 6e933b8e6ba7244520a59f2b965fa166b1073b52..76b73bc46c24e95b5e173da037398d29400a0f95 100644
++index 6e933b8e6ba7244520a59f2b965fa166b1073b52..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
+ --- a/docs/security/secret-custody-v2.md
+ +++ b/docs/security/secret-custody-v2.md
+ @@ -1,10 +1,18 @@
+@@ -180,7 +180,7 @@
+  - Enclave cannot read secrets or admit its own members alone.
+  - No single host, operator or relay can block a release, as long as `t` qualified members answer.
+  - Stealing costs `t` seats that are each attested and capacity-proven, on distinct chips and within operator caps.
+-@@ -349,11 +441,94 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
++@@ -349,11 +441,104 @@ temporary outage of more than `n/3` members only blocks unlocks until enough ret
+  7. **Owner tooling and site:** encrypt to `Y`, migrate from v1.
+  8. **Hardware verification** in the v1 style: release at `t`, refusal below `t`, a handover with live apps, a host move.
+  
+@@ -234,6 +234,16 @@
+ +    there, so the owner is told to rotate those credentials.
+ +- **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
+ +  that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
+++- **The factory entry is not symmetric.** The vault reads `sessionVaultFactory` from the book on every ownership check, but a
+++  policy's owner is pinned at its first write. So:
+++  - Clearing the factory after SessionVault-held policies exist makes those deployments' beneficial owner the SessionVault
+++    again. Their owner updates then revert `NotOwner`, releases fail the ownership check, and only `claimPolicy` (which
+++    destroys the bundle) follows.
+++  - Clear it only while no policy relies on it, confirmed by a live inventory. Afterwards, keep the factory and fix the
+++    consumer instead.
+++- **Moving a deployment between committees is one-way per step.** The vault keeps only the current bundle. Switching back needs
+++  a new owner update with a fresh bundle encrypted to the original committee (re-entry or a reverse rewrap), so that committee
+++  must keep serving. Revisions only increase, and rotated credentials stay rotated.
+ +- **Not in the panel:**
+ +  - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
+ +  - owner read of stored values;

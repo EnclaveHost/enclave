@@ -1,0 +1,1259 @@
+{
+ "format": "enclave-frozen-2246-export/v1",
+ "checkpointHeadAtExport": "7ca36e11f65c76feaf6c26405b5a27a7457f113d",
+ "batch": "2246 = the batch start 2026-10-23T22:46:00Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY. ROOT live records b4e1f14; boot-pricing source 7dd3acd0 (patch-only) and its build-release template + root-granted public build metadata 88b70dbe (candidate b007d471, built twice, NOT activated); canary-wallet handoff b5e4613 (source/tests; nothing signed); R current docs 1b3c2611; the 22:42 snapshot of root's public live-verification output. At 22:45 the metal0 control was still on the old image and unregistered; the new D activation kit is NOT included. No committee, admin contract, book or dashboard change; no secret lifecycle test. Root owns activation and signing.",
+ "sides": {
+  "custody-live7": {
+   "repo": "work/custody-v2-live-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "ed2847318caa6a6ab729332a6c271ecad43f0684",
+   "baseProvenance": "ed284731 preserved in 7ca36e11 (frozen-2217 custody-live6 head)",
+   "head": "b4e1f14f2ce65799978c18ce201f3a5ef674569c",
+   "headTree": "3e070b68dd36701d9c956982dc38c6caae407730",
+   "commits": [
+    {
+     "commit": "d64f0443a83047e78eb1e9b6e1470cf92eebfbef",
+     "tree": "48c7bb50d604a68239328c302acb9eb8e1854b65",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:20:09-07:00",
+     "subject": "Confirm second EyesOff app-funded renewal and public app health",
+     "parent": "ed2847318caa6a6ab729332a6c271ecad43f0684",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live7-b4e1f14/patches/0001-d64f0443.patch"
+    },
+    {
+     "commit": "b4e1f14f2ce65799978c18ce201f3a5ef674569c",
+     "tree": "3e070b68dd36701d9c956982dc38c6caae407730",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:44:59-07:00",
+     "subject": "Record current custody state and protected app reserve renewals",
+     "parent": "d64f0443a83047e78eb1e9b6e1470cf92eebfbef",
+     "emptyAfterExclusion": false,
+     "patch": "custody-live7-b4e1f14/patches/0002-b4e1f14f.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "evidence/known-state.json",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5ded18e3e0ce5759fc4031e7d854f18bfd300763",
+     "sha256": "1f4e32b0e7220b73c59a77b839864f843ad7c48f6835b7c6af7ce0ea55204dfc",
+     "bytes": 2604,
+     "baseBlob": "93ea65cefd6ace6972dc47e5d440ab4f63c7fb9f"
+    },
+    {
+     "path": "evidence/protected-public-health-2216.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8332021256a50690de99502efaf39684c3a0e7af",
+     "sha256": "852ab23ac8a29437bab8a38a02a5b4c231adb82c376efee937594f36dab59203",
+     "bytes": 365,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2211/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "77e495710cb98b38eeb37f83561f69e05c9085c5",
+     "sha256": "22deb874b3c464d19239cf237888b8decc49af2c052b4009243a919f3dc4a515",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2211/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e5a848eafb468ed5ebaf11d3c89c028f39eede2c",
+     "sha256": "f0b6be6ec4be545a543568f9e8cc736122a507cad9edd339b942017c8a04277e",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2239/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "03ab2d8d9907846242d7dd3257df67648ff40600",
+     "sha256": "cc5ed1a39352738dadef14097d0c6444acb97f2c78aebcc25969be4c059d3134",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2239/0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d33926bdb77b46a221812dc5abdf79f12575d113",
+     "sha256": "61618cf519d63858d6653165970e6002332ffc67a54578b48a4aadc3ba1052f3",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2239/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ae7463f1cde75e2b34e085daebab963ade4815a1",
+     "sha256": "4f14c148e72b8304007a7036e894ce830679feb5d5512fddb3076a973b009328",
+     "bytes": 753,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/protected-renewals-2239/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fd2110a613bcd4b78721202225fcb8ef29859641",
+     "sha256": "30b3c663d2bf49561f2d4e8f37d39e5b85b9133944364d6ad698f77a6ac5e20e",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "probes/renew-protected-2239.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "370e0a20ea4026b78e4d3e5282bba56456ce1670",
+     "sha256": "cb6fb0a5ee99551e49dce3297a9e252ddef4cc0b164e5b4ff04ebfecb5c2bf07",
+     "bytes": 3933,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-live7-b4e1f14/patches/0001-d64f0443.patch",
+     "sha256": "865a100b20f8f5f12b5896930cbcc9ec6bdd3f9d4da2567d429870386d78ea7a"
+    },
+    {
+     "file": "custody-live7-b4e1f14/patches/0002-b4e1f14f.patch",
+     "sha256": "d68b0e893df87fd596aff3d28f35897af9a5879cd05acfa986c6162717ea5606"
+    }
+   ],
+   "note": "ROOT live records on ed284731: second EyesOff app-funded renewal and public app health (d64f0443); current custody state known-state 22:20 and the 22:39 protected renewals with their probe (b4e1f14). Read-only metadata; no logs or raw quotes"
+  },
+  "boot-price-release": {
+   "repo": "work/custody-boot-price-release-20261023",
+   "branch": "main",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "88b70dbefdff5c2433317da6d184b5e09e363e78",
+   "headTree": "ff2085e8324ddb646f29e78a1bb37a2b2ca332a1",
+   "commits": [
+    {
+     "commit": "a340762bb88f9c50e992146cb876f4052cb2255a",
+     "tree": "0340ad398e1b31dca121b816a2f130f88b095b3d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:21:28-07:00",
+     "subject": "boot-price release: approval-gated bounded build template for the child of 9f6d37bd (not run)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "boot-price-release-88b70dbe/patches/0001-a340762b.patch"
+    },
+    {
+     "commit": "88b70dbefdff5c2433317da6d184b5e09e363e78",
+     "tree": "ff2085e8324ddb646f29e78a1bb37a2b2ca332a1",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:47:57-07:00",
+     "subject": "Record root's approved 7dd3acd build metadata (public): approval, build record, inventory, patch, log, measurement",
+     "parent": "a340762bb88f9c50e992146cb876f4052cb2255a",
+     "emptyAfterExclusion": false,
+     "patch": "boot-price-release-88b70dbe/patches/0002-88b70dbe.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "30f4d378f6d5babc2ac412602710c3ae726c0577",
+     "sha256": "f72d1f19a643ed66ed21162b39bf79591ca228c10198eee1df439566c4c2e126",
+     "bytes": 112,
+     "baseBlob": null
+    },
+    {
+     "path": "APPROVED-COMMIT.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0346867ee329de95c5b53a174dcf6e13c88ab380",
+     "sha256": "7552355f7aa2ac0113a500ef3c9e083e5e4618e9582d795373ecf662d9c33c32",
+     "bytes": 136,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "28e0b0233f62bb9932d638d7fd36c9d6e52d6371",
+     "sha256": "a1a43b23da05c295b9b57c5487ef8f6cdb2fc8939f7071f4b85e76754475a32b",
+     "bytes": 3819,
+     "baseBlob": null
+    },
+    {
+     "path": "build-price.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "569a19b1281b273a8608def62da14487deca02a2",
+     "sha256": "32e65e0b30e9a5c8caa692b5e9313f0f8e8512a98d74d89cd935922158dce039",
+     "bytes": 6573,
+     "baseBlob": null
+    },
+    {
+     "path": "commit.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "103d10bfc7992780710312412bf9bbe3b2c21e3a",
+     "sha256": "75b5fa996274fdcbbc9b0b5784afd3e5b5f76c964ecb6bb3c832c3d09a74aaf2",
+     "bytes": 1149,
+     "baseBlob": null
+    },
+    {
+     "path": "entries.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7714ea474ed9d62d3cc40f742c3a9d9e9a6821e9",
+     "sha256": "540c313603e42fa3cfaac57eefc782655bb27c5d163b058729939bf2865c8d75",
+     "bytes": 1314,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/root-build-price.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7185d8dd8797b55c7b30f17607df8f2024ab3d4d",
+     "sha256": "87759301c6d7d88d388e5edf291befc37a5e9e4f136001dbc757e4a8a4a5ecb5",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/root-build-price.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "54e94eefb5ee796e0a85721fad0327eeb93617d7",
+     "sha256": "09329c3314dd118093c2e1d021e6a3bba3b8e085c54e022075804d123999c43e",
+     "bytes": 2627,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/root-build-price.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cf22ba6a83a56c23e75f3f35cc78fb6582c54fb3",
+     "sha256": "f3cd4e2e939847612197ff13f672d6929431ecae952c66ec53d102f038a5fa71",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1a385fcbe194c62f42dfbe05ea2f6d6ea8ada89b",
+     "sha256": "6e85fddb626184d4ec0c72eec2612a662ee2485fc9c0dff4f6065fbe28a93204",
+     "bytes": 2946,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-1.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d00491fd7e5bb6fa28c517a0bb32b8b506539d4d",
+     "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-1.try2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b4d3bd05284f9ce193a77bc8a96336fd23bd97ee",
+     "sha256": "cf69f3b7c712f2914f43dc2f8757cc3ee3020192d2d66db85dd91f27ee828c51",
+     "bytes": 42,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f1193fede6ac331420546fda3d7c3274cfef6f5",
+     "sha256": "a2885b07653b6a9290d70d50af2bc6604ec19e9a288ccfeaccba20508ce0643e",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "60c4dbf7eeb9892feca4f5b992bae5ef8017d18a",
+     "sha256": "48a6d30b4b1913e7c16c43dcb0610662ccc50e04c1aaa4ccb9ec3ac77357dd85",
+     "bytes": 1491,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8f2931d784adf74023ddae4d603dc0d4f4c15f8c",
+     "sha256": "c7327daad84e9ccc49df0154db87db727f7ad5a4c94e2a1396ead7e7c0142209",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e40beb43e07f1ecf6d303e3891be5205e9358cfa",
+     "sha256": "230380b6ac2f0941b4c8655a849ef214e2e4de2780b2b4aeed12f18e933db32b",
+     "bytes": 1919,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/tests-3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "precheck.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d92b350c8811b3248c5ac80782f41a3645b97354",
+     "sha256": "e6f3cb97502d4cdc0cc577178cb17b1967e147520d0e58c81d24841e2611bec3",
+     "bytes": 5159,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "f69b7de1730e7634fb481a8924488479d2eeeeba",
+     "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+     "bytes": 565,
+     "baseBlob": null
+    },
+    {
+     "path": "refusal-tests/run.sh",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ce0ae74399597bf7332970ff3d1fe33df7445a3c",
+     "sha256": "cdf6eaa9d236f9743ab260d46528594d1d157d8a0a2658bf80910328e1cb17f6",
+     "bytes": 1054,
+     "baseBlob": null
+    },
+    {
+     "path": "review-progress.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7c09e9b83a44f240076f1b5474610121c757c1ca",
+     "sha256": "c79f471b2e7bef0be4c0b3006fddcd428517ba11de0ee93b4246ffe7eedcf421",
+     "bytes": 2358,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "b79a8ba45a9eb0d344242244c9b28a08c2a3ad80",
+     "sha256": "5166bc96c43a56314e974c4e386719382c94204d49441cfbca41595d6374d3a8",
+     "bytes": 1139,
+     "baseBlob": null
+    },
+    {
+     "path": "stage/7dd3acd06-on-9f6d37bd.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4041dd3fcfc722e563a5ef9b7e6d22889acca2a0",
+     "sha256": "7283a33ae0325ea837841175d87ecd96d48f8b99e04fa7cbc433da7218efbd3d",
+     "bytes": 38322,
+     "baseBlob": null
+    },
+    {
+     "path": "stage/INVENTORY.sha256",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1f9d608bfe071c1c0d688d51a81c18b8a679953e",
+     "sha256": "c800a4e684dd012ed1cb89765cababd98379f393512a789cd6fea0c60cd5cbf9",
+     "bytes": 510,
+     "baseBlob": null
+    },
+    {
+     "path": "stage/build-record.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3b612322a9de58d7c1f58ce99da1d03362b40cc2",
+     "sha256": "5657ee215f27072919cf35f11ebf3a569979f3a6d20e1a0f83a25fcf8aed1c85",
+     "bytes": 1501,
+     "baseBlob": null
+    },
+    {
+     "path": "stage/dist-leasegas-7dd3acd06/MEASUREMENT",
+     "status": "A",
+     "mode": "100644",
+     "blob": "80e7a6f2f3f41e01efbc70f68f32fede694e8119",
+     "sha256": "671666403f2edf2ece449f7e79e4b45fe9b385744cf282fe47137123aa6ae9b6",
+     "bytes": 97,
+     "baseBlob": null
+    },
+    {
+     "path": "stage/dist-leasegas-7dd3acd06/cmdline",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d9f86e16de4d4907ce04625e88ba168c6b2d6f88",
+     "sha256": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
+     "bytes": 105,
+     "baseBlob": null
+    },
+    {
+     "path": "stage/dist-leasegas-7dd3acd06/manifest.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7cc08678b42f937fe02950b4b51559b8d5e3b69b",
+     "sha256": "6e0029f58700253289062856d89d93c3ee049d39da211fe4b072c229146cf44a",
+     "bytes": 26105,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/test_precheck.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4e7c6c95f2bd84a711dae8418ee35d7bfbbba595",
+     "sha256": "5df808903c5fbb7be75cc2594982e50a2116dcdbc1a484d9ce676315c762c3d9",
+     "bytes": 6983,
+     "baseBlob": null
+    },
+    {
+     "path": "tests/test_verify.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c83b57b6866c90f68663ee8b94423dcba2e63caa",
+     "sha256": "680d860eac09b7da4bd2b0be9589ee76dc9f09fa4c80bbebfcbb0976848383f1",
+     "bytes": 3036,
+     "baseBlob": null
+    },
+    {
+     "path": "verify.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "30a2d5d4effaea0ca94dae53cc913db16d1f9337",
+     "sha256": "ba363e842837f11e457b9fba8bd17d5391cdae6c44fcbeda6fa3cdf0c210c87b",
+     "bytes": 3966,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "boot-price-release-88b70dbe/patches/0001-a340762b.patch",
+     "sha256": "e241e996940552620de6fa5c6dd166095bffc4429ce120eb78cae70cbaa5bb42"
+    },
+    {
+     "file": "boot-price-release-88b70dbe/patches/0002-88b70dbe.patch",
+     "sha256": "96869f9e003477a8ce9331f99918b2f8d173b19fb8bac4ac98d6de4a0d2f824d"
+    }
+   ],
+   "note": "approval-gated bounded build template for the child of 9f6d37bd (a340762b) and the root-granted public metadata of root's 7dd3acd build (88b70dbe): approval, build record, inventory, patch, root build log, MEASUREMENT, manifest, cmdline. The image binaries are NOT committed (sha256 in INVENTORY.sha256). Candidate only, not activated"
+  },
+  "canary-wallet": {
+   "repo": "work/custody-canary-wallet-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit",
+   "head": "b5e4613c632b47056fba3de6064bc56b00bedcb5",
+   "headTree": "a05c75876f34021989068372ba27d4fd11c8d84d",
+   "commits": [
+    {
+     "commit": "f161ceb3e9161f6fdbf86858994e130b971d9a1a",
+     "tree": "26ab514752210b00a9cc136b943195d4d7496ec3",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:23:48-07:00",
+     "subject": "Canary upload + catalog publish: administrator MetaMask handoff (source only, inactive)",
+     "parent": "",
+     "emptyAfterExclusion": false,
+     "patch": "canary-wallet-b5e4613/patches/0001-f161ceb3.patch"
+    },
+    {
+     "commit": "b5e4613c632b47056fba3de6064bc56b00bedcb5",
+     "tree": "a05c75876f34021989068372ba27d4fd11c8d84d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:31:26-07:00",
+     "subject": "Upload stage: never keep remote response bodies; an unknown upload stays unknown (root review)",
+     "parent": "f161ceb3e9161f6fdbf86858994e130b971d9a1a",
+     "emptyAfterExclusion": false,
+     "patch": "canary-wallet-b5e4613/patches/0002-b5e4613c.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ef317531c160f568a838728bac3e36081c9d763f",
+     "sha256": "5df7359767e0b62fd889d5e478dff4b970c4de5be4581d8ddf2801d1b25b8b36",
+     "bytes": 67,
+     "baseBlob": null
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "21a17456cd02c09d09131dc450fee24b5cd24acc",
+     "sha256": "5336602aaf4889921896270080aee8ed34f4c85b70da20848351f850f6d37332",
+     "bytes": 1614,
+     "baseBlob": null
+    },
+    {
+     "path": "README.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "65bd1c2d18b171155a944c454a0986ca8237386d",
+     "sha256": "5606a592dcd25d90e41e39aec07e6a365fe4aa0ae2ad0d6e76630369e493eb6f",
+     "bytes": 13167,
+     "baseBlob": null
+    },
+    {
+     "path": "app.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d83a6885c016891d4c5d261ce0da5dda7b02e0b",
+     "sha256": "e20ba2b9793af513baff2533cfa10f539688e0fa77bda525bbbb264824f1e4f9",
+     "bytes": 399,
+     "baseBlob": null
+    },
+    {
+     "path": "app.js",
+     "status": "A",
+     "mode": "100644",
+     "blob": "38afb56e18d49b1fe9ba3b609f33a84f22efbcd1",
+     "sha256": "505231701de13ddea46d7895e1b816f0828643d35af93c7999603d5084f72d2a",
+     "bytes": 13849,
+     "baseBlob": null
+    },
+    {
+     "path": "evidence/handoff-server.diff",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b99e2c6e4fd24bc2c6f13930d671284030d55945",
+     "sha256": "0d8304fa682b0c1218c254db1585408ebf3c86cb2c0df7325172ec2c3863f0f5",
+     "bytes": 3397,
+     "baseBlob": null
+    },
+    {
+     "path": "handoff-server.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4d3ccdf59d025bb9cf7415ac501f9006bdc3f113",
+     "sha256": "77ce452e41ff000a1de4d9907e1c494ea75c921938b98de55c7e4735bcf8bf51",
+     "bytes": 6087,
+     "baseBlob": null
+    },
+    {
+     "path": "package.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4d08f46018d648303e98d6a8b244c0762600d720",
+     "sha256": "4844744314c644d890e7c388292f447c6bcd02425b358ce743758204e85af4b8",
+     "bytes": 268,
+     "baseBlob": null
+    },
+    {
+     "path": "page.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9d815b86b78196bd2e34e4aacac34b743592e46e",
+     "sha256": "759a79c735745aede47e7e4e4c5e40b9a21b3fd7d77d1520291a3ec157753c0c",
+     "bytes": 2656,
+     "baseBlob": null
+    },
+    {
+     "path": "publish-stage.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "735844ca9741cd386b389f27185865548f668f10",
+     "sha256": "23f66d1b8db0872685853cc1d3e398ccdafc9fcb6f6431f65f1457405afadd69",
+     "bytes": 14322,
+     "baseBlob": null
+    },
+    {
+     "path": "q.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154",
+     "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+     "bytes": 904,
+     "baseBlob": null
+    },
+    {
+     "path": "rpc.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2ea7540555ccf20acefebbe96007fa8802d70eed",
+     "sha256": "df00a18b6c454acaa95f4634dcf64941447bc019dd16d61379ce94f8ff3a86aa",
+     "bytes": 3755,
+     "baseBlob": null
+    },
+    {
+     "path": "run-tests.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "0489864b69f9de7a9866e7a5ec578e4b682c6ddc",
+     "sha256": "8bd7309a8180f31a6dda0188d3fabe1507bf815b2a1c2e315c3b8adb0aa1f002",
+     "bytes": 671,
+     "baseBlob": null
+    },
+    {
+     "path": "serve.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7b7edbff9379af56fae33dbb039cd0e297c82260",
+     "sha256": "0a86fe3f5c2cece9c76a91608704f48a758c6c0280551c3ae190237e0305f408",
+     "bytes": 1844,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-app.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3a5d9b6d690c7d15990100ed46713a8e783f6240",
+     "sha256": "6cdc76d651374ca6a6893ac47ae08e820d32d2aa5cac4969f3f7f3b89a72c41c",
+     "bytes": 2606,
+     "baseBlob": null
+    },
+    {
+     "path": "stage.html",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3ead10b798359750a0b968bb027f25ef5158ff89",
+     "sha256": "e3e96eddc7969515a899025036c772626495c95bb2fdc8af28e8dab0c174a864",
+     "bytes": 2609,
+     "baseBlob": null
+    },
+    {
+     "path": "style.css",
+     "status": "A",
+     "mode": "100644",
+     "blob": "20af0cb15aa6d00df2dc0783d300e84c637c6c90",
+     "sha256": "b055f0427d9b28ef9d10b27593c532755f864413869d2b926136f526af82e3c6",
+     "bytes": 919,
+     "baseBlob": null
+    },
+    {
+     "path": "test/browser.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "35de0b71d10cdde60715916fbec2183a1c109311",
+     "sha256": "5b1fd772e1cbbdb496e91faf7fdbd4d7134a6463ec1cb285c1d8965d50da4ac7",
+     "bytes": 10287,
+     "baseBlob": null
+    },
+    {
+     "path": "test/env.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "22bf02756593ad0a7d3c85a6b704ac59738661f9",
+     "sha256": "075a45af6785d9b85c74ab4b39f16a89008d8a8953817c8f7c62ee24fcf5a474",
+     "bytes": 10717,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/book-build.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "043d2384fc346d61ff0166884cd91db8c3d5987b",
+     "sha256": "cf3cc80b0357e8292de858de844314c676d50f54c33796a091ab55926712c2a1",
+     "bytes": 5553,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/catalog-build.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "95ec1552c50578e84e805078257fa17d9b76c9ec",
+     "sha256": "b7c70ae8af9d1ab46575c5d8f14c68fe7a4a3ce32e32c9c1efc33075cbe029d9",
+     "bytes": 62880,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/oracle-mock.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a4d4526d108b5abb3b5c63d21cf34edc5cd73b5a",
+     "sha256": "240cef794412fd05d29eefa2b38e991001896b1e8e5375d8f32054adeaa2e939",
+     "bytes": 1570,
+     "baseBlob": null
+    },
+    {
+     "path": "test/handoff.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "69dff8d1f3666ae3c18b8e4759e0d178cfcfaf96",
+     "sha256": "11f84392c7610ebc01196a7507ecf3b7e598e8126358c16ed2c1c9dd8c73f7e3",
+     "bytes": 24936,
+     "baseBlob": null
+    },
+    {
+     "path": "test/mutants.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "caa156b740ea0655831e667d974016ba5b30b3df",
+     "sha256": "10988f0f4df2193b370cec84ef90f909a9ec061caf5f6c12400df5c6e76b95db",
+     "bytes": 4387,
+     "baseBlob": null
+    },
+    {
+     "path": "trust.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a02934b9d68116e5169ef9104933d64c53743a1d",
+     "sha256": "4f55817f6efdb1df684fa72c5141680be267fa8a4e73f4bfe9b3082992f10e60",
+     "bytes": 2603,
+     "baseBlob": null
+    },
+    {
+     "path": "upload.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5f421d7742df38b802db068d5593ce23bde96c3b",
+     "sha256": "170a39408fdfa1b0e268980e866612584a7e7f085d2b538981a6f29a85233679",
+     "bytes": 13872,
+     "baseBlob": null
+    },
+    {
+     "path": "vendor/publish.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "16a9a5446ceab620f1fdcd6ba7212c01262950b0",
+     "sha256": "d255587b66acb6afa9aebe14fd2d7bec86083213cdc07242d268a8e21d88cd41",
+     "bytes": 26745,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "canary-wallet-b5e4613/patches/0001-f161ceb3.patch",
+     "sha256": "586550353664dea365dfff63c09f46769396a197360fb35f3a86c5bff24f2bd4"
+    },
+    {
+     "file": "canary-wallet-b5e4613/patches/0002-b5e4613c.patch",
+     "sha256": "60d3cbd9843e21ee437f976b5e9040f97e93aef45a71686a468760d2bdccfb00"
+    }
+   ],
+   "note": "canary app upload + catalog publish administrator MetaMask handoff (f161ceb) and the upload-stage fix (b5e4613): source and tests only; journals (live server) ignored and never read; no WASM; nothing signed or sent"
+  },
+  "current-docs2": {
+   "repo": "work/custody-v2-current-docs-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "a257c0e04bb8fe4d1ae14064758c411ed92c1f5b",
+   "baseProvenance": "a257c0e0 preserved in 7ca36e11 (frozen-2217 current-docs head)",
+   "head": "1b3c26117d2ca4bb6488ea51f9180c6004abe2bd",
+   "headTree": "078a51a914c5955ed471a3053b9cf4a035ac6c8d",
+   "commits": [
+    {
+     "commit": "ac4d9da2bc84df97f0b417a3a806b9f7c854743e",
+     "tree": "efce0936319b07c187c9ea79bd97d1ae488f919c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:29:45-07:00",
+     "subject": "Correct rollback docs against the actual vault semantics (factory, committee switch-back, site/IPNS) and root's 22:25Z state",
+     "parent": "a257c0e04bb8fe4d1ae14064758c411ed92c1f5b",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs2-1b3c2611/patches/0001-ac4d9da2.patch"
+    },
+    {
+     "commit": "c571a3f687a2dbeb0d2996e513eb9b5d88e957f0",
+     "tree": "c4be1de73f7bb1add319b61fc947aede6366d18d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:29:45-07:00",
+     "subject": "patches: append 0003 (rollback-review corrections); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926",
+     "parent": "ac4d9da2bc84df97f0b417a3a806b9f7c854743e",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs2-1b3c2611/patches/0002-c571a3f6.patch"
+    },
+    {
+     "commit": "8fda71f2edc036bf49b223e082e330a18f9dadd5",
+     "tree": "6cf982a35ff2388c7ce3079357bf15bca181dc76",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:30:10-07:00",
+     "subject": "Timestamps: rollback-review headers to the measured 22:29Z (were estimated 22:35Z); known-state read time ~22:28Z",
+     "parent": "c571a3f687a2dbeb0d2996e513eb9b5d88e957f0",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs2-1b3c2611/patches/0003-8fda71f2.patch"
+    },
+    {
+     "commit": "1b3c26117d2ca4bb6488ea51f9180c6004abe2bd",
+     "tree": "078a51a914c5955ed471a3053b9cf4a035ac6c8d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:47:41-07:00",
+     "subject": "Status at root's 22:45Z: 7dd3acd candidate built (b007d471), not activated; control still unregistered; renewals 22:39/22:43",
+     "parent": "8fda71f2edc036bf49b223e082e330a18f9dadd5",
+     "emptyAfterExclusion": false,
+     "patch": "current-docs2-1b3c2611/patches/0004-1b3c2611.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "CURRENT-STATE.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f0030fad23bfad46685b216cc8489650b611ada1",
+     "sha256": "e2181b522636637a0c5ea7405a841c84f7d64381e327e2c5f161a7d35aafa52d",
+     "bytes": 12074,
+     "baseBlob": "caa0f267c6861b0932a92f142ed7edf5cb1fac51"
+    },
+    {
+     "path": "ROLLBACK.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "1f1455dc5b20383033ca6157b4517fd50cf57969",
+     "sha256": "91384a86d76ff2d6cebd664c6091b53766ee95e20fe08947ae60bd9c0e125259",
+     "bytes": 6028,
+     "baseBlob": "5a157de62b46bc24cbc42549cb1a38a736645aa4"
+    },
+    {
+     "path": "SIGNING-AUTHORITY.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "915c9ec7f7d13ff749921fc1799e979c080f4f86",
+     "sha256": "8942bc15eba840d3fa20f2292c8b4d6b02839eeda6c6372bee775baea035db73",
+     "bytes": 3759,
+     "baseBlob": "03081a9fcea4cf52e15d41945b6f2d9142567169"
+    },
+    {
+     "path": "SOURCES.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "9018dcb194d11fcf06b0f46d4061758dc7d6018b",
+     "sha256": "8bc76690373ace8782539ce3c69202621aa253e6b581db8694005c36c5111201",
+     "bytes": 7314,
+     "baseBlob": "78bcb6db398f27eaf9bf8263a03e413c66c9a9dc"
+    },
+    {
+     "path": "commit3.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "07a20efdf7eac9852f249301746d05cb3156b9e1",
+     "sha256": "fdb4ad2b6944bb5c2058cc35b31feb8d7eccb1e2b7a102de30f8118137e7c423",
+     "bytes": 4462,
+     "baseBlob": null
+    },
+    {
+     "path": "commit4.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "073746caba5161d4dffd53d77aaa6f91554d02d6",
+     "sha256": "abae8ed84d47468bbb98da715aabe248b994d32e143792665cd818ebc2ba4203",
+     "bytes": 574,
+     "baseBlob": null
+    },
+    {
+     "path": "commit5.sh",
+     "status": "A",
+     "mode": "100755",
+     "blob": "7e7cf96c8d3b75b2c263eeb5f0dda04674ffc84f",
+     "sha256": "4973d7a2be1cbf68e65253e919384436c2bf4162cdd4d5683e1d7c341387a8fe",
+     "bytes": 1299,
+     "baseBlob": null
+    },
+    {
+     "path": "docs/security/secret-custody-v2.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c",
+     "sha256": "e0e9ba7020709c9ed9ba5b496c2083fc47c3d9c7931d7e5749721291f3da6dc4",
+     "bytes": 39629,
+     "baseBlob": "76b73bc46c24e95b5e173da037398d29400a0f95"
+    },
+    {
+     "path": "logs/commit-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5560b3ca847846e091b3b5310d1ed63555a585ad",
+     "sha256": "b583f327333ca7fde97f06fc4c1fa75f2c1e4541b3681c6be9ede2c5fbefb3be",
+     "bytes": 433,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "75933230241a32e1aa90056547540c65e26f0d17",
+     "sha256": "2526fc0481ab07bdd6d4151252b5c43f503dd6de8e63cd78aa2c51fb5b18dd3c",
+     "bytes": 1672,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "271d6ada3a67d18becd23c50fcf66c31dc40be91",
+     "sha256": "69e7a7c6bf320e328518a1b1029605ef635ef1f4c2de0453aadf62ba881974f4",
+     "bytes": 366,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/commit-4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "85f68a0e3f77b5b68342d7230a5f6af191fb48d9",
+     "sha256": "b45b2b7e9cc9bacef9e49685f5d93560f8fa6b4002e510069f5df30853bbd353",
+     "bytes": 414,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-2.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "20b6039dcc26c67d1274e8e7a0a4b8cb53185631",
+     "sha256": "f40fc18290b2122efbad79917db1d7f2a91ffd940982b1813b75513b5093f9a1",
+     "bytes": 414,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7447b5c88a38e3486f597188f38c5932345cdb1d",
+     "sha256": "477c45a6997f90ff9ad7f2c0baa68479a82baa25ca5816ba123445b3f7387b70",
+     "bytes": 414,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/rangescan-4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "35975d8d802ed8cf7b3599d04018ec6ee153b673",
+     "sha256": "09bfc04bd6f74934837a2c359e99cfa87d9cb5424f6d8a393b7cabe9d4ff9c4e",
+     "bytes": 370,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-3.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-4.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "54567b95d580c2615b7c9a8b7d8f4954128e5958",
+     "sha256": "0e14d68db172c08bfe8003f839ee46fa8f3f1846d8346631c25c47d60805150b",
+     "bytes": 370,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-4.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-5.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e76b203a73c9dbe519e11edcff9f4cc238716ab0",
+     "sha256": "3e8d10586a757c4965085914f8521665f0bc9abf382a355b00a114b9fd70e3bf",
+     "bytes": 360,
+     "baseBlob": null
+    },
+    {
+     "path": "logs/scan-5.rc",
+     "status": "A",
+     "mode": "100644",
+     "blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+     "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+     "bytes": 2,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch",
+     "status": "A",
+     "mode": "100644",
+     "blob": "55fb82924623786118ada4418e902af083add5f5",
+     "sha256": "64675f5b2444d6300dff97953e429250c9c3cf4d8681f712cad6116db1172b3e",
+     "bytes": 3313,
+     "baseBlob": null
+    },
+    {
+     "path": "patches/against-checkpoint-dfb4b55e.diff",
+     "status": "M",
+     "mode": "100644",
+     "blob": "283f9084b06e1dc0e6d20c9b68911416bf3bd362",
+     "sha256": "ed913328449d48d0a33606f6ee7c30ac2b39b789391dda75182330c7f25e9503",
+     "bytes": 21734,
+     "baseBlob": "4ca1330dc6a889738cc9000644c95fb7f825c3b4"
+    },
+    {
+     "path": "patches/against-main-68b82926.diff",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5407780aadbe00e2b9e6088db2b348755c452059",
+     "sha256": "d411635919a1472c85e21553d84ba388a3efd6d1e46c1f3963238272aefd541e",
+     "bytes": 28803,
+     "baseBlob": "d68325726a2557a8368075e1d0b357cf3e08ccde"
+    }
+   ],
+   "patches": [
+    {
+     "file": "current-docs2-1b3c2611/patches/0001-ac4d9da2.patch",
+     "sha256": "17384aeb8b6abe89e63688bcae52bf3c63e2283210dd94a5717af1210dc5f65a"
+    },
+    {
+     "file": "current-docs2-1b3c2611/patches/0002-c571a3f6.patch",
+     "sha256": "225132f924795b60caaeab2713e327ae3af07a8dbe365f3d9d4bb908e41f1d04"
+    },
+    {
+     "file": "current-docs2-1b3c2611/patches/0003-8fda71f2.patch",
+     "sha256": "0896f7ea2d4c9c03d4cfb7764d4855d3b97007300f67e134e1a0883063a85283"
+    },
+    {
+     "file": "current-docs2-1b3c2611/patches/0004-1b3c2611.patch",
+     "sha256": "93367b86966b9bdac6a98cc9ae0b7de8847b5265309ff2d54ca120f574b1717b"
+    }
+   ],
+   "note": "R reconciled custody docs on a257c0e0: rollback corrections against the actual vault semantics (ac4d9da), patch 0003 and regenerated cumulative diffs (c571a3f), measured timestamps (8fda71f2), root 22:45Z status (1b3c2611; candidate NOT activated, recovery NOT done). Not published; no rollout claimed"
+  },
+  "boot-source2": {
+   "repo": "work/custody-boot-registration-20261023/repo",
+   "branch": "boot-gpu-price",
+   "headReachableFromBranch": true,
+   "base": "9f6d37bd858ad44be1171b6415353910214c2fa5",
+   "baseProvenance": "9f6d37bd preserved in 7ca36e11 (frozen-2217 boot-source, patch-only)",
+   "head": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b",
+   "headTree": "d1754a009006f0c2e380aa93d39e891a35da3dc6",
+   "commits": [
+    {
+     "commit": "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b",
+     "parent": "9f6d37bd858ad44be1171b6415353910214c2fa5",
+     "tree": "d1754a009006f0c2e380aa93d39e891a35da3dc6",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T15:24:30-07:00",
+     "subject": "metal boot: a shielded card's GPU price is pending until discovered; a failed registry read never registers"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "metal/guest/gsup.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5dbf05eb3a7e94f77492dae7d054ddc25b88d79b",
+     "sha256": "f8dee4dc1d734c3a69854d58bc7d710ad4539c49e483e0a8ddf1d10bfa53e7f0",
+     "bytes": 50897,
+     "baseBlob": "198dca46787a11b188ba5d974f9f69af6ccffaf6"
+    },
+    {
+     "path": "test/boot-gpu-price.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0c963a002db3fc13ef5c3a894e07bb86abb11010",
+     "sha256": "c1288638d356d3da989b9dc14d2d9bdac0e6fe5eeaba4d873550386f816f518e",
+     "bytes": 19559,
+     "baseBlob": null
+    },
+    {
+     "path": "test/registry-advertise-retry.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "78150d58b727693e447b4d10d2c724cd79203366",
+     "sha256": "19f3365ed3593eb36dbf162db3c8fce50af19669dd620ba218694e9c152c5338",
+     "bytes": 19868,
+     "baseBlob": "0fa12218e81b0b85a50329566b5a720c57577ed3"
+    }
+   ],
+   "patches": [
+    {
+     "file": "boot-source2-7dd3acd0/patches/0001-7dd3acd0.patch",
+     "sha256": "08ac98d4b50d193018098b4d50482e434d6973608bc764a7133d214fc1bf0ad3"
+    }
+   ],
+   "baseFiles": [
+    {
+     "path": "metal/guest/gsup.mjs",
+     "mode": "100644",
+     "blob": "198dca46787a11b188ba5d974f9f69af6ccffaf6",
+     "file": "boot-source2-7dd3acd0/base-files/metal/guest/gsup.mjs",
+     "sha256": "2981a5feb98fe46b13968fd8d1ef2d503f624fc84b3d22824fe000bf45bb6a5a"
+    },
+    {
+     "path": "test/registry-advertise-retry.test.mjs",
+     "mode": "100644",
+     "blob": "0fa12218e81b0b85a50329566b5a720c57577ed3",
+     "file": "boot-source2-7dd3acd0/base-files/test/registry-advertise-retry.test.mjs",
+     "sha256": "2dd967cdd96e404c9c32610e805236194cf29b1ce6bcbd11634022e9065af9da"
+    }
+   ],
+   "patchOnly": true,
+   "touched": [
+    {
+     "path": "metal/guest/gsup.mjs",
+     "status": "M",
+     "mode": "100644",
+     "baseBlob": "198dca46787a11b188ba5d974f9f69af6ccffaf6",
+     "baseSha256": "2981a5feb98fe46b13968fd8d1ef2d503f624fc84b3d22824fe000bf45bb6a5a",
+     "headBlob": "5dbf05eb3a7e94f77492dae7d054ddc25b88d79b",
+     "headSha256": "f8dee4dc1d734c3a69854d58bc7d710ad4539c49e483e0a8ddf1d10bfa53e7f0",
+     "bytes": 50897,
+     "containsRewrittenLiteral": false
+    },
+    {
+     "path": "supervisor.js",
+     "status": "M",
+     "mode": "100644",
+     "baseBlob": "66ad07d37546dd00fd0349a8908e392d7ad02d45",
+     "baseSha256": "37e6a34078c2fa1d5ca835a619a115c86e7aca273324924eecda45e7346bab0b",
+     "headBlob": "3187719ba9c2529a15cda02271f2dd593ac16840",
+     "headSha256": "916780f954326b2c55a8ba8737408dba2dd1bc135900e4c6599f053662e6840c",
+     "bytes": 818429,
+     "containsRewrittenLiteral": true
+    },
+    {
+     "path": "test/boot-gpu-price.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "baseBlob": null,
+     "baseSha256": null,
+     "headBlob": "0c963a002db3fc13ef5c3a894e07bb86abb11010",
+     "headSha256": "c1288638d356d3da989b9dc14d2d9bdac0e6fe5eeaba4d873550386f816f518e",
+     "bytes": 19559,
+     "containsRewrittenLiteral": false
+    },
+    {
+     "path": "test/registry-advertise-retry.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "baseBlob": "0fa12218e81b0b85a50329566b5a720c57577ed3",
+     "baseSha256": "2dd967cdd96e404c9c32610e805236194cf29b1ce6bcbd11634022e9065af9da",
+     "headBlob": "78150d58b727693e447b4d10d2c724cd79203366",
+     "headSha256": "19f3365ed3593eb36dbf162db3c8fce50af19669dd620ba218694e9c152c5338",
+     "bytes": 19868,
+     "containsRewrittenLiteral": false
+    }
+   ],
+   "heldBackForRewrittenLiteral": [
+    "supervisor.js"
+   ],
+   "patchProvenance": {
+    "exportTimeCheck": "a throwaway index of the real parent 9f6d37bd + this patch == 7dd3acd0 tree (asserted at export)",
+    "baseBlobAnchors": {
+     "metal/guest/gsup.mjs": {
+      "blob": "198dca46787a11b188ba5d974f9f69af6ccffaf6",
+      "pushedIn": "frozen-2146 recipient-restore-repo touchedBlobs head"
+     },
+     "supervisor.js": {
+      "blob": "66ad07d37546dd00fd0349a8908e392d7ad02d45",
+      "pushedIn": "frozen-2217 boot-source touched headBlob"
+     },
+     "test/registry-advertise-retry.test.mjs": {
+      "blob": "0fa12218e81b0b85a50329566b5a720c57577ed3",
+      "pushedIn": "frozen-2217 boot-source touched headBlob"
+     }
+    },
+    "why": "supervisor.js (base and head) contains the provider name the 2026-10-21 rewrite removed: not published (no waiver); the patch is literal-free"
+   },
+   "note": "H source 7dd3acd0 on 9f6d37bd: a shielded card's GPU price stays pending until discovered, the known price is kept and setProofKey proceeds; a failed registry read never registers; tests. PATCH-ONLY (supervisor.js held back, rewritten literal); root-approved candidate, built twice (b007d471), NOT activated"
+  }
+ },
+ "derivatives": {},
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-2217-checkpoint.md": "533ba69384c201dd324a051cb5ec7046505c389548700bc669f2d297b3377330",
+  "source-preservation/snapshots-2246/custody-v2-live-verification-20261023.snapshot-2246.md": "d57763d11d84185a621ad0b944f0773aa539a108366f56ebc37b9f6deaeaef03"
+ },
+ "rootEvidence": {},
+ "rootEvidenceNote": "the living outputs file is captured as the dated snapshot snapshots-2246 (22:42:35Z, sha256 d57763d1...); its earlier stored bytes stay unchanged",
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "ignored/untracked files in every repo: canary-wallet journals (live server), boot-price-release stage image binaries (initramfs.cpio.gz, vmlinuz; sha256 in INVENTORY.sha256), WASM/components, node_modules, raw quotes, keys, sealed state, private files and signatures, task/progress/err files, uncommitted WIP",
+  "the new D activation kit (custody-boot-price-activation-20261023; under review, not frozen) and the rejected W helper",
+  "supervisor.js of boot-source2 at base and head (rewritten literal): blobs and sha256 recorded, patch published",
+  "commits after these heads and every worktree change"
+ ]
+}

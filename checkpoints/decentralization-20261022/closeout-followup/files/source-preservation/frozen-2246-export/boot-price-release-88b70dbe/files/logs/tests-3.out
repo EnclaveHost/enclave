@@ -1,0 +1,24 @@
+[queue] START available=23073MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+test_any_other_file_refuses (tests.test_precheck.Precheck.test_any_other_file_refuses) ... ok
+test_approval_format (tests.test_precheck.Precheck.test_approval_format) ... ok
+test_good_child_passes_with_parent_anchored_patch (tests.test_precheck.Precheck.test_good_child_passes_with_parent_anchored_patch) ... ok
+test_gsup_needs_explicit_review_both_ways (tests.test_precheck.Precheck.test_gsup_needs_explicit_review_both_ways) ... ok
+test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses (tests.test_precheck.Precheck.test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses) ... ok
+test_parent_must_be_exactly_9f6d37bd (tests.test_precheck.Precheck.test_parent_must_be_exactly_9f6d37bd) ... ok
+test_tests_must_be_exactly_the_approved_ones (tests.test_precheck.Precheck.test_tests_must_be_exactly_the_approved_ones) ... ok
+test_entry_deviations_refuse (tests.test_verify.Verify.test_entry_deviations_refuse) ... ok
+test_exact_supervisor_and_gsup_deltas_pass (tests.test_verify.Verify.test_exact_supervisor_and_gsup_deltas_pass) ... ok
+test_manifest_deviations_refuse (tests.test_verify.Verify.test_manifest_deviations_refuse) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.619s
+
+OK
+OK   1: REFUSED: no APPROVED-COMMIT.txt from root
+OK   2: REFUSED: APPROVED-COMMIT.txt must be exactly three lines: commit / gsup / tests
+OK   3: REFUSED: 9f6d37bd858ad44be1171b6415353910214c2fa5 parents ['a6b1378cd'] are not exactly 9f6d37bd
+OK   4: REFUSED: 0000000000000000000000000000000000000000 is not in H's repo
+OK   5: REFUSED: a6b1378cdf430217025987d90c040d0e25a9993d parents ['deabf8f90'] are not exactly 9f6d37bd
+[memory-guard] exit=0 peakTreeRssMiB=29 minHostAvailableMiB=23045
+[memory-guard] at peak: python3:23 bash:6
+[queue] EXIT 0

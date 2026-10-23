@@ -1,0 +1,23 @@
+[2026-10-23 ~22:25Z, D; source-only. H's repo at 9f6d37bd with NO new commit or working change yet; H's design note read
+(custody-boot-registration-20261023/boot-price-progress.txt). Early criteria for the final H commit, BEFORE any build:]
+1. PENDING-GPU GUARD (the blocker). H plans for gsup to state the GPU expectation in the measured env, with the supervisor
+   deferring ONLY the boot registry decision. So the commit WILL touch metal/guest/gsup.mjs, and root must write
+   "gsup REVIEWED" (build-price.sh refuses gsup otherwise). Review points:
+   - the deferral must be bounded;
+   - "no expectation" (CPU-only) must behave exactly as before;
+   - a failed or absent probe after the bound must not loop forever;
+   - the row must never be written to gpu 0 merely because discovery is unfinished.
+2. READ-FAILURE GUARD. At 9f6d37bd, bootRegistration() maps a failed registry read to "register"
+   (supervisor.js ~713: "registry read failed ... full register"). With the one-shot budget (~376e9; full register ~354e9 worst),
+   one transient RPC error at boot spends it. A read failure should throw, so that advertise() backs off (5 -> 300 s) and
+   re-reads; the next attempt still reaches setProofKey/adopt. Recommend that the final commit includes this, with a test.
+3. ADOPTION WINDOW. The claim loop waits on _enclaveId. Deferring registration until discovery therefore delays adoption.
+   activate.py allows ADOPT_S = 300 s after attach, and discovery needs fresh guestd inference health plus a passing masked GEMM
+   probe (supervisor.js:5874; gsup publishes the verdict only after a pass). If the bound can exceed about 250 s, the activation
+   adaptation must widen ADOPT_S with lease margin, or the cutover will roll back by timeout.
+4. RECOMPUTED PRICE. After discovery, SELL_GPU_PRICE6 is the card's pricePerSec6, or the pool formula when _shieldedPool. It
+   must equal the row's 1667 for setProofKey. Root saw 1667 publicly at 21:51, which is the current computed value; a pool-rate
+   change would again mean a full register.
+5. The boot-funding preflight (custody-boot-activation) must model the deferred decision. Asking with desired gpu = 1667 is right
+   only after discovery; it should state that assumption.
+Build template ready, not run: build-price.sh (README.md). No attestation wrapper until root's build pins the measurement.

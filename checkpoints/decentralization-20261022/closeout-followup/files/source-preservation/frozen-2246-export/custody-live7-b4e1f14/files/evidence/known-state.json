@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-23T22:20:34.005Z",
+  "readOnly": true,
+  "scope": "Known original vault/committees/policies only; no discovery of new consumers",
+  "block": {
+    "number": "53002331",
+    "hash": "0x265900eb39b1bafd106b10622f6e0838e71a3b009777bec5dca9810319a682be",
+    "timestamp": "1792794009",
+    "baseFeePerGas": "5000000"
+  },
+  "providers": [
+    "https://mainnet.base.org",
+    "https://base.public.blockpi.network/v1/rpc/public"
+  ],
+  "codeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
+  "codeMatchesPreviousVerifiedRuntime": true,
+  "book": {
+    "address": "0xab214342d5A490150A4A977063A2f88E21F80907",
+    "entries": {
+      "secretVaultV2": "0x0000000000000000000000000000000000000000",
+      "secretVault": "0x0000000000000000000000000000000000000000",
+      "hostOwnership": "0x0000000000000000000000000000000000000000",
+      "registry": "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
+      "deployments": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
+    },
+    "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+  },
+  "vault": {
+    "address": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
+    "book": "0xab214342d5A490150A4A977063A2f88E21F80907",
+    "enclaveOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+  },
+  "committees": [
+    {
+      "id": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+      "epoch": 1,
+      "t": 1,
+      "W": 1,
+      "activatedAt": "1792017007",
+      "YBytes": 33,
+      "machines": [
+        {
+          "identity": "0xF0F8078459c051a89197fac73Ff689c6DF96506a",
+          "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
+          "endpoint": "https://api.enclave.host/t/custody-metal0",
+          "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+          "registryId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+          "measurement": "0x2530eda0796a9d16eac8e2bb3b1f02abb58a816d4a54ebbbcbfb738a9cf966cf",
+          "enclaveSeat": true
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+      "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+      "policyRev": "2",
+      "secretRev": "2",
+      "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+      "paused": false,
+      "rulesBytes": 451,
+      "bundle": {
+        "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+        "secretRev": "2",
+        "bytes": 272
+      }
+    }
+  ]
+}

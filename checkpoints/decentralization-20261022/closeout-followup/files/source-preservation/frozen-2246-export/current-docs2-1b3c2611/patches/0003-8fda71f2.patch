@@ -1,0 +1,142 @@
+From 8fda71f2edc036bf49b223e082e330a18f9dadd5 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:30:10 -0700
+Subject: [PATCH] Timestamps: rollback-review headers to the measured 22:29Z
+ (were estimated 22:35Z); known-state read time ~22:28Z
+
+---
+ CURRENT-STATE.md     |  2 +-
+ ROLLBACK.md          |  2 +-
+ SOURCES.md           |  2 +-
+ commit4.sh           |  8 ++++++++
+ logs/commit-3.out    | 15 +++++++++++++++
+ logs/commit-3.rc     |  1 +
+ logs/rangescan-3.out |  8 ++++++++
+ logs/rangescan-3.rc  |  1 +
+ logs/scan-4.out      |  7 +++++++
+ logs/scan-4.rc       |  1 +
+ 10 files changed, 44 insertions(+), 3 deletions(-)
+ create mode 100755 commit4.sh
+ create mode 100644 logs/commit-3.out
+ create mode 100644 logs/commit-3.rc
+ create mode 100644 logs/rangescan-3.out
+ create mode 100644 logs/rangescan-3.rc
+ create mode 100644 logs/scan-4.out
+ create mode 100644 logs/scan-4.rc
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+index 1ea0ca7132a36c0acc04bf09f22bb04434414212..a1e6aff54031f4fafccb2ca0d71f021deb35ab5c 100644
+--- a/CURRENT-STATE.md
++++ b/CURRENT-STATE.md
+@@ -1,4 +1,4 @@
+-# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:35Z from root's 22:14Z journal and 22:25Z review)
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review)
+ 
+ **Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
+ production state, and it is not root's public output.
+diff --git a/ROLLBACK.md b/ROLLBACK.md
+index 988087c1872703a16dcb57b0eebec7ea37ddb764..1f1455dc5b20383033ca6157b4517fd50cf57969 100644
+--- a/ROLLBACK.md
++++ b/ROLLBACK.md
+@@ -1,4 +1,4 @@
+-# Custody v2: rollback, cancel and protection limits (as of 2026-10-23T22:10Z; corrected 22:35Z per root's rollback review)
++# Custody v2: rollback, cancel and protection limits (as of 2026-10-23T22:10Z; corrected 22:29Z per root's rollback review)
+ 
+ ## 1. Operational rollback per action (nothing here was executed by this worker)
+ 
+diff --git a/SOURCES.md b/SOURCES.md
+index 22fce56974867db17ce9cbf672cf044d0144cada..a88e1bd4edd05a01da91e35acaa8f7f09e7bc309 100644
+--- a/SOURCES.md
++++ b/SOURCES.md
+@@ -54,7 +54,7 @@
+   - `work/custody-recipient-activation-20261023/logs/root-activate.out` and `ROOT-REGISTRATION-INCIDENT.txt`;
+   - `outputs/decentralization-audit/custody-v2-live-verification-20261023.md` L3-7 (root's public output; read only).
+ 
+-- **S17:** `work/custody-v2-live-20261023/evidence/known-state.json` as read at 22:31Z. This is root's UNCOMMITTED modification
++- **S17:** `work/custody-v2-live-20261023/evidence/known-state.json` as read at about 22:28Z. This is root's UNCOMMITTED modification
+   (the repo head is d64f0443), at 2026-10-23T22:20:34.005Z, block 53,002,331: code hash `0x4b949b37…`; book `secretVaultV2`,
+   `secretVault` and `hostOwnership` = 0; committee 0x4774 at epoch 1, t 1, W 1, with one machine.
+ - **S18:** `work/custody-v2-current-docs-20261023/ROOT-ROLLBACK-REVIEW.txt` (root, as read 22:27Z): the `7dd3acd` approval and
+diff --git a/commit4.sh b/commit4.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..073746caba5161d4dffd53d77aaa6f91554d02d6
+--- /dev/null
++++ b/commit4.sh
+@@ -0,0 +1,8 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")"
++HOOKS=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-dashboard-20261023/repo/.githooks
++[ "$(git rev-parse --short=7 HEAD)" = c571a3f ]
++git add ROLLBACK.md CURRENT-STATE.md SOURCES.md commit4.sh logs/commit-3.out logs/commit-3.rc logs/rangescan-3.out logs/rangescan-3.rc logs/scan-4.out logs/scan-4.rc logs/scan-gitleaks.json
++git -c core.hooksPath=$HOOKS commit -q -m "Timestamps: rollback-review headers to the measured 22:29Z (were estimated 22:35Z); known-state read time ~22:28Z"
++git log --format='%H %s' -1
+diff --git a/logs/commit-3.out b/logs/commit-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..75933230241a32e1aa90056547540c65e26f0d17
+--- /dev/null
++++ b/logs/commit-3.out
+@@ -0,0 +1,15 @@
++[queue] START available=23646MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++against-main-68b82926.diff reproduces the final docs from 68b82926968c99503d38ae78dbcb04694cc2c56c
++against-checkpoint-dfb4b55e.diff reproduces the final docs from dfb4b55e627ebd95b647abebf09627296f099862
++0001..0003 chain reproduces the final docs from dfb4b55e
++c571a3f SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> patches: append 0003 (rollback-review corrections); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926
++ac4d9da SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Correct rollback docs against the actual vault semantics (factory, committee switch-back, site/IPNS) and root's 22:25Z state
++a257c0e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Refresh status from root's 22:14Z journal: control still old/unregistered, 08d1 admitted not activated, cutover stopped
++dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c  patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch
++5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3  patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch
++64675f5b2444d6300dff97953e429250c9c3cf4d8681f712cad6116db1172b3e  patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch
++ed913328449d48d0a33606f6ee7c30ac2b39b789391dda75182330c7f25e9503  patches/against-checkpoint-dfb4b55e.diff
++d411635919a1472c85e21553d84ba388a3efd6d1e46c1f3963238272aefd541e  patches/against-main-68b82926.diff
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/commit-3.rc b/logs/commit-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-3.out b/logs/rangescan-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..20b6039dcc26c67d1274e8e7a0a4b8cb53185631
+--- /dev/null
++++ b/logs/rangescan-3.out
+@@ -0,0 +1,8 @@
++[queue] START available=23619MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++3:29PM INF 7 commits scanned.
++3:29PM INF scanned ~191033 bytes (191.03 KB) in 152ms
++3:29PM INF no leaks found
++[rangescan] gitleaks-all-commits=0 scan-crypto-keys-tracked=0
++[memory-guard] exit=0 peakTreeRssMiB=61 minHostAvailableMiB=23561
++[memory-guard] at peak: gitleaks:51 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/rangescan-3.rc b/logs/rangescan-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/rangescan-3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-4.out b/logs/scan-4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..54567b95d580c2615b7c9a8b7d8f4954128e5958
+--- /dev/null
++++ b/logs/scan-4.out
+@@ -0,0 +1,7 @@
++[queue] START available=23588MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++3:30PM INF scanned ~184919 bytes (184.92 KB) in 19.9ms
++3:30PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=23553
++[memory-guard] at peak: gitleaks:49 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-4.rc b/logs/scan-4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-4.rc
+@@ -0,0 +1 @@
++0
