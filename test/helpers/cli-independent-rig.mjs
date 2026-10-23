@@ -401,7 +401,8 @@ export async function startStorage(r, { dir }) {
  *    supervisor file (the pre-fix copy for a negative control); appRef: the seeded record's app (default the rig's).
  *    mode.deleteDelayMs slows the manager's DELETE. */
 export async function startActualHost(r, { id, owner, dir, token, host = { key: KEYS.operator, endpoint: r.endpoint }, leaseUntil,
-  rpc = r.rpc, claim = false, env = {}, stateFile = null, seed = true, script = "supervisor.js", appRef = r.appRef }) {
+  rpc = r.rpc, claim = false, env = {}, stateFile = null, seed = true, script = "supervisor.js", appRef = r.appRef,
+  preload = path.join(REPO, "test/helpers/loopback-only-fetch.mjs") }) {
   const effects = [], mode = {}, vmId = "vm-move-1";
   const manager = http.createServer(async (req, res) => {
     const raw = await body(req);
@@ -440,7 +441,7 @@ export async function startActualHost(r, { id, owner, dir, token, host = { key: 
     network: { port: 8080, protocol: "https" }, remainingMs: null, _vmId: vmId, _port: 0, startedAt: Date.now(), createdAt: new Date().toISOString(),
     _onchain: true, _ledger: r.addresses.ledger, _leaseUntil: Number(leaseUntil) }] }));
   const port = await freePort();
-  const child = spawn(process.execPath, ["--import", path.join(REPO, "test/helpers/loopback-only-fetch.mjs"), script], {
+  const child = spawn(process.execPath, ["--import", preload, script], {
     cwd: REPO, stdio: ["ignore", "pipe", "pipe"],
     env: { PATH: process.env.PATH, HOME: dir, SECRET: "move-fixture-secret", PORT: String(port), ENABLE_MPS: "0", STATE_FILE: stateFile, GPU_COUNT: "0",
       PROVISION_BACKEND: "vm", VMMGR_URL: `http://127.0.0.1:${manager.address().port}`, BASE_RPC: rpc, ENCLAVE_CONTRACT_PINS_FILE: pinFile,
