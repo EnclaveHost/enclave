@@ -403,3 +403,68 @@ test("a new process renews nothing before its own pass has served the row", { ti
   await b.pass();                                       // its own pass renews (due)
   assert.equal(renews().length, 1); assert.equal(b.ready(), "ready");
 });
+
+// SERVING FIRST (windows-serving-first): the pass reconciles what this box already serves BEFORE its queued-claim sweep
+// (scanLedger: a claim's gate, send and launch), so a slow sweep cannot delay an existing app's authorization, readiness or
+// keeper eligibility. The sweep is replaced by a gated one; everything else is the real pass.
+const until = async (what, cond, ms = 5000) => { const end = realNow() + ms; while (!cond()) { if (realNow() > end) throw new Error(`timed out: ${what}`); await sleep(5); } };
+const slowSweep = (b, also = async () => {}) => {
+  const g = gate(), st = { started: false, done: false };
+  b.h.scanLedger = async () => { st.started = true; await g.p; await also(); st.done = true; };
+  return Object.assign(st, { open: g.open });
+};
+
+test("SERVING FIRST: a slow queued-claim sweep cannot delay an existing served app's readiness or its keeper renewal", { timeout: 30_000 }, async () => {
+  const b = await box({ left: 400 });
+  const sw = slowSweep(b);
+  const pass = b.pass();
+  await until("the sweep started", () => sw.started);
+  assert.equal(b.h.leaseReadiness().inFlight, true, "the pass is still running (blocked in the sweep)");
+  assert.equal(b.ready(), "ready", "the existing app reads ready while the claim sweep is still blocked");
+  const r = await keep(b, 150);                        // inside the 285-s window now, the sweep still blocked
+  assert.deepEqual(r.renewed, [A], `keeper renewed during the blocked sweep: ${JSON.stringify(r)}`);
+  assert.equal(renews().length, 1); assert.equal(operatorTx(), 0, "never this host's ETH");
+  sw.open(); await pass;
+  assert.ok(sw.done); assert.equal(b.ready(), "ready");
+});
+
+test("SERVING FIRST: what the sweep resumes is reconciled in the same pass; a tracked re-claim waits until after the sweep", { timeout: 30_000 }, async () => {
+  const C = "0x" + "c3".repeat(32);
+  const b = await box({ ids: [A, B, C], left: 400 });
+  setRow(B, { runner: "0x" + "00".repeat(32) });      // B: tracked, but this box no longer holds it (unclaimed): a re-claim
+  b.h.tracked.delete(C);                               // C: a live lease of this box it no longer tracks; the sweep resumes it
+  const order = [];
+  b.h.consider = async (id) => { order.push({ id, afterSweep: sw.done }); return { accepted: false }; };
+  const sw = slowSweep(b, async () => { b.h.tracked.add(C); });
+  const pass = b.pass();
+  await until("the sweep started", () => sw.started);
+  assert.equal(b.ready(A), "ready", "A ready before the sweep finished");
+  assert.deepEqual(order, [], "no re-claim before the sweep (it would delay the apps after it)");
+  sw.open(); await pass;
+  assert.deepEqual(order, [{ id: B, afterSweep: true }], "the deferred re-claim ran once, after the sweep, on a fresh row");
+  assert.equal(b.ready(C), "ready", "the lease the sweep resumed was reconciled in the same pass");
+  assert.notEqual(b.ready(B), "ready");
+});
+
+test("SERVING FIRST: a wallet refusal or unknown, a transfer and a suspension still block while the sweep is slow", { timeout: 60_000 }, async () => {
+  const variants = {
+    "wallet ban": (b) => { b.answer = REFUSE; },
+    "wallet unknown": (b) => { b.answer = UNKNOWN; },
+    "transfer to an owner this box does not serve": () => setRow(A, { owner: "0x" + "99".repeat(20) }),
+    suspended: () => { S.suspended = "suspended by the platform administrator"; },
+  };
+  for (const [name, apply] of Object.entries(variants)) {
+    const b = await box({ left: 400 });
+    apply(b);
+    const sw = slowSweep(b);
+    const pass = b.pass();
+    await until(`${name}: the sweep started`, () => sw.started);
+    assert.notEqual(b.ready(), "ready", `${name}: ready while refused`);
+    await keep(b, 150);
+    assert.equal(renews().length, 0, `${name}: renewed while refused: ${JSON.stringify(renews())}`);
+    sw.open(); await pass;
+    assert.notEqual(b.ready(), "ready", name);
+    for (let i = 0; i < 3; i++) await keep(b);
+    assert.equal(renews().length, 0, name); assert.equal(operatorTx(), 0, name);
+  }
+});
