@@ -15,6 +15,7 @@ const FNS = [
   slice(/async function registerOnChain\(endpoint\) \{[\s\S]*?\n\}/, "registerOnChain"),
   slice(/async function bootRegistration\(id, endpoint, proofKey\) \{[\s\S]*?\n\}/, "bootRegistration"),
   slice(/function bootRegistrationAction\(row, want\) \{[\s\S]*?\n\}/, "bootRegistrationAction"),
+  slice(/function gpuPricePending\(now = Date\.now\(\)\) \{[\s\S]*?\n\}/, "gpuPricePending"),
   slice(/async function registerSelf\(\) \{[\s\S]*?\n\}/, "registerSelf"),
   slice(/function advertised\(\) \{[\s\S]*?\n\}/, "advertised"),
   slice(/let _advertising = false;\nasync function advertise\(\) \{[\s\S]*?\n\}/, "advertise"),
@@ -36,6 +37,8 @@ function box(env) {
     const claimSigner = () => ({ account: { address: env.operator || "0x00000000000000000000000000000000000000aa" } });
     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
     const IS_GPU = false, RECONCILE_SEC = 60;
+    // nothing shielded expected here (test/boot-gpu-price.test.mjs covers the pending GPU price)
+    const SHIELDED_GPU_EXPECTED = 0, GPU_DISCOVERY_WAIT_MS = 15 * 60_000, GPU_DISCOVERY_FROM = 0;
     // like the real queue: the promise is the HASH (at send), .receipt the confirmed outcome
     const sendOperatorTx = (address, _abi, fn, args) => {
       txs.push({ address, fn, endpoint: args[0], args });
@@ -176,12 +179,11 @@ test("any registered field that differs keeps the full register(): endpoint, rep
   }
 });
 
-test("unchanged paths: not registered, another operator's row, an inactive row, a failed read, a pre-schema-3 registry", async () => {
+test("unchanged paths: not registered, another operator's row, an inactive row, a pre-schema-3 registry", async () => {
   const cases = [
     [() => null, /not registered yet/], [() => row({ operator: "0x0000000000000000000000000000000000000000" }), /not registered yet/],
     [() => row({ operator: "0x00000000000000000000000000000000000000bb" }), /another operator/],
     [() => row({ active: false }), /inactive on chain/],
-    [() => { throw new Error("HTTP request failed."); }, /registry read failed/],
   ];
   for (const [r, re] of cases) {
     const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, row: r, send: ok });
@@ -195,6 +197,25 @@ test("unchanged paths: not registered, another operator's row, an inactive row, 
     send: () => { if (++n <= 2) throw new Error("execution reverted: not operator"); return "0xhash"; } });
   await f.advertise();
   assert.deepEqual(fns(f), ["register", "register", "register"]);
+});
+
+test("a FAILED registry read sends nothing and retries; only a later SUCCESSFUL read decides (never a blind register)", async () => {
+  // a failed RPC is no evidence that the row is missing or different: every outcome after two failed reads
+  for (const [label, ok, want] of [["exact row", () => row({ proofKey: KEY_NEW }), []], ["old proof key", () => row(), ["setProofKey"]],
+    ["missing row", () => null, ["register"]], ["inactive row", () => row({ active: false }), ["register"]],
+    ["differing row", () => row({ repo: "Other/repo" }), ["register"]]]) {
+    let reads = 0, sentDuringFailures = -1;
+    const b = box({ PUBLIC_URL: URL0, proofKey: KEY_NEW, send: () => "0xtx",
+      receipt: (fn) => ({ status: "success" }),
+      row: () => { if (++reads <= 2) { sentDuringFailures = b.txs.length; throw new Error("HTTP request failed."); }
+                   return label === "old proof key" && reads > 3 ? row({ proofKey: KEY_NEW }) : ok(); } });
+    await b.advertise();
+    assert.equal(sentDuringFailures, 0, `${label}: zero writes while the reads fail`);
+    assert.deepEqual(b.sleeps, [5, 10], `${label}: the normal backoff`);
+    assert.ok(b.logs.some((l) => /registry read failed \(HTTP request failed\.\): no decision; the next attempt reads again/.test(l)), label);
+    assert.deepEqual(fns(b), want, label);
+    assert.ok(b.state().enclaveId, label);
+  }
 });
 
 test("setProofKey failure: a reverted receipt or a failed send is not adopted and is retried; never escalated to register()", async () => {

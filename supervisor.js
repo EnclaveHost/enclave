@@ -820,7 +820,7 @@ async function registerOnChain(endpoint) {
         // Fail closed: adopt ONLY when a fresh read shows the whole row current (this key included). A failed or lagging
         // read, a superseded key, a deactivation or any other changed field throws; the next normal attempt reads again
         // and adopts without a transaction if the row is current by then.
-        const after = await bootRegistration(id, endpoint, proofKey);
+        const after = await bootRegistration(id, endpoint, proofKey).catch((e) => ({ action: "unread", reason: e.message }));
         if (after.action !== "adopt")
           throw new Error(`after setProofKey ${tx} the row is not adoptable yet (${after.reason}); the next attempt reads it again`);
       }
@@ -829,18 +829,19 @@ async function registerOnChain(endpoint) {
       console.log(`[registry] adopted the existing registration of ${endpoint} id=${id} (${boot.reason})`
         + (tx ? `: proofKey=${proofKey} tx=${tx}` : `: no transaction, proofKey=${proofKey}`));
     } else {
+    const gpuPrice = boot.gpuPrice ?? BigInt(SELL_GPU_PRICE6);   // pending: the row's own exact price, never a not-yet-discovered 0
     const hash = rev >= 3
       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "register",
-          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6), proofKey])
+          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(gpuPrice), proofKey])
       : rev >= 2
       ? await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V2, "register",
-          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)])
+          [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT, BigInt(SELL_CPU_PRICE6), BigInt(gpuPrice)])
       : await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI_V1, "register",
           [endpoint, ENCLAVE_REPO, ENCLAVE_MEASUREMENT]);
     _enclaveId = id; _advertisedEndpoint = endpoint;        // unlocks the claim loop (portable deployments)
     _activeSeen = null;                                     // register() just set the row active; the next pass re-reads it
     console.log(`[registry] registered ${endpoint} repo=${ENCLAVE_REPO} id=${id} tx=${hash}`
-      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU ? ` + ${SELL_GPU_PRICE6}/sec card` : ""}` : " (schema 1: unpriced)")
+      + (rev >= 2 ? ` price=${SELL_CPU_PRICE6}/sec node${IS_GPU || gpuPrice ? ` + ${gpuPrice}/sec card` : ""}` : " (schema 1: unpriced)")
       + (rev >= 3 ? ` proofKey=${proofKey}` : " (pre-schema-3 registry: no proof key published)")
       + (rev >= 3 ? ` (${boot.reason})` : ""));
     }
@@ -870,16 +871,26 @@ async function registerOnChain(endpoint) {
 }
 
 // Boot registration choice (registerOnChain): read THIS row once and compare it with exactly what register() would write.
-//   register     no row / another operator (register() reverts "not operator", as before) / inactive (boot re-activates,
-//                as before) / any of endpoint, repo, measurement, cpu or gpu price differs / the read failed
+//   register     a SUCCESSFULLY read row that is missing / another operator's (register() reverts "not operator", as before) /
+//                inactive (boot re-activates, as before) / differs in endpoint, repo, measurement, cpu or gpu price (gpu: unless pending)
 //   setProofKey  this operator's active row, every field equal except the proof key
 //   adopt        this operator's active row, every field equal including the proof key
+// A FAILED read decides nothing: it throws, so the attempt sends nothing and advertise() retries with its normal backoff. A
+// failed RPC is no evidence that the row is missing or different, and a blind register() would spend the operator's one boot
+// transaction (in every state: GPU price pending, card discovered, CPU-only).
+// While the GPU price is pending (gpuPricePending): the GPU price is not compared, and a register() restates this operator's
+// row's own GPU price, exactly (the uint64 as read), instead of the 0 that only means "not discovered yet" (gpuPrice).
 async function bootRegistration(id, endpoint, proofKey) {
+  const pending = gpuPricePending();
   let row;
   try { row = await registryEntry(id); }
-  catch (e) { return { action: "register", reason: `registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): full register` }; }
-  return bootRegistrationAction(row, { operator: claimSigner().account.address, endpoint, repo: ENCLAVE_REPO,
-    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: SELL_GPU_PRICE6, proofKey });
+  catch (e) { throw new Error(`registry read failed (${String(e.shortMessage || e.message).slice(0, 120)}): no decision; the next attempt reads again`); }
+  const operator = claimSigner().account.address;
+  const b = bootRegistrationAction(row, { operator, endpoint, repo: ENCLAVE_REPO,
+    measurement: ENCLAVE_MEASUREMENT, cpuPricePerSec6: SELL_CPU_PRICE6, gpuPricePerSec6: pending ? null : SELL_GPU_PRICE6, proofKey });
+  if (!pending) return b;
+  const own = !!row && String(row.operator || "").toLowerCase() === String(operator).toLowerCase();
+  return { ...b, reason: `${b.reason}; GPU price pending shielded discovery`, gpuPrice: own ? BigInt(row.gpuPricePerSec6) : BigInt(SELL_GPU_PRICE6) };
 }
 function bootRegistrationAction(row, want) {
   const lc = (x) => String(x == null ? "" : x).toLowerCase();
@@ -887,7 +898,8 @@ function bootRegistrationAction(row, want) {
   if (lc(row.operator) !== lc(want.operator)) return { action: "register", reason: "registered to another operator" };
   if (row.active !== true) return { action: "register", reason: "inactive on chain: boot re-registers" };
   const same = row.endpoint === want.endpoint && row.repo === want.repo && lc(row.measurement) === lc(want.measurement)
-    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6) && String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6);
+    && String(row.cpuPricePerSec6) === String(want.cpuPricePerSec6)
+    && (want.gpuPricePerSec6 == null || String(row.gpuPricePerSec6) === String(want.gpuPricePerSec6));   // null: pending, not compared
   if (!same) return { action: "register", reason: "the registered fields differ" };
   if (lc(row.proofKey) === lc(want.proofKey)) return { action: "adopt", reason: "already registered exactly" };
   return { action: "setProofKey", reason: "only the proof key differs" };
@@ -933,11 +945,14 @@ async function syncRegisteredPrice(id) {
   let e;
   try { e = await registryEntry(id); }
   catch { return; }                                         // transient read: try again next pass
-  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && Number(e.gpuPricePerSec6) === SELL_GPU_PRICE6) return;
+  // pending (gpuPricePending): the row keeps its exact GPU price (uint64, as read) until the card is adopted (adoptShieldedCards
+  // syncs then) or the wait ends
+  const gpu = gpuPricePending() ? BigInt(e.gpuPricePerSec6) : BigInt(SELL_GPU_PRICE6);
+  if (Number(e.cpuPricePerSec6) === SELL_CPU_PRICE6 && BigInt(e.gpuPricePerSec6) === gpu) return;
   if (!mayReconcile(e, claimSigner().account.address)) return;  // a deregistered (or another's) row is not re-priced
   const h = await sendOperatorTx(REGISTRY_ADDRESS, REGISTRY_ABI, "setPrices",
-    [id, BigInt(SELL_CPU_PRICE6), BigInt(SELL_GPU_PRICE6)]);
-  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${SELL_GPU_PRICE6}/sec card `
+    [id, BigInt(SELL_CPU_PRICE6), gpu]);
+  console.log(`[registry] price published: ${SELL_CPU_PRICE6}/sec node, ${gpu}/sec card `
     + `(was ${e.cpuPricePerSec6}/${e.gpuPricePerSec6}) tx=${h}`);
 }
 
@@ -3337,6 +3352,19 @@ let CARD_TFLOPS       = parseFloat(process.env.GPU_TFLOPS || "989");    // GPU c
 // CPU-only enclave has no card to sell (0).
 const SELL_CPU_PRICE6 = Math.max(1, Math.round(parseFloat(process.env.SELL_CPU_PRICE6 || "") || 834));
 let SELL_GPU_PRICE6   = IS_GPU ? Math.max(0, Math.round(parseFloat(process.env.SELL_GPU_PRICE6 || "") || 1667)) : 0;
+// A SHIELDED card's price is not known at boot: gsup starts this process with GPU_COUNT=0, so IS_GPU is false and the price
+// above is 0 until the card's probe passes (adoptShieldedCards). gsup states how many shielded cards this box is configured to
+// probe (SHIELDED_GPU_EXPECTED, from host config). While such a card is expected and not yet adopted, the GPU price is PENDING:
+// the boot registry decision does not compare it, and no registry write replaces the row's GPU price with that 0 (registering
+// or re-pricing to 0 only because the probe has not finished yet). Bounded: GPU_DISCOVERY_WAIT_MS after start without an
+// adopted card, 0 is a fact again (no card to sell) and everything behaves as before. A CPU-only box (nothing expected) and a
+// card inside the CVM (GPU_COUNT > 0) never pend.
+const SHIELDED_GPU_EXPECTED = Math.max(0, parseInt(process.env.SHIELDED_GPU_EXPECTED || "0", 10) || 0);
+const GPU_DISCOVERY_WAIT_MS = 15 * 60_000;
+const GPU_DISCOVERY_FROM    = Date.now();
+function gpuPricePending(now = Date.now()) {
+  return SHIELDED_GPU_EXPECTED > 0 && !IS_GPU && now - GPU_DISCOVERY_FROM < GPU_DISCOVERY_WAIT_MS;
+}
 // Whether the operator STATED that price or inherited the default. Only the
 // pre-rev-8 floor cares: on those ledgers the price is global and a record may
 // have been created at an older, lower one, so applying our default as a floor
@@ -10041,12 +10069,26 @@ async function awaitReceipt(hash, timeoutMs = 90_000) {
     await sleepMs(2000);
   }
 }
+// Gas and fees are this queue's own fresh reads, stated EXPLICITLY on the write (2026-10-23, metal0). Left unset, viem's
+// writeContract first asks the node to fill the transaction (eth_fillTransaction); WHERE a node fills, viem multiplies the
+// node's maxFeePerGas by its 1.2 base-fee multiplier again (viem 2.53 actions/public/fillTransaction.js) - with a node that
+// fills 2 x base + tip, ~13.2 mwei at a 5 mwei base fee where estimateFeesPerGas says 7. That is a reproducible SDK failure
+// scenario and the SUSPECTED cause of metal0's "insufficient funds" boot write; the fee actually sent there was not
+// observed (a direct mainnet.base.org probe did not fill and fell back to 7 mwei). Where no node fills, nothing changes.
+// estimateFeesPerGas never fills; estimateContractGas runs from this account at exactly those fees; writeContract keeps
+// caller-supplied gas and fees as given. A failed read or estimate rejects before anything is signed or sent.
+// On the RPC line these reads ride the same transport as the write (rpcTransport: the chain authority's verifier/own backend,
+// after chainActionGate), so nothing here reaches a provider RPC.
 function sendOperatorTx(address, abi, functionName, args, { gate = null } = {}) {
   const p = _txChain.then(async () => {
     const stale = gate?.();   // the caller's local permission, re-checked when the queue reaches this send (sendLeaseTx)
     if (stale) throw Object.assign(new Error(`${functionName} not sent: ${stale}`), { superseded: true });
     await chainActionGate(functionName, true);   // a fresh verifier and a bound own backend, before anything is signed
-    return claimSigner().wallet.writeContract({ address: getAddress(address), abi, functionName, args });
+    const { account, wallet } = claimSigner();
+    const to = getAddress(address);
+    const { maxFeePerGas, maxPriorityFeePerGas } = await chainClient.estimateFeesPerGas();
+    const gas = await chainClient.estimateContractGas({ address: to, abi, functionName, args, account, maxFeePerGas, maxPriorityFeePerGas });
+    return wallet.writeContract({ address: to, abi, functionName, args, gas, maxFeePerGas, maxPriorityFeePerGas });
   });
   const rcptP = p.then((hash) => awaitReceipt(hash));
   _txChain = rcptP.then(() => {}, () => {});   // keep the queue alive across failures

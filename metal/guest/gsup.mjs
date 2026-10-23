@@ -527,6 +527,13 @@ if (CHAIN_VERIFIER?.ok) {
 }
 // --- end chain verifier -----------------------------------------------------------------------------------------------------
 
+// The shielded workers this box is configured to probe (the probe loop below). Declared here because the supervisor's env
+// states how many cards are EXPECTED (SHIELDED_GPU_EXPECTED): it starts with GPU_COUNT=0 and learns a card only when that card's
+// probe passes, so until then a 0 GPU price means "not discovered yet", not "no card" (supervisor.js gpuPricePending).
+const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
+const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
+const SHIELDED_GPU_EXPECTED = shieldedWorkers.filter((sw) => sw && sw.port).length;
+
 // --- supervisor (base root) --------------------------------------------------
 if (!CONTROL) {
 const supEnv = {
@@ -539,6 +546,7 @@ const supEnv = {
   PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
   PORT: '8080',
   GPU_COUNT: '0',
+  ...(SHIELDED_GPU_EXPECTED > 0 ? { SHIELDED_GPU_EXPECTED: String(SHIELDED_GPU_EXPECTED) } : {}),
   PROVISION_BACKEND: 'vm',
   VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
   ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
@@ -652,8 +660,6 @@ start('metal-agent', ['/usr/local/bin/node', '/opt/metal/agent.mjs'], {
 // It is deliberately at boot rather than on demand. The failure this catches --
 // a worker that is absent, wrong-version, or quietly returning garbage -- is one
 // you want to find before a tenant's request depends on it.
-const configuredShieldedWorkers = fw.isolation && fw.isolationShieldedWorkers ? fw.isolationShieldedWorkers : fw.shieldedWorkers ?? (fw.shieldedWorker ? [fw.shieldedWorker] : []);
-const shieldedWorkers = Array.isArray(configuredShieldedWorkers) ? configuredShieldedWorkers.slice(0, 16) : [];
 const shieldedVerdicts = new Map();
 const VERDICT = '/run/shielded-gpu.json';
 const publishShieldedVerdicts = () => {
