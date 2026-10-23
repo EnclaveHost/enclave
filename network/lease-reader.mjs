@@ -27,6 +27,16 @@ function timed(promise,ms) {
   let timer;
   return Promise.race([promise,new Promise((_r,reject)=>{timer=setTimeout(()=>reject(new Error('chain request timed out')),ms);})]).finally(()=>clearTimeout(timer));
 }
+// The verifier authority's per-request bound: like timed(), and also ended at once when its operation closes (signal
+// aborted). Both the timer and the abort listener are removed when the request settles either way.
+function bounded(promise,ms,signal,message) {
+  let timer,onAbort;
+  return Promise.race([promise,new Promise((_r,reject)=>{
+    timer=setTimeout(()=>reject(new Error(message)),ms);
+    onAbort=()=>reject(signal.reason instanceof Error?signal.reason:new Error('the verified operation was closed'));
+    if(signal.aborted)onAbort();else signal.addEventListener('abort',onAbort,{once:true});
+  })]).finally(()=>{clearTimeout(timer);signal.removeEventListener('abort',onAbort);});
+}
 // an RPC library's error can name the URL it called, API key and all: only a safe label of it is kept
 const errText=e=>redactUrls(String(e?.shortMessage||e?.message||e)).slice(0,400);
 const rateLimited=t=>/rate limit|over rate|too many requests|compute units per second|\b429\b/i.test(t);
@@ -94,17 +104,21 @@ export function chainAuthorityOptions({chainAuthority,chainVerifier}={}) {
 /** The same from the environment: ENCLAVE_CHAIN_AUTHORITY=verifier and ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/ */
 export const chainAuthorityFromEnv=(env=process.env)=>chainAuthorityOptions({chainAuthority:env.ENCLAVE_CHAIN_AUTHORITY||undefined,chainVerifier:env.ENCLAVE_CHAIN_VERIFIER||undefined});
 // The local validating endpoint behind authority 'verifier': a loopback JSON-RPC URL (the Helios process on this host)
-// or, in-process, an object with request(method, params, timeoutMs). A remote URL is refused: a remote "verifier" would
-// be one unverified server, exactly what this authority must never be.
+// or, in-process, an object with request(method, params, timeoutMs, signal). A remote URL is refused: a remote
+// "verifier" would be one unverified server, exactly what this authority must never be.
+// `signal` is the AbortSignal of the operation the request belongs to (aborted at its deadline or when it finishes).
+// The HTTP transport aborts its fetch (connection and body) with it; an in-process transport receives it and may honour
+// it. One that ignores it cannot be force-stopped (running JavaScript cannot be aborted): its late answer is ignored.
 function verifierEndpoint(v) {
-  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms)=>v.request(m,p,ms),label:'verifier'};
+  if(v&&typeof v==='object'&&typeof v.request==='function')return {request:(m,p,ms,signal)=>v.request(m,p,ms,signal),label:'verifier'};
   const url=typeof v==='string'?v:v?.url;
   let e;try{e=rpcEndpoint(url);}catch(err){throw new Error('verifier endpoint: '+err.message);}
   if(!e.loopback)throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
   let id=0;
-  return {label:'verifier '+e.label,request:async(method,params,ms)=>{
+  return {label:'verifier '+e.label,request:async(method,params,ms,signal)=>{
+    const timeout=AbortSignal.timeout(Math.max(1,ms));
     const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params}),
-      redirect:'error',signal:AbortSignal.timeout(Math.max(1,ms))});
+      redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
     if(!r.ok)throw Object.assign(new Error(`verifier HTTP ${r.status}`),{status:r.status});
     const j=await r.json();
     if(j?.error)throw Object.assign(new Error('verifier: '+String(j.error.message||'error').slice(0,300)),{code:j.error.code});
@@ -352,14 +366,15 @@ export class LeaseReader {
   //  * the caller's read, through a client pinned to that block HASH whose every answer is proof-backed;
   //  * the header again (same hash and timestamp: no reorganization underneath), still fresh, still not older than a
   //    block accepted meanwhile.
-  // Any failure refuses the whole read. There is no other source to fall back to.
+  // Any failure refuses the whole read. There is no other source to fall back to. ONE deadline (`deadlineMs`) bounds
+  // the WHOLE read, the caller's callback included, and the read's client is closed once it settles (verifiedOperation).
   verifiedRead(read, failures=[]) {
     const policy=policyProblem(this);
     if(policy)return Promise.reject(new Error(policy));
     if(typeof read!=='function')return Promise.reject(new Error('agreed() needs a read function'));
-    const call=this.deadlineCall();
+    const op=this.verifiedOperation('read'),call=op.call;
     const fresh=ts=>ts+this.maxBlockAgeMs>this.now()&&ts<=this.now()+5000;
-    return (async()=>{
+    return op.run(async()=>{
       const chainId=Number(BigInt(await call('eth_chainId',[])));
       if(chainId!==this.chainId)throw new Error('the verifier follows another chain');
       const head=BigInt(await call('eth_blockNumber',[]));
@@ -376,24 +391,49 @@ export class LeaseReader {
       const again=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
       if(again.hash!==first.hash||again.timestamp!==first.timestamp)throw new Error('chain reorganized during read');
       if(!fresh(first.timestamp))throw new Error('chain block became stale during the read');
+      op.assertOpen();   // a body that outlived its deadline (a late callback) never answers or touches reader state
       if(b<this.lastBlock)throw new Error(`block ${b} is older than block ${this.lastBlock} accepted meanwhile`);
       this.lastBlock=b;
       this.lastEvidence={authority:'local-verifier',tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
       return {...value,hash:first.hash,blockNumber:String(b),timestamp:first.timestamp};
-    })().catch(e=>{
+    }).catch(e=>{
       if(e?.readerBug)throw e;
       failures.push(failureText(this.verifier.label,'read',e));
       throw Object.assign(new Error('no fresh verified chain state: '+errText(e)),{cause:e});
     });
   }
-  // A request function bounded by ONE total deadline for everything issued through it.
-  deadlineCall() {
-    const endAt=performance.now()+this.deadlineMs;
-    return (method,params)=>{
-      const left=Math.floor(endAt-performance.now());
-      if(left<=0)return Promise.reject(new Error('the verified read deadline has passed'));
-      return timed(Promise.resolve().then(()=>this.verifier.request(method,params,left)),left);
+  // ONE verified operation (a read, a pinned history read, a block-hash check): ONE deadline for everything in it, the
+  // caller's callback included, and ONE closure.
+  //  * run(fn) settles at the deadline even if fn (e.g. a read callback) never settles. JavaScript cannot abort running
+  //    code: such a callback is simply no longer waited for, and anything it does later is refused.
+  //  * The moment run() settles (answer, refusal or deadline) the operation is closed: the AbortSignal every transport
+  //    request got is aborted (the HTTP verifier cancels its fetch), every pending request of it rejects at once, and the
+  //    deadline timer is cleared. A client the callback kept cannot send anything afterwards.
+  //  * call() refuses once closed or past the deadline, and checks both again at the moment the transport is invoked (a
+  //    microtask later), not only when the request is queued. Each request waits at most the time left.
+  verifiedOperation(kind) {
+    const endAt=performance.now()+this.deadlineMs,controller=new AbortController();
+    let closed=null,timer;
+    const close=reason=>{if(closed)return;closed=reason;clearTimeout(timer);controller.abort(reason);};
+    const expired=new Promise((_r,reject)=>{
+      timer=setTimeout(()=>{const e=new Error(`the verified ${kind} deadline of ${this.deadlineMs} ms has passed`);close(e);reject(e);},this.deadlineMs);
+      timer.unref?.();
+    });
+    expired.catch(()=>{});
+    const refusal=()=>closed?new Error(`the verified ${kind} is closed (${closed.message}): no new request`)
+      :performance.now()>=endAt?new Error(`the verified ${kind} deadline has passed`):null;
+    const call=(method,params)=>{
+      const no=refusal();
+      if(no)return Promise.reject(no);
+      return bounded(Promise.resolve().then(()=>{
+        const late=refusal();   // re-checked when the transport is actually invoked
+        if(late)throw late;
+        return this.verifier.request(method,params,Math.max(1,Math.floor(endAt-performance.now())),controller.signal);
+      }),Math.max(1,Math.floor(endAt-performance.now())),controller.signal,`the verified ${kind} deadline has passed`);
     };
+    const run=fn=>Promise.race([Promise.resolve().then(fn),expired]).finally(()=>close(new Error(`the verified ${kind} has finished`)));
+    const assertOpen=()=>{const no=refusal();if(no)throw no;};
+    return {call,run,assertOpen};
   }
   // The only client a read callback sees under the verifier: every answer is AT the verified block (by hash) and
   // proof-backed; a read at any other block, or any method outside PINNED_METHODS, refuses by name.
@@ -435,7 +475,8 @@ export class LeaseReader {
   async blockHashIs(number,hash) {
     const b=BigInt(number);
     if(this.authority==='verifier'){
-      try{return verifiedHeader(await this.deadlineCall()('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase();}
+      const op=this.verifiedOperation('block hash check');
+      try{return await op.run(async()=>verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b).hash===String(hash).toLowerCase());}
       catch{return false;}
     }
     const hashes=await Promise.all(this.clients.map(client=>client.getBlock({blockNumber:b}).then(x=>x.hash).catch(()=>null)));
@@ -448,10 +489,13 @@ export class LeaseReader {
   async readAt({blockNumber,blockHash},read) {
     const b=BigInt(blockNumber);
     if(this.authority==='verifier'){
-      const call=this.deadlineCall();
-      const h=verifiedHeader(await call('eth_getBlockByNumber',[hexBlock(b),false]),b);
-      if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
-      return read(this.pinnedClient(b,h.hash,call),b);
+      // history: bounded and closed like every verified operation, and it never moves lastBlock/lastEvidence
+      const op=this.verifiedOperation('pinned read');
+      return op.run(async()=>{
+        const h=verifiedHeader(await op.call('eth_getBlockByNumber',[hexBlock(b),false]),b);
+        if(blockHash!==undefined&&h.hash!==String(blockHash).toLowerCase())throw new Error('the pinned block is no longer canonical at '+b);
+        return read(this.pinnedClient(b,h.hash,op.call),b);
+      });
     }
     const key=v=>JSON.stringify(v,(_k,x)=>typeof x==='bigint'?x.toString():x);
     const values=await Promise.all(this.clients.map(client=>Promise.resolve().then(()=>read(client,b)).catch(()=>null)));
