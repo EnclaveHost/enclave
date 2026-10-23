@@ -155,6 +155,46 @@ To roll back, unset `chainAuthority` (or `ENCLAVE_CHAIN_AUTHORITY`) on the consu
 the legacy provider quorum, unchanged. Then stop the runtime. The runtime never falls back to provider agreement by
 itself.
 
+## Inside the Linux metal guest (relay mode)
+
+A host operator opts in with a `chainVerifier` member in the host controller's `config.json`.
+`metal/guest/chain-verifier.mjs` is the one checker: the launcher checks the member, then the guest checks it again.
+
+```json
+"chainVerifier": { "format": "enclave-chain-verifier/v1", "unsafeSigner": "0x<the administrator's sequencer pin>",
+                   "proofSources": ["https://<explicit state holder>/"], "port": 50546 }
+```
+
+- **Fields:**
+  - 1..16 https proof sources;
+  - optional `gossip` / `limits`;
+  - `port` in **50000..57999**. That is above every tenant-declarable port and below the ephemeral range init pins, so
+    no tenant can hold it.
+- **Refused fields:**
+  - `witnessArchive` (the base has no curl with `--aws-sigv4`);
+  - `witnessCache`;
+  - anything unknown.
+- **Direct control guests** refuse the member for now.
+- **The launcher** passes the checked member through fw_cfg.
+- **gsup** builds the runtime config from the image's pin record (`/opt/rpc-runtime/IMAGE.json` =
+  `metal/chain-verifier-image.json`). It starts the runtime as its supervised child `chain-verifier` before the
+  supervisor, restarting it with backoff, and gives the supervisor exactly `ENCLAVE_CHAIN_AUTHORITY=verifier` and
+  `ENCLAVE_CHAIN_VERIFIER=http://127.0.0.1:<port>/`. No other channel may supply those names.
+- **Consumers:** the supervisor's verified readers (host wallet admission and the platform host policy gate) refuse
+  until the runtime is ready, and whenever no proof source can supply a fresh witness. Its other chain reads (claims and
+  lease records over `BASE_RPCS`) are unchanged.
+- **Failure states:**
+  - Present but invalid, or an image without the runtime (`metal/overlay-control-image.py` without
+    `--chain-verifier-dir`): the supervisor gets the verifier authority at a URL nothing serves, so verified reads
+    refuse. They never fall back to the provider quorum.
+  - Absent: nothing changes.
+- **Staging is `copy`:** the base image is owned by uid 1000, so verify-in-place cannot hold. Helios and the helper run
+  through the pinned glibc runtime, because the base has glibc 2.36.
+- **RAM:** an image with the runtime carries ~234 MB of native files in its ramfs, and a running verifier holds a second
+  ~234 MB copy on the `/mnt/ramdisk` tmpfs.
+
+Rollback: remove `chainVerifier` and relaunch the guest.
+
 ## What it does not do
 
 - **Finality:** heads are the sequencer-signed **unsafe** head. There is no L1-derived safe or finalized tier.

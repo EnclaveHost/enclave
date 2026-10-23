@@ -8,7 +8,7 @@
 //   { "format": "enclave-chain-verifier/v1",
 //     "unsafeSigner": "0x…",                       the administrator's pin of the Base sequencer key
 //     "proofSources": ["https://…", …],            1..16 EXPLICIT, untrusted state holders (every witness is verified)
-//     "port": 8546,                                the verifier's loopback port inside the guest
+//     "port": 50546,                               the verifier's loopback port inside the guest: 50000..57999
 //     "gossip"?: { "maxPeers", "discovery", "sessionSecs" }, "limits"?: { "firstHeadTimeoutMs", "heliosReadyTimeoutMs" } }
 //
 // Absent: nothing changes (the supervisor's names are not set; its readers keep the provider quorum, exactly as before).
@@ -29,6 +29,10 @@ export const CHAIN_VERIFIER_IMAGE_FILE = '/opt/rpc-runtime/IMAGE.json';
 export const CHAIN_AUTHORITY_NAMES = Object.freeze(['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER']);
 // the guest's own listeners (supervisor 8080, wasm manager 8091, RAD 8443, direct control 8444) and the host link ports
 export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095, 8096]);
+// The verifier's port lies between the tenants' declarable ports (wasm_manager.py PORT_MAX_DECL 49999; a free declared
+// number is bound literally) and the kernel's ephemeral range (init pins 58000-65535; a tenant's OS-assigned port comes
+// from there): no tenant can hold it, even while gsup restarts the verifier after the wasm manager has started apps.
+export const VERIFIER_PORT_RANGE = Object.freeze([50000, 57999]);
 /** Where a configured-but-unusable verifier points: TCP discard, nothing in the guest serves it, every verified read refuses. */
 export const REFUSING_VERIFIER = 'http://127.0.0.1:9/';
 const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits'];
@@ -55,8 +59,8 @@ export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
     if (seen.has(x.href)) bad(`proofSources[${i}] repeats a source`); seen.add(x.href);
     return String(u);
   });
-  const port = int(raw.port, 1024, 65535, 'port');
-  if (GUEST_RESERVED_PORTS.includes(port)) bad(`port ${port} is one of the guest's own ports`);
+  if (GUEST_RESERVED_PORTS.includes(raw.port)) bad(`port ${raw.port} is one of the guest's own ports`);
+  const port = int(raw.port, ...VERIFIER_PORT_RANGE, 'port (between the tenants\' ports and the ephemeral range)');
   let gossip = null;
   if (raw.gossip !== undefined && raw.gossip !== null) {
     if (!plain(raw.gossip) || Object.keys(raw.gossip).some((k) => !['maxPeers', 'discovery', 'sessionSecs'].includes(k))) bad('gossip: { maxPeers?, discovery?, sessionSecs? }');

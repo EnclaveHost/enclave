@@ -16,7 +16,7 @@ const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const tmp = fs.mkdtempSync(path.join(process.env.TEST_TMP || os.tmpdir(), 'chain-verifier-guest-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 const SIGNER = '0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a';
-const OK = (over = {}) => ({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: SIGNER, proofSources: ['https://holder-a.example.net/', 'https://holder-b.example.net/'], port: 8546, ...over });
+const OK = (over = {}) => ({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: SIGNER, proofSources: ['https://holder-a.example.net/', 'https://holder-b.example.net/'], port: 50546, ...over });
 const IMAGE_FILE = path.join(REPO, 'metal/chain-verifier-image.json');
 
 test('the setting: checked, canonical, bounded; archive, cache, reserved ports, credentials and implicit providers refused', () => {
@@ -31,7 +31,9 @@ test('the setting: checked, canonical, bounded; archive, cache, reserved ports, 
     ['repeat', { proofSources: ['https://a.example.net/', 'https://a.example.net/'] }, /repeats/],
     ['supervisor port', { port: 8080 }, /guest's own ports/],
     ['RAD port', { port: 8443 }, /guest's own ports/],
-    ['low port', { port: 80 }, /1024\.\.65535/],
+    ['low port', { port: 80 }, /50000\.\.57999/],
+    ['a tenant-declarable port', { port: 49999 }, /50000\.\.57999/],
+    ['an ephemeral port', { port: 58000 }, /50000\.\.57999/],
     ['zero signer', { unsafeSigner: '0x' + '0'.repeat(40) }, /unsafeSigner/],
     ['format', { format: 'enclave-chain-verifier/v0' }, /format/],
     ['archive', { witnessArchive: { kind: 's3' } }, /no curl/],
@@ -49,7 +51,7 @@ test('the committed image pin record builds a runtime config the runtime itself 
   const cfg = runtimeConfigFor(checkChainVerifier(OK({ gossip: { discovery: 'bounded' } })), image);
   const c = validateRuntimeConfig(cfg);
   assert.equal(c.format, 'enclave-rpc-runtime/v2');
-  assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 8546);
+  assert.equal(c.verifier.bind, '127.0.0.1'); assert.equal(c.verifier.port, 50546);
   assert.equal(c.binaryStaging, 'copy');
   assert.deepEqual([...c.glibcRuntime.binaries], ['helios', 'witnessCheck']);
   assert.match(c.binaries.listener.build, /release profile/);
@@ -72,7 +74,7 @@ test('the guest view and the supervisor names: absent unchanged; valid sets exac
   assert.equal(ok.ok, true);
   assert.deepEqual(ok.argv('/x/rpc-runtime.json'), ['/usr/local/bin/node', '/app/network/rpc-runtime-main.mjs', 'run', '/x/rpc-runtime.json']);
   const env = withChainVerifierEnv(flavor, ok);
-  assert.equal(env.ENCLAVE_CHAIN_AUTHORITY, 'verifier'); assert.equal(env.ENCLAVE_CHAIN_VERIFIER, 'http://127.0.0.1:8546/');
+  assert.equal(env.ENCLAVE_CHAIN_AUTHORITY, 'verifier'); assert.equal(env.ENCLAVE_CHAIN_VERIFIER, 'http://127.0.0.1:50546/');
   assert.match(ok.message, /refuse until it is ready/);
 
   for (const [what, cv] of [['invalid', guestChainVerifier(OK({ port: 8080 }), { image })], ['no image', guestChainVerifier(OK(), { imageFile: path.join(tmp, 'absent.json') })]]) {
@@ -141,7 +143,7 @@ test('the real launcher: the opt-in crosses fw_cfg in its checked form; invalid 
   const r = await launched({ chainVerifier: { ...OK(), unsafeSigner: SIGNER.toUpperCase().replace('0X', '0x') } });
   assert.ok(!r.refused, r.log);
   assert.deepEqual(r.fw.chainVerifier, JSON.parse(JSON.stringify(checkChainVerifier(OK()))));
-  assert.match(r.log, /local chain verifier: 2 proof source\(s\), guest loopback port 8546/);
+  assert.match(r.log, /local chain verifier: 2 proof source\(s\), guest loopback port 50546/);
   for (const [what, over, re] of [['reserved port', { port: 8091 }, /guest's own ports/], ['no sources', { proofSources: [] }, /explicit proof source/],
     ['archive', { witnessArchive: {} }, /no curl/]]) {
     const x = await launched({ chainVerifier: OK(over) }); assert.equal(x.refused, true, what); assert.match(x.log, re, what);

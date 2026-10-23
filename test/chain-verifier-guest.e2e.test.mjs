@@ -23,9 +23,10 @@ import path from 'node:path';
 import http from 'node:http';
 import { stringToHex, pad } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
+import { startRig, haveTools, KEYS } from './helpers/cli-independent-rig.mjs';
 import { hostAdmissionPolicyHash } from '../network/host-admission-policy.mjs';
-import { CHAIN_VERIFIER_FORMAT, REFUSING_VERIFIER } from '../metal/guest/chain-verifier.mjs';
+import { CHAIN_VERIFIER_FORMAT, REFUSING_VERIFIER, VERIFIER_PORT_RANGE } from '../metal/guest/chain-verifier.mjs';
+import net from 'node:net';
 
 const { GUEST_ROOTFS, CHAIN_VERIFIER_INPUTS } = process.env;
 const skip = haveTools() || (!GUEST_ROOTFS && 'GUEST_ROOTFS not set') || (!CHAIN_VERIFIER_INPUTS && 'CHAIN_VERIFIER_INPUTS not set')
@@ -145,6 +146,13 @@ function startProviders() {   // stand-in for the provider RPC quorum: it must n
   const srv = http.createServer((q, res) => { st.hits++; res.writeHead(503); res.end(); });
   return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/` })));
 }
+async function freePortIn([lo, hi]) {      // a free loopback port in [lo, hi]
+  for (let i = 0; i < 200; i++) {
+    const p = lo + Math.floor(Math.random() * (hi - lo + 1));
+    if (await new Promise((r) => { const s = net.createServer(); s.once('error', () => r(false)); s.listen(p, '127.0.0.1', () => s.close(() => r(true))); })) return p;
+  }
+  throw new Error(`no free port in ${lo}..${hi}`);
+}
 const waitTx = async (rc) => until(async () => BigInt(await rpc(`http://127.0.0.1:${port}/`, 'eth_blockNumber')) >= rc.blockNumber + 2n, 90000, 'verifier past the write');
 
 test.before(async () => {
@@ -167,7 +175,7 @@ test.before(async () => {
     enclavePay: none, verificationFees: none, sessionVaultFactory: none, secretVaultV2: none } }));
   proxy = await startProxy(); providers = await startProviders();
   HA = await import(path.join(REPO, 'windows/node/host-admission.bundle.mjs'));
-  port = await freePort();
+  port = await freePortIn(VERIFIER_PORT_RANGE);   // the guest checker takes only 50000..57999
   buildGuestRoot();
 });
 test.after(async () => {
