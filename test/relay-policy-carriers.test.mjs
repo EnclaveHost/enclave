@@ -114,8 +114,15 @@ test('boot env boundary: ONLY fw_cfg platformPolicyCarriers supplies the name; l
   assert.equal(env[MC.CARRIERS_ENV], pc.env[MC.CARRIERS_ENV]);
   assert.equal(MC.CARRIERS_ENV in compose(forged, null), false, 'absent: the forged name is dropped, not kept');
   const AUTHORITY = ['CHAIN_ID', 'ADDRESS_BOOK_ADDRESS', 'ENCLAVE_PLATFORM_HOST_POLICY', 'ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS',
-    'ENCLAVE_PLATFORM_HOST_POLICY_RPCS', 'ENCLAVE_PLATFORM_HOST_POLICY_ACTIVATION', 'ENCLAVE_HOST_OWNERSHIP', 'ENCLAVE_HOST_REGISTRY_PIN'];
+    'ENCLAVE_PLATFORM_HOST_POLICY_RPCS', 'ENCLAVE_PLATFORM_HOST_POLICY_ACTIVATION', 'ENCLAVE_HOST_OWNERSHIP', 'ENCLAVE_HOST_REGISTRY_PIN',
+    // the chain authority switch A 71448f63 added (network/platform-host-policy-config.mjs chainAuthority): provider quorum
+    // unless EXPLICITLY the local verifier; no fw_cfg channel may supply it to a relay-mode supervisor
+    'ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER'];
   for (const k of AUTHORITY) assert.equal(env[k], FLAVOR[k], k);
+  // the measured direct guest's supervisor env never names the chain authority either (only the platform API role's
+  // bound, checked relayEnv may): the bound carriers member adds exactly the one carrier name
+  const direct = MC.directSupervisorEnv(MC.canonicalDirectConfig(RAW({ platformPolicyCarriers: { peers: ['https://mirror-1.example.net/platform-policy'] } })), { secrets: { secret: 'ab'.repeat(32) } });
+  for (const k of ['ENCLAVE_CHAIN_AUTHORITY', 'ENCLAVE_CHAIN_VERIFIER']) assert.equal(k in direct, false, k);
   // the other fw_cfg channels emit only their own names
   const ok = leaseGasGuest(undefined);
   for (const names of [Object.keys(lease.env), Object.keys(ok.env), Object.keys(pc.env)])
