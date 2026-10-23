@@ -8,6 +8,12 @@ function body(name) {
   assert.ok(found, `supervisor function ${name} exists`);
   return found[0];
 }
+// one top-level supervisor statement, by its exact opening text (a module-scope const/let the sliced functions read)
+function line(start) {
+  const at = source.indexOf('\n' + start);
+  assert.ok(at >= 0, `supervisor statement ${start} exists`);
+  return source.slice(at + 1, source.indexOf('\n', at + 1));
+}
 function harness(spawnContainer) {
   const deployments = new Map();
   let freed = 0;
@@ -15,13 +21,18 @@ function harness(spawnContainer) {
     acmeReconcileSoon() {}, releaseGpu() { freed++; },
     claimSigner: () => ({ account: { address: 'operator' } }),
     CLAIM_TERMINAL: new Set(['failed', 'expired', 'terminated']),
-    console: { error() {} } };
+    console: { error() {}, log() {}, warn() {} } };
   const api = new Function('deps', `
     const {deployments,spawnContainer,launchSpec,acmeReconcileSoon,releaseGpu,
            claimSigner,CLAIM_TERMINAL,console}=deps;
     const tenantProvisions = new WeakMap();
-    ${['revokeLeasePermits', 'provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
-    return {provisionTenant,auditClaims,adopt,tenantProvisions};
+    // adopt()'s module-scope dependencies, as supervisor.js defines them (ROOT 1086cf23's withdrawal snapshot, the release
+    // journal's hold): the real statements and functions, never stand-ins
+    ${['let _stateCorrupt = null;', 'const _releaseIntents = new Map();', 'const _walletWithdrawn=new Map();',
+       'const walletVerdicts=', 'function noteWalletWithdrawn('].map(line).join('\n')}
+    ${['revokeLeasePermits', 'releaseHold', 'provisionTenant', 'performTenantProvision', 'auditClaims', 'adopt'].map(body).join('\n')}
+    return {provisionTenant,auditClaims,adopt,tenantProvisions,noteWalletWithdrawn,walletVerdicts,releaseIntents:_releaseIntents,
+            corrupt:(why)=>{_stateCorrupt=why;}};
   `)(deps);
   return { ...api, deployments, freed: () => freed };
 }
@@ -76,4 +87,29 @@ test('a delayed second claim cannot replace an adopted or running record', async
     assert.equal(h.deployments.get(rec.id), rec);
     assert.equal(h.freed(), 0);
   }
+});
+
+// pending-adopt races (ROOT 1086cf23's guard in the same harness): a record whose stop is pending, whose wallet answer is
+// held, or a release of this host that is still unresolved is never replaced or re-allocated by a second adoption
+test('a pending stop, a wallet hold or an unresolved release blocks a re-adoption: the record stays, nothing is allocated or freed', async () => {
+  for (const mark of ['stopPending', 'walletHeld']) {
+    const h = harness(async () => { throw new Error('must not spawn'); });
+    const rec = { id: 'test', status: 'failed', _gpu: {}, ...(mark === 'stopPending' ? { _stopPending: { since: 'test' } } : { walletHeld: { stopConfirmed: false } }) };
+    h.deployments.set(rec.id, rec);
+    assert.equal(await h.adopt({ id: rec.id }, {}, [], { cpu: true }), false, mark);
+    assert.equal(h.deployments.get(rec.id), rec, `${mark}: the terminal record is kept, not deleted for a re-adopt`);
+    assert.deepEqual(rec._gpu, {}, `${mark}: its slice is not released`);
+    assert.equal(h.freed(), 0, mark);
+  }
+  const h = harness(async () => { throw new Error('must not spawn'); });
+  const rec = { id: 'test', status: 'failed', _gpu: {} };
+  h.deployments.set(rec.id, rec);
+  h.releaseIntents.set('test', { txs: [{ state: 'pending', sponsored: true, leaseNonce: 7, deadline: 1 }] });
+  assert.equal(await h.adopt({ id: rec.id }, {}, [], { cpu: true }), undefined);
+  assert.equal(h.deployments.get(rec.id), rec, 'an unresolved release keeps the record');
+  assert.equal(h.freed(), 0);
+  h.releaseIntents.clear(); h.corrupt('bad journal');
+  assert.equal(await h.adopt({ id: rec.id }, {}, [], { cpu: true }), undefined);
+  assert.equal(h.deployments.get(rec.id), rec, 'a corrupt release journal resumes and claims nothing');
+  assert.equal(h.freed(), 0);
 });
