@@ -20,7 +20,9 @@ export async function startMinio({ bin = process.env.MINIO_BIN, dir, creds, buck
   const p = spawn(bin, ['server', '--quiet', '--address', `127.0.0.1:${port}`, '--console-address', `127.0.0.1:${cport}`, dir],
     { env: { PATH: process.env.PATH, HOME: path.dirname(dir), MINIO_ROOT_USER: creds.accessKeyId, MINIO_ROOT_PASSWORD: creds.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
   const endpoint = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 160; i++) { try { if ((await fetch(endpoint + '/minio/health/ready')).ok) break; } catch {} await sleep(250); }
+  let ready = false;
+  for (let i = 0; i < 160 && !ready; i++) { try { ready = (await fetch(endpoint + '/minio/health/ready')).ok; } catch {} if (!ready) await sleep(250); }
+  if (!ready) { p.kill('SIGKILL'); throw new Error('MinIO not ready within 40 s (test environment, not the code under test)'); }
   const mk = await s3Request({ method: 'PUT', url: `${endpoint}/${bucket}`, region: 'us-east-1', credentials: creds, timeoutMs: 5000, maxBytes: 65536 });
   if (mk.status !== 200) throw new Error('bucket not created: HTTP ' + mk.status);
   return { endpoint, bucket, stop: () => p.kill('SIGKILL') };

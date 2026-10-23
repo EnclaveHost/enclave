@@ -27,6 +27,10 @@
 //     read only after the local cache and every upstream failed, within the request's remaining deadline, and each
 //     candidate is verified and quarantined exactly like a cache entry. It receives only VERIFIED upstream answers,
 //     and those writes are never awaited, so a slow or hung remote store can neither delay nor fail a fresh read.
+//     It also keeps the headers that ancestry recovery VERIFIED (keyed by their own block hash), and offers them, again
+//     checked by the helper against the hash and the bound child, only when every upstream failed to give one: a
+//     missed block's root can then be recovered with every upstream down. Roots still come only from a signed head and
+//     hash links below it; the archive is never an authority for a root or for freshness.
 //   * Other methods (blocks by number, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies
 //     those against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
 //     (a16z/helios 2af9b418 core/src/execution/providers/rpc.rs, opstack evm, plus broadcast).
@@ -156,7 +160,7 @@ function limiter(max, maxQueued) {
  * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
  * archive: optional {candidates(w, {deadline}), put(w, result)} (s3WitnessCache): read only after the cache and every
- * upstream failed, written only with verified answers and never awaited.
+ * upstream failed, written only with verified answers (witnesses, and headers checked for ancestry) and never awaited.
  * Bounds: deadlineMs per request covers EVERYTHING the request does (queue wait for a slot, every upstream try and body
  * read, root recovery, helper checks, the cache read); timeoutMs per try (cut to what is left of the deadline when the
  * slot is granted; no try starts with less than minTryMs left); maxResponseBytes per answer (while reading);
@@ -187,7 +191,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
   if ((methods.some((m) => PINNED.has(m)) || cache || archive) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
   const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0, blockOk: 0, blockInvalid: 0, blockNull: 0 }])), cacheHits: 0, cachePuts: 0,
-    cacheInvalid: 0, archiveHits: 0, archiveInvalid: 0, archiveQueued: 0, archiveErrors: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
+    cacheInvalid: 0, archiveHits: 0, archiveInvalid: 0, archiveHeaderHits: 0, archiveHeaderInvalid: 0, archiveQueued: 0, archiveErrors: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
     deadlineExceeded: 0, queueFull: 0, cacheTimeouts: 0, cacheSkipped: 0, cachePutSkipped: 0, closedRefusals: 0 };
   const slot = limiter(maxInFlight, maxQueued);
   const life = new AbortController();                     // gateway lifetime: close() aborts every request and walk
@@ -228,6 +232,26 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
   const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
   const remember = (set, k, v) => { if (set instanceof Map) set.set(k, v); else set.add(k); if (set.size > (set instanceof Map ? 1024 : 4096)) set.delete(set.keys().next().value); };
   let server = null;
+  /** Queue a VERIFIED answer for the archive; never awaited, never throws (a slow or hung store cannot delay a read). */
+  function archivePut(w, result) {
+    stats.archiveQueued++;
+    try { Promise.resolve(archive.put(w, result)).catch(() => { stats.archiveErrors++; }); } catch { stats.archiveErrors++; }
+  }
+  /** The archive's UNVERIFIED candidates for w, inside the deadline (at most 64); [] on any failure. */
+  async function archived(w, deadline) {
+    if (deadline - Date.now() <= 0) return [];
+    let timer;
+    try {
+      const list = await Promise.race([archive.candidates(w, { deadline }),
+        new Promise((r) => { timer = setTimeout(() => r([]), Math.max(0, deadline - Date.now())); })]);
+      return Array.isArray(list) ? list.slice(0, 64) : [];
+    } catch { stats.archiveErrors++; return []; } finally { clearTimeout(timer); }
+  }
+  /** The archive key of a block header: pinned by the block's own hash, like a witness request. */
+  const headerKey = (hash) => {
+    const h = String(hash).toLowerCase(), norm = JSON.stringify(['eth_getBlockByHash', [h, false]]);
+    return { key: sha256(norm), blockHash: h, norm };
+  };
   const err = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
   const ok = (id, result) => ({ jsonrpc: '2.0', id: id ?? null, result });
 
@@ -257,7 +281,20 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
       const v = await proofs.checker.check({ op: 'header', header: j.result, expectHash: hash, child }, { signal: op.signal });
       if (!v.ok) { s.headerInvalid++; continue; }
       s.headerOk++;
+      if (archive) archivePut(headerKey(hash), j.result);
       return { head: v, header: j.result };
+    }
+    // every upstream failed: an archived header, checked by the helper exactly like an upstream's
+    if (archive) {
+      const k = headerKey(hash);
+      for (const c of await archived(k, op.deadline)) {
+        if (Date.now() >= op.deadline) break;
+        const tag = `${k.key}:${sha256(JSON.stringify(c))}`;
+        if (quarantine.has(tag)) continue;
+        const v = await proofs.checker.check({ op: 'header', header: c, expectHash: hash, child }, { signal: op.signal });
+        if (v.ok) { stats.archiveHeaderHits++; return { head: v, header: c }; }
+        remember(quarantine, tag); stats.archiveHeaderInvalid++;
+      }
     }
     return null;
   }
@@ -308,21 +345,13 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
         if (!v.ok) { s.invalid++; reasons.push(`${rpcLabel(u)}: invalid witness (${String(v.error).slice(0, 80)})`); continue; }
         s.ok++;
         cacheWrite(w, j.result);
-        if (archive) {   // verified; NOT awaited: a slow or hung archive must not delay the fresh answer
-          stats.archiveQueued++;
-          try { Promise.resolve(archive.put(w, j.result)).catch(() => { stats.archiveErrors++; }); } catch { stats.archiveErrors++; }
-        }
+        if (archive) archivePut(w, j.result);   // verified; NOT awaited: a slow or hung archive must not delay the fresh answer
         return { result: j.result };
       }
       // last resort: the archive, inside the remaining deadline; every candidate verified like a cache entry
-      if (archive && op.deadline - Date.now() > 0) {
-        let found, timer;
-        try {
-          const list = await Promise.race([archive.candidates(w, { deadline: op.deadline }),
-            new Promise((r) => { timer = setTimeout(() => r([]), Math.max(0, op.deadline - Date.now())); })]);
-          found = Array.isArray(list) ? list : [];
-        } catch { stats.archiveErrors++; found = []; } finally { clearTimeout(timer); }
-        for (const c of found.slice(0, 64)) {
+      if (archive) {
+        const found = await archived(w, op.deadline);
+        for (const c of found) {
           if (Date.now() >= op.deadline) break;
           const tag = `${w.key}:${sha256(JSON.stringify(c))}`;
           if (quarantine.has(tag)) continue;
