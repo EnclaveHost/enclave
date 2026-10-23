@@ -209,7 +209,7 @@ own non-Hyper-V backend answers 0xC001 with a DUMMY report of 0xCD bytes (`vmm_c
 | V5. The report data binds, by measured code, the verifier's fresh nonce, the hash of the guest-held TLS key, the appId and the runtimeId (the ABI/2 binding), and the TLS key is the one of the verifier's own handshake | R1, R2 | the guest-to-paravisor report path over guest data (vTPM NV index candidate, parked) |
 | V6. The binding request is authenticated to the measured instance: a report over host-chosen data is refused | R3 | the same path, and a measured VTL0 (today's medium is unmeasured: d1 O4) |
 | V7. Replay and cross-VM refused: the nonce is this verifier's and fresh; a report of another partition (another ledger deployment) is refused | tests required | report bytes from two VMs; how the report names the partition (open) |
-| V8. The verdict never claims host exclusion: `host_excluded` comes only from d1's separate host-memory evidence (E3, parked), never from a boot state or a report | direction | E3 |
+| V8. The verdict never claims host exclusion: `host_excluded` comes only from the separate host-memory evidence (E3 — DEMONSTRATED box-local 2026-10-23, `windows/vbslike/evidence/e3-host-memory-20261023/`; a box-local demonstration, never a boot state or a report), and because the demonstration is not report-attestable `host_excluded` stays `no` in the per-app report | direction | E3 |
 
 ### V5 in detail: the report data (checked by enclave-5d against a7b0bd4; SOURCE ONLY, 2026-09-25)
 
@@ -291,7 +291,7 @@ in the same change.
 
 1. The relay: `windows-hv-node/v1` attach (above), recorded and shown as a host-attested boot state, no capacity label.
 2. The relay: per-app admission on a verified paravisor report (V1-V7), a switch that stays OFF until the evidence above
-   exists and Steven decides admission; `host_excluded` stays `no` in every record until E3.
+   exists and Steven decides admission; `host_excluded` stays `no` in every record (E3 is now demonstrated box-local, but that is not a report-attestable property).
 3. The CLI's `attest` and the site shadow: the same verdict, shown beside the existing ones, never replacing a primary.
 
 No Windows path is added to the CLI, the self-check or the site before step 2 has real evidence.
