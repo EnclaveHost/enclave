@@ -1,79 +1,80 @@
-// END-TO-END (offline, `unshare -r -n`): REAL Base mainnet witnesses served to the REAL patched Helios (Base EVM) from
-// a REAL S3 server (MinIO) through network/s3-witness-cache.mjs, with NO live upstream at all. The fixture is worker A's
-// recorded block (rpc-priority/fixtures/base-calls-20261023T014412Z: providers' eth_call results at that block hash plus
-// the 49 witnesses Helios fetched). Its witnesses are archived into S3 by the backend (create-only), then:
-//   1. every recorded call is recomputed by Helios from S3-served witnesses and matches the providers byte for byte;
-//   2. a forged entry (valid envelope, the address book's storage value replaced by another address) is REFUSED by
-//      Helios, never returned: S3 is availability, Helios's proof check is the authority;
-//   3. a missing entry fails closed.
-// As in A's replay test, the head is the real block signed by a TEST key (Helios unsafe_signer override): this proves
-// the cache path and Base execution on real state, not head authenticity or freshness.
-//   env: HELIOS_BASE_BIN, BASE_FIXTURE_DIR (read only), MINIO_BIN, TEST_TMP
+// END-TO-END on the COMPOSED path (offline, `unshare -r -n`): the REAL patched Helios (Base EVM, eeffcc9) recomputes
+// REAL Base mainnet calls (fixture base-calls-20261023T014412Z, block 52965249) through P's VERIFYING gateway (witness-
+// check helper from Helios 1ec2c1a + root store) whose only witness source is the S3 ARCHIVE tier on a REAL S3 server
+// (MinIO), no upstream at all. The archive is filled ONLY through the gateway (an honest stub upstream, verified answers).
+//   1. cold replay: every recorded call matches the providers byte for byte;
+//   2. an attacker with bucket write access plants, for EVERY eth_getProof, a forgery whose content name sorts before
+//      the valid answer: the gateway checks and quarantines each, Helios still gets every witness and every answer;
+//   3. the address book's valid object is deleted, its forgery left: the call is refused, never answered.
+// The head is the real block signed by the fixture's TEST key (Helios unsafe_signer override): this proves the
+// archive path and Base execution on real state, not head authenticity or freshness.
+//   env: HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_FIXTURE_DIR (read only), MINIO_BIN, TEST_TMP
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import net from 'node:net';
-import { createHash, randomBytes } from 'node:crypto';
-import { createWitnessGateway, WITNESS_METHODS } from '../network/witness-gateway.mjs';
-import { s3WitnessCache, s3Request, canonicalJson } from '../network/s3-witness-cache.mjs';
+import { createHash } from 'node:crypto';
+import { createWitnessGateway, witnessKey, WITNESS_METHODS } from '../network/witness-gateway.mjs';
+import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
+import { s3WitnessCache, canonicalJson } from '../network/s3-witness-cache.mjs';
+import { startMinio, raw, envelope, freePort, sleep, testCredentials } from './support/s3-test-env.mjs';
 
-const { HELIOS_BASE_BIN, BASE_FIXTURE_DIR, MINIO_BIN } = process.env;
+const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN, BASE_FIXTURE_DIR } = process.env;
 const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'helios-s3-'));
-// test-only MinIO root, fresh per run (no credential literal in source)
-const CREDS = { accessKeyId: 'enclavetest' + randomBytes(4).toString('hex'), secretAccessKey: randomBytes(18).toString('base64url').replace(/[-_]/g, 'A') };
+const CREDS = testCredentials();
 const BOOK = '0xab214342d5a490150a4a977063a2f88e21f80907';
+const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
+const nameOf = (r) => createHash('sha256').update(canonicalJson(r)).digest('hex');
+const RECORDED = [];
+for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash))) {
+  const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash, f), 'utf8'));
+  const [method, params] = JSON.parse(e.request);
+  RECORDED.push({ method, params, result: e.result, w: witnessKey(method, params) });
+}
+const byKey = new Map(RECORDED.map((r) => [r.w.key, r]));
 const children = new Set();
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const freePort = () => new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
 async function rpc(url, method, params = []) {
-  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(60000) });
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(90000) });
   const j = await r.json();
   if (j.error) throw Object.assign(new Error(j.error.message || JSON.stringify(j.error)), { rpc: j.error });
   return j.result;
 }
-let endpoint, consensus, witnesses = [];
-const objectUrl = (w) => `${endpoint}/witness/enclave-witness/8453/${w.blockHash}/${w.key}.json`;
-const s3 = (o) => s3Request({ region: 'us-east-1', credentials: CREDS, timeoutMs: 10000, maxBytes: 8 << 20, ...o });
+let s3, consensus, checker;
+const objectKey = (w, r) => `enclave-witness/8453/${w.blockHash}/${w.key}/${nameOf(r)}.json`;
+const proofs = () => ({ checker, roots: createRootStore({ checker, consensusUrl: `http://127.0.0.1:${consensus.address().port}/` }) });
+const archiveOf = (o = {}) => s3WitnessCache({ endpoint: s3.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, ...o });
 
 test.before(async () => {
-  const port = await freePort(), cport = await freePort();
-  fs.mkdirSync(path.join(TMP, 'minio'));
-  const m = spawn(MINIO_BIN, ['server', '--quiet', '--address', `127.0.0.1:${port}`, '--console-address', `127.0.0.1:${cport}`, path.join(TMP, 'minio')],
-    { env: { PATH: process.env.PATH, HOME: TMP, MINIO_ROOT_USER: CREDS.accessKeyId, MINIO_ROOT_PASSWORD: CREDS.secretAccessKey, MINIO_BROWSER: 'off' }, stdio: 'ignore' });
-  children.add(m);
-  endpoint = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 120; i++) { try { if ((await fetch(endpoint + '/minio/health/ready')).ok) break; } catch {} await sleep(250); }
-  assert.equal((await s3({ method: 'PUT', url: `${endpoint}/witness` })).status, 200);
-  // archive A's recorded witnesses through the backend (create-only): the fixture directory itself is only read
-  const writer = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true, maxQueuedPuts: 4096 });
-  const root = path.join(BASE_FIXTURE_DIR, 'cache');
-  for (const blockHash of fs.readdirSync(root)) for (const f of fs.readdirSync(path.join(root, blockHash))) {
-    const e = JSON.parse(fs.readFileSync(path.join(root, blockHash, f), 'utf8'));
-    assert.equal(e.format, 'enclave-witness-rpc/v1');
-    const w = { key: f.slice(0, -5), blockHash: blockHash.toLowerCase(), norm: e.request };
-    assert.equal(createHash('sha256').update(w.norm).digest('hex'), w.key, 'fixture key = sha256(request)');
-    witnesses.push({ w, result: e.result, method: JSON.parse(e.request)[0], params: JSON.parse(e.request)[1] });
-  }
-  await Promise.all(witnesses.map(({ w, result }) => writer.put(w, result)));
-  assert.equal(writer.stats().puts, witnesses.length, JSON.stringify(writer.stats()));
-  await writer.close();
+  s3 = await startMinio({ dir: path.join(TMP, 'minio'), creds: CREDS });
   consensus = http.createServer((q, res) => res.end(JSON.stringify(q.url === '/chain_id' ? 8453 : fixture.commitment)));
   await new Promise((r) => consensus.listen(0, '127.0.0.1', r));
+  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner });
+  // fill the archive ONLY through the verifying gateway, from an honest stub upstream
+  const up = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { const j = JSON.parse(b); const r = byKey.get(witnessKey(j.method, j.params)?.key); res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...(r ? { result: r.result } : { error: { code: -32000, message: 'x' } }) })); }); });
+  await new Promise((r) => up.listen(0, '127.0.0.1', r));
+  const writer = archiveOf({ archive: true, maxQueuedPuts: 256 });
+  const g = createWitnessGateway({ upstreams: [`http://127.0.0.1:${up.address().port}/`], methods: NO_HINT, proofs: proofs(), archive: writer });
+  for (const r of [...RECORDED].sort((a, b) => (a.method === 'eth_getCode') - (b.method === 'eth_getCode'))) {
+    const out = await g.handle({ jsonrpc: '2.0', id: 1, method: r.method, params: r.params });
+    assert.deepEqual(out.result, r.result, r.method);
+  }
+  await writer.idle();
+  assert.equal(writer.stats().puts, RECORDED.length, JSON.stringify(writer.stats()));
+  await writer.close(); up.close();
 });
 test.after(async () => {
   for (const p of [...children]) p.kill('SIGKILL');
-  consensus?.close();
+  checker?.close(); consensus?.close(); s3?.stop();
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
-// a fresh Helios each time (no in-process witness reuse), reading ONLY a read-only S3-backed gateway with no upstream
+// a fresh Helios each time, whose execution endpoint is a fresh composed gateway with NO upstream and a read-only archive
 async function helios(tag) {
-  const cache = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS });   // read-only
-  const gateway = createWitnessGateway({ upstreams: [], cache, methods: WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList') });
+  const archive = archiveOf();
+  const gateway = createWitnessGateway({ upstreams: [], methods: NO_HINT, proofs: proofs(), archive });
   const gatewayUrl = await gateway.listen(0);
   const home = path.join(TMP, 'home-' + tag); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
   fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${fixture.testSequencerSigner}"\n`
@@ -85,58 +86,45 @@ async function helios(tag) {
   const url = `http://127.0.0.1:${port}/`;
   const num = '0x' + fixture.block.number.toString(16);
   for (let i = 0; i < 240; i++) { try { if ((await rpc(url, 'eth_getBlockByNumber', [num, false]))?.hash === fixture.block.hash) break; } catch {} await sleep(250); }
-  const stop = async () => { p.kill('SIGKILL'); await gateway.close(); await cache.close(); };
-  return { url, gateway, cache, stop };
+  const stop = async () => { p.kill('SIGKILL'); await gateway.close(); await archive.close(); };
+  return { url, gateway, archive, stop };
 }
 const T = { timeout: 300000 };
 const AT = () => ({ blockHash: fixture.block.hash });
 const replayable = () => fixture.calls.filter((c) => c.helios?.result !== undefined && c.helios.result === c.p1.result);
 
-test('real Base calls recomputed by Helios from S3-served witnesses match the providers byte for byte', T, async (t) => {
-  const h = await helios('ok');
+test('cold replay: real Base calls recomputed by Helios from verified S3-archived witnesses match the providers', T, async (t) => {
+  const h = await helios('cold');
   t.after(h.stop);
   const calls = replayable();
   assert.ok(calls.length >= 4, `replayable calls: ${calls.length}`);
-  for (const c of calls) {
-    assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
-    t.diagnostic(`${c.name}: ok`);
-  }
-  const s = h.cache.stats();
-  assert.ok(s.hits > 0 && Object.keys(s.rejected).length === 0, JSON.stringify(s));
-  assert.equal(h.gateway.stats().cacheHits, s.hits);
+  for (const c of calls) { assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name); t.diagnostic(`${c.name}: ok`); }
+  const s = h.gateway.stats();
+  assert.ok(s.archiveHits > 0 && s.archiveInvalid === 0 && s.unavailable === 0, JSON.stringify(s));
 });
 
-test('a forged S3 entry (the address book names another registry) is refused by Helios, never returned', T, async (t) => {
-  const target = witnesses.find((x) => x.method === 'eth_getProof' && x.params[0].toLowerCase() === BOOK && x.params[1].length > 0);
-  assert.ok(target, 'the address book storage witness is in the fixture');
-  const forged = structuredClone(target.result);
-  const real = forged.storageProof[0].value;
-  forged.storageProof[0].value = '0x' + '1234'.repeat(10);                                        // another 20-byte address
-  // the attacker has bucket write access: an unconditional overwrite with a perfectly valid envelope
-  const body = canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: target.w.blockHash, request: target.w.norm, result: forged });
-  assert.equal((await s3({ method: 'PUT', url: objectUrl(target.w), body, headers: ['Content-Type: application/json'] })).status, 200);
-  t.after(async () => {   // restore the true entry for later tests
-    const ok = canonicalJson({ format: 'enclave-witness-s3/v1', chainId: 8453, blockHash: target.w.blockHash, request: target.w.norm, result: target.result });
-    await s3({ method: 'PUT', url: objectUrl(target.w), body: ok, headers: ['Content-Type: application/json'] });
-  });
+test('bad first, valid second: a forgery that sorts first for EVERY eth_getProof is quarantined; every call still matches', T, async (t) => {
+  let planted = 0;
+  for (const r of RECORDED.filter((x) => x.method === 'eth_getProof')) {
+    let f;
+    for (let i = 1n; ; i++) { f = structuredClone(r.result); f.balance = '0x' + (BigInt(r.result.balance) + i).toString(16); if (nameOf(f) < nameOf(r.result)) break; }
+    assert.equal((await raw(s3, CREDS, { method: 'PUT', key: objectKey(r.w, f), body: envelope(r.w, f) })).status, 200);
+    planted++;
+  }
   const h = await helios('forged');
   t.after(h.stop);
-  const book = fixture.calls.find((c) => c.name.startsWith('EnclaveAddressBook.addr'));
-  await assert.rejects(rpc(h.url, 'eth_call', [book.tx, AT()]), (e) => { t.diagnostic(`refused: ${e.message.slice(0, 160)}`); return true; });
-  // and nothing else Helios answers is a wrong answer: every call either matches the providers or is refused
-  for (const c of replayable()) {
-    try { assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name); } catch (e) { if (e.code === 'ERR_ASSERTION') throw e; }
-  }
-  assert.ok(h.cache.stats().hits > 0);
-  assert.notEqual(real, forged.storageProof[0].value);
+  for (const c of replayable()) assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
+  const s = h.gateway.stats();
+  assert.ok(s.archiveInvalid >= 1 && s.archiveHits > 0 && s.unavailable === 0, JSON.stringify(s));
+  t.diagnostic(`planted ${planted} first-sorting forgeries; quarantined ${s.archiveInvalid}, verified hits ${s.archiveHits}`);
 });
 
-test('a missing S3 entry fails closed: refused, never answered', T, async (t) => {
-  const target = witnesses.find((x) => x.method === 'eth_getProof' && x.params[0].toLowerCase() === BOOK && x.params[1].length > 0);
-  assert.equal((await s3({ method: 'DELETE', url: objectUrl(target.w) })).status, 204);
+test('the valid object deleted, its forgery left: the address-book call is refused, never answered', T, async (t) => {
+  const r = RECORDED.find((x) => x.method === 'eth_getProof' && x.params[0].toLowerCase() === BOOK && x.params[1].length > 0);
+  assert.equal((await raw(s3, CREDS, { method: 'DELETE', key: objectKey(r.w, r.result) })).status, 204);
   const h = await helios('missing');
   t.after(h.stop);
   const book = fixture.calls.find((c) => c.name.startsWith('EnclaveAddressBook.addr'));
-  await assert.rejects(rpc(h.url, 'eth_call', [book.tx, AT()]));
-  assert.ok(h.cache.stats().misses >= 1, JSON.stringify(h.cache.stats()));
+  await assert.rejects(rpc(h.url, 'eth_call', [book.tx, AT()]), (e) => { t.diagnostic(`refused: ${e.message.slice(0, 140)}`); return true; });
+  assert.ok(h.gateway.stats().archiveInvalid >= 1);
 });

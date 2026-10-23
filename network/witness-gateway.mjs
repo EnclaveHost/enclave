@@ -23,6 +23,10 @@
 //   * eth_getBlockByHash (Helios's historical path asks for a full block by hash) is verified too: the header must hash
 //     to the requested hash, and a full-transaction body must pass Helios's OpStack::validate_block; a bad answer costs
 //     its source the try. A hash-only answer is HEADER-verified only. Blocks are never cached or used as roots.
+//   * An optional ARCHIVE tier (a remote store such as Sia-S3: network/s3-witness-cache.mjs) is the last resort: it is
+//     read only after the local cache and every upstream failed, within the request's remaining deadline, and each
+//     candidate is verified and quarantined exactly like a cache entry. It receives only VERIFIED upstream answers,
+//     and those writes are never awaited, so a slow or hung remote store can neither delay nor fail a fresh read.
 //   * Other methods (blocks by number, receipts, logs, fee data) keep ordered first-answer failover: Helios verifies
 //     those against its signed head itself. A method allowlist keeps the gateway from being a general RPC proxy
 //     (a16z/helios 2af9b418 core/src/execution/providers/rpc.rs, opstack evm, plus broadcast).
@@ -151,6 +155,8 @@ function limiter(max, maxQueued) {
  * proofs: {checker, roots} (network/witness-verify.mjs), REQUIRED when eth_getProof/eth_getCode are offered or a cache
  * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
+ * archive: optional {candidates(w, {deadline}), put(w, result)} (s3WitnessCache): read only after the cache and every
+ * upstream failed, written only with verified answers and never awaited.
  * Bounds: deadlineMs per request covers EVERYTHING the request does (queue wait for a slot, every upstream try and body
  * read, root recovery, helper checks, the cache read); timeoutMs per try (cut to what is left of the deadline when the
  * slot is granted; no try starts with less than minTryMs left); maxResponseBytes per answer (while reading);
@@ -162,7 +168,7 @@ function limiter(max, maxQueued) {
  * -> {handle(request) -> response, root(blockHash) -> binding | null, listen(port) -> url (127.0.0.1 only), close()
  *    (terminal), settled(), stats()}
  */
-export function createWitnessGateway({ upstreams = [], cache = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
+export function createWitnessGateway({ upstreams = [], cache = null, archive = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
   maxHeaderBytes = 1 << 20, maxInFlight = 8, maxQueued = 256, minTryMs = 25, cacheTimeoutMs = Math.min(1000, deadlineMs), maxCacheOps = 64, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
@@ -177,10 +183,11 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
   if (!Number.isSafeInteger(minTryMs) || minTryMs < 1 || minTryMs > timeoutMs) throw new Error('invalid minTryMs');
   if (!Number.isSafeInteger(cacheTimeoutMs) || cacheTimeoutMs < 10 || cacheTimeoutMs > deadlineMs) throw new Error('invalid cacheTimeoutMs');
   if (!Number.isSafeInteger(maxCacheOps) || maxCacheOps < 1 || maxCacheOps > 1024) throw new Error('invalid maxCacheOps');
-  if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
+  if (archive && !(typeof archive.candidates === 'function' && typeof archive.put === 'function')) throw new Error('archive needs candidates(w) and put(w, result)');
+  if ((methods.some((m) => PINNED.has(m)) || cache || archive) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
   const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0, blockOk: 0, blockInvalid: 0, blockNull: 0 }])), cacheHits: 0, cachePuts: 0,
-    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
+    cacheInvalid: 0, archiveHits: 0, archiveInvalid: 0, archiveQueued: 0, archiveErrors: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
     deadlineExceeded: 0, queueFull: 0, cacheTimeouts: 0, cacheSkipped: 0, cachePutSkipped: 0, closedRefusals: 0 };
   const slot = limiter(maxInFlight, maxQueued);
   const life = new AbortController();                     // gateway lifetime: close() aborts every request and walk
@@ -301,7 +308,29 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
         if (!v.ok) { s.invalid++; reasons.push(`${rpcLabel(u)}: invalid witness (${String(v.error).slice(0, 80)})`); continue; }
         s.ok++;
         cacheWrite(w, j.result);
+        if (archive) {   // verified; NOT awaited: a slow or hung archive must not delay the fresh answer
+          stats.archiveQueued++;
+          try { Promise.resolve(archive.put(w, j.result)).catch(() => { stats.archiveErrors++; }); } catch { stats.archiveErrors++; }
+        }
         return { result: j.result };
+      }
+      // last resort: the archive, inside the remaining deadline; every candidate verified like a cache entry
+      if (archive && op.deadline - Date.now() > 0) {
+        let found, timer;
+        try {
+          const list = await Promise.race([archive.candidates(w, { deadline: op.deadline }),
+            new Promise((r) => { timer = setTimeout(() => r([]), Math.max(0, op.deadline - Date.now())); })]);
+          found = Array.isArray(list) ? list : [];
+        } catch { stats.archiveErrors++; found = []; } finally { clearTimeout(timer); }
+        for (const c of found.slice(0, 64)) {
+          if (Date.now() >= op.deadline) break;
+          const tag = `${w.key}:${sha256(JSON.stringify(c))}`;
+          if (quarantine.has(tag)) continue;
+          const v = await verify(c);
+          if (v.ok) { stats.archiveHits++; return { result: c }; }
+          remember(quarantine, tag); stats.archiveInvalid++;
+        }
+        if (!found.length) reasons.push('archive: no candidate');
       }
     } catch (e) {
       if (expired(op)) throw ended(op);

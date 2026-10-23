@@ -1,21 +1,31 @@
-// OPTIONAL immutable witness-cache backend on S3 (Sia-S3, or any S3 that supports conditional PUT) for
-// network/witness-gateway.mjs: the same {get(w), put(w, result)} contract as dirWitnessCache, keyed by witnessKey().
+// OPTIONAL immutable witness ARCHIVE on S3 (Sia-S3, or any S3 with conditional PUT and ListObjectsV2) for
+// network/witness-gateway.mjs: the proof-aware candidate contract {candidates(w), put(w, result), get(w)}, keyed by
+// witnessKey(). Its answers are UNTRUSTED: the gateway verifies every candidate with the witness checker against an
+// authenticated state root before using it, and archives only answers it has verified.
 //
 // What it is: downstream EVIDENCE AVAILABILITY for block-hash-pinned witnesses (eth_getProof / eth_getCode at
-// {blockHash}). What it is NOT: a consensus authority, a source of freshness, or a bootstrap dependency.
-//   * The gateway consults get() only after every live upstream failed, and only for a block-hash-pinned request, so
-//     a hit is availability for THAT block only. Helios re-verifies every returned witness against the signed head
-//     (state root / code hash); a wrong, stale or tampered entry fails verification and is never an answer.
-//   * Keys are chain-namespaced and pinned by block hash and request: <prefix>/<chainId>/<blockHash>/<sha256>.json,
-//     and an entry is accepted only if its own format, chain id, block hash and full normalized request match exactly.
-//     Anything else (tampered, oversized, truncated, slow, unreachable) is a miss, counted in stats, never an error that
-//     could stall the gateway.
+// {blockHash}). What it is NOT: a consensus authority, a source of freshness, or a bootstrap dependency (with S3
+// unconfigured or down, every read is an empty candidate list and the gateway behaves as without it).
+//   * Content-addressed and create-only: one immutable object per distinct answer,
+//       <prefix>/<chainId>/<blockHash>/<sha256(request)>/<sha256(canonical result)>.json
+//     so a wrong first write (a lying source's answer from an older, unverifying writer, or a tampered bucket) can
+//     never shadow a valid answer for the same request: the valid one is another object. The single-slot layout of the
+//     first version (<…>/<sha256(request)>.json) is still read, as the LAST candidate.
+//   * An object is a candidate only if its envelope (format, chain id, block hash, full normalized request) matches
+//     exactly and its name is the hash of its result. Anything else (tampered, misnamed, oversized, truncated, slow,
+//     unreachable) is skipped and counted, never an error that could stall or fail the gateway.
+//   * Bounded reads: ListObjectsV2 pages of at most maxCandidates keys, at most maxListPages pages and maxListBytes per
+//     page, at most maxCandidates objects fetched, all inside one read budget (readBudgetMs, and the caller's
+//     deadline). ADVERSARIAL BUCKET OWNER: whoever can write the bucket can bury valid answers under more than
+//     maxCandidates junk objects (names are hashes, but junk can be ground to sort first) or delete them: an
+//     availability loss for those requests, never a wrong answer, because nothing here is trusted.
 //   * Writes are OFF unless `archive: true`: an archived eth_getProof names the accounts and storage slots this node
-//     read, at which block (PRIVACY). Writes are create-only (If-None-Match: *). A 412 compares the stored entry
-//     with ours, and a different entry is never overwritten (a `conflicts` count shows two sources disagreed; the
-//     first entry stays, and if it is wrong Helios rejects it: availability loss for that key, never a wrong answer).
-//   * Writes never block reads: the gateway does not await put(); here puts queue (bounded) and run with a timeout,
-//     dropping work beyond the bound. close() kills every in-flight request.
+//     read, at which block (PRIVACY). Even read-only, every lookup reveals to the S3 operator which request hash was
+//     asked and when (request hashes of guessable slots can be recognised): reads are metadata too.
+//     Writes are create-only (If-None-Match: *); a 412 re-reads the object and compares it exactly, and a different
+//     object under that content name is never overwritten (`conflicts`).
+//   * Writes never block reads or the caller: put() returns as soon as the write is queued (bounded queue, bounded
+//     in-flight writes, per-write timeout); idle() resolves when the queue has drained. close() kills every request.
 // Signing and transport: curl's maintained AWS SigV4 implementation (`--aws-sigv4`, libcurl; checked against AWS's
 // published signing-suite vectors and a real MinIO server in test/s3-witness-cache.test.mjs). The access key travels
 // to curl as a config file on its standard input: never in argv or the environment, never in errors or stats. A
@@ -86,10 +96,11 @@ export function s3Request({ method, url, region, credentials, headers = [], body
  * endpoint: S3 base URL (https, or http on loopback). bucket, region. chainId: the gateway's chain (namespaces keys).
  * credentials: {accessKeyId, secretAccessKey}, loaded by the caller from a 0600 file (never logged).
  * archive: false (default) = read-only; true = also write witnesses (see PRIVACY above).
- * -> { get(w), put(w, result), close(), stats(), privacy }
+ * -> { candidates(w, {deadline}), get(w), put(w, result), idle(), close(), stats(), privacy }
  */
 export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix = 'enclave-witness', chainId, credentials, archive = false,
-  timeoutMs = 4000, putTimeoutMs = 60000, maxObjectBytes = 4 << 20, maxInflightPuts = 2, maxQueuedPuts = 64, maxInflightGets = 8, curl = 'curl' } = {}) {
+  timeoutMs = 4000, readBudgetMs = 8000, putTimeoutMs = 60000, maxObjectBytes = 4 << 20, maxCandidates = 8, maxListPages = 2, maxListBytes = 256 << 10,
+  maxInflightPuts = 2, maxQueuedPuts = 64, maxInflightGets = 8, curl = 'curl' } = {}) {
   const ep = rpcEndpoint(endpoint);  // throws RpcUrlError without echoing the URL
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket || '')) throw new Error('invalid bucket name');
   if (!/^[a-z0-9-]{1,32}$/.test(region)) throw new Error('invalid region');
@@ -97,21 +108,25 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix 
   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chainId required (keys are chain-namespaced)');
   if (!credentials || !ACCESS_KEY.test(credentials.accessKeyId || '') || !SECRET.test(credentials.secretAccessKey || '')) throw new Error('invalid S3 credentials');
   if (typeof archive !== 'boolean') throw new Error('archive must be true or false');
-  for (const [n, v, lo, hi] of [['timeoutMs', timeoutMs, 200, 60000], ['putTimeoutMs', putTimeoutMs, 1000, 600000], ['maxObjectBytes', maxObjectBytes, 1024, 16 << 20],
+  for (const [n, v, lo, hi] of [['timeoutMs', timeoutMs, 200, 60000], ['readBudgetMs', readBudgetMs, 200, 300000], ['putTimeoutMs', putTimeoutMs, 1000, 600000],
+    ['maxObjectBytes', maxObjectBytes, 1024, 16 << 20], ['maxCandidates', maxCandidates, 1, 64], ['maxListPages', maxListPages, 1, 16], ['maxListBytes', maxListBytes, 4096, 4 << 20],
     ['maxInflightPuts', maxInflightPuts, 1, 16], ['maxQueuedPuts', maxQueuedPuts, 0, 4096], ['maxInflightGets', maxInflightGets, 1, 64]])
     if (!Number.isSafeInteger(v) || v < lo || v > hi) throw new Error(`invalid ${n}`);
   const creds = { accessKeyId: credentials.accessKeyId, secretAccessKey: credentials.secretAccessKey };
   const base = ep.url.origin + ep.url.pathname.replace(/\/+$/, '');
   const children = new Set();
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 's3wc-'));  // 0700 (mkdtemp); request bodies only, removed on close
-  const stats = { hits: 0, misses: 0, rejected: {}, errors: {}, puts: 0, putsExisting: 0, conflicts: 0, putsFailed: 0, putsDropped: 0, putsSkipped: 0 };
+  const stats = { lists: 0, candidates: 0, hits: 0, misses: 0, rejected: {}, errors: {}, puts: 0, putsExisting: 0, conflicts: 0, putsFailed: 0, putsDropped: 0, putsSkipped: 0 };
   const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
   let closed = false, gets = 0;
   const waiting = [], queue = [];
   let puts = 0;
 
   const valid = (w) => w && KEY.test(w.key || '') && HASH.test(w.blockHash || '') && typeof w.norm === 'string';
-  const objectUrl = (w) => `${base}/${bucket}/${prefix}/${chainId}/${w.blockHash}/${w.key}.json`;
+  const folder = (w) => `${prefix}/${chainId}/${w.blockHash}/${w.key}/`;            // content-addressed answers
+  const legacyKey = (w) => `${prefix}/${chainId}/${w.blockHash}/${w.key}.json`;       // version-1 single slot
+  const contentName = (result) => createHash('sha256').update(canonicalJson(result)).digest('hex');
+  const urlOf = (key) => `${base}/${bucket}/${key}`;
   const entry = (w, result) => canonicalJson({ format: FORMAT, chainId, blockHash: w.blockHash, request: w.norm, result });
   const req = (o) => s3Request({ region, credentials: creds, curl, children, scratch, ...o });
 
@@ -139,60 +154,121 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix 
   }
   function release() { const next = waiting.shift(); if (next) next(); else gets--; }
 
-  async function get(w) {
-    if (closed || !valid(w)) return undefined;
+  const left = (deadline) => deadline - Date.now();
+  async function fetchEntry(w, key, deadline) {
+    const t = Math.min(timeoutMs, left(deadline));
+    if (t < 50) { bump(stats.errors, 'budget'); return undefined; }
     if (!(await acquire())) { bump(stats.errors, 'busy'); return undefined; }
     if (closed) { release(); return undefined; }
     try {
-      const r = await req({ method: 'GET', url: objectUrl(w), timeoutMs, maxBytes: maxObjectBytes });
+      const r = await req({ method: 'GET', url: urlOf(key), timeoutMs: t, maxBytes: maxObjectBytes });
       if (r.status === 404) { stats.misses++; return undefined; }
       if (r.status !== 200) { bump(stats.errors, 'http' + r.status); return undefined; }
-      const [ok, v] = accept(w, r.body);
-      if (!ok) { bump(stats.rejected, v); return undefined; }
-      stats.hits++;
-      return v;
+      return accept(w, r.body);
     } catch (e) { bump(stats.errors, e.code || 'error'); return undefined; }
     finally { release(); }
   }
+  /** Up to maxCandidates content-addressed object keys for w, in listing (lexicographic) order; bounded pages. */
+  async function listKeys(w, deadline) {
+    const pfx = folder(w), keys = [];
+    const ok = new RegExp('^' + pfx.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[0-9a-f]{64}\\.json$');
+    let token = null;
+    for (let page = 0; page < maxListPages && keys.length < maxCandidates; page++) {
+      const t = Math.min(timeoutMs, left(deadline));
+      if (t < 50) { bump(stats.errors, 'budget'); break; }
+      const q = `list-type=2&max-keys=${maxCandidates}&prefix=${encodeURIComponent(pfx)}` + (token ? `&continuation-token=${encodeURIComponent(token)}` : '');
+      if (!(await acquire())) { bump(stats.errors, 'busy'); break; }
+      let r;
+      try { r = await req({ method: 'GET', url: `${base}/${bucket}?${q}`, timeoutMs: t, maxBytes: maxListBytes }); }
+      catch (e) { bump(stats.errors, 'list-' + (e.code || 'error')); break; }
+      finally { release(); }
+      stats.lists++;
+      if (r.status !== 200) { bump(stats.errors, 'list' + r.status); break; }
+      const xml = r.body.toString('utf8');
+      for (const m of xml.matchAll(/<Key>([^<]{1,512})<\/Key>/g)) {
+        if (ok.test(m[1])) { if (keys.length < maxCandidates) keys.push(m[1]); } else bump(stats.rejected, 'listed-name');
+      }
+      const more = /<IsTruncated>true<\/IsTruncated>/.test(xml), next = /<NextContinuationToken>([^<]{1,1024})<\/NextContinuationToken>/.exec(xml);
+      if (!more || !next) break;
+      token = next[1];
+    }
+    return keys;
+  }
+  /**
+   * Every stored answer for w that passes the envelope and content-address checks (UNVERIFIED: the gateway checks
+   * each against an authenticated root). Bounded by maxCandidates, listing bounds and one read budget; never throws.
+   */
+  async function candidates(w, { deadline = Date.now() + readBudgetMs } = {}) {
+    if (closed || !valid(w)) return [];
+    deadline = Math.min(deadline, Date.now() + readBudgetMs);
+    const out = [];
+    try {
+      for (const key of await listKeys(w, deadline)) {
+        const got = await fetchEntry(w, key, deadline);
+        if (!got) continue;
+        const [ok, v] = got;
+        if (!ok) { bump(stats.rejected, v); continue; }
+        if (contentName(v) !== key.slice(-69, -5)) { bump(stats.rejected, 'address'); continue; }   // name = hash of content
+        out.push(v);
+      }
+      if (out.length < maxCandidates) {
+        const got = await fetchEntry(w, legacyKey(w), deadline);
+        if (got) { if (got[0]) out.push(got[1]); else bump(stats.rejected, got[1]); }
+      }
+    } catch (e) { bump(stats.errors, e?.code || 'error'); }
+    stats.candidates += out.length;
+    if (out.length) stats.hits++; else stats.misses++;
+    return out;
+  }
+  /** Compatibility: the first candidate (unverified, like every read). */
+  async function get(w) { return (await candidates(w))[0]; }
 
-  async function write(w, body) {
+  async function write(w, result, body) {
+    const key = folder(w) + contentName(result) + '.json';
     const sha = createHash('sha256').update(body).digest('hex');
-    const r = await req({ method: 'PUT', url: objectUrl(w), timeoutMs: putTimeoutMs, maxBytes: 64 << 10, body,
+    const r = await req({ method: 'PUT', url: urlOf(key), timeoutMs: putTimeoutMs, maxBytes: 64 << 10, body,
       headers: ['If-None-Match: *', 'Content-Type: application/json', `x-amz-content-sha256: ${sha}`] });
     if (r.status === 200) { stats.puts++; return; }
     if (r.status !== 412) { stats.putsFailed++; bump(stats.errors, 'put' + r.status); return; }
-    // create-only: something is already there. Equal entry = done; different entry = conflict, never overwritten.
-    const g = await req({ method: 'GET', url: objectUrl(w), timeoutMs, maxBytes: maxObjectBytes });
+    // create-only: the content name exists. Equal bytes = done; different bytes = conflict, never overwritten.
+    const g = await req({ method: 'GET', url: urlOf(key), timeoutMs, maxBytes: maxObjectBytes });
     if (g.status === 200 && g.body.equals(Buffer.from(body))) stats.putsExisting++;
     else stats.conflicts++;
   }
+  const idlers = [];
   function pump() {
     while (!closed && puts < maxInflightPuts && queue.length) {
-      const [w, body, resolve] = queue.shift();
+      const [w, result, body] = queue.shift();
       puts++;
-      write(w, body).catch((e) => { stats.putsFailed++; bump(stats.errors, 'put-' + (e.code || 'error')); })
-        .finally(() => { puts--; resolve(); pump(); });
+      write(w, result, body).catch((e) => { stats.putsFailed++; bump(stats.errors, 'put-' + (e.code || 'error')); })
+        .finally(() => { puts--; pump(); });
     }
+    if (!puts && !queue.length) for (const r of idlers.splice(0)) r();
   }
-  /** Never throws, never blocks the caller beyond queueing; resolves when the write finished, failed or was dropped. */
+  /** Never throws and never waits for the write: queues it (bounded) and returns. Call only with VERIFIED answers. */
   function put(w, result) {
     if (!archive || closed) { stats.putsSkipped++; return Promise.resolve(); }
     if (!valid(w) || result === undefined) { stats.putsSkipped++; return Promise.resolve(); }
     const body = entry(w, result);
     if (Buffer.byteLength(body) > maxObjectBytes) { stats.putsSkipped++; return Promise.resolve(); }
     if (queue.length >= maxQueuedPuts) { stats.putsDropped++; return Promise.resolve(); }
-    return new Promise((resolve) => { queue.push([w, body, resolve]); pump(); });
+    queue.push([w, result, body]);
+    pump();
+    return Promise.resolve();
   }
+  /** Resolves when no write is queued or in flight (tests, orderly shutdown). */
+  function idle() { return !puts && !queue.length ? Promise.resolve() : new Promise((r) => idlers.push(r)); }
   async function close() {
     closed = true;
-    for (const [, , resolve] of queue.splice(0)) { stats.putsDropped++; resolve(); }
+    stats.putsDropped += queue.splice(0).length;
     const exits = [...children].map((p) => { p.kill('SIGKILL'); return p.exited; });
     await Promise.race([Promise.all(exits), new Promise((r) => setTimeout(r, 2000))]);  // bounded: killed curls reaped
     for (const waiter of waiting.splice(0)) waiter();  // they see `closed` and return a miss
+    for (const r of idlers.splice(0)) r();
     fs.rmSync(scratch, { recursive: true, force: true });
   }
   return {
-    get, put, close,
+    candidates, get, put, idle, close,
     stats: () => structuredClone({ ...stats, inflight: { gets, puts, queued: queue.length, children: children.size } }),
     privacy: archive ? 'ARCHIVE ON: requested accounts, storage slots and block hashes are written to the bucket' : 'read-only: nothing is written',
   };
