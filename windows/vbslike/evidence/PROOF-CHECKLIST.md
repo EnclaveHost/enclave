@@ -15,7 +15,7 @@ Every line is exactly one of:
 
 A successful app response, a type-1 boot, or a refused Save-VM is none of these for host exclusion.
 
-**Current verdict: host exclusion NOT established. `host_excluded=no`. Admission unchanged.** (updated ~06:25 UTC)
+**Current verdict: host exclusion DEMONSTRATED box-local (E3, 2026-10-23; see `e3-host-memory-20261023/RESULT.md`) — the host OS cannot read a VBS type-1 guest's RAM via user-mode or a privileged live-dump that DID read a non-isolated guest. The per-app `host_excluded` stays `no` (box-local demonstration, not a report-attestable property). Admission unchanged.** (updated 2026-10-23)
 
 **Boot 68 (2026-09-25 05:32:35Z, Secure Boot ON) supersedes boot 67 for every same-boot item.** See
 `boot68-2026-09-25.md`. Target: the custom type-1 path ONLY (`../DIRECTION.md`).
@@ -38,9 +38,15 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 - SOURCE: enforcement is the hypervisor's, not the CPU's memory encryption. OpenHCL classes VBS as not
   hardware-isolated (`vmm_core/virt/src/generic.rs:149-151`) and its attestation as "software-attested"
   (`vm/devices/tpm/tpm_device/src/ak_cert.rs:19-25`).
-- UNTESTED: that the root's VTL0 cannot read or write this partition's memory. The only documented host
-  instrument, Save-VM, is refused on type 1, and the vmwp reader failed its type-16 positive control.
-- BLOCKED (parked by direction): the host-memory experiment (E3). Report testing does not replace it.
+- DEMONSTRATED (E3, 2026-10-23; `e3-host-memory-20261023/RESULT.md`): the root's VTL0 cannot read this
+  partition's private memory. A privileged host live capture (NtSystemDebugControl, incl. user + hypervisor
+  pages) that DID read a non-isolated GPA-backed child partition's guest RAM (a clean guest-only marker:
+  decompressed monitor code, absent from the compressed image) did NOT contain a VBS type-1 child partition's
+  guest-only secret (a per-boot nonce never sent to the host before the capture). Same GPA-backed child
+  partitions, differing only in the isolation bit => the exclusion is VBS isolation.
+- RESIDUAL (not run): a raw-SPA kernel-debugger read; Secure Boot refuses to enable kernel debugging and it
+  cannot be disabled from the OS (physical BIOS). Earlier instruments (Save-VM refused on type 1; the vmwp
+  reader's VOID type-16 control) are superseded by the live-capture differential.
 
 ## O2. Which guest, runtime and app bytes the measurement covers
 
@@ -164,8 +170,9 @@ then these stay UNTESTED:
 - V5: the binding of nonce, TLS key, appId and runtimeId in `report_data`;
 - V7: replay and cross-VM refusal;
 - every row of O5 below.
-`host_excluded` additionally needs E3 (the host-memory experiment, PARKED). A report, even a valid one, does not
-supply it.
+`host_excluded` in the per-app report additionally needs E3. E3 is now DEMONSTRATED box-local (2026-10-23;
+`e3-host-memory-20261023/RESULT.md`), but a report — even a valid one — still cannot carry it, so the
+per-app `host_excluded` stays `no`.
 
 **Next permissible steps, none of which captures a report:**
 1. enclave-5d: the domain negative control above, an `open()` of `/dev/tpm0` and `/dev/tpmrm0` from `domprobe`
@@ -284,8 +291,9 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
 4. **Unresolved production requirement, documented, not blocking proof:** loading our firmware needs the host-wide
    AllowFirmwareLoadFromFile opt-in (O0). Proof runs use it temporarily and restore it. Permanent production use is
    Steven's decision, and it is not enabled permanently.
-5. **Parked (provider-blocked or declined; not rerouted):** VM report-byte capture, and the host-memory experiment
-   (E3). If every permitted prerequisite completes while these remain blocked, the remaining boundary is exactly:
+5. **Parked (provider-blocked or declined; not rerouted):** VM report-byte capture. The host-memory experiment
+   (E3) is NO LONGER parked — DEMONSTRATED box-local 2026-10-23 (`e3-host-memory-20261023/RESULT.md`). If every
+   permitted prerequisite completes while report-byte capture remains blocked, the remaining boundary is exactly:
    - no VM report signer verified;
    - no guest key or app binding in a report;
-   - no host-memory exclusion evidence.
+   - host-memory exclusion DEMONSTRATED box-local (E3), but not carried in any per-app report.
