@@ -8,7 +8,10 @@
 // Positive paths, admin moderation (a ban, a new anchor), outsiders, and failures: tampered or missing witnesses, a
 // stale head, the original measured-gate grace. SYNTHETIC HEAD AUTHORITY: the local chain's blocks are signed by a TEST
 // sequencer key (helios.toml override); the real Base head path is helios-base-head.e2e.
-//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, TEST_TMP. Run inside `unshare -r -n`.
+// COMPOSED with the proof-aware gateway (witness-failover ce7c1b73 and later), which serves no unverified witness: the
+// gateway gets the witness-check helper and a root store, the head feed pushes each signed head to the root store before
+// serving it, and signs the block's real parent beacon root (so a commitment's hash matches its contents).
+//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, WITNESS_CHECK_BIN, TEST_TMP. Run inside `unshare -r -n`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
@@ -25,13 +28,14 @@ import { coldDiscover } from '../network/cold-bootstrap.mjs';
 import { createHostPolicyRuntime, verifiedHostSnapshot } from '../network/host-policy-runtime.mjs';
 import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor, ANCHOR_KEYS } from '../network/platform-host-policy.mjs';
 import { createWitnessGateway } from '../network/witness-gateway.mjs';
+import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
 import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
 import { challengeReplicaConfig, challengeReplicaEnv } from '../network/challenge-replica-host.mjs';
 import { flatRelay } from './helpers/relay-flat.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { HELIOS_BASE_BIN } = process.env;
-const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)');
+const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN } = process.env;
+const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (!WITNESS_CHECK_BIN && 'WITNESS_CHECK_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)');
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'policy-verifier-'));
 const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
 const Z32 = '0x' + '00'.repeat(32);
@@ -40,7 +44,7 @@ const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const admin = privateKeyToAccount(KEYS.deployer);                    // the book's deployer is its owner: the admin
 const OPS = { a: { key: KEYS.other, endpoint: 'https://host-a.policy-test.net' }, b: { key: KEYS.owner, endpoint: 'https://host-b.policy-test.net' } };
-let rig, helios, heliosUrl, feed, proxy, gateway, index, indexPin, book, bookAbi, ownership, docs = [], mirror, dirSrv;
+let rig, helios, heliosUrl, feed, proxy, gateway, index, indexPin, book, bookAbi, ownership, docs = [], mirror, dirSrv, checker, roots;
 const proxyMode = { value: 'ok' };
 const idOf = (endpoint) => keccak256(toBytes(endpoint)).toLowerCase();   // the registry id of a host endpoint (as the rig computes it)
 
@@ -65,7 +69,8 @@ function startFeed() {
         const n = served + 1n;
         const b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
         const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
-        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs });
+        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs, ...(b.parentBeaconBlockRoot ? { parentBeaconRoot: b.parentBeaconBlockRoot } : {}) });
+        await roots.offer(current);     // bound before Helios can see the head
         served = n;
       }
     } catch {}
@@ -127,8 +132,10 @@ test.before(async () => {
   mirror = http.createServer((q, res) => { const d = docs.find((x) => q.url.endsWith(`/${x.digest}.json`)); if (!d) { res.writeHead(404); return res.end(); } res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ document: d.document, signature: d.signature })); });
   dirSrv = http.createServer((q, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ records: [] })); });
   await Promise.all([mirror, dirSrv].map((s) => new Promise((r) => s.listen(0, '127.0.0.1', r))));
+  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: seqSigner });
+  roots = createRootStore({ checker });
   feed = await startFeed(); proxy = await startProxy();
-  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
+  gateway = createWitnessGateway({ upstreams: [proxy.url], proofs: { checker, roots } }); const gUrl = await gateway.listen(0);
   const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
   fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
   const port = await freePort();
@@ -138,7 +145,7 @@ test.before(async () => {
 });
 test.after(async () => {
   helios?.kill('SIGKILL');
-  await gateway?.close(); feed?.srv.close(); proxy?.srv.close(); mirror?.close(); dirSrv?.close();
+  await gateway?.close(); feed?.srv.close(); proxy?.srv.close(); roots?.close?.(); checker?.close(); mirror?.close(); dirSrv?.close();
   await rig?.stop();
   fs.rmSync(TMP, { recursive: true, force: true });
 });
