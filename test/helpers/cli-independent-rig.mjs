@@ -72,13 +72,26 @@ export async function startRig() {
   const closeServer = (srv) => () => new Promise((ok) => { srv.closeAllConnections?.(); srv.close(() => ok()); });
   try {
     const anvilPort = await freePort();
-    const anvil = spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
+    // RIG_CHAIN_NODE=reth (opt-in): a canonical-trie dev chain instead of anvil (anvil keeps zero-valued storage slots as
+    // trie leaves, which a proof verifier rightly refuses). Pinned reth binary RIG_RETH_BIN, chain id 8453 genesis
+    // RIG_RETH_GENESIS (forks through Osaka at genesis, the anvil dev accounts funded), one block per RIG_RETH_BLOCK_TIME,
+    // datadir under /tmp (RAM); no discovery, loopback only. evm_* calls are then unavailable (mine() ignores that).
+    const reth = process.env.RIG_CHAIN_NODE === "reth";
+    const rethData = reth ? fs.mkdtempSync(path.join("/tmp", "rig-reth-")) : null;
+    if (reth) stops.push(() => fs.rmSync(rethData, { recursive: true, force: true }));
+    const anvil = reth
+      ? spawn(process.env.RIG_RETH_BIN, ["node", "--dev", "--dev.block-time", process.env.RIG_RETH_BLOCK_TIME || "2s", "--chain", process.env.RIG_RETH_GENESIS,
+          "--datadir", rethData, "--http", "--http.addr", "127.0.0.1", "--http.port", String(anvilPort),
+          "--http.api", "eth,net,web3,debug", "--disable-discovery", "--ipcdisable", "--port", "0", "--authrpc.port", String(await freePort()),
+          // reth serves eth_getProof only at the tip by default (window 0); a verifier reads confirmed blocks behind it
+          "--rpc.eth-proof-window", "1024"], { stdio: "ignore" })
+      : spawn("anvil", ["--port", String(anvilPort), "--chain-id", "8453", "--silent", "--base-fee", "0", "--gas-price", "0"], { stdio: "ignore" });
     const killAnvil = () => { try { anvil.kill("SIGKILL"); } catch {} };
     process.once("exit", killAnvil);   // even a crashed test process leaves no chain behind
     stops.push(() => { process.removeListener("exit", killAnvil); killAnvil(); });
     const rpc = `http://127.0.0.1:${anvilPort}`;
     const pc = createPublicClient({ chain, transport: viemHttp(rpc) });
-    for (let i = 0; i < 100; i++) { try { await pc.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
+    for (let i = 0; i < (reth ? 600 : 100); i++) { try { await pc.getChainId(); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
     const wc = (key) => createWalletClient({ chain, account: privateKeyToAccount(key), transport: viemHttp(rpc) });
     const dep = wc(KEYS.deployer);
     const deploy = async (a, args = [], libs = {}) => {

@@ -5,6 +5,11 @@
 // settlement pinned reads; plus tampered proofs, missing witnesses, a stale head and unknown state.
 // SYNTHETIC HEAD AUTHORITY: the local chain's blocks are signed by a TEST sequencer key (helios.toml override). The real
 // Base head path is tested separately (helios-base-head.e2e) and real Base execution by helios-base-replay.e2e.
+// ANVIL IS NOT A CANONICAL STATE TRIE: it keeps zero-valued storage slots as leaves (fixtures/anvil-zero-leaf-diag:
+// a cleared slot and a zero written onto an unset slot both prove as an inclusion of 0x80; canonical clients delete
+// them). The verifier REFUSES such proofs. The ledger, catalog and ownership contracts write zeros, so on anvil their
+// verified reads must refuse - asserted here; positive consumer paths over those contracts need a canonical chain.
+// AddressBook paths (no zero writes) are positive here.
 //   env: HELIOS_BASE_BIN, TEST_TMP. Needs anvil and contracts/foundry/out (as the rig does). Run inside `unshare -r -n`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,6 +28,9 @@ import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
 
 const { HELIOS_BASE_BIN } = process.env;
 const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set');
+// RIG_CHAIN_NODE=reth: canonical state tries -> the positive consumer paths over ledger/catalog/ownership run; on anvil
+// (non-canonical zero leaves) the same reads must refuse.
+const canonical = process.env.RIG_CHAIN_NODE === 'reth';
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'verifier-e2e-'));
 const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
 const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'contracts/foundry/out');
@@ -48,6 +56,7 @@ function startFeed() {
     if (q.url === '/chain_id') return res.end('8453');
     try {
       const latest = BigInt(await rig.rpcCall('eth_blockNumber'));
+      if (served === 0n && latest > 3n) served = latest - 3n;     // start near the head, then every block in order
       if (!frozen && served < latest) {
         const n = served + 1n;
         const b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
@@ -76,14 +85,14 @@ test.before(async () => {
   if (skip) return;
   rig = await startRig();
   // blocks come only from this test: automine for writes, plus one block every 2 s (the head feed serves 1 block/s)
-  await rig.setMining(false); await rig.rpcCall('evm_setAutomine', [true]);
-  miner = setInterval(() => rig.mine(), 2000);
+  if (!canonical) { await rig.setMining(false); await rig.rpcCall('evm_setAutomine', [true]); miner = setInterval(() => rig.mine(), 2000); }
   const B = art('EnclaveAddressBook.sol', 'EnclaveAddressBook'); bookAbi = B.abi;
   book = await rig.deploy(B);
   const dep = rig.wc(KEYS.deployer);
   await rig.write(dep, book, bookAbi, 'set', [stringToHex('deployments', { size: 32 }), rig.addresses.ledger]);
   await rig.write(dep, book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
-  leaseId = rig.createdId(await rig.create(KEYS.owner));
+  const created = await rig.create(KEYS.owner);
+  leaseId = rig.createdId(created);
   feed = await startFeed(); proxy = await startProxy();
   gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
   const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
@@ -91,7 +100,7 @@ test.before(async () => {
   const port = await freePort();
   helios = spawn(HELIOS_BASE_BIN, ['opstack', '--network', 'base', '--consensus-rpc', feed.url, '--execution-rpc', gUrl, '--rpc-port', String(port)], { env: { HOME: home, PATH: process.env.PATH }, stdio: 'ignore' });
   heliosUrl = `http://127.0.0.1:${port}/`;
-  await untilHelios(BigInt(await rig.rpcCall('eth_blockNumber')));
+  await untilHelios(created.blockNumber + 2n);    // a confirmed block past the deployment's creation
   reader = new LeaseReader({ authority: 'verifier', verifier: heliosUrl, addressBook: book, confirmations: 1, maxBlockAgeMs: 60000, deadlineMs: 30000 });
 });
 test.after(async () => {
@@ -104,7 +113,20 @@ test.after(async () => {
 const T = { skip, timeout: 240000 };
 const waitTx = async (rc) => untilHelios(rc.blockNumber + 2n);
 
-test('deployment/lease snapshot through the verifier equals the chain record at the same block', T, async () => {
+test('on anvil, verified reads of the ledger, catalog and ownership (zero-written slots) are REFUSED, never answered', { ...T, skip: skip || (canonical && 'canonical chain') }, async () => {
+  await assert.rejects(reader.refresh([leaseId]), /invalid storage proof/);
+  assert.equal(reader.get(leaseId), null, 'no unverified lease is admitted');
+  const own = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
+  const ownAbi = art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership').abi;
+  await rig.write(rig.wc(KEYS.operator), own, ownAbi, 'proposeOwner', [rig.runner, rig.owner]);
+  await waitTx(await rig.write(rig.wc(KEYS.owner), own, ownAbi, 'acceptOwner', [rig.runner]));   // acceptOwner writes policyHash = 0
+  const admission = createHostAdmission({ hostId: rig.runner, ownershipContract: own.toLowerCase(), registry: rig.addresses.registry.toLowerCase(), catalog: rig.addresses.catalog.toLowerCase(),
+    reader, loadPolicy: async () => { throw new Error('unused'); }, cacheMs: 0 });
+  await assert.rejects(admission.refusal({ deploymentId: leaseId, appRef: `catalog://${rig.appId}/1` }), /invalid storage proof/);
+});
+
+const C = { ...T, skip: skip || (!canonical && 'needs a canonical-trie chain (RIG_CHAIN_NODE=reth)') };
+test('deployment/lease snapshot through the verifier equals the chain record at the same block', C, async () => {
   const [lease] = await reader.refresh([leaseId]);
   assert.ok(lease, 'the deployment was read');
   assert.equal(lease.deployments, rig.addresses.ledger.toLowerCase(), 'resolved through the AddressBook');
@@ -119,7 +141,7 @@ test('deployment/lease snapshot through the verifier equals the chain record at 
   assert.equal(reader.authorityInfo().tier, 'unsafe');
 });
 
-test('host admission and catalog moderation through the verifier follow owner policy, yanking and delisting', T, async () => {
+test('host admission and catalog moderation through the verifier follow owner policy, yanking and delisting', C, async () => {
   const own = await rig.deploy(art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership'), [rig.addresses.registry]);
   const ownAbi = art('EnclaveHostOwnership.sol', 'EnclaveHostOwnership').abi;
   await rig.write(rig.wc(KEYS.operator), own, ownAbi, 'proposeOwner', [rig.runner, rig.owner]);
@@ -139,6 +161,28 @@ test('host admission and catalog moderation through the verifier follow owner po
   assert.match(await admission.refusal(request), /delisted/);
 });
 
+test('settlement reads at the lease snapshot block and lease failures on canonical state: tampered, missing, unknown', C, async () => {
+  const [lease] = await reader.refresh([leaseId]);
+  const owner = await reader.readAt({ blockNumber: lease.blockNumber, blockHash: lease.blockHash },
+    (c, b) => c.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [leaseId], blockNumber: b }).then((d) => d.owner.toLowerCase()));
+  assert.equal(owner, rig.owner.toLowerCase());
+  // the rig's deployment is created but never claimed (leaseUntil 0): get() correctly serves no running lease for it,
+  // so the verified record itself is compared
+  assert.equal(reader.get(leaseId), null, 'an unclaimed deployment is not a running lease');
+  const before = reader.cache.get(leaseId);
+  for (const mode of ['tamper', 'down']) {
+    proxyMode.value = mode;
+    try {
+      await untilHelios(BigInt(lease.blockNumber) + 3n);
+      await assert.rejects(reader.refresh([leaseId]), /no fresh verified chain state/, mode);
+      assert.equal(reader.cache.get(leaseId)?.blockHash, before.blockHash, 'the last verified record stands, unchanged');
+      assert.equal(reader.get('0x' + '77'.repeat(32)), null, 'never verified, never admitted');
+    } finally { proxyMode.value = 'ok'; }
+  }
+  assert.deepEqual(reader.hold(60000), [], 'unknown state: no hold for anything not running (only verified running leases are held)');
+  assert.ok((await reader.refresh([leaseId]))[0], 'recovers once the source is honest again');
+});
+
 test('admin-directed AddressBook migration is followed; an outsider cannot repoint it', T, async () => {
   assert.equal(await reader.bookAddress('registry'), rig.addresses.registry.toLowerCase());
   await assert.rejects(rig.write(rig.wc(KEYS.other), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry5]));
@@ -148,37 +192,37 @@ test('admin-directed AddressBook migration is followed; an outsider cannot repoi
 });
 
 test('settlement pinned reads: anchor hashes and reads at the snapshot block are proof-backed', T, async () => {
-  const [lease] = await reader.refresh([leaseId]);
-  const n = BigInt(lease.blockNumber) - 1n;
+  await reader.bookAddress('deployments');
+  const pinned = reader.lastEvidence;
+  const n = BigInt(pinned.blockNumber) - 1n;
   const real = (await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false])).hash;
   assert.equal(await reader.blockHashIs(n, real), true);
   assert.equal(await reader.blockHashIs(n, pad('0x1234', { size: 32 })), false);
-  const owner = await reader.readAt({ blockNumber: lease.blockNumber, blockHash: lease.blockHash },
-    (c, b) => c.readContract({ address: rig.addresses.ledger, abi: rig.A.ledger.abi, functionName: 'get', args: [leaseId], blockNumber: b }).then((d) => d.owner.toLowerCase()));
-  assert.equal(owner, rig.owner.toLowerCase());
+  const ledger = await reader.readAt({ blockNumber: pinned.blockNumber, blockHash: pinned.blockHash },
+    (c, b) => c.readContract({ address: book, abi: bookAbi, functionName: 'addr', args: [stringToHex('deployments', { size: 32 })], blockNumber: b }).then((a) => a.toLowerCase()));
+  assert.equal(ledger, rig.addresses.ledger.toLowerCase());
+  await assert.rejects(reader.readAt({ blockNumber: pinned.blockNumber, blockHash: pad('0x99', { size: 32 }) }, async () => 'x'), /no longer canonical/);
 });
 
 test('tampered proofs and a missing witness source refuse; the last verified lease stands; nothing new is admitted', T, async () => {
-  const [lease] = await reader.refresh([leaseId]);
-  const before = reader.get(leaseId);
+  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
   for (const mode of ['tamper', 'down']) {
     proxyMode.value = mode;
-    await untilHelios(BigInt(lease.blockNumber) + 3n);           // a NEW block: its witnesses must come from the source
-    await assert.rejects(reader.refresh([leaseId]), /no fresh verified chain state/, mode);
-    await assert.rejects(reader.bookAddress('deployments'), /no fresh verified chain state/, mode);
-    assert.equal(reader.get(leaseId)?.blockHash, before.blockHash, 'unchanged');
-    assert.equal(reader.get('0x' + '77'.repeat(32)), null, 'never verified, never admitted');
-    proxyMode.value = 'ok';
+    try {
+      await untilHelios(BigInt(reader.lastEvidence.blockNumber) + 3n);   // a NEW block: its witnesses must come from the source
+      await assert.rejects(reader.bookAddress('deployments'), /no fresh verified chain state/, mode);
+      assert.equal(reader.get('0x' + '77'.repeat(32)), null, 'never verified, never admitted');
+    } finally { proxyMode.value = 'ok'; }
   }
-  assert.ok((await reader.refresh([leaseId]))[0], 'recovers once the source is honest again');
+  assert.equal(await reader.bookAddress('deployments'), rig.addresses.ledger.toLowerCase(), 'recovers once the source is honest again');
 });
 
 test('a stale head refuses fresh authority while the chain keeps moving', T, async () => {
-  const strict = new LeaseReader({ authority: 'verifier', verifier: heliosUrl, addressBook: book, confirmations: 1, maxBlockAgeMs: 5000, deadlineMs: 20000 });
-  assert.ok((await strict.refresh([leaseId]))[0]);
+  const strict = new LeaseReader({ authority: 'verifier', verifier: heliosUrl, addressBook: book, confirmations: 1, maxBlockAgeMs: 15000, deadlineMs: 20000 });
+  assert.equal(await strict.bookAddress('deployments'), rig.addresses.ledger.toLowerCase());
   feed.freeze(true);
   try {
-    await sleep(8000);                                           // blocks keep being mined; the verifier sees none of them
-    await assert.rejects(strict.refresh([leaseId]), /stale chain block/);
+    await sleep(20000);                                          // blocks keep being mined; the verifier sees none of them
+    await assert.rejects(strict.bookAddress('deployments'), /stale chain block/);
   } finally { feed.freeze(false); }
 });
