@@ -1,0 +1,752 @@
+diff --git a/network/host-service-transport.mjs b/network/host-service-transport.mjs
+index 0f9a375a1..35fd331cd 100644
+--- a/network/host-service-transport.mjs
++++ b/network/host-service-transport.mjs
+@@ -19,6 +19,9 @@
+ import tls from 'node:tls';
+ import { hostServiceNames, hostChallengeName, HOST_SERVICE_ROLES, validServiceZone } from './host-service-names.mjs';
+ const ZERO = '0x' + '0'.repeat(64), COOLDOWN_MAX_MS = 30 * 60000;
++// close() waits this long for a circuit startup it cancelled (a grant request already sent finishes or times out, 15 s, and
++// its withdrawal is sent, 15 s); a startup that answers even later is still withdrawn and closed when it does, never used
++const SETTLE_MS = 90_000;
+ const port = (v) => Number.isInteger(v) && v >= 1 && v <= 65535;
+ 
+ export function validateHostServicesTransport(c) {
+@@ -59,16 +62,18 @@ export function tlsReady({ port, servername, roots, timeoutMs = 3000, host = '12
+ export class HostServiceTransport {
+   // runtime: WgCircuitRuntime (with serviceWorkerModule); providers(): verified provider records (eligibleRoles,
+   // qualifiedUntil); grants: WgGrants (revoke); hostId: this host's registry id (the runner)
+-  constructor({ runtime, providers, grants, hostId, config, now = Date.now, log = () => {} }) {
++  constructor({ runtime, providers, grants, hostId, config, now = Date.now, log = () => {}, settleMs = SETTLE_MS }) {
+     const c = validateHostServicesTransport(config);
+-    Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log });
++    Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log, settleMs });
+     const all = hostServiceNames(this.hostId, c.zone);
+     // the exit grants every derived name (plus the challenge origin when its operator opted in); only the configured roles answer
+     const chal = c.tls?.challengePort !== undefined ? hostChallengeName(this.hostId, c.zone) : null;
+     this.granted = [...Object.values(all), ...(chal ? [chal] : [])];
+     this.names = Object.fromEntries(Object.entries(c.ports).map(([role, p]) => [all[role], { http: c.tls ? c.tls.httpPort : p, tls: c.tls?.tlsPorts[role] || null }]));
+     if (chal) this.names[chal] = { http: c.tls.httpPort, tls: c.tls.challengePort };   // 80: http-01 only (service-tls); 443: the challenge front
+-    this.circuits = new Map(); this.cooldown = new Map(); this.strikes = new Map(); this.closed = false; this.busy = false;
++    this.circuits = new Map(); this.cooldown = new Map(); this.strikes = new Map(); this.closed = false;
++    // lifecycle: `running` is the reconcile in flight (one at a time); `stopping` cancels its circuit startups on close()
++    this.running = null; this.closing = null; this.timer = null; this.stopping = new AbortController();
+   }
+   /**
+    * The role -> public URL an operator may advertise NOW. https only while G3 is READY for that role (605's interface): a
+@@ -87,53 +92,129 @@ export class HostServiceTransport {
+   }
+   // a first round that cannot read any directory is logged, never thrown: the 15 s timer retries, and the privacy agent's
+   // apps start regardless (final review N3)
+-  async start() { await this.reconcile().catch((e) => this.log('host service circuits: ' + e.message)); this.timer = setInterval(() => void this.reconcile().catch((e) => this.log('host service circuits: ' + e.message)), 15000); this.timer.unref?.(); return this; }
++  // A close() during this first round cancels it and creates no timer (the round's late result is withdrawn, never used).
++  async start() {
++    await this.reconcile().catch((e) => this.log('host service circuits: ' + e.message));
++    if (this.closed) return this;
++    this.timer = setInterval(() => void this.reconcile().catch((e) => this.log('host service circuits: ' + e.message)), 15000); this.timer.unref?.();
++    return this;
++  }
+   // a guard for `exit`: qualified, free, not the exit, not cooling down; cheapest, longest qualified, then id (as selectNetworkCircuits)
+   pick(providers, exit) {
+     const now = this.now(), fits = (p) => p.pricePerGiB6 <= 0 && p.qualifiedUntil > now && !((this.cooldown.get(p.providerId) || 0) > now);
+     const order = (a, b) => a.pricePerGiB6 - b.pricePerGiB6 || b.qualifiedUntil - a.qualifiedUntil || a.providerId.localeCompare(b.providerId);
+     return providers.filter((p) => fits(p) && p.eligibleRoles.includes('guard') && p.address !== exit.address).sort(order)[0] || null;
+   }
+-  async reconcile() {
+-    if (this.busy || this.closed) return; this.busy = true;
+-    try {
+-      const providers = await this.providers(), byId = new Map(providers.map((p) => [p.providerId, p])), now = this.now();
+-      for (const [id, c] of [...this.circuits]) {
+-        const x = byId.get(id), g = byId.get(c.providers.guard.providerId);
+-        const ok = x && g && x.address === c.providers.exit.address && x.wgExitKey === c.providers.exit.wgExitKey && x.eligibleRoles.includes('ingress') &&
+-          g.address === c.providers.guard.address && g.wgGuardKey === c.providers.guard.wgGuardKey && g.eligibleRoles.includes('guard');
+-        if (!ok || c.closed) await this.drop(id, ok ? 'closed' : 'provider no longer qualified');
+-      }
+-      for (const id of this.config.exits) {
+-        if (this.closed) return;
+-        if (this.circuits.has(id)) continue;
+-        const exit = byId.get(id);
+-        if (!exit || !(exit.qualifiedUntil > now) || !exit.eligibleRoles.includes('ingress') || exit.pricePerGiB6 > 0 || (this.cooldown.get(id) || 0) > now) continue;
+-        const guard = this.pick(providers, exit);
+-        if (!guard) { this.log(`host service circuit to ${exit.region || exit.address}: no qualified guard`); continue; }
+-        let c;
+-        try {
+-          c = await this.runtime.start({ deploymentId: ZERO, names: [], kind: 'network', guard, exit, ingress: true, egress: false, exitRole: 'service', gate: () => !this.closed,
+-            service: { names: this.names, granted: this.granted, dns: this.config.dns } });
+-          c.on('down', (reason) => { if (this.circuits.get(id) === c) { this.circuits.delete(id); this.log(`host service circuit down (${exit.region || exit.address}): ${reason}`); } });
+-          this.circuits.set(id, c); this.strikes.delete(guard.providerId); this.strikes.delete(id);
+-          this.log(`host service circuit up: guard ${guard.region || guard.address} -> exit ${exit.region || exit.address} (${this.granted.length} names)`);
+-        } catch (e) {
+-          await c?.close(e.message);
+-          const p = e.providerRole === 'guard' ? guard : exit;
+-          if ((this.cooldown.get(p.providerId) || 0) <= this.now()) { const n = (this.strikes.get(p.providerId) || 0) + 1; this.strikes.set(p.providerId, n); this.cooldown.set(p.providerId, this.now() + Math.min(60000 * 2 ** (n - 1), COOLDOWN_MAX_MS)); }
+-          this.log('host service circuit: ' + e.message);
+-        }
++  // one round at a time: a call while one runs gets that round
++  reconcile() {
++    if (this.closed) return Promise.resolve();
++    if (this.running) return this.running;
++    const run = this.running = this.round().finally(() => { if (this.running === run) this.running = null; });
++    return run;
++  }
++  async round() {
++    const providers = await this.providers(), byId = new Map(providers.map((p) => [p.providerId, p])), now = this.now();
++    for (const [id, c] of [...this.circuits]) {
++      const x = byId.get(id), g = byId.get(c.providers.guard.providerId);
++      const ok = x && g && x.address === c.providers.exit.address && x.wgExitKey === c.providers.exit.wgExitKey && x.eligibleRoles.includes('ingress') &&
++        g.address === c.providers.guard.address && g.wgGuardKey === c.providers.guard.wgGuardKey && g.eligibleRoles.includes('guard');
++      if (!ok || c.closed) await this.drop(id, ok ? 'closed' : 'provider no longer qualified');
++      if (this.closed) return;
++    }
++    for (const id of this.config.exits) {
++      if (this.closed) return;
++      if (this.circuits.has(id)) continue;
++      const exit = byId.get(id);
++      if (!exit || !(exit.qualifiedUntil > now) || !exit.eligibleRoles.includes('ingress') || exit.pricePerGiB6 > 0 || (this.cooldown.get(id) || 0) > now) continue;
++      const guard = this.pick(providers, exit);
++      if (!guard) { this.log(`host service circuit to ${exit.region || exit.address}: no qualified guard`); continue; }
++      let c;
++      try {
++        c = await this.runtime.start({ deploymentId: ZERO, names: [], kind: 'network', guard, exit, ingress: true, egress: false, exitRole: 'service', gate: () => !this.closed,
++          service: { names: this.names, granted: this.granted, dns: this.config.dns }, signal: this.stopping.signal });
++        // stopped while it came up (a runtime that finished before it saw the stop): withdrawn and closed, never served
++        if (this.closed) { await this.retire(c, 'stopped during startup'); return; }
++        c.on('down', (reason) => { if (this.circuits.get(id) === c) { this.circuits.delete(id); this.log(`host service circuit down (${exit.region || exit.address}): ${reason}`); } });
++        this.circuits.set(id, c); this.strikes.delete(guard.providerId); this.strikes.delete(id);
++        this.log(`host service circuit up: guard ${guard.region || guard.address} -> exit ${exit.region || exit.address} (${this.granted.length} names)`);
++      } catch (e) {
++        await c?.close(e.message);
++        if (this.closed || e.cancelled) { this.log('host service circuit startup ended: ' + e.message); return; }   // our stop, not the providers'
++        const p = e.providerRole === 'guard' ? guard : exit;
++        if ((this.cooldown.get(p.providerId) || 0) <= this.now()) { const n = (this.strikes.get(p.providerId) || 0) + 1; this.strikes.set(p.providerId, n); this.cooldown.set(p.providerId, this.now() + Math.min(60000 * 2 ** (n - 1), COOLDOWN_MAX_MS)); }
++        this.log('host service circuit: ' + e.message);
+       }
+-    } finally { this.busy = false; }
++    }
+   }
+   // withdraw the grant at the exit first (through the guard, while the circuit still carries it), then close
+   async drop(id, reason) {
+     const c = this.circuits.get(id); if (!c) return; this.circuits.delete(id);
++    await this.retire(c, reason);
++  }
++  async retire(c, reason) {
+     if (c.service && !c.closed) await this.grants.revoke({ provider: c.providers.exit, url: `http://${c.service.control}`, wgPublicKey: c.service.exitKey })
+       .catch((e) => this.log(`host service revoke at ${c.providers.exit.address}: ${e.message} (the grant expires on its own)`));
+     await c.close(reason); this.log('host service circuit down: ' + reason);
+   }
+   status() { return { names: this.granted, circuits: [...this.circuits.entries()].map(([id, c]) => ({ exit: id, address: c.providers.exit.address, healthy: !c.closed })) }; }
+-  async close() { this.closed = true; clearInterval(this.timer); for (const id of [...this.circuits.keys()]) await this.drop(id, 'stopped'); }
++  // Idempotent (every call gets the same promise). Order: no new round or timer; the startups in flight are cancelled; the
++  // live circuits are withdrawn at their exits and closed; then the cancelled round is awaited (bounded, SETTLE_MS) so a
++  // circuit it was still building ends withdrawn too. Resolves with no circuit, no timer and (within the bound) no startup.
++  close() {
++    if (this.closing) return this.closing;
++    this.closed = true; clearInterval(this.timer); this.timer = null; this.stopping.abort(new Error('host services stopped'));
++    this.closing = (async () => {
++      for (const id of [...this.circuits.keys()]) await this.drop(id, 'stopped');
++      const run = this.running;
++      if (run) {
++        let t; const settled = await Promise.race([run.then(() => true, () => true), new Promise((r) => { t = setTimeout(() => r(false), this.settleMs); t.unref?.(); })]);
++        clearTimeout(t);
++        if (!settled) this.log(`host service circuit startup still running ${this.settleMs / 1000} s after the stop: it is withdrawn and closed when it ends`);
++      }
++      for (const id of [...this.circuits.keys()]) await this.drop(id, 'stopped');
++    })();
++    return this.closing;
++  }
++}
++
++/**
++ * The privacy agent's host-service switch (one HostServiceTransport at a time, following the platform host policy).
++ * judge() (every 2 s, and after the policy's first check): a refusal stops the current transport - also one still in its
++ * first round, which is cancelled (close()) rather than waited for, so a ban known during startup is acted on at once;
++ * an admit with none running creates a FRESH transport and starts it without waiting (a later refusal stops it the same
++ * way). A transport that cannot be built (invalid config) refuses host services for this process, loudly; the apps are
++ * never touched. A start that settles after its transport was replaced or stopped closes that transport (idempotent),
++ * never the current one. close(): no new transport, and resolves once every transport it stopped has closed.
++ * refusal() -> reason|null (createHostServiceGate serviceRefusal); create() -> HostServiceTransport
++ */
++export function hostServiceLifecycle({ refusal, create, log = () => {} }) {
++  let current = null, judging = false, held = '', refused = false, stopped = false;
++  const closing = new Set();
++  const stop = (h) => { const p = h.close().catch((e) => log('host services: ' + e.message)).finally(() => closing.delete(p)); closing.add(p); return p; };
++  async function judge() {
++    if (judging || stopped || refused) return; judging = true;
++    try {
++      const reason = refusal();
++      if (reason) {
++        if (current) { const h = current; current = null; log('host services stopped: ' + reason); await stop(h); }
++        else if (reason !== held) log('host services held: ' + reason);
++        held = reason; return;
++      }
++      held = ''; if (current) return;
++      let h;
++      try { h = create(); } catch (e) { refused = true; log('HOST SERVICES REFUSED (apps unaffected): ' + e.message); return; }
++      current = h; log('host services: ' + JSON.stringify(h.names));
++      void h.start().then(() => { if (current !== h) return stop(h); }, (e) => {
++        log('HOST SERVICES REFUSED (apps unaffected): ' + e.message);
++        if (current === h) { current = null; refused = true; }
++        return stop(h);
++      });
++    } finally { judging = false; }
++  }
++  return {
++    judge,
++    get current() { return current; },
++    get refused() { return refused; },
++    async close() { stopped = true; const h = current; current = null; if (h) stop(h); await Promise.all([...closing]); },
++  };
+ }
+diff --git a/network/privacy-agent.mjs b/network/privacy-agent.mjs
+index cb66f1a3e..9d118811b 100644
+--- a/network/privacy-agent.mjs
++++ b/network/privacy-agent.mjs
+@@ -16,7 +16,7 @@ import {WalletAllowFile,withWalletAdmission} from './wallet-admission.mjs';
+ import {EnclaveNetworkManager} from './wg-manager.mjs';
+ import {createNetworkHost} from './enclave-network-host.mjs';
+ import {WgControlTransport} from './wg-control.mjs';
+-import {HostServiceTransport,validateHostServicesTransport} from './host-service-transport.mjs';
++import {HostServiceTransport,validateHostServicesTransport,hostServiceLifecycle} from './host-service-transport.mjs';
+ import {createHostServiceGate} from './host-service-gate.mjs';
+ import {createPaidNetwork} from './paid-network.mjs';
+ import {ShieldHostProof} from './shield-host-proof.mjs';
+@@ -236,7 +236,7 @@ export async function runPrivacy(configFile){
+   const wa=cfg.enclaveNetwork.walletAdmission;
+   if(wa!==undefined&&(!wa||typeof wa!=='object'||Array.isArray(wa)||Object.keys(wa).join()!=='file'))throw new Error('enclaveNetwork.walletAdmission must be {file}');
+   const wallet=wa?new WalletAllowFile({file:wa.file,runner:cfg.runner,log}):null;
+-  let wgControl=null,hostServices=null,hostGateTimer=null,paid=null,stopping=false;
++  let wgControl=null,hostServices=null,hostGateTimer=null,paid=null,stopping=false;   // hostServices: hostServiceLifecycle
+   // this host's own public service roles (cfg.enclaveNetwork.hostServices, host-service-transport.mjs): checked before
+   // anything is bound. A block that does not pass refuses HOST SERVICES only, loudly - the apps this host serves are
+   // never taken down by it (hostServicesPreflight)
+@@ -323,24 +323,12 @@ export async function runPrivacy(configFile){
+   // host services never take the agent (its apps) down: a failure here refuses them, loudly. They follow the platform host
+   // policy gate (above): started on its admit, closed (grants withdrawn) on its refusal, started again on the next admit.
+   // The first decision is not awaited: a slow or unreadable policy never holds up the apps.
++  // The switch (hostServiceLifecycle) never waits for a startup before judging again: a refusal during the first round
++  // cancels it (no circuit, grant or timer survives the stop), and only an admit starts a fresh transport.
+   if(hostServicesConfig){
+-    let judging=false,held='';
+-    const judge=async()=>{
+-      if(judging||stopping||!hostServicesConfig)return;judging=true;
+-      try{
+-        const refusal=hostGate.serviceRefusal();
+-        if(refusal){
+-          if(hostServices){const h=hostServices;hostServices=null;log('host services stopped: '+refusal);await h.close().catch(e=>log('host services: '+e.message));}
+-          else if(refusal!==held)log('host services held: '+refusal);
+-          held=refusal;return;
+-        }
+-        held='';if(hostServices)return;
+-        try{hostServices=new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log});
+-          log('host services: '+JSON.stringify(hostServices.names));await hostServices.start();
+-          if(stopping){const h=hostServices;hostServices=null;await h.close();}}
+-        catch(e){log('HOST SERVICES REFUSED (apps unaffected): '+e.message);await hostServices?.close().catch(()=>{});hostServices=null;hostServicesConfig=null;}
+-      }finally{judging=false;}
+-    };
++    hostServices=hostServiceLifecycle({refusal:()=>hostGate.serviceRefusal(),log,
++      create:()=>new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log})});
++    const judge=()=>stopping?undefined:hostServices.judge();
+     hostGate.start();
+     void hostGate.check().catch(()=>{}).then(judge);
+     hostGateTimer=setInterval(()=>void judge(),2000);hostGateTimer.unref?.();
+diff --git a/network/wg-circuit-runtime.mjs b/network/wg-circuit-runtime.mjs
+index 61b1b6be8..a3064b188 100644
+--- a/network/wg-circuit-runtime.mjs
++++ b/network/wg-circuit-runtime.mjs
+@@ -73,9 +73,15 @@ export class WgCircuitRuntime {
+  // exitRole 'control' + gate: the host's own control circuit (no app; egress only, admitted by `gate`, not by an app's lease)
+  // exitRole 'service' + service: the host's own public service roles (host-service-transport.mjs): ingress only, through
+  // the host-service worker to loopback role ports - no broker, no app forwarder; the exit must grant exactly service.granted
+- async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false,exitRole='exit',gate,service=null}){
++ // signal (AbortSignal): the caller's stop. The startup ends at its next step with err.cancelled, every child is killed and
++ // the circuit never comes up. A grant request already sent is not cut off: its answer is awaited, so a withdrawal is
++ // ordered after it (a provider cannot be un-asked); a host-service circuit that does not come up after asking its exit
++ // withdraws that grant (signed revoke through its still-running guard tunnel) before its processes end; if that fails,
++ // the grant lapses at its expiry (10 min) and its names lead to a key nobody holds.
++ async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false,exitRole='exit',gate,service=null,signal=null}){
+   const authorize=gate||this.authorize;
+   if(this.closed)throw new Error('runtime stopped');
++  if(signal?.aborted)throw cancelledStartup(signal);
+   if(service&&(kind!=='network'||!ingress||egress||exitRole!=='service'||!this.serviceWorkerModule))throw new Error('a host-service circuit is a network circuit with ingress only, exit role service and the host-service worker');
+   if(exitRole==='service'&&!service)throw new Error('exit role service needs the host-service routing');
+   if(service)serviceSpec(service);
+@@ -86,7 +92,10 @@ export class WgCircuitRuntime {
+   const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,kind,closed:false,transport:kind==='byo'?'byo-wireguard':'enclave-network',fallback,
+    providers:kind==='network'?{guard,exit,public:{address:exit.address,fallback}}:{byo:{address:byo.endpoint.address}}});
+   this.active.add(circuit);
+-  const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending;
++  const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending,outer,keys,exitAsked=false,exitRefused=false;
++  // a stop wakes whatever step is waiting (the tunnel's or the worker's readiness); `live()` after every other await
++  const onAbort=()=>pending?.reject?.(cancelledStartup(signal));signal?.addEventListener('abort',onAbort,{once:true});
++  const live=()=>{if(circuit.closed||this.closed)throw new Error('runtime stopped');if(signal?.aborted)throw cancelledStartup(signal);};
+   const launch=(folder,exe,args)=>{
+    if(circuit.closed||this.closed)throw new Error('runtime stopped');
+    const child=this.platform==='windows'?spawn(this.firewallBinary,['sandbox',path.join(folder,path.basename(exe,'.exe')+'-sandbox.json')],{stdio:['pipe','pipe','pipe'],windowsHide:true})
+@@ -108,7 +117,7 @@ export class WgCircuitRuntime {
+   };
+   circuit.publishDiscovery=()=>{};   // routes are published through the relay, not a peer-to-peer network
+   try{
+-   await this.prepare(dir);await this.prepare(wgDir);
++   await this.prepare(dir);await this.prepare(wgDir);live();
+    const ports={ingress:await freePort(),redirect:await freePort(),socks:await freePort(),control:await freePort(),guardSocks:await freePort()};
+    if(new Set(Object.values(ports)).size!==5)throw new Error('local circuit port collision');
+    const files={wg:this.platform==='windows'?path.join(wgDir,'enclave-wg.exe'):this.wgBinary,node:this.platform==='windows'?path.join(dir,'worker.exe'):this.nodeBinary};
+@@ -116,14 +125,15 @@ export class WgCircuitRuntime {
+    if(this.platform==='windows')await Promise.all([[this.wgBinary,files.wg],[this.nodeBinary,files.node],[sourceWorker,path.join(dir,'worker.mjs')]].map(([a,b])=>fs.copyFile(a,b)));
+    const workerModule=this.platform==='windows'?path.join(dir,'worker.mjs'):sourceWorker;
+    // the control plane: who the tunnels are with
+-   let guardGrant,exitGrant,keys={guard:wireGuardKeypair(),exit:wireGuardKeypair()};
++   let guardGrant,exitGrant;keys={guard:wireGuardKeypair(),exit:wireGuardKeypair()};
+    if(kind==='network'){
+-    guardGrant=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
++    live();guardGrant=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
+    }
++   live();
+    const udpPeer=kind==='network'?`${guard.address}:${guard.ports.guard}`:`${byo.endpoint.address}:${byo.endpoint.port}`;
+    // a host-service circuit: the worker gets its name table and two listen ports; it reaches only the role ports
+    const rolePorts=service?[...new Set(Object.values(service.names).flatMap(t=>[t.http,t.tls]).filter(Boolean))].map(p=>'127.0.0.1:'+p):[];
+-   if(service)await json(path.join(dir,'worker.json'),{names:service.names,tlsPort:ports.ingress,httpPort:ports.redirect});
++   if(service){await json(path.join(dir,'worker.json'),{names:service.names,tlsPort:ports.ingress,httpPort:ports.redirect});live();}
+    else if(ingress){
+     const token=randomBytes(32).toString('hex');
+     broker=await createAppBroker({tcpPort:0,token,deploymentId,authorize,forward:this.forward,log:this.log});
+@@ -146,22 +156,26 @@ export class WgCircuitRuntime {
+     else if(v.type==='conn'){this.log(`circuit ${id.slice(0,8)} conn ${JSON.stringify(v).slice(0,2400)}`);}
+     else events.emit(v.type,v);});
+    wg.once('exit',()=>void circuit.close('tunnel process exited'));
+-   const next=(type,ms=45000)=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error(type+' timeout')),ms);pending={reject};events.once(type,v=>{clearTimeout(t);pending=null;resolve(v);});});
++   // a wait that a close or a stop rejects also clears its timeout (no timer outlives the startup)
++   const next=(type,ms=45000)=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error(type+' timeout')),ms);pending={reject:e=>{clearTimeout(t);reject(e);}};events.once(type,v=>{clearTimeout(t);pending=null;resolve(v);});});
+    const send=v=>wg.stdin.write(JSON.stringify(v)+'\n');
+-   let outer;
+    if(kind==='network'){
+     send({type:'outer',...(this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:{privateKey:keys.guard.privateKey,publicKey:guardGrant.providerPublicKey,endpoint:guardGrant.endpoint,addresses:[guardGrant.clientAddress],mtu:1420,keepalive:25},
+      control:`${exit.address}:${exit.ports.control}`,controlListen:`127.0.0.1:${ports.control}`,
+      guardSocks:{listen:`127.0.0.1:${ports.guardSocks}`,only:[`${exit.address}:443`,`${exit.address}:80`]}});
+-    outer=await next('outer-ready');
+-    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
++    outer=await next('outer-ready');live();
++    exitAsked=true;
++    exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress})
++     .catch(e=>{exitRefused=e.refused===true;throw e;});   // an explicit refusal (403) leaves no peer at the exit
+     if(service&&!sameNames(exitGrant.names,service.granted))throw Object.assign(new Error('the exit granted other names than this host\'s service names'),{providerRole:'public'});
++    live();
+    }
+    if(ingress){
+     worker=launch(dir,files.node,['--preserve-symlinks','--preserve-symlinks-main',workerModule,path.join(dir,'worker.json')]);
+     worker.stderr.on('data',b=>this.log(String(b).slice(0,1000)));worker.once('exit',()=>void circuit.close('ingress worker exited'));
+-    await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('ingress worker startup timeout')),15000);pending={reject};
++    await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('ingress worker startup timeout')),15000);pending={reject:e=>{clearTimeout(t);reject(e);}};
+      createInterface({input:worker.stdout}).on('line',l=>{try{const e=JSON.parse(l);if(e.type==='ready'&&e.ingress===ports.ingress&&e.redirect===ports.redirect){clearTimeout(t);pending=null;resolve();}}catch{}});});
++    live();
+    }
+    const inner=kind==='network'
+     ?{privateKey:keys.exit.privateKey,publicKey:exitGrant.providerPublicKey,endpoint:exitGrant.endpoint,addresses:[exitGrant.clientAddress],dns:this.resolvers,mtu:1340,keepalive:25}
+@@ -170,7 +184,7 @@ export class WgCircuitRuntime {
+     ...(ingress?{ingress:{'443':`127.0.0.1:${ports.ingress}`,'80':`127.0.0.1:${ports.redirect}`,...(service?.dns?.tcp?{'53':`127.0.0.1:${service.dns.tcp}`}:{})}}:{}),
+     // DNS datagrams the exit forwards (kernel dns_dnat) to this host's tunnel address: relayed to route-dns over its TCP port
+     ...(service?.dns?.tcp?{udpIngress:{'53':`127.0.0.1:${service.dns.tcp}`}}:{})});
+-   const ready=await next('ready');
++   const ready=await next('ready');live();
+    if(egress&&ready.egress!==`127.0.0.1:${ports.socks}`)throw new Error('egress listener mismatch');
+    // the app's egress entry: gated by admission here, then the tunnel's SOCKS
+    if(egress){
+@@ -194,13 +208,28 @@ export class WgCircuitRuntime {
+     retrying:e=>this.log(`circuit ${id}: renewal unanswered, retrying: ${e.message}`),
+     refused:e=>{this.log(`circuit ${id}: renewal refused: ${e.message}`);circuit.failureRole=e.providerRole;void circuit.close('grant renewal failed: '+e.message);}});
+    if(circuit.closed||this.closed)throw new Error('circuit stopped during startup');
++   live();
+    Object.assign(circuit,{address:kind==='network'?exit.address:null,port:443,ingress,egressReady:!!egress,
+     egress:egress?'127.0.0.1:'+egressServer.address().port:null,
+     isolation:{platform:this.platform,directory:dir,wgDirectory:wgDir,guardAddress:kind==='network'?outer.guardSocks:null},
+     tunnel:kind==='network'?{guard:guardGrant.clientAddress,exit:exitGrant.clientAddress}:{byo:byo.addresses[0]},
+     // a host-service circuit is withdrawn at the exit (a signed revoke through the guard) before it closes
+     ...(service?{service:{names:exitGrant.names,exitKey:keys.exit.publicKey,control:outer.control}}:{})});
++   signal?.removeEventListener('abort',onAbort);
+    return circuit;
+-  }catch(e){await circuit.close(e.message);throw e;}
++  }catch(e){
++   signal?.removeEventListener('abort',onAbort);
++   // a host-service circuit that asked its exit and did not come up: withdraw that grant while the guard tunnel still runs
++   if(service&&exitAsked&&!exitRefused){
++    const lapse=`the grant lapses at its expiry`;
++    if(circuit.closed||!outer||wg?.exitCode!==null)this.log(`host service grant at ${exit.address} not withdrawn (its tunnel is gone): ${lapse}`);
++    else await this.grants.revoke({provider:exit,url:`http://${outer.control}`,wgPublicKey:keys.exit.publicKey})
++     .then(()=>this.log(`host service grant at ${exit.address} withdrawn (circuit did not come up: ${e.message})`),
++      r=>this.log(`host service grant at ${exit.address} not withdrawn: ${r.message}; ${lapse}`));
++   }
++   await circuit.close(e.message);throw e;
++  }
+  }
+ }
++// the error a cancelled startup ends with (err.cancelled): the caller stopped, the providers did nothing wrong
++function cancelledStartup(signal){return Object.assign(new Error('circuit startup cancelled: '+(signal?.reason?.message||signal?.reason||'stopped')),{cancelled:true});}
+diff --git a/test/host-service-lifecycle.test.mjs b/test/host-service-lifecycle.test.mjs
+new file mode 100644
+index 000000000..fb26f3484
+--- /dev/null
++++ b/test/host-service-lifecycle.test.mjs
+@@ -0,0 +1,363 @@
++// Host-service lifecycle (stop/ban races) on the REAL control flow: HostServiceTransport over the real WgCircuitRuntime
++// (plain mode), real WgGrants signing real requests to two real WgProvider instances behind their real control HTTP
++// servers on loopback (guard 127.0.0.1, exit 127.0.0.2), and the real host-service ingress worker process. Only the
++// WireGuard data plane is a stand-in: a small "wg" process that forwards the exit's control API (what the guard tunnel
++// carries) and reports readiness. The privacy agent's host-service judge is the ACTUAL code block of
++// network/privacy-agent.mjs (sliced from the source, run with its free variables bound), so this file is also the
++// control on an older tree. Nothing here reaches a real network, chain, key or production host.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import net from 'node:net';
++import http from 'node:http';
++import { fileURLToPath } from 'node:url';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++import * as hst from '../network/host-service-transport.mjs';
++import { WgCircuitRuntime } from '../network/wg-circuit-runtime.mjs';
++import { WgGrants } from '../network/wg-grants.mjs';
++import { WgProvider } from '../network/wg-provider/provider.mjs';
++import { createControl } from '../network/wg-provider/control.mjs';
++import { hostServiceNames } from '../network/host-service-names.mjs';
++
++const { HostServiceTransport } = hst;
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const HOST = '0x' + 'a1'.repeat(32), ZONE = 'svc.example', APP = '0x' + 'ab'.repeat(32), ZERO = '0x' + '0'.repeat(64);
++const BAN = 'platform host policy: banned by platform policy #7 (operator): abuse';
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const deferred = () => { let resolve; const p = new Promise((r) => { resolve = r; }); return Object.assign(p, { resolve }); };
++async function until(cond, ms = 20_000, what = 'condition') { const end = Date.now() + ms; while (Date.now() < end) { if (await cond()) return; await sleep(25); } assert.fail('timed out waiting for ' + what); }
++
++// The stand-in data plane: outer -> forward the exit's control API to controlListen (the guard tunnel's job); inner ->
++// ready (egress: a loopback echo stands in for the tunnel's SOCKS). A hold file delays outer-ready (a slow handshake).
++const FAKE_WG = `#!${process.execPath}
++import net from 'node:net'; import fs from 'node:fs'; import path from 'node:path'; import readline from 'node:readline';
++fs.writeFileSync(path.join(process.env.HSL_PIDS, String(process.pid)), '');
++const out = (v) => process.stdout.write(JSON.stringify(v) + '\\n');
++const listen = (addr, onConn) => new Promise((r) => { const [h, p] = addr.split(':'); net.createServer(onConn).listen(+p, h, r); });
++readline.createInterface({ input: process.stdin }).on('line', async (line) => {
++  const v = JSON.parse(line);
++  if (v.type === 'outer') {
++    while (fs.existsSync(process.env.HSL_HOLD_OUTER)) await new Promise((r) => setTimeout(r, 20));
++    const [th, tp] = v.control.split(':');
++    await listen(v.controlListen, (s) => { const u = net.connect(+tp, th); s.pipe(u).pipe(s); s.on('error', () => u.destroy()); u.on('error', () => s.destroy()); });
++    out({ type: 'outer-ready', control: v.controlListen, guardSocks: v.guardSocks.listen });
++  } else if (v.type === 'inner') {
++    if (v.egress) await listen(v.egress.listen, (s) => s.pipe(s));
++    out({ type: 'ready', ...(v.egress ? { egress: v.egress.listen } : {}) });
++  }
++});
++process.stdin.on('end', () => process.exit(0));
++`;
++
++// processes (children of this test) whose command line mentions the world's directory: the stand-in wg and the workers
++function procsUnder(dir) {
++  const found = [];
++  for (const pid of fs.readdirSync('/proc')) {
++    if (!/^\d+$/.test(pid) || +pid === process.pid) continue;
++    try { if (fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes(dir)) found.push(+pid); } catch {}
++  }
++  return found;
++}
++
++async function world(t, { exitZone = ZONE, exits = 1, serviceWorker = path.join(ROOT, 'network/host-service-ingress.mjs') } = {}) {
++  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || os.tmpdir(), 'hsl-'));
++  fs.mkdirSync(path.join(dir, 'pids'));
++  const wgBinary = path.join(dir, 'fake-wg.mjs'); fs.writeFileSync(wgBinary, FAKE_WG, { mode: 0o755 });
++  process.env.HSL_PIDS = path.join(dir, 'pids'); process.env.HSL_HOLD_OUTER = path.join(dir, 'hold-outer');
++  const account = privateKeyToAccount(generatePrivateKey());
++  const now = () => Date.now();
++  const lease = { active: true, runner: HOST, runnerOperator: account.address.toLowerCase(), validUntil: now() + 3600e3, leaseUntil: now() + 3600e3, isPublic: false, owner: '0x' + '55'.repeat(20) };
++  const kernel = () => ({ peers: new Map(), setPeer: async function (p) { this.peers.set(p.key, { ...p }); }, removePeer: async function (p) { this.peers.delete(p.key); }, sync: async () => {}, listPeers: async () => [] });
++  const servers = [], w = { dir, account, logs: [], exitAdmit: { admit: true }, hold: null, asked: [], revokes: [] };
++  const log = (m) => w.logs.push(m);
++  async function provider(id, address, roles, extra = {}) {
++    const signer = privateKeyToAccount(generatePrivateKey());
++    const ports = { exit: 51820, guard: 51821, control: 0 };
++    const p = new WgProvider({ config: { providerId: id, roles, pricePerGiB6: 0, publicAddress: address, exitKey: Buffer.alloc(32, id.charCodeAt(0)).toString('base64'),
++      guardKey: Buffer.alloc(32, id.charCodeAt(1) + 1).toString('base64'), ports, checkers: [], ...extra }, signer, kernel: kernel(),
++      leases: async (x) => (x === APP ? { ...lease } : null), hosts: async (x) => (x === HOST ? { active: true, operator: account.address.toLowerCase() } : null),
++      policyMemory: { get: async () => undefined, set: async () => {} }, log });
++    const ctl = await createControl({ provider: p, info: () => ({}), port: 0, host: address, log }); servers.push(ctl);
++    ports.control = ctl.port;
++    const record = { providerId: id, operator: signer.address.toLowerCase(), address, ports: { ...ports }, wgExitKey: p.config.exitKey, wgGuardKey: p.config.guardKey,
++      eligibleRoles: roles, pricePerGiB6: 0, qualifiedUntil: now() + 3600e3, region: id.slice(0, 2) };
++    return { p, record };
++  }
++  w.guard = await provider('a1'.repeat(16), '127.0.0.1', ['guard']);
++  // the exit's own half of the platform host policy (wg-provider admitHost): an admit, and a seam that holds the decision
++  // so a grant request is IN FLIGHT at the exit while the host stops
++  const exitHostAdmission = async (ids) => { w.asked.push(Date.now()); if (w.hold) await w.hold; return { [ids[0]]: { ...w.exitAdmit } }; };
++  w.exitList = [];
++  for (let i = 0; i < exits; i++) {
++    const e = await provider(`e${i + 1}`.repeat(16), `127.0.0.${2 + i}`, ['ingress', 'egress'], { hostServices: { zone: exitZone } });
++    e.p.hostAdmission = exitHostAdmission;
++    const revoke = e.p.revoke.bind(e.p); e.p.revoke = async (env) => { const r = await revoke(env); w.revokes.push({ exit: e.record.providerId, key: env.request.wgPublicKey }); return r; };
++    w.exitList.push(e);
++  }
++  w.exit = w.exitList[0];
++  w.servicePeers = (e = w.exit) => [...e.p.peers.values()].filter((p) => p.role === 'service');
++  w.providers = () => [w.guard.record, ...w.exitList.map((e) => e.record)];
++  // the loopback role a public visitor reaches through the circuit (directory replica)
++  const role = http.createServer((req, res) => res.end('directory-replica ' + req.headers.host)); servers.push({ close: () => { role.closeAllConnections?.(); role.close(); } });
++  await new Promise((r) => role.listen(0, '127.0.0.1', r));
++  w.rolePort = role.address().port;
++  w.config = { zone: ZONE, exits: w.exitList.map((e) => e.record.providerId), ports: { 'directory-replica': w.rolePort } };
++  w.runtime = new WgCircuitRuntime({ directory: path.join(dir, 'rt'), wgBinary, nodeBinary: process.execPath, workerModule: path.join(ROOT, 'network/windows-circuit-worker.mjs'),
++    serviceWorkerModule: serviceWorker, platform: 'plain', grants: new WgGrants({ account, runner: HOST }), authorize: () => true, forward: (s) => s.destroy(), log });
++  w.grants = w.runtime.grants;
++  w.transport = (over = {}) => new HostServiceTransport({ runtime: w.runtime, providers: async () => w.providers(), grants: w.grants, hostId: HOST, config: w.config, log, ...over });
++  w.pause = () => { w.hold = deferred(); return w.hold; };
++  w.release = () => { const h = w.hold; w.hold = null; h?.resolve(); };
++  w.procs = () => procsUnder(dir);
++  // a public visitor: HTTP through the circuit's ingress worker (its port-80 side), Host = the derived name
++  w.visit = (c) => new Promise((resolve) => {
++    const cfg = JSON.parse(fs.readFileSync(path.join(c.isolation.directory, 'worker.json'), 'utf8'));
++    const name = hostServiceNames(HOST, ZONE)['directory-replica'];
++    http.get({ host: '127.0.0.1', port: cfg.httpPort, path: '/', headers: { host: name }, timeout: 3000 }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => resolve(b)); })
++      .on('error', (e) => resolve('error ' + e.code)).on('timeout', function () { this.destroy(); resolve('timeout'); });
++  });
++  t.after(async () => { w.release(); try { fs.rmSync(process.env.HSL_HOLD_OUTER, { force: true }); } catch {} await w.runtime.close(); for (const s of servers) s.close();
++    for (const pid of w.procs()) { try { process.kill(pid, 'SIGKILL'); } catch {} } fs.rmSync(dir, { recursive: true, force: true }); });
++  return w;
++}
++
++// The privacy agent's host-service block exactly as network/privacy-agent.mjs has it (from `if(hostServicesConfig){` up to
++// `hostGate.start();`), with its free variables bound to `env`. -> {judge, env}; the switch's state is env.hostServices.
++function agentJudge(w, { refusal }) {
++  const src = fs.readFileSync(path.join(ROOT, 'network/privacy-agent.mjs'), 'utf8');
++  const end = src.indexOf('    hostGate.start();\n'), begin = src.lastIndexOf('  if(hostServicesConfig){\n', end);
++  assert.ok(begin > 0 && end > begin, 'the host-service block of privacy-agent.mjs');
++  const body = src.slice(begin + '  if(hostServicesConfig){\n'.length, end);
++  const env = { hostServices: null, hostServicesConfig: w.config, stopping: false, hostGate: { serviceRefusal: refusal }, cfg: { runner: HOST },
++    network: { runtime: w.runtime, providers: async () => w.providers(), grants: w.grants }, log: (m) => w.logs.push(m),
++    HostServiceTransport, hostServiceLifecycle: hst.hostServiceLifecycle };
++  // eslint-disable-next-line no-new-func
++  const judge = new Function('env', `with (env) {\n${body}\nreturn judge;\n}`)(env);
++  env.current = () => (typeof env.hostServices?.judge === 'function' ? env.hostServices.current : env.hostServices);
++  env.stop = async () => { env.stopping = true; await env.hostServices?.close(); };
++  return { judge, env };
++}
++const ups = (w) => w.logs.filter((l) => /^host service circuit up/.test(l)).length;
++
++test('root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives', { timeout: 60_000 }, async (t) => {
++  const w = await world(t);
++  w.pause();
++  const tr = w.transport();
++  const starting = tr.start();
++  await until(() => w.asked.length === 1, 20_000, 'the exit grant request in flight');
++  const closing = tr.close(), again = tr.close();
++  w.release();                                 // the exit processes the grant it was already sent (it cannot be recalled)
++  await closing; await starting;
++  assert.equal(tr.circuits.size, 0, 'no circuit inserted into the closed transport');
++  assert.equal(tr.timer, null, 'no interval created after close');
++  assert.deepEqual(w.servicePeers(), [], 'the exit holds no service peer: the late grant was withdrawn');
++  assert.equal(w.revokes.length, 1, 'exactly one signed withdrawal reached the exit');
++  assert.equal(ups(w), 0, 'the circuit never came up');
++  await until(() => w.procs().length === 0, 10_000, 'every circuit child process gone');
++  assert.equal(w.runtime.closed, false, 'the runtime itself (apps\' circuits) stays open');
++  assert.equal(w.runtime.active.size, 0);
++  assert.equal(again, closing, 'close() is idempotent: one promise');
++});
++
++test('close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers', { timeout: 60_000 }, async (t) => {
++  const w = await world(t);
++  fs.writeFileSync(process.env.HSL_HOLD_OUTER, '');
++  const tr = w.transport();
++  const starting = tr.start();
++  await until(() => w.guard.p.peers.size === 1 && w.procs().length >= 1, 20_000, 'the guard grant and the tunnel process');
++  const t0 = Date.now();
++  await tr.close(); await starting;
++  assert.ok(Date.now() - t0 < 10_000, 'the stop does not wait for the 45-s handshake timeout');
++  fs.rmSync(process.env.HSL_HOLD_OUTER, { force: true });
++  await sleep(300);
++  assert.equal(w.asked.length, 0, 'the exit was never asked');
++  assert.deepEqual(w.servicePeers(), []);
++  assert.equal(tr.circuits.size, 0); assert.equal(tr.timer, null);
++  await until(() => w.procs().length === 0, 10_000, 'the tunnel process gone');
++  assert.ok(w.logs.some((l) => /host service circuit startup ended: circuit startup cancelled/.test(l)), w.logs.join('\n'));
++  assert.equal(tr.strikes.size, 0, 'a cancelled startup is no strike against the providers');
++});
++
++test('a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers', { timeout: 90_000 }, async (t) => {
++  const w = await world(t, { exits: 2 });
++  const second = w.exitList[1].record, qualified = second.qualifiedUntil;
++  second.qualifiedUntil = Date.now() - 1;                    // the second exit qualifies only later
++  const tr = w.transport();
++  await tr.start();
++  assert.equal(tr.circuits.size, 1); assert.ok(tr.timer, 'serving: the 15-s timer runs');
++  const live = [...tr.circuits.values()][0];
++  assert.match(await w.visit(live), /^directory-replica /, 'the first circuit serves its role');
++  second.qualifiedUntil = qualified; w.pause();
++  const round = tr.reconcile();                              // what the 15-s timer does
++  await until(() => w.asked.length === 2, 20_000, 'the second exit grant in flight');
++  const closing = tr.close();
++  await until(() => w.servicePeers(w.exitList[0]).length === 0, 20_000, 'the live circuit withdrawn while the other startup is still pending');
++  assert.equal(w.servicePeers(w.exitList[1]).length, 0, 'nothing granted yet at the second exit');
++  w.release();
++  await closing; await round;
++  assert.deepEqual(w.servicePeers(w.exitList[1]), [], 'the late grant withdrawn too');
++  assert.equal(w.revokes.length, 2);
++  assert.equal(tr.circuits.size, 0); assert.equal(tr.timer, null);
++  assert.ok(live.closed);
++  await until(() => w.procs().length === 0, 10_000, 'every child gone');
++});
++
++test('delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop', { timeout: 60_000 }, async (t) => {
++  const w = await world(t);
++  w.pause(); w.exitAdmit = { admit: false, reason: 'banned by platform policy #7 (operator): abuse' };
++  const tr = w.transport();
++  const starting = tr.start();
++  await until(() => w.asked.length === 1, 20_000, 'the exit grant request in flight');
++  const closing = tr.close(); w.release();
++  await closing; await starting;
++  assert.equal(w.revokes.length, 0, 'an explicit refusal left no peer: no withdrawal sent');
++  assert.ok(!w.logs.some((l) => /not withdrawn/.test(l)), 'and none needed');
++  assert.deepEqual(w.servicePeers(), []); assert.equal(tr.circuits.size, 0); assert.equal(tr.strikes.size, 0);
++  await until(() => w.procs().length === 0, 10_000, 'every child gone');
++});
++
++test('delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends', { timeout: 60_000 }, async (t) => {
++  const w = await world(t, { exitZone: 'other.example' });
++  const tr = w.transport();
++  await tr.start();
++  assert.equal(tr.circuits.size, 0);
++  assert.ok(w.logs.some((l) => /the exit granted other names/.test(l)), w.logs.join('\n'));
++  assert.deepEqual(w.servicePeers(), [], 'the mismatched grant does not stay at the exit until it expires');
++  assert.equal(w.revokes.length, 1);
++  assert.equal(tr.strikes.size, 1, 'a provider failure still counts against the exit (unchanged)');
++  await tr.close();
++  await until(() => w.procs().length === 0, 10_000, 'every child gone');
++});
++
++test('the privacy agent switch: a ban DURING the first startup stops it at once; the admin\'s re-admit starts a fresh transport that serves', { timeout: 90_000 }, async (t) => {
++  const w = await world(t);
++  let refusal = null;
++  const { judge, env } = agentJudge(w, { refusal: () => refusal });
++  w.pause();
++  const first = judge();
++  await until(() => w.asked.length === 1, 20_000, 'the first startup holding at the exit');
++  const h1 = env.current(); assert.ok(h1, 'a transport is starting');
++  refusal = BAN;                                             // the platform admin bans this host
++  const banned = judge();                                    // the 2-s timer's next judgment
++  await Promise.race([banned, sleep(1000)]);
++  assert.equal(env.current(), null, 'the ban is acted on while the startup is still pending');
++  assert.ok(h1.closed, 'the starting transport is closed (its startup cancelled)');
++  w.release();                                               // the exit answers the request it already had
++  await banned; await first;
++  await until(() => w.revokes.length === 1, 20_000, 'the late grant withdrawn');
++  assert.deepEqual(w.servicePeers(), [], 'no public service for a banned host');
++  assert.equal(ups(w), 0, 'no circuit came up after the ban was known');
++  assert.equal(h1.timer, null);
++  assert.ok(w.logs.some((l) => l === 'host services stopped: ' + BAN), w.logs.join('\n'));
++  await until(() => w.procs().length === 0, 10_000, 'every child of the stopped startup gone');
++  // explicit fresh admit: a NEW transport, never the stopped one
++  refusal = null; await judge();
++  const h2 = env.current(); assert.ok(h2 && h2 !== h1);
++  await until(() => h2.circuits.size === 1, 30_000, 'the fresh transport\'s circuit');
++  assert.match(await w.visit([...h2.circuits.values()][0]), /^directory-replica /);
++  assert.equal(w.servicePeers().length, 1, 'exactly the fresh transport\'s peer at the exit');
++  await h1.close();                                          // a late close of the old one changes nothing
++  assert.equal(env.current(), h2); assert.equal(h2.circuits.size, 1);
++  await env.stop();
++  assert.deepEqual(w.servicePeers(), []); assert.equal(h2.timer, null);
++  await until(() => w.procs().length === 0, 10_000, 'every child gone after the agent stop');
++});
++
++test('the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched', { timeout: 90_000 }, async (t) => {
++  const w = await world(t, { exits: 2 });
++  // a healthy app on the SAME runtime: an egress-only app circuit through the same providers
++  const app = await w.runtime.start({ deploymentId: APP, names: [], kind: 'network', guard: w.guard.record, exit: w.exitList[0].record, egress: true });
++  // through the app's gated egress entry to its tunnel (the stand-in echoes): write, read the echo, then close
++  const echo = () => new Promise((resolve) => { const [h, p] = app.egress.split(':'); let b = ''; const s = net.connect(+p, h, () => s.write('ping'));
++    s.on('data', (d) => { b += d; if (b.length >= 4) s.end(); }); s.on('close', () => resolve(b)); s.on('error', () => resolve('error')); s.setTimeout(5000, () => s.destroy()); });
++  assert.equal(await echo(), 'ping');
++  const second = w.exitList[1].record, qualified = second.qualifiedUntil; second.qualifiedUntil = Date.now() - 1;
++  let refusal = null;
++  const { judge, env } = agentJudge(w, { refusal: () => refusal });
++  await judge();
++  const h = env.current();
++  await until(() => h.circuits.size === 1 && h.timer, 30_000, 'serving one exit');
++  second.qualifiedUntil = qualified; w.pause();
++  const round = h.reconcile();
++  await until(() => w.asked.length === 2, 20_000, 'the background round holding at the second exit');
++  refusal = BAN; await Promise.race([judge(), sleep(1000)]);
++  assert.equal(env.current(), null, 'stopped while its background round is pending');
++  await until(() => w.servicePeers(w.exitList[0]).length === 0, 20_000, 'the serving circuit withdrawn at once');
++  w.release(); await round;
++  await until(() => w.revokes.length === 2, 20_000, 'the background round\'s late grant withdrawn');
++  for (const e of w.exitList) assert.deepEqual(w.servicePeers(e), []);
++  assert.equal(h.circuits.size, 0); assert.equal(h.timer, null);
++  // the app: same circuit, still carrying traffic, its exit peer kept
++  assert.equal(app.closed, false); assert.ok(w.runtime.active.has(app));
++  assert.equal(await echo(), 'ping');
++  assert.equal([...w.exitList[0].p.peers.values()].filter((p) => p.role === 'exit' && p.deploymentId === APP).length, 1);
++  await env.stop(); await app.close('test end');
++});
++
++test('agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing', { timeout: 60_000 }, async (t) => {
++  const w = await world(t);
++  const { judge, env } = agentJudge(w, { refusal: () => null });
++  w.pause();
++  void judge();
++  await until(() => w.asked.length === 1, 20_000, 'the startup holding at the exit');
++  const stopping = env.stop();
++  let done = false; void stopping.then(() => { done = true; });
++  await sleep(200);
++  assert.equal(done, false, 'the stop waits for the startup it cancelled');
++  w.release(); await stopping;
++  assert.deepEqual(w.servicePeers(), []); assert.equal(w.revokes.length, 1);
++  await judge(); await sleep(200);
++  assert.equal(env.current(), null); assert.equal(w.asked.length, 1, 'nothing started after the stop');
++  await until(() => w.procs().length === 0, 10_000, 'every child gone');
++});
++
++test('root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer', { timeout: 30_000 }, async () => {
++  const { EventEmitter } = await import('node:events');
++  const provider = (id, address, roles) => ({ providerId: id, address, eligibleRoles: roles, pricePerGiB6: 0, qualifiedUntil: Date.now() + 60000, wgExitKey: 'exit-test', wgGuardKey: 'guard-test' });
++  const exit = provider('e1'.repeat(16), '192.0.2.1', ['ingress']), guard = provider('a1'.repeat(16), '192.0.2.2', ['guard']);
++  let begin, release, options, circuit, revokes = 0;
++  const began = new Promise((r) => { begin = r; });
++  const runtime = { start: async (opts) => { options = opts; begin(); await new Promise((r) => { release = r; });
++    circuit = Object.assign(new EventEmitter(), { closed: false, providers: { guard: opts.guard, exit: opts.exit }, service: { control: '127.0.0.1:1', exitKey: 'test' }, close: async () => { circuit.closed = true; } });
++    return circuit; } };
++  const lines = [];
++  const transport = new HostServiceTransport({ runtime, providers: async () => [guard, exit], grants: { revoke: async () => { revokes++; } }, hostId: HOST,
++    config: { zone: ZONE, exits: [exit.providerId], ports: { 'directory-replica': 18188 } }, log: (m) => lines.push(m) });
++  const starting = transport.start();
++  await began;
++  const closing = transport.close();
++  assert.equal(options.signal?.aborted, true, 'the runtime is told to stop');
++  release(); await closing; await starting;
++  assert.equal(transport.closed, true); assert.equal(options.gate(), false);
++  assert.equal(circuit.closed, true, 'returned circuit closed');
++  assert.equal(transport.circuits.size, 0, 'nothing inserted after close');
++  assert.equal(revokes, 1, 'its grant withdrawn');
++  assert.equal(transport.timer, null, 'no timer created after close');
++  assert.ok(!lines.some((l) => /circuit up/.test(l)), 'the late circuit never counted as up');
++});
++
++test('a startup that outlives the stop\'s settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers', { timeout: 30_000 }, async (t) => {
++  const { EventEmitter } = await import('node:events');
++  const provider = (id, address, roles) => ({ providerId: id, address, eligibleRoles: roles, pricePerGiB6: 0, qualifiedUntil: Date.now() + 60000, wgExitKey: 'exit-test', wgGuardKey: 'guard-test' });
++  const exit = provider('e1'.repeat(16), '192.0.2.1', ['ingress']), guard = provider('a1'.repeat(16), '192.0.2.2', ['guard']);
++  let release, circuit, revokes = 0; const began = deferred(), lines = [];
++  const runtime = { start: async (opts) => { began.resolve(); await new Promise((r) => { release = r; });
++    circuit = Object.assign(new EventEmitter(), { closed: false, providers: { guard: opts.guard, exit: opts.exit }, service: { control: '127.0.0.1:1', exitKey: 'late' }, close: async () => { circuit.closed = true; } });
++    return circuit; } };
++  const transport = new HostServiceTransport({ runtime, providers: async () => [guard, exit], grants: { revoke: async () => { revokes++; } }, hostId: HOST, settleMs: 200,
++    config: { zone: ZONE, exits: [exit.providerId], ports: { 'directory-replica': 18188 } }, log: (m) => lines.push(m) });
++  // close()'s settle timer is unref'd (a stop never keeps a process alive by itself) and this stand-in startup holds no I/O:
++  // the test holds the event loop while it waits, as the real in-flight request and children do
++  const hold = setInterval(() => {}, 1000); t.after(() => clearInterval(hold));
++  const starting = transport.start();
++  await began;
++  await transport.close();                                   // resolves at the 200-ms bound; the startup is still running
++  assert.ok(lines.some((l) => /still running 0.2 s after the stop/.test(l)), lines.join('\n'));
++  release(); await starting;
++  assert.equal(circuit.closed, true, 'the late circuit is closed when it answers');
++  assert.equal(revokes, 1, 'and its grant withdrawn');
++  assert.equal(transport.circuits.size, 0); assert.equal(transport.timer, null);
++  assert.ok(!lines.some((l) => /circuit up/.test(l)));
++});

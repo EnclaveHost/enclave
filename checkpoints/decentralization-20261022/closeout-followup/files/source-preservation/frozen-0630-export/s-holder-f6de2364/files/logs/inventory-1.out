@@ -1,0 +1,102 @@
+[queue] START available=24863MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+## date
+2026-10-23T04:46:08Z
+## id
+uid=1000(steven) gid=1000(steven) groups=1000(steven),955(docker),968(libvirt),990(kvm),998(wheel)
+## uname
+7.2.8-arch1-2
+## lsblk
+NAME          TYPE            SIZE ROTA TRAN MODEL             FSTYPE      MOUNTPOINTS
+sda           disk  36000348766208    1 usb  JMicron H/W RAID5             
+├─sda1        part        16759808    1                                    
+└─sda2        part  36000329891840    1                        ntfs        /mnt/usb
+nvme0n1       disk   4000787030016    0 nvme CT4000T710SSD8                
+├─nvme0n1p1   part   3732349648896    0 nvme                   crypto_LUKS 
+│ └─cryptvm   crypt  3732332871680    0                        ext4        /vm
+├─nvme0n1p2   part        16777216    0 nvme                               
+├─nvme0n1p3   part    253895901184    0 nvme                   ntfs        
+├─nvme0n1p4   part       817889280    0 nvme                   ntfs        
+├─nvme0n1p5   part       817889280    0 nvme                   ntfs        
+└─nvme0n1p6   part     12885761536    0 nvme                   vfat        
+nvme1n1       disk   4000787030016    0 nvme CT4000T500SSD3                
+├─nvme1n1p1   part      1073741824    0 nvme                   vfat        /boot
+├─nvme1n1p2   part      4294967296    0 nvme                   swap        [SWAP]
+└─nvme1n1p3   part   3995417255424    0 nvme                   crypto_LUKS 
+  └─cryptroot crypt  3995400478208    0                        ext4        /
+## findmnt (real filesystems)
+/ /dev/mapper/cryptroot ext4 rw,relatime
+/boot /dev/nvme1n1p1 vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro
+/vm /dev/mapper/cryptvm ext4 rw,relatime
+/mnt/usb /dev/sda2 ntfs3 rw,noatime,uid=1000,gid=1000,dmask=0022,fmask=0022,acl,iocharset=utf8,prealloc
+## df
+Filesystem            Type          1B-blocks          Used          Avail Mounted on
+/dev/mapper/cryptroot ext4      3931518390272 3497058656256   234672934912 /
+efivarfs              efivarfs         262144        127563         129461 /sys/firmware/efi/efivars
+/dev/nvme1n1p1        vfat         1071628288     236666880      834961408 /boot
+/dev/mapper/cryptvm   ext4      3672580055040 1950764728320  1535181914112 /vm
+/dev/sda2             ntfs3    36000329875456    1384677376 35998945198080 /mnt/usb
+## free
+               total        used        free      shared  buff/cache   available
+Mem:     134015586304 107954565120  2753949696 11739000832 110411972608 26061021184
+Swap:     4294963200  4294946816       16384
+## meminfo
+MemTotal:       130874596 kB
+MemAvailable:   25450216 kB
+SwapTotal:       4194300 kB
+SwapFree:             16 kB
+Dirty:              3616 kB
+Writeback:             0 kB
+## nproc
+32
+## kernel modules on disk (dm-cache, bcache, dm-writecache, loop)
+/lib/modules/7.2.8-arch1-2
+/lib/modules/7.2.8-arch1-2/kernel/drivers/md/bcache
+/lib/modules/7.2.8-arch1-2/kernel/drivers/md/bcache/bcache.ko.zst
+/lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-mod.ko.zst
+/lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-cache.ko.zst
+/lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-writecache.ko.zst
+/lib/modules/7.2.8-arch1-2/kernel/drivers/md/dm-cache-smq.ko.zst
+/lib/modules/7.2.8-arch1-2/kernel/drivers/block/loop.ko.zst
+## loaded/builtin
+dm_mod present
+dm_cache absent
+dm_cache_smq absent
+bcache absent
+dm_writecache absent
+loop absent
+kernel/fs/mbcache.ko
+## tools
+lvm missing
+lvcreate missing
+dmsetup /usr/sbin/dmsetup
+losetup /usr/sbin/losetup
+cache_check missing
+make-bcache missing
+bcache missing
+xfs_quota missing
+setquota missing
+quotacheck missing
+tune2fs /usr/sbin/tune2fs
+btrfs missing
+zfs /usr/sbin/zfs
+## dm targets visible
+253 device-mapper
+device-mapper
+## sudo -n
+sudo: a password is required
+sudo -n: no
+## ext4 features via sysfs
+dm-0
+dm-1
+features
+## lvm pvs/vgs (unprivileged attempt)
+jobs/inventory.sh: line 21: vgs: command not found
+## base binaries present?
+/usr/bin/base32
+/usr/bin/base64
+/usr/bin/basename
+/usr/bin/basenc
+/usr/sbin/docker
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

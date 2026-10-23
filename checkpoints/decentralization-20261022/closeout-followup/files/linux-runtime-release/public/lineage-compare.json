@@ -1,0 +1,654 @@
+{
+ "columns": "live overlay | live source tree | native493 manifest | native493 git | ckpt 2bbea898 | D f1d0666b | root 1086cf23",
+ "format": "linux-runtime-lineage-compare/1",
+ "heads": {
+  "ckpt2bbea": "2bbea8987",
+  "d_f1d0": "f1d0666b9fc80d25a7c4cbacf4025f3a33152111",
+  "native493": "493ee9ee07497c94159ec4f6916e9ea920d31959",
+  "root1086": "1086cf2346b913177e38cf02e0b2b571628cc758"
+ },
+ "liveManifest": "<prod>/dist-leasegas-deabf8f90/manifest.json",
+ "nativeManifest": "<work>/resume-after-checkpoint-20261022/native-final-image/public/INPUT-MANIFEST.json",
+ "rows": {
+  "addressbook.js": {
+   "ckpt2bbea": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+   "d_f1d0": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+   "dest": "/app/addressbook.js",
+   "live": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+   "liveSrcTree": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+   "native493": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+   "native493manifest": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92",
+   "root1086": "fe3f27e6c64367c9b9f14742315efc9357aaed88e2f831b3754832fd74b1ce92"
+  },
+  "client/lease-executor-authority.mjs": {
+   "ckpt2bbea": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "d_f1d0": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "dest": "/app/client/lease-executor-authority.mjs",
+   "live": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "liveSrcTree": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "native493": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "native493manifest": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "root1086": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
+  },
+  "client/lease-executor-client.mjs": {
+   "ckpt2bbea": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
+   "d_f1d0": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
+   "dest": "/app/client/lease-executor-client.mjs",
+   "live": "5193da71542098cbad98a723be575abc575147e0a9649e804d27697c8e3c7dfe",
+   "liveSrcTree": "5193da71542098cbad98a723be575abc575147e0a9649e804d27697c8e3c7dfe",
+   "native493": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
+   "native493manifest": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
+   "root1086": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd"
+  },
+  "contracts/deployments/contract-pins-base.json": {
+   "ckpt2bbea": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "d_f1d0": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "dest": "/opt/contracts/deployments/contract-pins-base.json",
+   "liveSrcTree": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "native493": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "native493manifest": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "root1086": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d"
+  },
+  "egress.js": {
+   "ckpt2bbea": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+   "d_f1d0": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843",
+   "dest": "/app/egress.js",
+   "live": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+   "liveSrcTree": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+   "native493": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+   "native493manifest": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+   "root1086": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843"
+  },
+  "isolation/contract/runtime.mjs": {
+   "ckpt2bbea": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "d_f1d0": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "dest": "/app/isolation/contract/runtime.mjs",
+   "live": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "liveSrcTree": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "native493": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "native493manifest": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "root1086": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+  },
+  "isolation/m2/judge.mjs": {
+   "ckpt2bbea": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "d_f1d0": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "dest": "/app/isolation/m2/judge.mjs",
+   "live": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "liveSrcTree": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "native493": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "native493manifest": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "root1086": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd"
+  },
+  "isolation/m4/guestd/control-client.mjs": {
+   "ckpt2bbea": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "d_f1d0": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "dest": "/app/isolation/m4/guestd/control-client.mjs",
+   "live": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "liveSrcTree": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "native493": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "native493manifest": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "root1086": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+  },
+  "isolation/m4/guestd/supervisor-guestcert.mjs": {
+   "ckpt2bbea": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "d_f1d0": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "dest": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
+   "live": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "liveSrcTree": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "native493": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "native493manifest": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "root1086": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597"
+  },
+  "isolation/m4/guestd/supervisor-splice.mjs": {
+   "ckpt2bbea": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "d_f1d0": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "dest": "/app/isolation/m4/guestd/supervisor-splice.mjs",
+   "live": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "liveSrcTree": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "native493": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "native493manifest": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "root1086": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b"
+  },
+  "isolation/m4/guestd/supervisor-transport.mjs": {
+   "ckpt2bbea": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "d_f1d0": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "dest": "/app/isolation/m4/guestd/supervisor-transport.mjs",
+   "live": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "liveSrcTree": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "native493": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "native493manifest": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "root1086": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
+  },
+  "metal/guest/agent.mjs": {
+   "ckpt2bbea": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "d_f1d0": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "dest": "/opt/metal/agent.mjs",
+   "live": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "liveSrcTree": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "native493": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "native493manifest": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "root1086": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a"
+  },
+  "metal/guest/gsup.mjs": {
+   "ckpt2bbea": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24",
+   "d_f1d0": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24",
+   "dest": "/opt/metal/gsup.mjs",
+   "live": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+   "liveSrcTree": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+   "native493": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+   "native493manifest": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+   "root1086": "10127e1170d71d6f23d26e01ebf5a0bfee19c51f1121148c13ab43f9d49e4d24"
+  },
+  "metal/guest/host-policy.bundle.mjs": {
+   "ckpt2bbea": "a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21",
+   "d_f1d0": "a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21",
+   "dest": "/opt/metal/host-policy.bundle.mjs",
+   "live": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9",
+   "liveSrcTree": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9",
+   "native493": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+   "native493manifest": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+   "root1086": "a19af83c00c1999fcacf5f686bff62447535a469f52a6a358a34c69f38422b21"
+  },
+  "metal/guest/lease-gas-conduit.bundle.mjs": {
+   "ckpt2bbea": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+   "d_f1d0": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+   "dest": "/opt/metal/lease-gas-conduit.bundle.mjs",
+   "live": "d0b8ef9c4842030c6bfd1173bdad1dd76e096da998a2046a6d70f0fce8528247",
+   "liveSrcTree": "d0b8ef9c4842030c6bfd1173bdad1dd76e096da998a2046a6d70f0fce8528247",
+   "native493": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+   "native493manifest": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+   "root1086": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6"
+  },
+  "metal/guest/mcp-server.bundle.mjs": {
+   "ckpt2bbea": null,
+   "d_f1d0": null,
+   "dest": "/opt/metal/mcp-server.bundle.mjs",
+   "liveSrcTree": null,
+   "native493": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+   "native493manifest": "eccb333401b43f97dc6bdbe4e7ff34da79bbc7c9fabe578809463ea58d63c81f",
+   "root1086": null
+  },
+  "metal/guest/measured-control.mjs": {
+   "ckpt2bbea": "18f472149238dd4409abd2c87dfe71a48dbb151c778e9a735bf40302cd8cd332",
+   "d_f1d0": "18f472149238dd4409abd2c87dfe71a48dbb151c778e9a735bf40302cd8cd332",
+   "dest": "/opt/metal/measured-control.mjs",
+   "live": "bf7d4ddf25bc2f173450fd4658ccd5c4e6a913de57b0ae8709d8486779b2f94a",
+   "liveSrcTree": "bf7d4ddf25bc2f173450fd4658ccd5c4e6a913de57b0ae8709d8486779b2f94a",
+   "native493": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+   "native493manifest": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+   "root1086": "18f472149238dd4409abd2c87dfe71a48dbb151c778e9a735bf40302cd8cd332"
+  },
+  "metal/guest/owner-nomination.mjs": {
+   "ckpt2bbea": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "d_f1d0": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "dest": "/app/metal/guest/owner-nomination.mjs",
+   "liveSrcTree": null,
+   "native493": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "native493manifest": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "root1086": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0"
+  },
+  "metal/guest/platform-api.bundle.mjs": {
+   "ckpt2bbea": null,
+   "d_f1d0": null,
+   "dest": "/opt/metal/platform-api.bundle.mjs",
+   "liveSrcTree": null,
+   "native493": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+   "native493manifest": "0a1d88de230842442c41cc9f399d3a7dda5394fb523812b2503bc2358b09b4ef",
+   "root1086": null
+  },
+  "metal/guest/shielded-probe.mjs": {
+   "ckpt2bbea": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "d_f1d0": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "dest": "/opt/metal/shielded-probe.mjs",
+   "live": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "liveSrcTree": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "native493": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "native493manifest": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "root1086": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f"
+  },
+  "metal/guest/shielded-shm.mjs": {
+   "ckpt2bbea": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "d_f1d0": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "dest": "/opt/metal/shielded-shm.mjs",
+   "live": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "liveSrcTree": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "native493": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "native493manifest": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "root1086": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731"
+  },
+  "metal/guest/shielded.mjs": {
+   "ckpt2bbea": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "d_f1d0": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "dest": "/opt/metal/shielded.mjs",
+   "live": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "liveSrcTree": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "native493": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "native493manifest": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "root1086": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f"
+  },
+  "net-guard.mjs": {
+   "ckpt2bbea": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "d_f1d0": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "dest": "/app/net-guard.mjs",
+   "live": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "liveSrcTree": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "native493": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "native493manifest": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "root1086": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+  },
+  "network/canonical.mjs": {
+   "ckpt2bbea": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "d_f1d0": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "dest": "/app/network/canonical.mjs",
+   "live": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "liveSrcTree": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "native493": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "native493manifest": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "root1086": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3"
+  },
+  "network/directory-client.mjs": {
+   "ckpt2bbea": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "d_f1d0": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "dest": "/app/network/directory-client.mjs",
+   "liveSrcTree": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "native493": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "native493manifest": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "root1086": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09"
+  },
+  "network/host-capacity-producer.mjs": {
+   "ckpt2bbea": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "d_f1d0": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "dest": "/app/network/host-capacity-producer.mjs",
+   "live": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "liveSrcTree": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "native493": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "native493manifest": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "root1086": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0"
+  },
+  "network/host-capacity-record.mjs": {
+   "ckpt2bbea": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "d_f1d0": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "dest": "/app/network/host-capacity-record.mjs",
+   "live": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "liveSrcTree": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "native493": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "native493manifest": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "root1086": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551"
+  },
+  "network/host-owner-nomination.mjs": {
+   "ckpt2bbea": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6",
+   "d_f1d0": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6",
+   "dest": "/app/network/host-owner-nomination.mjs",
+   "liveSrcTree": null,
+   "native493": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6",
+   "native493manifest": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6",
+   "root1086": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6"
+  },
+  "network/host-policy-adapters.mjs": {
+   "ckpt2bbea": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "d_f1d0": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "dest": "/app/network/host-policy-adapters.mjs",
+   "liveSrcTree": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "native493": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "native493manifest": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "root1086": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84"
+  },
+  "network/lease-executor-authority.mjs": {
+   "ckpt2bbea": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "d_f1d0": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "dest": "/app/network/lease-executor-authority.mjs",
+   "live": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "liveSrcTree": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "native493": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "native493manifest": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+   "root1086": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99"
+  },
+  "network/lease-executor-client.mjs": {
+   "ckpt2bbea": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "d_f1d0": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "dest": "/app/network/lease-executor-client.mjs",
+   "live": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "liveSrcTree": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "native493": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "native493manifest": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "root1086": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a"
+  },
+  "network/lease-gas-owner.mjs": {
+   "ckpt2bbea": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+   "d_f1d0": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+   "dest": "/app/network/lease-gas-owner.mjs",
+   "live": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+   "liveSrcTree": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+   "native493": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+   "native493manifest": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+   "root1086": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988"
+  },
+  "network/lease-gas-runtime.mjs": {
+   "ckpt2bbea": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+   "d_f1d0": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+   "dest": "/app/network/lease-gas-runtime.mjs",
+   "live": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75",
+   "liveSrcTree": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75",
+   "native493": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+   "native493manifest": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+   "root1086": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc"
+  },
+  "network/lease-relay-discovery.mjs": {
+   "ckpt2bbea": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
+   "d_f1d0": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
+   "dest": "/app/network/lease-relay-discovery.mjs",
+   "liveSrcTree": null,
+   "native493": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
+   "native493manifest": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
+   "root1086": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42"
+  },
+  "network/lease-release-journal.mjs": {
+   "ckpt2bbea": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "d_f1d0": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "dest": "/app/network/lease-release-journal.mjs",
+   "live": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "liveSrcTree": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "native493": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "native493manifest": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "root1086": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6"
+  },
+  "network/network-authorities.mjs": {
+   "ckpt2bbea": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "d_f1d0": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "dest": "/app/network/network-authorities.mjs",
+   "liveSrcTree": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "native493": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "native493manifest": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "root1086": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448"
+  },
+  "network/network-policy-core.mjs": {
+   "ckpt2bbea": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "d_f1d0": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "dest": "/app/network/network-policy-core.mjs",
+   "liveSrcTree": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "native493": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "native493manifest": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "root1086": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064"
+  },
+  "network/network-policy.mjs": {
+   "ckpt2bbea": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "d_f1d0": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "dest": "/app/network/network-policy.mjs",
+   "liveSrcTree": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "native493": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "native493manifest": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "root1086": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f"
+  },
+  "network/provider-directory.mjs": {
+   "ckpt2bbea": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "d_f1d0": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "dest": "/app/network/provider-directory.mjs",
+   "liveSrcTree": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "native493": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "native493manifest": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "root1086": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db"
+  },
+  "network/provider-qualification.mjs": {
+   "ckpt2bbea": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "d_f1d0": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "dest": "/app/network/provider-qualification.mjs",
+   "liveSrcTree": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "native493": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "native493manifest": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "root1086": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9"
+  },
+  "network/registry-reconcile.mjs": {
+   "ckpt2bbea": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "d_f1d0": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "dest": "/app/network/registry-reconcile.mjs",
+   "live": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "liveSrcTree": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "native493": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "native493manifest": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "root1086": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e"
+  },
+  "network/route-record.mjs": {
+   "ckpt2bbea": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "d_f1d0": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "dest": "/app/network/route-record.mjs",
+   "liveSrcTree": "be3bfab79561740b7b76aa6d34efa85f5b825a5b8ccbaca49f81a74f4c226e85",
+   "native493": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "native493manifest": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "root1086": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1"
+  },
+  "network/rpc-identity.mjs": {
+   "ckpt2bbea": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "d_f1d0": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "dest": "/app/network/rpc-identity.mjs",
+   "live": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "liveSrcTree": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "native493": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "native493manifest": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+   "root1086": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57"
+  },
+  "network/service-index.mjs": {
+   "ckpt2bbea": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+   "d_f1d0": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+   "dest": "/app/network/service-index.mjs",
+   "liveSrcTree": "b99ad27df4765c03ad2f8f99e19a00854b15f7e758bfd2b617ee28c9f9023f24",
+   "native493": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+   "native493manifest": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+   "root1086": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d"
+  },
+  "relay/attestation-paths.mjs": {
+   "ckpt2bbea": null,
+   "d_f1d0": null,
+   "dest": "/app/relay/attestation-paths.mjs",
+   "liveSrcTree": null,
+   "native493": "d9d68bd9f4d8d276e15ac49fdcfba156746239fb2838c0c6f987912b07c89b1d",
+   "native493manifest": "d9d68bd9f4d8d276e15ac49fdcfba156746239fb2838c0c6f987912b07c89b1d",
+   "root1086": null
+  },
+  "relay/fixtures/tpm-roots.pem": {
+   "ckpt2bbea": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "d_f1d0": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "dest": "/opt/metal/fixtures/tpm-roots.pem",
+   "liveSrcTree": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "native493": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "native493manifest": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "root1086": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
+  },
+  "relay/net-guard.mjs": {
+   "ckpt2bbea": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "d_f1d0": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "dest": "/app/relay/net-guard.mjs",
+   "liveSrcTree": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "native493": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "native493manifest": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "root1086": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af"
+  },
+  "relay/snp-verify.mjs": {
+   "ckpt2bbea": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "d_f1d0": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "dest": "/app/relay/snp-verify.mjs",
+   "live": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+   "liveSrcTree": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+   "native493": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "native493manifest": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "root1086": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046"
+  },
+  "sdk/bootstrap/package.mjs": {
+   "ckpt2bbea": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "d_f1d0": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "dest": "/app/sdk/bootstrap/package.mjs",
+   "live": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "liveSrcTree": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "native493": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "native493manifest": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "root1086": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a"
+  },
+  "sdk/bootstrap/storage.mjs": {
+   "ckpt2bbea": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "d_f1d0": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "dest": "/app/sdk/bootstrap/storage.mjs",
+   "live": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "liveSrcTree": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "native493": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "native493manifest": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "root1086": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3"
+  },
+  "sdk/storage/gateways.mjs": {
+   "ckpt2bbea": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "d_f1d0": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "dest": "/app/sdk/storage/gateways.mjs",
+   "live": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "liveSrcTree": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "native493": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "native493manifest": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "root1086": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119"
+  },
+  "sdk/storage/replicas.mjs": {
+   "ckpt2bbea": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "d_f1d0": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "dest": "/app/sdk/storage/replicas.mjs",
+   "live": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "liveSrcTree": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "native493": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "native493manifest": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "root1086": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25"
+  },
+  "sdk/storage/upload-auth.mjs": {
+   "ckpt2bbea": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "d_f1d0": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "dest": "/app/sdk/storage/upload-auth.mjs",
+   "live": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "liveSrcTree": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "native493": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "native493manifest": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "root1086": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1"
+  },
+  "site/js/core/upload-auth.js": {
+   "ckpt2bbea": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "d_f1d0": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "dest": "/app/site/js/core/upload-auth.js",
+   "live": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "liveSrcTree": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "native493": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "native493manifest": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "root1086": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23"
+  },
+  "supervisor.js": {
+   "ckpt2bbea": "89ebb50affbec97e9ffdf6524c0e284ba226e3404be7558f2779c1bb64381b4f",
+   "d_f1d0": "e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d",
+   "dest": "/app/supervisor.js",
+   "live": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+   "liveSrcTree": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+   "native493": "2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65",
+   "native493manifest": "2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65",
+   "root1086": "7389d61399d0e94a0f226c8604bd90635db30723c41a7d8aa2c62aaa9dbefbe2"
+  },
+  "windows/node/host-admission.bundle.mjs": {
+   "ckpt2bbea": "3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8",
+   "d_f1d0": "3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8",
+   "dest": "/app/windows/node/host-admission.bundle.mjs",
+   "live": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c",
+   "liveSrcTree": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c",
+   "native493": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+   "native493manifest": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+   "root1086": "3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8"
+  },
+  "windows/node/session-api-auth.mjs": {
+   "ckpt2bbea": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "d_f1d0": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "dest": "/app/windows/node/session-api-auth.mjs",
+   "live": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "liveSrcTree": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "native493": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "native493manifest": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+   "root1086": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb"
+  },
+  "windows/node/verification-checkpoints.mjs": {
+   "ckpt2bbea": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "d_f1d0": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "dest": "/app/windows/node/verification-checkpoints.mjs",
+   "live": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "liveSrcTree": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "native493": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "native493manifest": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "root1086": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29"
+  }
+ },
+ "summary": {
+  "liveEqRoot": [
+   "addressbook.js",
+   "client/lease-executor-authority.mjs",
+   "isolation/contract/runtime.mjs",
+   "isolation/m2/judge.mjs",
+   "isolation/m4/guestd/control-client.mjs",
+   "isolation/m4/guestd/supervisor-guestcert.mjs",
+   "isolation/m4/guestd/supervisor-splice.mjs",
+   "isolation/m4/guestd/supervisor-transport.mjs",
+   "metal/guest/agent.mjs",
+   "metal/guest/shielded-probe.mjs",
+   "metal/guest/shielded-shm.mjs",
+   "metal/guest/shielded.mjs",
+   "net-guard.mjs",
+   "network/canonical.mjs",
+   "network/host-capacity-producer.mjs",
+   "network/host-capacity-record.mjs",
+   "network/lease-executor-authority.mjs",
+   "network/lease-executor-client.mjs",
+   "network/lease-release-journal.mjs",
+   "network/registry-reconcile.mjs",
+   "network/rpc-identity.mjs",
+   "sdk/bootstrap/package.mjs",
+   "sdk/bootstrap/storage.mjs",
+   "sdk/storage/gateways.mjs",
+   "sdk/storage/replicas.mjs",
+   "sdk/storage/upload-auth.mjs",
+   "site/js/core/upload-auth.js",
+   "windows/node/session-api-auth.mjs",
+   "windows/node/verification-checkpoints.mjs"
+  ],
+  "liveNeRoot": [
+   "client/lease-executor-client.mjs",
+   "egress.js",
+   "metal/guest/gsup.mjs",
+   "metal/guest/host-policy.bundle.mjs",
+   "metal/guest/lease-gas-conduit.bundle.mjs",
+   "metal/guest/measured-control.mjs",
+   "network/lease-gas-owner.mjs",
+   "network/lease-gas-runtime.mjs",
+   "relay/snp-verify.mjs",
+   "supervisor.js",
+   "windows/node/host-admission.bundle.mjs"
+  ],
+  "liveOnly": [],
+  "nativeNeRoot": [
+   "egress.js",
+   "metal/guest/gsup.mjs",
+   "metal/guest/host-policy.bundle.mjs",
+   "metal/guest/mcp-server.bundle.mjs",
+   "metal/guest/measured-control.mjs",
+   "metal/guest/platform-api.bundle.mjs",
+   "relay/attestation-paths.mjs",
+   "supervisor.js",
+   "windows/node/host-admission.bundle.mjs"
+  ],
+  "nativeOnly": [
+   "contracts/deployments/contract-pins-base.json",
+   "metal/guest/mcp-server.bundle.mjs",
+   "metal/guest/owner-nomination.mjs",
+   "metal/guest/platform-api.bundle.mjs",
+   "network/directory-client.mjs",
+   "network/host-owner-nomination.mjs",
+   "network/host-policy-adapters.mjs",
+   "network/lease-relay-discovery.mjs",
+   "network/network-authorities.mjs",
+   "network/network-policy-core.mjs",
+   "network/network-policy.mjs",
+   "network/provider-directory.mjs",
+   "network/provider-qualification.mjs",
+   "network/route-record.mjs",
+   "network/service-index.mjs",
+   "relay/attestation-paths.mjs",
+   "relay/fixtures/tpm-roots.pem",
+   "relay/net-guard.mjs"
+  ]
+ }
+}

@@ -1,0 +1,8 @@
+{
+  "observation": "Independent root git ls-remote origin after publication",
+  "checkpointBranch": "checkpoint/decentralization-20261022",
+  "checkpointCommit": "8ac1aa51c36ec4e8a1fa3d5a60c0438a721190ab",
+  "mainCommit": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+  "commandExitCode": 0,
+  "scope": "Verifies remote branch tips only. Candidate checkpoint is not a production deployment. Root fd6a1762 and subsequent runtime lock review are not included in this checkpoint."
+}

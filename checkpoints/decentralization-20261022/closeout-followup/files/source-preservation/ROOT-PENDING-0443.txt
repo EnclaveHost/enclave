@@ -1,0 +1,15 @@
+Pending next publication after your current Linux package turn finishes. This is NOT an instruction to overlap another publisher or capture mutable candidate sources.
+
+Root independently verified checkpoint8ac1aa51c36ec4e8a1fa3d5a60c0438a721190ab and unchangedmain7752a4239b3bec2cf452491cd1b95164a8c2bdb8 via ls-remote, exit0. Receipt outputs/decentralization-audit/source-checkpoint-verified-20261023T0435Z.json.
+
+Preserve root verified-snapshot-lifecycle-fix commitfd6a1762ed1218d5d32fb43df2ccb97caa2b17e4 (baseA2efc), its ROOT-REVIEW/tests, and root-verified-snapshot-review repro. Not deployed. Deadline lifecycle bug affects runtime integration; B has pending review supplement, not yet acknowledged.
+
+Preserve root-rpc-runtime-lock-review/{probe.mjs,frozen-takeLock.js,RESULT.json,probe.guard.log} as review evidence. Exact candidate function source hash recorded, not a full immutable B commit. Actual two-process filesystem exclusive-open/write interleaving reproduces duplicate ownership. Do not capture B mutable runtime source as finished. B owns fix and full integration.
+
+Persist current work/effective-goal-requirements.txt including latest direct user optional NVMecache allowance <=250,000,000,000B AGGREGATE, target200GB, no actualallocationyet. Stale blanket noNVMe instructions are superseded FOR CACHE ONLY. Keep administrator rights.
+
+Fresh-witness-supply commit0cec8c6577525a67a97fc11ad04739681533a515 is preserved locally, but root has required corrections to its overly broad nopeerinterface claims, stale noNVMe statement, futuretimestamp04:50 and obsolete Siarestore status. S is now active in SAMErepo preparing corrected RESULT-HOLDER+launcher; capture finalimmutable correctedcommit once terminal instead of publishing the known overclaims as current.
+
+F host-service-lifecycle commit24fb993c4f9df6868ca06f210ab7b9abec10e502 exists and sourceclean but artifactclosureturn stillactive. Wait for finalresults, then preserve. Ccarrierclosuremustcomposebeforedeployment. No concurrent edits to theirtrees.
+
+Root removed ONE duplicate queued C validation wrapper2662765 (waitingchild2664577), no actual tests running under it. Originalwrapper2661934 preserved. Receipt windows-host-services-compose/ROOT-QUEUE-REVIEW.json; use authoritative terminaltestresults, never queuewait/termination aspassingchecks.

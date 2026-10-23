@@ -1,0 +1,48 @@
+{
+ "format": "witness-failover-deadline-provenance/v1",
+ "label": "SOURCE + OFFLINE TESTS ONLY; no recording, no network. Not deployed, merged or pushed.",
+ "rootRepro": {
+  "probe": "root-witness-deadline-review/probe.mjs (not modified, not re-run in place)",
+  "reviewedGatewaySha256": "e33d8a4bbe3b2f1e81dd632074c0b6fd9e0890ce15697f3821e10ccf37b9668c"
+ },
+ "enclave": {
+  "base": "7b4e8c68a91f24cdfd844f623ed4047beb17e79c",
+  "head": "d0775541db0a0cb599cfe5c7b3853e24242aaaec",
+  "tree": "05aceefc020e4f942dac0089e64b8107bd7b8c50",
+  "commits": [
+   "d0775541db0a0cb599cfe5c7b3853e24242aaaec SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Bound every gateway request by one whole-operation deadline; make close terminal across gateway, roots and helper"
+  ],
+  "files": {
+   "network/witness-gateway.mjs": {
+    "blob": "6926a241bd996e598873b0f475214e8d48a61195",
+    "sha256": "1ce52fa138891228791b526891efb1ed306067973f5cdab47270a765ec9cd17d"
+   },
+   "network/witness-verify.mjs": {
+    "blob": "a8c0edec5a86c9127a9ec69957c8762f635fcc51",
+    "sha256": "729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b"
+   },
+   "test/helios-witness-failover.e2e.test.mjs": {
+    "blob": "e7361c549e11ccf2bc0f75ba82f3f44181283c39",
+    "sha256": "869556bfd8c795f9cecccc08554db3fb9840748f2d6da460b529594c423536f0"
+   },
+   "test/witness-deadline.test.mjs": {
+    "blob": "fb4a0f0ce57bc58d63172aee4b0acf74d7de6e3a",
+    "sha256": "17d9c2bd21db155f19bf1fa19751c5b58dfd127a3929b470496aa5497d70ccb7"
+   },
+   "test/witness-failover.test.mjs": {
+    "blob": "1c60a401a47dd65c6b7a0d328a73124de57bb58c",
+    "sha256": "8dea1d8c9feda753552e61d3c3048c5e4702f982e0889e21d6304567d020f187"
+   }
+  }
+ },
+ "helios": "unchanged: enclave-witness-check ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 (helper 4fe0cd3b)",
+ "binaries": {
+  "witness-check": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+  "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc"
+ },
+ "realDataInputs": "fixtures/base-heads-b-live-20261023T013719Z (52 signed gossip objects, names = content sha256; see PROVENANCE-HISTORY.json)",
+ "patches": {
+  "patches/deadline/0001-Bound-every-gateway-request-by-one-whole-operation-d.patch": "ce11000b146beaf2cffe69a780cddf1eb16fe8d70f8fff67f2e4081ab6ba268f"
+ }
+}

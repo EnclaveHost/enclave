@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-10-23T05:20:16.695321+00:00",
+  "source": "work/fresh-witness-supply/holder/holder.py",
+  "sha256": "c98de6bf2f2efb09dd03c43e46b79f405cdd49674d0e30d0a910584ae83483da",
+  "scope": "Read-only source review of mutable candidate. No real dm-cache allocation, mount, execution or production change. Findings require terminal source recheck; no claim runtime reproduced.",
+  "findings": [
+    {
+      "id": "mapper-and-mount-adoption",
+      "severity": "activation-blocker",
+      "finding": "Rendered assemble accepts any existing dmsetup NAME and any mount at MNT without checking table, origin/cache device identities, writethrough mode or mounted source. A stale/mismatched mapping can defeat storage placement and cache-loss assumptions.",
+      "evidence": [
+        "dmsetup info \"$NAME\" >/dev/null 2>&1 || dmsetup create",
+        "findmnt -n \"$MNT\" >/dev/null || mount"
+      ],
+      "requested": "Verify owned mapping exact backing devices, size and cache mode plus mounted device before reuse; refuse mismatches. Do not detach or alter an unrelated existing mapping."
+    },
+    {
+      "id": "cache-reuse-after-origin-access",
+      "severity": "activation-blocker",
+      "finding": "drop-cache removes mapper but never invalidates cache metadata. It tells operator reattach rewarms from empty, which source does not establish. Accessing/modifying origin without updating cache can later serve stale cached sectors.",
+      "evidence": [
+        "e2fsck -fn \"$O\"",
+        "re-run assemble to reattach (dm-cache rewarms from empty)"
+      ],
+      "requested": "Define a safe cache loss/rejoin protocol. Require offline holder, validate ownership, invalidate/reset metadata safely before reuse after uncached origin changes; never automatically reattach stale cache. Keep read-only drill distinct from actual loss/rebuild."
+    },
+    {
+      "id": "aggregate-inventory",
+      "severity": "preflight-blocker",
+      "finding": "otherNvmeCacheAllocations is declarative bytes only. verify-cap checks those constants and holder image blocks, not actual other caches. This does not yet prove aggregate cap enforcement or account for backing filesystem metadata and retained image copies.",
+      "requested": "Document evidence limit; root activation must use one shared reservation/inventory with enforced bounds and account for backing overhead/temp/spill. No allocation until actual aggregate inventory and boundary proof. Source config arithmetic alone is insufficient."
+    },
+    {
+      "id": "partial-setup-unwind",
+      "severity": "activation-blocker",
+      "finding": "create formats origin before validating cache path/capacity; assemble may attach loops and fail without ownership-aware unwind. disassemble ignores unmount and dm removal failure then attempts loop detach.",
+      "requested": "Preflight all resources before creating; track only newly owned resources and unwind on errors without disturbing preexisting resources. Refuse to proceed after failed unmount/remove. Test interrupted and partial setup through command seams plus real bounded drill only when authorized/resources ready."
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+# t2-overlay-unittest: queue guard line(s)
+[memory-guard] exit=0 peakTreeRssMiB=114 minHostAvailableMiB=24512
+# retries before admission: 1
+# exit 0
+
+[queue] START available=24627MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533915])
+test_a_package_the_closure_needs_must_be_in_the_base (__main__.ControlOverlay.test_a_package_the_closure_needs_must_be_in_the_base) ... ok
+test_closure_rules (__main__.ControlOverlay.test_closure_rules) ... ok
+test_committed_closure_preserved_entries_and_repeatable_overlay (__main__.ControlOverlay.test_committed_closure_preserved_entries_and_repeatable_overlay) ... ok
+test_control_direct_checks_the_committed_bundle_manifest (__main__.ControlOverlay.test_control_direct_checks_the_committed_bundle_manifest) ... ok
+test_control_direct_installs_the_platform_api_trio_over_the_base_kernel (__main__.ControlOverlay.test_control_direct_installs_the_platform_api_trio_over_the_base_kernel) ... ok
+test_control_direct_refuses_a_base_it_cannot_measure_as_direct (__main__.ControlOverlay.test_control_direct_refuses_a_base_it_cannot_measure_as_direct) ... ok
+test_control_direct_refuses_sidecar_and_runtime_file_names_that_are_not_plain_or_collide (__main__.ControlOverlay.test_control_direct_refuses_sidecar_and_runtime_file_names_that_are_not_plain_or_collide) ... ok
+test_digest_mismatch_does_not_create_output (__main__.ControlOverlay.test_digest_mismatch_does_not_create_output) ... ok
+test_git_symlinks_install_their_target_bytes_like_build_image (__main__.ControlOverlay.test_git_symlinks_install_their_target_bytes_like_build_image) ... ok
+test_hardlinked_target_refused (__main__.ControlOverlay.test_hardlinked_target_refused) ... ok
+test_only_identical_unmodified_regular_duplicates_are_collapsed (__main__.ControlOverlay.test_only_identical_unmodified_regular_duplicates_are_collapsed) ... ok
+test_optional_guest_helpers_follow_the_commit (__main__.ControlOverlay.test_optional_guest_helpers_follow_the_commit) ... ok
+test_packages_and_subpath_exports_are_checked (__main__.ControlOverlay.test_packages_and_subpath_exports_are_checked) ... ok
+test_plain_names_also_support_repeated_overlay (__main__.ControlOverlay.test_plain_names_also_support_repeated_overlay) ... ok
+test_plain_overlay_is_unchanged_by_the_control_option (__main__.ControlOverlay.test_plain_overlay_is_unchanged_by_the_control_option) ... ok
+test_symlink_parent_and_duplicate_paths_rejected (__main__.ControlOverlay.test_symlink_parent_and_duplicate_paths_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 9.204s
+
+OK
+[t2] overlay unittest exit=0
+[memory-guard] exit=0 peakTreeRssMiB=114 minHostAvailableMiB=24512
+[memory-guard] at peak: python3:104 bash:6 timeout:4
+[queue] EXIT 0

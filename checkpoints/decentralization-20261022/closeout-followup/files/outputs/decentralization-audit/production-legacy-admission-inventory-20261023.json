@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-10-23T06:02:43.366214+00:00",
+  "readOnly": true,
+  "hosts": [
+    {
+      "alias": "us-west",
+      "status": "observed",
+      "relays": []
+    },
+    {
+      "alias": "ca-east",
+      "status": "observed",
+      "relays": []
+    },
+    {
+      "alias": "ap-southeast",
+      "status": "observed",
+      "relays": []
+    },
+    {
+      "alias": "eu-central",
+      "status": "observed",
+      "relays": []
+    }
+  ],
+  "limitations": [
+    "Environment values are from the live process; source defaults/hash are from its current entry file, not proof of loaded in-memory bytes.",
+    "No keys, generic environment, command line, customer state, or token values are exported.",
+    "This is an inventory, not a policy-change authorization or proof of admission behavior."
+  ]
+}

@@ -1,0 +1,51 @@
+[queue] START available=24575MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+9e9be7d939bc0a1b48e4fac30dda5670f36ec2c2a9fd0edb96548c34a2e31741  holder.py
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+d1736597d78c5fbfadf92f37018653147e5153d1d75728c4fdfd4dc875974920  holder.example.json
+6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
+0a774549307f9e4ee0e34dbc5d499def09d5d18fdc13e18e708362c41478acb4  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code (__main__.Lifecycle.test_child_failure_propagates_exit_code) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+/usr/lib/python3.14/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=2, proto=0, laddr=b'\x00holder-test-2708886'>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/holder.py:519: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/tcp' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/holder.py:519: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/tcp6' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/holder.py:519: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/udp' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... ok
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
+/usr/lib/python3.14/unittest/suite.py:84: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=2, proto=0, laddr=b'\x00holder-test-2708886'>
+  return self.run(*args, **kwds)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... ok
+test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations) ... ok
+test_example_is_not_deployable_until_the_binary_is_pinned (__main__.Validation.test_example_is_not_deployable_until_the_binary_is_pinned) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 14.849s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=95 minHostAvailableMiB=23979
+[memory-guard] at peak: python3:30 python3:26 python3:24 sh:6 sleep:4 timeout:4
+[queue] EXIT 0

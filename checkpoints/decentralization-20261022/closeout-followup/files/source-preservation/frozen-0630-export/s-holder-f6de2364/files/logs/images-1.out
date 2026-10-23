@@ -1,0 +1,6 @@
+[queue] START available=24903MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+risc-perf-guest-source:baseline 94e58c71353f 693MB
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/vendor-inspect/reth-v2.8.0/bin/reth
+[memory-guard] exit=0 peakTreeRssMiB=39 minHostAvailableMiB=24777
+[memory-guard] at peak: docker:28 images.sh:6 grep:5
+[queue] EXIT 0

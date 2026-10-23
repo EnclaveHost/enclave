@@ -1,0 +1,217 @@
+{
+ "commit": "fec43a6a08da2ac287fb3a5c42de89f096f4f678",
+ "checks": [
+  {
+   "check": "vmlinuz == production base",
+   "ok": true,
+   "detail": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  {
+   "check": "manifest kernel record unchanged (7.2.3-arch1-2)",
+   "ok": true,
+   "detail": "7.2.3-arch1-2"
+  },
+  {
+   "check": "manifest modules list unchanged",
+   "ok": true,
+   "detail": "15 modules"
+  },
+  {
+   "check": "cmdline file == production base cmdline (relay mode)",
+   "ok": true,
+   "detail": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app"
+  },
+  {
+   "check": "manifest cmdlineTemplate unchanged, no control/platformApiBundle/mcpBundle",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "manifest isolation unchanged (snp-guest-per-app)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.commit = composed commit",
+   "ok": true,
+   "detail": "fec43a6a08da2ac287fb3a5c42de89f096f4f678"
+  },
+  {
+   "check": "controlOverlay.builderSha256 = the commit's overlay tool",
+   "ok": true,
+   "detail": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56"
+  },
+  {
+   "check": "controlOverlay has no control mode",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.baseInitramfsSha256 = production base",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "the base's controlOverlay is the last history entry",
+   "ok": true,
+   "detail": "1 entries; last commit 2857356cde9b35c1b9b046c201d74ec8a517bca0"
+  },
+  {
+   "check": "manifest initramfs record = file",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "expectedMeasurement removed (recomputed separately)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.files = the 55 precheck inputs",
+   "ok": true,
+   "detail": "55 files"
+  },
+  {
+   "check": "all 55 installed inputs present, regular, with the precheck sha256",
+   "ok": true,
+   "detail": "55 inputs"
+  },
+  {
+   "check": "installed host-admission bundle = 40e8ba71, host-policy = acfa1b00",
+   "ok": true,
+   "detail": "40e8ba71d83c627e / acfa1b0099530d4c"
+  },
+  {
+   "check": "installed supervisor.js = the composed 4939dc68",
+   "ok": true,
+   "detail": "4939dc688cefeed2"
+  },
+  {
+   "check": "no production base entry missing",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "added entries = new inputs + their parent directories only",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "every other entry identical to the base (bytes + metadata, kernel modules included)",
+   "ok": true,
+   "detail": "29012 entries, 33 module-tree entries"
+  },
+  {
+   "check": "supervisor import closure present in the image",
+   "ok": true,
+   "detail": "46 files"
+  },
+  {
+   "check": "closure npm packages + subpath exports in the image",
+   "ok": true,
+   "detail": "cors@2.8.6, express@4.22.2, jose@5.10.0, viem@2.53.1, ws@8.21.1"
+  },
+  {
+   "check": "guest helpers' relative imports and every bundle's beside-itself reads resolve in the image",
+   "ok": true,
+   "detail": "9 opt/metal modules"
+  },
+  {
+   "check": "gsup.mjs starts /app/supervisor.js in the legacy (non-direct) branch",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "relay mode: no platform-api / mcp role bundle installed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "no installed input carries a DigitalOcean /platform-policy mirror literal",
+   "ok": true,
+   "detail": []
+  }
+ ],
+ "ok": true,
+ "entries": {
+  "image": 29080,
+  "base": 29029,
+  "added": [
+   "app/client",
+   "app/client/lease-executor-authority.mjs",
+   "app/client/lease-executor-client.mjs",
+   "app/metal",
+   "app/metal/guest",
+   "app/metal/guest/owner-nomination.mjs",
+   "app/network",
+   "app/network/canonical.mjs",
+   "app/network/directory-client.mjs",
+   "app/network/host-capacity-producer.mjs",
+   "app/network/host-capacity-record.mjs",
+   "app/network/host-owner-nomination.mjs",
+   "app/network/host-policy-adapters.mjs",
+   "app/network/lease-executor-authority.mjs",
+   "app/network/lease-executor-client.mjs",
+   "app/network/lease-gas-owner.mjs",
+   "app/network/lease-gas-runtime.mjs",
+   "app/network/lease-relay-discovery.mjs",
+   "app/network/lease-release-journal.mjs",
+   "app/network/network-authorities.mjs",
+   "app/network/network-policy-core.mjs",
+   "app/network/network-policy.mjs",
+   "app/network/provider-directory.mjs",
+   "app/network/provider-qualification.mjs",
+   "app/network/registry-reconcile.mjs",
+   "app/network/route-record.mjs",
+   "app/network/rpc-identity.mjs",
+   "app/network/service-index.mjs",
+   "app/relay/attestation-paths.mjs",
+   "app/relay/net-guard.mjs",
+   "app/sdk",
+   "app/sdk/bootstrap",
+   "app/sdk/bootstrap/package.mjs",
+   "app/sdk/bootstrap/storage.mjs",
+   "app/sdk/storage",
+   "app/sdk/storage/gateways.mjs",
+   "app/sdk/storage/replicas.mjs",
+   "app/sdk/storage/upload-auth.mjs",
+   "app/site",
+   "app/site/js",
+   "app/site/js/core",
+   "app/site/js/core/upload-auth.js",
+   "app/windows",
+   "app/windows/node",
+   "app/windows/node/host-admission.bundle.mjs",
+   "app/windows/node/session-api-auth.mjs",
+   "app/windows/node/verification-checkpoints.mjs",
+   "opt/metal/host-policy.bundle.mjs",
+   "opt/metal/lease-gas-conduit.bundle.mjs",
+   "opt/metal/measured-control.mjs",
+   "opt/metal/owner-nomination.mjs"
+  ],
+  "addedDirectories": [
+   "app/client",
+   "app/metal",
+   "app/metal/guest",
+   "app/network",
+   "app/sdk",
+   "app/sdk/bootstrap",
+   "app/sdk/storage",
+   "app/site",
+   "app/site/js",
+   "app/site/js/core",
+   "app/windows",
+   "app/windows/node"
+  ]
+ },
+ "doMirrorLiteralsInOtherBaseFiles (informational; base bytes, not inputs)": [],
+ "flavorEnv (base, informational)": {
+  "present": true,
+  "sha256": "9d901ae3969f0cadafdd65e8abd4515ae4608dbd890e722294135bbdaec807f5",
+  "keys": 37,
+  "platformPolicyKeys": [],
+  "CHAIN_ID": "8453",
+  "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907"
+ },
+ "extracted": 18750
+}

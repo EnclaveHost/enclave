@@ -1,0 +1,90 @@
+From 862f65493faad2f99e568a752951dc999f10fa27 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 21:53:06 -0700
+Subject: [PATCH 2/3] Host services: test the transport's own late-startup
+ withdrawal (settle bound as an option)
+
+Mutant M1, which removed the transport's check after runtime.start(), survived the first suite. close()'s second
+withdraw pass masks it while the cancelled round settles within the bound.
+
+The check still decides two cases:
+- a late circuit never counts as up;
+- a startup that outlives the stop's settle bound is withdrawn and closed when it finally answers.
+
+settleMs (default 90 s, unchanged) is now a constructor option, so a test can reach the second case. Two assertions
+cover both cases.
+---
+ network/host-service-transport.mjs   |  8 ++++----
+ test/host-service-lifecycle.test.mjs | 25 ++++++++++++++++++++++++-
+ 2 files changed, 28 insertions(+), 5 deletions(-)
+
+diff --git a/network/host-service-transport.mjs b/network/host-service-transport.mjs
+index 81bc255a5271ab48f3bc69d5bffcd42595e41a4c..35fd331cdf0f28e626b9348807c8fdea4a98207e 100644
+--- a/network/host-service-transport.mjs
++++ b/network/host-service-transport.mjs
+@@ -62,9 +62,9 @@ export function tlsReady({ port, servername, roots, timeoutMs = 3000, host = '12
+ export class HostServiceTransport {
+   // runtime: WgCircuitRuntime (with serviceWorkerModule); providers(): verified provider records (eligibleRoles,
+   // qualifiedUntil); grants: WgGrants (revoke); hostId: this host's registry id (the runner)
+-  constructor({ runtime, providers, grants, hostId, config, now = Date.now, log = () => {} }) {
++  constructor({ runtime, providers, grants, hostId, config, now = Date.now, log = () => {}, settleMs = SETTLE_MS }) {
+     const c = validateHostServicesTransport(config);
+-    Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log });
++    Object.assign(this, { runtime, providers, grants, hostId: String(hostId).toLowerCase(), config: c, now, log, settleMs });
+     const all = hostServiceNames(this.hostId, c.zone);
+     // the exit grants every derived name (plus the challenge origin when its operator opted in); only the configured roles answer
+     const chal = c.tls?.challengePort !== undefined ? hostChallengeName(this.hostId, c.zone) : null;
+@@ -167,9 +167,9 @@ export class HostServiceTransport {
+       for (const id of [...this.circuits.keys()]) await this.drop(id, 'stopped');
+       const run = this.running;
+       if (run) {
+-        let t; const settled = await Promise.race([run.then(() => true, () => true), new Promise((r) => { t = setTimeout(() => r(false), SETTLE_MS); t.unref?.(); })]);
++        let t; const settled = await Promise.race([run.then(() => true, () => true), new Promise((r) => { t = setTimeout(() => r(false), this.settleMs); t.unref?.(); })]);
+         clearTimeout(t);
+-        if (!settled) this.log(`host service circuit startup still running ${SETTLE_MS / 1000} s after the stop: it is withdrawn and closed when it ends`);
++        if (!settled) this.log(`host service circuit startup still running ${this.settleMs / 1000} s after the stop: it is withdrawn and closed when it ends`);
+       }
+       for (const id of [...this.circuits.keys()]) await this.drop(id, 'stopped');
+     })();
+diff --git a/test/host-service-lifecycle.test.mjs b/test/host-service-lifecycle.test.mjs
+index 507724374947a150cd093173b34c53184bb09657..b40d5b25773389736af70deb61d4fb3f99562721 100644
+--- a/test/host-service-lifecycle.test.mjs
++++ b/test/host-service-lifecycle.test.mjs
+@@ -322,8 +322,9 @@ test('root probe shape (a runtime that ignores the stop): the late circuit is wi
+   const runtime = { start: async (opts) => { options = opts; begin(); await new Promise((r) => { release = r; });
+     circuit = Object.assign(new EventEmitter(), { closed: false, providers: { guard: opts.guard, exit: opts.exit }, service: { control: '127.0.0.1:1', exitKey: 'test' }, close: async () => { circuit.closed = true; } });
+     return circuit; } };
++  const lines = [];
+   const transport = new HostServiceTransport({ runtime, providers: async () => [guard, exit], grants: { revoke: async () => { revokes++; } }, hostId: HOST,
+-    config: { zone: ZONE, exits: [exit.providerId], ports: { 'directory-replica': 18188 } } });
++    config: { zone: ZONE, exits: [exit.providerId], ports: { 'directory-replica': 18188 } }, log: (m) => lines.push(m) });
+   const starting = transport.start();
+   await began;
+   const closing = transport.close();
+@@ -334,4 +335,26 @@ test('root probe shape (a runtime that ignores the stop): the late circuit is wi
+   assert.equal(transport.circuits.size, 0, 'nothing inserted after close');
+   assert.equal(revokes, 1, 'its grant withdrawn');
+   assert.equal(transport.timer, null, 'no timer created after close');
++  assert.ok(!lines.some((l) => /circuit up/.test(l)), 'the late circuit never counted as up');
++});
++
++test('a startup that outlives the stop\'s settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers', { timeout: 30_000 }, async () => {
++  const { EventEmitter } = await import('node:events');
++  const provider = (id, address, roles) => ({ providerId: id, address, eligibleRoles: roles, pricePerGiB6: 0, qualifiedUntil: Date.now() + 60000, wgExitKey: 'exit-test', wgGuardKey: 'guard-test' });
++  const exit = provider('e1'.repeat(16), '192.0.2.1', ['ingress']), guard = provider('a1'.repeat(16), '192.0.2.2', ['guard']);
++  let release, circuit, revokes = 0; const began = deferred(), lines = [];
++  const runtime = { start: async (opts) => { began.resolve(); await new Promise((r) => { release = r; });
++    circuit = Object.assign(new EventEmitter(), { closed: false, providers: { guard: opts.guard, exit: opts.exit }, service: { control: '127.0.0.1:1', exitKey: 'late' }, close: async () => { circuit.closed = true; } });
++    return circuit; } };
++  const transport = new HostServiceTransport({ runtime, providers: async () => [guard, exit], grants: { revoke: async () => { revokes++; } }, hostId: HOST, settleMs: 200,
++    config: { zone: ZONE, exits: [exit.providerId], ports: { 'directory-replica': 18188 } }, log: (m) => lines.push(m) });
++  const starting = transport.start();
++  await began;
++  await transport.close();                                   // resolves at the 200-ms bound; the startup is still running
++  assert.ok(lines.some((l) => /still running 0.2 s after the stop/.test(l)), lines.join('\n'));
++  release(); await starting;
++  assert.equal(circuit.closed, true, 'the late circuit is closed when it answers');
++  assert.equal(revokes, 1, 'and its grant withdrawn');
++  assert.equal(transport.circuits.size, 0); assert.equal(transport.timer, null);
++  assert.ok(!lines.some((l) => /circuit up/.test(l)));
+ });

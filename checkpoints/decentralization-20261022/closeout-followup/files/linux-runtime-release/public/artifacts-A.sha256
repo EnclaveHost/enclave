@@ -1,0 +1,5 @@
+a33bee3cf2aeadb7ee087a334a15f72c5c526b50d430f0cf3571a262bdee7cb5  <build>/image/dist-linux-fec43a6a0/MEASUREMENT
+d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  <build>/image/dist-linux-fec43a6a0/cmdline
+5d5de3dde3ddfe3ea502e583e583cafa3444c49c83fffa4140a2f134af35a91c  <build>/image/dist-linux-fec43a6a0/initramfs.cpio.gz
+8a0defe0d40e096fbd82f327caed2b123c9bfc4472ff88aec3abdef41f691d04  <build>/image/dist-linux-fec43a6a0/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  <build>/image/dist-linux-fec43a6a0/vmlinuz

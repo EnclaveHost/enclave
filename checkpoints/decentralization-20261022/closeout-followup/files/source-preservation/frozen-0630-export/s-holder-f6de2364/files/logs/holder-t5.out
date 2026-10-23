@@ -1,0 +1,59 @@
+[queue] START available=24807MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+c98de6bf2f2efb09dd03c43e46b79f405cdd49674d0e30d0a910584ae83483da  holder.py
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+d1736597d78c5fbfadf92f37018653147e5153d1d75728c4fdfd4dc875974920  holder.example.json
+fb418882533dc8eedd53a62a6d4e70a57a82d9bca03ec56087deb58e550d3823  test/mutate.py
+6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
+392b6bb2a7295a4c53b435463b7e0134823e6f0220eb58c65ffe5e66b599dc29  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... ok
+test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py:263: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/2717426/stat' mode='r' encoding='UTF-8'>
+  return open(f'/proc/{pid}/stat').read().split()[2] != 'Z'
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... ok
+test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations) ... ok
+test_example_is_not_deployable_until_the_binary_is_pinned (__main__.Validation.test_example_is_not_deployable_until_the_binary_is_pinned) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 14.894s
+
+OK
+SUITE_RC=0
+=== inherit-env KILLED
+  FAIL: test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop)
+  FAIL: test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed)
+=== public-http KILLED
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+=== allow-writeback KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='writethrough')
+=== cap-off-by-slack KILLED
+  FAIL: test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations)
+  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
+=== no-group-reap KILLED
+  FAIL: test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped)
+=== no-pdeathsig KILLED
+  FAIL: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+=== trust-l1 KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='trustRpc')
+=== verifier-port KILLED
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+killed 8/8
+MUT_RC=0
+[memory-guard] exit=0 peakTreeRssMiB=112 minHostAvailableMiB=22745
+[memory-guard] at peak: python3:30 python3:26 python3:25 python3:17 bash:6 sleep:4 timeout:4
+[queue] EXIT 0

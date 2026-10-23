@@ -1,0 +1,7 @@
+[queue] START available=24169MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 2284 performance-tuning
+200 8841 snapshots
+200 11142 run-a-node
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24123
+[memory-guard] at peak: curl:16 fetch-docs.sh:6
+[queue] EXIT 0

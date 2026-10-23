@@ -1,0 +1,294 @@
+# witness-failover DEADLINE stage: terminal evidence (digest of logs/; full logs stay local). Exit 98 runs not listed.
+
+## js-deadline-r1.out  sha256 3d6e0f3c0f10a4b16b2b8d33ea8efc41429e75e0521ddc67f29edb70d00135be  bytes 8861  -- 6/11: default cacheTimeoutMs (1000) failed validation against short deadlines (my bug) -> default min(1000, deadlineMs)
+    [queue] START available=24823MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    not ok 1 - ROOT REPRO: 3 concurrent reads, maxInFlight 1, deadline 150 ms: nothing starts after its deadline, no success after it
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:51:1'
+      error: 'invalid cacheTimeoutMs'
+    ok 2 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+    not ok 3 - a request that expired in the queue never reaches the upstream; a running one returns no late success and its fetch is aborted
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:74:1'
+      error: 'invalid cacheTimeoutMs'
+    not ok 4 - SEAM: a custom fetch that ignores abort keeps its slot until it settles, but its late answer is never served
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:89:1'
+      error: 'invalid cacheTimeoutMs'
+    not ok 5 - a transaction is never sent to another upstream after the deadline, and no late result is returned (fake HTTP only)
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:106:1'
+      error: 'invalid cacheTimeoutMs'
+    ok 6 - SEAM: a hanging cache read is skipped after cacheTimeoutMs and a hanging cache write never delays a verified read
+    ok 7 - real shared helper: one caller's abort drops only its check; a concurrent read is verified; close() is terminal
+    not ok 8 - SEAM: a helper check that hangs for one request is cut at that request's deadline; a concurrent read is unaffected
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:168:1'
+      error: 'invalid cacheTimeoutMs'
+    ok 9 - gateway close(): queued and running requests end promptly, queued ones never reach an upstream, new work is refused
+    ok 10 - root store close(): an in-flight poll is aborted, a late answer binds nothing, and no new poll or check is made
+    ok 11 - shared ancestry walk: one caller giving up does not cancel it for another; when the last caller goes, the walk stops
+    # tests 11
+    # pass 6
+    # fail 5
+    # skipped 0
+    # duration_ms 41291.680822
+    [memory-guard] exit=1 peakTreeRssMiB=164 minHostAvailableMiB=24536
+    [memory-guard] at peak: node:87 node:58 witness-check:8 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## js-deadline-r2.out  sha256 476d48c124974bc37fbb3fdb0f7057c5d6d9db3dd644d005984c73a4bae525c1  bytes 6562  -- 9/11: behaviour correct but deadline refusals sometimes classified as upstream failures (timer race) -> expiry by time too
+    [queue] START available=24750MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    not ok 1 - ROOT REPRO: 3 concurrent reads, maxInFlight 1, deadline 150 ms: nothing starts after its deadline, no success after it
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:51:1'
+      error: 'reply 2'
+      expected:
+      actual: 'no witness source answered: http://127.0.0.1:35137: The operation was aborted due to timeout'
+    ok 2 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+    not ok 3 - a request that expired in the queue never reaches the upstream; a running one returns no late success and its fetch is aborted
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:74:1'
+      error: |-
+      expected:
+      actual:
+    ok 4 - SEAM: a custom fetch that ignores abort keeps its slot until it settles, but its late answer is never served
+    ok 5 - a transaction is never sent to another upstream after the deadline, and no late result is returned (fake HTTP only)
+    ok 6 - SEAM: a hanging cache read is skipped after cacheTimeoutMs and a hanging cache write never delays a verified read
+    ok 7 - real shared helper: one caller's abort drops only its check; a concurrent read is verified; close() is terminal
+    ok 8 - SEAM: a helper check that hangs for one request is cut at that request's deadline; a concurrent read is unaffected
+    ok 9 - gateway close(): queued and running requests end promptly, queued ones never reach an upstream, new work is refused
+    ok 10 - root store close(): an in-flight poll is aborted, a late answer binds nothing, and no new poll or check is made
+    ok 11 - shared ancestry walk: one caller giving up does not cancel it for another; when the last caller goes, the walk stops
+    # tests 11
+    # pass 9
+    # fail 2
+    # skipped 0
+    # duration_ms 42896.366173
+    [memory-guard] exit=1 peakTreeRssMiB=166 minHostAvailableMiB=24320
+    [memory-guard] at peak: node:89 node:58 witness-check:8 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## js-deadline-r3.out  sha256 2ae224ea0a5923567cecc088c8510cb82e64d76c1cb9af371d182e6a64560a33  bytes 5435  -- 10/11: a queued request granted ~1 ms before its deadline still sent a try -> minTryMs 25
+    [queue] START available=24398MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - ROOT REPRO: 3 concurrent reads, maxInFlight 1, deadline 150 ms: nothing starts after its deadline, no success after it
+    ok 2 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+    not ok 3 - a request that expired in the queue never reaches the upstream; a running one returns no late success and its fetch is aborted
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-deadline.test.mjs:74:1'
+      error: |-
+      expected: 1
+      actual: 2
+    ok 4 - SEAM: a custom fetch that ignores abort keeps its slot until it settles, but its late answer is never served
+    ok 5 - a transaction is never sent to another upstream after the deadline, and no late result is returned (fake HTTP only)
+    ok 6 - SEAM: a hanging cache read is skipped after cacheTimeoutMs and a hanging cache write never delays a verified read
+    ok 7 - real shared helper: one caller's abort drops only its check; a concurrent read is verified; close() is terminal
+    ok 8 - SEAM: a helper check that hangs for one request is cut at that request's deadline; a concurrent read is unaffected
+    ok 9 - gateway close(): queued and running requests end promptly, queued ones never reach an upstream, new work is refused
+    ok 10 - root store close(): an in-flight poll is aborted, a late answer binds nothing, and no new poll or check is made
+    ok 11 - shared ancestry walk: one caller giving up does not cancel it for another; when the last caller goes, the walk stops
+    # tests 11
+    # pass 10
+    # fail 1
+    # skipped 0
+    # duration_ms 42158.392677
+    [memory-guard] exit=1 peakTreeRssMiB=166 minHostAvailableMiB=24242
+    [memory-guard] at peak: node:88 node:59 witness-check:8 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## js-deadline-r4.out  sha256 202c872837ac2f2eeda6d06c813490dc66cb9eb42b43cdf3e81cc74e5e03b74f  bytes 4734  -- witness-deadline 11/11 (root repro + negative control on 7b4e8c68)
+    [queue] START available=24675MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - ROOT REPRO: 3 concurrent reads, maxInFlight 1, deadline 150 ms: nothing starts after its deadline, no success after it
+    ok 2 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+    ok 3 - a request that expired in the queue never reaches the upstream; a running one returns no late success and its fetch is aborted
+    ok 4 - SEAM: a custom fetch that ignores abort keeps its slot until it settles, but its late answer is never served
+    ok 5 - a transaction is never sent to another upstream after the deadline, and no late result is returned (fake HTTP only)
+    ok 6 - SEAM: a hanging cache read is skipped after cacheTimeoutMs and a hanging cache write never delays a verified read
+    ok 7 - real shared helper: one caller's abort drops only its check; a concurrent read is verified; close() is terminal
+    ok 8 - SEAM: a helper check that hangs for one request is cut at that request's deadline; a concurrent read is unaffected
+    ok 9 - gateway close(): queued and running requests end promptly, queued ones never reach an upstream, new work is refused
+    ok 10 - root store close(): an in-flight poll is aborted, a late answer binds nothing, and no new poll or check is made
+    ok 11 - shared ancestry walk: one caller giving up does not cancel it for another; when the last caller goes, the walk stops
+    # tests 11
+    # pass 11
+    # fail 0
+    # skipped 0
+    # duration_ms 42453.936312
+    [memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=24494
+    [memory-guard] at peak: node:88 node:58 witness-check:8 witness-check:7 timeout:4
+    [queue] EXIT 0
+
+## js-all-r6.out  sha256 e94a624a780210cacb325c38c46902cb138ebdfb8dbbedadc75cdc1c6c0f426b  bytes 27469  -- 57/60 + 2 skip, 1 FAIL: old hung-sources test expected a source verdict; now (correctly) a deadline refusal -> assertion updated
+    [queue] START available=24650MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - the fixture is what it claims: two providers agreed on the block and on every call both answered
+    ok 2 - offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result
+    ok 3 - a call whose witnesses were never recorded fails closed: no unchecked answer, no provider
+    ok 4 - control: the earlier compat build (op-revm, Prague rules) still refuses Base execution
+    ok 5 - shipped default of the Base build: execution follows the configured fork horizon
+    ok 6 - Helios historical path: a forged first block (self-claimed hash) is refused and the real full block is served
+    # verifying gateway: {"upstream":{"http://127.0.0.1:45653":{"ok":0,"failed":6,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":0,"blockInvalid":1,"blockNull":0},"http://127.0.0.1:38225":{"ok":0,"failed":6,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":1,"blockInvalid":0,"blockNull":0}},"cacheHits":0,"cachePuts":0,"cacheInvalid":0,"refused":{},"unavailable":6,"unauthenticatedBlock":0,"verifierUnavailable":0,"blocksFull":1,"blocksHeaderOnly":0,"deadlineExceeded":0,"queueFull":0,"cacheTimeouts":0,"cacheSkipped":0,"cachePutSkipped":0,"closedRefusals":0,"quarantined":0,"active":0,"queued":0,"cacheReads":0,"cacheWrites":0,"closed":false}; requests: [["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_ge
+    ok 7 - FAILED CONTROL: with plain first-answer failover the forged block is what Helios receives
+    # CONTROL gateway: {"upstream":{"http://127.0.0.1:38097":{"ok":1,"failed":5,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":0,"blockInvalid":0,"blockNull":0},"http://127.0.0.1:43733":{"ok":0,"failed":5,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":0,"blockInvalid":0,"blockNull":0}},"cacheHits":0,"cachePuts":0,"cacheInvalid":0,"refused":{"eth_getProof":1},"unavailable":5,"unauthenticatedBlock":0,"verifierUnavailable":0,"blocksFull":0,"blocksHeaderOnly":0,"deadlineExceeded":0,"queueFull":0,"cacheTimeouts":0,"cacheSkipped":0,"cachePutSkipped":0,"closedRefusals":0,"quarantined":0,"active":0,"queued":0,"cacheReads":0,"cacheWrites":0,"closed":false}; requests: [["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["h
+    ok 8 - real heads: the real Base signature verifies in the helper and in Helios, and each canonical hash equals its signed hash
+    ok 9 - cold gateway, real block Helios has moved past: Helios takes its EIP-2935 path (proof at the signed head 106, verified and refused here); the gateway recovers 80 by authenticated ancestry from real head 106
+    ok 10 - real proofs at the recovered real root (needs a recording with verified entries) # SKIP no real proofs recorded: no source served a verifiable proof at the target block (base.gateway.tenderly.co: rpc-error -32005: rate limit exceeded; mainnet.base.org: failed: The operation was aborted due to timeout)
+    ok 11 - a lying first source cannot deny service: every real call still matches the providers, and only verified witnesses are cached
+    ok 12 - every source gone: a fresh cache-only gateway serves the verified witnesses and refuses everything else
+    ok 13 - with only the lying source, Helios gets refusals and nothing is cached
+    ok 14 - cold gateway, missed confirmed block: the root is recovered by authenticated ancestry and real proofs verify (synthetic authority)
+    ok 15 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    ok 16 - a tampered witness is rejected by the verifier, never returned
+    ok 17 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    ok 18 - a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work
+    ok 19 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction # SKIP HELIOS_STOCK_BIN not set
+    ok 20 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    ok 21 - fixture: the 52 canonical headers re-derive from the exact signed gossip objects, hash to their signed block hashes and link
+    ok 22 - cold start: only the latest head was seen; a missed confirmed block is recovered by authenticated ancestry and a forged first header costs only that try
+    ok 23 - skipped polls: a gap between two seen heads is filled from the nearer one, within maxAncestry; deeper history is refused
+    ok 24 - missing history and hostile or hung sources fail closed: refusal, never a guess
+    ok 25 - a fork, a number gap or a later parent never binds (TEST-key heads: synthetic authority)
+    ok 26 - concurrent requests for one missed block share one walk
+    ok 27 - push interface: heads offered by a head source (e.g. the gossip bridge) are verified independently, then anchor recovery
+    ok 28 - real full blocks derived from the 52 signed gossip objects verify under Helios validate_block and hash to their canonical hashes
+    ok 29 - a wrong first source costs only its try: forged, mutated and wrong-body blocks are refused, the real block is served
+    ok 30 - FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served
+    ok 31 - null, oversize, hung and unavailable-verifier answers are bounded and fail closed
+    ok 32 - BOUNDARY: a hash-only answer (fullTx=false) is header-verified only; a wrong transaction-hash list is NOT detected
+    ok 33 - ROOT REPRO: 3 concurrent reads, maxInFlight 1, deadline 150 ms: nothing starts after its deadline, no success after it
+    ok 34 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+    ok 35 - a request that expired in the queue never reaches the upstream; a running one returns no late success and its fetch is aborted
+    ok 36 - SEAM: a custom fetch that ignores abort keeps its slot until it settles, but its late answer is never served
+    ok 37 - a transaction is never sent to another upstream after the deadline, and no late result is returned (fake HTTP only)
+    ok 38 - SEAM: a hanging cache read is skipped after cacheTimeoutMs and a hanging cache write never delays a verified read
+    ok 39 - real shared helper: one caller's abort drops only its check; a concurrent read is verified; close() is terminal
+    ok 40 - SEAM: a helper check that hangs for one request is cut at that request's deadline; a concurrent read is unaffected
+    ok 41 - gateway close(): queued and running requests end promptly, queued ones never reach an upstream, new work is refused
+    ok 42 - root store close(): an in-flight poll is aborted, a late answer binds nothing, and no new poll or check is made
+    ok 43 - shared ancestry walk: one caller giving up does not cancel it for another; when the last caller goes, the walk stops
+    ok 44 - roots come only from a signed head verified by the native helper; a wrong signer yields no root and a refusal
+    ok 45 - root's probe: a malformed first answer costs only that try; the second source's valid proof is served and cached
+    ok 46 - cryptographically invalid but well-formed answers are refused, each in favour of the next source
+    ok 47 - valid proofs need not be byte-identical: a differently encoded valid answer is accepted on its merits
+    ok 48 - the cache: a bad first write never shadows a verified entry; cache-only later serves verified data and quarantines the rest
+    ok 49 - cache entries are content-addressed, create-only and bound to their request
+    ok 50 - requests not pinned by block hash are refused; every refusal is an error, never an unchecked answer
+    not ok 51 - bounds: oversized bodies are cut off while reading, hung sources cost one timeout, the request deadline holds
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/witness-failover.test.mjs:198:1'
+      error: |-
+      expected:
+      actual: 'request deadline exceeded: refused'
+    ok 52 - bounds: upstream requests in flight are capped across a batch
+    ok 53 - an unavailable or hung verifier fails closed: refusal, never the unverified answer
+    ok 54 - only block-hash-pinned proof and code requests are cache keys
+    ok 55 - methods outside the witness allowlist are refused without touching an upstream
+    ok 56 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 57 - witness methods and a cache are refused without a verifier: there is no unverified witness mode
+    ok 58 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 59 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 60 - configuration refuses plain-http public upstreams and duplicates
+    # tests 60
+    # pass 57
+    # fail 1
+    # skipped 2
+    # duration_ms 292527.51245
+    [memory-guard] exit=1 peakTreeRssMiB=263 minHostAvailableMiB=24121
+    [memory-guard] at peak: node:93 node:62 helios-eeffcc9:44 anvil:28 anvil:25 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## js-all-r7.out  sha256 18d5ac2ae940165ffcf9d1676abe326170069853130ec2b4adc53e4c61a3f2d3  bytes 26491  -- FINAL: 10 gateway/root/Helios files, 58 pass, 2 skip, 0 fail, offline
+    [queue] START available=24703MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - the fixture is what it claims: two providers agreed on the block and on every call both answered
+    ok 2 - offline, from verified witnesses only, the Base EVM reproduces every provider eth_call result
+    ok 3 - a call whose witnesses were never recorded fails closed: no unchecked answer, no provider
+    ok 4 - control: the earlier compat build (op-revm, Prague rules) still refuses Base execution
+    ok 5 - shipped default of the Base build: execution follows the configured fork horizon
+    ok 6 - Helios historical path: a forged first block (self-claimed hash) is refused and the real full block is served
+    # verifying gateway: {"upstream":{"http://127.0.0.1:43181":{"ok":0,"failed":6,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":0,"blockInvalid":1,"blockNull":0},"http://127.0.0.1:38591":{"ok":0,"failed":6,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":1,"blockInvalid":0,"blockNull":0}},"cacheHits":0,"cachePuts":0,"cacheInvalid":0,"refused":{},"unavailable":6,"unauthenticatedBlock":0,"verifierUnavailable":0,"blocksFull":1,"blocksHeaderOnly":0,"deadlineExceeded":0,"queueFull":0,"cacheTimeouts":0,"cacheSkipped":0,"cachePutSkipped":0,"closedRefusals":0,"quarantined":0,"active":0,"queued":0,"cacheReads":0,"cacheWrites":0,"closed":false}; requests: [["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_ge
+    ok 7 - FAILED CONTROL: with plain first-answer failover the forged block is what Helios receives
+    # CONTROL gateway: {"upstream":{"http://127.0.0.1:45997":{"ok":1,"failed":5,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":0,"blockInvalid":0,"blockNull":0},"http://127.0.0.1:44293":{"ok":0,"failed":5,"invalid":0,"headerOk":0,"headerInvalid":0,"blockOk":0,"blockInvalid":0,"blockNull":0}},"cacheHits":0,"cachePuts":0,"cacheInvalid":0,"refused":{"eth_getProof":1},"unavailable":5,"unauthenticatedBlock":0,"verifierUnavailable":0,"blocksFull":0,"blocksHeaderOnly":0,"deadlineExceeded":0,"queueFull":0,"cacheTimeouts":0,"cacheSkipped":0,"cachePutSkipped":0,"closedRefusals":0,"quarantined":0,"active":0,"queued":0,"cacheReads":0,"cacheWrites":0,"closed":false}; requests: [["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ed8\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["honest","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["liar","eth_getBlockByNumber","[\\"0x3282ef2\\",true]"],["h
+    ok 8 - real heads: the real Base signature verifies in the helper and in Helios, and each canonical hash equals its signed hash
+    ok 9 - cold gateway, real block Helios has moved past: Helios takes its EIP-2935 path (proof at the signed head 106, verified and refused here); the gateway recovers 80 by authenticated ancestry from real head 106
+    ok 10 - real proofs at the recovered real root (needs a recording with verified entries) # SKIP no real proofs recorded: no source served a verifiable proof at the target block (base.gateway.tenderly.co: rpc-error -32005: rate limit exceeded; mainnet.base.org: failed: The operation was aborted due to timeout)
+    ok 11 - a lying first source cannot deny service: every real call still matches the providers, and only verified witnesses are cached
+    ok 12 - every source gone: a fresh cache-only gateway serves the verified witnesses and refuses everything else
+    ok 13 - with only the lying source, Helios gets refusals and nothing is cached
+    ok 14 - cold gateway, missed confirmed block: the root is recovered by authenticated ancestry and real proofs verify (synthetic authority)
+    ok 15 - patched Helios follows the signed head and returns proof-verified Enclave contract state
+    ok 16 - a tampered witness is rejected by the verifier, never returned
+    ok 17 - wrong-signer heads are ignored; a signed head with a 0x79 transaction is refused without killing the patched verifier
+    ok 18 - a Denim-era block (beyond the validated Base horizon) refuses execution while proof reads still work
+    ok 19 - stock Helios 0.12.0 (comparison only): executes eth_call under the wrong spec and dies on a 0x79 transaction # SKIP HELIOS_STOCK_BIN not set
+    ok 20 - outage of EVERY execution source: a restarted verifier still proves state for the pinned block from the witness cache; anything else and any tx refuse
+    ok 21 - fixture: the 52 canonical headers re-derive from the exact signed gossip objects, hash to their signed block hashes and link
+    ok 22 - cold start: only the latest head was seen; a missed confirmed block is recovered by authenticated ancestry and a forged first header costs only that try
+    ok 23 - skipped polls: a gap between two seen heads is filled from the nearer one, within maxAncestry; deeper history is refused
+    ok 24 - missing history and hostile or hung sources fail closed: refusal, never a guess
+    ok 25 - a fork, a number gap or a later parent never binds (TEST-key heads: synthetic authority)
+    ok 26 - concurrent requests for one missed block share one walk
+    ok 27 - push interface: heads offered by a head source (e.g. the gossip bridge) are verified independently, then anchor recovery
+    ok 28 - real full blocks derived from the 52 signed gossip objects verify under Helios validate_block and hash to their canonical hashes
+    ok 29 - a wrong first source costs only its try: forged, mutated and wrong-body blocks are refused, the real block is served
+    ok 30 - FAILED CONTROL: without verification (no proofs: plain first-answer failover) the forged block IS served
+    ok 31 - null, oversize, hung and unavailable-verifier answers are bounded and fail closed
+    ok 32 - BOUNDARY: a hash-only answer (fullTx=false) is header-verified only; a wrong transaction-hash list is NOT detected
+    ok 33 - ROOT REPRO: 3 concurrent reads, maxInFlight 1, deadline 150 ms: nothing starts after its deadline, no success after it
+    ok 34 - NEGATIVE CONTROL: the exact 7b4e8c68 gateway reproduces root's violation
+    ok 35 - a request that expired in the queue never reaches the upstream; a running one returns no late success and its fetch is aborted
+    ok 36 - SEAM: a custom fetch that ignores abort keeps its slot until it settles, but its late answer is never served
+    ok 37 - a transaction is never sent to another upstream after the deadline, and no late result is returned (fake HTTP only)
+    ok 38 - SEAM: a hanging cache read is skipped after cacheTimeoutMs and a hanging cache write never delays a verified read
+    ok 39 - real shared helper: one caller's abort drops only its check; a concurrent read is verified; close() is terminal
+    ok 40 - SEAM: a helper check that hangs for one request is cut at that request's deadline; a concurrent read is unaffected
+    ok 41 - gateway close(): queued and running requests end promptly, queued ones never reach an upstream, new work is refused
+    ok 42 - root store close(): an in-flight poll is aborted, a late answer binds nothing, and no new poll or check is made
+    ok 43 - shared ancestry walk: one caller giving up does not cancel it for another; when the last caller goes, the walk stops
+    ok 44 - roots come only from a signed head verified by the native helper; a wrong signer yields no root and a refusal
+    ok 45 - root's probe: a malformed first answer costs only that try; the second source's valid proof is served and cached
+    ok 46 - cryptographically invalid but well-formed answers are refused, each in favour of the next source
+    ok 47 - valid proofs need not be byte-identical: a differently encoded valid answer is accepted on its merits
+    ok 48 - the cache: a bad first write never shadows a verified entry; cache-only later serves verified data and quarantines the rest
+    ok 49 - cache entries are content-addressed, create-only and bound to their request
+    ok 50 - requests not pinned by block hash are refused; every refusal is an error, never an unchecked answer
+    ok 51 - bounds: oversized bodies are cut off while reading, hung sources cost one timeout, the request deadline holds
+    ok 52 - bounds: upstream requests in flight are capped across a batch
+    ok 53 - an unavailable or hung verifier fails closed: refusal, never the unverified answer
+    ok 54 - only block-hash-pinned proof and code requests are cache keys
+    ok 55 - methods outside the witness allowlist are refused without touching an upstream
+    ok 56 - upstreams are tried in order; a failed or erroring one costs a try, not the answer
+    ok 57 - witness methods and a cache are refused without a verifier: there is no unverified witness mode
+    ok 58 - a transaction goes to every upstream; with every upstream down nothing is sent and the caller is told
+    ok 59 - the HTTP endpoint is loopback-only, bounds bodies and answers batches
+    ok 60 - configuration refuses plain-http public upstreams and duplicates
+    # tests 60
+    # pass 58
+    # fail 0
+    # skipped 2
+    # duration_ms 293198.948209
+    [memory-guard] exit=0 peakTreeRssMiB=255 minHostAvailableMiB=23978
+    [memory-guard] at peak: node:84 node:61 helios-eeffcc9:45 anvil:29 anvil:25 witness-check:7 timeout:4
+    [queue] EXIT 0
+
+## scan-5.out  sha256 8134f408df1f5106c96ef8decb43880d019baaadb652489ea8e1cdc5cf675140  bytes 685  -- range scan of the deadline commit
+    [queue] START available=24350MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    10:15PM INF 1 commits scanned.
+    10:15PM INF no leaks found
+    [scan] repo scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=24311
+    [memory-guard] at peak: gitleaks:50 scan-deadline.s:6 timeout:4
+    [queue] EXIT 0

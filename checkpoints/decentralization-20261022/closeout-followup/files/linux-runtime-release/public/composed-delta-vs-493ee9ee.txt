@@ -1,0 +1,12 @@
+ ROOT-REVIEW.md                                    |  15 +
+ egress.js                                         |   8 +-
+ supervisor.js                                     | 330 ++++++++++++++++-----
+ test/adopt-pending-stop.test.mjs                  |  45 +++
+ test/egress.test.mjs                              |  19 +-
+ test/helpers/supervisor-wallet-fixture.mjs        | 114 ++++++++
+ test/pool-reconcile.test.mjs                      |  13 +
+ test/supervisor-wallet-policy.test.mjs            |   9 +-
+ test/supervisor-wallet-real-lease-client.test.mjs | 103 +++++++
+ test/supervisor-wallet-unknown-hold.test.mjs      | 340 ++++++++++++++++++++++
+ test/tenant-provision-race.test.mjs               |   2 +-
+ 11 files changed, 925 insertions(+), 73 deletions(-)

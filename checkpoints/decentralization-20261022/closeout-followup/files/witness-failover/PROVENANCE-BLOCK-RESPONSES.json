@@ -1,0 +1,60 @@
+{
+ "format": "witness-failover-block-responses-provenance/v1",
+ "label": "SOURCE + OFFLINE TESTS ONLY; no recording, no network. Not deployed, merged or pushed.",
+ "enclave": {
+  "base": "7b4dd69201d00bc5649cda6bcf57b21c6197c3af",
+  "head": "7b4e8c68a91f24cdfd844f623ed4047beb17e79c",
+  "tree": "75544089f823395c21fa06dd95d251ef1f720cb4",
+  "commits": [
+   "7b4e8c68a91f24cdfd844f623ed4047beb17e79c SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Verify eth_getBlockByHash answers with failover so one faulty RPC cannot wedge historical calls"
+  ],
+  "files": {
+   "network/witness-gateway.mjs": {
+    "blob": "568989f8d5e318f20f7e0186cffe478903bb7c12",
+    "sha256": "e33d8a4bbe3b2f1e81dd632074c0b6fd9e0890ce15697f3821e10ccf37b9668c"
+   },
+   "test/helios-block-failover.e2e.test.mjs": {
+    "blob": "33745cdb01f3fbf7fb4e37949da370cb4fc3525b",
+    "sha256": "c581e6b5502d3654f17f02f8ffee5286f7fd2af7d7c6680eb04dfce231322b65"
+   },
+   "test/helios-real-history.e2e.test.mjs": {
+    "blob": "db3349a8161120da3b0fce9672c8331d81045a71",
+    "sha256": "13371af742c761c7b6f01d07c77942bf7682e80b73af3fb8d6d021bda65f81e6"
+   },
+   "test/witness-blocks.test.mjs": {
+    "blob": "cd29bb3f46f5eb3be30509d993957dfb23435d74",
+    "sha256": "b674f3fb3182315fb8eee85d08934efe3aaad32f821ecd7ddd05f5edc23c4aa7"
+   }
+  }
+ },
+ "helios": {
+  "base": "aca81764f1d41a34829a3b408cea11c5c186e9e9",
+  "head": "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5",
+  "tree": "eec339e18296d850a514f72de2efdd8729302efd",
+  "commits": [
+   "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> witness-check: verify untrusted block-by-hash answers; export real full blocks"
+  ],
+  "files": {
+   "opstack/bin/witness-check.rs": {
+    "blob": "7b9b1d070ac913209afe76528cc08013ec9b7fa9",
+    "sha256": "314af5c659e37213d50f4dab5c0a6a39fdcdf8512e26774f1dcc56c5ebdff636"
+   },
+   "opstack/src/witness_check.rs": {
+    "blob": "5d9898c1a550eab98316ab0bbcd27a96b44f1b09",
+    "sha256": "b2bba8e02a9ce72060a2efe57be4a77a88a25aca4ff1c904ea44349d00f63979"
+   }
+  },
+  "cargoLockChanged": false,
+  "newDependencies": []
+ },
+ "binaries": {
+  "witness-check": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+  "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc"
+ },
+ "realDataInputs": "fixtures/base-heads-b-live-20261023T013719Z (52 signed gossip objects, names = content sha256; see PROVENANCE-HISTORY.json)",
+ "patches": {
+  "patches/block-responses/enclave/0001-Verify-eth_getBlockByHash-answers-with-failover-so-o.patch": "caaa46bf0b979fcbb4a8be309bbb13e1f53cf7115c17841b1537b12c9388b401",
+  "patches/block-responses/helios/0001-witness-check-verify-untrusted-block-by-hash-answers.patch": "29665420791ef501e43ed04bd316923ec04fe27ee6982cd4514d137b42f5e2be"
+ }
+}

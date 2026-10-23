@@ -1,0 +1,80 @@
+{
+  "observedAt": "2026-10-23T05:23:56.842328+00:00",
+  "sourceCommit": "0757085e5b78ed38efc11920fb3cf4a25d7dfc4d",
+  "sourceFileSha256": {
+    "windows/node/chain.mjs": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+    "windows/node/agent.mjs": "e530ff3b4f60c2606b04ff2853d8f9c7403056e341e8b333ec7897c1eb8307d6",
+    "windows/node/host-identity.mjs": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668",
+    "windows/node/host-onchain.mjs": "de5f5b27edded2661318705e9c411c385fe23f689593d2c2ad7f493bc696f48b",
+    "windows/node/session-api-auth.mjs": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb",
+    "windows/node/shield-startup.mjs": "8dea4d59f2ee296fc7908e25a013240034f0da48d67bf9524a29b191becda2ca",
+    "windows/node/host-ownership.mjs": "19bcec5c27b4228a683c20d4ef0ead83a6aaeea5e3470012342aaad05ddb85f5"
+  },
+  "scope": "Read-only source audit of committed Windows candidate; no deployment or runtime consumer verification.",
+  "findings": [
+    {
+      "path": "windows/node/chain.mjs",
+      "lines": [
+        38,
+        137,
+        149,
+        171,
+        188,
+        209,
+        223,
+        227,
+        242,
+        243,
+        364,
+        373,
+        773
+      ],
+      "finding": "publicClient uses BASE_RPCS fallback including five public defaults, without selecting ENCLAVE_CHAIN_AUTHORITY. Same client handles ordinary contract reads, paged deployment enumeration, pending nonce, simulation, receipt polling, gas estimates, event logs, tx input and historic blocks. Wallet transport separately uses same public list. A pinned read snapshot cannot substitute for this full interface.",
+      "next": "Separate verified state reads and coherent multi-read snapshots from explicitly configured transaction/receipt/history capabilities. No fallback to public endpoints when verifier mode explicitly selected. Keep compatibility and truthful unavailable states; do not mark replacement complete until needed methods work."
+    },
+    {
+      "path": "windows/node/host-identity.mjs",
+      "lines": [
+        176,
+        286,
+        319
+      ],
+      "finding": "Windows has a separate quorumReader implementation and CLI check-endpoint builds rpcClients from public defaults; source comments cite missing shared bundle export.",
+      "next": "Use shared validated authority selection via shipped Windows-compatible bundle, preserve default-quorum behavior while explicit verifier selection has no raw fallback. Test shipped import/deploy-files closure and actual endpoint ownership checks."
+    },
+    {
+      "path": "windows/node/agent.mjs",
+      "lines": [
+        99,
+        101,
+        861,
+        1069
+      ],
+      "finding": "Session API uses chain publicClient at construction; bootstrap/checkpoint callers also receive it. Chain RPC URLs are passed into identity metadata.",
+      "next": "Actual caller closure must cover session revocation, delegated access and authority/admin changes coherently, without weakening local auth or misreporting RPC URLs as independent availability."
+    },
+    {
+      "path": "windows/node/host-onchain.mjs",
+      "lines": [
+        39,
+        45,
+        53,
+        77
+      ],
+      "finding": "Operator CLI constructs independent public/wallet clients and another quorumReader. Changing agent config alone does not replace these calls.",
+      "next": "Wire explicit read authority and independently configured transaction transport; preserve admin and owner rights and all app-paid lease semantics. Do not send transactions in tests."
+    },
+    {
+      "path": "network/verified-chain.mjs",
+      "finding": "Current shared pinned client supports getChainId/getBlockNumber/getBlock/readContract/getCode/getBytecode/getStorageAt/getBalance only; transactions, receipt/log/inclusion and pending nonce are separate unresolved capabilities.",
+      "next": "Reuse existing proof-backed primitives; do not turn unsupported calls into silently trusted fallback. P/E transaction-inclusion/L1 and fresh holder work remain prerequisites for full independence."
+    }
+  ],
+  "acceptance": [
+    "Actual caller/constructed-client tests with public RPC sockets denied, not source-string assertions only.",
+    "Keep admin moderation, owner permissions, live book migration, session revocation and existing features.",
+    "Multi-read authorization and paginated enumeration must remain tied to an authenticated coherent head.",
+    "Test stale/missing verifier and shutdown, no fallback; preserve explicit default legacy mode.",
+    "Read-only path closure is not proof of independent transaction inclusion or fresh witness availability."
+  ]
+}

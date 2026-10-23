@@ -1,0 +1,4 @@
+06d2a5c9d3b5568f36e7a13aacd82544d0a87f271ba5940e654bcb348b8665d1  0001-Linux-hold-on-an-unknown-host-wallet-policy-instead-.patch
+9a0dd093039bb8e8c3847ac8a86831c6961f069eaa91893cf9f879335b25677f  0002-Linux-hold-revoke-queued-lease-permissions-by-epoch-.patch
+adac1554e991c0fe75817921255919c6e0002c9bf5737fae24ec7e682c80344b  0003-Linux-hold-bind-lease-permits-to-their-decision-conf.patch
+781558198c36cb6adeff38f72e82041c2fc908338fbf4a8a10fb6f67158dd4f7  0004-Guard-Linux-adoption-against-concurrent-teardown-and.patch

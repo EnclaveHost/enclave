@@ -1,0 +1,713 @@
+diff --git a/network/challenge-replica-host.mjs b/network/challenge-replica-host.mjs
+index 74beb76d7..1e8f061b4 100644
+--- a/network/challenge-replica-host.mjs
++++ b/network/challenge-replica-host.mjs
+@@ -31,8 +31,9 @@ import {createHash} from 'node:crypto';
+ import {spawn as spawnProcess} from 'node:child_process';
+ import {SERVICE_KINDS, validateAdInput, publishTypedData} from './service-index.mjs';
+ import {canonical as canonicalJson} from './route-record.mjs';
+-import {createHostServiceGate, resolveHostPolicyConfig} from './host-service-gate.mjs';
+-import {CARRIER_MIRROR} from './policy-carriers.mjs';
++import {resolveHostPolicyConfig} from './host-service-gate.mjs';
++import {hostPolicyGateEnv} from './host-policy-gate-config.mjs';
++import {hostPolicyCarrierGate} from './host-policy-carrier-gate.mjs';
+ 
+ export const ROLES = Object.freeze(['app-zone-replica', 'owner-responder']);
+ const KEYS = ['role', 'release', 'zones', 'ns', 'listen', 'front', 'routeMap', 'chain', 'snp', 'shield', 'peers', 'upstream', 'hostPolicy'];
+@@ -76,23 +77,9 @@ function rpcList(list, where) {
+   return out;
+ }
+ 
+-// The integrated runner's configuration shape for the SAME gate inputs (network/host-services/runner.mjs policyEnv and
+-// policyCarrierFetch take it): no second implementation of the policy env or the carrier fetch.
+-function runnerPolicyShape(h) {
+-  const pc = h.carriers ? {...(h.carriers.importDir ? {importDir: h.carriers.importDir} : {}), ...(h.carriers.peers ? {peers: h.carriers.peers} : {})} : null;
+-  return {platformHostPolicy: h.policy, ...(h.mirrors.length ? {platformHostPolicyMirrors: h.mirrors} : {}), ...(h.rpcs ? {platformHostPolicyRpcs: h.rpcs} : {}),
+-    ...(pc && Object.keys(pc).length ? {platformHostPolicyCarriers: pc} : {}),
+-    services: h.carriers?.policyMirrorStateDir ? [{role: 'policy-mirror', config: {stateDir: h.carriers.policyMirrorStateDir}}] : []};
+-}
+-/** The gate's environment for a normalized hostPolicy (with the reserved carrier origin when carriers are configured). */
+-export function hostPolicyGateEnv(h) {
+-  const shape = runnerPolicyShape(h);
+-  const env = {ENCLAVE_PLATFORM_HOST_POLICY: typeof h.policy === 'string' ? h.policy : JSON.stringify(h.policy)};
+-  const mirrors = [...h.mirrors, ...(h.carriers ? [CARRIER_MIRROR] : [])];
+-  if (mirrors.length) env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS = mirrors.join(',');
+-  if (h.rpcs) env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS = h.rpcs.join(',');
+-  return {env, shape};
+-}
++// The gate's environment for a normalized hostPolicy, in the integrated runner's configuration shape: the shared
++// host-policy-gate-config.mjs (the privacy agent's host services build their gate the same way)
++export {hostPolicyGateEnv};
+ 
+ /** cfg.enclaveNetwork.challengeReplica -> the normalized configuration; throws on anything malformed, missing or legacy. */
+ export function challengeReplicaConfig(c) {
+@@ -295,12 +282,8 @@ export async function startChallengeReplica(cfg, {node = process.execPath, spawn
+   const release = verifyReplicaRelease(cfg.release);
+   const env = challengeReplicaEnv(cfg);
+   if (extraCaFile) env.NODE_EXTRA_CA_CERTS = extraCaFile;
+-  if (!gate) {
+-    const {env: policyEnvVars, shape} = hostPolicyGateEnv(cfg.hostPolicy);
+-    // carriers: the integrated runner's own carrier fetch (it answers only CARRIER_MIRROR; everything else is `fetch`)
+-    const gateFetch = cfg.hostPolicy.carriers ? await (await import('./host-services/runner.mjs')).policyCarrierFetch(shape, {fetch, log}) : fetch;
+-    gate = createHostServiceGate({env: policyEnvVars, chainId: 8453, endpoint: cfg.hostPolicy.endpoint, stateDir: cfg.hostPolicy.stateDir, fetch: gateFetch, log});
+-  }
++  // carriers: the integrated runner's own carrier fetch (it answers only CARRIER_MIRROR; everything else is `fetch`)
++  if (!gate) gate = await hostPolicyCarrierGate(cfg.hostPolicy, {endpoint: cfg.hostPolicy.endpoint, stateDir: cfg.hostPolicy.stateDir, fetch, log});
+   let child = null, closed = false, backoff = 1000, timer = null, lastExit = null, front = null, serving = false, stoppedFor = null;
+   const run = () => {
+     if (closed || !serving) return;
+diff --git a/network/host-policy-carrier-gate.mjs b/network/host-policy-carrier-gate.mjs
+new file mode 100644
+index 000000000..d01929c24
+--- /dev/null
++++ b/network/host-policy-carrier-gate.mjs
+@@ -0,0 +1,26 @@
++// The platform host policy gate (network/host-service-gate.mjs, unchanged) built from an explicit operator block
++// (host-policy-gate-config.mjs), with the integrated runner's carrier fetch (host-services/runner.mjs policyCarrierFetch ->
++// policy-carriers.mjs) when the block names carriers. Shared by the challenge replica and the privacy agent's host services.
++//
++// snapshot (optional): ONE agreed-block chain authority for both the gate and the carriers' fresh verification - the seam for
++// a verified chain authority (e.g. a light-client verifier). When it is given, neither the gate nor any carrier builds its
++// own raw RPC quorum, so a verifier mode can never fall back to raw RPC silently. Without it both use the policy's RPC
++// quorum, exactly as before.
++import path from 'node:path';
++import { createHostServiceGate, resolveHostPolicyConfig } from './host-service-gate.mjs';
++import { createHostPolicyRuntime, fileStore } from './host-policy-runtime.mjs';
++import { hostPolicyGateEnv } from './host-policy-gate-config.mjs';
++
++/** h: a normalized block -> the gate { enabled, start(), stop(), check(), serviceRefusal(), status() }. */
++export async function hostPolicyCarrierGate(h, { endpoint = null, hostId = null, stateDir = null, fetch = globalThis.fetch, log = () => {}, snapshot = null,
++  intervalMs = null, graceMs = null } = {}) {
++  const { env, shape } = hostPolicyGateEnv(h);
++  const gateFetch = h.carriers ? await (await import('./host-services/runner.mjs')).policyCarrierFetch(shape, { fetch, log, snapshot }) : fetch;
++  let runtime = null;
++  if (snapshot) {
++    const resolved = resolveHostPolicyConfig({ env, chainId: 8453 });
++    if (resolved.on) runtime = createHostPolicyRuntime(resolved, { snapshot, store: stateDir ? fileStore(path.join(stateDir, 'platform-host-policy.json')) : null, fetch: gateFetch, log });
++  }
++  return createHostServiceGate({ env, chainId: 8453, endpoint, hostId, stateDir, fetch: gateFetch, log, runtime,
++    ...(intervalMs ? { intervalMs } : {}), ...(graceMs ? { graceMs } : {}) });
++}
+diff --git a/network/host-policy-gate-config.mjs b/network/host-policy-gate-config.mjs
+new file mode 100644
+index 000000000..e4ed2c246
+--- /dev/null
++++ b/network/host-policy-gate-config.mjs
+@@ -0,0 +1,97 @@
++// The platform host policy gate's OPERATOR configuration, shared by every host component that builds the gate from an
++// explicit block rather than its process environment: the challenge replica (enclaveNetwork.challengeReplica.hostPolicy),
++// the privacy agent's own host services (enclaveNetwork.hostServicesPolicy) and the Windows enrollment that writes them.
++// Dependency-free (no npm import), so the Windows node's deploy closure can validate a block before it writes it.
++//
++// The block maps onto the integrated runner's configuration shape (network/host-services/runner.mjs policyEnv and
++// policyCarrierFetch take it), so there is ONE implementation of the policy environment and of the carrier fetch. Carriers
++// (network/policy-carriers.mjs) are untrusted transport for the administrator's signed policy DOCUMENT - an operator-imported
++// directory, this host's own policy-mirror store, other hosts' policy mirrors - never authority: the unchanged gate still
++// requires the digest the book anchors at a fresh agreed block, signed by the book's CURRENT owner, the sequence high-water
++// and the bans.
++import { resolveHostPolicyConfig } from './platform-host-policy-config.mjs';
++import { rpcEndpoint } from './rpc-identity.mjs';
++
++// The carrier set is shown to the gate as ONE reserved mirror origin (`.invalid` never resolves: without the carrier fetch it
++// reaches nothing), answered locally by policy-carriers.mjs carrierFetch.
++export const CARRIER_MIRROR = 'https://policy-carriers.invalid/platform-policy';
++export const MAX_CARRIERS = 16;
++export const CARRIER_BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
++
++/** -> the normalized carrier base URLs (http(s), no credentials, query or fragment). */
++export function validateCarrierBases(list, what = 'policy carriers') {
++  if (!Array.isArray(list) || list.length > MAX_CARRIERS) throw Error(`${what}: at most ${MAX_CARRIERS} base URLs`);
++  const out = list.map((u) => String(u).replace(/\/+$/, ''));
++  if (out.some((u) => !CARRIER_BASE.test(u)) || new Set(out).size !== out.length) throw Error(`${what}: distinct http(s) base URLs without credentials, query or fragment`);
++  return out;
++}
++
++// The integrated runner's configuration shape for the SAME gate inputs: no second implementation of the policy env or the
++// carrier fetch. h: a normalized { policy, mirrors[], rpcs|null, carriers|null }.
++export function runnerPolicyShape(h) {
++  const pc = h.carriers ? { ...(h.carriers.importDir ? { importDir: h.carriers.importDir } : {}), ...(h.carriers.peers ? { peers: h.carriers.peers } : {}) } : null;
++  return { platformHostPolicy: h.policy, ...(h.mirrors.length ? { platformHostPolicyMirrors: h.mirrors } : {}), ...(h.rpcs ? { platformHostPolicyRpcs: h.rpcs } : {}),
++    ...(pc && Object.keys(pc).length ? { platformHostPolicyCarriers: pc } : {}),
++    services: h.carriers?.policyMirrorStateDir ? [{ role: 'policy-mirror', config: { stateDir: h.carriers.policyMirrorStateDir } }] : [] };
++}
++/** The gate's environment for a normalized block (with the reserved carrier origin when carriers are configured). */
++export function hostPolicyGateEnv(h) {
++  const shape = runnerPolicyShape(h);
++  const env = { ENCLAVE_PLATFORM_HOST_POLICY: typeof h.policy === 'string' ? h.policy : JSON.stringify(h.policy) };
++  const mirrors = [...h.mirrors, ...(h.carriers ? [CARRIER_MIRROR] : [])];
++  if (mirrors.length) env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS = mirrors.join(',');
++  if (h.rpcs) env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS = h.rpcs.join(',');
++  return { env, shape };
++}
++
++const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
++const absolute = (p) => typeof p === 'string' && (p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\'));
++/**
++ * enclaveNetwork.hostServicesPolicy -> the normalized { policy, mirrors, rpcs, carriers } (throws on anything malformed).
++ *   policy:   "production" | "off" | { book, hostOwnership, mirrors?, activation?, rpcs?, minAgree? }  (explicit, never defaulted)
++ *   mirrors?: extra HTTPS mirror origins (at most 8)
++ *   rpcs?:    the policy's own RPC quorum (2 to 8 distinct providers; http only on loopback)
++ *   carriers?: { importDir?, policyMirrorStateDir?, peers? }  (absolute directories; peers: other hosts' policy mirrors)
++ * The endpoint and state directory are the agent's own (its runner and state directory), never repeated here. A policy whose
++ * quorum is unknown (an explicit book with no rpcs) is refused: neither the gate nor a carrier could read it.
++ */
++export function hostServicesPolicyConfig(c, where = 'enclaveNetwork.hostServicesPolicy') {
++  const fail = (m) => { throw new Error(`${where}: ${m}`); };
++  if (!isObj(c)) fail('must be an object');
++  const extra = Object.keys(c).filter((k) => !['policy', 'mirrors', 'rpcs', 'carriers'].includes(k));
++  if (extra.length) fail(`unknown field(s): ${extra.join(', ')}`);
++  const policy = c.policy;
++  if (!(policy === 'production' || policy === 'off' || isObj(policy))) fail('policy must be "production", "off" or an explicit {book, hostOwnership, mirrors, ...}');
++  try { resolveHostPolicyConfig({ env: { ENCLAVE_PLATFORM_HOST_POLICY: typeof policy === 'string' ? policy : JSON.stringify(policy) }, chainId: 8453 }); }
++  catch (e) { fail(`policy: ${e.message}`); }
++  if (policy === 'off') {
++    if (['mirrors', 'rpcs', 'carriers'].some((k) => c[k] !== undefined)) fail('"off" takes no mirrors, rpcs or carriers');
++    return Object.freeze({ policy, mirrors: [], rpcs: null, carriers: null });
++  }
++  let mirrors = [], rpcs = null, carriers = null;
++  if (c.mirrors !== undefined) {
++    if (!Array.isArray(c.mirrors) || c.mirrors.length > 8) fail('mirrors must list at most 8 https origins');
++    mirrors = c.mirrors.map((m, i) => { let u; try { u = new URL(m); } catch { fail(`mirrors[${i}] is not a URL`); }
++      if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash) fail(`mirrors[${i}] must be https without credentials`); return u.href.replace(/\/+$/, ''); });
++  }
++  if (c.rpcs !== undefined) {
++    if (!Array.isArray(c.rpcs) || c.rpcs.length < 2 || c.rpcs.length > 8) fail('rpcs must name 2 to 8 RPCs');
++    const seen = new Set();
++    rpcs = c.rpcs.map((u, i) => { let id; try { id = rpcEndpoint(u).identity; } catch (e) { fail(`rpcs[${i}]: ${e.message}`); }
++      if (seen.has(id)) fail('rpcs must name distinct providers (one provider cannot vote twice)'); seen.add(id); return String(u); });
++  }
++  if (c.carriers !== undefined) {
++    if (!isObj(c.carriers)) fail('carriers must be an object');
++    const k = c.carriers, unknown = Object.keys(k).filter((x) => !['importDir', 'policyMirrorStateDir', 'peers'].includes(x));
++    if (unknown.length) fail(`carriers has unknown field(s): ${unknown.join(', ')}`);
++    for (const d of ['importDir', 'policyMirrorStateDir']) if (k[d] !== undefined && !absolute(k[d])) fail(`carriers.${d} must be an absolute path`);
++    let peers; if (k.peers !== undefined) { try { peers = validateCarrierBases(k.peers, `${where}.carriers.peers`); } catch (e) { throw new Error(e.message); } }
++    carriers = { ...(k.importDir !== undefined ? { importDir: k.importDir } : {}), ...(k.policyMirrorStateDir !== undefined ? { policyMirrorStateDir: k.policyMirrorStateDir } : {}),
++      ...(peers?.length ? { peers } : {}) };
++    if (!Object.keys(carriers).length) fail('carriers names no carrier');
++  }
++  const h = { policy, mirrors, rpcs, carriers };
++  let resolved; try { resolved = resolveHostPolicyConfig({ env: hostPolicyGateEnv(h).env, chainId: 8453 }); } catch (e) { fail(e.message); }
++  if (!resolved.config?.rpcs?.length) fail('the policy\'s RPC quorum is unknown: name rpcs (or use "production")');
++  return Object.freeze(h);
++}
+diff --git a/network/host-services/runner.mjs b/network/host-services/runner.mjs
+index be3b88233..4bd88f503 100644
+--- a/network/host-services/runner.mjs
++++ b/network/host-services/runner.mjs
+@@ -147,14 +147,16 @@ export function policyEnv(cfg) {
+  * service-index policy mirrors), each candidate signed by the book's current owner at a fresh agreed block of the policy's
+  * own RPC quorum; everything else goes to `fetch`.
+  */
+-export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {} } = {}) {
++// snapshot (optional): the agreed-block chain authority the caller's gate uses (host-policy-carrier-gate.mjs); the carriers'
++// fresh verification then uses the SAME one, never a raw RPC quorum of its own
++export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {}, snapshot = null } = {}) {
+   if (!usesCarriers(cfg)) return fetch;
+   const { resolveHostPolicyConfig } = await import('../platform-host-policy-config.mjs');
+   const { quorumSnapshot } = await import('../host-policy-runtime.mjs');
+   const pcm = await import('../policy-carriers.mjs');
+   const resolved = resolveHostPolicyConfig({ env: policyEnv(cfg), chainId: 8453 });
+   const { book, hostOwnership, rpcs, minAgree } = resolved.config;
+-  if (!rpcs || !rpcs.length) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
++  if (!snapshot && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
+   const pc = cfg.platformHostPolicyCarriers || {};
+   const mirror = cfg.services.find((s) => s.role === 'policy-mirror');
+   const carriers = [
+@@ -163,7 +165,7 @@ export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log =
+     ...pcm.httpCarriers(pc.peers || [], { fetch }),
+     ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log })] : []),
+   ];
+-  const verify = pcm.freshVerifier({ snapshot: quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
++  const verify = pcm.freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs, minAgree }), book, hostOwnership });
+   return pcm.carrierFetch({ carriers, verify, fetch, log });
+ }
+ 
+diff --git a/network/policy-carriers.mjs b/network/policy-carriers.mjs
+index 7f56e0bce..79bf7ea67 100644
+--- a/network/policy-carriers.mjs
++++ b/network/policy-carriers.mjs
+@@ -30,18 +30,11 @@ import { MAX_POLICY_RESPONSE } from './host-policy-mirrors.mjs';
+ import { createPublicClient, http } from 'viem';
+ import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
+ 
+-export const CARRIER_MIRROR = 'https://policy-carriers.invalid/platform-policy';
+-export const MAX_CARRIERS = 16;
++// the reserved origin and the carrier base rule live in the dependency-free host-policy-gate-config.mjs (the Windows node
++// validates an operator's carriers before it writes them); re-exported here unchanged
++import { CARRIER_MIRROR, MAX_CARRIERS, CARRIER_BASE as BASE, validateCarrierBases } from './host-policy-gate-config.mjs';
++export { CARRIER_MIRROR, MAX_CARRIERS, validateCarrierBases };
+ const H32 = /^0x[0-9a-f]{64}$/;
+-const BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
+-
+-/** -> the normalized carrier base URLs (http(s), no credentials, query or fragment). */
+-export function validateCarrierBases(list, what = 'policy carriers') {
+-  if (!Array.isArray(list) || list.length > MAX_CARRIERS) throw Error(`${what}: at most ${MAX_CARRIERS} base URLs`);
+-  const out = list.map((u) => String(u).replace(/\/+$/, ''));
+-  if (out.some((u) => !BASE.test(u)) || new Set(out).size !== out.length) throw Error(`${what}: distinct http(s) base URLs without credentials, query or fragment`);
+-  return out;
+-}
+ /**
+  * RPC URLs -> the {label, client} peers service-index.mjs readServiceIndex takes (entries pass through). https only (http
+  * on loopback); one vote per provider or loopback port.
+diff --git a/network/privacy-agent.mjs b/network/privacy-agent.mjs
+index cb66f1a3e..0585a1c63 100644
+--- a/network/privacy-agent.mjs
++++ b/network/privacy-agent.mjs
+@@ -18,6 +18,8 @@ import {createNetworkHost} from './enclave-network-host.mjs';
+ import {WgControlTransport} from './wg-control.mjs';
+ import {HostServiceTransport,validateHostServicesTransport} from './host-service-transport.mjs';
+ import {createHostServiceGate} from './host-service-gate.mjs';
++import {hostServicesPolicyConfig} from './host-policy-gate-config.mjs';
++import {hostPolicyCarrierGate} from './host-policy-carrier-gate.mjs';
+ import {createPaidNetwork} from './paid-network.mjs';
+ import {ShieldHostProof} from './shield-host-proof.mjs';
+ import {RoutePublisher} from './route-publisher.mjs';
+@@ -249,10 +251,18 @@ export async function runPrivacy(configFile){
+   // be read, holds them); an explicit refusal (ban, allowlist miss, deregistration) closes them and withdraws their grants,
+   // sticky until the admin's admit; a transient outage keeps them within the gate's grace. The exits judge the same policy
+   // before every grant (wg-provider), so this is the host's own half, not the only one.
++  // The operator's EXPLICIT block (enclaveNetwork.hostServicesPolicy, host-policy-gate-config.mjs) names the policy, its RPC
++  // quorum and CARRIERS for the signed document - an imported directory, this host's policy-mirror store (read from disk: the
++  // role need not run, nor be admitted, for its own prerequisite), other hosts' policy mirrors - so a cold host loads the
++  // anchored policy with every fleet mirror down. Untrusted bytes only: the gate still requires the anchored digest, the
++  // book's current owner, the sequence and the bans. Without the block: the platform's default for this chain and book.
+   let hostGate=null;
+-  if(hostServicesConfig){try{hostGate=createHostServiceGate({env:process.env,chainId:8453,book:cfg.chain?.addressBook||null,hostId:cfg.runner,
+-    stateDir:path.join(cfg.directory,'host-services-policy'),fetch:globalThis.fetch,log});}
+-   catch(e){log('HOST SERVICES REFUSED (apps unaffected): platform host policy: '+e.message);hostServicesConfig=null;}}
++  if(hostServicesConfig){try{const hsp=cfg.enclaveNetwork.hostServicesPolicy,stateDir=path.join(cfg.directory,'host-services-policy');
++    const secs=v=>Number(v)>0?Number(v)*1000:null;
++    hostGate=hsp===undefined?createHostServiceGate({env:process.env,chainId:8453,book:cfg.chain?.addressBook||null,hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log})
++      :await hostPolicyCarrierGate(hostServicesPolicyConfig(hsp),{hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log,
++        intervalMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC),graceMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC)});}
++   catch(e){pre.refused='platform host policy: '+e.message;log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);hostServicesConfig=null;}}
+   // an app-less host has nothing else to run: refused (before anything binds) unless its host services can actually run -
+   // a valid block, and a platform host policy that is ON (an "off" policy admits nothing, so it cannot admit host services)
+   if(!apps.length){
+diff --git a/test/helpers/platform-policy-world.mjs b/test/helpers/platform-policy-world.mjs
+index b1d2ea68f..d30a31e9f 100644
+--- a/test/helpers/platform-policy-world.mjs
++++ b/test/helpers/platform-policy-world.mjs
+@@ -93,6 +93,9 @@ export async function platformPolicyWorld(t, { hosts = {} } = {}) {
+   }
+   return {
+     state, admin, served, publish,
++    // the signed { document, signature } of a published digest (what a carrier would hold), and re-anchoring an older one
++    document: (digest) => docs.get(digest) || null,
++    anchor: (digest) => { const a = encodeAnchor(digest); state.hi = a.hi; state.lo = a.lo; },
+     rpcs: rpcs.map((s) => `http://127.0.0.1:${s.address().port}`), mirrorOrigin, ca: path.join(dir, 'ca.pem'),
+     config: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [mirrorOrigin] },
+     env: (extra = {}) => ({ ENCLAVE_PLATFORM_HOST_POLICY: JSON.stringify({ book: BOOK, hostOwnership: OWNERSHIP, mirrors: [mirrorOrigin] }),
+diff --git a/test/helpers/privacy-agent-rig.mjs b/test/helpers/privacy-agent-rig.mjs
+new file mode 100644
+index 000000000..2dab040b9
+--- /dev/null
++++ b/test/helpers/privacy-agent-rig.mjs
+@@ -0,0 +1,76 @@
++// Test-only rig for the REAL privacy agent daemon (node network/privacy-agent.mjs --config FILE) on a Linux host config with
++// no Enclave authority: every *.enclave.host lookup and every connection to the four DigitalOcean fronts is REFUSED by a
++// preload and logged (blocked.log), so a test proves which public infrastructure was (not) needed. SIGUSR2 prints the
++// process's active resources (diagnostics for a stop that does not exit).
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import path from 'node:path';
++import assert from 'node:assert/strict';
++import { spawn } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { generatePrivateKey } from 'viem/accounts';
++import { keccak256, toBytes } from 'viem';
++
++export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
++export const ENDPOINT = 'https://host.policy.example', RUNNER = keccak256(toBytes(ENDPOINT)).toLowerCase();
++export const DO_FRONTS = ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'];
++export const HS = { zone: 'app.alice-net.org', exits: ['e1'.repeat(16)], ports: { 'directory-replica': 18188 } };
++export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++export const freeTcp = () => new Promise((ok) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++export const count = (text, re) => (text.match(new RegExp(re.source, 'g')) || []).length;
++
++const PRELOAD = `import net from 'node:net'; import dns from 'node:dns'; import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
++const DO = new Set(${JSON.stringify(DO_FRONTS)});
++const enclave = (h) => /(^|\\.)enclave\\.host\\.?$/i.test(String(h || ''));
++const refuse = (h) => { fs.appendFileSync(process.env.BLOCK_LOG, String(h) + '\\n'); return Object.assign(new Error('blocked ' + h), { code: 'ECONNREFUSED' }); };
++const lookup = dns.lookup, plookup = dns.promises.lookup;
++dns.lookup = function (h, ...a) { if (enclave(h)) return process.nextTick(a.at(-1), refuse(h)); return lookup.call(this, h, ...a); };
++dns.promises.lookup = async function (h, ...a) { if (enclave(h)) throw refuse(h); return plookup.call(this, h, ...a); };
++syncBuiltinESMExports();
++const connect = net.Socket.prototype.connect;
++net.Socket.prototype.connect = function (...a) { const o = Array.isArray(a[0]) ? a[0][0] : (a[0] && typeof a[0] === 'object' ? a[0] : null);
++  if (o && (enclave(o.host) || DO.has(String(o.host)))) { const e = refuse(o.host); process.nextTick(() => this.destroy(e)); return this; } return connect.apply(this, a); };
++process.on('SIGUSR2', () => console.error('ACTIVE RESOURCES ' + JSON.stringify(process.getActiveResourcesInfo())));`;
++
++/** A Linux host's privacy agent config with the given app count and enclaveNetwork extras. */
++export async function hostRig(t, { apps = 0, hostServices = HS, extra = {}, addressBook = '0x' + '00'.repeat(20) } = {}) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pa-rig-')), f = (n) => path.join(dir, n);
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  fs.writeFileSync(f('operator.key'), generatePrivateKey(), { mode: 0o600 });
++  fs.writeFileSync(f('expected.json'), JSON.stringify({ appRef: 'catalog://0x' + '12'.repeat(32) + '/1', configCid: '' }));
++  for (const n of ['runtime.json', 'min-tcb.json']) fs.writeFileSync(f(n), '{}');
++  fs.writeFileSync(f('vcek.der'), 'not used before an app is probed'); fs.writeFileSync(f('preload.mjs'), PRELOAD); fs.writeFileSync(f('blocked.log'), '');
++  fs.mkdirSync(f('state'));
++  const app = { deploymentId: '0x' + 'ab'.repeat(32), names: ['app1.alice-net.org'], expectedFile: f('expected.json') };
++  const cfg = { version: 2, directory: f('state'), operatorKeyFile: f('operator.key'), runner: RUNNER, endpoint: ENDPOINT,
++    apps: apps ? [app] : [], dns: ['9.9.9.9'], upstream: `http://127.0.0.1:${await freeTcp()}`,
++    chain: { rpc: ['https://127.0.0.2:1', 'https://127.0.0.3:1'], addressBook,
++             authorityPins: { deployments: '0x' + '11'.repeat(20), registry: '0x' + '22'.repeat(20), connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) } },
++    linux: { runtimeFile: f('runtime.json'), minTcbFile: f('min-tcb.json'), vcekFile: f('vcek.der') },
++    enclaveNetwork: { directories: [`http://127.0.0.1:${await freeTcp()}/`], checkers: ['0x' + '45'.repeat(20)], apps: 'all', control: true,
++      wgBinary: process.execPath, nodeBinary: process.execPath, workerModule: path.join(ROOT, 'network', 'windows-circuit-worker.mjs'),
++      serviceWorkerModule: path.join(ROOT, 'network', 'host-service-ingress.mjs'), ...(hostServices ? { hostServices } : {}), ...extra } };
++  const rig = { dir, f, cfg, app, file: f('privacy-config.json'), state: f('state') };
++  rig.write = (c = cfg) => fs.writeFileSync(rig.file, JSON.stringify(c), { mode: 0o600 });
++  rig.blocked = () => fs.readFileSync(f('blocked.log'), 'utf8').split('\n').filter(Boolean);
++  rig.write();
++  return rig;
++}
++
++/** Start the daemon; d.until(re, ms, n) waits for n log matches; d.stop() SIGTERMs (null when it did not exit in 20 s). */
++export function daemon(t, rig, { env = {}, script = path.join(ROOT, 'network/privacy-agent.mjs') } = {}) {
++  const child = spawn(process.execPath, ['--import', pathToFileURL(rig.f('preload.mjs')).href, script, '--config', rig.file],
++    { env: { ...process.env, ENCLAVE_PLATFORM_HOST_POLICY: '', ENCLAVE_PLATFORM_HOST_POLICY_RPCS: '', ...env, BLOCK_LOG: rig.f('blocked.log') }, stdio: ['ignore', 'pipe', 'pipe'] });
++  const d = { child, out: '' };
++  child.stdout.on('data', (b) => { d.out += b; }); child.stderr.on('data', (b) => { d.out += b; });
++  d.exited = new Promise((ok) => child.once('exit', (code, signal) => ok({ code, signal })));
++  d.until = async (re, ms = 20_000, n = 1) => { const end = Date.now() + ms; while (Date.now() < end && count(d.out, re) < n && child.exitCode === null) await sleep(100);
++    assert.ok(count(d.out, re) >= n, `expected ${n}x ${re} in:\n${d.out.slice(-3000)}`); };
++  d.stop = async () => { if (child.exitCode !== null || child.signalCode !== null) return d.exited; child.kill('SIGTERM');
++    const r = await Promise.race([d.exited, sleep(20_000).then(() => null)]);
++    if (!r) { child.kill('SIGUSR2'); await sleep(500); }
++    return r; };
++  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await Promise.race([d.exited, sleep(5000)]); });
++  return d;
++}
+diff --git a/test/host-services-carriers.test.mjs b/test/host-services-carriers.test.mjs
+new file mode 100644
+index 000000000..050192a4c
+--- /dev/null
++++ b/test/host-services-carriers.test.mjs
+@@ -0,0 +1,202 @@
++// The privacy agent's host services WITHOUT the fleet's policy mirrors: the explicit enclaveNetwork.hostServicesPolicy
++// block gives the unchanged platform host policy gate (network/host-service-gate.mjs) the integrated runner's CARRIERS
++// (network/host-services/runner.mjs policyCarrierFetch -> network/policy-carriers.mjs) through the shared
++// network/host-policy-carrier-gate.mjs. On the REAL daemon (node network/privacy-agent.mjs --config) and the REAL enrollment
++// pass, with every connection to the four DigitalOcean fronts and every *.enclave.host lookup refused and logged.
++//
++// FIXTURE, not deployed provider independence: the chain and the administrator are test/helpers/platform-policy-world.mjs
++// (loopback JSON-RPC answering the AddressBook anchor/owner, registry rows and host ownership; documents signed by its
++// admin key). The policy's own mirror list is the PRODUCTION one (the four fronts), all refused at the socket; the signed
++// document reaches the host only from a carrier: an operator-imported directory, this host's policy-mirror store, or an
++// independent peer's mirror. Carriers supply bytes, never authority: the gate admits only the digest the book anchors,
++// signed by the book's current owner, at a fresh agreed block.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import http from 'node:http';
++import path from 'node:path';
++import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
++import { platformPolicyWorld, BOOK, OWNERSHIP } from './helpers/platform-policy-world.mjs';
++import { hostRig, daemon, sleep, count, ENDPOINT, RUNNER, DO_FRONTS, HS } from './helpers/privacy-agent-rig.mjs';
++import { PRODUCTION_MIRRORS } from '../network/platform-host-policy-config.mjs';
++import { policyTypedData } from '../network/platform-host-policy.mjs';
++import { quorumSnapshot } from '../network/host-policy-runtime.mjs';
++import { hostServicesPolicyConfig, hostPolicyGateEnv, CARRIER_MIRROR } from '../network/host-policy-gate-config.mjs';
++import { CARRIER_MIRROR as CARRIER_MIRROR_PC, validateCarrierBases } from '../network/policy-carriers.mjs';
++import { hostPolicyCarrierGate } from '../network/host-policy-carrier-gate.mjs';
++import { createNetworkEnroll, appLessRefusal, readHostServicesFile } from '../windows/node/network-enroll.mjs';
++
++const OPERATOR = '0x' + '44'.repeat(20);
++const STARTED = /host services: \{/, STOPPED = /host services stopped: platform host policy:/, HELD = /host services held: platform host policy:/;
++const FAST = { ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC: '1', ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC: '6' };
++const world = (t) => platformPolicyWorld(t, { hosts: { [RUNNER]: { endpoint: ENDPOINT, operator: OPERATOR, owner: '0x' + '55'.repeat(20), active: true } } });
++// the production-shaped policy for the fixture's book: its mirrors are the four fleet fronts (all refused here)
++const block = (w, carriers) => ({ policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [...PRODUCTION_MIRRORS] }, rpcs: w.rpcs, carriers });
++const tmpDir = (t, p) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), p)); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
++const put = (dir, name, body) => { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(body)); };
++const ban = [{ kind: 'operator', value: OPERATOR, reason: 'abuse' }];
++const fleetTried = (rig) => rig.blocked().filter((h) => DO_FRONTS.includes(h));
++const noEnclaveLookups = (rig) => assert.deepEqual(rig.blocked().filter((h) => !DO_FRONTS.includes(h)), [], 'no *.enclave.host name was looked up');
++
++test('shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated', () => {
++  assert.equal(CARRIER_MIRROR, CARRIER_MIRROR_PC);
++  assert.deepEqual(validateCarrierBases(['http://10.0.0.1:8190/platform-policy/']), ['http://10.0.0.1:8190/platform-policy']);
++  const ok = hostServicesPolicyConfig({ policy: 'production', carriers: { importDir: '/var/lib/policy-import', peers: ['https://peer.example/platform-policy'] } });
++  const { env, shape } = hostPolicyGateEnv(ok);
++  assert.equal(env.ENCLAVE_PLATFORM_HOST_POLICY, 'production'); assert.equal(env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS, CARRIER_MIRROR);
++  assert.deepEqual(shape.platformHostPolicyCarriers, { importDir: '/var/lib/policy-import', peers: ['https://peer.example/platform-policy'] });
++  assert.deepEqual(hostServicesPolicyConfig({ policy: 'production', carriers: { policyMirrorStateDir: 'C:\\ProgramData\\Enclave\\pm' } }).carriers, { policyMirrorStateDir: 'C:\\ProgramData\\Enclave\\pm' });
++  for (const [c, re] of [[{ policy: 'production', extra: 1 }, /unknown field/], [{ policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [] } }, /RPC quorum is unknown/],
++    [{ policy: 'production', carriers: { importDir: 'relative' } }, /absolute path/], [{ policy: 'production', carriers: {} }, /names no carrier/],
++    [{ policy: 'production', carriers: { peers: ['ftp://x'] } }, /distinct http\(s\) base URLs/], [{ policy: 'off', carriers: { importDir: '/x' } }, /"off" takes no/],
++    [{ policy: 'production', rpcs: ['https://a.example'] }, /2 to 8 RPCs/], [{ policy: 'production', rpcs: ['https://a.example/x', 'https://a.example/y'] }, /distinct providers/],
++    [{ policy: 'production', rpcs: ['http://rpc.example', 'https://b.example'] }, /rpcs\[0\]/], [{ policy: 'nope' }, /policy must be/], [null, /must be an object/]])
++    assert.throws(() => hostServicesPolicyConfig(c), re, JSON.stringify(c));
++});
++
++test('empty state, every fleet front refused: the first authenticated admit comes from an imported carrier', { timeout: 90_000 }, async (t) => {
++  const w = await world(t), d1 = await w.publish({ deny: [] }), importDir = tmpDir(t, 'policy-import-');
++  put(importDir, d1, w.document(d1));
++  const rig = await hostRig(t, { extra: { hostServicesPolicy: block(w, { importDir }) } }), d = daemon(t, rig, { env: FAST });
++  await d.until(/no apps: running this host's services only/); await d.until(STARTED);
++  assert.ok(fleetTried(rig).length >= 1, 'the production mirrors were tried, and refused at the socket');
++  noEnclaveLookups(rig);
++  assert.ok((await d.stop())?.code === 0);
++});
++
++test('missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart', { timeout: 120_000 }, async (t) => {
++  const w = await world(t), d1 = await w.publish({ deny: [] }), d2 = await w.publish({ deny: [] });
++  w.anchor(d1);                                                    // d2: validly signed by the admin, but NOT the anchored digest
++  const importDir = tmpDir(t, 'policy-import-');
++  const rig = await hostRig(t, { extra: { hostServicesPolicy: block(w, { importDir }) } }), d = daemon(t, rig, { env: FAST });
++  await d.until(HELD); await sleep(3000);
++  const cur = w.document(d1), policy = JSON.parse(cur.document);
++  const forged = await privateKeyToAccount(generatePrivateKey()).signTypedData(policyTypedData(policy));
++  for (const [why, write] of [
++    ['a validly signed but unanchored document', () => put(importDir, d2, w.document(d2))],
++    ['another document under the anchored name', () => put(importDir, d1, w.document(d2))],
++    ['substituted content under the real signature', () => put(importDir, d1, { document: JSON.stringify({ ...policy, deny: ban }), signature: cur.signature })],
++    ['the anchored content signed by another key', () => put(importDir, d1, { document: cur.document, signature: forged })]]) {
++    write(); await sleep(3500);
++    assert.equal(count(d.out, STARTED), 0, `${why}: never admitted`);
++  }
++  put(importDir, d1, cur);                                         // the real one
++  await d.until(STARTED);
++  assert.ok((await d.stop())?.code === 0); noEnclaveLookups(rig);
++});
++
++test('admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed', { timeout: 150_000 }, async (t) => {
++  const w = await world(t), importDir = tmpDir(t, 'policy-import-');
++  const d1 = await w.publish({ deny: [] }); put(importDir, d1, w.document(d1));
++  const rig = await hostRig(t, { extra: { hostServicesPolicy: block(w, { importDir }) } }), d = daemon(t, rig, { env: FAST });
++  await d.until(STARTED);
++  const d2 = await w.publish({ deny: ban }); put(importDir, d2, w.document(d2));           // the admin bans this host
++  await d.until(STOPPED); assert.match(d.out, /host services stopped: platform host policy: banned by platform policy #2 \(operator\): abuse/);
++  const d3 = await w.publish({ deny: [] }); await sleep(4000);                               // the unban, NOT yet carried
++  assert.equal(count(d.out, STARTED), 1, 'a known ban is never lifted without the authenticated unban');
++  put(importDir, d3, w.document(d3)); await d.until(STARTED, 20_000, 2);
++  await w.publish({ deny: [] });                                                            // an update nobody carries
++  await d.until(STOPPED, 25_000, 2);                                                         // admitted -> undecided -> past the grace
++  assert.equal(count(d.out, STARTED), 2);
++  w.anchor(d1);                                                                             // the admin re-anchors an OLDER document (still carried)
++  await sleep(5000);
++  assert.equal(count(d.out, STARTED), 2, 'an anchored rollback (sequence below the high-water) never admits');
++  assert.ok((await d.stop())?.code === 0); noEnclaveLookups(rig);
++});
++
++test('first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit', { timeout: 120_000 }, async (t) => {
++  const w = await world(t), importDir = tmpDir(t, 'policy-import-');
++  const d1 = await w.publish({ deny: [] }); put(importDir, d1, w.document(d1));
++  const rig = await hostRig(t, { extra: { hostServicesPolicy: block(w, { importDir }) } });
++  let d = daemon(t, rig, { env: FAST });
++  await d.until(STARTED);
++  rig.write({ ...rig.cfg, apps: [rig.app] }); d.child.kill('SIGHUP'); await d.until(/config reloaded: 1 apps \(1 added, 0 changed\)/);
++  rig.write({ ...rig.cfg, apps: [] }); d.child.kill('SIGHUP'); await d.until(/config reloaded: 1 apps \(0 added, 0 changed\)/);
++  await sleep(2500);
++  assert.equal(count(d.out, STARTED), 1); assert.doesNotMatch(d.out, /host services stopped|HOST SERVICES REFUSED/);
++  let exit = await d.stop(); assert.ok(exit?.code === 0, JSON.stringify(exit));
++  // restart with the chain unreadable: nothing restored from local state admits
++  w.setDown(true); d = daemon(t, rig, { env: FAST });
++  await d.until(HELD); await sleep(4000); assert.equal(count(d.out, STARTED), 0, 'no admit without a fresh agreed block');
++  w.setDown(false); await d.until(STARTED);
++  exit = await d.stop(); assert.ok(exit?.code === 0 || (exit?.code === 1 && /stopped during startup/.test(d.out)), JSON.stringify(exit));
++});
++
++test('this host\'s policy-mirror store (read from disk, the role need not run) and an independent peer\'s mirror carry the document', { timeout: 90_000 }, async (t) => {
++  const w = await world(t), d1 = await w.publish({ deny: [] });
++  const store = tmpDir(t, 'policy-mirror-state-'); put(path.join(store, 'documents'), d1, w.document(d1));
++  let rig = await hostRig(t, { extra: { hostServicesPolicy: block(w, { policyMirrorStateDir: store }) } }), d = daemon(t, rig, { env: FAST });
++  await d.until(STARTED); await d.stop();
++  const served = [];
++  const peer = http.createServer((req, res) => { served.push(req.url); const m = /^\/platform-policy\/(0x[0-9a-f]{64})\.json$/.exec(req.url);
++    const doc = m && w.document(m[1]); res.writeHead(doc ? 200 : 404, { 'content-type': 'application/json' }); res.end(doc ? JSON.stringify(doc) : ''); });
++  await new Promise((r) => peer.listen(0, '127.0.0.1', r)); t.after(() => peer.close());
++  rig = await hostRig(t, { extra: { hostServicesPolicy: block(w, { peers: [`http://127.0.0.1:${peer.address().port}/platform-policy`] }) } }); d = daemon(t, rig, { env: FAST });
++  await d.until(STARTED);
++  assert.ok(served.includes(`/platform-policy/${d1}.json`), 'the peer served the anchored digest');
++  await d.stop(); noEnclaveLookups(rig);
++});
++
++test('a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only', { timeout: 90_000 }, async (t) => {
++  const w = await world(t);
++  for (const [bad, re] of [[{ ...block(w, { importDir: '/x' }), extra: 1 }, /unknown field/], [{ policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [] } }, /RPC quorum is unknown/],
++    [block(w, { importDir: 'relative/dir' }), /absolute path/], [block(w, { peers: ['ftp://x'] }), /distinct http\(s\) base URLs/]]) {
++    const rig = await hostRig(t, { extra: { hostServicesPolicy: bad } }), d = daemon(t, rig, { env: FAST });
++    const e = await Promise.race([d.exited, sleep(20_000).then(() => null)]);
++    assert.equal(e?.code, 1, d.out); assert.match(d.out, /an empty app list runs only this host's services, and they are refused \(platform host policy: enclaveNetwork\.hostServicesPolicy/);
++    assert.match(d.out, re); assert.doesNotMatch(d.out, /host services: \{|control circuits/);
++  }
++  const rig = await hostRig(t, { apps: 1, extra: { hostServicesPolicy: { policy: 'nope' } } }), d = daemon(t, rig, { env: FAST });
++  await d.until(/HOST SERVICES REFUSED \(apps unaffected\): platform host policy: enclaveNetwork\.hostServicesPolicy: policy must be/);
++  await sleep(1500); assert.equal(d.child.exitCode, null, 'the apps keep running'); assert.equal(count(d.out, STARTED), 0);
++  await d.stop();
++});
++
++test('verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own', { timeout: 60_000 }, async (t) => {
++  const w = await world(t), d1 = await w.publish({ deny: [] }), importDir = tmpDir(t, 'policy-import-');
++  put(importDir, d1, w.document(d1));
++  // the block's own RPCs are DEAD: any raw-RPC use would fail; only the injected authority can answer
++  const h = hostServicesPolicyConfig({ policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [] }, rpcs: ['http://127.0.0.1:1', 'http://127.0.0.1:2'], carriers: { importDir } });
++  const real = quorumSnapshot({ rpcs: w.rpcs }); let calls = 0;
++  const snapshot = (fn) => { calls++; return real(fn); };
++  const gate = await hostPolicyCarrierGate(h, { hostId: RUNNER, stateDir: tmpDir(t, 'gate-'), snapshot });
++  await gate.check();
++  assert.equal(gate.serviceRefusal(), null, 'admitted through the injected authority and the carrier'); assert.ok(calls >= 2, `the gate and the carrier both used it (${calls})`);
++  const control = await hostPolicyCarrierGate(h, { hostId: RUNNER, stateDir: tmpDir(t, 'gate-') });
++  await control.check();
++  assert.match(String(control.serviceRefusal()), /platform host policy/, 'control: without it, the dead raw quorum admits nothing');
++});
++
++// ---- enrollment carries the explicit block (the fresh box's opt-in file) ----
++function enrollRig(t, optIn) {
++  const dir = tmpDir(t, 'hs-carrier-enroll-'), agentDir = path.join(dir, 'agent'), policyFile = path.join(dir, 'policy.json'), file = path.join(dir, 'host-services.json');
++  fs.mkdirSync(agentDir); fs.mkdirSync(path.join(dir, 'bin')); fs.writeFileSync(path.join(dir, 'bin', 'host-service-ingress.mjs'), '// the staged worker');
++  fs.writeFileSync(policyFile, JSON.stringify({ cpu: { runtimeId: 'ab'.repeat(32) }, gpu: {} })); fs.writeFileSync(file, JSON.stringify(optIn));
++  const w = { logs: [], restarts: 0, file, cfgFile: path.join(agentDir, 'privacy-config.json') };
++  const config = { agentDir, binDir: path.join(dir, 'bin'), nodeBinary: 'node.exe', operatorKeyFile: 'op.key', runner: RUNNER, endpoint: ENDPOINT, relayBase: 'https://api.enclave.host',
++    policyFile, tpmBinary: 'tpmattest.exe', tpmSha256: 'aa'.repeat(32), addressBook: '0x' + '44'.repeat(20), chainRpc: ['https://rpc'], enclaveNetwork: { checkers: ['0x' + '57'.repeat(20)] }, hostServicesFile: file };
++  w.enroll = createNetworkEnroll({ agentDir, binDir: path.join(dir, 'bin'), runner: RUNNER, relayBase: 'https://api.enclave.host', restartAgent: async () => { w.restarts++; }, config, log: (m) => w.logs.push(m),
++    fetch: async () => ({ ok: true, json: async () => ({ domains: {} }) }), rows: async () => [], version: async () => ({}), vms: async () => [] });
++  w.read = () => JSON.parse(fs.readFileSync(w.cfgFile, 'utf8')); w.exists = () => fs.existsSync(w.cfgFile);
++  return w;
++}
++
++test('enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing', async (t) => {
++  const hsp = { policy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [...PRODUCTION_MIRRORS] }, rpcs: ['https://rpc-a.example', 'https://rpc-b.example'], carriers: { importDir: '/var/lib/enclave/policy-import' } };
++  let w = enrollRig(t, { hostServices: HS });
++  assert.equal((await w.enroll.pass()).changed, false, 'the node\'s book is not the production one and no explicit policy: not eligible');
++  assert.ok(w.logs.some((l) => /the platform host policy is off for this config/.test(l)));
++  w = enrollRig(t, { hostServices: HS, hostServicesPolicy: hsp });
++  assert.equal((await w.enroll.pass()).changed, true);
++  assert.deepEqual(w.read().apps, []); assert.deepEqual(w.read().enclaveNetwork.hostServicesPolicy, hsp, 'carried byte for byte');
++  assert.equal(await appLessRefusal(w.read()), null);
++  for (const [bad, re] of [[{ ...hsp, carriers: {} }, /names no carrier/], [{ policy: 'off' }, /platform host policy is off/], [{ ...hsp, rpcs: undefined, policy: { book: BOOK, hostOwnership: OWNERSHIP } }, /RPC quorum is unknown/]]) {
++    w = enrollRig(t, { hostServices: HS, hostServicesPolicy: bad });
++    const r = await w.enroll.pass();
++    assert.equal(r.changed, false); assert.equal(w.exists(), false);
++    assert.ok(w.logs.some((l) => re.test(l)), `${JSON.stringify(bad)}: ${w.logs.join(' | ')}`);
++  }
++  const r2 = await readHostServicesFile(enrollRig(t, { hostServices: HS, hostServicesPolicy: [] }).file);
++  assert.match(r2.error, /hostServicesPolicy must be an object/);
++});
+diff --git a/test/host-services-cold-start.test.mjs b/test/host-services-cold-start.test.mjs
+index 7f7dd859a..2e7d1851d 100644
+--- a/test/host-services-cold-start.test.mjs
++++ b/test/host-services-cold-start.test.mjs
+@@ -265,7 +265,7 @@ test('enrollment, fresh box: a refused host, an invalid block or an unusable opt
+   w = enrollRig(t, { hostServicesFile: optInFile(t, { hostServices: { ...HS, exits: [] } }) });
+   const r = await w.enroll.pass();
+   assert.equal(r.changed, false); assert.equal(w.exists(), false); assert.match(r.hostServicesError, /exits/);
+-  for (const [body, re] of [[undefined, /missing/], ['{not json', /JSON|Unexpected|Expected/], [{ hostServices: HS, extra: 1 }, /must be \{ hostServices, challengeReplica\? \}/],
++  for (const [body, re] of [[undefined, /missing/], ['{not json', /JSON|Unexpected|Expected/], [{ hostServices: HS, extra: 1 }, /must be \{ hostServices, challengeReplica\?, hostServicesPolicy\? \}/],
+     [{ challengeReplica: {} }, /must be \{ hostServices/], [{ hostServices: HS, challengeReplica: [] }, /challengeReplica must be an object/]]) {
+     w = enrollRig(t, { hostServicesFile: optInFile(t, body) });
+     const x = await w.enroll.pass();
+diff --git a/windows/node/network-enroll.mjs b/windows/node/network-enroll.mjs
+index f45f17f36..424a8a1c9 100644
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
+ import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
+ import { validateHostServicesTransport } from "../../network/host-service-transport.mjs";
+ import { resolveHostPolicyConfig } from "../../network/platform-host-policy-config.mjs";
++import { hostServicesPolicyConfig, hostPolicyGateEnv } from "../../network/host-policy-gate-config.mjs";
+ import { keccak256, toBytes } from "viem";
+ 
+ const ID = /^0x[0-9a-f]{64}$/;
+@@ -85,19 +86,22 @@ export function hostServicesBlock(h) {
+ }
+ 
+ /** The operator's host-services opt-in FILE (ENCLAVE_HOST_SERVICES_FILE: what `stage-tool.mjs host-services` prints as
+- *  `agent`, i.e. { hostServices, challengeReplica? }), the source of those two blocks while it is configured - the only way
+- *  a box with no app yet (no privacy-config.json) can opt in. -> { hostServices?, challengeReplica?, error }. A file that is
+- *  missing, unreadable or not that shape yields only an error: the config's own blocks are then kept as they are. */
++ *  `agent`, i.e. { hostServices, challengeReplica?, hostServicesPolicy? }), the source of those blocks while it is configured
++ *  - the only way a box with no app yet (no privacy-config.json) can opt in. hostServicesPolicy: the policy, its RPC quorum and
++ *  the CARRIERS of its signed document (network/host-policy-gate-config.mjs). -> { hostServices?, challengeReplica?,
++ *  hostServicesPolicy?, error }. A file that is missing, unreadable or not that shape yields only an error: the config's own
++ *  blocks are then kept as they are. */
+ export async function readHostServicesFile(file) {
+   if (!file) return { error: null };
+   if (!path.isAbsolute(file)) return { error: `ENCLAVE_HOST_SERVICES_FILE must be an absolute path (${file})` };
+   let j;
+   try { j = JSON.parse(await fs.readFile(file, "utf8")); } catch (e) { return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: ${e.code === "ENOENT" ? "missing" : e.message}` }; }
+-  if (!j || typeof j !== "object" || Array.isArray(j) || j.hostServices === undefined || Object.keys(j).some((k) => !["hostServices", "challengeReplica"].includes(k)))
+-    return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: must be { hostServices, challengeReplica? }` };
+-  if (j.challengeReplica !== undefined && (!j.challengeReplica || typeof j.challengeReplica !== "object" || Array.isArray(j.challengeReplica)))
+-    return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: challengeReplica must be an object` };
+-  return { hostServices: j.hostServices, ...(j.challengeReplica !== undefined ? { challengeReplica: j.challengeReplica } : {}), error: null };
++  if (!j || typeof j !== "object" || Array.isArray(j) || j.hostServices === undefined || Object.keys(j).some((k) => !["hostServices", "challengeReplica", "hostServicesPolicy"].includes(k)))
++    return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: must be { hostServices, challengeReplica?, hostServicesPolicy? }` };
++  for (const k of ["challengeReplica", "hostServicesPolicy"]) if (j[k] !== undefined && (!j[k] || typeof j[k] !== "object" || Array.isArray(j[k])))
++    return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: ${k} must be an object` };
++  return { hostServices: j.hostServices, ...(j.challengeReplica !== undefined ? { challengeReplica: j.challengeReplica } : {}),
++    ...(j.hostServicesPolicy !== undefined ? { hostServicesPolicy: j.hostServicesPolicy } : {}), error: null };
+ }
+ 
+ /** Why the privacy agent would refuse an app-less config (network/privacy-agent.mjs runPrivacy: hostServicesPreflight and its
+@@ -110,7 +114,11 @@ export async function appLessRefusal(cfg) {
+     return `the host-service ingress worker is not staged (${worker || "none"})`;
+   const runner = String(cfg.runner || "");
+   if (!/^0x[0-9a-f]{64}$/.test(runner) || keccak256(toBytes(String(cfg.endpoint))) !== runner) return "the runner is not keccak256 of this host's endpoint exactly as configured";
+-  const policy = resolveHostPolicyConfig({ env: {}, chainId: 8453, book: cfg?.chain?.addressBook || null });
++  // the operator's explicit policy block (with its carriers), else the platform's default for the config's chain and book
++  const hsp = cfg?.enclaveNetwork?.hostServicesPolicy;
++  let policy;
++  if (hsp !== undefined) { try { policy = resolveHostPolicyConfig({ env: hostPolicyGateEnv(hostServicesPolicyConfig(hsp)).env, chainId: 8453 }); } catch (e) { return e.message; } }
++  else policy = resolveHostPolicyConfig({ env: {}, chainId: 8453, book: cfg?.chain?.addressBook || null });
+   return policy.on ? null : `the platform host policy is off for this config (${policy.reason})`;
+ }
+ 
+@@ -160,12 +168,19 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+     // this every pass replaced the section, dropped it and restarted the agent. Placed before walletAdmission, which stays last.
+     const challengeReplica = optIn.challengeReplica !== undefined ? optIn.challengeReplica : cfg?.enclaveNetwork?.challengeReplica;
+     const keepChallenge = !!challengeReplica && typeof challengeReplica === "object" && !Array.isArray(challengeReplica);
++    // HOST SERVICES POLICY (network/host-policy-gate-config.mjs): the operator's explicit policy block with its document
++    // CARRIERS, kept byte-for-byte like hostServices (never dropped) and reported every pass while the agent would refuse it
++    const hostServicesPolicy = optIn.hostServicesPolicy !== undefined ? optIn.hostServicesPolicy : cfg?.enclaveNetwork?.hostServicesPolicy;
++    const keepPolicy = !!hostServicesPolicy && typeof hostServicesPolicy === "object" && !Array.isArray(hostServicesPolicy);
++    let hostServicesPolicyError = null;
++    if (keepPolicy) { try { hostServicesPolicyConfig(hostServicesPolicy); } catch (e) { hostServicesPolicyError = e.message; log(`HOST SERVICES POLICY INVALID (kept unchanged; the privacy agent refuses host services until it is fixed): ${e.message}`); } }
+     // Directory choice belongs to the host operator; enrollment must not silently
+     // restore the default relay each time a new app appears.
+     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
+     const walletAdmission = config.walletAdmission?.file && path.isAbsolute(config.walletAdmission.file) ? { file: config.walletAdmission.file } : null;
+     const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}),
+       ...(hostServices ? { hostServices, serviceWorkerModule: path.join(binDir, "host-service-ingress.mjs") } : {}),
++      ...(keepPolicy ? { hostServicesPolicy } : {}),
+       ...(keepChallenge ? { challengeReplica } : {}),
+       // the node's wallet hold channel (host.mjs walletChannelStart), only while the node runs one: the agent then admits an
+       // app only on a fresh allow there; dropped (one restart) when the node stops writing it, so nothing waits on a dead file
+@@ -232,7 +247,7 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+     // no app yet: written only for a VALID host-services block (an invalid one would only be refused by the agent) while this
+     // node's platform host policy does not refuse this host (the agent judges the same policy itself before any service)
+     let servicesOnly = false;
+-    if (changed && !cfg.apps.length && hostServices && !hostServicesError) {
++    if (changed && !cfg.apps.length && hostServices && !hostServicesError && !hostServicesPolicyError) {
+       const unusable = await appLessRefusal(cfg), refusal = unusable ? null : hostServiceRefusal();
+       if (unusable) log(`host services: no app yet, and the privacy agent would refuse them (${unusable}); the config is not written`);
+       else if (refusal) log(`host services: no app yet, and the platform host policy refuses this host (${refusal}); the config is not written`);
+@@ -245,7 +260,7 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+       if (switched) { log("restarting the privacy agent on its new network configuration"); await restartAgent().catch((e) => log(`agent restart: ${e.message}`)); }
+     }
+     // waiting: apps whose new version's partition is not ready yet - the caller looks again soon instead of in 5 minutes
+-    return { ready: true, apps: cfg.apps.length, changed: write, waiting, ...(hostServicesError ? { hostServicesError } : {}), ...(optIn.error ? { hostServicesOptInError: optIn.error } : {}) };
++    return { ready: true, apps: cfg.apps.length, changed: write, waiting, ...(hostServicesError ? { hostServicesError } : {}), ...(hostServicesPolicyError ? { hostServicesPolicyError } : {}), ...(optIn.error ? { hostServicesOptInError: optIn.error } : {}) };
+   }
+   return { pass };
+ }
+diff --git a/windows/node/node-config.example.cmd b/windows/node/node-config.example.cmd
+index de3d6ad5a..de0772ff6 100644
+--- a/windows/node/node-config.example.cmd
++++ b/windows/node/node-config.example.cmd
+@@ -17,6 +17,8 @@ rem set PUBLIC_URL=https://api.enclave.host/t/my-gaming-pc
+ rem The platform host policy (admin host bans): production = on, activated by the admin's anchor. Keep it.
+ set ENCLAVE_PLATFORM_HOST_POLICY=production
+ rem This host's own public service roles (opt-in): the JSON `stage-tool.mjs host-services` prints as "agent",
+-rem { "hostServices": {...}, "challengeReplica"?: {...} }. The network agent then runs them even before the first app, once
+-rem the platform host policy admits this host. Unset: none (or the blocks set by hand in privacy-config.json).
++rem { "hostServices": {...}, "challengeReplica"?: {...}, "hostServicesPolicy"?: {...} } - hostServicesPolicy names the policy,
++rem its RPC quorum and CARRIERS of its signed document (an imported directory, a policy-mirror store, other hosts' mirrors).
++rem The network agent then runs them even before the first app, once the platform host policy admits this host.
++rem Unset: none (or the blocks set by hand in privacy-config.json).
+ rem set ENCLAVE_HOST_SERVICES_FILE=C:\ProgramData\Enclave\host-services.json

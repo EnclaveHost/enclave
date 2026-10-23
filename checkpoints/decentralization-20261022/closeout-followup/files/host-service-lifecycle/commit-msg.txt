@@ -1,0 +1,42 @@
+Host services: cancel and withdraw on stop; no late circuit, grant, child or timer after a ban
+
+Root's probe (root-host-service-stop-race, transport de5bb98a) showed three problems:
+- HostServiceTransport.close() returned while runtime.start() was still pending.
+- The returned live circuit was then inserted into the closed transport, its exit grant was never revoked, and start()
+  created its 15-s interval after the close.
+- The privacy agent's judge() held `judging` across `await hostServices.start()`, so a known admin refusal was skipped
+  until the startup returned.
+
+WgCircuitRuntime.start({signal}):
+- A stop ends the startup at its next step (err.cancelled). Waits that are pending (the tunnel's or the worker's
+  readiness) are rejected at once, and their timeouts are cleared.
+- A grant request already sent is awaited, never cut off, so a withdrawal is ordered after it.
+- A host-service circuit that asked its exit and does not come up (cancelled or failed) withdraws that grant with a
+  signed revoke through its still-running guard tunnel, before its processes end.
+- If the revoke cannot be sent, the grant lapses at its expiry. The log says so.
+- An explicit refusal (403) needs no revoke. App and control circuits are unchanged apart from the cancellation.
+
+HostServiceTransport:
+- close() is idempotent (one promise). It marks the transport closed, cancels the startups in flight, withdraws and
+  closes the live circuits first, then awaits the cancelled round (bounded, 90 s).
+- A circuit a runtime returns after the stop is withdrawn and closed (retire), never inserted.
+- start() creates no timer once closed.
+- A cancelled startup is no strike against the providers.
+
+hostServiceLifecycle (used by privacy-agent.mjs in place of the inline judge):
+- One transport at a time, following the platform host policy.
+- A refusal stops the current transport, including one still in its first round, at once.
+- Only an admit starts a FRESH transport, without waiting for it to come up.
+- A late completion closes only its own transport, never the current one.
+- close() resolves once every transport it stopped has closed.
+
+The runtime itself and app circuits are untouched by a host-service stop. Administrator controls are unchanged: the
+same gate, the same sticky refusal and the same explicit fresh admit.
+
+Tests: test/host-service-lifecycle.test.mjs (9) on the real control flow:
+- real WgCircuitRuntime (plain), WgGrants, two WgProvider instances behind their real control servers on loopback,
+  and the real host-service ingress worker;
+- the privacy agent's actual host-service block, sliced from privacy-agent.mjs;
+- a stand-in wg process for the data plane only.
+
+Results: 9/9 here; 0/9 on 427780bbc (control).

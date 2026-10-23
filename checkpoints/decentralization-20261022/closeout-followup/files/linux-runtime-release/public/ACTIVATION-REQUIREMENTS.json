@@ -1,0 +1,79 @@
+{
+ "format": "linux-runtime-activation-requirements/1",
+ "written": "2026-10-23",
+ "scope": "NO-ACTION prerequisites for the relay-mode Linux control image of composed commit fec43a6a08da2ac287fb3a5c42de89f096f4f678 (D f1d0666b + ROOT 1086cf23 on the reviewed image commit 493ee9ee). Measurement 3043f6ff8d8bbfbe995d3dde5e93e790a9b3bb5db432375b8e8b3c72b1cc26a2aaee5cab174a7a4134b92923c81ea77d (4 vCPUs, family 26 model 2 stepping 1, pinned OVMF 142589cc, cmdline = the production base template with metal.mode=snp). Nothing here was executed: no SSH, no allowlist change, no config/service change, no boot. Root executes.",
+ "replaces": {
+  "running": "KEPT ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2 (overlay commit deabf8f90, image <prod>/dist-leasegas-deabf8f90, release <prod>/metal-deabf8f90; work/linux-post-adoption-release/activation/result.json state KEPT, 2026-10-21)",
+  "why": "the KEPT supervisor 01ac9cb1 folds an UNKNOWN host-wallet answer into a refusal (releases leases on an RPC outage) and its bundle e83515fc has no decision() (t1 G0: methods [refusal]; G6: 16 of 25 hold cases fail under it)"
+ },
+ "rollback": [
+  "KEPT ed918e4b (deabf8f90): restore config.json + the drop-in by compare-and-swap, as work/linux-post-adoption-release/activation/common.py safe_rollback does: stop the new control FIRST, wait until two public RPCs agree on a block past every sponsored deadline it logged (journal unreadable: stop time + 300 s ttl + 60 s), restore, start the previous control. guestd and its guests are never touched.",
+  "the production base b8376e15 stays the second fallback (no leaseGas)"
+ ],
+ "steps": [
+  {
+   "step": 1,
+   "item": "Review and publish the source",
+   "what": "root reviews the composition (patches/ 0001-0004 on 493ee9ee; receipts/source-commits.txt) and decides where fec43a6a lives. Any other commit, including a test-only follow-up, changes manifest.json and therefore the measurement: rebuild with RECIPE.md and use the new value."
+  },
+  {
+   "step": 2,
+   "item": "Stage (root, enclave-prod)",
+   "what": "copy image/dist-linux-fec43a6a0 (5 files, receipts/artifacts-A.sha256) to <prod>/dist-linux-fec43a6a0 and extract image/release-fec43a6a0.tar (sha256 1a475635...) to <prod>/metal-fec43a6a0, inventory-compared, never over deabf8f90/51516b778/c083 or the base. No config/service change."
+  },
+  {
+   "step": 3,
+   "item": "Relay admission (root; an allowlist action)",
+   "what": "relay mode attaches to the fleet tunnel, so the API relay's Linux measurement allowlist (/etc/nan-relay/linux-leasegas-measurements.env, last CAS'd by work/linux-post-adoption-release/activation/admit.py against 810760c0 -> environment f33a6c91) must list 3043f6ff... ADDITIVELY (ed918e4b stays listed for rollback). Re-check the public allowlist afterwards. Undo = CAS back."
+  },
+  {
+   "step": 4,
+   "item": "Fresh funding/lease preflight",
+   "what": "as before: outputs/decentralization-audit/linux-conduit-funding-preflight.json < 6 min old, both apps covered, each lease with more than adoption + rollback margin, both reserves enabled with balance."
+  },
+  {
+   "step": 5,
+   "item": "Cutover",
+   "what": "a NEW activation instance derived from work/linux-post-adoption-release/activation (its activate.py asserts the b8376e15 -> deabf8f90 transition and cannot be reused as is): PREV_DIST <prod>/dist-leasegas-deabf8f90, PREV_WORKDIR <prod>/metal-deabf8f90, precondition result.json KEPT; change ONLY config.dist -> the staged dist-linux-fec43a6a0 and the drop-in WorkingDirectory -> metal-fec43a6a0; keep leaseGas and every other config field byte-identical. Mandatory baseline (apphealth + one owned guest per app), restart, attach (120 s), adoption of both apps with the SAME guests (300 s), operational gate v4 (>= 420 s public TLS, >= 2 vouch cycles, no death/reap/release/respawn), both app-paid renewals landed. ANY failure: the safe rollback above."
+  },
+  {
+   "step": 6,
+   "item": "Keep",
+   "what": "root audits both renewal transactions on chain (paid by each app's reserve, never the host key) before keeping; otherwise rollback."
+  }
+ ],
+ "checksAfterCutover": [
+  "the attach report/allowlist shows 3043f6ff... and the running guest's /opt/metal/manifest.json controlOverlay.commit is fec43a6a",
+  "journal: an UNKNOWN wallet answer (RPC quorum outage) logs '[claim] <id> host wallet policy unavailable (...): not served here; the lease is kept (not renewed or released) until the policy is established' and NO '[release]' line for that id; recovery logs '[claim] <id> host wallet policy established again (allowed) and its instance confirmed stopped: the claim sweep resumes its live lease'",
+  "journal: no '[host-policy] this host is NOT serving' / '[host-policy] REFUSING' line (production default, no mirror; unanchored = not activated, admitted) and no '[host-policy] policy carriers' line (none can be configured in relay mode)",
+  "the public raw attestation document answers at the legacy wire path /.well-known/tinfoil-attestation (still ADVERTISED_RAD_PATH) and at /.well-known/enclave-attestation",
+  "a guest stop frees its slice only after '[stop] <id>: instance confirmed gone by the backend listing; its slice is free'; a failed DELETE leaves the slice reserved until a later reconcile confirms it"
+ ],
+ "prerequisitesOutsideThisImage": [
+  {
+   "item": "PLATFORM POLICY CARRIER for relay-mode Linux (blocks any admin ANCHOR, not this cutover)",
+   "what": "40e8ba71 selects NO mirror by default (the 4 DigitalOcean /platform-policy mirrors e83515fc used are gone) and its carrier wrapper reads ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS from process.env, but gsup's legacy (relay-mode) branch builds supEnv from the baked flavor-env.json + the fw_cfg host-wallet policy env only (metal/guest/gsup.mjs supEnv) and the launcher forwards no carrier field (metal/enclave-metal.mjs fw object: hostAdmission, leaseGas, ownerNomination). Only the measured DIRECT guest has the bound platformPolicyCarriers member (metal/guest/measured-control.mjs CARRIERS_ENV). So once the administrator anchors a policy, this image cannot fetch it and refuses itself after the grace. Before any anchor: either a reviewed relay-mode carrier pass-through (launcher fw_cfg platformPolicyCarriers validated like measured-control directPolicyCarriers -> gsup legacy supEnv ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS; a new image + measurement), or Linux control moves to the measured direct image. Unanchored (today's recorded state) both bundles admit as 'not activated'."
+  },
+  {
+   "item": "Lease relay topology",
+   "what": "the KEPT plan's leaseGas.relays is the single EU relay https://134.209.248.172 (DigitalOcean; ROOT-STAGING-STATE.txt: intentional temporary topology). This image adds optional leaseGas.pinnedRelays (host-local relay over 10.0.2.2, payee+operator bound, policy-judged) and service-index relay discovery; using them is a separate config change (new fw_cfg value, no new measurement) after a host-local lease relay role exists on metal0."
+  },
+  {
+   "item": "Verifier authority (A, rpc-priority 2efc4a83)",
+   "what": "not in this image. The image keeps the existing default RPC authority unchanged; A's local-verifier choice needs its own later composition and a local Helios binary."
+  },
+  {
+   "item": "Direct-mode successor",
+   "what": "the native direct image fe897820 (493ee9ee) still ships the pre-D supervisor 2c87a36f (unknown folded into refusal). A direct image of fec43a6a (overlay --control direct, same recipe) would carry D+root; not built here (one build per the task)."
+  }
+ ],
+ "livePinsForRootReadOnlyQuery": [
+  "metal0 runs ed918e4b now: the relay's attach record / the guest's report measurement, and controlOverlay.commit deabf8f90",
+  "<home>/Projects/enclave/metal/config.json sha256 == 58aa9653... (result.json configAfterSha256) and its KEY NAMES (no values): must have no ownerNomination and no field the composed launcher refuses",
+  "the drop-in 95-app-funded-leases.conf == 'WorkingDirectory=<prod>/metal-deabf8f90' (sha256 21fadc72...)",
+  "/etc/nan-relay/linux-leasegas-measurements.env current sha256 (expected f33a6c91... after the deabf8f90 admission) on the API relay",
+  "the platform host policy anchor in the production book (two anchor keys): unanchored or not - decides whether the carrier prerequisite is already blocking",
+  "the config's hostAdmission.policyOrigins (wallet-policy document origins): whether any is a DigitalOcean address",
+  "guestd on metal0 is still the enclave-sdshield-guestd 174edbb7d lineage (the listing/DELETE semantics D's confirmed-stop path reads)"
+ ]
+}

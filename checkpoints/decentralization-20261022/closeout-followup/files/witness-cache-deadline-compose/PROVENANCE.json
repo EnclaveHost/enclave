@@ -1,0 +1,78 @@
+{
+ "format": "witness-cache-deadline-compose-provenance/v1",
+ "label": "SOURCE + OFFLINE TESTS ONLY (unshare -rn; loopback MinIO/fake S3; no live S3/Sia/RPC). Not deployed, merged or pushed.",
+ "bases": {
+  "P_deadline": "d0775541db0a0cb599cfe5c7b3853e24242aaaec (on 7b4e8c68 <- 7b4dd692)",
+  "E_history_compose": {
+   "commit": "afc443e032647c2d8ea31535f5ff0f6609d99ba6",
+   "tree": "9fe790e855066c0835b848c8c4a1bdeb1b6529b8",
+   "fetchedFrom": "rpc-sia-cache/history-compose/repo branch work/sia-history-compose (read-only fetch; E tree untouched)"
+  }
+ },
+ "head": "9e838ba758b96f96eb9858e35f4898a95fc5cba7",
+ "tree": "90ecef92d89783aaf8da58eb2e0eae2483abf546",
+ "commits": [
+  "8389e983b14588a75c8d8697a08a83e7576af23f SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Optional S3 (Sia-S3) backend for the witness gateway's immutable cache",
+  "e2ffb7aa25fba60886b174300f50e74908e21357 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Compose the S3 witness store as the verifying gateway's ARCHIVE tier",
+  "52bb57ff2f1b038885ce9acbfca703fe39f708d9 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Archive verified ancestry headers so a missed root recovers with every upstream down",
+  "9e838ba758b96f96eb9858e35f4898a95fc5cba7 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Compose E's S3 archive tier with whole-operation deadlines: per-request abort into S3, aggregate cache bounds, cache byte budget"
+ ],
+ "cherryPicks": [
+  {
+   "e": "96b877b7c89d2b9ac54df9099c44f97ff841e378",
+   "composed": "8389e983b14588a75c8d8697a08a83e7576af23f",
+   "patchIdE": "d46cff8c5d3b04488352f474db0f47a567199bec",
+   "patchIdComposed": "d46cff8c5d3b04488352f474db0f47a567199bec",
+   "patchIdExcludingGatewayEqual": true
+  },
+  {
+   "e": "6a058877438c1b3d434a9447259a7e4e32f45782",
+   "composed": "e2ffb7aa25fba60886b174300f50e74908e21357",
+   "patchIdE": "b96c81e97afb46ea45da827a5ca375632d940c1a",
+   "patchIdComposed": "954e42cdb8811d36447813465a157035921e19ad",
+   "patchIdExcludingGatewayEqual": true
+  },
+  {
+   "e": "afc443e032647c2d8ea31535f5ff0f6609d99ba6",
+   "composed": "52bb57ff2f1b038885ce9acbfca703fe39f708d9",
+   "patchIdE": "650855b6f55acb0e7e96106b3297e6f303fbcc85",
+   "patchIdComposed": "133a864090170e87ef5b83e95544eb5922c17d56",
+   "patchIdExcludingGatewayEqual": true
+  }
+ ],
+ "files": {
+  "network/witness-gateway.mjs": {
+   "blob": "f6a18de33ce7e0e79454004c8c6b0aa7fbfa7ce0",
+   "sha256": "7209ef5beea5cf2f1afa471bf9d7b49babfdbb5877de63d9ee5159420d1389cb"
+  },
+  "network/witness-verify.mjs": {
+   "blob": "a8c0edec5a86c9127a9ec69957c8762f635fcc51",
+   "sha256": "729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b"
+  },
+  "network/s3-witness-cache.mjs": {
+   "blob": "a72aaecf7d10ac71c507cb9f764661a1fbec7809",
+   "sha256": "fa87083a2a6bb1bd2458cbb0c37bd8446a6f2c1af5d6531046be0281b048dd40"
+  },
+  "test/witness-archive-deadline.test.mjs": {
+   "blob": "8bd43b34071eb0a0130a4265df7bdec343e2cdbd",
+   "sha256": "bcbff3d2fa519e458653f916ecda3522f2404e719b4305316b1f90c68f408b42"
+  }
+ },
+ "binaries": {
+  "witness-check": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+  "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc"
+ },
+ "helios": "enclave-witness-check ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 (witness-check 4fe0cd3b; unchanged, no rebuild)",
+ "fixturesManifestSha256": "887ab86dbf3f9551280efcb441722d7e8ddb39fb6ca6b1f941c0767b4b148cb5",
+ "untrackedTestInputs": [
+  "repo/node_modules -> native-front-abort/repo/node_modules (symlink, as in witness-failover)",
+  "repo/contracts/foundry/out/EnclaveAddressBook.sol/EnclaveAddressBook.json (ignored artifact, sha256 966f76623331d9427d6eef050080778064ffc8f989fc40a5d091991e10a03fca)"
+ ],
+ "patches": {
+  "patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch": "76bed7e8c1829f2fb1205a6c20b1d3b0e8042056c6fc8974913bb05a0ff58428",
+  "patches/0002-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch": "31e9eb4549b01901848e04b705c2ccdb62ec09016c584cff4be930d8641ea1e2",
+  "patches/0003-Archive-verified-ancestry-headers-so-a-missed-root-r.patch": "bfad0c8cccff5237d2ba23acc99e5886b2728d6063da642547c6dd7b932e1f2c",
+  "patches/0004-Compose-E-s-S3-archive-tier-with-whole-operation-dea.patch": "40006c92ebd2c3a1bd53e7f2e1e2e1729a52186862f5b3035c13a12630c85d03"
+ }
+}

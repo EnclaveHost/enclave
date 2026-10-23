@@ -1,0 +1,31 @@
+{
+ "ok": true,
+ "closureFiles": 45,
+ "imported": 48,
+ "syntaxChecked": 9,
+ "packages": [
+  "cors",
+  "express",
+  "jose",
+  "viem",
+  "ws"
+ ],
+ "installedHostAdmission": {
+  "sha256": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+  "supervisorImports": [
+   "createHostServiceGate",
+   "hostAdmissionConfigured",
+   "hostAdmissionFromEnv"
+  ],
+  "hasDecision": true,
+  "hasCarriers": true,
+  "productionDefault": {
+   "on": true,
+   "source": "production chain and address book (default)",
+   "activation": "anchor",
+   "mirrors": [],
+   "rpcs": 4
+  }
+ },
+ "roleBundles": "absent (relay mode)"
+}

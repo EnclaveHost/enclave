@@ -1,0 +1,117 @@
+[queue] START available=24597MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+7a5ee157ffbac89a5fc4342484ddd28fd8dfd68adda70238f3ded224d1b9cc78  holder.py
+802cfb1d338c709bcfab7dcd9c0a85224a9d42b30ac197fc0eeb3dcc83c4d604  holder-storage.sh.in
+743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+7ff667be8bc7dc30c3b88feb31362a5e3ab3892f433be5e74f298c06e3bb0ce2  holder.example.json
+8ebed72d8523d84d97dd1b74125c5f4195085d62bd8ec823f7d583b6b76b06cf  test/mutate.py
+6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
+b9dbffee6733c9f31184c263539a0648be005fc69fd0c8e4d13f1b35e4c00ad8  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+ac0317b6624e8baa30370b7e85c88c55e656cfa570ed141a1bcb121fb7ce2509  test/test_storage.py
+4de226a548e8f8f432a5909c21efb6940871d6ed0651279604620969bb45bb0a  test/stubs/stubcmd.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped) ... ok
+test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports) ... ok
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... ok
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... ok
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... FAIL
+test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations) ... ok
+test_example_is_not_deployable_until_the_binary_is_pinned (__main__.Validation.test_example_is_not_deployable_until_the_binary_is_pinned) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+======================================================================
+FAIL: test_render_files (__main__.Render.test_render_files)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 173, in test_render_files
+    self.assertIn('CAP=250000000000', script)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'CAP=250000000000' not found in '#!/bin/bash\n# Enclave Base holder storage (rendered by holder.py from holder-storage.sh.in; ROOT ONLY; review before use).\n# Durable data: ONE new ext4 filesystem inside ONE new image file on the HDD (ORIGIN). Optional cache: dm-cache in\n# WRITETHROUGH mode (smq) on two new fixed-size image files on NVMe (CDATA, CMETA). Existing filesystems, partitions and\n# mappings are never formatted, changed, adopted or removed unless they are provably this holder\'s own.\n#   create        once, with root\'s approval: preflight EVERYTHING, then allocate; unwinds only what it created\n#   assemble      at boot: attach and map (or adopt an IDENTICAL existing mapping), mount; unwinds only what it did\n#   disassemble   at stop: unmount, unmap, detach; stops at the first failure (never detaches under a live user)\n#   verify-cap    measured aggregate NVMe bytes (allocated, not apparent) of the holder images plus every path in the\n#                 shared inventory; exit 3 above the cap\n#   cache-loss    holder stopped: unmap, INVALIDATE the cache metadata first, then a read-only check of the origin. Any\n#                 later assemble starts from an empty cache. A cache is never reattached after uncached origin access.\nset -euo pipefail\numask 077\nMECHANISM=\'dm-cache\'\nORIGIN=\'/mnt/usb/enclave-base-holder/origin.img\'\nORIGIN_BYTES=\'3100000000000\'\nORIGIN_FREE_MARGIN=\'500000000000\'\nMNT=\'/srv/enclave-base-holder\'\nDATADIR=\'/srv/enclave-base-holder/data\'\nOWNER=\'enclave-holder\'\nNAME=\'enclave-base-holder\'\nINVENTORY=\'/etc/enclave-base-holder/nvme-cache-inventory.tsv\'\nCAP=\'250000000000\'\nTARGET=\'200000000000\'\nCDATA=\'/vm/enclave-base-holder-cache/cache-data.img\'\nCDATA_BYTES=\'197999984640\'\nCMETA=\'/vm/enclave-base-holder-cache/cache-meta.img\'\nCMETA_BYTES=\'1073741824\'\nBLOCK_SECTORS=\'512\'\nSLACK=\'67108864\'\nNVME_FREE_MARGIN=\'200000000000\'\nlog() { echo "holder-storage: $*" >&2; }\ndie() { log "$*"; exit 2; }\nrot() { lsblk -nso ROTA "$(findmnt -no SOURCE --target "$(dirname "$1")")" | tail -1 | tr -d \' \'; }\nalloc() { echo $(( $(stat -c %b "$1") * 512 )); }\navail() { df --output=avail -B1 "$(dirname "$1")" | tail -1 | tr -d \' \'; }\nmm() { lsblk -dno MAJ:MIN "$1" | tr -d \' \'; }\nloopof() { losetup -j "$1" -O NAME -n | head -1; }          # the loop bound to exactly this backing file, if any\nCREATED=(); ATTACHED=(); MAPPED=; MOUNTED=\nunwind() {\n  local rc=$?\n  [ "$rc" -eq 0 ] && return 0\n  set +e\n  [ -n "$MOUNTED" ] && umount "$MNT"\n  [ -n "$MAPPED" ] && dmsetup remove "$NAME"\n  for l in "${ATTACHED[@]}"; do losetup -d "$l"; done\n  for f in "${CREATED[@]}"; do rm -f -- "$f"; done\n  log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"\n  exit "$rc"\n}\ntrap unwind EXIT\nattach() {   # attach FILE VAR: reuse the loop already bound to FILE, else attach (and own) a new one\n  local l; l=$(loopof "$1")\n  if [ -z "$l" ]; then l=$(losetup --find --show -- "$1"); ATTACHED+=("$l"); fi\n  printf -v "$2" \'%s\' "$l"\n}\nexpected_table() { echo "0 $(blockdev --getsz "$O") cache $(mm "$M") $(mm "$D") $(mm "$O") $BLOCK_SECTORS 1 writethrough smq 0"; }\ncached() { [ "$MECHANISM" = dm-cache ]; }\nholder_dev() {   # the device the mount must come from; sets DEV\n  if cached; then DEV=/dev/mapper/$NAME; else DEV=$O; fi\n}\nown_mapping() {  # 0 = absent, 1 = present AND identical to ours; anything else refuses\n  dmsetup info "$NAME" >/dev/null 2>&1 || return 0\n  local have want; have=$(dmsetup table "$NAME"); want=$(expected_table)\n  [ "$have" = "$want" ] || die "mapping $NAME exists but is not this holder\'s (have: $have; want: $want); leaving it untouched"\n  return 1\n}\n\ncase "${1:-}" in\ncreate)\n  # 1. preflight every resource BEFORE allocating anything\n  for f in "$ORIGIN" ${CDATA:+"$CDATA"} ${CMETA:+"$CMETA"}; do\n    test ! -e "$f" || die "$f exists: refusing to overwrite or reuse"\n    test -d "$(dirname "$f")" || die "$(dirname "$f") does not exist"\n  done\n  [ "$(rot "$ORIGIN")" = 1 ] || die "origin must be on a rotational (HDD) device"\n  [ "$(avail "$ORIGIN")" -ge $(( ORIGIN_BYTES + ORIGIN_FREE_MARGIN )) ] || die "not enough free space for the origin image plus margin"\n  if cached; then\n    for f in "$CDATA" "$CMETA"; do [ "$(rot "$f")" = 0 ] || die "$f must be on NVMe (non-rotational)"; done\n    [ "$(avail "$CDATA")" -ge $(( CDATA_BYTES + CMETA_BYTES + NVME_FREE_MARGIN )) ] || die "not enough NVMe free space for the cache plus margin"\n    "$0" verify-cap-plan || die "aggregate NVMe cap would be exceeded"\n  fi\n  # 2. allocate, tracking ownership for unwind\n  CREATED+=("$ORIGIN"); fallocate -l "$ORIGIN_BYTES" -- "$ORIGIN"\n  attach "$ORIGIN" O\n  mkfs.ext4 -q -L enclave-holder -E lazy_itable_init=0,lazy_journal_init=0 "$O"   # NEW filesystem in the NEW image\n  if cached; then\n    CREATED+=("$CDATA"); fallocate -l "$CDATA_BYTES" -- "$CDATA"\n    CREATED+=("$CMETA"); fallocate -l "$CMETA_BYTES" -- "$CMETA"\n    dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none   # zeroed: dm-cache formats an empty cache\n  fi\n  losetup -d "$O"; ATTACHED=()\n  CREATED=()\n  log "created (not assembled)"\n  ;;\nassemble)\n  modprobe loop\n  test -f "$ORIGIN" || die "origin image missing"\n  if cached; then modprobe dm-cache; modprobe dm-cache-smq; test -f "$CDATA" && test -f "$CMETA" || die "cache images missing"; fi\n  attach "$ORIGIN" O\n  if cached; then\n    "$0" verify-cap-measured || die "measured aggregate NVMe bytes exceed the cap"\n    attach "$CDATA" D; attach "$CMETA" M\n    if own_mapping; then\n      [ -z "$(lsblk -nro MOUNTPOINTS "$O" | tr -d \'[:space:]\')" ] || die "origin is mounted WITHOUT the cache: run cache-loss first (stale-cache hazard)"\n      dmsetup create "$NAME" --table "$(expected_table)"; MAPPED=1\n    fi\n    dmsetup status "$NAME" | grep -qw writethrough || die "mapping $NAME is not writethrough"\n  fi\n  holder_dev\n  mkdir -p "$MNT"\n  if findmnt -n "$MNT" >/dev/null; then\n    [ "$(findmnt -no MAJ:MIN "$MNT" | tr -d \' \')" = "$(mm "$DEV")" ] || die "$MNT is mounted from another device; leaving it"\n  else\n    mount -o noatime,nodev,nosuid "$DEV" "$MNT"; MOUNTED=1\n  fi\n  chown "$OWNER:$OWNER" "$MNT"; chmod 0700 "$MNT"\n  for d in "$DATADIR" "$MNT/tmp"; do mkdir -p "$d"; chown "$OWNER:$OWNER" "$d"; chmod 0700 "$d"; done\n  ATTACHED=(); MAPPED=; MOUNTED=\n  log "assembled: $DEV on $MNT"\n  ;;\ndisassemble)\n  trap - EXIT\n  if findmnt -n "$MNT" >/dev/null; then umount "$MNT" || die "unmount of $MNT failed: stopping (nothing detached)"; fi\n  O=$(loopof "$ORIGIN")\n  if cached && dmsetup info "$NAME" >/dev/null 2>&1; then\n    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")\n    [ -n "$O" ] && [ -n "$D" ] && [ -n "$M" ] || die "mapping $NAME exists but its loops are not ours: leaving it"\n    [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder\'s: leaving it"\n    dmsetup remove "$NAME" || die "dmsetup remove $NAME failed: stopping (loops kept)"\n  fi\n  for f in ${CMETA:+"$CMETA"} ${CDATA:+"$CDATA"} "$ORIGIN"; do\n    l=$(loopof "$f"); [ -z "$l" ] || losetup -d "$l" || die "detach of $l ($f) failed"\n  done\n  log "disassembled"\n  ;;\nverify-cap-plan|verify-cap-measured|verify-cap)\n  trap - EXIT\n  # holder images: planned sizes, or ALLOCATED bytes once they exist; plus every inventory path\'s allocated bytes\n  if ! cached; then H=0; SLACK=0\n  elif [ "$1" = verify-cap-plan ]; then H=$(( CDATA_BYTES + CMETA_BYTES ))\n  else H=$(( $(alloc "$CDATA") + $(alloc "$CMETA") )); fi\n  OTHER=0\n  test -f "$INVENTORY" || die "shared NVMe cache inventory $INVENTORY missing (root-maintained: label<TAB>path per line)"\n  while IFS=$\'\\t\' read -r label path; do\n    [ -z "${label:-}" ] || [ "${label:0:1}" = \'#\' ] && continue\n    [ "$path" = "$CDATA" ] || [ "$path" = "$CMETA" ] && continue\n    test -e "$path" || { log "inventory path absent (counted 0): $label $path"; continue; }\n    OTHER=$(( OTHER + $(du -sx --block-size=1 -- "$path" | cut -f1) ))\n  done < "$INVENTORY"\n  TOTAL=$(( H + SLACK + OTHER ))\n  echo "holderBytes=$H slackBytes=$SLACK otherMeasuredBytes=$OTHER totalBytes=$TOTAL capBytes=$CAP targetBytes=$TARGET"\n  [ "$TOTAL" -le "$CAP" ] || { log "OVER CAP"; exit 3; }\n  if [ "$1" = verify-cap ] && cached && dmsetup info "$NAME" >/dev/null 2>&1; then dmsetup status "$NAME"; fi\n  ;;\ncache-loss)\n  cached || die "no cache configured"\n  ! findmnt -n "$MNT" >/dev/null || die "$MNT is mounted: stop the holder and run disassemble first"\n  O=$(loopof "$ORIGIN"); [ -n "$O" ] || attach "$ORIGIN" O\n  if dmsetup info "$NAME" >/dev/null 2>&1; then\n    D=$(loopof "$CDATA"); M=$(loopof "$CMETA")\n    [ -n "$D" ] && [ -n "$M" ] && [ "$(dmsetup table "$NAME")" = "$(expected_table)" ] || die "mapping $NAME is not this holder\'s: leaving it"\n    dmsetup remove "$NAME" || die "dmsetup remove failed"\n  fi\n  # INVALIDATE before the origin is touched: writethrough means no dirty blocks, so nothing is lost\n  dd if=/dev/zero of="$CMETA" bs=1M count=8 conv=notrunc,fsync status=none\n  e2fsck -fn "$O"\n  ATTACHED=()\n  log "cache invalidated (metadata zeroed); origin checked without it; the next assemble starts with an EMPTY cache"\n  ;;\n*) echo "usage: $0 create|assemble|disassemble|verify-cap|cache-loss" >&2; trap - EXIT; exit 64;;\nesac\n'
+
+----------------------------------------------------------------------
+Ran 17 tests in 14.845s
+
+FAILED (failures=1)
+=== test/test_storage.py
+test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops) ... ok
+test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical (__main__.Storage.test_assemble_maps_writethrough_and_mounts_then_adopts_only_identical) ... ok
+test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops) ... ok
+test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount) ... ok
+test_assemble_refuses_origin_mounted_without_cache (__main__.Storage.test_assemble_refuses_origin_mounted_without_cache) ... ok
+test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin) ... ok
+test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources) ... ok
+test_create_preallocates_exact_sizes_and_leaves_nothing_attached (__main__.Storage.test_create_preallocates_exact_sizes_and_leaves_nothing_attached) ... /home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_storage.py:72: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/hs-76iy5qvd/nvme/cache-meta.img'>
+  self.assertEqual(open(self.nvme / 'cache-meta.img', 'rb').read(8 * MiB), bytes(8 * MiB))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_create_refuses_existing_targets_and_touches_nothing (__main__.Storage.test_create_refuses_existing_targets_and_touches_nothing) ... ok
+test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory) ... ok
+test_create_refuses_wrong_media_before_allocating (__main__.Storage.test_create_refuses_wrong_media_before_allocating) ... ok
+test_disassemble_clean (__main__.Storage.test_disassemble_clean) ... ok
+test_disassemble_refuses_foreign_mapping (__main__.Storage.test_disassemble_refuses_foreign_mapping) ... ok
+test_disassemble_stops_at_failed_unmap (__main__.Storage.test_disassemble_stops_at_failed_unmap) ... ok
+test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount) ... ok
+test_no_cache_layout_mounts_origin_loop (__main__.Storage.test_no_cache_layout_mounts_origin_loop) ... ok
+test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 8.577s
+
+OK
+SUITE_RC=1
+=== inherit-env KILLED
+  FAIL: test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop)
+  FAIL: test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed)
+  FAIL: test_render_files (__main__.Render.test_render_files)
+=== sh:adopt-any-mapping KILLED
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+=== sh:no-invalidate KILLED
+  FAIL: test_cache_loss_invalidates_before_touching_origin (__main__.Storage.test_cache_loss_invalidates_before_touching_origin)
+=== sh:no-unwind KILLED
+  FAIL: test_assemble_failure_keeps_preexisting_loops (__main__.Storage.test_assemble_failure_keeps_preexisting_loops)
+  FAIL: test_assemble_refuses_foreign_mapping_and_unwinds_its_loops (__main__.Storage.test_assemble_refuses_foreign_mapping_and_unwinds_its_loops)
+  FAIL: test_assemble_refuses_foreign_mount (__main__.Storage.test_assemble_refuses_foreign_mount)
+  FAIL: test_create_failure_unwinds_only_its_own_resources (__main__.Storage.test_create_failure_unwinds_only_its_own_resources)
+=== sh:continue-after-failed-umount KILLED
+  FAIL: test_disassemble_stops_at_failed_unmount (__main__.Storage.test_disassemble_stops_at_failed_unmount)
+=== sh:measured-cap-ignored KILLED
+  FAIL: test_create_refuses_over_aggregate_cap_using_measured_inventory (__main__.Storage.test_create_refuses_over_aggregate_cap_using_measured_inventory)
+  FAIL: test_verify_cap_measures_allocated_bytes (__main__.Storage.test_verify_cap_measures_allocated_bytes)
+=== public-http KILLED
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+  FAIL: test_render_files (__main__.Render.test_render_files)
+=== allow-writeback KILLED
+  FAIL: test_render_files (__main__.Render.test_render_files)
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='writethrough')
+=== cap-off-by-slack KILLED
+  FAIL: test_render_files (__main__.Render.test_render_files)
+  FAIL: test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations)
+  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
+=== no-group-reap KILLED
+  FAIL: test_child_failure_propagates_exit_code_and_its_group_is_reaped (__main__.Lifecycle.test_child_failure_propagates_exit_code_and_its_group_is_reaped)
+  FAIL: test_render_files (__main__.Render.test_render_files)
+=== no-pdeathsig KILLED
+  FAIL: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+  FAIL: test_render_files (__main__.Render.test_render_files)
+=== trust-l1 KILLED
+  FAIL: test_render_files (__main__.Render.test_render_files)
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='trustRpc')
+=== verifier-port KILLED
+  FAIL: test_render_files (__main__.Render.test_render_files)
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+killed 13/13
+MUT_RC=0
+[memory-guard] exit=0 peakTreeRssMiB=113 minHostAvailableMiB=24144
+[memory-guard] at peak: python3:31 python3:26 python3:24 python3:17 bash:6 sleep:4 timeout:4
+[queue] EXIT 0

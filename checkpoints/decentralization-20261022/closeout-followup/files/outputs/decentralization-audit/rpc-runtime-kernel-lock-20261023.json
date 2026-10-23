@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-10-23T05:34:21.998433+00:00",
+  "scope": "Isolated actual Linux kernel exclusion and subprocess lifecycle tests; RPC runtime integration not yet performed.",
+  "testCommand": "node --test --test-concurrency=1 test/runtime-lock.test.mjs",
+  "testResults": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "skip": 0,
+    "cancelled": 0
+  },
+  "execution": "Existing work/claude-test-queue.py --mib256; exec chunk355d59",
+  "peakTreeRssMiB": 165,
+  "minimumHostAvailableMiB": 24356,
+  "fileSha256": {
+    "network/runtime-lock.mjs": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+    "test/runtime-lock.test.mjs": "52932b0df53dd5aaa277584cab6e1fa58c21a4ecd5773f7495738bec3f0f834b",
+    "test/lock-child.mjs": "3ca6ae66fb5599ac70c30278c2027a0ef0ec7265a45a9afb96f9c205fda7bcfc"
+  },
+  "guardLog": "[memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=24356\n",
+  "limitations": [
+    "Source-only; no production change",
+    "Installed util-linux flock and private state directory required",
+    "No mixed legacy/new lock protocol",
+    "Root tests do not demonstrate fresh witness supply, independent transaction inclusion, or composed runtime closure"
+  ],
+  "sourceCommit": "794d2ff3c7e9e99a9fa92b54390030cb46f108cf",
+  "exportCommit": "336ea56ab458fa4f80481f332fd44f3bf88ded1f",
+  "deploymentStatus": "Not integrated or deployed; source committed locally; checkpoint publication pending."
+}

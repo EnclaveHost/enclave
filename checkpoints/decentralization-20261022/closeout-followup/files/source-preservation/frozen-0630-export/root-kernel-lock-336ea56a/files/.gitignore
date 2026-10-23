@@ -1,0 +1,4 @@
+tests*.out
+tests*.rc
+tests-*.guard.log
+!tests-final.guard.log

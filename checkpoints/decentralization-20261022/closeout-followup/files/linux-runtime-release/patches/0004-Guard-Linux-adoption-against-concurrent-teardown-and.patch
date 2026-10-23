@@ -1,0 +1,110 @@
+From 1086cf2346b913177e38cf02e0b2b571628cc758 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 21:16:01 -0700
+Subject: [PATCH 4/4] Guard Linux adoption against concurrent teardown and
+ policy withdrawal
+
+---
+ ROOT-REVIEW.md                   | 15 +++++++++++
+ supervisor.js                    |  6 +++++
+ test/adopt-pending-stop.test.mjs | 45 ++++++++++++++++++++++++++++++++
+ 3 files changed, 66 insertions(+)
+ create mode 100644 ROOT-REVIEW.md
+ create mode 100644 test/adopt-pending-stop.test.mjs
+
+diff --git a/ROOT-REVIEW.md b/ROOT-REVIEW.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..a69c57a1974236a22829bbdb5c24046f10c81869
+--- /dev/null
++++ b/ROOT-REVIEW.md
+@@ -0,0 +1,15 @@
++Linux adoption guard follow-up, 2026-10-23
++
++Base: f1d0666b9fc80d25a7c4cbacf4025f3a33152111. Source candidate only; no image or production activation.
++
++Root reproduced actual adopt() freeing a terminal record's reserved slice and removing the record after a pending stop appeared during isolationHeldGuest(). The prior tryClaim check happened before adopt's await. Source e50da21d reproduced reservationFreed=true, recordRemoved=true with the old guest still listed. This was an actual full function in the existing VM test fixture with scripted backend/allocator edges, not a physical guest test.
++
++Fix: adopt snapshots record identity, lease epoch, and policy-withdrawal generation before its first await. It refuses an existing stop/hold and checks again after the held-guest lookup. Changed identity/epoch/withdrawal or a current pending stop/hold defers adoption for a new sweep, without freeing capacity. This preserves fresh adoption after an earlier withdrawal, confirmed by the positive control. No new contract or administrative policy.
++
++Evidence:
++- Eight focused cases pass: pending stop before/during lookup, wallet hold, concurrent withdrawal, completed stop's changed epoch, replaced record, ordinary capacity-allocation path, and successful fresh adoption after a prior withdrawal.
++- Same eight cases on immutable base f1d0666b: six guard cases fail behaviorally, two positive controls pass.
++- Offline namespace regression: adopt-pending-stop, supervisor-wallet-unknown-hold, supervisor-wallet-policy: 37 passed, no failures/skips, peak168MiB under queue256.
++- Initial sparse-checkout test attempts failed on missing dependencies before executing cases. After restoring pinned tracked dependencies (including the relay/net-guard.mjs symlink target), tests passed. node_modules reused from the exact base checkout; no dependency changes.
++
++Limits: held-guest and provisioning edges are scripted. This is not guestd/physical termination evidence. Still requires D's paired egress implementation and decision()-capable admission bundle, image rebuild and reviewed measurement before activation. No production file was changed.
+diff --git a/supervisor.js b/supervisor.js
+index 2ea81f150d6c88ec790377c90deb58f62615c429..2c652c6bae125d6f152ef9ecce190fc7a7026cf1 100644
+--- a/supervisor.js
++++ b/supervisor.js
+@@ -12090,6 +12090,10 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false
+ // mapping. rec.owner is the on-chain owner address — SIWE tokens already carry
+ // an address, so owner-only routes (status, delete) work unchanged.
+ async function adopt(d, g, firewall, slice, { resume = false } = {}) {
++  // The held-guest lookup below can overlap a teardown or policy withdrawal. Bind this adoption to the record and
++  // permission generation it started with; a new sweep must decide again after either changes.
++  const prior = deployments.get(d.id), priorEpoch = prior?._leaseEpoch || 0, priorVerdicts = walletVerdicts(d.id);
++  if (prior?._stopPending || prior?.walletHeld) return false;
+   let heldReservation = false;
+   if (resume && ISOLATION_BACKEND && !slice.cpu) {
+     const held = await isolationHeldGuest(d.id);
+@@ -12100,6 +12104,8 @@ async function adopt(d, g, firewall, slice, { resume = false } = {}) {
+   // Check after the await: another sweep/hint may already have adopted it, or a release of it may have opened.
+   if (releaseHold(d.id)) { console.log(`[claim] ${d.id} not adopted: ${releaseHold(d.id)}`); return; }
+   const left = deployments.get(d.id);
++  if (left !== prior || (left?._leaseEpoch || 0) !== priorEpoch || walletVerdicts(d.id) !== priorVerdicts
++      || left?._stopPending || left?.walletHeld) return false;
+   // A concurrent hint/sweep may have completed its prefetch after another
+   // adoption already installed the live record. Never replace that launch.
+   if (left && !CLAIM_TERMINAL.has(left.status)) return;
+diff --git a/test/adopt-pending-stop.test.mjs b/test/adopt-pending-stop.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..75becff44459eaa12a14bb647635021b79c95047
+--- /dev/null
++++ b/test/adopt-pending-stop.test.mjs
+@@ -0,0 +1,45 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import vm from 'node:vm';
++import {fixture,between,dep} from './helpers/supervisor-wallet-fixture.mjs';
++function setup() {
++ const f=fixture();const rec=f.serve(f.rec({status:'expired'}));let release;
++ const pending=new Promise(r=>release=r);let lookups=0,allocations=0;
++ Object.assign(f.ctx,{ISOLATION_BACKEND:true,isolationHeldGuest:async()=>{lookups++;await pending;return null;},
++  vmHealth:async()=>null,isolationHeldSameRecord:()=>false,isolatedInference:()=>({}),neededVolumes:()=>[],
++  CLAIM_TERMINAL:new Set(['expired','terminated','failed']),allocGpu:()=>{allocations++;return null;}});
++ vm.runInContext(between('async function adopt(d, g, firewall, slice, { resume = false } = {}) {','\n// DIRECT_CLAIM_SELFTEST='),f.ctx);
++ return {f,rec,release,start:()=>f.ctx.adopt(f.row(),{},[],{cpu:false},{resume:true}),lookups:()=>lookups,allocations:()=>allocations};
++}
++for(const kind of ['stop already pending','stop during lookup','wallet hold during lookup','withdrawal during lookup','stop completed during lookup','replacement record during lookup']) {
++ test(`adopt defers: ${kind}`,async()=>{
++  const p=setup();
++  if(kind==='stop already pending')p.rec._stopPending={since:'test'};
++  const adopting=p.start();
++  if(kind==='stop during lookup')p.rec._stopPending={since:'test'};
++  if(kind==='wallet hold during lookup')p.rec.walletHeld={stopConfirmed:true};
++  if(kind==='withdrawal during lookup')p.f.ctx.noteWalletWithdrawn(dep);
++  if(kind==='stop completed during lookup')p.f.ctx.revokeLeasePermits(p.rec);
++  let expected=p.rec;
++  if(kind==='replacement record during lookup'){expected=p.f.rec({status:'terminated'});p.f.ctx.deployments.set(dep,expected);}
++  p.release();assert.equal(await adopting,false);
++  assert.equal(p.allocations(),0);assert.equal(p.f.s.events.includes('freeGpu'),false);
++  assert.equal(p.f.ctx.deployments.get(dep),expected);
++  if(kind==='stop already pending')assert.equal(p.lookups(),0);
++ });
++}
++test('unchanged terminal record reaches ordinary capacity allocation',async()=>{
++ const p=setup();const adopting=p.start();p.release();assert.equal(await adopting,false);
++ assert.equal(p.allocations(),1);assert.equal(p.f.s.events.filter(e=>e==='freeGpu').length,1);
++ assert.equal(p.f.ctx.deployments.has(dep),false);
++});
++test('fresh adoption after an earlier withdrawal still starts the app',async()=>{
++ const p=setup();p.f.ctx.noteWalletWithdrawn(dep);p.f.ctx.revokeLeasePermits(p.rec);
++ Object.assign(p.f.ctx,{allocGpu:()=>({cpu:true,share:0.1}),overrideConfigFields:()=>({}),applyLiveOptions:()=>({}),
++  _advertisedEndpoint:'https://host.example',vmTech:()=>null,gpuTechnology:()=>null,
++  _provisionBackoff:new Map(),acmeReconcileSoon:()=>{},provisionTenant:async r=>{r.status='running';return true;}});
++ const g={ref:'catalog://test/1',app:{slug:'test',version:'1'},wasmRef:'ipfs://test'};
++ const adopting=p.f.ctx.adopt(p.f.row({createdAt:BigInt(Math.floor(Date.now()/1000))}),g,['http:8080'],{cpu:false},{resume:true});
++ p.release();await adopting;assert.equal(p.f.ctx.deployments.get(dep).status,'running');
++ assert.equal(p.f.s.events.filter(e=>e==='freeGpu').length,1);
++});

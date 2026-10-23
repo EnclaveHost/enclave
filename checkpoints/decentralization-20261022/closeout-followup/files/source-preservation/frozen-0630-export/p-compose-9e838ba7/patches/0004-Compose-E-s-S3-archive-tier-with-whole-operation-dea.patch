@@ -1,0 +1,495 @@
+From 9e838ba758b96f96eb9858e35f4898a95fc5cba7 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:56:42 -0700
+Subject: [PATCH 4/4] Compose E's S3 archive tier with whole-operation
+ deadlines: per-request abort into S3, aggregate cache bounds, cache byte
+ budget
+
+E's archive/history work (afc443e0, cherry-picked here as 8389e983, e2ffb7aa, 52bb57ff) sits on 7b4dd692. The deadline
+and block-response work (d0775541, 7b4e8c68) is on the same base. The cherry-pick conflicts were resolved by keeping
+both sides, with E's bare `deadline` adapted to the request's operation context. This commit makes the composition
+honour the deadline and lifecycle rules end to end:
+
+* network/s3-witness-cache.mjs:
+  - s3Request({signal}): an aborted caller starts no transport. An abort SIGKILLs only THAT request's curl process.
+  - Read-slot waiters leave the queue on abort.
+  - list and fetch check `closed` and the signal before every request.
+  - candidates(w, {deadline, signal}).
+  - Writes stay detached from callers: bounded queue, putTimeoutMs, killed by close().
+* network/witness-gateway.mjs:
+  - archived(w, op) runs under the request's (or shared walk's) context. The read carries op's signal, so op's
+    deadline, its last walk caller leaving, or gateway close drops op's S3 work, while other callers' reads continue.
+  - An expired op is a deadline refusal, never "no candidate".
+  - Archive reads count against the same aggregate maxCacheOps bound as local cache reads.
+  - archivePut stops after close().
+  - dirWitnessCache(dir, {maxBytes}) gets a configured byte budget (allocated bytes incl. directories and the temp
+    copy; default 1 GiB). It is this cache's share of the central storage budget, not a device reservation. Over the
+    budget, writes are skipped (create-only, nothing is evicted) and reads continue. usage() reports it.
+* test/witness-archive-deadline.test.mjs (8 tests; REAL composed gateway, REAL curl transport to loopback fake S3,
+  REAL helper and recorded witnesses):
+  - a hung archive is refused at the deadline with its curl killed, plus a NEGATIVE CONTROL on E's exact afc443e0,
+    where the abandoned transfer keeps running;
+  - a healthy concurrent caller keeps its in-flight S3 transfer through another caller's timeout;
+  - an expired queued call starts no upstream or S3 transfer;
+  - failed optional caches fall back to upstreams with proofs still checked;
+  - terminal close of the gateway, archive and roots;
+  - bounded background puts that bind no root;
+  - the local cache byte budget.
+---
+ network/s3-witness-cache.mjs           |  50 +++---
+ network/witness-gateway.mjs            |  58 +++++--
+ test/witness-archive-deadline.test.mjs | 208 +++++++++++++++++++++++++
+ 3 files changed, 287 insertions(+), 29 deletions(-)
+ create mode 100644 test/witness-archive-deadline.test.mjs
+
+diff --git a/network/s3-witness-cache.mjs b/network/s3-witness-cache.mjs
+index 546285fe36dd8dacf80368e6e147b8b75282bf89..a72aaecf7d10ac71c507cb9f764661a1fbec7809 100644
+--- a/network/s3-witness-cache.mjs
++++ b/network/s3-witness-cache.mjs
+@@ -54,7 +54,9 @@ export function canonicalJson(v) {
+  * One SigV4-signed S3 request through curl. -> { status, body: Buffer } or throws { code: 'timeout' | 'oversize' | 'curl' }.
+  * Bounded: wall time (curl --max-time plus a kill), response bytes (curl --max-filesize plus a stream cap).
+  */
+-export function s3Request({ method, url, region, credentials, headers = [], body = null, timeoutMs, maxBytes, curl = 'curl', children, scratch }) {
++export function s3Request({ method, url, region, credentials, headers = [], body = null, timeoutMs, maxBytes, curl = 'curl', children, scratch, signal }) {
++  // a caller that has already given up starts no transport at all
++  if (signal?.aborted) return Promise.reject(Object.assign(new Error('S3 request aborted'), { code: 'aborted' }));
+   let bodyFile = null;
+   if (body !== null) {
+     const dir = scratch || fs.mkdtempSync(path.join(os.tmpdir(), 's3wc-'));
+@@ -75,7 +77,10 @@ export function s3Request({ method, url, region, credentials, headers = [], body
+     p.exited = new Promise((r) => p.once('close', r));
+     children?.add(p);
+     const out = []; let size = 0, err = '', settled = false;
+-    const done = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); children?.delete(p); cleanup(); fn(v); };
++    const done = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); signal?.removeEventListener('abort', onAbort); children?.delete(p); cleanup(); fn(v); };
++    // the caller gave up (its deadline, or the gateway closed): kill THIS request's curl at once; other callers' requests are untouched
++    const onAbort = () => { p.kill('SIGKILL'); done(reject, Object.assign(new Error('S3 request aborted'), { code: 'aborted' })); };
++    signal?.addEventListener('abort', onAbort, { once: true });
+     const timer = setTimeout(() => { p.kill('SIGKILL'); done(reject, Object.assign(new Error('S3 request timed out'), { code: 'timeout' })); }, timeoutMs + 1000);
+     p.stdout.on('data', (c) => { size += c.length; if (size > maxBytes) { p.kill('SIGKILL'); done(reject, Object.assign(new Error('S3 response too large'), { code: 'oversize' })); } else out.push(c); });
+     p.stderr.on('data', (c) => { if (err.length < 4096) err += c; });
+@@ -96,7 +101,10 @@ export function s3Request({ method, url, region, credentials, headers = [], body
+  * endpoint: S3 base URL (https, or http on loopback). bucket, region. chainId: the gateway's chain (namespaces keys).
+  * credentials: {accessKeyId, secretAccessKey}, loaded by the caller from a 0600 file (never logged).
+  * archive: false (default) = read-only; true = also write witnesses (see PRIVACY above).
+- * -> { candidates(w, {deadline}), get(w), put(w, result), idle(), close(), stats(), privacy }
++ * -> { candidates(w, {deadline, signal}), get(w), put(w, result), idle(), close(), stats(), privacy }
++ * A caller's `signal` (the gateway's per-request deadline or its close) ends only that caller's reads: its waiting slot
++ * is given up and its curl processes are killed; other callers' reads continue. Writes are detached from any caller
++ * (bounded queue, putTimeoutMs, killed by close()).
+  */
+ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix = 'enclave-witness', chainId, credentials, archive = false,
+   timeoutMs = 4000, readBudgetMs = 8000, putTimeoutMs = 60000, maxObjectBytes = 4 << 20, maxCandidates = 8, maxListPages = 2, maxListBytes = 256 << 10,
+@@ -144,24 +152,28 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix
+   }
+ 
+   // read slots: a finished read hands its slot straight to the oldest waiter; a waiter gives up after one read's budget
+-  function acquire() {
++  function acquire(signal) {
++    if (signal?.aborted) return Promise.resolve(false);
+     if (gets < maxInflightGets) { gets++; return Promise.resolve(true); }
+     return new Promise((r) => {
+-      const waiter = () => { clearTimeout(t); r(true); };
+-      const t = setTimeout(() => { const i = waiting.indexOf(waiter); if (i >= 0) waiting.splice(i, 1); r(false); }, timeoutMs);
++      const leave = () => { clearTimeout(t); signal?.removeEventListener('abort', leave); const i = waiting.indexOf(waiter); if (i >= 0) waiting.splice(i, 1); r(false); };
++      const waiter = () => { clearTimeout(t); signal?.removeEventListener('abort', leave); r(true); };
++      const t = setTimeout(leave, timeoutMs);
++      signal?.addEventListener('abort', leave, { once: true });     // an aborted caller leaves the queue at once
+       waiting.push(waiter);
+     });
+   }
+   function release() { const next = waiting.shift(); if (next) next(); else gets--; }
+ 
+   const left = (deadline) => deadline - Date.now();
+-  async function fetchEntry(w, key, deadline) {
++  async function fetchEntry(w, key, deadline, signal) {
+     const t = Math.min(timeoutMs, left(deadline));
++    if (closed || signal?.aborted) return undefined;
+     if (t < 50) { bump(stats.errors, 'budget'); return undefined; }
+-    if (!(await acquire())) { bump(stats.errors, 'busy'); return undefined; }
+-    if (closed) { release(); return undefined; }
++    if (!(await acquire(signal))) { bump(stats.errors, signal?.aborted ? 'aborted' : 'busy'); return undefined; }
++    if (closed || signal?.aborted) { release(); return undefined; }
+     try {
+-      const r = await req({ method: 'GET', url: urlOf(key), timeoutMs: t, maxBytes: maxObjectBytes });
++      const r = await req({ method: 'GET', url: urlOf(key), timeoutMs: t, maxBytes: maxObjectBytes, signal });
+       if (r.status === 404) { stats.misses++; return undefined; }
+       if (r.status !== 200) { bump(stats.errors, 'http' + r.status); return undefined; }
+       return accept(w, r.body);
+@@ -169,17 +181,19 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix
+     finally { release(); }
+   }
+   /** Up to maxCandidates content-addressed object keys for w, in listing (lexicographic) order; bounded pages. */
+-  async function listKeys(w, deadline) {
++  async function listKeys(w, deadline, signal) {
+     const pfx = folder(w), keys = [];
+     const ok = new RegExp('^' + pfx.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[0-9a-f]{64}\\.json$');
+     let token = null;
+     for (let page = 0; page < maxListPages && keys.length < maxCandidates; page++) {
+       const t = Math.min(timeoutMs, left(deadline));
++      if (closed || signal?.aborted) break;
+       if (t < 50) { bump(stats.errors, 'budget'); break; }
+       const q = `list-type=2&max-keys=${maxCandidates}&prefix=${encodeURIComponent(pfx)}` + (token ? `&continuation-token=${encodeURIComponent(token)}` : '');
+-      if (!(await acquire())) { bump(stats.errors, 'busy'); break; }
++      if (!(await acquire(signal))) { bump(stats.errors, signal?.aborted ? 'aborted' : 'busy'); break; }
++      if (closed || signal?.aborted) { release(); break; }
+       let r;
+-      try { r = await req({ method: 'GET', url: `${base}/${bucket}?${q}`, timeoutMs: t, maxBytes: maxListBytes }); }
++      try { r = await req({ method: 'GET', url: `${base}/${bucket}?${q}`, timeoutMs: t, maxBytes: maxListBytes, signal }); }
+       catch (e) { bump(stats.errors, 'list-' + (e.code || 'error')); break; }
+       finally { release(); }
+       stats.lists++;
+@@ -198,13 +212,13 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix
+    * Every stored answer for w that passes the envelope and content-address checks (UNVERIFIED: the gateway checks
+    * each against an authenticated root). Bounded by maxCandidates, listing bounds and one read budget; never throws.
+    */
+-  async function candidates(w, { deadline = Date.now() + readBudgetMs } = {}) {
+-    if (closed || !valid(w)) return [];
++  async function candidates(w, { deadline = Date.now() + readBudgetMs, signal } = {}) {
++    if (closed || !valid(w) || signal?.aborted) return [];
+     deadline = Math.min(deadline, Date.now() + readBudgetMs);
+     const out = [];
+     try {
+-      for (const key of await listKeys(w, deadline)) {
+-        const got = await fetchEntry(w, key, deadline);
++      for (const key of await listKeys(w, deadline, signal)) {
++        const got = await fetchEntry(w, key, deadline, signal);
+         if (!got) continue;
+         const [ok, v] = got;
+         if (!ok) { bump(stats.rejected, v); continue; }
+@@ -212,7 +226,7 @@ export function s3WitnessCache({ endpoint, bucket, region = 'us-east-1', prefix
+         out.push(v);
+       }
+       if (out.length < maxCandidates) {
+-        const got = await fetchEntry(w, legacyKey(w), deadline);
++        const got = await fetchEntry(w, legacyKey(w), deadline, signal);
+         if (got) { if (got[0]) out.push(got[1]); else bump(stats.rejected, got[1]); }
+       }
+     } catch (e) { bump(stats.errors, e?.code || 'error'); }
+diff --git a/network/witness-gateway.mjs b/network/witness-gateway.mjs
+index b9de0c71cbbe53059d2915298e70ce11e527d199..f6a18de33ce7e0e79454004c8c6b0aa7fbfa7ce0 100644
+--- a/network/witness-gateway.mjs
++++ b/network/witness-gateway.mjs
+@@ -77,8 +77,31 @@ export function witnessKey(method, params) {
+  * never overwritten). `candidates(w)` returns every stored answer for the request (bounded), including a legacy
+  * single-slot <dir>/<blockHash>/<sha256(request)>.json entry. Entries are UNTRUSTED: the gateway verifies each one.
+  */
+-export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 << 20 } = {}) {
++export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 << 20, maxBytes = 1 << 30 } = {}) {
++  // maxBytes: THIS cache's share of the central storage budget for the host's caches (allocated bytes, including
++  // directories and the transient temp file of a write). It is a configured limit, not a device reservation: the
++  // storage owner enforces the aggregate device budget. Over the limit, writes are skipped (create-only: nothing is
++  // evicted or rewritten) and reads continue. Default 1 GiB; a deployment sets it from the central budget.
++  if (!Number.isSafeInteger(maxBytes) || maxBytes < (1 << 20)) throw new Error('invalid maxBytes (this cache\'s share of the central storage budget, in bytes)');
+   const folder = (w) => path.join(dir, w.blockHash, w.key);
++  const budget = { used: null, skipped: 0 };
++  const alloc = (bytes) => Math.ceil(bytes / 4096) * 4096;
++  /** Allocated bytes under dir now (bounded walk; past 1,000,000 entries the cache counts as full). */
++  function measure() {
++    let used = 0, seen = 0;
++    const walk = (d) => {
++      let names; try { names = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
++      for (const n of names) {
++        if (++seen > 1e6) { used = Infinity; return; }
++        const f = path.join(d, n.name);
++        try { const st = fs.lstatSync(f); used += st.blocks ? st.blocks * 512 : alloc(st.size); } catch { continue; }
++        if (n.isDirectory()) walk(f);
++        if (used === Infinity) return;
++      }
++    };
++    walk(dir);
++    return used;
++  }
+   async function read(file, w) {
+     try {
+       if ((await fs.promises.stat(file)).size > maxEntryBytes) return undefined;
+@@ -102,8 +125,14 @@ export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 <<
+     candidates,
+     /** Compatibility: the first stored answer (unverified, like every cache read). */
+     async get(w) { return (await candidates(w))[0]; },
++    usage() { return { usedBytes: budget.used ?? measure(), maxBytes, skippedOverBudget: budget.skipped }; },
+     async put(w, result) {
+       const body = JSON.stringify({ format: 'enclave-witness-rpc/v1', request: w.norm, result });
++      budget.used ??= measure();
++      // entry + its transient temp copy + a possibly new request directory and block directory
++      const cost = 2 * alloc(Buffer.byteLength(body)) + 2 * 4096;
++      if (budget.used + cost > maxBytes) { budget.skipped++; return; }
++      budget.used += cost - alloc(Buffer.byteLength(body));            // the temp copy is removed again
+       const file = path.join(folder(w), sha256(JSON.stringify(result)) + '.json');
+       await fs.promises.mkdir(folder(w), { recursive: true });
+       const tmp = path.join(folder(w), `.tmp-${process.pid}-${randomBytes(6).toString('hex')}`);
+@@ -159,7 +188,7 @@ function limiter(max, maxQueued) {
+  * proofs: {checker, roots} (network/witness-verify.mjs), REQUIRED when eth_getProof/eth_getCode are offered or a cache
+  * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
+  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
+- * archive: optional {candidates(w, {deadline}), put(w, result)} (s3WitnessCache): read only after the cache and every
++ * archive: optional {candidates(w, {deadline, signal}), put(w, result)} (s3WitnessCache): read only after the cache and every
+  * upstream failed, written only with verified answers (witnesses, and headers checked for ancestry) and never awaited.
+  * Bounds: deadlineMs per request covers EVERYTHING the request does (queue wait for a slot, every upstream try and body
+  * read, root recovery, helper checks, the cache read); timeoutMs per try (cut to what is left of the deadline when the
+@@ -234,18 +263,25 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
+   let server = null;
+   /** Queue a VERIFIED answer for the archive; never awaited, never throws (a slow or hung store cannot delay a read). */
+   function archivePut(w, result) {
++    if (closed) return;                                    // a late write after close() never reaches the archive
+     stats.archiveQueued++;
+     try { Promise.resolve(archive.put(w, result)).catch(() => { stats.archiveErrors++; }); } catch { stats.archiveErrors++; }
+   }
+-  /** The archive's UNVERIFIED candidates for w, inside the deadline (at most 64); [] on any failure. */
+-  async function archived(w, deadline) {
+-    if (deadline - Date.now() <= 0) return [];
+-    let timer;
++  /** The archive's UNVERIFIED candidates for w within `op` (a request, or a shared ancestry walk): at most 64; [] when
++   *  the archive fails or is busy. The read carries op's signal, so when op ends (its deadline, its last caller leaving,
++   *  or close) the archive drops op's queued slot and kills op's S3 transfers; other ops' reads continue. Counted
++   *  against the same aggregate maxCacheOps bound as local cache reads. An expired op is a deadline, never a miss. */
++  async function archived(w, op) {
++    if (expired(op)) throw ended(op);
++    if (cacheOps >= maxCacheOps) { stats.cacheSkipped++; return []; }
++    cacheOps++;
++    const read = Promise.resolve().then(() => archive.candidates(w, { deadline: op.deadline, signal: op.signal }));
++    read.then(() => { cacheOps--; }, () => { cacheOps--; });
+     try {
+-      const list = await Promise.race([archive.candidates(w, { deadline }),
+-        new Promise((r) => { timer = setTimeout(() => r([]), Math.max(0, deadline - Date.now())); })]);
++      const list = await abortable(read, op.signal);
++      if (expired(op)) throw ended(op);
+       return Array.isArray(list) ? list.slice(0, 64) : [];
+-    } catch { stats.archiveErrors++; return []; } finally { clearTimeout(timer); }
++    } catch (e) { if (expired(op)) throw ended(op); stats.archiveErrors++; return []; }
+   }
+   /** The archive key of a block header: pinned by the block's own hash, like a witness request. */
+   const headerKey = (hash) => {
+@@ -287,7 +323,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
+     // every upstream failed: an archived header, checked by the helper exactly like an upstream's
+     if (archive) {
+       const k = headerKey(hash);
+-      for (const c of await archived(k, op.deadline)) {
++      for (const c of await archived(k, op)) {
+         if (Date.now() >= op.deadline) break;
+         const tag = `${k.key}:${sha256(JSON.stringify(c))}`;
+         if (quarantine.has(tag)) continue;
+@@ -350,7 +386,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
+       }
+       // last resort: the archive, inside the remaining deadline; every candidate verified like a cache entry
+       if (archive) {
+-        const found = await archived(w, op.deadline);
++        const found = await archived(w, op);
+         for (const c of found) {
+           if (Date.now() >= op.deadline) break;
+           const tag = `${w.key}:${sha256(JSON.stringify(c))}`;
+diff --git a/test/witness-archive-deadline.test.mjs b/test/witness-archive-deadline.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8bd43b34071eb0a0130a4265df7bdec343e2cdbd
+--- /dev/null
++++ b/test/witness-archive-deadline.test.mjs
+@@ -0,0 +1,208 @@
++// The COMPOSED gateway (P's whole-operation deadlines d0775541 + E's S3 archive tier afc443e0) with the REAL S3 backend
++// transport (curl --aws-sigv4) against loopback fake S3 servers that hang or answer selectively, the REAL witness-check
++// helper and REAL recorded Base witnesses (block 52965249; its head is signed by the fixture's TEST key: witness
++// verification, not head authenticity). A NEGATIVE CONTROL runs the same hung-archive case on E's exact afc443e0
++// gateway. Nothing here writes to a real S3/Sia store or a chain. Run offline (`unshare -r -n`).
++//   env: WITNESS_CHECK_BIN, BASE_FIXTURE_DIR, TEST_TMP
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { pathToFileURL } from 'node:url';
++import { createWitnessGateway, dirWitnessCache, witnessKey, WITNESS_METHODS } from '../network/witness-gateway.mjs';
++import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
++import { s3WitnessCache, canonicalJson } from '../network/s3-witness-cache.mjs';
++import { envelope, fakeS3, sleep, testCredentials } from './support/s3-test-env.mjs';
++
++const { WITNESS_CHECK_BIN, BASE_FIXTURE_DIR } = process.env;
++const fixture = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'fixture.json'), 'utf8'));
++const RECORDED = new Map();
++for (const f of fs.readdirSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash))) {
++  const e = JSON.parse(fs.readFileSync(path.join(BASE_FIXTURE_DIR, 'cache', fixture.block.hash, f), 'utf8'));
++  const [method, params] = JSON.parse(e.request);
++  RECORDED.set(witnessKey(method, params).key, { method, params, result: e.result });
++}
++const proof0 = (addr) => [...RECORDED.values()].find((r) => r.method === 'eth_getProof' && r.params[0] === addr && r.params[1].length === 0);
++const A = proof0('0x4200000000000000000000000000000000000015'), B = proof0('0xab214342d5a490150a4a977063a2f88e21f80907');
++const req = (r, id = 1) => ({ jsonrpc: '2.0', id, method: r.method, params: r.params });
++const NO_HINT = WITNESS_METHODS.filter((m) => m !== 'eth_createAccessList');
++const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'archive-deadline-'));
++const CREDS = testCredentials();
++const DOWN = 'http://127.0.0.1:9/';                       // a closed loopback port: an upstream that is down
++const servers = [], closers = [];
++let checker;
++test.before(() => { checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: fixture.testSequencerSigner }); });
++test.after(async () => { for (const c of closers.reverse()) await c(); checker?.close(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } fs.rmSync(TMP, { recursive: true, force: true }); });
++async function roots() { const r = createRootStore({ checker }); assert.ok(await r.offer(fixture.commitment)); closers.push(async () => r.close()); return r; }
++function upstream(answer, delay = 0) {
++  const log = { n: 0 };
++  const s = http.createServer((q, res) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => {
++    const j = JSON.parse(b); log.n++;
++    setTimeout(() => { if (!res.destroyed) res.end(JSON.stringify({ jsonrpc: '2.0', id: j.id, ...answer(j) })); }, delay);
++  }); });
++  servers.push(s);
++  return new Promise((r) => s.listen(0, '127.0.0.1', () => r({ url: `http://127.0.0.1:${s.address().port}/`, log })));
++}
++const honest = (delay) => upstream((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); return r ? { result: r.result } : { error: { code: -32000, message: 'x' } }; }, delay);
++const liar = () => upstream((j) => { const r = RECORDED.get(witnessKey(j.method, j.params)?.key); if (!r) return { error: { code: -32000, message: 'x' } }; const v = structuredClone(r.result); v.balance = '0x1'; return { result: v }; });
++/** A fake S3: hangs for requests matching `hang`, serves `objects` (key -> body) with an optional per-GET delay. */
++async function s3Stub({ hang = () => false, objects = new Map(), getDelay = 0, status = 200 } = {}) {
++  const log = { requests: 0, open: 0, puts: 0 };
++  const s3 = await fakeS3((q, res) => {
++    log.requests++; log.open++; res.on('close', () => { log.open--; });
++    const u = new URL(q.url, 'http://x');
++    if (q.method === 'PUT') { log.puts++; return; }        // writes hang (never answered)
++    if (hang(u)) return;                                   // never answered
++    if (status !== 200) { res.writeHead(status).end(); return; }
++    const parts = u.pathname.split('/').slice(2).join('/');
++    if (u.searchParams.get('list-type') === '2') {
++      const pfx = u.searchParams.get('prefix');
++      const keys = [...objects.keys()].filter((k) => k.startsWith(pfx));
++      res.writeHead(200, { 'content-type': 'application/xml' });
++      res.end(`<ListBucketResult>${keys.map((k) => `<Contents><Key>${k}</Key></Contents>`).join('')}<IsTruncated>false</IsTruncated></ListBucketResult>`);
++      return;
++    }
++    const body = objects.get(decodeURIComponent(parts));
++    if (!body) { res.writeHead(404).end(); return; }       // misses (e.g. the legacy single-slot probe) answer at once
++    setTimeout(() => { if (!res.destroyed) res.writeHead(200).end(body); }, getDelay);
++  });
++  closers.push(async () => s3.close());
++  return { ...s3, log };
++}
++const objectKey = (w, result) => `enclave-witness/8453/${w.blockHash}/${w.key}/${createHash('sha256').update(canonicalJson(result)).digest('hex')}.json`;
++const archiveOn = (endpoint, o = {}) => { const a = s3WitnessCache({ endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 4000, readBudgetMs: 8000, ...o }); closers.push(() => a.close()); return a; };
++
++async function hungArchiveCase(createGateway, s3Cache) {
++  const s3 = await s3Stub({ hang: () => true });
++  const archive = s3Cache({ endpoint: s3.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, timeoutMs: 4000, readBudgetMs: 8000 });
++  const g = createGateway({ upstreams: [DOWN], methods: NO_HINT, archive, proofs: { checker, roots: await roots() }, deadlineMs: 600, timeoutMs: 300 });
++  const t0 = performance.now();
++  const out = await g.handle(req(A));
++  const took = performance.now() - t0;
++  await sleep(150);
++  const children = archive.stats().inflight.children, open = s3.log.open;
++  await g.close(); await archive.close();
++  return { out, took, children, open };
++}
++test('hung S3 archive through the REAL composed gateway: refused at the deadline and its curl transfers are killed at once', async () => {
++  const r = await hungArchiveCase(createWitnessGateway, s3WitnessCache);
++  assert.equal(r.out.result, undefined);
++  assert.match(r.out.error.message, /deadline/);
++  assert.ok(r.took < 900, `answered at its deadline (${Math.round(r.took)} ms)`);
++  assert.deepEqual([r.children, r.open], [0, 0], 'no curl process and no S3 connection left behind');
++});
++test('NEGATIVE CONTROL: E\'s exact afc443e0 gateway leaves the abandoned S3 transfer running after the request ended', async () => {
++  const dir = path.join(TMP, 'e-afc443e0', 'network'); fs.mkdirSync(dir, { recursive: true });
++  for (const f of ['witness-gateway.mjs', 'witness-verify.mjs', 'rpc-identity.mjs', 's3-witness-cache.mjs'])
++    fs.writeFileSync(path.join(dir, f), execFileSync('git', ['show', `afc443e032647c2d8ea31535f5ff0f6609d99ba6:network/${f}`], { cwd: new URL('..', import.meta.url).pathname }));
++  const { createWitnessGateway: eGateway } = await import(pathToFileURL(path.join(dir, 'witness-gateway.mjs')));
++  const { s3WitnessCache: eCache } = await import(pathToFileURL(path.join(dir, 's3-witness-cache.mjs')));
++  const r = await hungArchiveCase(eGateway, eCache);
++  assert.equal(r.out.result, undefined, 'no late success there either');
++  assert.ok(r.children >= 1 && r.open >= 1, `the abandoned curl transfer was still running (${r.children} process, ${r.open} connection)`);
++});
++
++test('a healthy concurrent caller keeps its in-flight archive read when another caller times out', async (t) => {
++  const wa = witnessKey(A.method, A.params), wb = witnessKey(B.method, B.params);
++  const objects = new Map([[objectKey(wb, B.result), envelope(wb, B.result)]]);
++  const s3 = await s3Stub({ hang: (u) => (u.searchParams.get('prefix') || '').includes(wa.key), objects, getDelay: 350 });
++  const archive = archiveOn(s3.endpoint);
++  const g = createWitnessGateway({ upstreams: [DOWN], methods: NO_HINT, archive, proofs: { checker, roots: await roots() }, deadlineMs: 600, timeoutMs: 300 });
++  closers.push(() => g.close());
++  const t0 = performance.now();
++  const pa = g.handle(req(A, 1)).then((o) => ({ o, at: performance.now() - t0 }));
++  await sleep(300);
++  const pb = g.handle(req(B, 2)).then((o) => ({ o, at: performance.now() - t0 }));
++  const [ra, rb] = await Promise.all([pa, pb]);
++  t.diagnostic(JSON.stringify({ a: ra, b: { at: rb.at, error: rb.o.error }, archive: archive.stats(), gateway: g.stats() }));
++  assert.match(ra.o.error.message, /deadline/, 'A timed out on its hung archive read');
++  assert.ok(ra.at < rb.at, 'A ended first, while B\'s S3 object transfer was in flight');
++  assert.deepEqual(rb.o.result, B.result, 'B was served from the archive and verified by the real helper');
++  assert.equal(g.stats().archiveHits, 1);
++});
++
++test('a call that expired in the gateway queue starts no upstream request and no S3 transfer', async () => {
++  const s3 = await s3Stub({});
++  const archive = archiveOn(s3.endpoint);
++  const up = await honest(500);
++  const g = createWitnessGateway({ upstreams: [up.url], methods: NO_HINT, archive, proofs: { checker, roots: await roots() }, maxInFlight: 1, deadlineMs: 300, timeoutMs: 300 });
++  closers.push(() => g.close());
++  const [x, y] = await Promise.all([g.handle(req(A, 1)), g.handle(req(B, 2))]);
++  assert.match(x.error.message, /deadline/); assert.match(y.error.message, /deadline/);
++  await sleep(50);
++  assert.deepEqual([up.log.n, s3.log.requests], [1, 0], 'one upstream try (the running call), the queued call reached nothing');
++});
++
++test('failed optional caches (hung local cache, erroring archive) fall back to the upstreams; proofs are still checked', async () => {
++  const s3 = await s3Stub({ status: 500 });
++  const archive = archiveOn(s3.endpoint);
++  const hungCache = { candidates: () => new Promise(() => {}), put: () => new Promise(() => {}) };   // SEAM: a cache that never answers
++  const l = await liar(), h = await honest();
++  const g = createWitnessGateway({ upstreams: [l.url, h.url], methods: NO_HINT, cache: hungCache, archive, proofs: { checker, roots: await roots() }, deadlineMs: 3000, timeoutMs: 1000, cacheTimeoutMs: 100 });
++  closers.push(() => g.close());
++  assert.deepEqual((await g.handle(req(B))).result, B.result);
++  const [sl, sh] = Object.values(g.stats().upstream);
++  assert.deepEqual([sl.invalid, sh.ok, g.stats().cacheTimeouts], [1, 1, 1]);
++  const only = createWitnessGateway({ upstreams: [l.url], methods: NO_HINT, cache: hungCache, archive, proofs: { checker, roots: await roots() }, deadlineMs: 3000, timeoutMs: 1000, cacheTimeoutMs: 100 });
++  closers.push(() => only.close());
++  const r = await only.handle(req(B));
++  assert.equal(r.result, undefined, 'the liar alone is refused even with every cache failing');
++  assert.match(r.error.message, /no verifiable witness/);
++});
++
++test('terminal close: a request in an archive read ends at once, the archive and roots refuse later work, a late S3 answer changes nothing', async () => {
++  const s3 = await s3Stub({ hang: () => true });
++  const archive = s3WitnessCache({ endpoint: s3.endpoint, bucket: 'witness', chainId: 8453, credentials: CREDS, archive: true, timeoutMs: 4000, readBudgetMs: 8000 });
++  const rs = await roots();
++  const g = createWitnessGateway({ upstreams: [DOWN], methods: NO_HINT, archive, proofs: { checker, roots: rs }, deadlineMs: 5000, timeoutMs: 1000 });
++  const p = g.handle(req(A));
++  await sleep(200);
++  assert.ok(archive.stats().inflight.children >= 1, 'the archive read is in flight');
++  const t0 = performance.now();
++  await g.close();
++  const out = await p;
++  assert.match(out.error.message, /closed/);
++  assert.ok(performance.now() - t0 < 1500);
++  await sleep(50);
++  assert.equal(archive.stats().inflight.children, 0, 'closing the gateway killed its archive transfer');
++  await archive.close(); rs.close();
++  const before = s3.log.requests;
++  assert.deepEqual(await archive.candidates(witnessKey(A.method, A.params)), []);
++  await archive.put(witnessKey(A.method, A.params), A.result);
++  assert.ok(archive.stats().putsSkipped >= 1);
++  assert.match((await g.handle(req(A))).error.message, /closed/);
++  assert.equal(await rs.rootFor(fixture.block.hash), null);
++  assert.equal(s3.log.requests, before, 'no S3 request after close');
++});
++
++test('background archive writes stay bounded and never advance the root authority', async () => {
++  const s3 = await s3Stub({});                             // PUTs hang
++  const archive = archiveOn(s3.endpoint, { archive: true, maxInflightPuts: 1, maxQueuedPuts: 2, putTimeoutMs: 1000 });
++  const h = await honest(), rs = await roots();
++  const g = createWitnessGateway({ upstreams: [h.url], methods: NO_HINT, archive, proofs: { checker, roots: rs }, deadlineMs: 3000, timeoutMs: 1000 });
++  closers.push(() => g.close());
++  const reads = [...RECORDED.values()].filter((r) => r.method === 'eth_getProof').slice(0, 6);
++  const t0 = performance.now();
++  for (const r of reads) assert.deepEqual((await g.handle(req(r))).result, r.result);
++  assert.ok(performance.now() - t0 < 2500, 'hung archive writes never delayed a verified read');
++  const st = archive.stats();
++  assert.ok(st.inflight.puts <= 1 && st.inflight.queued <= 2 && st.putsDropped >= 3, JSON.stringify(st));
++  assert.deepEqual([rs.stats().verified, rs.stats().ancestors], [1, 0], 'writes bound no root and advanced nothing');
++});
++
++test('the local cache keeps to its configured byte budget: over it, writes are skipped and reads continue', async () => {
++  assert.throws(() => dirWitnessCache(path.join(TMP, 'tiny'), { maxBytes: 1000 }), /maxBytes/);
++  const dir = path.join(TMP, 'budget');
++  const cache = dirWitnessCache(dir, { maxBytes: 1 << 20 });
++  const body = A.result;
++  for (let i = 0; i < 60; i++) await cache.put(witnessKey('eth_getProof', [`0x${String(i).padStart(40, '0')}`, [], fixture.block.hash]), body);
++  const u = cache.usage();
++  assert.ok(u.skippedOverBudget > 0 && u.usedBytes <= u.maxBytes, JSON.stringify(u));
++  const fresh = dirWitnessCache(dir, { maxBytes: 1 << 20 }).usage();
++  assert.ok(fresh.usedBytes <= 1 << 20, `measured on disk: ${fresh.usedBytes} bytes`);
++  const w0 = witnessKey('eth_getProof', [`0x${'0'.repeat(40)}`, [], fixture.block.hash]);
++  assert.deepEqual(await cache.candidates(w0), [body], 'reads continue');
++});

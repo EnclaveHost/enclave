@@ -1,0 +1,71 @@
+{
+ "format": "enclave-base-holder/v1",
+ "binary": {
+  "path": "/opt/enclave-base-holder/bin/base",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+  "release": "v1.5.1",
+  "releaseTarballSha256": "6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7"
+ },
+ "serviceUser": "enclave-holder",
+ "datadir": "/srv/enclave-base-holder/data",
+ "verifierPort": 8545,
+ "rpc": {
+  "port": 18545,
+  "api": [
+   "eth",
+   "net",
+   "web3"
+  ],
+  "proofWindowBlocks": 1800,
+  "maxConnections": 32
+ },
+ "consensusRpc": {
+  "port": 19545
+ },
+ "p2p": {
+  "listenIp": "0.0.0.0",
+  "executionPort": 30303,
+  "discoveryV5Port": 9200,
+  "consensusTcpPort": 9222,
+  "consensusUdpPort": 9223
+ },
+ "l1": {
+  "executionRpc": "https://l1-execution.example.invalid/",
+  "beacon": "https://l1-beacon.example.invalid/",
+  "trustRpc": false
+ },
+ "upgradeSignalMode": "metrics-only",
+ "txForwarding": {
+  "endpoint": null
+ },
+ "prune": "minimal",
+ "limits": {
+  "memoryMaxBytes": 34359738368,
+  "tasksMax": 4096,
+  "nofile": 65536,
+  "stopTimeoutSec": 600,
+  "readyTimeoutSec": 7200
+ },
+ "storage": {
+  "layout": "loop-ext4-image",
+  "mountPoint": "/srv/enclave-base-holder",
+  "origin": {
+   "imagePath": "/mnt/usb/enclave-base-holder/origin.img",
+   "bytes": 3100000000000
+  },
+  "cache": {
+   "mechanism": "dm-cache",
+   "mode": "writethrough",
+   "dataImagePath": "/vm/enclave-base-holder-cache/cache-data.img",
+   "dataBytes": 197999984640,
+   "metadataImagePath": "/vm/enclave-base-holder-cache/cache-meta.img",
+   "metadataBytes": 1073741824,
+   "blockBytes": 262144,
+   "slackBytes": 67108864
+  },
+  "otherNvmeCacheAllocations": [],
+  "nvmeInventoryPath": "/etc/enclave-base-holder/nvme-cache-inventory.tsv",
+  "originFreeMarginBytes": 500000000000,
+  "nvmeFreeMarginBytes": 200000000000
+ }
+}

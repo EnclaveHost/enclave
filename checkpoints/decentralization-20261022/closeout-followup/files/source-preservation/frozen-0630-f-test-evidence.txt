@@ -1,0 +1,414 @@
+# F host-service-lifecycle (6c38c048) terminal job log digest; generated from host-service-lifecycle/logs; full logs stay local.
+
+## a1-artifacts  out-sha256 5d13632b60aab429d881860d12bce97aec97cf3cfe1dcb4130fdfc5dc0486789  bytes 673  rc absent
+    [memory-guard] exit=6 peakTreeRssMiB=57 minHostAvailableMiB=24630
+    [queue] START available=24664MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    9:43PM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=6 peakTreeRssMiB=57 minHostAvailableMiB=24630
+    [memory-guard] at peak: gitleaks:47 bash:6 timeout:4
+    [queue] EXIT 6
+
+## a1b-artifacts  out-sha256 4cb2da35339c33d93ce93b38ec1aa6d51fca5da4a20587fe44ed734271f22d80  bytes 2320  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=401 minHostAvailableMiB=24472
+    [queue] START available=24651MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    9:48PM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    network/build.mjs exit=1
+    [job] build=0
+    [memory-guard] exit=0 peakTreeRssMiB=401 minHostAvailableMiB=24472
+    [memory-guard] at peak: esbuild:304 node:78 bash:6 sh:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## a2-final  out-sha256 0ea4068a4fed76c45b0d51bcc993b34514304e406133326e6a733e0419006775  bytes 5314  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=613 minHostAvailableMiB=24213
+    [queue] START available=24675MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+    10:31PM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    network/build.mjs exit=1
+    [job] build=0
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 6c38c0489d769db12e5037e7c20f7372e56d5620 dirty=0
+    ℹ tests 12
+    ℹ pass 12
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=613 minHostAvailableMiB=24213
+    [memory-guard] at peak: esbuild:371 node:88 node:81 node:54 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## c1-commit  out-sha256 8f54200ad346594e68df0ff6accd4ad0f430b8e33ab8e00347c0142ddebc3d2f  bytes 967  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=24303MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## c2-commit  out-sha256 d57094573ce9698576f299a7e15aa0ec39b9a46b21f349aac67b43545bca867c  bytes 1439  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=24849MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## c3-commit-v1  out-sha256 4c9411c6c487274f6b8e9b261ad7c303d1d566d783dd9f170b9797c15f9794ea  bytes 5661  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=285 minHostAvailableMiB=24561
+    [queue] START available=24666MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 6c38c0489d769db12e5037e7c20f7372e56d5620 dirty=0
+    ℹ tests 27
+    ℹ pass 27
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=285 minHostAvailableMiB=24561
+    [memory-guard] at peak: node:96 node:60 fake-wg.mjs:54 fake-wg.mjs:54 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## k1-compose  out-sha256 293fdd9ff384d7ff8f4acf9b6d0e18990bc722f892cd5f11288227665acf736b  bytes 375  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [queue] START available=24551MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [compose] merge-tree exit=0 (0 = clean)
+    [memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+    [memory-guard] at peak:
+    [queue] EXIT 0
+
+## l1-candidate  out-sha256 8e97820cbb65f153f687b5cdfdbe385cc3e35298971481934e76050c858c8009  bytes 3106  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=270 minHostAvailableMiB=25095
+    [queue] START available=25240MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 427780bbc0fc524f8091893614eae8a653518139 dirty=3
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (55.372685ms)
+    ℹ tests 9
+    ℹ pass 8
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (55.372685ms)
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=270 minHostAvailableMiB=25095
+    [memory-guard] at peak: node:92 node:55 node:54 fake-wg.mjs:54 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## l1b-candidate  out-sha256 d1deb6d1251f2833eec1ea322b728fbbba1d4a4238f1e4fa7812c4aec4f44672  bytes 2317  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=320 minHostAvailableMiB=25397
+    [queue] START available=25511MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 427780bbc0fc524f8091893614eae8a653518139 dirty=3
+    ℹ tests 9
+    ℹ pass 9
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=320 minHostAvailableMiB=25397
+    [memory-guard] at peak: node:94 node:55 fake-wg.mjs:54 fake-wg.mjs:54 node:49 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## l2-control-427780bbc  out-sha256 49968af28830f56b046a44933d69b3398c83f6af1761c7b9c7672e77dc525cc4  bytes 15709  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=320 minHostAvailableMiB=23884
+    [queue] START available=25059MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base head 427780bbc0fc524f8091893614eae8a653518139 dirty=0
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (115.818492ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45023.847031ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (198.838472ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (56.285061ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (49.399378ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (58.706241ms)
+    ✖ test/host-service-lifecycle.test.mjs (60016.17103ms)
+    ℹ tests 7
+    ℹ pass 0
+    ℹ fail 6
+    ℹ cancelled 1
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (115.818492ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45023.847031ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (198.838472ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (56.285061ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (49.399378ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (58.706241ms)
+    ✖ test/host-service-lifecycle.test.mjs (60016.17103ms)
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=320 minHostAvailableMiB=23884
+    [memory-guard] at peak: node:89 fake-wg.mjs:54 fake-wg.mjs:54 node:54 node:54 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## l2b-control-427780bbc  out-sha256 9780fffd19882d344ada6db345b4baa7feaa71b88edf11f520bd887d817a4546  bytes 18479  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=325 minHostAvailableMiB=24399
+    [queue] START available=24975MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base head 427780bbc0fc524f8091893614eae8a653518139 dirty=0
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (156.123108ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45022.108592ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (206.205345ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (57.305006ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (48.678577ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (57.098559ms)
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (20215.688081ms)
+    ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (258.224147ms)
+    ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.23408ms)
+    ℹ tests 9
+    ℹ pass 0
+    ℹ fail 9
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (156.123108ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45022.108592ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (206.205345ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (57.305006ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (48.678577ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (57.098559ms)
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (20215.688081ms)
+    ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (258.224147ms)
+    ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.23408ms)
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=325 minHostAvailableMiB=24399
+    [memory-guard] at peak: node:94 fake-wg.mjs:54 fake-wg.mjs:54 node:54 node:54 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## m1-mutants  out-sha256 c7afcabceb623536875718beec1d384f0495ac7f47121169cbb4a016d475f369  bytes 2907  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=392 minHostAvailableMiB=24541
+    [queue] START available=24781MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    SURVIVED M1-insert-after-close (transport keeps a late circuit)  (exit 0)
+    KILLED   M2-no-withdraw-on-failed-start (runtime)  (exit 1)
+        ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (124.65799
+        ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (176.535463ms)
+        ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (56.213852ms)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (21075.508249ms
+        ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (21228.994675ms)
+        ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (261.42197ms)
+        ✖ failing tests:
+    KILLED   M3-no-abort-listener (runtime ignores the stop while waiting)  (exit 1)
+        ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45036.424422ms)
+        ✖ failing tests:
+    KILLED   M4-timer-after-close (transport start)  (exit 1)
+        ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (132.31313
+        ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (335.101732ms)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1071.890012ms)
+        ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (7.509099ms)
+        ✖ failing tests:
+    KILLED   M5-judge-awaits-startup (lifecycle)  (exit 1)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (58.733847ms)
+        ✖ failing tests:
+    KILLED   M6-close-waits-before-withdrawing-live (transport)  (exit 1)
+        ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (10166.932956ms)
+        ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (30236.200564ms)
+        ✖ failing tests:
+    MUTANTS 5 / 6 killed
+    [memory-guard] exit=1 peakTreeRssMiB=392 minHostAvailableMiB=24541
+    [memory-guard] at peak: node:92 fake-wg.mjs:54 fake-wg.mjs:54 node:54 fake-wg.mjs:54 node:54 python3:15 bash:6
+    [queue] EXIT 1
+
+## r1-regression  out-sha256 473c25e56b0f4f297457b60dc0dcf529e3054daed9162a64272b46087843af08  bytes 26555  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=513 minHostAvailableMiB=23818
+    [queue] START available=25310MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 427780bbc0fc524f8091893614eae8a653518139 dirty=3
+    ✖ end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart (610.096732ms)
+    ✖ standalone network bundles load outside the repository without npm dependencies (570.296329ms)
+    ℹ tests 104
+    ℹ pass 102
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ end to end: the built release, started by the host package, serves a Shield guest push through its HTTPS front; refusals; restart (610.096732ms)
+    ✖ standalone network bundles load outside the repository without npm dependencies (570.296329ms)
+        killed: false,
+    [job] exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=513 minHostAvailableMiB=23818
+    [memory-guard] at peak: esbuild:286 node:93 node:61 node:59 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## r1b-runtime-bundle  out-sha256 8110ec82787d50208cf13512eb39a1d9d5aa2fa496065ad7c4aad1e6a2e9ff17  bytes 2910  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=483 minHostAvailableMiB=24465
+    [queue] START available=24789MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 427780bbc0fc524f8091893614eae8a653518139 dirty=3
+    ℹ tests 10
+    ℹ pass 10
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    [job] exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=483 minHostAvailableMiB=24465
+    [memory-guard] at peak: esbuild:281 node:78 node:55 node:54 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## s1-setup  out-sha256 5ef718ca7c0681efd0b912528ff371b9e69fef455fcc43f22bf8bd5b3356d48d  bytes 421  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=126 minHostAvailableMiB=24759
+    [queue] START available=25170MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [memory-guard] exit=0 peakTreeRssMiB=126 minHostAvailableMiB=24759
+    [memory-guard] at peak: git:121 bash:6
+    [queue] EXIT 0
+
+## v1-verify  out-sha256 0d3513ecb1a19f1999c66892d686185b95423904b2dbeff7b879ba054bbaa659  bytes 28126  rc 1
+    [memory-guard] exit=1 peakTreeRssMiB=399 minHostAvailableMiB=23669
+    [queue] START available=24800MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/candidate head 862f65493faad2f99e568a752951dc999f10fa27 dirty=0
+    ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (1.574463ms)
+    ℹ tests 27
+    ℹ pass 26
+    ℹ fail 0
+    ℹ cancelled 1
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (1.574463ms)
+    [job] exit=1
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base head 427780bbc0fc524f8091893614eae8a653518139 dirty=0
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (154.597472ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45022.616319ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (212.659065ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (57.914473ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (57.400338ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (59.924362ms)
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (20244.272012ms)
+    ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (257.930794ms)
+    ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.321636ms)
+    ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (0.876711ms)
+    ℹ tests 10
+    ℹ pass 0
+    ℹ fail 10
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (154.597472ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45022.616319ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (212.659065ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (57.914473ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (57.400338ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (59.924362ms)
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (20244.272012ms)
+    ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (257.930794ms)
+    ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.321636ms)
+    ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (0.876711ms)
+    [job] exit=1
+    KILLED   M1-insert-after-close (transport keeps a late circuit)  (exit 1)
+        ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.329096ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (2.040568ms)
+        ✖ failing tests:
+    KILLED   M2-no-withdraw-on-failed-start (runtime)  (exit 1)
+        ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (122.25532
+        ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (172.431474ms)
+        ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (54.451131ms)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (21072.526432ms
+        ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (21226.891537ms)
+        ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (262.054593ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (1.195507ms)
+        ✖ failing tests:
+    KILLED   M3-no-abort-listener (runtime ignores the stop while waiting)  (exit 1)
+        ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45036.645456ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (1.681343ms)
+        ✖ failing tests:
+    KILLED   M4-timer-after-close (transport start)  (exit 1)
+        ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (130.02025
+        ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (334.462635ms)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1073.557079ms)
+        ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (7.969775ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (7.53775ms)
+        ✖ failing tests:
+    KILLED   M5-judge-awaits-startup (lifecycle)  (exit 1)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (59.19882ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (1.356195ms)
+        ✖ failing tests:
+    KILLED   M6-close-waits-before-withdrawing-live (transport)  (exit 1)
+        ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (10169.264215ms)
+        ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (30210.975095ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (1.335325ms)
+        ✖ failing tests:
+    MUTANTS 6 / 6 killed
+    [memory-guard] exit=1 peakTreeRssMiB=399 minHostAvailableMiB=23669
+    [memory-guard] at peak: node:93 fake-wg.mjs:54 fake-wg.mjs:54 node:54 fake-wg.mjs:54 node:54 python3:15 bash:6
+    [queue] EXIT 1
+
+## v2-verify  out-sha256 237f937f77233ae8822c8d21e23ce4168cd8ea03d24c35b74850eafc7ca4873f  bytes 22963  rc 0
+    [memory-guard] exit=0 peakTreeRssMiB=400 minHostAvailableMiB=24069
+    [queue] START available=24803MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/host-service-lifecycle/base head 427780bbc0fc524f8091893614eae8a653518139 dirty=0
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (151.646109ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45021.257792ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (208.7604ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (58.028215ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (52.404599ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (59.699515ms)
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (20241.420002ms)
+    ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (257.607826ms)
+    ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.255526ms)
+    ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (0.896095ms)
+    ℹ tests 10
+    ℹ pass 0
+    ℹ fail 10
+    ℹ cancelled 0
+    ℹ skipped 0
+    ℹ todo 0
+    ✖ failing tests:
+    ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (151.646109ms)
+    ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45021.257792ms)
+    ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (208.7604ms)
+    ✖ delayed failure: the exit REFUSES the grant it was holding while the host stopped: nothing to withdraw, no strike, clean stop (58.028215ms)
+    ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (52.404599ms)
+    ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (59.699515ms)
+    ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (20241.420002ms)
+    ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (257.607826ms)
+    ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.255526ms)
+    ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (0.896095ms)
+    [job] exit=1
+        ℹ pass 8 ℹ fail 2 ℹ cancelled 0
+    KILLED   M1-insert-after-close (transport keeps a late circuit)  (exit 1)
+        ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (1.42453ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (201.310559ms)
+        ✖ failing tests:
+        ℹ pass 4 ℹ fail 6 ℹ cancelled 0
+    KILLED   M2-no-withdraw-on-failed-start (runtime)  (exit 1)
+        ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (125.07161
+        ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (178.546207ms)
+        ✖ delayed failure AFTER a grant (the exit granted other names): the runtime withdraws that grant before its tunnel ends (53.091851ms)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (21066.032697ms
+        ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (21215.203593ms)
+        ✖ agent stop during a startup: close() resolves only after the cancelled startup ended; a later judge() starts nothing (260.683047ms)
+        ✖ failing tests:
+        ℹ pass 9 ℹ fail 1 ℹ cancelled 0
+    KILLED   M3-no-abort-listener (runtime ignores the stop while waiting)  (exit 1)
+        ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (45035.580556ms)
+        ✖ failing tests:
+        ℹ pass 5 ℹ fail 5 ℹ cancelled 0
+    KILLED   M4-timer-after-close (transport start)  (exit 1)
+        ✖ root race, real runtime: close() while the exit grant is in flight withdraws the late circuit; no circuit, grant, child or timer survives (126.28591
+        ✖ close() during a slow tunnel handshake ends the startup at once: no exit grant is ever asked, nothing lingers (333.642199ms)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (1073.802896ms)
+        ✖ root probe shape (a runtime that ignores the stop): the late circuit is withdrawn and closed, never inserted; no timer (7.446768ms)
+        ✖ a startup that outlives the stop's settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers (206.025816ms)
+        ✖ failing tests:
+        ℹ pass 9 ℹ fail 1 ℹ cancelled 0
+    KILLED   M5-judge-awaits-startup (lifecycle)  (exit 1)
+        ✖ the privacy agent switch: a ban DURING the first startup stops it at once; the admin's re-admit starts a fresh transport that serves (59.112307ms)
+        ✖ failing tests:
+        ℹ pass 7 ℹ fail 2 ℹ cancelled 1
+    KILLED   M6-close-waits-before-withdrawing-live (transport)  (exit 1)
+        ✖ a ban during BACKGROUND reconcile: the live circuit is withdrawn first, the one still being built is withdrawn when it answers (10161.744476ms)
+        ✖ the privacy agent switch: a ban during a BACKGROUND round of a serving transport withdraws everything; app circuits are untouched (30200.528988ms)
+        ✖ failing tests:
+    MUTANTS 6 / 6 killed
+    [memory-guard] exit=0 peakTreeRssMiB=400 minHostAvailableMiB=24069
+    [memory-guard] at peak: node:95 fake-wg.mjs:54 fake-wg.mjs:54 node:54 fake-wg.mjs:54 node:54 python3:15 bash:6
+    [queue] EXIT 0

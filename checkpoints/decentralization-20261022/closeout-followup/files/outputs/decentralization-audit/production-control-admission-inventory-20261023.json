@@ -1,0 +1,43 @@
+{
+  "observedAt": "2026-10-23T06:10:46.125602+00:00",
+  "readOnly": true,
+  "hosts": [
+    {
+      "alias": "minipc-control-vm",
+      "status": "observed",
+      "relays": [
+        {
+          "pid": 240723,
+          "sourcePath": "/opt/nan-relay/api-relay.js",
+          "sourceSha256": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d",
+          "sourceMtime": 1792587319.745612,
+          "processStartTicks": "30307590",
+          "publicEnvironment": {
+            "TRUSTED_OPERATORS": "0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1,0x3b44dbccd6632f751c8d3676615f171cb1b922a1",
+            "TUNNEL_OPERATOR_ATTACH": "1",
+            "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
+            "REGISTRY_ADDRESS": "0xCB65f487eba6564D57FfB860cF9aE701584cB4a2",
+            "METAL_REQUIRE_VCEK": null,
+            "METAL_MIN_TCB": null,
+            "RELAY_HVNODE_ATTACH": "1",
+            "RELAY_HVNODE_OPERATORS": "*",
+            "HOST_POLICY_RECHECK_SEC": null,
+            "ENCLAVE_PLATFORM_HOST_POLICY": null
+          },
+          "sourceDefaultTrustedOperators": [
+            "0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1"
+          ],
+          "measurementOverridePresent": true,
+          "measurementOverrideSha256": "7b85b0a1d856f7ed11c44885bd3dbcd89cbe24366ce2a16f531cd655354e56ba",
+          "staticTunnelTokenOverrideConfigured": false,
+          "sourceHasHostPolicyRuntime": false
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Environment values are from the live process; source defaults/hash are from its current entry file, not proof of loaded in-memory bytes.",
+    "No keys, generic environment, command line, customer state, or token values are exported.",
+    "This is an inventory, not a policy-change authorization or proof of admission behavior."
+  ]
+}

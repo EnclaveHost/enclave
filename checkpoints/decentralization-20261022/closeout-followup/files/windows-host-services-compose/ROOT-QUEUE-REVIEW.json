@@ -1,0 +1,8 @@
+{
+  "duplicateWrapperTerminated": 2662765,
+  "waitingChildrenTerminated": [
+    2664577
+  ],
+  "originalWrapperPreserved": 2661934,
+  "reason": "Two independently live wrappers were queued for identical k4-regA test batch and writing the same output paths. Duplicate had no actual job descendants; no tests were terminated."
+}

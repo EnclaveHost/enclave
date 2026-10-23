@@ -1,0 +1,6 @@
+{
+  "at": "2026-10-23T04:23:05.335Z",
+  "first": "chain_timeout",
+  "second": "chain_rollback",
+  "scope": "Immutable2efc4a83 actual createVerifiedSnapshot; scripted in-process endpoint delays final header past timeout. No real Helios/network."
+}

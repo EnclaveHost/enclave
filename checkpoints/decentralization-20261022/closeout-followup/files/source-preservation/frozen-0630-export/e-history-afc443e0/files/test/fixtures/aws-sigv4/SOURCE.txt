@@ -1,0 +1,10 @@
+Published AWS SigV4 signing-suite vectors (example credentials only), copied verbatim from
+https://github.com/awslabs/aws-c-auth/tree/84a26ea184d9ccd322c8164759510b3604ab13fd/tests/aws-signing-test-suite/v4/
+  get-vanilla/{context.json,request.txt,header-signed-request.txt}
+  get-header-value-trim/{context.json,request.txt,header-signed-request.txt}
+5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1  get-header-value-trim/context.json
+5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784  get-header-value-trim/header-signed-request.txt
+3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87  get-header-value-trim/request.txt
+5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1  get-vanilla/context.json
+f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc  get-vanilla/header-signed-request.txt
+9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f  get-vanilla/request.txt

@@ -1,0 +1,35 @@
+[queue] START available=24546MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{
+ "format": "enclave-base-holder/v1-render",
+ "files": {
+  "holder.json": "497c4664b7ffa3e89652da0f597c289278084fc7d8e222e903fc98049ee2d4c0",
+  "holder.argv.json": "882fbf959fe5c99375f25d0d0a42141080949abf4c3799c01580ba4981b46698",
+  "holder.env.json": "c4df8ce27b4d7c43d13c606ccd7ee5613a7edeb1fcacd94953f93978407ef6d5",
+  "enclave-base-holder.service": "94907e882ac01759ecc70a321cde331a2cd49a9f8b7af5cb9d2462aba29c9f51",
+  "enclave-base-holder-storage.service": "fd7c7eab14269cffca6786989c13d349cf8506314fe4fea573c1b0a03c914285",
+  "holder-storage.sh": "7635f245d54cde26dda22161c99b4bba4927dc5b4c697f6164785774b70ed3f7",
+  "nvme-cache-inventory.example.tsv": "56bb1ebdf26707822fab8c058b25590284e7f0262e8a4ce45d46d8a4f074434c",
+  "b-proof-source.json": "6f7d43a858bc8909b766bafb8662a4014b3a15286d750addd957aa55b09ff1c5"
+ },
+ "flagsSha256": "7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59",
+ "holderSha256": "7a5ee157ffbac89a5fc4342484ddd28fd8dfd68adda70238f3ded224d1b9cc78",
+ "nvmeAccounting": {
+  "holderBytes": 199140835328,
+  "otherBytes": 0,
+  "totalBytes": 199140835328,
+  "capBytes": 250000000000,
+  "targetBytes": 200000000000,
+  "overTarget": false
+ },
+ "labels": {
+  "role": "private untrusted witness source (B proofSources.untrusted); not a host-service role; no public serving",
+  "freshness": "proofs are only as fresh as this node; B refuses anything not at a verified fresh head",
+  "l1": "startup needs the declared L1 execution endpoint (unsafe-block signer read with 5 bounded retries); derivation (safe/finalized) needs L1 + beacon continuously; L1 watcher retry exhaustion stops the node (source, unexecuted)",
+  "tx": "transaction submission incomplete: no forwarding unless txForwarding.endpoint is set (hosted sequencer); P2P tx gossip is disabled by base-reth; L1 deposits are not a transparent replacement",
+  "flags": "argument names from pinned source (FLAGS.json); not executed against a Base binary until preflight"
+ }
+}
+{"refused": "binary.sha256 must be 64 lowercase hex (record it at install; a placeholder is not a pin)"}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

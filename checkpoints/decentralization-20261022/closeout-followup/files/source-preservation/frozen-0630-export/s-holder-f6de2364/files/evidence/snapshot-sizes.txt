@@ -1,0 +1,18 @@
+{"block": 52962126, "chain_id": 8453, "reth_version": "2.5.2-dev (7134be3)", "storage_version": 2, "components": ["account_changesets", "headers", "proofs", "receipts", "rocksdb_indices", "state", "storage_changesets", "transaction_senders", "transactions"]}
+  minimal  state                distance=None   chunks=1    download=   761.0 GB extracted=1138.2 GB
+  minimal  headers              distance=None   chunks=106  download=    20.4 GB extracted=31.7 GB
+  minimal  transactions         distance=10064  chunks=1    download=    17.1 GB extracted=26.9 GB
+  minimal  receipts             distance=64     chunks=1    download=     9.5 GB extracted=21.5 GB
+  minimal  account_changesets   distance=10064  chunks=1    download=     1.3 GB extracted=3.8 GB
+  minimal  storage_changesets   distance=10064  chunks=1    download=    10.7 GB extracted=36.0 GB
+minimal: download 820.0 GB, extracted 1258.0 GB
+  full     state                distance=None   chunks=1    download=   761.0 GB extracted=1138.2 GB
+  full     headers              distance=None   chunks=106  download=    20.4 GB extracted=31.7 GB
+  full     receipts             distance=10064  chunks=1    download=     9.5 GB extracted=21.5 GB
+  full     account_changesets   distance=10064  chunks=1    download=     1.3 GB extracted=3.8 GB
+  full     storage_changesets   distance=10064  chunks=1    download=    10.7 GB extracted=36.0 GB
+full (without transactions-since-Paris): download 803.0 GB, extracted 1231.1 GB
+  (not in minimal) transaction_senders  all: download 46.2 GB extracted 219.4 GB
+  (not in minimal) rocksdb_indices      all: download 597.6 GB extracted 718.3 GB
+  (not in minimal) proofs               all: download 872.5 GB extracted 1163.6 GB
+  (not in minimal) transactions         all: download 1278.1 GB extracted 2422.6 GB

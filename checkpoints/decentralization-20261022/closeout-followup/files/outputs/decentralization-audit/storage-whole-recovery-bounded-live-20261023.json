@@ -1,0 +1,43 @@
+{
+  "status": "SUCCEEDED_REVIEWED",
+  "reviewedAt": "2026-10-23T05:00:55.186040+00:00",
+  "completedAt": "2026-10-23T04:58:01.722063+00:00",
+  "unit": {
+    "ActiveState": "inactive",
+    "MainPID": "0",
+    "Result": "success"
+  },
+  "progress": {
+    "completedFiles": 1488,
+    "completedBytes": 21445494044,
+    "partialFiles": 0
+  },
+  "finalResultPresent": true,
+  "onDiskMismatches": 0,
+  "indexerUsed": false,
+  "writesToSia": false,
+  "isolation": {
+    "allowedReached": 2,
+    "allowedTried": 2,
+    "blocked": 33,
+    "blockedTried": 33,
+    "isolated": true,
+    "namesResolved": 0,
+    "namesTried": 6
+  },
+  "cleanup": {
+    "restoredDataKept": true,
+    "stagingRemoved": true,
+    "state": "succeeded",
+    "unit": "sia-whole-restore-fccd01cf-001"
+  },
+  "finalReceipt": "outputs/decentralization-audit/storage-whole-recovery-final-20261023.json",
+  "limitations": [
+    "Read-only recovery on the same physical host as indexd; not physical-host-loss proof.",
+    "ETags checked for all objects and restored bytes rehashed against the restore inventory; no independently supplied SHA-256 digests existed for these objects.",
+    "Does not prove decentralized write/indexer failover or future fresh-state availability.",
+    "Bridge transient retries occurred; the final complete inventory, successful exit and ended bridge threads establish this run's result.",
+    "Completeness applies to the frozen recovery snapshot identified by its digest, not to live writes made after that snapshot."
+  ],
+  "memoryNote": "Terminal unit cgroup is gone. Use final result memoryPeakBytes; terminal observer fallback was not this unit memory."
+}

@@ -1,0 +1,11 @@
+Host services: test the transport's own late-startup withdrawal (settle bound as an option)
+
+Mutant M1, which removed the transport's check after runtime.start(), survived the first suite. close()'s second
+withdraw pass masks it while the cancelled round settles within the bound.
+
+The check still decides two cases:
+- a late circuit never counts as up;
+- a startup that outlives the stop's settle bound is withdrawn and closed when it finally answers.
+
+settleMs (default 90 s, unchanged) is now a constructor option, so a test can reach the second case. Two assertions
+cover both cases.

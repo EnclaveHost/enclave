@@ -1,0 +1,15 @@
+# s2-scan: queue guard line(s)
+[memory-guard] exit=0 peakTreeRssMiB=93 minHostAvailableMiB=24398
+# retries before admission: 0
+# exit 0
+
+[queue] START available=24470MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533915])
+[ok] PINS.sha256 verifies
+11:21PM INF scanned ~1310688 bytes (1.31 MB) in 119ms
+11:21PM INF no leaks found
+[ok] gitleaks: no leaks (1.4M)
+[memory-guard] exit=0 peakTreeRssMiB=93 minHostAvailableMiB=24398
+[memory-guard] at peak: gitleaks:87 bash:6
+[queue] EXIT 0

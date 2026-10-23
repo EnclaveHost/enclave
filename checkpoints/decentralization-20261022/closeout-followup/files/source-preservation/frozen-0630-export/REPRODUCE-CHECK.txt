@@ -1,0 +1,40 @@
+root-kernel-lock base none (root commit) rebuilt from empty + 0 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-kernel-lock 794d2ff3c: tree 510243b413ff30962f8847b80b4afb065689c8ac OK
+root-kernel-lock 336ea56ab: tree 0ce77c94a8a6e400668a58ac8d4c93c098a4f613 OK
+root-snapshot-lifecycle base 2efc4a83e rebuilt from dfe020abf + 8 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree 88475d04f10c422d22faa97c5026e6ce65f07e24 OK
+root-snapshot-lifecycle fd6a1762e: tree bdfd1f832600c5e37affa32db0b51c45a545c2ce OK
+a-native-relay base 2efc4a83e rebuilt from dfe020abf + 8 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree 88475d04f10c422d22faa97c5026e6ce65f07e24 OK
+a-native-relay 71448f63b: tree 593c7c49e90bc82d809ceefc9dd6eb05f73806e5 OK
+p-deadline base 7b4dd6920 rebuilt from dfe020abf + 9 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree ccb7f0ac1911ba613989729c030509e69af1176c OK
+p-deadline 7b4e8c68a: tree 75544089f823395c21fa06dd95d251ef1f720cb4 OK
+p-deadline d0775541d: tree 05aceefc020e4f942dac0089e64b8107bd7b8c50 OK
+e-history base 7b4dd6920 rebuilt from dfe020abf + 9 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree ccb7f0ac1911ba613989729c030509e69af1176c OK
+e-history 96b877b7c: tree 1171413a4803b38d4d79d7a71e5864a649696cf2 OK
+e-history 6a0588774: tree b2e958ed469df403c745820dffca1996a5cc707a OK
+e-history afc443e03: tree 9fe790e855066c0835b848c8c4a1bdeb1b6529b8 OK
+p-compose base d0775541d rebuilt from dfe020abf + 9 stored patch(es) in 8ac1aa51c + 2 patch(es) of this export: tree 05aceefc020e4f942dac0089e64b8107bd7b8c50 OK
+p-compose 8389e983b: tree 9e2e7b907d24249b88a6e46c50f3b931f1d36fc0 OK
+p-compose e2ffb7aa2: tree 451904625738656cb2194fa6602dab0b711ef4f6 OK
+p-compose 52bb57ff2: tree 49842a3077a4e81fc0e5bbb9c372397fc987080e OK
+p-compose 9e838ba75: tree 90ecef92d89783aaf8da58eb2e0eae2483abf546 OK
+c-carriers base 427780bbc rebuilt from f58e03ec4 + 8 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree 820ae4be644d01214414469000a1d51632d0ce06 OK
+c-carriers 0757085e5: tree 9b163342db398927e1ad1ad90b37a4f2b49bb2ef OK
+f-lifecycle base 427780bbc rebuilt from f58e03ec4 + 8 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree 820ae4be644d01214414469000a1d51632d0ce06 OK
+f-lifecycle 24fb993c4: tree 73ba80731fe4a9afdc86ab895332c46fee05e6da OK
+f-lifecycle 862f65493: tree 1146edfc70c525f91bb24fb89b10a22e06086206 OK
+f-lifecycle 6c38c0489: tree 8532cb553db015326c83d0c525dca806521e1b36 OK
+s-holder base none (root commit) rebuilt from empty + 0 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+s-holder 0cec8c657: tree be87016bc42df54b8f2406511ef9dac9dc86a638 OK
+s-holder 4267c1e97: tree a31ad1a16eb2701e5ae180372c2f91acd895faf5 OK
+s-holder 1773ab603: tree a3cf697e819dfeeff0411fc565d0c226e45431be OK
+s-holder f6de2364a: tree 5222f1ea449e3892cf93d271295e87be012af586 OK
+root-holder base f6de2364a rebuilt from empty + 0 stored patch(es) in 8ac1aa51c + 4 patch(es) of this export: tree 5222f1ea449e3892cf93d271295e87be012af586 OK
+root-holder b1b6f1847: tree 8247dabbc46dc0181117b1903f1624aac4d4f945 OK
+root-holder c3efff413: tree fc36a4b8ede71f7e7b8ee31d98b76f27d98a5db7 OK
+d-linux-fec base 493ee9ee0 rebuilt from 493ee9ee0 + 0 stored patch(es) in 8ac1aa51c + 0 patch(es) of this export: tree b21163723ea789db13ff84d148e309e2709a89f4 OK
+d-linux-fec fbeab506f: tree fc984b264e3cd6c96694a6bc081f952bff5b098a OK
+d-linux-fec e4591e227: tree df79c9ef485a562c090368cc548bc1679d3b2370 OK
+d-linux-fec ee7a059f4: tree 23d678f875ee42abc5bd886cc7b2f3321738868d OK
+d-linux-fec fec43a6a0: tree 13e18b0895e37a7baa5bc9e11ad1fdcf337daac0 OK
+493ee9ee is an ancestor of dfe020abf (checked in the checkpoint repo); its tree b21163723ea789db13ff84d148e309e2709a89f4
+RESULT root-kernel-lock head tree reproduced: True, root-snapshot-lifecycle head tree reproduced: True, a-native-relay head tree reproduced: True, p-deadline head tree reproduced: True, e-history head tree reproduced: True, p-compose head tree reproduced: True, c-carriers head tree reproduced: True, f-lifecycle head tree reproduced: True, s-holder head tree reproduced: True, root-holder head tree reproduced: True, d-linux-fec head tree reproduced: True

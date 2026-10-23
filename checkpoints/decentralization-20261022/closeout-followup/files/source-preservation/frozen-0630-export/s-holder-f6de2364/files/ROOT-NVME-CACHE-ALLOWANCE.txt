@@ -1,0 +1,6 @@
+Direct user update received while this worker was running:
+"You can use some NVMe as like a cache for sia etc but do not exceed 250gb for this."
+
+Read the leading update in work/effective-goal-requirements.txt. It supersedes the no-NVMe-cache portion of the original task. Consider a bounded HDD-backed architecture using optional NVMe cache, with 250,000,000,000 bytes aggregate hard limit for this work and 200GB operational target. Account for metadata, journals, temporary files and compaction; identify an enforceable limit and safe cache-loss semantics. Do not assume cache automatically solves sustained state-execution throughput. No actual allocation, production activation, full sync, formatting or purchases within this worker's source/research scope. Record any revised design and remaining validation in RESULT.md.
+
+This file is a scope supplement, not evidence that the running worker has read or acknowledged it. Root must check final output and convey this update at the next session continuation if necessary.

@@ -1,0 +1,34 @@
+[queue] START available=24703MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+=== inherit-env KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  ERROR: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+  ERROR: test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts)
+  ERROR: test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure)
+=== public-http KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  FAIL: test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned)
+=== allow-writeback KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='writethrough')
+=== cap-off-by-slack KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  FAIL: test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations)
+  FAIL: test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting)
+=== no-group-reap KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+=== no-pdeathsig KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  ERROR: test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts)
+  ERROR: test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure)
+  FAIL: test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child)
+=== trust-l1 KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='trustRpc')
+=== verifier-port KILLED
+  ERROR: test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_tmpfs_and_nvme_placement_and_sees_busy_ports)
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+  FAIL: test_refusals (__main__.Validation.test_refusals) (needle='local verifier')
+killed 8/8
+[memory-guard] exit=0 peakTreeRssMiB=107 minHostAvailableMiB=24126
+[memory-guard] at peak: python3:31 python3:26 python3:24 python3:17 sleep:4 timeout:4
+[queue] EXIT 0

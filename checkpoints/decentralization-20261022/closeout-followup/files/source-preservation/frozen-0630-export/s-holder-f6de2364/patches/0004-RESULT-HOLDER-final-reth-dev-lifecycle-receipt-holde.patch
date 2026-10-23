@@ -1,0 +1,113 @@
+From f6de2364a593bc4f49ea8bbe98fc0b44f4adb71a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:36:02 -0700
+Subject: [PATCH 4/4] RESULT-HOLDER: final reth --dev lifecycle receipt
+ (holder-reth2)
+
+---
+ RESULT-HOLDER.md            |  4 +--
+ logs/holder-reth2.guard.log |  1 +
+ logs/holder-reth2.out       | 67 +++++++++++++++++++++++++++++++++++++
+ logs/holder-reth2.rc        |  1 +
+ 4 files changed, 71 insertions(+), 2 deletions(-)
+ create mode 100644 logs/holder-reth2.guard.log
+ create mode 100644 logs/holder-reth2.rc
+
+diff --git a/RESULT-HOLDER.md b/RESULT-HOLDER.md
+index 6b071a540dbdb6f304a2c5f17d30850345776311..8fce83e34b7397bc5add73ebc4091aa40079d57c 100644
+--- a/RESULT-HOLDER.md
++++ b/RESULT-HOLDER.md
+@@ -329,5 +329,5 @@ behaviour, or cache hit rates.
+ The holder stays inactive until the drill passes and the follow test measures throughput. Public L1 RPC stays a
+ declared dependency until root decides on a self-hosted L1 pair.
+ 
+-`holder-reth2` (the reth `--dev` run on the final hash) was queued at 05:30Z; its result is in `logs/holder-reth2.*`
+-and in the final report.
++`holder-reth2` (the reth `--dev` run on the final hash, holder.py `7a5ee157…`) ran OK: started → ready (`0x539`) →
++stopping → exited 0, stopped in 1.61 s, peak 229 MiB, rc 0.
+diff --git a/logs/holder-reth2.guard.log b/logs/holder-reth2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f45df5ced256821591fa0424c27129ad06fac9a1
+--- /dev/null
++++ b/logs/holder-reth2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=229 minHostAvailableMiB=24753
+diff --git a/logs/holder-reth2.out b/logs/holder-reth2.out
+index e69de29bb2d1d6434b8b29ae775ad8c2e48c5391..a5fa7ffc544c0d33c7a187ed45b374796c0d9f1c 100644
+--- a/logs/holder-reth2.out
++++ b/logs/holder-reth2.out
+@@ -0,0 +1,67 @@
++[queue] START available=24915MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
++7a5ee157ffbac89a5fc4342484ddd28fd8dfd68adda70238f3ded224d1b9cc78  holder.py
++802cfb1d338c709bcfab7dcd9c0a85224a9d42b30ac197fc0eeb3dcc83c4d604  holder-storage.sh.in
++743acde5c8a6d1a01cc37a7428a3152b34b93582c800954a5405d322363238f1  drill-cache.sh
++7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
++7ff667be8bc7dc30c3b88feb31362a5e3ab3892f433be5e74f298c06e3bb0ce2  holder.example.json
++8ebed72d8523d84d97dd1b74125c5f4195085d62bd8ec823f7d583b6b76b06cf  test/mutate.py
++6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
++c269a0a44e237103a7fae131db53371e108d53a9e570b243635e2d491ada00f0  test/test_holder.py
++d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
++ac0317b6624e8baa30370b7e85c88c55e656cfa570ed141a1bcb121fb7ce2509  test/test_storage.py
++4de226a548e8f8f432a5909c21efb6940871d6ed0651279604620969bb45bb0a  test/stubs/stubcmd.py
++=== test/test_reth_dev.py
++test_supervised_reth_dev_start_ready_stop (__main__.RethDev.test_supervised_reth_dev_start_ready_stop) ... [2m2026-10-23T05:35:44.975492Z[0m [32m INFO[0m Initialized tracing, debug log directory: /tmp/hrd-n93426kt/.cache/reth/logs/dev
++[2m2026-10-23T05:35:44.976974Z[0m [32m INFO[0m Starting Reth [3mversion[0m[2m=[0m"2.8.0 (05ba481)"
++[2m2026-10-23T05:35:44.976992Z[0m [32m INFO[0m Opening database [3mpath[0m[2m=[0m"/tmp/hrd-n93426kt/data/db"
++[2m2026-10-23T05:35:44.979198Z[0m [32m INFO[0m Launching node
++[2m2026-10-23T05:35:44.980419Z[0m [32m INFO[0m Configuration loaded [3mpath[0m[2m=[0m"/tmp/hrd-n93426kt/data/reth.toml"
++[2m2026-10-23T05:35:44.980652Z[0m [33m WARN[0m RocksDB will not keep all files open; performance may be reduced [3mfile_descriptor_limit[0m[2m=[0mSome(65536) [3mthreshold[0m[2m=[0m131072 [3mmax_open_files[0m[2m=[0m512
++[2m2026-10-23T05:35:44.997521Z[0m [32m INFO[0m [1mcheck_consistency[0m[2m:[0m Healing static file inconsistencies.
++[2m2026-10-23T05:35:44.997928Z[0m [32m INFO[0m [1mcheck_consistency[0m[2m:[0m[1mcheck_consistency[0m[1m{[0m[3mread_only[0m[2m=[0mfalse[1m}[0m[2m:[0m Verifying storage consistency.
++[2m2026-10-23T05:35:44.998070Z[0m [32m INFO[0m Database opened
++[2m2026-10-23T05:35:44.998996Z[0m [32m INFO[0m 
++Pre-merge hard forks (block based):
++- Frontier                         @0
++- Homestead                        @0
++- Dao                              @0
++- Tangerine                        @0
++- SpuriousDragon                   @0
++- Byzantium                        @0
++- Constantinople                   @0
++- Petersburg                       @0
++- Istanbul                         @0
++- Berlin                           @0
++- London                           @0
++Merge hard forks:
++- Paris                            @0 (network is known to be merged)
++Post-merge hard forks (timestamp based):
++- Shanghai                         @0          blob: (target: 6, max: 9, fraction: 5007716)
++- Cancun                           @0          blob: (target: 6, max: 9, fraction: 5007716)
++- Prague                           @0          blob: (target: 6, max: 9, fraction: 5007716)
++- Osaka                            @0          blob: (target: 6, max: 9, fraction: 5007716)
++[2m2026-10-23T05:35:44.999019Z[0m [32m INFO[0m Loaded storage settings [3msettings[0m[2m=[0mStorageSettings { storage_v2: true } [3mpruning_mode[0m[2m=[0m"archive"
++[2m2026-10-23T05:35:44.999819Z[0m [32m INFO[0m Transaction pool initialized
++[2m2026-10-23T05:35:45.018217Z[0m [32m INFO[0m P2P networking initialized [3menode[0m[2m=[0menode://6f5b6531911240ed8bc18424182cf728928beef749ca5c6df28214156ed35cb78689310d30ffd4cdfe016e698b544425558d933b81629f6becfcef77796ccfa5@127.0.0.1:43411
++[2m2026-10-23T05:35:45.018492Z[0m [32m INFO[0m StaticFileProducer initialized
++[2m2026-10-23T05:35:45.018622Z[0m [32m INFO[0m Pruner initialized [3mprune_config[0m[2m=[0mPruneConfig { block_interval: 5, segments: PruneModes { sender_recovery: None, transaction_lookup: None, receipts: None, account_history: None, storage_history: None, bodies_history: None, receipts_log_filter: ReceiptsLogPruneConfig({}) }, minimum_pruning_distance: 10064 }
++[2m2026-10-23T05:35:45.018698Z[0m [32m INFO[0m Creating JWT auth secret file [3mpath[0m[2m=[0m"/tmp/hrd-n93426kt/data/jwt.hex"
++[2m2026-10-23T05:35:45.019004Z[0m [32m INFO[0m Consensus engine initialized
++[2m2026-10-23T05:35:45.019068Z[0m [32m INFO[0m Engine API handler initialized
++[2m2026-10-23T05:35:45.037760Z[0m [32m INFO[0m RPC HTTP server started [3murl[0m[2m=[0m127.0.0.1:58471
++[2m2026-10-23T05:35:45.037791Z[0m [32m INFO[0m RPC auth server started [3murl[0m[2m=[0m127.0.0.1:47623
++[2m2026-10-23T05:35:45.037876Z[0m [32m INFO[0m Starting consensus engine
++[2m2026-10-23T05:35:45.037902Z[0m [32m INFO[0m Using local payload attributes builder for dev mode
++[2m2026-10-23T05:35:45.039266Z[0m [32m INFO[0m Forkchoice updated [3mhead_block_hash[0m[2m=[0m0x683713729fcb72be6f3d8b88c8cda3e10569d73b9640d3bf6f5184d94bd97616 [3msafe_block_hash[0m[2m=[0m0x683713729fcb72be6f3d8b88c8cda3e10569d73b9640d3bf6f5184d94bd97616 [3mfinalized_block_hash[0m[2m=[0m0x683713729fcb72be6f3d8b88c8cda3e10569d73b9640d3bf6f5184d94bd97616
++[2m2026-10-23T05:35:45.360348Z[0m [32m INFO[0m Received SIGTERM
++[2m2026-10-23T05:35:45.360567Z[0m [32m INFO[0m Wrote network peers to file [3mpeers_file[0m[2m=[0m"/tmp/hrd-n93426kt/data/known-peers.json"
++ok
++
++----------------------------------------------------------------------
++Ran 1 test in 2.143s
++
++OK
++{"rethSha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250", "stopSeconds": 1.61, "events": ["started", "ready", "stopping", "exited"]}
++[memory-guard] exit=0 peakTreeRssMiB=229 minHostAvailableMiB=24753
++[memory-guard] at peak: reth:189 python3:30 sh:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/holder-reth2.rc b/logs/holder-reth2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/holder-reth2.rc
+@@ -0,0 +1 @@
++0

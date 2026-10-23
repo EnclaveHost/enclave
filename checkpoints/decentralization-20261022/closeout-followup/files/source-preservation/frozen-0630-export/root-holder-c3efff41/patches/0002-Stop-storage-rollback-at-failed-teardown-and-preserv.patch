@@ -1,0 +1,105 @@
+From c3efff41337bba272fa7186a2585e5eb7ff852a7 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 23:13:06 -0700
+Subject: [PATCH 2/2] Stop storage rollback at failed teardown and preserve
+ attached images
+
+---
+ holder/holder-storage.sh.in  | 27 +++++++++++++++++++++++----
+ holder/test/stubs/stubcmd.py |  4 +++-
+ holder/test/test_storage.py  | 30 ++++++++++++++++++++++++++++++
+ 3 files changed, 56 insertions(+), 5 deletions(-)
+
+diff --git a/holder/holder-storage.sh.in b/holder/holder-storage.sh.in
+index c50824859fc3c61786412e57466ab6688aed9bef..549c73d2954058d4abc0904476ca87a85c3062bc 100644
+--- a/holder/holder-storage.sh.in
++++ b/holder/holder-storage.sh.in
+@@ -24,11 +24,30 @@ CREATED=(); ATTACHED=(); MAPPED=; MOUNTED=
+ unwind() {
+   local rc=$?
+   [ "$rc" -eq 0 ] && return 0
++  trap - EXIT
+   set +e
+-  [ -n "$MOUNTED" ] && umount "$MNT"
+-  [ -n "$MAPPED" ] && dmsetup remove "$NAME"
+-  for l in "${ATTACHED[@]}"; do losetup -d "$l"; done
+-  for f in "${CREATED[@]}"; do rm -f -- "$f"; done
++  # Ownership alone is not enough: a failed teardown leaves its dependencies live.
++  # Preserve the remaining devices/files for recovery and the original failure code.
++  if [ -n "$MOUNTED" ] && ! umount "$MNT"; then
++    log "cleanup stopped: cannot unmount $MNT; mapping, loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  if [ -n "$MAPPED" ] && ! dmsetup remove "$NAME"; then
++    log "cleanup stopped: cannot remove mapping $NAME; loops and images kept (original rc=$rc)"
++    exit "$rc"
++  fi
++  for l in "${ATTACHED[@]}"; do
++    if ! losetup -d "$l"; then
++      log "cleanup stopped: cannot detach $l; remaining loops and images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
++  for f in "${CREATED[@]}"; do
++    if ! rm -f -- "$f"; then
++      log "cleanup stopped: cannot remove $f; remaining images kept (original rc=$rc)"
++      exit "$rc"
++    fi
++  done
+   log "failed (rc=$rc): undid only what this run created/attached/mapped/mounted"
+   exit "$rc"
+ }
+diff --git a/holder/test/stubs/stubcmd.py b/holder/test/stubs/stubcmd.py
+index 56b0ce63c7de11cda8924c118aefed8487d72ee6..8bc135acec1bd6ba5c20b839a6ffe0d758115526 100755
+--- a/holder/test/stubs/stubcmd.py
++++ b/holder/test/stubs/stubcmd.py
+@@ -66,5 +66,7 @@ if name == 'e2fsck':
+     meta = os.environ.get('STUB_CMETA')
+     if meta: st['metaZeroAtFsck'] = open(meta, 'rb').read(8 << 20) == bytes(8 << 20)
+     done()
+-if name in ('modprobe', 'chown'): done()
++if name in ('modprobe', 'chown'):
++    if name in fails: done(rc=1)
++    done()
+ done(rc=97)
+diff --git a/holder/test/test_storage.py b/holder/test/test_storage.py
+index 5f9f72d56dedc3d0705ac66ccd750936be6958e5..0428b67411805ca430ea4461e2bac6f693b59781 100644
+--- a/holder/test/test_storage.py
++++ b/holder/test/test_storage.py
+@@ -114,6 +114,36 @@ class Storage(unittest.TestCase):
+         self.assertEqual(foreign.read_bytes(), b'x')
+ 
+     # -- assemble --
++    def test_unwind_keeps_image_when_detach_fails(self):
++        r = self.run_sh('create', fail='mkfs,losetup-detach')
++        self.assertEqual(r.returncode, 1, r.stderr)
++        self.assertTrue((self.hdd / 'origin.img').exists(), 'never unlink a still-attached image')
++        self.assertIn(str(self.hdd / 'origin.img'), self.st()['loops'].values())
++        self.assertIn('cleanup stopped', r.stderr)
++
++    def test_unwind_stops_when_mapping_removal_fails(self):
++        self.create()
++        before = len(self.st()['calls'])
++        r = self.run_sh('assemble', fail='mount,dmsetup-remove')
++        self.assertEqual(r.returncode, 1, r.stderr)
++        s = self.st()
++        self.assertTrue(s['dm'], 'failed cleanup retains the mapping')
++        self.assertEqual(len(s['loops']), 3, 'loops must remain under the live mapping')
++        self.assertFalse(any(c[:2] == ['losetup', '-d'] for c in s['calls'][before:]))
++        self.assertIn('cleanup stopped', r.stderr)
++
++    def test_unwind_stops_when_unmount_fails(self):
++        self.create()
++        before = len(self.st()['calls'])
++        r = self.run_sh('assemble', fail='chown,umount')
++        self.assertEqual(r.returncode, 1, r.stderr)
++        s = self.st()
++        self.assertEqual(s['mounts'], {str(self.mnt): '253:0'})
++        self.assertTrue(s['dm'])
++        self.assertEqual(len(s['loops']), 3)
++        self.assertFalse(any(c[:2] in [['dmsetup', 'remove'], ['losetup', '-d']] for c in s['calls'][before:]))
++        self.assertIn('cleanup stopped', r.stderr)
++
+     def expected_table(self, s):
+         o, d, m = (next(k for k, v in s['loops'].items() if v == str(p)) for p in (self.hdd / 'origin.img', self.nvme / 'cache-data.img', self.nvme / 'cache-meta.img'))
+         mm = lambda dev: '7:' + dev[9:]

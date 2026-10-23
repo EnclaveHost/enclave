@@ -1,0 +1,205 @@
+# b1-build: queue guard line(s)
+[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=24155
+# retries before admission: 0
+# exit 0
+
+[queue] START available=24686MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533854])
+== 1 pins
+[pin] OK <prod>/dist-sdshield-2857356cd/manifest.json cc2571bb5b0c85b53b6bcf232331562578335bfd315bd0173c52ad6f80f776e0
+[pin] OK <prod>/dist-sdshield-2857356cd/initramfs.cpio.gz 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc
+[pin] OK <prod>/dist-sdshield-2857356cd/vmlinuz 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+[pin] OK <home>/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+[pin] OK <work>/linux-post-adoption-release/stage/dist-leasegas-deabf8f90/initramfs.cpio.gz c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3
+[ok] base cmdline = the template
+[ok] KEPT cmdline = base cmdline
+[tool] sev-snp-measure 0.0.13
+== 2 calibration
+[cal] production base reproduced b8376e15f7f94f9b40e9891a19be4779b1635b1c6e269e820ee09cf9313c9dfcc810072bd4ab3d1f4b19e1b6794ac35d
+[cal] KEPT (production Linux runtime) reproduced ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2
+== 3 source + inputs
+[ok] src HEAD fec43a6a08da2ac287fb3a5c42de89f096f4f678
+[ok] src tree 13e18b0895e37a7baa5bc9e11ad1fdcf337daac0
+[ok] src clean
+[ok] overlay tool working copy == commit (1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56)
+{
+ "commit": "fec43a6a08da2ac287fb3a5c42de89f096f4f678",
+ "tool": "1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56",
+ "mode": "relay (no --control)",
+ "count": 55,
+ "packagesFromBase": [
+  {
+   "name": "cors",
+   "version": "2.8.6"
+  },
+  {
+   "name": "express",
+   "version": "4.22.2"
+  },
+  {
+   "name": "jose",
+   "version": "5.10.0"
+  },
+  {
+   "name": "viem",
+   "version": "2.53.1"
+  },
+  {
+   "name": "ws",
+   "version": "8.21.1"
+  }
+ ],
+ "baseCmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app\n",
+ "equalCmdlineTemplate": true,
+ "baseIsControlImage": false,
+ "nonRegularTargets": [],
+ "hostAdmissionBundle": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+ "hostPolicyBundle": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+ "refusedBundles": {},
+ "doMirrorLiterals": {},
+ "vsNative493": {
+  "reference": {
+   "file": "<work>/resume-after-checkpoint-20261022/native-final-image/public/INPUT-MANIFEST.json",
+   "sha256": "b0dfb6a31290fa9af4dd8cad49d8aa12f4f51820bab2d2789f4e8e172b3800f0",
+   "count": 59
+  },
+  "differ": {
+   "app/egress.js": {
+    "native": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+    "composed": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843"
+   },
+   "app/supervisor.js": {
+    "native": "2c87a36fbffe9ff151f32e38c212ffd03a6d69ec85ec646eca79421c2cc6de65",
+    "composed": "4939dc688cefeed25a8801ecb4c939d7eff9e8735e9c52a15d30d069666d8d48"
+   }
+  },
+  "notInNative": [],
+  "nativeOnly": [
+   "opt/contracts/deployments/contract-pins-base.json",
+   "opt/metal/fixtures/tpm-roots.pem",
+   "opt/metal/mcp-server.bundle.mjs",
+   "opt/metal/platform-api.bundle.mjs"
+  ],
+  "directFilesOfHead": [
+   "opt/contracts/deployments/contract-pins-base.json",
+   "opt/metal/fixtures/tpm-roots.pem",
+   "opt/metal/mcp-server.bundle.mjs",
+   "opt/metal/platform-api.bundle.mjs"
+  ],
+  "ok": true
+ },
+ "equalToPrecheck": true,
+ "ok": true
+}
+{
+ "vsLive": {
+  "reference": {
+   "file": "<prod>/dist-leasegas-deabf8f90/manifest.json",
+   "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
+   "commit": "deabf8f90f64902d20d48620fd911d34c445859d",
+   "count": 40
+  },
+  "changed": {
+   "app/client/lease-executor-client.mjs": {
+    "live": "5193da71542098cbad98a723be575abc575147e0a9649e804d27697c8e3c7dfe",
+    "composed": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
+    "source": "client/lease-executor-client.mjs"
+   },
+   "app/egress.js": {
+    "live": "99a99f08e08a66472b8921d38d05d9a63d65c76a0eb6ac085d511c447df3dbd8",
+    "composed": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843",
+    "source": "egress.js"
+   },
+   "app/network/lease-gas-owner.mjs": {
+    "live": "a3163e386c2718dd31cdbf91ecc0eab3865c2c34d46b33809bbede6ab340cde9",
+    "composed": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+    "source": "network/lease-gas-owner.mjs"
+   },
+   "app/network/lease-gas-runtime.mjs": {
+    "live": "6a72857a37d5ea9d1ac10a9cb70f7bc3cf6b7c987ebe17c43ff97e2c1ef47b75",
+    "composed": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+    "source": "network/lease-gas-runtime.mjs"
+   },
+   "app/relay/snp-verify.mjs": {
+    "live": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+    "composed": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+    "source": "relay/snp-verify.mjs"
+   },
+   "app/supervisor.js": {
+    "live": "01ac9cb17a5a5af6df8992121c75239a580845748ae89f3843e080a617a5f951",
+    "composed": "4939dc688cefeed25a8801ecb4c939d7eff9e8735e9c52a15d30d069666d8d48",
+    "source": "supervisor.js"
+   },
+   "app/windows/node/host-admission.bundle.mjs": {
+    "live": "e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c",
+    "composed": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+    "source": "windows/node/host-admission.bundle.mjs"
+   },
+   "opt/metal/gsup.mjs": {
+    "live": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+    "composed": "07e0583974818a5b4be5fe3051844db99794594fb4d8d2dce9217c1706c09ae0",
+    "source": "metal/guest/gsup.mjs"
+   },
+   "opt/metal/host-policy.bundle.mjs": {
+    "live": "8b2dfbc6b5466d3c4f4559c15d874824f1ddddd3e530667a3848b3141b477af9",
+    "composed": "acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c",
+    "source": "metal/guest/host-policy.bundle.mjs"
+   },
+   "opt/metal/lease-gas-conduit.bundle.mjs": {
+    "live": "d0b8ef9c4842030c6bfd1173bdad1dd76e096da998a2046a6d70f0fce8528247",
+    "composed": "421d6584daa3acdfd7b459094576b46d7eafefe15f30c04e1f831ccbd34ba8d6",
+    "source": "metal/guest/lease-gas-conduit.bundle.mjs"
+   },
+   "opt/metal/measured-control.mjs": {
+    "live": "bf7d4ddf25bc2f173450fd4658ccd5c4e6a913de57b0ae8709d8486779b2f94a",
+    "composed": "26a8982c52497d88d7d0885f63a4b4b8056da3ac1192ab03fdac94426a6185fc",
+    "source": "metal/guest/measured-control.mjs"
+   }
+  },
+  "unchanged": 29,
+  "added": [
+   "app/metal/guest/owner-nomination.mjs",
+   "app/network/directory-client.mjs",
+   "app/network/host-owner-nomination.mjs",
+   "app/network/host-policy-adapters.mjs",
+   "app/network/lease-relay-discovery.mjs",
+   "app/network/network-authorities.mjs",
+   "app/network/network-policy-core.mjs",
+   "app/network/network-policy.mjs",
+   "app/network/provider-directory.mjs",
+   "app/network/provider-qualification.mjs",
+   "app/network/route-record.mjs",
+   "app/network/service-index.mjs",
+   "app/relay/attestation-paths.mjs",
+   "app/relay/net-guard.mjs",
+   "opt/metal/owner-nomination.mjs"
+  ],
+  "removed": []
+ }
+}
+== 4 overlay (relay mode: no --control)
+{"sha256": "5d5de3dde3ddfe3ea502e583e583cafa3444c49c83fffa4140a2f134af35a91c", "bytes": 279506431}
+[ok] src still clean
+[ok] output cmdline == base cmdline
+== 5 measurement A
+[measure A] 3043f6ff8d8bbfbe995d3dde5e93e790a9b3bb5db432375b8e8b3c72b1cc26a2aaee5cab174a7a4134b92923c81ea77d
+a33bee3cf2aeadb7ee087a334a15f72c5c526b50d430f0cf3571a262bdee7cb5  <build>/image/dist-linux-fec43a6a0/MEASUREMENT
+d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  <build>/image/dist-linux-fec43a6a0/cmdline
+5d5de3dde3ddfe3ea502e583e583cafa3444c49c83fffa4140a2f134af35a91c  <build>/image/dist-linux-fec43a6a0/initramfs.cpio.gz
+8a0defe0d40e096fbd82f327caed2b123c9bfc4472ff88aec3abdef41f691d04  <build>/image/dist-linux-fec43a6a0/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  <build>/image/dist-linux-fec43a6a0/vmlinuz
+97 <build>/image/dist-linux-fec43a6a0/MEASUREMENT
+105 <build>/image/dist-linux-fec43a6a0/cmdline
+279506431 <build>/image/dist-linux-fec43a6a0/initramfs.cpio.gz
+29208 <build>/image/dist-linux-fec43a6a0/manifest.json
+17232384 <build>/image/dist-linux-fec43a6a0/vmlinuz
+== 6 host release tree (the launcher's WorkingDirectory, as metal-deabf8f90 was: a git archive of the commit, no node_modules)
+[ok] git archive is deterministic (second pass byte-identical)
+1a4756353e39bd93e12aa2ed828702e0c659739a95e1d3bc46bde710437563d7  <build>/image/release-fec43a6a0.tar
+170803200 <build>/image/release-fec43a6a0.tar
+[ok] no ssh/scp/sftp invocation (0)
+BUILD-OK
+[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=24155
+[memory-guard] at peak: sev-snp-measure:295 bash:6
+[queue] EXIT 0

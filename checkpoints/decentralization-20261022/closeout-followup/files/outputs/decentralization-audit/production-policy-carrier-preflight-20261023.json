@@ -1,0 +1,25 @@
+{
+  "startedAt": "2026-10-23T05:51:54.644Z",
+  "sourceCommit": "0757085e5b78ed38efc11920fb3cf4a25d7dfc4d",
+  "chainId": 8453,
+  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+  "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+  "status": "no-anchored-policy-to-stage",
+  "staged": false,
+  "limitations": [
+    "Read-only observation through the existing public RPC quorum, not a cryptographic independent-chain proof.",
+    "A staged signed document still requires a fresh anchor/current-owner check on every production admission.",
+    "No production host configuration, policy publication, wallet signature, or contract state is changed."
+  ],
+  "observedAt": "2026-10-23T05:51:55.924Z",
+  "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "ownerIsContract": false,
+  "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+  "blockNumber": "52972683",
+  "blockHash": "0x92865306d403e044524a97ebc997fd8d67fcc6fa3ca98a73617da79173a2255f",
+  "anchor": {
+    "state": "unanchored"
+  },
+  "next": "Review the existing administrator enforcement and prepare a concrete policy/rollout before activating the global anchor. Do not fabricate or sign a policy automatically.",
+  "finishedAt": "2026-10-23T05:51:55.924Z"
+}

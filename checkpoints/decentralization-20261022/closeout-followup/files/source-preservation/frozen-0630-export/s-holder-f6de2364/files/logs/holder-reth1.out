@@ -1,0 +1,69 @@
+[queue] START available=24569MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+9e9be7d939bc0a1b48e4fac30dda5670f36ec2c2a9fd0edb96548c34a2e31741  holder.py
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+d1736597d78c5fbfadf92f37018653147e5153d1d75728c4fdfd4dc875974920  holder.example.json
+363409e8d9ec49d96368cdb697f77d32ceaee3e69cd5f57337cedae713c29ec1  test/mutate.py
+6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
+0a774549307f9e4ee0e34dbc5d499def09d5d18fdc13e18e708362c41478acb4  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+=== test/test_reth_dev.py
+test_supervised_reth_dev_start_ready_stop (__main__.RethDev.test_supervised_reth_dev_start_ready_stop) ... [2m2026-10-23T05:13:33.578719Z[0m [32m INFO[0m Initialized tracing, debug log directory: /tmp/hrd-8l91gam2/.cache/reth/logs/dev
+[2m2026-10-23T05:13:33.582186Z[0m [32m INFO[0m Starting Reth [3mversion[0m[2m=[0m"2.8.0 (05ba481)"
+[2m2026-10-23T05:13:33.582402Z[0m [32m INFO[0m Opening database [3mpath[0m[2m=[0m"/tmp/hrd-8l91gam2/data/db"
+[2m2026-10-23T05:13:33.588864Z[0m [32m INFO[0m Launching node
+[2m2026-10-23T05:13:33.593609Z[0m [32m INFO[0m Configuration loaded [3mpath[0m[2m=[0m"/tmp/hrd-8l91gam2/data/reth.toml"
+[2m2026-10-23T05:13:33.595211Z[0m [33m WARN[0m RocksDB will not keep all files open; performance may be reduced [3mfile_descriptor_limit[0m[2m=[0mSome(65536) [3mthreshold[0m[2m=[0m131072 [3mmax_open_files[0m[2m=[0m512
+[2m2026-10-23T05:13:33.615332Z[0m [32m INFO[0m [1mcheck_consistency[0m[2m:[0m Healing static file inconsistencies.
+[2m2026-10-23T05:13:33.616738Z[0m [32m INFO[0m [1mcheck_consistency[0m[2m:[0m[1mcheck_consistency[0m[1m{[0m[3mread_only[0m[2m=[0mfalse[1m}[0m[2m:[0m Verifying storage consistency.
+[2m2026-10-23T05:13:33.618574Z[0m [32m INFO[0m Database opened
+[2m2026-10-23T05:13:33.628886Z[0m [32m INFO[0m 
+Pre-merge hard forks (block based):
+- Frontier                         @0
+- Homestead                        @0
+- Dao                              @0
+- Tangerine                        @0
+- SpuriousDragon                   @0
+- Byzantium                        @0
+- Constantinople                   @0
+- Petersburg                       @0
+- Istanbul                         @0
+- Berlin                           @0
+- London                           @0
+Merge hard forks:
+- Paris                            @0 (network is known to be merged)
+Post-merge hard forks (timestamp based):
+- Shanghai                         @0          blob: (target: 6, max: 9, fraction: 5007716)
+- Cancun                           @0          blob: (target: 6, max: 9, fraction: 5007716)
+- Prague                           @0          blob: (target: 6, max: 9, fraction: 5007716)
+- Osaka                            @0          blob: (target: 6, max: 9, fraction: 5007716)
+[2m2026-10-23T05:13:33.628918Z[0m [32m INFO[0m Loaded storage settings [3msettings[0m[2m=[0mStorageSettings { storage_v2: true } [3mpruning_mode[0m[2m=[0m"archive"
+[2m2026-10-23T05:13:33.631798Z[0m [32m INFO[0m Transaction pool initialized
+[2m2026-10-23T05:13:33.652143Z[0m [32m INFO[0m P2P networking initialized [3menode[0m[2m=[0menode://a9fa94b2411768fafd1fab43a30077e6fb9db46ef5108b873a6bbf1a2326ea7c88e3793e52b2208359afa75fb26bf9f4d057142606fc3f17254d7653a45d0e05@127.0.0.1:50481
+[2m2026-10-23T05:13:33.653715Z[0m [32m INFO[0m StaticFileProducer initialized
+[2m2026-10-23T05:13:33.655231Z[0m [32m INFO[0m Pruner initialized [3mprune_config[0m[2m=[0mPruneConfig { block_interval: 5, segments: PruneModes { sender_recovery: None, transaction_lookup: None, receipts: None, account_history: None, storage_history: None, bodies_history: None, receipts_log_filter: ReceiptsLogPruneConfig({}) }, minimum_pruning_distance: 10064 }
+[2m2026-10-23T05:13:33.655358Z[0m [32m INFO[0m Creating JWT auth secret file [3mpath[0m[2m=[0m"/tmp/hrd-8l91gam2/data/jwt.hex"
+[2m2026-10-23T05:13:33.656879Z[0m [32m INFO[0m Consensus engine initialized
+[2m2026-10-23T05:13:33.657625Z[0m [32m INFO[0m Engine API handler initialized
+[2m2026-10-23T05:13:33.678143Z[0m [32m INFO[0m RPC HTTP server started [3murl[0m[2m=[0m127.0.0.1:57399
+[2m2026-10-23T05:13:33.678171Z[0m [32m INFO[0m RPC auth server started [3murl[0m[2m=[0m127.0.0.1:42055
+[2m2026-10-23T05:13:33.678253Z[0m [32m INFO[0m Starting consensus engine
+[2m2026-10-23T05:13:33.678470Z[0m [32m INFO[0m Using local payload attributes builder for dev mode
+[2m2026-10-23T05:13:33.680628Z[0m [32m INFO[0m Forkchoice updated [3mhead_block_hash[0m[2m=[0m0x683713729fcb72be6f3d8b88c8cda3e10569d73b9640d3bf6f5184d94bd97616 [3msafe_block_hash[0m[2m=[0m0x683713729fcb72be6f3d8b88c8cda3e10569d73b9640d3bf6f5184d94bd97616 [3mfinalized_block_hash[0m[2m=[0m0x683713729fcb72be6f3d8b88c8cda3e10569d73b9640d3bf6f5184d94bd97616
+/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/holder.py:519: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/tcp' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+[2m2026-10-23T05:13:33.900876Z[0m [32m INFO[0m Received SIGTERM
+[2m2026-10-23T05:13:33.901223Z[0m [32m INFO[0m Wrote network peers to file [3mpeers_file[0m[2m=[0m"/tmp/hrd-8l91gam2/data/known-peers.json"
+/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/holder.py:519: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/net/tcp6' mode='r' encoding='UTF-8'>
+  rows = open(f).read().splitlines()[1:]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 2.162s
+
+OK
+{"rethSha256": "8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250", "stopSeconds": 1.61, "events": ["started", "ready", "stopping", "exited"]}
+[memory-guard] exit=0 peakTreeRssMiB=255 minHostAvailableMiB=24435
+[memory-guard] at peak: reth:215 python3:30 sh:6 timeout:4
+[queue] EXIT 0

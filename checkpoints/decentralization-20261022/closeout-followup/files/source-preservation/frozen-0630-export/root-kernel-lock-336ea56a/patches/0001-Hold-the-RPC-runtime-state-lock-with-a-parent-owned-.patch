@@ -1,0 +1,285 @@
+From 794d2ff3c7e9e99a9fa92b54390030cb46f108cf Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:34:22 -0700
+Subject: [PATCH 1/2] Hold the RPC runtime state lock with a parent-owned
+ kernel descriptor
+
+---
+ .gitignore                 |  4 ++
+ README.md                  | 22 ++++++++++
+ TEST-RESULT.json           | 27 +++++++++++++
+ network/runtime-lock.mjs   | 56 ++++++++++++++++++++++++++
+ run-tests.sh               | 11 +++++
+ test/lock-child.mjs        |  9 +++++
+ test/runtime-lock.test.mjs | 82 ++++++++++++++++++++++++++++++++++++++
+ tests-final.guard.log      |  1 +
+ 8 files changed, 212 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 TEST-RESULT.json
+ create mode 100644 network/runtime-lock.mjs
+ create mode 100644 run-tests.sh
+ create mode 100644 test/lock-child.mjs
+ create mode 100644 test/runtime-lock.test.mjs
+ create mode 100644 tests-final.guard.log
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..a9abc4eea3ea8964cfab8cb93b988f54199bf744
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,4 @@
++tests*.out
++tests*.rc
++tests-*.guard.log
++!tests-final.guard.log
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..25208cad92686db7bd523aa74e1038c353a2603c
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,22 @@
++# Linux RPC runtime kernel lock
++
++Isolated source fix for the actual two-owner race reproduced in `../root-rpc-runtime-lock-review/RESULT.json`. The original runtime creates an empty lock, then writes its PID; a contender can unlink the empty file and both callers return ownership. This module never removes the shared lock inode.
++
++The runtime parent opens a private regular lock file. A short-lived, real `flock` subprocess receives a duplicate of that open file description as fd3 and acquires a nonblocking exclusive kernel lock. Its successful exit does not release the parent-held descriptor. The returned release function closes that descriptor exactly once. Parent death closes it through the kernel, without a stale-PID deletion race or a persistent lock-guardian process. No network or wallet operations.
++
++## Tested
++
++Six tests passed through the existing 256MiB queue (peak165MiB), using actual Linux processes and installed `/usr/bin/flock`: parent retains the lock after acquisition subprocess exits; same-process and cross-process contention refused; four simultaneous processes yield one owner; SIGKILL owner then reacquire; release preserves inode; malformed legacy metadata and symlink refused unchanged; missing utility cleans up; pre-abort creates no file; independent directories work. A labelled executable stand-in tests utility timeout and in-flight cancellation, not kernel exclusion.
++
++Evidence: `TEST-RESULT.json`, `tests-final.guard.log`, tool exec chunk355d59. Earlier queue attempts exited98 without starting tests, not failures/passes. The original negative-control two-owner result remains in the adjacent review directory; it was not rerun unnecessarily.
++
++## Integration required (not done here)
++
++1. Copy `network/runtime-lock.mjs` and its two test files into B's final composed tree. Add the named import to `network/rpc-runtime.mjs`.
++2. Delete the old `takeLock` implementation. In the async start path use `await takeRuntimeLock(path.join(stateDir, 'runtime.lock'), { flockPath: reviewedAbsoluteFlockPath })`; push the returned release function onto the existing cleanup stack immediately, before any following await. Retain lifecycle abort handling.
++3. Keep runtime.lock as a persistent empty file. Shutdown tests must assert reacquisition/no held descriptor, not file absence. Never unlink it during normal cleanup, crash recovery or another startup.
++4. Declare and preflight the Linux util-linux flock binary in the release package/dependencies, including its reviewed path and required flags. The default here is `/usr/bin/flock`; allow only a reviewed explicit absolute override. No installed dependency or production change made here.
++5. State directory must be private/owned. Do not mix this protocol with running legacy code that removes lock files. Nonempty legacy records are refused; stop the old runtime and review migration before removing an obsolete record. No automatic PID-based reclaim.
++6. Run actual composed runtime start/crash/restart/shutdown tests with listener/Helios children. Test that their spawn descriptors do not retain this parent-only lock after owner death. Preserve fd6 snapshot lifecycle and P cache/deadline changes. Root tests do not prove these integration steps or RPC independence.
++
++This standalone commit adds only the lock module/tests, not an alternative runtime or changes to B's active tree.
+diff --git a/TEST-RESULT.json b/TEST-RESULT.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9104a87857153f982d2abc098725f04899831b61
+--- /dev/null
++++ b/TEST-RESULT.json
+@@ -0,0 +1,27 @@
++{
++  "observedAt": "2026-10-23T05:34:21.998433+00:00",
++  "scope": "Isolated actual Linux kernel exclusion and subprocess lifecycle tests; RPC runtime integration not yet performed.",
++  "testCommand": "node --test --test-concurrency=1 test/runtime-lock.test.mjs",
++  "testResults": {
++    "tests": 6,
++    "pass": 6,
++    "fail": 0,
++    "skip": 0,
++    "cancelled": 0
++  },
++  "execution": "Existing work/claude-test-queue.py --mib256; exec chunk355d59",
++  "peakTreeRssMiB": 165,
++  "minimumHostAvailableMiB": 24356,
++  "fileSha256": {
++    "network/runtime-lock.mjs": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
++    "test/runtime-lock.test.mjs": "52932b0df53dd5aaa277584cab6e1fa58c21a4ecd5773f7495738bec3f0f834b",
++    "test/lock-child.mjs": "3ca6ae66fb5599ac70c30278c2027a0ef0ec7265a45a9afb96f9c205fda7bcfc"
++  },
++  "guardLog": "[memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=24356\n",
++  "limitations": [
++    "Source-only; no production change",
++    "Installed util-linux flock and private state directory required",
++    "No mixed legacy/new lock protocol",
++    "Root tests do not demonstrate fresh witness supply, independent transaction inclusion, or composed runtime closure"
++  ]
++}
+diff --git a/network/runtime-lock.mjs b/network/runtime-lock.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..76b1e6361f00eec31481df27265fd6f191dbefb1
+--- /dev/null
++++ b/network/runtime-lock.mjs
+@@ -0,0 +1,56 @@
++// Linux runtime state-directory exclusion. The parent owns the open file
++// description; flock(1) only acquires the kernel lock on an inherited duplicate.
++// Never unlink the lock file: replacing its inode would permit two owners.
++import fs from 'node:fs';
++import path from 'node:path';
++import { spawn } from 'node:child_process';
++
++export async function takeRuntimeLock(file, { flockPath = '/usr/bin/flock', timeoutMs = 5000, signal } = {}) {
++  if (process.platform !== 'linux') throw new Error('runtime lock requires Linux flock');
++  if (!path.isAbsolute(file) || !path.isAbsolute(flockPath)) throw new Error('lock and flock paths must be absolute');
++  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) throw new Error('invalid lock deadline');
++  signal?.throwIfAborted();
++  // The caller must own a private state directory. Do not follow lock symlinks.
++  const fd = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW, 0o600);
++  let owned = true;
++  const release = () => { if (owned) { owned = false; fs.closeSync(fd); } };
++  try {
++    const before = fs.fstatSync(fd);
++    if (!before.isFile() || before.nlink !== 1) throw new Error('runtime lock must be a regular, unshared file');
++    // Nonempty files belong to a different lock protocol. Do not guess whether
++    // an old PID record is stale, and never remove it while another owner races.
++    if (before.size !== 0) throw new Error('legacy runtime lock: stop the old runtime and review migration first');
++    await new Promise((resolve, reject) => {
++      let child, failure = null, timer;
++      const abort = () => {
++        failure ??= signal?.reason ?? new Error('runtime lock acquisition aborted');
++        child?.kill('SIGKILL');
++      };
++      try {
++        child = spawn(flockPath, ['--exclusive', '--nonblock', '--conflict-exit-code', '73', '3'],
++          { stdio: ['ignore', 'ignore', 'ignore', fd], windowsHide: true });
++      } catch (error) { reject(error); return; }
++      child.on('error', error => { failure ??= error; });
++      child.once('close', (code, sig) => {
++        clearTimeout(timer);
++        signal?.removeEventListener('abort', abort);
++        if (failure) reject(failure);
++        else if (code === 0) resolve();
++        else if (code === 73) reject(new Error('stateDir is in use by a running runtime'));
++        else reject(new Error(`runtime flock failed (${code ?? sig})`));
++      });
++      timer = setTimeout(() => {
++        failure ??= new Error('runtime lock acquisition deadline exceeded');
++        child.kill('SIGKILL');
++      }, timeoutMs);
++      signal?.addEventListener('abort', abort, { once: true });
++      if (signal?.aborted) abort();
++    });
++    signal?.throwIfAborted();
++    const current = fs.lstatSync(file);
++    if (current.dev !== before.dev || current.ino !== before.ino || current.nlink !== 1 || !current.isFile()) {
++      throw new Error('runtime lock inode changed during acquisition');
++    }
++    return release;
++  } catch (error) { release(); throw error; }
++}
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..72fef67e90e8549ecdc90000d78326099cfaf0a6
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++set -u
++ROOT=work/resume-after-checkpoint-20261022/root-rpc-kernel-lock
++for attempt in $(seq 1 12); do
++  python3 work/claude-test-queue.py --mib 256 --log "$ROOT/tests-$attempt.guard.log" -- node --test --test-concurrency=1 "$ROOT/test/runtime-lock.test.mjs" > "$ROOT/tests-$attempt.out" 2>&1
++  rc=$?
++  if [ "$rc" -ne 98 ]; then printf '%s\n' "$rc" > "$ROOT/tests.rc"; cat "$ROOT/tests-$attempt.out"; exit "$rc"; fi
++  sleep 10
++done
++printf '98\n' > "$ROOT/tests.rc"
++exit 98
+diff --git a/test/lock-child.mjs b/test/lock-child.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..52ab26d87b1d4a6d264be562c6fdce3061a6a8e4
+--- /dev/null
++++ b/test/lock-child.mjs
+@@ -0,0 +1,9 @@
++import { takeRuntimeLock } from '../network/runtime-lock.mjs';
++try {
++  const release = await takeRuntimeLock(process.argv[2]);
++  process.send({ acquired: true });
++  process.on('message', m => {
++    if (m === 'release') { release(); process.exit(0); }
++    if (m === 'try-again') process.send({ acquired: true });
++  });
++} catch (error) { process.send({ acquired: false, error: error.message }, () => process.exit(1)); }
+diff --git a/test/runtime-lock.test.mjs b/test/runtime-lock.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a0c9c39419f274ac67c5a59ecce17efdb0dcddd
+--- /dev/null
++++ b/test/runtime-lock.test.mjs
+@@ -0,0 +1,82 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { fork } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++import { takeRuntimeLock } from '../network/runtime-lock.mjs';
++
++const helper = fileURLToPath(new URL('./lock-child.mjs', import.meta.url));
++function area(t) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'enclave-kernel-lock-'));
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  return path.join(dir, 'runtime.lock');
++}
++function contender(file, t) {
++  const child = fork(helper, [file], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
++  const done = new Promise(resolve => child.once('exit', resolve));
++  const result = new Promise((resolve, reject) => { child.once('message', resolve); child.once('error', reject); });
++  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await done; });
++  return { child, result, done };
++}
++
++test('real flock child exits, but the parent retains exclusive ownership of an empty file', async t => {
++  const file = area(t), release = await takeRuntimeLock(file); t.after(release);
++  const ino = fs.statSync(file).ino;
++  assert.equal(fs.statSync(file).size, 0);
++  await assert.rejects(takeRuntimeLock(file), /stateDir is in use/);
++  const other = contender(file, t);
++  assert.deepEqual(await other.result, { acquired: false, error: 'stateDir is in use by a running runtime' });
++  release(); release();
++  assert.equal(fs.statSync(file).ino, ino, 'release must not unlink the shared lock inode');
++  const next = contender(file, t); assert.equal((await next.result).acquired, true);
++  next.child.send('release'); await next.done;
++});
++
++test('four real contenders have exactly one owner; owner SIGKILL releases the kernel lock', async t => {
++  const file = area(t), children = Array.from({ length: 4 }, () => contender(file, t));
++  const results = await Promise.all(children.map(c => c.result));
++  assert.equal(results.filter(r => r.acquired).length, 1);
++  const owner = children[results.findIndex(r => r.acquired)];
++  owner.child.kill('SIGKILL'); await owner.done;
++  const next = contender(file, t); assert.equal((await next.result).acquired, true);
++  next.child.send('release'); await next.done;
++});
++
++test('malformed legacy metadata and symlink are refused without changing either target', async t => {
++  const file = area(t);
++  fs.writeFileSync(file, '{');
++  await assert.rejects(takeRuntimeLock(file), /legacy runtime lock/);
++  assert.equal(fs.readFileSync(file, 'utf8'), '{');
++  const link = file + '.link'; fs.symlinkSync(file, link);
++  await assert.rejects(takeRuntimeLock(link), /ELOOP/);
++  assert.equal(fs.readFileSync(file, 'utf8'), '{');
++});
++
++test('missing lock utility releases its parent descriptor; a subsequent real acquisition succeeds', async t => {
++  const file = area(t);
++  await assert.rejects(takeRuntimeLock(file, { flockPath: '/nonexistent/enclave-flock' }), /ENOENT/);
++  const release = await takeRuntimeLock(file); release();
++});
++
++test('pre-aborted acquisition creates no file, and different state directories do not conflict', async t => {
++  const file = area(t);
++  await assert.rejects(takeRuntimeLock(file, { signal: AbortSignal.abort(new Error('cancelled')) }), /cancelled/);
++  assert.equal(fs.existsSync(file), false);
++  const release = await takeRuntimeLock(file), otherRelease = await takeRuntimeLock(file + '.other');
++  release(); otherRelease();
++});
++
++test('a stuck utility is killed on deadline and on cancellation before a retry', async t => {
++  const file = area(t), utility = file + '.utility';
++  // Explicit process-lifecycle seam: this executable delays, it does not emulate
++  // flock. Exclusion itself is tested above using the real installed utility.
++  fs.writeFileSync(utility, `#!${process.execPath}\nsetInterval(() => {}, 1000);\n`, { mode: 0o700 });
++  await assert.rejects(takeRuntimeLock(file, { flockPath: utility, timeoutMs: 100 }), /deadline exceeded/);
++  const controller = new AbortController();
++  const pending = takeRuntimeLock(file, { flockPath: utility, signal: controller.signal });
++  const timer = setTimeout(() => controller.abort(new Error('cancel during acquisition')), 100);
++  try { await assert.rejects(pending, /cancel during acquisition/); } finally { clearTimeout(timer); }
++  const release = await takeRuntimeLock(file); release();
++});
+diff --git a/tests-final.guard.log b/tests-final.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..de849b5ff701956b6de62aaf2baf2c5f48602783
+--- /dev/null
++++ b/tests-final.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=165 minHostAvailableMiB=24356

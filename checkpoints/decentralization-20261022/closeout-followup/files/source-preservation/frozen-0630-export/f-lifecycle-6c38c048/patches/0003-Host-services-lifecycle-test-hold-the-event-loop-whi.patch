@@ -1,0 +1,34 @@
+From 6c38c0489d769db12e5037e7c20f7372e56d5620 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 22:07:48 -0700
+Subject: [PATCH 3/3] Host services lifecycle test: hold the event loop while
+ the settle-bound case waits
+
+close()'s settle timer is unref'd by design (a stop never keeps a process alive on its own). The stand-in startup in this test holds no I/O, so node ended the test early as "Promise resolution is still pending but the event loop has already resolved". The test now keeps one interval for the wait, as the real in-flight request and its child processes do. Test-only change.
+---
+ test/host-service-lifecycle.test.mjs | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/test/host-service-lifecycle.test.mjs b/test/host-service-lifecycle.test.mjs
+index b40d5b25773389736af70deb61d4fb3f99562721..fb26f34840f951a1961ecc4bb6f0fa9477057874 100644
+--- a/test/host-service-lifecycle.test.mjs
++++ b/test/host-service-lifecycle.test.mjs
+@@ -338,7 +338,7 @@ test('root probe shape (a runtime that ignores the stop): the late circuit is wi
+   assert.ok(!lines.some((l) => /circuit up/.test(l)), 'the late circuit never counted as up');
+ });
+ 
+-test('a startup that outlives the stop\'s settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers', { timeout: 30_000 }, async () => {
++test('a startup that outlives the stop\'s settle bound: close() resolves at the bound; the late circuit is still withdrawn when it answers', { timeout: 30_000 }, async (t) => {
+   const { EventEmitter } = await import('node:events');
+   const provider = (id, address, roles) => ({ providerId: id, address, eligibleRoles: roles, pricePerGiB6: 0, qualifiedUntil: Date.now() + 60000, wgExitKey: 'exit-test', wgGuardKey: 'guard-test' });
+   const exit = provider('e1'.repeat(16), '192.0.2.1', ['ingress']), guard = provider('a1'.repeat(16), '192.0.2.2', ['guard']);
+@@ -348,6 +348,9 @@ test('a startup that outlives the stop\'s settle bound: close() resolves at the
+     return circuit; } };
+   const transport = new HostServiceTransport({ runtime, providers: async () => [guard, exit], grants: { revoke: async () => { revokes++; } }, hostId: HOST, settleMs: 200,
+     config: { zone: ZONE, exits: [exit.providerId], ports: { 'directory-replica': 18188 } }, log: (m) => lines.push(m) });
++  // close()'s settle timer is unref'd (a stop never keeps a process alive by itself) and this stand-in startup holds no I/O:
++  // the test holds the event loop while it waits, as the real in-flight request and children do
++  const hold = setInterval(() => {}, 1000); t.after(() => clearInterval(hold));
+   const starting = transport.start();
+   await began;
+   await transport.close();                                   // resolves at the 200-ms bound; the startup is still running

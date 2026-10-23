@@ -1,0 +1,176 @@
+From fd6a1762ed1218d5d32fb43df2ccb97caa2b17e4 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 21:26:44 -0700
+Subject: [PATCH] Close verified policy snapshots before late responses can
+ mutate authority state
+
+---
+ ROOT-REVIEW.md                         | 16 +++++++++
+ network/verified-chain.mjs             | 31 +++++++++++------
+ test/verified-chain-lifecycle.test.mjs | 46 ++++++++++++++++++++++++++
+ 3 files changed, 82 insertions(+), 11 deletions(-)
+ create mode 100644 ROOT-REVIEW.md
+ create mode 100644 test/verified-chain-lifecycle.test.mjs
+
+diff --git a/ROOT-REVIEW.md b/ROOT-REVIEW.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..6ea0dd6b4b64026f8f4a6d86a47a2a501b962f6b
+--- /dev/null
++++ b/ROOT-REVIEW.md
+@@ -0,0 +1,16 @@
++Verified snapshot lifecycle review, 2026-10-23
++
++Base: 2efc4a83ec6636f875fa4523d50674bda06bcdcb. Source only; no bundle, image, production activation or live chain test.
++
++The independent policy reader copied deadline logic without the corresponding operation cancellation/post-await checks. Root reproduced a final header arriving after chain_timeout and moving the accepted-block floor to100, causing the next otherwise valid block99 snapshot to fail chain_rollback, even though no block100 snapshot had been accepted. The public in-process verifier interface permits transports that ignore their timeout; no assumptions about interrupting arbitrary JavaScript are valid.
++
++Fix: every request checks operation liveness before and after awaiting its transport; the final state commit checks it again. Each operation has an AbortController passed to custom transports and combined with the HTTP request timeout. Settlement (success, failure, deadline) closes the client and aborts pending HTTP work. Retained metadata-only methods now also refuse after closure. A custom transport may ignore cancellation and continue its own work; its answer cannot change the accepted floor or yield a successful snapshot.
++
++Evidence:
++- Three focused lifecycle cases pass. On exact exported base2efc, all three fail behaviorally: late floor mutation, retained metadata answers, and uncancelled local HTTP request after callback failure.
++- Nine existing verified-chain tests pass with the change (service-index, policy snapshots, governance configuration, whole callback timeout, freshness/reorg and unsupported-method refusal).
++- All five caller wiring cases pass on these same final source bytes. Four passed in caller-final-r2; CLI case initially failed because the sparse checkout omitted verifier dependencies, then passed alone in caller-final-r3 after restoring tracked files. No production source was changed between those runs.
++- Initial parallel regression allocation exceeded256MiB and was stopped with99 (not a pass). Serialized runs stayed within256 (peak230MiB for CLI). Early sparse dependency errors were setup failures, not baseline regressions.
++- No new dependency. node_modules reuses the unchanged base dependency installation. No raw RPC fallback, governance change or authority/finality upgrade.
++
++The tests use actual reader functions with a scripted local endpoint and a real loopback HTTP server, not real Helios execution. Full composed Helios/Reth E2E remains required in the runtime integration. Apply this one-file source correction when merging A's later caller commits; A's active tree was never edited.
+diff --git a/network/verified-chain.mjs b/network/verified-chain.mjs
+index 3ab58a8c0f60b7d9bb062e84d9e1bed5ce309a84..e55f0359eb26d65d7fa0c809ccfc3de320c55797 100644
+--- a/network/verified-chain.mjs
++++ b/network/verified-chain.mjs
+@@ -27,14 +27,15 @@ const hexBlock = (b) => '0x' + b.toString(16);
+  * remote URL is refused: a remote "verifier" is one unverified server.
+  */
+ export function verifierEndpoint(v) {
+-  if (v && typeof v === 'object' && typeof v.request === 'function') return { request: (m, p, ms) => v.request(m, p, ms), label: 'verifier' };
++  if (v && typeof v === 'object' && typeof v.request === 'function') return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: 'verifier' };
+   const url = typeof v === 'string' ? v : v?.url;
+   let e; try { e = rpcEndpoint(url); } catch (err) { throw new Error('verifier endpoint: ' + err.message); }
+   if (!e.loopback) throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
+   let id = 0;
+-  return { label: 'verifier ' + e.label, request: async (method, params, ms) => {
++  return { label: 'verifier ' + e.label, request: async (method, params, ms, signal) => {
++    const timeout = AbortSignal.timeout(Math.max(1, ms));
+     const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params }),
+-      redirect: 'error', signal: AbortSignal.timeout(Math.max(1, ms)) });
++      redirect: 'error', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+     if (!r.ok) throw Object.assign(new Error(`verifier HTTP ${r.status}`), { status: r.status });
+     const j = await r.json();
+     if (j?.error) throw Object.assign(new Error('verifier: ' + String(j.error.message || 'error').slice(0, 300)), { rpcCode: j.error.code });
+@@ -55,7 +56,7 @@ export function verifiedHeader(block, b) {
+ 
+ export const PINNED_METHODS = Object.freeze(['getChainId', 'getBlockNumber', 'getBlock', 'readContract', 'getCode', 'getBytecode', 'getStorageAt', 'getBalance']);
+ /** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name. */
+-export function pinnedClient({ b, hash, request, chainId }) {
++export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
+   const at = (blockNumber, blockTag) => {
+     if (blockTag !== undefined) throw new Error(`verified reads are pinned to block ${b} (no block tags)`);
+     if (blockNumber !== undefined && BigInt(blockNumber) !== b) throw new Error(`verified reads are pinned to block ${b}`);
+@@ -82,7 +83,7 @@ export function pinnedClient({ b, hash, request, chainId }) {
+     getBalance: async ({ address, blockNumber, blockTag }) => BigInt(await request('eth_getBalance', [address, at(blockNumber, blockTag)])),
+   };
+   return new Proxy(Object.freeze({}), { get(_t, key) {
+-    if (Object.hasOwn(methods, key)) return methods[key];
++    if (Object.hasOwn(methods, key)) return async (...args) => { alive(); return methods[key](...args); };
+     if (typeof key === 'symbol' || key === 'then' || key === 'toJSON') return undefined;
+     return () => { throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(', ')})`); };
+   } });
+@@ -110,12 +111,19 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
+     if (typeof read !== 'function') throw new Error('snapshot(read) needs a read function');
+     if (atBlock && !HASH.test(String(atBlock.hash))) throw new Error('resume block hash required');
+     let closed = false, timer;
++    const controller = new AbortController();
+     const endAt = performance.now() + deadlineMs;
+-    const request = (method, params) => {
+-      if (closed) return Promise.reject(fail('chain_closed', 'this verified snapshot has already ended'));
++    const alive = () => {
++      if (closed) throw fail('chain_closed', 'this verified snapshot has already ended');
+       const left = Math.floor(endAt - performance.now());
+-      if (left <= 0) return Promise.reject(fail('chain_timeout', 'the verified read deadline has passed'));
+-      return Promise.resolve().then(() => v.request(method, params, left));
++      if (left <= 0) throw fail('chain_timeout', 'the verified read deadline has passed');
++      return left;
++    };
++    const request = async (method, params) => {
++      const value = await v.request(method, params, alive(), controller.signal);
++      // A custom transport may ignore cancellation. Its late answer must not advance the accepted-block floor.
++      alive();
++      return value;
+     };
+     const fresh = (ts) => ts + maxBlockAgeMs > now();
+     const work = (async () => {
+@@ -135,11 +143,12 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
+       if (floor && b === floor.number && h.hash !== floor.hash) throw fail('chain_rollback', 'the accepted block was replaced');
+       if (h.timestamp > now() + futureSkewMs) throw fail('chain_future', 'the verified block is in the future');
+       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} is older than ${maxBlockAgeMs} ms`);
+-      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId }), b, h);
++      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive }), b, h);
+       const again = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
+       if (again.hash !== h.hash || again.timestamp !== h.timestamp) throw fail('chain_reorg', 'chain reorganized during the read');
+       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} became older than ${maxBlockAgeMs} ms during the read`);
+       if (floor && b < floor.number) throw fail('chain_rollback', `block ${b} is older than block ${floor.number} accepted meanwhile`);
++      alive();
+       if (!floor || b > floor.number) floor = { number: b, hash: h.hash };
+       return { blockNumber: b, blockHash: h.hash, stateRoot: h.stateRoot, timestamp: h.timestamp, value,
+         evidence: { authority: 'local-verifier', tier: 'unsafe', finality: 'none', blockNumber: String(b), blockHash: h.hash, stateRoot: h.stateRoot, verifier: v.label } };
+@@ -148,7 +157,7 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
+     const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(fail('chain_timeout', `no verified snapshot within ${deadlineMs} ms`)), deadlineMs); });
+     try { return await Promise.race([work, deadline]); }
+     catch (e) { throw e?.code ? e : fail('chain_unconfirmed', 'no verified chain state: ' + String(e?.message || e).slice(0, 300), e); }
+-    finally { closed = true; clearTimeout(timer); work.catch(() => {}); }
++    finally { closed = true; clearTimeout(timer); controller.abort(fail('chain_closed', 'this verified snapshot has already ended')); work.catch(() => {}); }
+   };
+ }
+ 
+diff --git a/test/verified-chain-lifecycle.test.mjs b/test/verified-chain-lifecycle.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..f1d0b20d7876dbcd3a646d8a671aa0b938e78900
+--- /dev/null
++++ b/test/verified-chain-lifecycle.test.mjs
+@@ -0,0 +1,46 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import http from 'node:http';
++import {pathToFileURL} from 'node:url';
++const {createVerifiedSnapshot}=await import(process.env.VERIFIED_CHAIN_MODULE ? pathToFileURL(process.env.VERIFIED_CHAIN_MODULE).href : '../network/verified-chain.mjs');
++const sleep=ms=>new Promise(r=>setTimeout(r,ms));
++const block=n=>({number:'0x'+n.toString(16),hash:'0x'+n.toString(16).padStart(64,'0'),stateRoot:'0x'+'22'.repeat(32),timestamp:'0x'+Math.floor(Date.now()/1000).toString(16)});
++function fake(){const s={n:100n,headers:0,final:null,signals:[]};return {s,verifier:{request:async(m,p,ms,signal)=>{
++ s.signals.push(signal);if(m==='eth_chainId')return '0x2105';if(m==='eth_blockNumber')return '0x'+s.n.toString(16);
++ if(m==='eth_getBlockByNumber'){const b=block(s.n);if(++s.headers===2&&s.final)await s.final;return b;}throw Error('unexpected');
++}}};}
++test('late final header after deadline cannot advance the accepted floor',async()=>{
++ const {s,verifier}=fake();let release;s.final=new Promise(r=>release=r);
++ const snap=createVerifiedSnapshot({verifier,chainId:8453,confirmations:0,deadlineMs:100});
++ await assert.rejects(snap(async()=>true),e=>e.code==='chain_timeout');
++ release();await sleep(20);s.n=99n;
++ assert.equal((await snap(async()=>true)).blockNumber,99n);
++ // An actually accepted floor is still enforced.
++ s.n=98n;await assert.rejects(snap(async()=>true),e=>e.code==='chain_rollback');
++});
++test('a retained client closes metadata and RPC methods after success or failure',async()=>{
++ for(const fail of [false,true]){
++  const {s,verifier}=fake();const snap=createVerifiedSnapshot({verifier,chainId:8453,confirmations:0});let client;
++  const pending=snap(async c=>{client=c;if(fail)throw Error('callback failed');return true;});
++  if(fail)await assert.rejects(pending,/callback failed/);else await pending;
++  for(const call of [()=>client.getChainId(),()=>client.getBlockNumber(),()=>client.getBlock(),()=>client.getCode({address:'0x'+'33'.repeat(20)})])
++   await assert.rejects(call(),e=>e.code==='chain_closed');
++  assert.ok(s.signals.length&&s.signals.every(s=>s?.aborted),'operation cancellation reached each request');
++ }
++});
++test('callback failure aborts a pending local HTTP request before its long request timeout', {timeout:5000},async t=>{
++ let began,ended;const started=new Promise(r=>began=r),closed=new Promise(r=>ended=r);
++ const server=http.createServer(async(req,res)=>{
++  let body='';for await(const chunk of req)body+=chunk;
++  const j=JSON.parse(body);if(j.method==='eth_getCode'){res.on('close',ended);began();return;}
++  const result=j.method==='eth_chainId'?'0x2105':j.method==='eth_blockNumber'?'0x64':block(100n);
++  res.setHeader('content-type','application/json');res.end(JSON.stringify({jsonrpc:'2.0',id:j.id,result}));
++ });
++ await new Promise(r=>server.listen(0,'127.0.0.1',r));
++ t.after(()=>{server.closeAllConnections();server.close();});
++ const snap=createVerifiedSnapshot({verifier:`http://127.0.0.1:${server.address().port}`,chainId:8453,confirmations:0,deadlineMs:30000});
++ let rpc;
++ await assert.rejects(snap(async c=>{rpc=c.getCode({address:'0x'+'33'.repeat(20)});rpc.catch(()=>{});await started;throw Error('callback failed');}),/callback failed/);
++ let timer;try {await Promise.race([closed,new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('pending HTTP request was not cancelled')),1000))]);}finally{clearTimeout(timer);}
++ await assert.rejects(rpc);
++});

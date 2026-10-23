@@ -1,0 +1,9 @@
+t1-G0-bundle-api 0
+t1-G1-bundle-currency 0
+t1-G2-focused 0
+t1-G3-regression 1
+t1-G4-image-side 0
+t1-G4-overlay-unittest 1
+t1-G5-real-lease-client 0
+t1-G6-control-live-bundle 1
+t2-overlay-unittest 0

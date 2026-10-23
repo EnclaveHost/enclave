@@ -1,0 +1,6 @@
+[queue] START available=24799MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 5312 application/json https://chain.base.org/api/snapshots
+404 27150 text/html https://mainnet-v2-snapshots.base.org/api/snapshots
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=24787
+[memory-guard] at peak: curl:16 fetch-snapshots:6
+[queue] EXIT 0

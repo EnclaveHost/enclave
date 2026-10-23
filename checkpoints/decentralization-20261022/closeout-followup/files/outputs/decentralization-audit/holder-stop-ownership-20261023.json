@@ -1,0 +1,33 @@
+{
+  "observedAt": "2026-10-23T05:45:59.892431+00:00",
+  "baseCommit": "f6de2364a593bc4f49ea8bbe98fc0b44f4adb71a",
+  "fixCommit": "b1b6f1847f5fc3f32928c1127ace3243f777f3d2",
+  "scope": "Real rendered shell script with privileged commands stubbed; small temporary files only. No real device mapping, unmount, cache allocation or production change.",
+  "problem": "disassemble unmounted the configured path before validating mapping/mount ownership, including a foreign mount in no-cache mode.",
+  "control": {
+    "tests": 3,
+    "fail": 3,
+    "pass": 0,
+    "execChunk": "8cd87d"
+  },
+  "fixed": {
+    "tests": 20,
+    "pass": 20,
+    "fail": 0,
+    "execChunk": "d8154b",
+    "peakTreeRssMiB": 54
+  },
+  "sourceSha256": {
+    "holder/holder-storage.sh.in": "823aa8a036f62ba57ded9b34748e3fcf41bdc4af493899dcf2843c9e97d0e290",
+    "holder/test/test_storage.py": "5aa86c0528cf5acba242f2a686ef1b5a798d9568f87a230a400c0a9b0a9cc8ab"
+  },
+  "guardLogs": {
+    "root-holder-stop-control.guard.log": "[memory-guard] exit=1 peakTreeRssMiB=49 minHostAvailableMiB=24658\n",
+    "root-holder-stop-fixed.guard.log": "[memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=24212\n"
+  },
+  "limitations": [
+    "Not integrated into active holder tree",
+    "Real kernel dm-cache boundary/throughput drill still pending",
+    "Shared NVMe cap inventory and resource preflight still required"
+  ]
+}

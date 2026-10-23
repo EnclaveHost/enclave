@@ -1,0 +1,588 @@
+# Base Documentation
+
+> Base is the blockchain for global finance: an Ethereum L2 built by Coinbase, with stablecoins, payments, tokenized assets, and compliance controls as native chain primitives. This index points AI assistants at the canonical page for each topic across Get Started, Build on Base, Specifications, SDKs & APIs, and Upgrades; follow the links for full context.
+
+## Get Started
+
+### Quickstart
+
+- [Base](https://docs.base.org/get-started/base): The blockchain for global finance.
+
+- [Connect to Base](https://docs.base.org/get-started/connect-to-base): Network details for Base Mainnet and Base Sepolia: RPC endpoints, chain IDs, and block explorers.
+
+- [Get Funds](https://docs.base.org/get-started/get-funds): Fund an address on Base: withdraw from a Coinbase account, bridge from another chain, or use a testnet faucet.
+
+- [Make a Transaction](https://docs.base.org/get-started/make-a-transaction): Send your first transaction on Base with viem: connect, sign, and confirm in seconds for a fraction of a cent.
+
+- [Bridge to Base](https://docs.base.org/base-chain/network-information/ecosystem-bridges): Move ETH, stablecoins, and tokens to and from Base using the standard bridge, fast bridges, aggregators, or cross-chain messaging protocols.
+
+### Solutions
+
+- [Integrate DeFi](https://docs.base.org/get-started/integrate-defi): Add trading, direct lending, collateralized borrowing, or a vault-based earn product to your app with third-party protocols on Base.
+
+- [Tokenize Assets](https://docs.base.org/get-started/issue-rwa): Represent and operate real-world assets on Base with the B20 Asset standard: configurable precision, issuer roles, holder controls, and distributions through one ERC-20-compatible surface.
+
+- [Issue a Stablecoin](https://docs.base.org/get-started/issue-stablecoins): Run a fiat-backed stablecoin on Base with minting, compliance, and reconciliation built into the chain.
+
+- [Accept Payments](https://docs.base.org/get-started/accept-payments): Choose an onchain payment lifecycle for commerce checkout, agentic payments, reconciliation, refunds, and payouts on Base.
+
+- [Private Transactions](https://docs.base.org/get-started/private-transactions): Run confidential enterprise payments on Base with Base Ledgers: balances, transfers, and counterparties stay private while funds settle onchain.
+
+### Coding Agents
+
+- [Resources for AI Agents](https://docs.base.org/get-started/resources-for-ai-agents): Base-first resources for AI agents, including docs indexes, MCP access, skills, and recommended starting points
+
+- [MCP Server](https://docs.base.org/get-started/docs-mcp): Connect your AI coding assistant to Base documentation using Model Context Protocol for real-time access.
+
+- [Static Docs Files](https://docs.base.org/get-started/docs-llms): Use llms.txt and llms-full.txt to give AI assistants access to Base documentation.
+
+### Get Funding
+
+- [Base Batches](https://docs.base.org/get-started/base-batches): Apply to Base Batches, an accelerator with investment, mentorship, and a demo day for early-stage teams building on Base.
+
+- [Base Ecosystem Fund](https://docs.base.org/get-started/base-ecosystem-fund): The Base Ecosystem Fund backs pre-seed and seed teams building onchain businesses on Base, in partnership with Coinbase Ventures.
+
+- [Builder Stack](https://docs.base.org/get-started/builder-stack): A collection of credits & discounts on software for building on Base
+
+### Resources
+
+- [Builders](https://docs.base.org/get-started/builders): Find the support Base offers at every stage of building onchain, from tutorials and communities to grants and accelerators.
+
+- [Creators](https://docs.base.org/get-started/creators): Grant support from Base for independent creators making content about Base.
+
+### References
+
+- [Base Protocol](https://docs.base.org/get-started/base-chain): Explore Base as a chain: connect to its networks, use native primitives, understand transactions and network systems, and operate infrastructure.
+
+- [SDKs & APIs](https://docs.base.org/get-started/sdks-and-apis): Choose the Base SDK, API, or CLI that matches what you are building.
+
+## Build on Base
+
+### Overview
+
+- [Overview](https://docs.base.org/build-on-base/overview): Build financial products on Base by outcome: integrate DeFi, tokenize assets, issue stablecoins, accept payments, or run private transactions.
+
+- [Test on Vibenet](https://docs.base.org/build-on-base/test-on-vibenet): Build and test against Base's newest chain-level features on Vibenet, Base's experimental preview network, and track what's live at chain.base.org/vibenet.
+
+- [Run a Local Devnet](https://docs.base.org/build-on-base/run-a-local-devnet): Run Base locally from the base/base repo: a fresh Docker devnet with L1, sequencer, and batcher, or a snapshot devnet that continues Base Mainnet state and lets you act as any account.
+
+- [Assign User Attributes](https://docs.base.org/build-on-base/assign-user-attributes): Choose Builder Codes for transaction attribution or Base Verify for verified user traits, identity deduplication, and eligibility policies.
+
+### Integrate DeFi
+
+- [Integrate Trading](https://docs.base.org/build-on-base/integrate-defi/integrate-trading): Let users swap tokens on Base with executable routes from the 0x Swap API.
+
+- [Integrate Lending](https://docs.base.org/build-on-base/integrate-defi/integrate-lending): Let users supply USDC directly to Morpho or Aave lending markets on Base.
+
+- [Integrate Borrowing](https://docs.base.org/build-on-base/integrate-defi/integrate-borrowing): Let users borrow USDC against WETH collateral with Morpho or Aave on Base.
+
+- [Integrate an Earn Product](https://docs.base.org/build-on-base/integrate-defi/integrate-earn-product): Give users a one-deposit USDC earn experience with Morpho vaults on Base.
+
+- [List Tokenized Stocks](https://docs.base.org/build-on-base/integrate-defi/list-tokenized-stocks): Let users trade Coinbase-issued tokenized stocks on your app.
+
+### Tokenize Assets
+
+- [Create an Asset Token](https://docs.base.org/build-on-base/issue-rwa/create-an-asset-token): Create a six-decimal B20 Asset token with issuer roles, a supply ceiling, and issuer-defined metadata. This example configures a stock token.
+
+- [Issue Units to Holders](https://docs.base.org/build-on-base/issue-rwa/issue-units): Distribute B20 Asset units to multiple approved holders in one batch.
+
+- [Restrict Eligible Holders](https://docs.base.org/build-on-base/issue-rwa/restrict-eligible-holders): Keep units within an approved set of holders by binding a B20 allowlist to issuance and transfers.
+
+- [Restrict Who Can Initiate Transfers](https://docs.base.org/build-on-base/issue-rwa/restrict-transfer-initiators): Control which account may initiate a B20 transfer, separately from who may send or receive, by binding an allowlist to TRANSFER_EXECUTOR_POLICY. Routing every transfer through a transfer agent is one example.
+
+- [Seize and Cancel Units](https://docs.base.org/build-on-base/issue-rwa/seize-and-cancel-units): Move units from a holder who is no longer eligible into a safekeeping account with B20 seizeWithMemo, then cancel them with a memo'd burn.
+
+- [Announce a Change to Holders](https://docs.base.org/build-on-base/issue-rwa/announce-a-distribution): Wrap a holder-impacting change on a B20 Asset with an onchain disclosure using announce: additional issuance, multiplier updates, treasury burns, or a notice with no onchain effect.
+
+- [Apply a Multiplier](https://docs.base.org/build-on-base/issue-rwa/apply-a-multiplier): Schedule a B20 Asset multiplier update so displayed unit counts change at a future time without rewriting raw balances. A stock split is one example.
+
+- [Pause Transfers](https://docs.base.org/build-on-base/issue-rwa/pause-transfers): Pause transfers on a B20 Asset token during an incident while leaving minting and burning available.
+
+### Issue Stablecoins
+
+- [Issue Your Stablecoin](https://docs.base.org/build-on-base/issue-stablecoins/issue-your-stablecoin): Create a fiat-backed stablecoin on Base with one B20 factory call.
+
+- [Mint Supply](https://docs.base.org/build-on-base/issue-stablecoins/mint-supply): Issue new stablecoin supply on Base as reserves grow, gated by a minter role and an optional supply cap.
+
+- [Burn Supply](https://docs.base.org/build-on-base/issue-stablecoins/burn-supply): Retire stablecoin supply on Base when a holder redeems for fiat, keeping circulating supply matched to reserves.
+
+- [Restrict Who Can Hold It](https://docs.base.org/build-on-base/issue-stablecoins/restrict-who-can-hold): Limit transfers of your stablecoin to accounts your KYC program has approved, using B20 transfer policies.
+
+- [Block an Account](https://docs.base.org/build-on-base/issue-stablecoins/block-an-account): Stop a specific address from moving your stablecoin when a compliance hold requires it, without affecting other holders.
+
+- [Recover Funds](https://docs.base.org/build-on-base/issue-stablecoins/recover-funds): Move a stablecoin balance out of a blocked account into a safekeeping account on Base, for lost keys or a legal hold, without changing total supply.
+
+- [Pause Activity](https://docs.base.org/build-on-base/issue-stablecoins/pause-activity): Halt transfers, mints, or burns on your stablecoin independently during an incident, then resume when it's resolved.
+
+- [Reconcile with Memos](https://docs.base.org/build-on-base/issue-stablecoins/reconcile-with-memos): Tag stablecoin operations with an onchain reference so you can match them to offchain records at scale.
+
+### Accept Payments
+
+#### Process a Payment
+
+- [Make a Simple Payment](https://docs.base.org/build-on-base/accept-payments/make-a-simple-payment): Send USDC directly from one wallet to another on Base.
+
+- [Request a Payment](https://docs.base.org/build-on-base/accept-payments/request-a-payment): Request and settle an immediate escrow-backed charge on Base.
+
+- [Authorize a Payment](https://docs.base.org/build-on-base/accept-payments/authorize-a-payment): Move payer funds into escrow for later capture on Base.
+
+- [Capture an Authorization](https://docs.base.org/build-on-base/accept-payments/capture-an-authorization): Capture all or part of an escrowed authorization, in one capture or across multiple fulfillment increments, before the authorization expires.
+
+- [Charge on a Schedule](https://docs.base.org/build-on-base/accept-payments/charge-on-a-schedule): Create one escrow-backed charge per billing period using a wallet spend permission.
+
+#### Confirm and Reconcile
+
+- [Verify a Payment](https://docs.base.org/build-on-base/accept-payments/verify-a-payment): Verify confirmed escrow events and claim each settlement exactly once before fulfillment.
+
+- [Watch for Payments](https://docs.base.org/build-on-base/accept-payments/watch-for-payments): Watch escrow events, backfill missed blocks, and process confirmed lifecycle changes idempotently.
+
+- [Reconcile Payments](https://docs.base.org/build-on-base/accept-payments/reconcile-payments): Build a settlement report from escrow charges, captures, fees, voids, reclaims, and refunds.
+
+#### Refund and Pay Out
+
+- [Refund a Payment](https://docs.base.org/build-on-base/accept-payments/refund-a-payment): Return captured value to the original payer within the refund window.
+
+- [Void an Authorization](https://docs.base.org/build-on-base/accept-payments/void-an-authorization): Return the remaining escrowed authorization to the payer or let the payer reclaim it after expiry.
+
+- [Send a Payout](https://docs.base.org/build-on-base/accept-payments/send-a-payout): Send a referenced batch of token payouts in one transaction without leaving funds in the payout contract.
+
+- [Split a Payment](https://docs.base.org/build-on-base/accept-payments/split-a-payment): Split one token amount across marketplace recipients with exact basis-point accounting and no stranded dust.
+
+#### Accept Agentic Payments
+
+- [Charge for an API](https://docs.base.org/build-on-base/accept-payments/charge-for-an-api): Protect a fixed-price API route with the x402 exact scheme on Base.
+
+- [Settle Usage-Based Payments](https://docs.base.org/build-on-base/accept-payments/settle-usage-based-payments): Authorize a maximum x402 payment and settle the actual API usage after the handler succeeds.
+
+- [Batch High-Frequency Payments](https://docs.base.org/build-on-base/accept-payments/batch-high-frequency-payments): Verify cumulative x402 vouchers per request and settle high-frequency API usage in batches.
+
+- [Call a Paid Service](https://docs.base.org/build-on-base/accept-payments/call-a-paid-service): Call an x402 service from an agent while enforcing network, token, per-request, and session spend limits.
+
+### Private Transactions
+
+- [Deposit to a Ledger](https://docs.base.org/build-on-base/ledgers/deposit): Move funds from Base into a private ledger through the Portal contract, with the recipient encrypted onchain.
+
+- [Transfer Inside a Ledger](https://docs.base.org/build-on-base/ledgers/transfer): Move balances between accounts inside a ledger while keeping the sender, recipient, and amount off the public chain.
+
+- [Withdraw From a Ledger](https://docs.base.org/build-on-base/ledgers/withdraw): Move funds from a ledger back to Base through the Portal contract, keeping the account behind the withdrawal private.
+
+## Specifications
+
+### Specifications
+
+- [Overview](https://docs.base.org/specifications/overview): Base protocol specifications — tokens, bridging, transactions, consensus, execution, and proofs.
+
+#### Base Protocol
+
+- [Overview](https://docs.base.org/specifications/base-protocol/overview): High-level overview of the Base Chain protocol — network participants, system architecture, core components, and user flows.
+
+##### Consensus
+
+- [Specification](https://docs.base.org/specifications/base-protocol/consensus/specification): Specification of the Base rollup node, describing its components and role in L2 block derivation and consensus.
+
+- [Derivation](https://docs.base.org/specifications/base-protocol/consensus/derivation): Specification of the L2 chain derivation pipeline, describing how L2 blocks are deterministically derived from L1 data and sequencer batches.
+
+- [P2P](https://docs.base.org/specifications/base-protocol/consensus/p2p): Specification of the rollup node peer-to-peer network, covering node discovery, gossip protocol, and unsafe block propagation.
+
+- [RPC](https://docs.base.org/specifications/base-protocol/consensus/rpc): Specification of the rollup node RPC interface, including the optimism_outputAtBlock method for retrieving L2 output roots.
+
+##### Execution
+
+- [L2 Execution Engine](https://docs.base.org/specifications/base-protocol/execution/l2-execution-engine): Specification of the L2 execution engine, detailing EIP-1559 parameters, fee vaults, Engine API usage, and execution layer behavior.
+
+- [Precompiles](https://docs.base.org/specifications/base-protocol/execution/precompiles): Specification of precompiled contracts on Base, including native EVM implementations available at predefined addresses.
+
+- [Predeploys](https://docs.base.org/specifications/base-protocol/execution/predeploys): Specification of predeployed smart contracts on Base, including system contracts deployed at predetermined addresses in genesis state.
+
+- [Preinstalls](https://docs.base.org/specifications/base-protocol/execution/preinstalls): Specification of preinstalled smart contracts on Base, including utility contracts deployed in genesis state that run directly in the EVM.
+
+##### Bridging
+
+- [Standard Bridges](https://docs.base.org/specifications/base-protocol/bridging/standard-bridges): Specification of the standard bridge contracts enabling cross-domain ETH and ERC-20 token transfers between L1 and L2 on Base.
+
+- [Deposits](https://docs.base.org/specifications/base-protocol/bridging/deposits): How deposits work on Base — from user experience to the protocol-level deposit transaction type and guaranteed gas market.
+
+- [Withdrawals](https://docs.base.org/specifications/base-protocol/bridging/withdrawals): How withdrawals work on Base — the standard 3-step flow, the finalization window (5 days, or 1 day with TEE and ZK proofs), faster options, and the full protocol specification.
+
+- [Cross Domain Messengers](https://docs.base.org/specifications/base-protocol/bridging/cross-domain-messengers): Specification of the cross-domain messenger contracts, providing a higher-level API for sending messages between L1 and L2 on Base.
+
+- [Base-Solana Bridge](https://docs.base.org/specifications/base-protocol/bridging/base-solana-bridge): Bridge tokens and messages between Base and Solana Mainnet
+
+- [Batcher](https://docs.base.org/specifications/base-protocol/batcher): Specification of the batcher (batch submitter), the component responsible for posting L2 sequencer data to L1 for data availability.
+
+##### Proofs
+
+- [Proofs](https://docs.base.org/specifications/base-protocol/proofs/overview): Overview of the offchain services and onchain contracts that make L2 checkpoint proposals verifiable from Ethereum in the Azul proof system.
+
+- [Challenger](https://docs.base.org/specifications/base-protocol/proofs/challenger): Specification of the challenger, an offchain service that detects invalid AggregateVerifier games and submits dispute transactions on L1 to nullify them.
+
+- [Proposer](https://docs.base.org/specifications/base-protocol/proofs/proposer): Specification of the proposer, an offchain service that turns canonical L2 checkpoint ranges into AggregateVerifier games on L1.
+
+- [Registrar](https://docs.base.org/specifications/base-protocol/proofs/registrar): Specification of the registrar and the hinted P-384 flow used to register AWS Nitro Enclave signer identities on L1.
+
+- [TEE Prover](https://docs.base.org/specifications/base-protocol/proofs/tee-prover): Specification of the TEE prover, an offchain service that re-executes L2 block ranges inside AWS Nitro Enclaves to produce signed proof material for AggregateVerifier games.
+
+- [ZK Prover](https://docs.base.org/specifications/base-protocol/proofs/zk-prover): Specification of the ZK prover, an offchain service that uses SP1 programs to produce permissionless proofs for checkpoint proposals and disputes.
+
+- [Proof Contracts](https://docs.base.org/specifications/base-protocol/proofs/proof-contracts): Specification of the onchain contracts that verify proof material, track game state, and release withdrawals for the Base proof system.
+
+- [Design Goals](https://docs.base.org/specifications/base-protocol/design-goals): Design philosophy and lineage of the Base Chain protocol specification.
+
+#### B20
+
+- [Overview](https://docs.base.org/specifications/b20/index): Native token standard for issuing programmable assets and stablecoins on Base, with roles, policies, supply controls, and ERC-20 compatibility.
+
+- [Introduction](https://docs.base.org/specifications/b20/introduction): A short tour of tokens, roles, pause, and policies.
+
+##### Concepts
+
+- [Token Types](https://docs.base.org/specifications/b20/concepts/token-types): Compare B20 Asset and Stablecoin variants, their creation parameters, and their capabilities.
+
+- [Policies](https://docs.base.org/specifications/b20/concepts/policies): How B20 policies apply shared allowlists, blocklists, and composite checks to token operations.
+
+- [Roles and Pause](https://docs.base.org/specifications/b20/concepts/roles-and-pause): How B20 roles authorize privileged operations and pause vectors control token features.
+
+- [UI Multipliers](https://docs.base.org/specifications/b20/concepts/multipliers): How B20 Asset UI multipliers scale displayed balances without changing raw balances.
+
+##### Reference
+
+- [Interfaces](https://docs.base.org/specifications/b20/reference/interfaces): Canonical B20 Solidity interfaces, source links, and copy-paste imports.
+
+- [Constants](https://docs.base.org/specifications/b20/reference/constants): B20 precompile addresses, role identifiers, policy scopes, and validation bounds.
+
+- [Errors](https://docs.base.org/specifications/b20/reference/errors): Custom B20 errors, selectors, and the conditions that trigger them.
+
+- [Events](https://docs.base.org/specifications/b20/reference/events): Events emitted by B20 token, factory, policy registry, and activation registry interfaces.
+
+- [Changelog](https://docs.base.org/specifications/b20/changelog): Per-hardfork, per-feature migration notes for the B20 token standard, newest first, including new methods, deprecations, and activation dates.
+
+- [Base Transactions](https://docs.base.org/specifications/base-transactions): EIP-8430 reference for Base: a new transaction type that allows for batching, sponsorship, token gas payments, and high throughput natively.
+
+#### Transactions
+
+- [Transaction Ordering](https://docs.base.org/specifications/transactions/transaction-ordering): Transactions are ordered based priority fee and arrival time, which determines which Flashblock they are included in.
+
+- [Transaction Finality](https://docs.base.org/specifications/transactions/transaction-finality): Detailed information about transaction finality on Base.
+
+- [Network Fees](https://docs.base.org/specifications/transactions/network-fees): Documentation about network fees on Base. This page covers details of the two-component cost system involving L2 execution fees and L1 security fees, and offers insights on fee variations and cost-saving strategies.
+
+- [Throughput and Limits](https://docs.base.org/specifications/transactions/throughput-and-limits): Gas limits and throughput-related network parameters on Base.
+
+- [Troubleshooting Transactions](https://docs.base.org/specifications/transactions/troubleshooting-transactions): Guide to diagnosing and resolving transaction issues on Base.
+
+- [Flashblocks](https://docs.base.org/specifications/flashblocks): Reference for Flashblocks on Base — key concepts, architecture, and frequently asked questions about block building, WebSocket data, RPC usage, and node setup.
+
+#### Builder Codes
+
+- [Base Builder Codes](https://docs.base.org/specifications/builder-codes/overview): Attribute onchain activity to your app, wallet or agent with Builder Codes.
+
+- [Builder Codes for App Developers](https://docs.base.org/specifications/builder-codes/for-app-developers): Integrate Builder Codes into your app using Wagmi or Viem to attribute onchain activity.
+
+- [Builder Codes for Wallet Developers](https://docs.base.org/specifications/builder-codes/for-wallet-developers): Implement the dataSuffix capability in your wallet to enable Builder Code attribution.
+
+- [Builder Codes for Agent Developers](https://docs.base.org/specifications/builder-codes/for-agent-developers): Attribute your AI agent's onchain transactions to your identity on Base and make them measurable onchain.
+
+#### Validity Transactions
+
+- [Overview](https://docs.base.org/specifications/build-transaction/validity-transactions): Submit signed transactions that Base considers when onchain conditions match.
+
+- [Build a Validity Transaction](https://docs.base.org/specifications/build-transaction/build-a-validity-transaction): Sign and submit a validity transaction with Viem.
+
+- [Validity Transaction RPC](https://docs.base.org/specifications/build-transaction/base_sendRawTransactionValidity): Submit a signed raw transaction with validity predicates.
+
+- [Fees, Ordering, and Lifecycle](https://docs.base.org/specifications/build-transaction/fees-ordering-and-lifecycle): Understand fees, expiry, and replacement for validity transactions.
+
+- [Predicates and Safety](https://docs.base.org/specifications/build-transaction/predicates-and-safety): Use validity predicates safely.
+
+- [Troubleshooting](https://docs.base.org/specifications/build-transaction/troubleshooting): Diagnose validity transaction submission and inclusion issues.
+
+### Reference
+
+- [Contract Addresses](https://docs.base.org/specifications/reference/base-contracts): A comprehensive list of contract addresses for Base Mainnet and Base Testnet, including links to their respective blockchain explorers.
+
+- [Smart Contracts](https://docs.base.org/specifications/reference/smart-contracts): How smart contracts work on Base, which Foundry versions support Base's native precompiles, and how to deploy a contract to Base Sepolia with Foundry.
+
+- [Configuration](https://docs.base.org/specifications/reference/configuration): Reference for Base Chain configuration parameters across consensus, policy, admin, and sequencer categories.
+
+- [Glossary](https://docs.base.org/specifications/reference/glossary): Glossary of terms and definitions used throughout the Base Chain protocol specification.
+
+### Node Operators
+
+- [Run a Node](https://docs.base.org/specifications/node-operators/run-a-node): A tutorial that teaches how to set up and run a Base Node.
+
+- [Node Performance](https://docs.base.org/specifications/node-operators/performance-tuning): Hardware specifications, storage requirements, client recommendations, and configuration settings for running a performant Base node.
+
+- [Node Snapshots](https://docs.base.org/specifications/node-operators/snapshots): Download and restore Base node snapshots to significantly reduce initial sync time for nodes.
+
+- [Node Troubleshooting](https://docs.base.org/specifications/node-operators/troubleshooting): Solutions to common issues when setting up and running a Base node, covering sync problems, networking, snapshots, and performance.
+
+### Security
+
+- [Security Council for Base](https://docs.base.org/specifications/security/security-council-for-base): This page outlines the purpose, goals, structure, and responsibilities of the Security Council for Base.
+
+- [Reliability and Liveness](https://docs.base.org/specifications/security/reliability-and-liveness): Where to find Base network status and incident history, third-party audits, bug bounties, censorship-resistance guarantees, and the open-source sequencer components.
+
+- [How to Avoid Getting Your App Flagged as Malicious](https://docs.base.org/specifications/security/avoid-malicious-flags): The Base bug bounty program and procedures for reporting vulnerabilities.
+
+- [Reporting Vulnerabilities](https://docs.base.org/specifications/security/report-a-vulnerability): The Base procedures for reporting vulnerabilities.
+
+## SDKs & APIs
+
+### Overview
+
+- [SDKs & APIs](https://docs.base.org/sdks/overview): SDKs, APIs, and command-line tools for identity verification, local development, and direct Base chain access.
+
+### CLIs
+
+- [Foundry for Base](https://docs.base.org/sdks/base-anvil): Build and test Base contracts with Foundry v1.8.4 or later, which runs Base's native precompiles. Set a Base hardfork to enable them locally.
+
+### Base Chain API
+
+- [Base RPC Overview](https://docs.base.org/base-chain/api-reference/rpc-overview): Complete reference for all JSON-RPC and Flashblocks methods available on Base nodes.
+
+#### Ethereum JSON-RPC API
+
+- [eth_blockNumber](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_blockNumber): Returns the number of the most recently mined block.
+
+- [eth_call](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_call): Executes a message call without creating a transaction. Use pending to simulate against pre-confirmed state.
+
+- [eth_chainId](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_chainId): Returns the chain ID of the current network.
+
+- [eth_estimateGas](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_estimateGas): Estimates the gas required for a transaction. Use pending to estimate against pre-confirmed state.
+
+- [eth_feeHistory](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_feeHistory): Returns historical base fees and priority fee percentiles for a range of blocks.
+
+- [eth_gasPrice](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_gasPrice): Returns the current gas price in wei.
+
+- [eth_getBalance](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getBalance): Returns the ETH balance of an account at a given block. Use the pending tag for 200ms pre-confirmed balances.
+
+- [eth_getBlockByHash](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getBlockByHash): Returns block information by block hash.
+
+- [eth_getBlockByNumber](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getBlockByNumber): Returns block information by number. On Flashblocks endpoints, the pending tag returns the live pre-confirmed block updated every ~200ms.
+
+- [eth_getBlockReceipts](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getBlockReceipts): Returns all transaction receipts for a block. Use pending for pre-confirmed receipts.
+
+- [eth_getBlockTransactionCountByHash](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getBlockTransactionCountByHash): Returns the number of transactions in a block by block hash.
+
+- [eth_getBlockTransactionCountByNumber](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getBlockTransactionCountByNumber): Returns the number of transactions in a block by block number.
+
+- [eth_getCode](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getCode): Returns the contract bytecode at an address. Use pending to detect newly deployed contracts before block finalization.
+
+- [eth_getLogs](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getLogs): Returns logs matching a filter. Use pending to query logs from pre-confirmed transactions.
+
+- [eth_getStorageAt](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getStorageAt): Returns the value of a storage slot at an address. Use pending for pre-confirmed storage reads.
+
+- [eth_getTransactionByBlockHashAndIndex](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getTransactionByBlockHashAndIndex): Returns a transaction by block hash and index position.
+
+- [eth_getTransactionByBlockNumberAndIndex](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getTransactionByBlockNumberAndIndex): Returns a transaction by block number and index position.
+
+- [eth_getTransactionByHash](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getTransactionByHash): Returns a transaction by its hash.
+
+- [eth_getTransactionCount](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getTransactionCount): Returns the number of transactions sent from an address (the nonce). Use pending to get the pre-confirmed nonce.
+
+- [eth_getTransactionReceipt](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getTransactionReceipt): Returns the receipt for a mined transaction. Receipts are only available after a transaction is included in a block.
+
+- [eth_maxPriorityFeePerGas](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_maxPriorityFeePerGas): Returns the suggested EIP-1559 priority fee (tip) per gas.
+
+- [eth_sendRawTransaction](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_sendRawTransaction): Submits a pre-signed transaction to the network. Base Mainnet endpoints are Flashblocks-enabled, providing 200ms pre-confirmation until Denim activates.
+
+- [eth_subscribe](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_subscribe): Creates a real-time WebSocket subscription for new blocks, logs, and pending transactions.
+
+- [eth_syncing](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_syncing): Returns the sync status of the node.
+
+- [eth_unsubscribe](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_unsubscribe): Cancels an active WebSocket subscription.
+
+- [net_version](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/net_version): Returns the current network ID as a string.
+
+- [web3_clientVersion](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/web3_clientVersion): Returns the current client version string.
+
+#### Flashblocks API
+
+- [Overview](https://docs.base.org/base-chain/api-reference/flashblocks-api/flashblocks-api-overview): Flashblocks-specific RPC methods, WebSocket subscriptions, and the infrastructure stream schema for Base pre-confirmations.
+
+- [base_transactionStatus](https://docs.base.org/base-chain/api-reference/flashblocks-api/base_transactionStatus): Checks whether a transaction is in the node mempool. Only available on Flashblocks endpoints.
+
+- [eth_simulateV1](https://docs.base.org/base-chain/api-reference/flashblocks-api/eth_simulateV1): Simulates one or more transaction bundles against the current pre-confirmed Flashblock state. Only available on Flashblocks endpoints.
+
+- [newFlashblockTransactions](https://docs.base.org/base-chain/api-reference/flashblocks-api/newFlashblockTransactions): Subscribe to receive each transaction as it is pre-confirmed into a Flashblock. Only available on Flashblocks WebSocket endpoints.
+
+- [newFlashblocks](https://docs.base.org/base-chain/api-reference/flashblocks-api/newFlashblocks): Subscribe to receive full Flashblock payload stream as each pre-confirmed block is built. Only available on Flashblocks WebSocket endpoints.
+
+- [pendingLogs](https://docs.base.org/base-chain/api-reference/flashblocks-api/pendingLogs): Subscribe to logs from pre-confirmed transactions matching an optional filter. Only available on Flashblocks WebSocket endpoints.
+
+#### Debug API
+
+- [debug_traceTransaction](https://docs.base.org/base-chain/api-reference/debug-api/debug_traceTransaction): Returns the full EVM execution trace for a transaction. Requires a node with debug APIs enabled.
+
+- [debug_traceBlockByHash](https://docs.base.org/base-chain/api-reference/debug-api/debug_traceBlockByHash): Returns EVM execution traces for all transactions in a block by block hash.
+
+- [debug_traceBlockByNumber](https://docs.base.org/base-chain/api-reference/debug-api/debug_traceBlockByNumber): Returns EVM execution traces for all transactions in a block by block number.
+
+### Tokenized Stocks API
+
+- [Tokenized Stocks API](https://docs.base.org/sdks/tokenized-stocks/overview): Read tokenized-stock records, supplies, metadata, prospectuses, and corporate actions on Base.
+
+- [List Tokenized Stocks](https://docs.base.org/sdks/tokenized-stocks/api-reference/list-tokenized-stocks): Return the Coinbase-issued tokenized-stock records currently exposed through the API.
+
+- [List Protocol Contract Addresses](https://docs.base.org/sdks/tokenized-stocks/api-reference/list-protocol-contract-addresses): Return the tokenized-stocks protocol contracts deployed on each supported chain.
+
+- [Get Token Total Supply](https://docs.base.org/sdks/tokenized-stocks/api-reference/get-token-total-supply): Return a tokenized stock's ERC-20 total supply, normalized by the token's decimals.
+
+- [Get Token Metadata](https://docs.base.org/sdks/tokenized-stocks/api-reference/get-token-metadata): Return a tokenized stock's contractURI-compatible metadata document.
+
+- [Get Token Icon](https://docs.base.org/sdks/tokenized-stocks/api-reference/get-token-icon): Redirect to a tokenized stock's icon using its ticker symbol.
+
+- [Get Token Prospectus](https://docs.base.org/sdks/tokenized-stocks/api-reference/get-token-prospectus): Redirect to a tokenized stock's approved prospectus PDF.
+
+- [List Cached Prospectuses](https://docs.base.org/sdks/tokenized-stocks/api-reference/list-cached-prospectuses): List token tickers with cached approved prospectuses and their ISINs when known.
+
+- [Get Corporate Action](https://docs.base.org/sdks/tokenized-stocks/api-reference/get-corporate-action): Return a tokenized stock's announced or applied corporate action.
+
+### Base Verify API
+
+- [Base Verify API](https://docs.base.org/sdks/base-verify/overview): Use Base Verify APIs and contracts to prove verified account ownership, prevent duplicate participation, and enforce eligibility policies.
+
+- [Verify Social Accounts](https://docs.base.org/sdks/base-verify/verify-social-accounts): Use Base Verify to let users prove ownership of verified accounts (X, Coinbase, Instagram, TikTok) without sharing credentials, enabling Sybil-resistant airdrops, gated content, and identity-based rewards.
+
+- [Verify Users Onchain](https://docs.base.org/sdks/base-verify/verify-users-onchain): Enforce Sybil resistance and policy gating inside any Base contract. Base Verify signs a short-lived verification your contract checks in the same transaction as a claim, deposit, or vote, so one real identity counts once and only wallets that meet your bar can participate.
+
+### Migrated Documentation
+
+- [Base Account and Base MCP Have Moved](https://docs.base.org/sdks/migrated-products): Find the Base Account SDK and Base MCP documentation now maintained on Coinbase Developer Platform.
+
+## Upgrades
+
+### Overview
+
+- [Upgrades](https://docs.base.org/upgrades/overview): Track Base network upgrades, activation dates, and the protocol changes included in each release.
+
+- [Configuration Changelog](https://docs.base.org/base-chain/network-information/configuration-changelog): A log of configuration changes to the Base networks.
+
+### Everest
+
+- [Overview](https://docs.base.org/upgrades/everest/overview): Everest introduces Base Transactions (EIP-8430), a new transaction type that allows for batching, sponsorship, token gas payments, and high throughput natively.
+
+### Denim
+
+- [Overview](https://docs.base.org/upgrades/denim/overview): Denim introduces native blocks at a 200ms cadence, onchain millisecond time through BaseTime, millisecond-resolution RPC timestamps, and B20 transfer and policy improvements.
+
+- [200ms Native Blocks](https://docs.base.org/upgrades/denim/200ms-blocks): Specification for Denim's canonical 200ms blocks, including BaseTime, derivation, validation, and RPC behavior.
+
+- [Migrate From Flashblocks](https://docs.base.org/upgrades/denim/migrate-from-flashblocks): Migrate your Flashblocks integration to 200ms blocks.
+
+- [B20: Reject the Token Itself as a Credit Recipient](https://docs.base.org/base-chain/specs/reference/b20/changelog/03-denim-b20-token-receiver): Denim reverts InvalidReceiver when a transfer, mint, or seize credits the B20 token's own address, so a mistyped recipient fails instead of locking funds.
+
+- [B20: Transfer Executor Policy Enforcement](https://docs.base.org/base-chain/specs/reference/b20/changelog/03-denim-b20-transfer-executor-enforcement): Denim enforces TRANSFER_EXECUTOR_POLICY on msg.sender for every transfer path, closing the transfer and self-transferFrom bypasses.
+
+- [PolicyRegistry: NOT / Invert Policies](https://docs.base.org/base-chain/specs/reference/b20/changelog/03-denim-policyregistry-not-policy): Denim reserves bit 63 of a policy ID as an invert flag, so isAuthorized returns the opposite of any policy's result without a second, mirrored policy.
+
+### Cobalt
+
+- [Overview](https://docs.base.org/upgrades/cobalt/overview): Cobalt improves the B20 token standard, adds validity transactions, introduces dynamic node upgrades, and migrates TEE signer registration to onchain attestation verification.
+
+- [Dynamic Upgrades](https://docs.base.org/upgrades/cobalt/dynamic-upgrades): An Ethereum smart contract stores upgrade timestamps for Base nodes, allowing forks to activate at the scheduled time with no client restart.
+
+- [B20: ERC-8056 Conformant Multiplier](https://docs.base.org/base-chain/specs/reference/b20/changelog/02-cobalt-b20asset-multiplier): B20 Asset multiplier becomes ERC-8056 conformant at Cobalt, with a scheduled multiplier setter for corporate actions. Every Beryl selector stays dialable.
+
+- [B20: Seize Functionality](https://docs.base.org/base-chain/specs/reference/b20/changelog/02-cobalt-b20-seize): The B20 seize surface at Cobalt and the deprecation of burnBlocked. Migration notes for teams integrated against the Beryl seize path.
+
+- [PolicyRegistry: Composite Policies (UNION / INTERSECT)](https://docs.base.org/base-chain/specs/reference/b20/changelog/02-cobalt-policyregistry-composite-policy): Cobalt adds UNION and INTERSECT composite policies to PolicyRegistry so B20 integrations can combine simple authorization policies without flattening their member lists.
+
+- [Validity Transactions](https://docs.base.org/upgrades/cobalt/validity-transactions): Validity transactions shipped with the Cobalt upgrade.
+
+### Beryl
+
+- [Overview](https://docs.base.org/upgrades/beryl/overview): Beryl makes Base a first-class issuance platform with B20 tokens, more capital efficient with reduced withdrawal delays, and more scalable with Reth V2.
+
+- [Reth V2](https://docs.base.org/upgrades/beryl/reth-v2): Ships Reth V2 as the reference execution client for Base nodes, delivering significant sync speed and throughput improvements.
+
+- [Faster Withdrawals](https://docs.base.org/upgrades/beryl/reducing-canonical-withdrawal-delay): The single-proof dispute game finalization window is reduced from 7 days to 5 days. The dual-proof fast path (TEE + ZK) introduced in Azul remains at 1 day.
+
+- [B20 Native Token Standard](https://docs.base.org/upgrades/beryl/b20): Learn how B20, Base's native token standard, serves stablecoin issuers, real-world asset (RWA) and equity issuers, and long-tail token creators.
+
+### Azul
+
+- [Overview](https://docs.base.org/upgrades/azul/overview): Azul is Base's first independent network upgrade. It focuses on increasing security and decentralization, accelerating the path to 1 gigagas/s, and improving developer experience.
+
+- [Node Upgrade Guide](https://docs.base.org/upgrades/azul/node-upgrade): Migrate your Base node to base-reth-node and base-consensus for Azul.
+
+- [Execution Engine](https://docs.base.org/upgrades/azul/exec-engine): Execution engine changes in the Azul hardfork, including the EIP-7825 transaction gas limit cap and secp256r1 precompile cost updates.
+
+- [Proof System](https://docs.base.org/upgrades/azul/proofs): Specification of the Azul multi-proof system, replacing the single output proposer with an AggregateVerifier contract for L2 checkpoint security.
+
+### Optimism
+
+#### Jovian
+
+- [Jovian](https://docs.base.org/upgrades/jovian/overview): Overview of the Jovian hardfork, introducing a configurable minimum base fee and a DA footprint gas scalar for improved fee market stability.
+
+- [Jovian: Execution Engine](https://docs.base.org/upgrades/jovian/exec-engine): Execution engine changes in the Jovian upgrade, introducing a configurable minimum base fee via SystemConfig to reduce priority-fee auction durations.
+
+- [Derivation](https://docs.base.org/upgrades/jovian/derivation): Derivation changes in the Jovian upgrade, specifying activation block rules and gas computation behavior at hardfork activation.
+
+- [L1 Block Attributes](https://docs.base.org/upgrades/jovian/l1-attributes): L1 attributes transaction changes in the Jovian upgrade, extending calldata to include the DA footprint gas scalar.
+
+- [Jovian: System Config](https://docs.base.org/upgrades/jovian/system-config): SystemConfig changes in the Jovian upgrade, adding a minimum base fee configuration variable for the EIP-1559 fee market.
+
+#### Isthmus
+
+- [Isthmus](https://docs.base.org/upgrades/isthmus/overview): Overview of the Isthmus hardfork, incorporating Ethereum Pectra EIPs and introducing the operator fee mechanism for sequencer revenue.
+
+- [L2 Execution Engine](https://docs.base.org/upgrades/isthmus/exec-engine): Execution engine changes in the Isthmus upgrade, including L2ToL1MessagePasser storage root in block headers and operator fee collection.
+
+- [Isthmus L2 Chain Derivation Changes](https://docs.base.org/upgrades/isthmus/derivation): Derivation changes in the Isthmus upgrade, specifying network upgrade automation transactions executed at hardfork activation.
+
+- [L1 Block Attributes](https://docs.base.org/upgrades/isthmus/l1-attributes): L1 attributes transaction changes in the Isthmus upgrade, extending calldata to include operator fee scalar and constant parameters.
+
+- [Predeploys](https://docs.base.org/upgrades/isthmus/predeploys): Predeploy changes in the Isthmus upgrade, including updates to L1Block and the new OperatorFeeVault contract.
+
+- [Isthmus: System Config](https://docs.base.org/upgrades/isthmus/system-config): SystemConfig changes in the Isthmus upgrade, adding operatorFeeScalar and operatorFeeConstant configuration variables.
+
+#### Holocene
+
+- [Holocene](https://docs.base.org/upgrades/holocene/overview): Overview of the Holocene hardfork, introducing dynamic EIP-1559 parameters configurable via SystemConfig and stricter block derivation rules.
+
+- [L2 Execution Engine](https://docs.base.org/upgrades/holocene/exec-engine): Execution engine changes in the Holocene upgrade, enabling dynamic EIP-1559 parameters encoded in block headers and configured via SystemConfig.
+
+- [Holocene L2 Chain Derivation Changes](https://docs.base.org/upgrades/holocene/derivation): Derivation changes in the Holocene upgrade, introducing stricter pipeline rules that simplify derivation and improve fault proof worst-case behavior.
+
+- [System Config](https://docs.base.org/upgrades/holocene/system-config): SystemConfig changes in the Holocene upgrade, adding dynamic EIP-1559 parameter configuration via ConfigUpdate events.
+
+#### Granite
+
+- [Granite](https://docs.base.org/upgrades/granite/overview): Overview of the Granite hardfork, adding bn256Pairing precompile input size restrictions and CHANNEL_TIMEOUT parameter changes.
+
+- [L2 Execution Engine](https://docs.base.org/upgrades/granite/exec-engine): Execution engine changes in the Granite upgrade, restricting bn256Pairing precompile input size to prevent unbounded gas consumption.
+
+- [Granite L2 Chain Derivation Changes](https://docs.base.org/upgrades/granite/derivation): Derivation changes in the Granite upgrade, updating the CHANNEL_TIMEOUT protocol parameter.
+
+#### Fjord
+
+- [Fjord](https://docs.base.org/upgrades/fjord/overview): Overview of the Fjord hardfork, introducing FastLZ-based L1 fee estimation, the RIP-7212 secp256r1 precompile, and brotli channel compression.
+
+- [L2 Execution Engine](https://docs.base.org/upgrades/fjord/exec-engine): Execution engine changes in the Fjord upgrade, replacing the L1 cost fee estimator with a FastLZ-based compression model.
+
+- [Fjord L2 Chain Derivation Changes](https://docs.base.org/upgrades/fjord/derivation): Derivation changes in the Fjord upgrade, updating protocol parameters for max sequencer drift, channel bank size, and adding brotli compression support.
+
+- [Predeploys](https://docs.base.org/upgrades/fjord/predeploys): Predeploy changes in the Fjord upgrade, adding FastLZ fee computation constants to the GasPriceOracle contract.
+
+#### Ecotone
+
+- [Ecotone](https://docs.base.org/upgrades/ecotone/overview): Overview of the Ecotone hardfork, integrating Ethereum Dencun changes including EIP-4844 blob transactions and EIP-4788 beacon block roots.
+
+- [Derivation](https://docs.base.org/upgrades/ecotone/derivation): Derivation changes in the Ecotone upgrade, extending the retrieval stage to support EIP-4844 blobs as an additional data availability source.
+
+- [Ecotone L1 Attributes](https://docs.base.org/upgrades/ecotone/l1-attributes): L1 attributes transaction changes in the Ecotone upgrade, updating calldata format to support the new blob-based fee calculation model.
+
+#### Delta
+
+- [Delta](https://docs.base.org/upgrades/delta/overview): Overview of the Delta hardfork, introducing span batches to reduce L1 data costs by compressing multiple L2 blocks into single batcher transactions.
+
+- [Span-Batches](https://docs.base.org/upgrades/delta/span-batches): Specification of span batches introduced in Delta, a new batch format that compresses sequences of L2 blocks for more efficient L1 data posting.
+
+- [Canyon](https://docs.base.org/upgrades/canyon/overview): Overview of the Canyon hardfork, bringing Ethereum Shanghai EIPs (EIP-3651, EIP-3855, EIP-3860) to the Base execution layer.
+
+## Optional
+- [Base MCP server](https://docs.base.org/mcp): Direct AI access to Base documentation
+- [Base skills](https://github.com/base/skills): Installable agent skills (`npx skills add base/base-skills`)
+- [Full context (llms-full.txt)](https://docs.base.org/llms-full.txt): Full Markdown content of every page

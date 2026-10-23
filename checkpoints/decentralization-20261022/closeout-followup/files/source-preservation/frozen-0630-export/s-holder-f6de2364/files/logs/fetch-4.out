@@ -1,0 +1,5 @@
+[queue] START available=23658MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+200 4112080 application/octet-stream https://mainnet-v2-snapshots.base.org/1792713607/manifest.json
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=23613
+[memory-guard] at peak: curl:16 fetch-manifest.:6
+[queue] EXIT 0

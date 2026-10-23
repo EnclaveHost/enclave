@@ -1,0 +1,77 @@
+[queue] START available=24684MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+15c2c3fb2f2abb6b0ddbcb61e4b2f7a9a7a60a44cadd1565ae8ea0c9f13725cf  holder.py
+7b2b87a41b36377b6adde4d17a021dd84c190558894bb07f79d4306abe499e59  FLAGS.json
+d1736597d78c5fbfadf92f37018653147e5153d1d75728c4fdfd4dc875974920  holder.example.json
+6e588766c745dc51f997eb515dbf85646357b118356c5e7f6cdebd64cb6547cf  test/standin-base.py
+4b08f3673d71d08af29b894f2068d7241423f66f6a5f645c0bfc577eca7059e4  test/test_holder.py
+d5824183425281f2b0c2234825e923ac1f68537444370d36e1ef355f4fcb7a04  test/test_reth_dev.py
+=== test/test_holder.py
+test_b_accepts_the_rendered_proof_source (__main__.BInterface.test_b_accepts_the_rendered_proof_source) ... ok
+test_child_failure_propagates_exit_code (__main__.Lifecycle.test_child_failure_propagates_exit_code) ... /usr/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+/usr/lib/python3.14/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=2, proto=0, laddr=b'\x00holder-test-2689906'>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_preflight_refuses_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_nvme_placement_and_sees_busy_ports) ... FAIL
+test_ready_notify_exact_argv_closed_env_and_clean_stop (__main__.Lifecycle.test_ready_notify_exact_argv_closed_env_and_clean_stop) ... ok
+test_supervisor_death_kills_the_child (__main__.Lifecycle.test_supervisor_death_kills_the_child) ... ok
+test_tampered_binary_never_starts (__main__.Lifecycle.test_tampered_binary_never_starts) ... ok
+test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace) ... Exception in thread Thread-1 (<lambda>):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 310, in <lambda>
+    t = threading.Thread(target=lambda: setattr(self, 'rc', sup.run()))
+                                                            ~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/holder.py", line 658, in run
+    signal.signal(signal.SIGTERM, self.stop)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/signal.py", line 58, in signal
+    handler = _signal.signal(_enum_to_int(signalnum), _enum_to_int(handler))
+ValueError: signal only works in main thread of the main interpreter
+FAIL
+test_wrong_chain_never_ready_is_a_failure (__main__.Lifecycle.test_wrong_chain_never_ready_is_a_failure) ... ok
+/usr/lib/python3.14/unittest/suite.py:84: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=2, proto=0, laddr=b'\x00holder-test-2689906'>
+  return self.run(*args, **kwds)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_real_devices (__main__.Placement.test_real_devices) ... ok
+test_argv_is_exact_loopback_and_every_flag_is_pinned (__main__.Render.test_argv_is_exact_loopback_and_every_flag_is_pinned) ... ok
+test_child_env_is_whole_and_closed (__main__.Render.test_child_env_is_whole_and_closed) ... ok
+test_render_files (__main__.Render.test_render_files) ... ok
+test_cap_boundary_counts_metadata_slack_and_other_allocations (__main__.Validation.test_cap_boundary_counts_metadata_slack_and_other_allocations) ... ok
+test_example_is_not_deployable_until_the_binary_is_pinned (__main__.Validation.test_example_is_not_deployable_until_the_binary_is_pinned) ... ok
+test_good_config_and_accounting (__main__.Validation.test_good_config_and_accounting) ... ok
+test_no_cache_layout (__main__.Validation.test_no_cache_layout) ... ok
+test_refusals (__main__.Validation.test_refusals) ... ok
+
+======================================================================
+FAIL: test_preflight_refuses_nvme_placement_and_sees_busy_ports (__main__.Lifecycle.test_preflight_refuses_nvme_placement_and_sees_busy_ports)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 328, in test_preflight_refuses_nvme_placement_and_sees_busy_ports
+    self.assertIn('HDD-backed', str(e.exception))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'HDD-backed' not found in 'cannot resolve the datadir backing device'
+
+======================================================================
+FAIL: test_term_ignoring_child_is_killed_after_grace (__main__.Lifecycle.test_term_ignoring_child_is_killed_after_grace)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/fresh-witness-supply/holder/test/test_holder.py", line 315, in test_term_ignoring_child_is_killed_after_grace
+    self.assertTrue(sup.ready)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 17 tests in 23.255s
+
+FAILED (failures=2)
+[memory-guard] exit=1 peakTreeRssMiB=95 minHostAvailableMiB=24588
+[memory-guard] at peak: python3:30 python3:26 python3:24 sh:6 sleep:4 timeout:4
+[queue] EXIT 1

@@ -1,0 +1,78 @@
+# v1-verify: queue guard line(s)
+[memory-guard] exit=0 peakTreeRssMiB=219 minHostAvailableMiB=24568
+# retries before admission: 19
+# exit 0
+
+[queue] START available=24788MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533854])
+[ok] OVMF pin
+[ok] artifacts == build receipt
+[measure B] 3043f6ff8d8bbfbe995d3dde5e93e790a9b3bb5db432375b8e8b3c72b1cc26a2aaee5cab174a7a4134b92923c81ea77d (cmdline taken from the artifact's own cmdline file)
+[ok] measurement B == measurement A
+OK   vmlinuz == production base  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
+OK   manifest kernel record unchanged (7.2.3-arch1-2)  7.2.3-arch1-2
+OK   manifest modules list unchanged  15 modules
+OK   cmdline file == production base cmdline (relay mode)  console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app
+OK   manifest cmdlineTemplate unchanged, no control/platformApiBundle/mcpBundle
+OK   manifest isolation unchanged (snp-guest-per-app)
+OK   controlOverlay.commit = composed commit  fec43a6a08da2ac287fb3a5c42de89f096f4f678
+OK   controlOverlay.builderSha256 = the commit's overlay tool  1067a535413f88e0c66b80441a734d5dc7771ac79e24129df25df8a1d4aeea56
+OK   controlOverlay has no control mode
+OK   controlOverlay.baseInitramfsSha256 = production base
+OK   the base's controlOverlay is the last history entry  1 entries; last commit 2857356cde9b35c1b9b046c201d74ec8a517bca0
+OK   manifest initramfs record = file
+OK   expectedMeasurement removed (recomputed separately)
+OK   controlOverlay.files = the 55 precheck inputs  55 files
+OK   all 55 installed inputs present, regular, with the precheck sha256  55 inputs
+OK   installed host-admission bundle = 40e8ba71, host-policy = acfa1b00  40e8ba71d83c627e / acfa1b0099530d4c
+OK   installed supervisor.js = the composed 4939dc68  4939dc688cefeed2
+OK   no production base entry missing
+OK   added entries = new inputs + their parent directories only
+OK   every other entry identical to the base (bytes + metadata, kernel modules included)  29012 entries, 33 module-tree entries
+OK   supervisor import closure present in the image  46 files
+OK   closure npm packages + subpath exports in the image  cors@2.8.6, express@4.22.2, jose@5.10.0, viem@2.53.1, ws@8.21.1
+OK   guest helpers' relative imports and every bundle's beside-itself reads resolve in the image  9 opt/metal modules
+OK   gsup.mjs starts /app/supervisor.js in the legacy (non-direct) branch
+OK   relay mode: no platform-api / mcp role bundle installed
+OK   no installed input carries a DigitalOcean /platform-policy mirror literal
+flavor-env.json: {"present": true, "sha256": "9d901ae3969f0cadafdd65e8abd4515ae4608dbd890e722294135bbdaec807f5", "keys": 37, "platformPolicyKeys": [], "CHAIN_ID": "8453", "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907"}
+DO literals in other (base) app/opt files outside node_modules: []
+extracted 18750 app/ + opt/ files (node_modules included) to <build>/tmp/extract
+{
+ "ok": true,
+ "closureFiles": 45,
+ "imported": 48,
+ "syntaxChecked": 9,
+ "packages": [
+  "cors",
+  "express",
+  "jose",
+  "viem",
+  "ws"
+ ],
+ "installedHostAdmission": {
+  "sha256": "40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25",
+  "supervisorImports": [
+   "createHostServiceGate",
+   "hostAdmissionConfigured",
+   "hostAdmissionFromEnv"
+  ],
+  "hasDecision": true,
+  "hasCarriers": true,
+  "productionDefault": {
+   "on": true,
+   "source": "production chain and address book (default)",
+   "activation": "anchor",
+   "mirrors": [],
+   "rpcs": 4
+  }
+ },
+ "roleBundles": "absent (relay mode)"
+}
+[ok] src still clean
+[ok] no ssh/scp/sftp invocation (0)
+VERIFY-OK
+[memory-guard] exit=0 peakTreeRssMiB=219 minHostAvailableMiB=24568
+[memory-guard] at peak: sev-snp-measure:213 bash:6
+[queue] EXIT 0

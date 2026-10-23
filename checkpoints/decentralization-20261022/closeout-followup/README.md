@@ -21,6 +21,8 @@ Frozen 04:10Z append (2026-10-23): A canonical-trie Reth E2E 0c43e4db, B whole-o
 
 Frozen 04:20Z append (2026-10-23): A policy readers + callers choosing the local verifier 437d6ced/2efc4a83 (7 canonical-Reth policy E2Es; 130/135 with 5 baseline failures) and ROOT's Linux adopt() pending-stop guard 1086cf23 on D f1d0666b (required before D is rollout-ready; source only, NOT activated); root's adopt-race probe (actual function + scripted edges, not a physical VM) and the 04:15Z Windows updater post-check. See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest terminal full-restore status.
 
+Frozen 06:30Z append (2026-10-23): ROOT kernel lock 794d2ff3/336ea56a, ROOT verified-snapshot lifecycle fd6a1762, A native relay closure 71448f63, P deadline d0775541 and P FINAL composition 9e838ba7 (E history afc443e0 kept as prior), C carriers 0757085e, F lifecycle 6c38c048, S holder f6de2364 + ROOT holder fixes b1b6f184/c3efff41, the D+ROOT Linux package fec43a6a (image 3043f6ff, local only) and root receipts incl. the SUCCESSFUL whole-bucket Sia recovery (1488 objects, 04:58:01Z), the unanchored policy preflight and the corrected control-admission inventory. Source + offline tests only; nothing deployed. The Sia SUCCESS receipt supersedes the earlier OOM failure as the latest terminal full-restore status. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

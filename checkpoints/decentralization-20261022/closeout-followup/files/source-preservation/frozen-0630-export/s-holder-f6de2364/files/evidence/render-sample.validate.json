@@ -1,0 +1,152 @@
+{
+ "valid": true,
+ "config": {
+  "format": "enclave-base-holder/v1",
+  "binary": {
+   "path": "/opt/enclave-base-holder/bin/base",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+   "release": "v1.5.1",
+   "releaseTarballSha256": "6779c45dbc6041205cc4e52bc2cd9d40746a5a4366a309899bf6533fccebe2b7"
+  },
+  "serviceUser": "enclave-holder",
+  "datadir": "/srv/enclave-base-holder/data",
+  "staticFilesDir": null,
+  "verifierPort": 8545,
+  "rpc": {
+   "port": 18545,
+   "api": [
+    "eth",
+    "net",
+    "web3"
+   ],
+   "proofWindowBlocks": 1800,
+   "maxConnections": 32
+  },
+  "consensusRpc": {
+   "port": 19545
+  },
+  "p2p": {
+   "listenIp": "0.0.0.0",
+   "executionPort": 30303,
+   "discoveryV5Port": 9200,
+   "consensusTcpPort": 9222,
+   "consensusUdpPort": 9223
+  },
+  "l1": {
+   "executionRpc": "https://l1-execution.example.invalid/",
+   "beacon": "https://l1-beacon.example.invalid/",
+   "trustRpc": false,
+   "selfHosted": false,
+   "rpcTimeoutMs": 10000
+  },
+  "upgradeSignalMode": "metrics-only",
+  "txForwarding": {
+   "endpoint": null
+  },
+  "prune": "minimal",
+  "limits": {
+   "memoryMaxBytes": 34359738368,
+   "tasksMax": 4096,
+   "nofile": 65536,
+   "stopTimeoutSec": 600,
+   "readyTimeoutSec": 7200,
+   "memoryHighBytes": 30923764531
+  },
+  "storage": {
+   "layout": "loop-ext4-image",
+   "mountPoint": "/srv/enclave-base-holder",
+   "nvmeInventoryPath": "/etc/enclave-base-holder/nvme-cache-inventory.tsv",
+   "originFreeMarginBytes": 500000000000,
+   "nvmeFreeMarginBytes": 200000000000,
+   "origin": {
+    "imagePath": "/mnt/usb/enclave-base-holder/origin.img",
+    "bytes": 3100000000000
+   },
+   "otherNvmeCacheAllocations": [],
+   "cache": {
+    "mechanism": "dm-cache",
+    "mode": "writethrough",
+    "policy": "smq",
+    "dataImagePath": "/vm/enclave-base-holder-cache/cache-data.img",
+    "dataBytes": 197999984640,
+    "metadataImagePath": "/vm/enclave-base-holder-cache/cache-meta.img",
+    "metadataBytes": 1073741824,
+    "blockBytes": 262144,
+    "slackBytes": 67108864
+   },
+   "nvmeAccounting": {
+    "holderBytes": 199140835328,
+    "otherBytes": 0,
+    "totalBytes": 199140835328,
+    "capBytes": 250000000000,
+    "targetBytes": 200000000000,
+    "overTarget": false
+   }
+  }
+ },
+ "argv": [
+  "/opt/enclave-base-holder/bin/base",
+  "--chain",
+  "mainnet",
+  "rpc",
+  "--datadir",
+  "/srv/enclave-base-holder/data",
+  "--http",
+  "--http.addr",
+  "127.0.0.1",
+  "--http.port",
+  "18545",
+  "--http.api",
+  "eth,net,web3",
+  "--rpc.max-connections",
+  "32",
+  "--rpc.eth-proof-window",
+  "1800",
+  "--ipcdisable",
+  "--minimal",
+  "--addr",
+  "0.0.0.0",
+  "--port",
+  "30303",
+  "--discovery.addr",
+  "0.0.0.0",
+  "--discovery.port",
+  "30303",
+  "--discovery.v5.addr",
+  "0.0.0.0",
+  "--discovery.v5.port",
+  "9200",
+  "--rpc.addr",
+  "127.0.0.1",
+  "--rpc.port",
+  "19545",
+  "--p2p.listen.ip",
+  "0.0.0.0",
+  "--p2p.listen.tcp",
+  "9222",
+  "--p2p.listen.udp",
+  "9223",
+  "--l1-eth-rpc",
+  "https://l1-execution.example.invalid/",
+  "--l1-beacon",
+  "https://l1-beacon.example.invalid/",
+  "--l1.rpc-timeout-ms",
+  "10000",
+  "--upgrade-signal.mode",
+  "metrics-only"
+ ],
+ "env": {
+  "PATH": "/usr/bin:/bin",
+  "LANG": "C.UTF-8",
+  "HOME": "/srv/enclave-base-holder/data",
+  "TMPDIR": "/srv/enclave-base-holder/tmp",
+  "BASE_NODE_L1_TRUST_RPC": "false"
+ },
+ "labels": {
+  "role": "private untrusted witness source (B proofSources.untrusted); not a host-service role; no public serving",
+  "freshness": "proofs are only as fresh as this node; B refuses anything not at a verified fresh head",
+  "l1": "startup needs the declared L1 execution endpoint (unsafe-block signer read with 5 bounded retries); derivation (safe/finalized) needs L1 + beacon continuously; L1 watcher retry exhaustion stops the node (source, unexecuted)",
+  "tx": "transaction submission incomplete: no forwarding unless txForwarding.endpoint is set (hosted sequencer); P2P tx gossip is disabled by base-reth; L1 deposits are not a transparent replacement",
+  "flags": "argument names from pinned source (FLAGS.json); not executed against a Base binary until preflight"
+ }
+}

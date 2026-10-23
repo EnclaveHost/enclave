@@ -1,0 +1,856 @@
+# t1-tests: queue guard line(s)
+[memory-guard] exit=0 peakTreeRssMiB=688 minHostAvailableMiB=23709
+# retries before admission: 32
+# exit 0
+
+[queue] START available=24456MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+[env] ssh/scp/sftp -> <build>/stub/bin (shell + node child proved)
+[env] private network namespace: interfaces = lo only, no IPv4 route (net:[4026533854])
+[ok] src HEAD fec43a6a08da2ac287fb3a5c42de89f096f4f678
+[ok] src clean
+Note: switching to 'fec43a6a08da2ac287fb3a5c42de89f096f4f678'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+[ok] tree HEAD fec43a6a08da2ac287fb3a5c42de89f096f4f678
+[ok] package.json identical to the D candidate's
+[ok] package-lock.json identical to the D candidate's
+[ok] network/package.json identical to the D candidate's
+[ok] network/package-lock.json identical to the D candidate's
+[ok] relay/package.json identical to the D candidate's
+[ok] relay/package-lock.json identical to the D candidate's
+4939dc688cefeed25a8801ecb4c939d7eff9e8735e9c52a15d30d069666d8d48  <build>/tmp/tree/supervisor.js
+bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843  <build>/tmp/tree/egress.js
+40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25  <build>/tmp/tree/windows/node/host-admission.bundle.mjs
+acfa1b0099530d4c27fe451d7d3f1d124b3f7a213171557c1c2d926976e0dc3c  <build>/tmp/tree/metal/guest/host-policy.bundle.mjs
+e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c  <prod>/metal-deabf8f90/windows/node/host-admission.bundle.mjs
+6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18  <work>/g4-node-ai-final-20261021/control/new/host-admission.bundle.mjs
+
+=== G0-bundle-api
+{"label":"composed","sha256":"40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25","bytes":383429,"exports":["createHostAdmission","createHostServiceGate","fileHostPolicyLoader","hostAdmissionConfigured","hostAdmissionFromEnv","hostIdOfEndpoint","hostPolicyCarriersFromEnv","hostPolicyOrigins","loadContractPins","publicHostPolicyLoader","resolveHostPolicyConfig","validateContractPins"],"supervisorImports":["createHostServiceGate","hostAdmissionConfigured","hostAdmissionFromEnv"],"missingForSupervisor":[],"admissionMethods":["decision","refusal"],"hasDecision":true,"productionDefault":{"on":true,"source":"production chain and address book (default)","activation":"anchor","mirrors":[],"rpcs":4},"hasCarriers":true,"carrierParse":{"importDir":null,"policyMirrorStateDir":null,"peers":["https://carrier.example/platform-policy"],"serviceIndex":null},"carrierMalformed":"refused: ENCLAVE_PLATFORM_HOST_POLICY_CARRIERS: JSON { importDir?, policyMirrorStateDir?, peers?, serviceIndex? }"}
+{"label":"live-e83515fc","sha256":"e83515fca7468d5d6636631617d73d9ed9ef12b798439e7aaed347f2f524182c","bytes":347207,"exports":["createHostAdmission","createHostServiceGate","fileHostPolicyLoader","hostAdmissionConfigured","hostAdmissionFromEnv","hostIdOfEndpoint","hostPolicyOrigins","loadContractPins","publicHostPolicyLoader","resolveHostPolicyConfig","validateContractPins"],"supervisorImports":["createHostServiceGate","hostAdmissionConfigured","hostAdmissionFromEnv"],"missingForSupervisor":[],"admissionMethods":["refusal"],"hasDecision":false,"productionDefault":{"on":true,"source":"production chain and address book (default)","activation":"anchor","mirrors":["https://134.199.235.187/platform-policy","https://134.209.248.172/platform-policy","https://165.245.191.129/platform-policy","https://146.190.246.39/platform-policy"],"rpcs":4},"hasCarriers":false}
+{"label":"checkpoint-3438cdf2","sha256":"3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8","bytes":349063,"exports":["createHostAdmission","createHostServiceGate","fileHostPolicyLoader","hostAdmissionConfigured","hostAdmissionFromEnv","hostIdOfEndpoint","hostPolicyOrigins","loadContractPins","publicHostPolicyLoader","resolveHostPolicyConfig","validateContractPins"],"supervisorImports":["createHostServiceGate","hostAdmissionConfigured","hostAdmissionFromEnv"],"missingForSupervisor":[],"admissionMethods":["decision","refusal"],"hasDecision":true,"productionDefault":{"on":true,"source":"production chain and address book (default)","activation":"anchor","mirrors":["https://134.199.235.187/platform-policy","https://134.209.248.172/platform-policy","https://165.245.191.129/platform-policy","https://146.190.246.39/platform-policy"],"rpcs":4},"hasCarriers":false}
+{"label":"windows-6bef372d","sha256":"6bef372d00a27567e94a11d00f165312f9d715a795519e7a7ad77b4718623b18","bytes":348897,"exports":["createHostAdmission","createHostServiceGate","fileHostPolicyLoader","hostAdmissionConfigured","hostAdmissionFromEnv","hostIdOfEndpoint","hostPolicyOrigins","loadContractPins","publicHostPolicyLoader","resolveHostPolicyConfig","validateContractPins"],"supervisorImports":["createHostServiceGate","hostAdmissionConfigured","hostAdmissionFromEnv"],"missingForSupervisor":[],"admissionMethods":["decision","refusal"],"hasDecision":true,"productionDefault":{"on":true,"source":"production chain and address book (default)","activation":"anchor","mirrors":[],"rpcs":4},"hasCarriers":false}
+[t1] G0-bundle-api exit=0
+
+=== G1-bundle-currency
+both policy bundles rebuild byte-identically
+[t1] G1-bundle-currency exit=0
+[ok] tree clean after G1
+
+=== G2-focused
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: leftover record still held its slice - released before re-adopt
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: leftover record still held its slice - released before re-adopt
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd adopted: app=test:1 (catalog://test/1) gpuShare=0 cpuShare=undefined lease until 2026-10-23T06:42:17.000Z
+✔ adopt defers: stop already pending (6.533408ms)
+✔ adopt defers: stop during lookup (3.260749ms)
+✔ adopt defers: wallet hold during lookup (2.942399ms)
+✔ adopt defers: withdrawal during lookup (2.890859ms)
+✔ adopt defers: stop completed during lookup (3.238519ms)
+✔ adopt defers: replacement record during lookup (2.822099ms)
+✔ unchanged terminal record reaches ordinary capacity allocation (3.559649ms)
+✔ fresh adoption after an earlier withdrawal still starts the app (3.482379ms)
+✔ net-guard blocks internal ranges, allows global unicast (1.64514ms)
+✔ wrong SOCKS password is rejected (tenant isolation) (11.213967ms)
+✔ the upstream receives the validated destination without a claimed dedicated source IP (5.316738ms)
+✔ bytes round-trip through the tunnel both ways (3.458809ms)
+✔ closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing (4.588489ms)
+✔ CONNECT to a loopback literal is denied before leaving the enclave (1.856779ms)
+✔ DNS resolving into a private network never reaches the upstream (1.406289ms)
+﹣ phase2: transparent egress routes an UNMODIFIED guest's raw wasi:sockets outbound (0.11552ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ phase2: a locked-down guest dialing a loopback literal is refused (0.23011ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ phase2: phase-1 explicit SOCKS (ENCLAVE_EGRESS) still works under the lockdown (front pass-through) (0.26211ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ phase2: with egress lockdown and no inherit-network, a raw connect reaches nothing (0.10337ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ phase2: the wasi:http outgoing handler is mediated too (serve mode, socks5h domain) (0.05194ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ loopback policy: a dial to a SIBLING's port is refused (transparent egress on) (0.06206ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ loopback policy: the ALLOWED loopback port still connects (the /encvol plane) (0.03384ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ loopback policy: it holds under -Sinherit-network too (the port-serving posture) (0.02967ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ loopback policy: inherit-network keeps the raw network it was granted (0.0277ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ loopback policy: an empty list means NO loopback at all (0.02554ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+﹣ loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is unchanged) (0.02761ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+✔ the kryptos leak: two dead slices reclaimed, live tenants kept, idempotent (343.707661ms)
+✔ terminal records never hold: handle dropped, slice not counted (309.933789ms)
+✔ clean pools: nothing to fix on either pass (314.573338ms)
+✔ over-free drift (double release) is corrected DOWN, not just up (322.667035ms)
+✔ cpu-only holds ({cpu,share}) reconcile the node pool (345.086146ms)
+✔ over-reserved card clamps at 0 free instead of going negative (323.584742ms)
+✔ legacy handle without _needV falls back to vramGb + overhead (331.23327ms)
+✔ a shielded card does not charge per-tenant CUDA context overhead (619.731621ms)
+✔ a terminal record whose instance is NOT confirmed stopped (_stopPending) still holds its slice: not drift, never reclaimed (321.447382ms)
+✔ Linux forwards authoritative visibility to wallet and platform admission (4.145179ms)
+✔ Linux admission rejects host denial, missing identity and unreadable authority without global fallback (1.738489ms)
+✔ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.877529ms)
+✔ wallet mode retains the publisher-yank sweep (1.464139ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd lease renewed until 2026-10-23T06:13:21.000Z
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd version change to catalog://0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef/1 deferred: host wallet policy unavailable: chain quorum unavailable; try again shortly
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+✔ known allow: the audit keeps serving and the due renewal is sent once, under its decision deadline (11.997946ms)
+✔ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (20.415403ms)
+✔ unknown (RPC quorum unavailable): stopped here, never renewed or released, on the audit AND the renewal path; the gate answers 503 (9.289027ms)
+✔ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (12.957756ms)
+✔ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (5.307498ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: the host wallet decision expired before the send
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy established again (allowed) and its instance confirmed stopped: the claim sweep resumes its live lease
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd resuming our own live lease after a restart
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+✔ expiry: a decision that passes its chain deadline in the operator queue is not sent; a held lease that lapses is simply let go (507.648825ms)
+✔ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (7.828088ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd app-funded renew not sent: a later host wallet decision for it was a refusal or unavailable
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd lease renewed until 2026-10-23T07:12:21.000Z
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: a later host wallet decision for it was a refusal or unavailable
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✔ in-flight race: a renewal decided ALLOWED waits in the operator queue, an audit meanwhile finds the policy unknown: nothing is sent (app-funded and operator-paid senders) (109.178802ms)
+✔ an older admission bundle (refusal() only, no decision()) is held as unknown, loudly - never read as allowed, never released (3.530299ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: a later host wallet decision for it was a refusal or unavailable
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd app-funded renew not sent: a later host wallet decision for it was a refusal or unavailable
+✔ review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded) (107.979372ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy established again (allowed) and its instance confirmed stopped: the claim sweep resumes its live lease
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: a later host wallet decision for it was a refusal or unavailable
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd lease renewed until 2026-10-23T07:12:21.000Z
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy established again (allowed) and its instance confirmed stopped: the claim sweep resumes its live lease
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd app-funded renew not sent: a later host wallet decision for it was a refusal or unavailable
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd lease renewed until 2026-10-23T07:12:21.000Z
+✔ review 1: hold -> fresh allow cannot resurrect an earlier permission, even when the SAME record object serves again (108.518753ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd stopped by owner on-chain -> teardown + release
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: service was withdrawn here since it was decided
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: service was withdrawn here since it was decided
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: the record it was decided for was replaced
+✔ review 1: owner stop, a restart (re-provision) and a replaced record each void a queued renewal (161.133863ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd stopped by owner on-chain -> teardown + release
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: service was withdrawn here since it was decided
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd stopped by owner on-chain -> teardown + release
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd app-funded renew not sent: service was withdrawn here since it was decided
+✔ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (167.94124ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd app-funded renew not sent: a later host wallet decision for it was a refusal or unavailable (signed, given to no relay)
+✔ review 1: app-funded - a hold that lands while the sponsored client is still admitting relays stops the SIGNED lease before any relay (304.177603ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd claim tx failed (claim not sent: a later host wallet decision for it was a refusal or unavailable)
+✔ review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke) (53.794251ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (chain quorum unavailable): not served here; the lease is kept (not renewed or released) until the policy is established
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy established again (allowed) and its instance confirmed stopped: the claim sweep resumes its live lease
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd resuming our own live lease after a restart
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+✔ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (90.334488ms)
+✔ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.577039ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd claim tx failed (claim not sent: a later host wallet decision for it was a refusal or unavailable)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd claim tx failed (app-funded claim not sent: a later host wallet decision for it was a refusal or unavailable)
+✔ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (106.624082ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd claim tx failed (claim not sent: a later host wallet decision for it was a refusal or unavailable)
+✔ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.547621ms)
+✔ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (162.307872ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd renew not sent: service was withdrawn here since it was decided
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd app-funded renew not sent: service was withdrawn here since it was decided
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd stopped by owner on-chain -> teardown + release
+✔ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (68.927095ms)
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd lease looks lost (strike 1/2; chain says runner=undefined, leaseUntil=1792737743); re-checking next pass
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd lease lost -> teardown (chain says runner=undefined)
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd resized shares cannot be served here: not servable at the new size; releasing so a fitting enclave claims it
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: its ledger undefined was retired (book says 0x9999999999999999999999999999999999999999) -> teardown
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd stopped by owner on-chain -> teardown + release
+[state] restored 2 deployment(s) (0 running, 0 awaiting payment) after 0s down; clocks were frozen
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+✔ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (220.651151ms)
+✔ teardown path on a CONFIRMED stop frees the slice at once (owner stop control) (3.622848ms)
+✔ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.812729ms)
+✔ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (3.059079ms)
+ℹ tests 64
+ℹ suites 0
+ℹ pass 53
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 11
+ℹ todo 0
+ℹ duration_ms 7426.746062
+[t1] G2-focused exit=0
+
+=== G3-regression
+✔ approved versions deploy at every visibility (the unchanged happy path) (347.303191ms)
+✔ pending: refused public, admitted private (the dev-mode rule) (328.225657ms)
+✔ forPrivate must be exactly true — truthy strings don't unlock dev mode (324.648919ms)
+✔ the standing refusals hold regardless of visibility (327.220546ms)
+✔ approval statuses beyond the enum fail closed (382.397624ms)
+✔ own live unresumed leases split out first; everything else keeps ledger order (329.996015ms)
+✔ no own leases -> nothing to resume, nothing held (348.677515ms)
+✔ a deactivated orphan lease does not hold new claims after a restart (341.944058ms)
+✔ unregistered enclave (null id) owns nothing (348.392635ms)
+✔ not applicable: off-chain, not-running, and pre-watch records (329.59904ms)
+✔ waf-only edits swap live; config edits restart (332.554848ms)
+✔ a config change behind the CID restarts, even with the manifest untouched (324.411512ms)
+✔ an envelope this build can't parse never restarts the app: verdict error (328.782928ms)
+✔ custody_held (409) and custody_unconfirmed (503) both refuse the launch and drop the cached snapshot (704.205336ms)
+✔ an ordinary 503 (secrets off on that relay) keeps the old behaviour: the cached snapshot (353.862065ms)
+✔ a name that moves carries neither the backoff nor the report, and the old owner keeps both (411.085352ms)
+﹣ those assertions depend on the ownership checks (0.21097ms) # SKIP
+✔ a result that lands after the name moved is filed against nobody (12407.193015ms)
+﹣ those assertions depend on capturing the owner BEFORE the await (0.22272ms) # SKIP
+✔ the kryptos leak: an instance whose record is gone is reaped (350.136596ms)
+✔ a terminal record owns nothing: its instance is an orphan too (1278.466727ms)
+✔ live tenants are never touched (333.35814ms)
+✔ the provisioning race: ownership keys on the deployment id, not the vid (330.734771ms)
+✔ young instances get a grace window even with no record at all (611.442116ms)
+✔ an instance with no usable createdAt is still reapable (1261.394493ms)
+✔ worker backend: tenants are keyed by the deployment id itself (307.505739ms)
+✔ the plan is idempotent and order-independent (604.17934ms)
+✔ malformed entries are skipped, not crashed on (336.019742ms)
+✔ the kryptos leak, end to end: the orphan is actually DELETEd (341.911187ms)
+✔ live tenants are never DELETEd (323.997326ms)
+✔ FAIL CLOSED: a manager that 500s the listing reaps nothing (328.231633ms)
+✔ FAIL CLOSED: an unreachable manager reaps nothing (310.485482ms)
+✔ a DELETE that 404s counts as reaped (already gone) (320.526026ms)
+✔ a DELETE that fails is NOT counted, and retries next pass (323.722903ms)
+✔ telemetry: a failed listing reports ok:false, never a clean pass (323.561394ms)
+✔ telemetry: an orphan that survives DELETE is NOT ok (335.923465ms)
+✔ telemetry: a genuinely clean box reports ok with what it holds (320.613874ms)
+✔ telemetry: held[] names the leaking tenant and marks it unowned (321.113552ms)
+✔ mixed box: only the unowned instances go (317.520483ms)
+✔ on the tier a share is a fraction of the guest pool: a 128 MB app still needs 1%, and 1% of the posted price stays under its cap (935.304736ms)
+✔ a version's guest reserves its unit's ceilings, as guestd admits it (315.006492ms)
+✔ what is free is the pool's room, never more than the share ledger, and nothing unless a smallest guest fits (2819.672069ms)
+✔ a claim is refused when the app's guest does not fit the pool by its reservation, even though its share would (313.602237ms)
+✔ a resume of a guest guestd already holds is judged with the room that guest holds; a new claim on the same full pool is refused (317.123674ms)
+✔ an answer without a readable pool clears the mirror: nothing is offered or claimed, and the node keeps the budget last heard (617.967255ms)
+✔ the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69dcbba's cap (618.563072ms)
+✔ the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source) (3.643998ms)
+✔ the host's live memory floor gates claims and caps the advertised share; without it nothing changes (4864.887672ms)
+✔ a resume adopting the same record skips the host check; a replacement is credited only its guest's RAM (642.672445ms)
+✔ a held guest is the same record only when the spawn would send exactly that record (984.354895ms)
+✔ off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger (336.816074ms)
+✔ isolated claims check pricing shares separately from exact guest reservations (653.07711ms)
+✔ large pricing share does not block a small reservation that fits; oversized guests still fail (328.916318ms)
+✔ an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first) (7346.935531ms)
+✔ an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan) (7346.089509ms)
+✔ a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted (9358.788045ms)
+✔ an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed (6849.430015ms)
+✔ a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released (7344.775232ms)
+✔ a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released (7354.89254ms)
+✔ a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released (7368.483498ms)
+✔ a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives (7359.7271ms)
+✔ transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after (7839.488353ms)
+✔ config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list (1298.489989ms)
+✔ a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image (656.036258ms)
+✔ the relay's list has THREE answers, and only a clear one is listed or unlisted (867.01022ms)
+✔ the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image (868.366523ms)
+✔ the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd (444.19836ms)
+✔ a relay refusal is retried while the guest waits, and logged by status and code only (449.940912ms)
+✔ a guest that is no longer starting ends the pump, and no ticket is fetched for it (1192.148072ms)
+✔ a malformed ticket is never handed on, and without an operator key nothing is asked (1389.126727ms)
+✔ guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry (430.586536ms)
+✔ depHasSecrets: only a clean answer is yes or no (449.086204ms)
+✔ the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing (1211.757647ms)
+✔ CID config claim uses attested delivery only for a listed isolated release guest (1220.2118ms)
+✔ custody: the binding guestd reports is signed by this endpoint's operator over custody/protocol.mjs's exact message (459.527145ms)
+✔ custody: without CUSTODY_VAULT, or for a malformed binding, nothing is signed (780.238684ms)
+✔ custody v2: guestd's {v:2, vault, binding} is signed over the v2 message for THIS box's measured v2 vault only (1234.454826ms)
+✔ records from a retired ledger tear down; current-ledger and legacy records do not (336.39378ms)
+✔ case-insensitive address match: a checksum-vs-lower mismatch is not a move (319.030568ms)
+✔ no current address (claim path unconfigured) never tears anything down (320.158956ms)
+✔ the price is the enclave's own, scaled by the shares and ceil'd like the ledger (346.837656ms)
+✔ free self-hosting: the box charges its own payout wallet nothing (329.031445ms)
+✔ free self-hosting waives OUR charge, never the publisher's fee (347.579043ms)
+✔ a rate cap can never exclude a free deployment (documented consequence) (321.187333ms)
+✔ a cheaper enclave takes work the dear one may not — the failover gate (638.891927ms)
+✔ the publisher's fee counts against the ceiling, and says so (663.452657ms)
+✔ an uncapped record (a grandfathered import) is claimable at any price (337.659391ms)
+✔ a balance that can't buy one second HERE is not this enclave's work (1002.69571ms)
+✔ a lapsed lease is reaped while the supervisor is talking (101.654983ms)
+✔ a renewed lease is never touched (56.541925ms)
+✔ INERT until the first heartbeat: an older supervisor cannot mass-reap (55.738345ms)
+✔ SILENCE suspends enforcement: a control-plane blip is not an outage (108.738684ms)
+✔ only live tenants are candidates (57.932833ms)
+✔ a tenant with no lease field at all is reapable (it predates the field) (56.255605ms)
+✔ terminal records never vouch - that is the original leak (330.172845ms)
+✔ an OFF-LEDGER record does not vouch on a claiming box (323.985103ms)
+✔ AUTO_PROVISION is the deliberate exception: a pilot box has no chain to appeal to (341.204752ms)
+✔ audit skips an in-flight adoption and overlapping calls share one manager launch (3.606776ms)
+✔ a failed shared launch releases its allocation once and permits a later retry (2.057758ms)
+✖ a delayed second claim cannot replace an adopted or running record (1.857838ms)
+✔ the ledger exposes the transfer surface every client gates on (2.022448ms)
+✔ the ledger exposes end-of-life: retire closes activity, refunds go permissionless-to-owner (0.508439ms)
+✔ mcp encoder: transferDeployment decodes against the ledger ABI, address in the label (10.064878ms)
+✔ the credit vault can NEVER transfer a record out of itself (1.465878ms)
+✔ every client chains or explains the refund, restates the destination, and gates on rev 11 (3.423986ms)
+✔ the serving box re-keys its owner gates when the record changes hands (2.072928ms)
+✔ only a RUNNING record with a genuinely different ledger ref switches in place (339.089463ms)
+✔ a provision-failure cooldown binds to the appRef that failed (328.070365ms)
+✔ only a RUNNING record whose ledger row carries different shares re-slices (328.315514ms)
+✔ a held id's decline names the stage and the error, keeping the legacy prefix (348.8036ms)
+✔ only prefetch-stage holds re-probe the gateway, at most once a minute (328.645932ms)
+✔ empty and missing envelopes mean no options (326.013295ms)
+✔ a CID (non-JSON) keeps the configCid-retired refusal (312.295041ms)
+✔ valid waf options parse, burst defaults to ~4s of rps (311.394581ms)
+✔ unknown namespaces and unknown waf keys refuse (never ignored) (333.469855ms)
+✔ config namespace: a per-deployment app-config override parses (329.230279ms)
+✔ config namespace: non-objects and the reserved _media key refuse (318.645541ms)
+✔ the envelope's total size cap covers a config override too (330.992475ms)
+✔ bad types and out-of-range values refuse (330.090037ms)
+✔ path rules: decoded + lowercased, prefix-anchored; query never matches (321.861145ms)
+✔ the WAF buckets on the proxy-appended address, not the caller's claim (329.626586ms)
+✔ gpu.optional is accepted only on a deployment that bought GPU share (964.462333ms)
+✔ the gpu namespace is shape-checked like every other option (1306.465525ms)
+✔ an unknown namespace still names what this runner knows, now including gpu (319.958603ms)
+✔ configCid must be a bare CID, and demotes config to the routing manifest (1346.283735ms)
+✔ a malformed configCid is refused rather than carried to the fetch (1998.307126ms)
+✔ a bare CID in the field is still retired, even now that the namespace exists (322.757843ms)
+✔ the network transport enclave-network and historical relay metadata do not configure relays; the retired tuna value is refused (3955.448622ms)
+✔ the network namespace rejects unknown fields and invalid shapes (1280.221944ms)
+✔ an unknown namespace is refused, and names the ones this runner knows (327.909117ms)
+✔ running and claimed records on the yanked version are torn down (322.127264ms)
+✔ records on OTHER versions of the same app keep serving (333.24128ms)
+✔ terminal and in-flight-terminal records are untouched (they hold no resources) (324.744019ms)
+✔ no yanked versions -> empty plan (the everyday pass) (334.514007ms)
+✔ a yank reaches private deployments too (standing refusal, like the gate) (324.12511ms)
+ℹ tests 135
+ℹ suites 0
+ℹ pass 132
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 148103.033529
+
+✖ failing tests:
+
+test at test/tenant-provision-race.test.mjs:70:1
+✖ a delayed second claim cannot replace an adopted or running record (1.857838ms)
+  ReferenceError: walletVerdicts is not defined
+      at Object.adopt (eval at harness (file://<build>/tmp/tree/test/tenant-provision-race.test.mjs:19:15), <anonymous>:215:94)
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/tenant-provision-race.test.mjs:75:13)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+[t1] G3-regression exit=1
+
+=== G4-image-side
+✔ the module names the canonical path and the exact wire bytes deployed verifiers request (1.069479ms)
+✔ no other source spells the alias; the supervisor and the relay take the paths from the module (165.68043ms)
+✔ the supervisor serves the same document under both paths and advertises the alias (440.49242ms)
+✔ B1 bounded all-429: UNKNOWN within the 10 s budget (not the 30 s deadline), reasons named, no URL path/key, nothing DISPATCHED after the decision (13366.703244ms)
+✔ B2 mixed: one healthy RPC + one whose 429 window ends after 2.5 s (others 500/429): ridden out, ALLOWED (4508.208037ms)
+✔ B3 a permanently rate-limited RPC (drpc) does not delay two healthy agreeing answers (549.464088ms)
+✔ B4 moderation is FRESH per call: a yank is refused on the very next check, an un-yank allowed on the next (100.935802ms)
+✔ L1 DEFAULT reader (no option) keeps the original rule: all-429 -> fails fast, at most 3 head attempts per RPC (1919.775324ms)
+✔ L2 short deadline: retries never outlive it (deadline 2.5 s, budget 2 s -> capped at deadline - 1 s) (3345.072302ms)
+✔ L3 a non-429 error is NOT retried, even with the budget: each failing RPC is asked once (9.547027ms)
+✔ L4 head attempt: a 429 on eth_chainId does not end the attempt while eth_blockNumber is in flight (allSettled) (5406.496585ms)
+✔ L5 option validation: the budget must be a non-negative integer below the deadline (1.209798ms)
+✔ platform moderation applies even when the wallet does not require approval (4.250253ms)
+✔ pending private development survives; wallet may apply a stricter restriction (2.145627ms)
+✔ wallet denial revokes admission after bounded cache; transfer clears old policy (0.794149ms)
+✔ authority failure, mismatched registry, foreign documents and missing ownership fail closed (2.236467ms)
+✔ documents are hash-addressed, bounded, and partial activation configuration refuses startup (11.869964ms)
+✔ a complete reviewed configuration becomes a public transit; absent is off (3.527444ms)
+✔ partial or invalid configuration REFUSES (no fallback to the operator's wallet) (2.467977ms)
+✔ the guest installs exactly the six names and the record; the supervisor's real loader accepts them (2.931135ms)
+✔ a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH (1.070569ms)
+✔ the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one) (2.303457ms)
+✔ the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over (4222.663162ms)
+✔ the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU (461.758422ms)
+✔ direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names (6.61479ms)
+✔ direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453 (1.276768ms)
+✔ the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's (2208.904851ms)
+✔ gsup and the launcher wire the conduit, and only the conduit (1.961718ms)
+✔ the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted (114.612332ms)
+✔ the checker: canonical form, and every malformed or unsafe nomination refused (6.029101ms)
+✔ legacy guest: fw_cfg is the ONLY source of the supervisor's nomination name; absent or invalid sets none (1.104938ms)
+✔ direct config: absent keeps the exact config and digest; present it is bound, stated and handed to the supervisor (4.643113ms)
+✔ the real launcher: the operator's own nomination crosses checked; a wrong one refuses the launch; absent stays absent (8920.389514ms)
+✔ the real launcher, direct control: only the HOST_DATA-bound copy; a host-level one refuses (2210.990498ms)
+✔ the image carries it: supervisor closure, the overlay's guest helpers and the image builder's list (19.46761ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50646.567938
+[t1] G4-image-side exit=0
+
+=== G4-overlay-unittest
+metal-control-overlay (unittest.loader._FailedTest.metal-control-overlay) ... ERROR
+
+======================================================================
+ERROR: metal-control-overlay (unittest.loader._FailedTest.metal-control-overlay)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: metal-control-overlay
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'test.metal-control-overlay'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+[t1] G4-overlay-unittest exit=1
+
+=== G5-real-lease-client
+✔ control: an allowed claim goes through the real client and relay and lands on chain, paid by the app's reserve (16729.763304ms)
+[claim] 0x97979952bab18a81ac092cd9b54f346e8d0be14f90de2c5b3411ec8ce3b7ba6e claim tx failed (app-funded claim not sent: a later host wallet decision for it was a refusal or unavailable (signed, given to no relay))
+✔ a refusal that lands AFTER the operator queue's check, while the real client is reading its relay, stops the SIGNED lease before the relay: no POST, nothing on chain (468.814519ms)
+[claim] 0x0efb57ac1e798170d43920e8bb3d1af1f8b48195d986b2779815c2698f873fa7 claim tx failed (app-funded claim not sent: a later host wallet decision for it was a refusal or unavailable)
+✔ decision window with the real client: a refusal during openForUs means the claim never reaches the client at all (118.80095ms)
+✔ source: supervisor.js wires the client's onSigned exactly as this test does (0.30199ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17542.145879
+[t1] G5-real-lease-client exit=0
+
+=== G6 CONTROL: the live bundle e83515fc under the composed supervisor
+
+=== G6-control-live-bundle
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd version change to catalog://0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef/1 deferred: host wallet policy unavailable: the host-admission bundle has no decision() (an older bundle than this supervisor needs); try again shortly
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✖ known allow: the audit keeps serving and the due renewal is sent once, under its decision deadline (9.640455ms)
+✖ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (3.704834ms)
+✖ unknown (RPC quorum unavailable): stopped here, never renewed or released, on the audit AND the renewal path; the gate answers 503 (3.503475ms)
+✖ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (12.39135ms)
+✔ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (4.307913ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✖ expiry: a decision that passes its chain deadline in the operator queue is not sent; a held lease that lapses is simply let go (504.401591ms)
+✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (4.321263ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✖ in-flight race: a renewal decided ALLOWED waits in the operator queue, an audit meanwhile finds the policy unknown: nothing is sent (app-funded and operator-paid senders) (56.785569ms)
+✔ an older admission bundle (refusal() only, no decision()) is held as unknown, loudly - never read as allowed, never released (3.926293ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✖ review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded) (53.475804ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✖ review 1: hold -> fresh allow cannot resurrect an earlier permission, even when the SAME record object serves again (53.650864ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✔ review 1: owner stop, a restart (re-provision) and a replaced record each void a queued renewal (160.247382ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✔ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (168.034789ms)
+✔ review 1: app-funded - a hold that lands while the sponsored client is still admitting relays stops the SIGNED lease before any relay (63.321918ms)
+✖ review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke) (57.779637ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (89.492616ms)
+✖ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.700134ms)
+✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (53.123425ms)
+✔ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.283915ms)
+✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (54.252782ms)
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+✔ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (66.732423ms)
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: UNCONFIRMED (HTTP 500) - the instance may still hold its slice; handing off to the instance reconciler
+[claim] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd host wallet policy unavailable (the host-admission bundle has no decision() (an older bundle than this supervisor needs)): not served here; the lease is kept (not renewed or released) until the policy is established
+[state] restored 2 deployment(s) (0 running, 0 awaiting payment) after 0s down; clocks were frozen
+[stop] 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd: instance confirmed gone by the backend listing; its slice is free
+✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (43.43388ms)
+✖ teardown path on a CONFIRMED stop frees the slice at once (owner stop control) (3.603554ms)
+✔ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.468144ms)
+✔ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (3.057955ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 9
+ℹ fail 16
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3414.432849
+
+✖ failing tests:
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:9:1
+✖ known allow: the audit keeps serving and the due renewal is sent once, under its decision deadline (9.640455ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'stop',
+  +   'freeGpu'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:11:25)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'stop', 'freeGpu' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:17:1
+✖ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (3.704834ms)
+  AssertionError [ERR_ASSERTION]: yank/audit: freed only after the CONFIRMED stop, then released
+  + actual - expected
+  
+    [
+      'stop',
+      'freeGpu',
+  -   'prove+release'
+    ]
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:22:11)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'stop', 'freeGpu' ],
+    expected: [ 'stop', 'freeGpu', 'prove+release' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:30:1
+✖ unknown (RPC quorum unavailable): stopped here, never renewed or released, on the audit AND the renewal path; the gate answers 503 (3.503475ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /chain quorum unavailable/. Input:
+  
+  'the host-admission bundle has no decision() (an older bundle than this supervisor needs)'
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:35:46)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)',
+    expected: /chain quorum unavailable/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:43:1
+✖ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (12.39135ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'host wallet policy unavailable: the host-admission bundle has no decision() (an older bundle than this supervisor needs)'
+  - undefined
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:53:9)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'host wallet policy unavailable: the host-admission bundle has no decision() (an older bundle than this supervisor needs)',
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:67:1
+✖ expiry: a decision that passes its chain deadline in the operator queue is not sent; a held lease that lapses is simply let go (504.401591ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'terminated'
+  - 'running'
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:73:9)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'terminated',
+    expected: 'running',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:80:1
+✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (4.321263ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + {
+  +   since: '2026-10-23T05:46:01.985Z',
+  +   stopConfirmed: true,
+  +   why: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)'
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:84:9)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { since: '2026-10-23T05:46:01.985Z', why: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)', stopConfirmed: true },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:96:1
+✖ in-flight race: a renewal decided ALLOWED waits in the operator queue, an audit meanwhile finds the policy unknown: nothing is sent (app-funded and operator-paid senders) (56.785569ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + []
+  - [
+  -   'sponsored renew'
+  - ]
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:110:98)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'sponsored renew' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:124:1
+✖ review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded) (53.475804ms)
+  AssertionError [ERR_ASSERTION]: the refusal itself is enforced (released)
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:131:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:134:1
+✖ review 1: hold -> fresh allow cannot resurrect an earlier permission, even when the SAME record object serves again (53.650864ms)
+  AssertionError [ERR_ASSERTION]: allowed again: hold cleared
+  + actual - expected
+  
+  + {
+  +   since: '2026-10-23T05:46:02.104Z',
+  +   stopConfirmed: true,
+  +   why: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)'
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:139:75)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { since: '2026-10-23T05:46:02.104Z', why: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)', stopConfirmed: true },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:177:1
+✖ review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke) (57.779637ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok((await t.ctx.hostWalletDecision(dep,ref,false)).refusal)
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:180:50)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:185:1
+✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (89.492616ms)
+  AssertionError [ERR_ASSERTION]: confirmed and allowed: the hold clears
+  + actual - expected
+  
+  + {
+  +   since: '2026-10-23T05:46:02.642Z',
+  +   stopConfirmed: true,
+  +   why: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)'
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:208:25)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { since: '2026-10-23T05:46:02.642Z', why: 'the host-admission bundle has no decision() (an older bundle than this supervisor needs)', stopConfirmed: true },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:212:1
+✖ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.700134ms)
+  AssertionError [ERR_ASSERTION]: the ban is enforced; no slice freed
+  + actual - expected
+  
+    [
+      'stop',
+  -   'prove+release'
+    ]
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:215:9)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'stop' ],
+    expected: [ 'stop', 'prove+release' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:226:1
+✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (53.123425ms)
+  AssertionError [ERR_ASSERTION]: a separate admission call: refused
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:230:51)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:242:1
+✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (54.252782ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok((await t.ctx.hostWalletDecision(dep,ref,false)).refusal)
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:246:52)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: null,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:273:1
+✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (43.43388ms)
+  AssertionError [ERR_ASSERTION]: owner-stop: its own lease rule
+  + actual - expected
+  
+  + []
+  - [
+  -   'prove+release'
+  - ]
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:290:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'prove+release' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/supervisor-wallet-unknown-hold.test.mjs:295:1
+✖ teardown path on a CONFIRMED stop frees the slice at once (owner stop control) (3.603554ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      'stop',
+      'freeGpu',
+  -   'prove+release'
+    ]
+  
+      at TestContext.<anonymous> (file://<build>/tmp/tree/test/supervisor-wallet-unknown-hold.test.mjs:297:9)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'stop', 'freeGpu' ],
+    expected: [ 'stop', 'freeGpu', 'prove+release' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+[t1] G6-control-live-bundle exit=1
+[ok] tree bundle restored (40e8ba71d83c627e85af21d58b9ab0d8b3052504a0e7d9ee47b429948c40bd25)
+[ok] src still clean
+
+=== summary
+t1-G0-bundle-api 0
+t1-G1-bundle-currency 0
+t1-G2-focused 0
+t1-G3-regression 1
+t1-G4-image-side 0
+t1-G4-overlay-unittest 1
+t1-G5-real-lease-client 0
+t1-G6-control-live-bundle 1
+[ok] no ssh/scp/sftp invocation (0)
+T1-DONE (group results above; judged in RESULT-LINUX-PACKAGE.md)
+[memory-guard] exit=0 peakTreeRssMiB=688 minHostAvailableMiB=23709
+[memory-guard] at peak: solc-0.8.35:460 node:88 node:54 forge:48 anvil:24 bash:6 timeout:4 unshare:4
+[queue] EXIT 0

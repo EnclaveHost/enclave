@@ -1,0 +1,23 @@
+{
+  "candidateSha256": "93bbe4932aefcf5802105d93de73e795592ac18084c81c36d8deacd6e97f03a8",
+  "scope": "Exact lock function; two live processes, real filesystem. Controlled pause at exclusive-open/write boundary, not full RPC runtime.",
+  "simultaneousOwners": true,
+  "ownerPid": 2658102,
+  "contenderPid": 2658109,
+  "lockOnDisk": {
+    "pid": 2658109,
+    "startTime": "103527976"
+  },
+  "children": [
+    {
+      "code": 0,
+      "out": "owner acquired\n",
+      "err": ""
+    },
+    {
+      "code": 0,
+      "out": "contender acquired\n",
+      "err": ""
+    }
+  ]
+}

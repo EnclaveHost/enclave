@@ -1,0 +1,35 @@
+commit fec43a6a08da2ac287fb3a5c42de89f096f4f678
+tree 13e18b0895e37a7baa5bc9e11ad1fdcf337daac0
+parent ee7a059f452a6f44f3aa7e56b2a383f81219e46d
+author SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T21:16:01-07:00
+committer SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T21:16:01-07:00
+subject Guard Linux adoption against concurrent teardown and policy withdrawal
+
+commit ee7a059f452a6f44f3aa7e56b2a383f81219e46d
+tree 23d678f875ee42abc5bd886cc7b2f3321738868d
+parent e4591e227d1f77617ecf6c2399d0763ef7335680
+author SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T21:01:15-07:00
+committer SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T21:01:15-07:00
+subject Linux hold: bind lease permits to their decision; confirmed-stop teardown on every path
+
+commit e4591e227d1f77617ecf6c2399d0763ef7335680
+tree df79c9ef485a562c090368cc548bc1679d3b2370
+parent fbeab506fb364fb42c3938c6fced27abc86afec4
+author SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T20:09:49-07:00
+committer SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T20:09:49-07:00
+subject Linux hold: revoke queued lease permissions by epoch; free nothing on an unconfirmed stop
+
+commit fbeab506fb364fb42c3938c6fced27abc86afec4
+tree fc984b264e3cd6c96694a6bc081f952bff5b098a
+parent 493ee9ee07497c94159ec4f6916e9ea920d31959
+author SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T19:19:53-07:00
+committer SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T19:19:53-07:00
+subject Linux: hold on an unknown host wallet policy instead of releasing the lease
+
+commit 493ee9ee07497c94159ec4f6916e9ea920d31959
+tree b21163723ea789db13ff84d148e309e2709a89f4
+parent 95defc2cd3a1686cb5ae568474d8445608b4ce14
+author SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T15:20:18-07:00
+committer SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-22T15:20:18-07:00
+subject Rebuild the combined native platform API guest bundle
+

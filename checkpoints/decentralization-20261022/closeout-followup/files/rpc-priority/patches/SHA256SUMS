@@ -1,0 +1,13 @@
+a25571b6b226b7197f456cfc73f0897002e32000e531207ea0ae06dc8ec1b17b  ./enclave/0001-Feed-a-pinned-Helios-verifier-a-signed-OP-head-and-u.patch
+1e4015f468059705f67a2a1ad9df2ee5cad91982eb83d7c0f4421f18a6b36ca8  ./enclave/0002-Keep-the-e2e-setup-assertion-message-serializable.patch
+8c1c4a617ec25a4bda2f3f44c8df1feb714f9aa48d85d2aa87f006f050c2be3c  ./enclave/0003-Replay-real-Base-calls-through-the-verifier-s-Base-E.patch
+3e601329f0cd774c2d473a3ad2cd5ca196e8492dd74e02ef6d284f24ac451d6d  ./enclave/0004-Test-the-head-path-with-real-Base-gossip-objects-and.patch
+57967ac007a5da88f12e98d020de4de15e8692ba5d491c69754a59dd81a7b032  ./enclave/0005-Give-LeaseReader-an-explicit-local-verifier-chain-au.patch
+2f43062b4f6a00ef9fda2508aab7d4b5974c020508ac6c7f21ce225549efb918  ./enclave/0006-Test-the-verifier-authority-on-real-contracts-over-a.patch
+c1fdc948de4abd8d18d73bb8a592b381ddb70cffabee4ce77588afcf98c9c086  ./enclave/0007-Read-the-service-index-and-platform-host-policy-thro.patch
+84c0c5311c8cc426e814500fab9a0cdee77171f4202c40a7e4395484a30de9f4  ./enclave/0008-Let-independent-CLI-MCP-management-and-native-caller.patch
+f9aef9aa263baff3ed4dd4c652df462ca1d97154354a88641f454cc6656832c4  ./helios/0001-opstack-v4-blocks-topic-refuse-undecodable-txs-refus.patch
+00759e3f06f199aabe3e1c0cc9282c478144310e58df1193d69984fd9ee272d3  ./helios/0002-opstack-execute-Base-chains-with-the-maintained-Base.patch
+d6afdc04f61476e9a781dcb4b578b31669a7400c09b82cd29b7de2d6cd908fce  ./helios/0003-opstack-allow-Base-execution-through-Cobalt-refuse-f.patch
+a88c19715e3e307f7e8d37aa0040729cb0b7399d4583e2e33ef42cde9f5af794  ./helios/0004-opstack-server-serve-heads-from-a-verified-directory.patch
+58b0ab390ab1eabbc0beeab9299b664226171cd1b46e3084e22700b9321699fc  ./enclave/0009-Carry-the-explicit-local-verifier-through-the-relay-.patch
