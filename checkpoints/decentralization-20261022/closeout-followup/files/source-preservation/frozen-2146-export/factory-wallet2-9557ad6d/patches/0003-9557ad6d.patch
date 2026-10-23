@@ -1,0 +1,219 @@
+From 9557ad6d3c2acd7a28f1d3d3d96783aab79c44fd Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:10:59 -0700
+Subject: [PATCH] Bound deployless impact reads below EVM code size limit;
+ verify live preflight
+
+---
+ README.md                                  |   2 +
+ evidence/root-live-preflight-20261023.json | 134 +++++++++++++++++++++
+ test/activation.test.mjs                   |  16 +++
+ test/fake-base.mjs                         |   6 +-
+ trust.mjs                                  |   2 +-
+ 5 files changed, 158 insertions(+), 2 deletions(-)
+ create mode 100644 evidence/root-live-preflight-20261023.json
+
+diff --git a/README.md b/README.md
+index 0d0fd3370cc9df5794e7f4e7ffa74a9aca16f3f7..e7804cac9f28597436a6772f44fd69d991784076 100644
+--- a/README.md
++++ b/README.md
+@@ -184,3 +184,5 @@
+   not covered. The window is one block plus the wallet prompt.
+ - **No real stack exercised:** the tests use a fake chain and a fake MetaMask. The real extension, providers and Base
+   were not exercised here; root's existing Anvil proof covers the real book contract (admin set, wrong admin rejected).
++
++Root live preflight after ABI correction exposed `CreateContractSizeLimit`: the deployless Multicall constructor returns its results as code, so 120 policy calls exceeded the EVM 24 KiB limit. The batch size is now 32. A 98-deployment fixture reproduces the old failure and passes with 32; the actual two-provider live preflight also passes (see evidence/root-live-preflight-20261023.json). All 98 IDs are still checked; no impact checks were omitted. Twelve activation tests pass. No transaction was signed or submitted by this preparation.
+diff --git a/evidence/root-live-preflight-20261023.json b/evidence/root-live-preflight-20261023.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b4986f195ae47487b24e4ecfc771e4f17c4ff892
+--- /dev/null
++++ b/evidence/root-live-preflight-20261023.json
+@@ -0,0 +1,134 @@
++{
++  "at": "2026-10-23T21:07:57.239Z",
++  "notSigned": true,
++  "notSent": true,
++  "providers": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++  ],
++  "journal": "ready",
++  "observed": {
++    "ready": true,
++    "value": {
++      "anchor": {
++        "number": "53000163",
++        "hash": "0xdd1fa2080a1780b2828cf2d7f40477ed2f16ba07e934f045cc72666871e85924",
++        "baseFee": "5000000"
++      },
++      "chainId": 8453,
++      "codeHashes": {
++        "book": "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
++        "factory": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
++        "implementation": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
++        "v1": "0x0179140ae024eeea5bd0228909532c2c16735b571dd133781c37eee1bcf32a72",
++        "v2": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b"
++      },
++      "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
++      "book": {
++        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
++        "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
++      },
++      "implementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
++      "admin": {
++        "balance": "849299602426672",
++        "nonce": 1145,
++        "pending": 1145
++      },
++      "bookOwnership": "single-step (setOwner); no pendingOwner getter"
++    }
++  },
++  "activate": {
++    "ready": true,
++    "value": {
++      "format": "enclave-book-session-factory-activation/v1",
++      "status": "prepared; wallet approval required; nothing sent",
++      "purpose": "Set the original address book's sessionVaultFactory entry to the original SessionVault factory",
++      "preparedAt": "2026-10-23T21:08:05.413Z",
++      "expiresAt": "2026-10-23T21:09:58.917Z",
++      "transaction": {
++        "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++        "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
++        "chainId": "0x2105",
++        "type": "0x2",
++        "nonce": "0x479",
++        "data": "0xba44593c73657373696f6e5661756c74466163746f7279000000000000000000000000000000000000000000000000001f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
++        "value": "0x0",
++        "gas": "0x1cdbc",
++        "maxFeePerGas": "0xa7d8c0",
++        "maxPriorityFeePerGas": "0xf4240"
++      },
++      "anchor": {
++        "blockNumber": "53000163",
++        "blockHash": "0xdd1fa2080a1780b2828cf2d7f40477ed2f16ba07e934f045cc72666871e85924"
++      },
++      "observed": {
++        "book": {
++          "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++          "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
++          "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
++        },
++        "implementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
++        "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
++        "administratorBalanceWei": "849299602426672"
++      },
++      "impact": {
++        "ledgerIds": 98,
++        "distinctOwners": 9,
++        "resolvedToAdministrator": [
++          {
++            "id": "0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9",
++            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
++          },
++          {
++            "id": "0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640",
++            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
++          },
++          {
++            "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
++          },
++          {
++            "id": "0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538",
++            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
++            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
++          }
++        ],
++        "existingPolicies": [
++          {
++            "vault": "v1",
++            "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++            "owner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++            "policyRev": "1",
++            "effect": "unchanged"
++          },
++          {
++            "vault": "v2",
++            "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++            "owner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++            "policyRev": "2",
++            "effect": "unchanged"
++          }
++        ],
++        "stranded": 0
++      },
++      "simulatedGasUsed": "98503",
++      "feeBound": {
++        "l2MaxWei": "1300244000000",
++        "l1DataUpperBoundWei": "673142698",
++        "totalExcludingOperatorFeeWei": "1300917142698",
++        "encodedBytes": {
++          "unsigned": 114,
++          "signedMax": 181,
++          "oracleArgument": 114,
++          "oracleSignatureAllowance": 68
++        },
++        "note": "L2 cap (gas x maxFeePerGas) plus GasPriceOracle.getL1FeeUpperBound for the maximum signed size. Not an all-fee cap: any OP-stack operator fee is not included; MetaMask shows the total."
++      },
++      "notice": "Sets a SHARED resolution rule: both original custody vaults and every unpinned consumer of this book key resolve a deployment held by a SessionVault of this factory to the vault's owner wallet. A simple unset is NOT a safe rollback once policies exist for such deployments."
++    }
++  }
++}
+diff --git a/test/activation.test.mjs b/test/activation.test.mjs
+index 46ef41c76cd0e12c852ed91a435ead2b8b756423..66f25e8ddcf0819b2e121ce87fa53f852b480c2d 100644
+--- a/test/activation.test.mjs
++++ b/test/activation.test.mjs
+@@ -287,3 +287,19 @@
+   assert.equal(effectOf({ before: PRODUCTION.sessionVault, after: PRODUCTION.admin, policy: { owner: PRODUCTION.sessionVault, policyRev: "1" } }), "STRANDED");
+   assert.equal(effectOf({ before: PRODUCTION.sessionVault, after: PRODUCTION.admin, policy: { owner: ZERO, policyRev: "0" } }), "no_policy_first_writer_changes");
+ });
++
++
++test("full 98-id impact read fits deployless EIP-170 limit; old 120-call batch fails", T, async (t) => {
++  const w = await world(t);
++  w.base.edit(s => {
++    while (s.ledger.ids.length < 98) {
++      const id = "0x" + BigInt(10000 + s.ledger.ids.length).toString(16).padStart(64, "0");
++      s.ledger.ids.push(id); s.ledger.owner[id] = EOA.other;
++    }
++  });
++  w.base.mine(3);
++  const old = { ...w.trust, caps: { ...w.trust.caps, batch: 120 } };
++  await assert.rejects(() => prepare({trust:old,clients:w.clients}), /CreateContractSizeLimit/);
++  const prepared = await prepare({trust:w.trust,clients:w.clients});
++  assert.ok(prepared);
++});
+diff --git a/test/fake-base.mjs b/test/fake-base.mjs
+index af8ea4f30bff85b9ecd9f1693540da78acf066e2..3229905ef9e816b791b86e3afff57768e219f799 100644
+--- a/test/fake-base.mjs
++++ b/test/fake-base.mjs
+@@ -123,7 +123,11 @@
+     if (lc(code) !== lc(multicall3Bytecode)) throw revert("unexpected deployless code");
+     const { args: [calls] } = decodeFunctionData({ abi: MC_ABI, data: inner });
+     const results = calls.map((c) => { try { return { success: true, returnData: this.exec(structuredClone(s), { from: ZERO, to: c.target, data: c.callData }).output }; } catch { return { success: false, returnData: "0x" }; } });
+-    return { output: encodeFunctionResult({ abi: MC_ABI, functionName: "aggregate3", result: results }), gasUsed: 1_000_000n, logs: [] };
++    const output = encodeFunctionResult({ abi: MC_ABI, functionName: "aggregate3", result: results });
++    // This constructor returns call results as deployed code. EIP-170 still limits that return to 24 KiB,
++    // including in eth_call; root observed CreateContractSizeLimit on the live 98-id policy inventory.
++    if ((output.length - 2) / 2 > 24576) throw revert("CreateContractSizeLimit");
++    return { output, gasUsed: 1_000_000n, logs: [] };
+   }
+   #log(name, args) {
+     const ev = BOOK_ABI.find((x) => x.type === "event" && x.name === name);
+diff --git a/trust.mjs b/trust.mjs
+index 8053daf68ec4461d3ed31dc0ddc8b5cd04818a9d..3d02af8f81d3d1e519923a85e8cec841d75e05d2 100644
+--- a/trust.mjs
++++ b/trust.mjs
+@@ -39,7 +39,7 @@
+     maxFeePerGas: 100_000_000n,   // 0.1 gwei (Base base fee was 0.005 gwei)
+     setGas: 120_000n,             // book.set gas limit cap (limit = estimate * 1.2)
+     maxLedgerIds: 2000,           // the exhaustive impact read refuses a ledger larger than this (bounded work)
+-    batch: 120,                   // calls per batched read
++    batch: 32,                    // deployless return data must fit the EVM 24 KiB deployed-code limit; 120 policy returns exceeded it live
+   }),
+   confirmations: 2n,
+   maxAgeMs: 120_000,

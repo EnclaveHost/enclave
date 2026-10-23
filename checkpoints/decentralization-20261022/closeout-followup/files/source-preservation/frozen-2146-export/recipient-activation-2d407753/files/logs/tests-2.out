@@ -1,0 +1,25 @@
+[queue] START available=23807MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+test_additive_in_installed_order (test_activation.Admission.test_additive_in_installed_order) ... ok
+test_refusals (test_activation.Admission.test_refusals) ... ok
+test_baseline_must_equal_root_record (test_activation.Preconditions.test_baseline_must_equal_root_record) ... ok
+test_preflight (test_activation.Preconditions.test_preflight) ... ok
+test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
+test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
+test_cas_failed_restart_restores_previous_bytes (test_activation.RemoteScripts.test_cas_failed_restart_restores_previous_bytes) ... ok
+test_cas_refuses_changed_env_dropin_or_existing_backup (test_activation.RemoteScripts.test_cas_refuses_changed_env_dropin_or_existing_backup) ... ok
+test_cas_success_writes_backup_and_restarts (test_activation.RemoteScripts.test_cas_success_writes_backup_and_restarts) ... ok
+test_read_reports_hashes_and_body (test_activation.RemoteScripts.test_read_reports_hashes_and_body) ... ok
+test_restore_is_cas_on_both_versions (test_activation.RemoteScripts.test_restore_is_cas_on_both_versions) ... ok
+test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
+test_refuses_missing_duplicate_or_ambiguous (test_activation.RewriteDist.test_refuses_missing_duplicate_or_ambiguous) ... ok
+test_refuses_concurrent_config_or_dropin_change (test_activation.SafeRollback.test_refuses_concurrent_config_or_dropin_change) ... ok
+test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
+test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.290s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=23763
+[memory-guard] at peak: python3:28
+[queue] EXIT 0

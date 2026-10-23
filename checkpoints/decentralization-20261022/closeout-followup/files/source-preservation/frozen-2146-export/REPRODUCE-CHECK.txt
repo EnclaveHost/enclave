@@ -1,0 +1,36 @@
+custody-live5 base rebuilt from empty + 7 stored patch(es) in f2e7009eb: tree 986d5fbda68a3a04b13c020a75145833d1a836df OK
+custody-live5 1c8403e85: tree 78e2f443fa94e82d0843fd77bbdf476ea53737a5 OK
+custody-live5 570947d44: tree 9f672783a5cb2c62187d76fc00dc915632232ae0 OK
+custody-live5 1535fcf0a: tree 0ec5226afb9658b715da1de0c19eff5472e1e7b2 OK
+factory-wallet2 base rebuilt from empty + 2 stored patch(es) in f2e7009eb: tree 249513e46c2ad2e4c0eae7001724526993819a84 OK
+factory-wallet2 7f11fbf3d: tree 80f197ef9afbcf6575388969e6d216744b8fe54d OK
+factory-wallet2 99cf7f164: tree 1f80f518afb5f2428869035786de2f439ffb085c OK
+factory-wallet2 9557ad6d3: tree daf03b1e7d7d2e8c1b8593cd27cd36dff0328953 OK
+production-canary2 base rebuilt from empty + 1 stored patch(es) in f2e7009eb: tree 9b5a7493e015b0d64b44af46a9fe4b3e6f147088 OK
+production-canary2 c4d96a11b: tree 31ee97b8d9c18437cc7ae580f65d628442b11a3d OK
+production-canary2 cb06e87bb: tree 750abd3b5b3f70481b8182d2200aa18717847194 OK
+production-canary2 49fb0a6c3: tree e99ba1022a655514f69b07fc85f368a08f12a5bd OK
+production-canary2 01525201f: tree b9184661fae368f4972baa12fccb04f99614a502 OK
+operator-fees base rebuilt from empty + 0 stored patch(es) in f2e7009eb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+operator-fees f2a7b81ed: tree c02f94f9c3be6b8896bd564c62f6248c30370963 OK
+operator-fees 1ac9ad2cb: tree e6a98714f2748afa812bb53155c46a1cf6401360 OK
+operator-fees 7bf4c942e: tree 2e348c05320bcc0c807c3d56e34ee413d6a66d6c OK
+recipient-restore base rebuilt from empty + 0 stored patch(es) in f2e7009eb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+recipient-restore b03be02d7: tree 9c26fc2cd862092fe44a5b2fe18e4066a6d61d01 OK
+recipient-restore-repo base file metal/guest/gsup.mjs: blob dd8a2ac2b OK
+recipient-restore-repo a6b1378cd: 3 touched path blobs OK
+recipient-restore-repo: full tree d155f20ea on base deabf8f90 NOT reproduced (base not in pushed material; see baseTreeNotReproduced)
+recipient-activation base rebuilt from empty + 0 stored patch(es) in f2e7009eb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+recipient-activation 7426b2998: tree 8cb3a0c7330f20be9a6b970a143195ae79c29f39 OK
+recipient-activation 2c5d9b5a0: tree bd8fbbad4be10533dbbbc467bd7801e8c079c086 OK
+recipient-activation 2d4077530: tree 6424dd932e56c0051be92f40b22cb324336a045d OK
+proof-app base rebuilt from empty + 0 stored patch(es) in f2e7009eb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+proof-app e84a1afd1: tree 71f91f097ec92ba1c5031c8123e03be15d478064 OK
+publish-readiness base rebuilt from empty + 0 stored patch(es) in f2e7009eb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+publish-readiness f0efadbd8: tree 048c987f2fd1c0126988eec5ba41acd71031d71c OK
+publish-readiness 90a2b826d: tree 0bc4e7e38f3faa63f2ac3bcf0a7e5bf3b1a3e012 OK
+code-admission base rebuilt from empty + 0 stored patch(es) in f2e7009eb: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+code-admission 8578965c0: tree 4d4cf1ee19044f9dc53b22cbe1fd40c90ee5ca23 OK
+code-admission converted tools/compile.mjs reversed: blob e1013051d OK (original bytes)
+code-admission ORIGINAL head tree with the converted file reversed: 749a99e355025cb0155f7760a88a7f7a6f3cb1a0 OK (exact)
+RESULT custody-live5 reproduced: True, factory-wallet2 reproduced: True, production-canary2 reproduced: True, operator-fees reproduced: True, recipient-restore reproduced: True, recipient-restore-repo reproduced: True (touched files only), recipient-activation reproduced: True, proof-app reproduced: True, publish-readiness reproduced: True, code-admission reproduced: True

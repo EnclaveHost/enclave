@@ -1,0 +1,5 @@
+# Reproducible paths in the component (no home or checkout path embedded).
+[build]
+rustflags = ["--remap-path-prefix=/home/steven/.cargo/registry/src=/cargo/registry/src",
+             "--remap-path-prefix=/home/steven/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust=/rustc/84b36a78a28a63f134171c670be1932ffa2485f8",
+             "--remap-path-prefix=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-proof-app-20261023=/src"]

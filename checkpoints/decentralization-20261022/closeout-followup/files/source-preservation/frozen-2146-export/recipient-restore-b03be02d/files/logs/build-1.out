@@ -1,0 +1,27 @@
+[queue] START available=24195MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+2026-10-23T21:05:38Z
+== 1. control: deabf8f90 rebuilt from this repo
+{"sha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3", "bytes": 279389821}
+CONTROL-IDENTICAL initramfs.cpio.gz
+CONTROL-IDENTICAL vmlinuz
+CONTROL-IDENTICAL cmdline
+CONTROL-IDENTICAL manifest.json
+== 2. candidate: a6b1378cdf430217025987d90c040d0e25a9993d
+{"sha256": "5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de", "bytes": 279389920}
+== 3. entry-by-entry vs production
+{"entriesA": 29063, "entriesB": 29063, "differing": ["opt/metal/gsup.mjs", "opt/metal/manifest.json"]}
+ENTRY-DELTA-EXACT: only opt/metal/gsup.mjs and opt/metal/manifest.json differ
+IMAGE-GSUP-IS-SOURCE
+MANIFEST-DELTA-EXACT: controlOverlay.commit, the gsup record and the initramfs record
+== 4. measurement
+MEASURE-RECIPE-REPRODUCES-PRODUCTION ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2
+MEASURE-CANDIDATE ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec
+5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/initramfs.cpio.gz
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/vmlinuz
+d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/cmdline
+3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/manifest.json
+d99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/MEASUREMENT
+2026-10-23T21:08:28Z
+[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=22059
+[memory-guard] at peak: sev-snp-measure:295 bash:6
+[queue] EXIT 0

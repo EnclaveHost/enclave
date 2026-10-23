@@ -1,0 +1,9 @@
+2026-10-23T21:12:15Z operator proposer fee correction (ROOT-FEE-FOLLOWUP), source only, from 1ac9ad2. No live chain, key,
+signing, funding or delegation change; caps unchanged.
+- L1 size from the real nonce plus the maximum signed encoding; oracle argument max(unsigned, signedMax-68); undercount
+  refused.
+- Operator fee from GasPriceOracle.getOperatorFee(gas limit) when isIsthmus(); undetermined -> refuse (plan and send).
+- fees.totalAtBlockWei replaces the misleading all-fee totalMaxWei.
+- Tests 17/17 (256 lane), incl. unchanged journal and unknown-outcome tests.
+- Mutants: nonce-0 sizing, no operator fee in the total, undetermined-as-zero -> all fail the suite.
+- Existing blocker unchanged: operator balance insufficient (root funding is separate).

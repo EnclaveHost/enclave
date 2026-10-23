@@ -1,0 +1,465 @@
+From cb06e87bbc783098142faf0e480b606eeeca6e63 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:18:16 -0700
+Subject: [PATCH] Sender L1 size from the exact transaction (real nonce, signed
+ maximum, 68-byte coverage); operator fee requires Isthmus; bounds labelled
+ at-block; CLI allowance and budget-shortfall caveats
+
+---
+ README.md            | 79 ++++++++++++++++++++++++++++++------------
+ driver/assert.mjs    |  2 +-
+ driver/cli.mjs       |  8 +++--
+ driver/sender.mjs    | 82 +++++++++++++++++++++++++++++---------------
+ test/assert.test.mjs |  2 +-
+ test/mutants.sh      |  7 ++--
+ test/sender.test.mjs | 39 +++++++++++++++++----
+ 7 files changed, 156 insertions(+), 63 deletions(-)
+
+diff --git a/README.md b/README.md
+index 032315ea0ccd7c1203ff3f7bca362afdd7821d0a..fa58d94a9d704184059359daa7b67907011fbfeb 100644
+--- a/README.md
++++ b/README.md
+@@ -23,12 +23,23 @@
+    - **Per-update worst case** = gas × maxFee + **Base L1 data fee** + **operator fee**.
+      - Gas = max estimate of both RPCs × 1.25, at most the step cap.
+      - maxFee = 2 × base + max tip, at most the fee cap.
+-     - L1 data fee = `GasPriceOracle.getL1FeeUpperBound(unsigned size)`, the same reviewed accounting as
+-       `custody-operator-proposal` `proposer.mjs`. The oracle adds the signature bytes.
+-     - Operator fee = `GasPriceOracle.getOperatorFee(gas)` when `isIsthmus()` is true, and 0 only when the chain says it
+-       is pre-Isthmus.
+-   - **Refusals.** If either oracle read fails, or either bound exceeds its pinned allowance (`fees.l1FeeWei`,
+-     `fees.operatorFeeWei`), the step REFUSES (`fee_unbounded`). Unaccounted cost is never allowed.
++     - L1 data fee = `GasPriceOracle.getL1FeeUpperBound(argument)` (signed-size correction, ROOT-SIGNED-SIZE; the same
++       as `custody-operator-fees-20261023` 7bf4c94).
++       - The size is computed from the EXACT transaction: its real nonce at prepare (and again at send), gas, fees and
++         calldata.
++       - `argument = max(unsigned, signedMax − 68)`, where `signedMax` is the encoding with yParity 1 and r = s = 2^256−1.
++         The oracle adds its own 68 bytes, so its size covers the largest signed form.
++       - A smaller argument refuses (`l1_size`).
++       - The first version sized a nonce-0 transaction. That undercounts as soon as the real nonce needs more RLP bytes.
++       - Prepare records `encodedBytes` (unsigned, signedMax, oracle argument, 68).
++     - Operator fee = `GasPriceOracle.getOperatorFee(gas limit)`, and `isIsthmus()` MUST be true.
++       - Not Isthmus, a revert, or an RPC disagreement means the fee is undetermined, and the plan AND the send refuse
++         (`operator_fee`). There is no zero claim.
++       - `S0.chain`'s `fees.bounded` likewise requires Isthmus.
++   - **These are bounds at the agreed block's oracle parameters, not a timeless guarantee.** L1 fee inputs and
++     operator-fee parameters can change before inclusion. `send` re-reads them fresh and refuses if they no longer fit.
++   - **Refusals.** If an oracle read fails, or a bound exceeds its pinned allowance (`fees.l1FeeWei`,
++     `fees.operatorFeeWei`), the step REFUSES. Unaccounted cost is never allowed.
+    - **Aggregate budget, plan level.** It covers every enabled spending step:
+      - the custody updates;
+      - the CLI deployment creates, lease-gas configure + deposit (deposit value included) and stops;
+@@ -38,8 +49,15 @@
+    - **Aggregate budget, run level.** A spend is allowed only while spent (from receipts, conservative) + this worst case
+      + the cleanup stops still owed ≤ `budget.totalWei`, AND the agreed balance covers this worst case plus that reserve.
+      `S0.chain` requires the owner's balance to back the whole `budget.totalWei`.
+-   - **CLI steps.** They are gated before running (`gate`) and costed afterwards from both RPCs' receipts (`record`):
+-     gasUsed × effectiveGasPrice + l1Fee + value + the operator-fee allowance.
++   - **CLI steps: the allowance is NOT enforced on the CLI's own transactions.**
++     - The existing CLI (deploy, lease-gas, stop) builds and sends its own requests.
++     - The driver can only check the budget before (`gate`) and cost the receipts afterwards (`record`: gasUsed ×
++       effectiveGasPrice + l1Fee + value + the operator-fee allowance). A step over its allowance FAILS the run, but only
++       after the money is spent.
++     - Root must therefore review and cap each actual CLI request before sending it manually: gas limit, fee fields, value
++       and target. For example, use `lease-gas` unsigned/handoff output, and `deploy --chain-only` with explicit
++       `--max-rate`/`--fund`.
++     - A budget constant plus after-the-fact receipts is NOT a readiness claim for those steps.
+    - **Numbers.** The owner holds 61654449641751 wei (19:59Z) and 189740 USDC units. With the example caps:
+ 
+      | | worst case | fits `budget.totalWei` 5.5e13? |
+@@ -48,7 +66,12 @@
+      | profile A: everything except migration (the example's `cases.disabled: ["migration"]`) | 4.73e13 wei | yes (cleanup reserve 1.5e12 included) |
+      | migration alone, run separately later with its own pins | ~3.3e13 + its share of fees | — |
+ 
+-     No recharge is requested. If root wants both in one run, that is a budget decision, not a driver change.
++     **Shortfall retained.**
++     - The full requested matrix (8.01e13 wei worst case) does NOT fit the 6.165e13 wei balance.
++     - The migration-disabled example is a budget-fitting profile, NOT completion of the requested lifecycle. Migration,
++       old-copy clear and migration rotation stay untested until root funds them or runs them in a separate, separately
++       budgeted plan.
++     - No recharge is requested here.
+ 2. **Durable intent before broadcast; ambiguous outcomes never re-signed.** `sender.mjs` is the reviewed operator-helper
+    pattern narrowed to one custody update. It is not a general engine.
+    - It uses exactly two RPCs (`sendRpcs`), one agreed block, the vault code hash, and a settled nonce (agreed =
+@@ -80,7 +103,9 @@
+    - I did not find an approved per-app-tier app that exposes a value-derived output. I did not audit the whole catalog:
+      on Sep-24 hello-world was the only approved wasi:http app for the tier.
+    - `CANARY-APP-PLAN.md` specifies a narrowly scoped HASH-ONLY canary app (an HMAC over a client challenge, never the
+-     value or a reflection endpoint). It is a plan only: not built, deployed or published.
++     value or a reflection endpoint).
++     - It is a plan only: not built, deployed or published.
++     - It is FROZEN as of c4d96a11: M builds the proof app separately, and this repo does not change the plan.
+ 5. **gitleaks ignore scope.**
+    - `.gitleaksignore` holds ONE fingerprint, `pins.example.json:generic-api-key:45`: that file, that rule, that line.
+      The line is the PUBLIC sha256 of `relay/secrets.js` at repo-r2 `ab589bf8`, and `test/plan.test.mjs` re-hashes every
+@@ -208,8 +233,10 @@
+     aggregate gate, and the sender's priced plan. It writes `private/<label>/prepared-<step>.json` (0600) and prints the
+     prepared hash.
+   - `execute` re-checks all of it and sends through `sender.mjs` (§0.2).
+-- **CLI spending steps.** Run `gate --step` before running the CLI. Afterwards, `record --obs {txHashes, [deploymentId],
+-  [usdcUnits]}` costs the receipts from both RPCs. Over the allowance or the aggregate is a `fail`, which stops the run.
++- **CLI spending steps.**
++  - `gate --step` runs before the CLI, and `record --obs {txHashes, [deploymentId], [usdcUnits]}` costs the receipts
++    from both RPCs afterwards. Over the allowance or the aggregate is a `fail`, which stops the run.
++  - The driver does NOT cap the CLI's actual requests: root reviews and caps each one before sending it (§0.1).
+ - **Relay and record steps** need `--confirm <step hash>`. Hardware and operator observations are judged only from the
+   real front and custodian log lines, filtered to the canary id.
+ - **Secrets.**
+@@ -274,13 +301,15 @@
+   regexes follow repo-r2. A mismatch FAILS the step.
+ - **Untested against live endpoints.**
+   - The live adapters in `cli.mjs` are thin and are not tested against live endpoints.
+-  - `sender.mjs` and `receiptCosts` are tested against a two-RPC fake Base. Only the oracle selectors/ABI
+-    (`getL1FeeUpperBound`, `isIsthmus`, `getOperatorFee`) are taken from the OP-stack GasPriceOracle interface. If the
+-    live oracle lacks one of them, the read fails and the step refuses: it never proceeds unbounded.
++  - `sender.mjs` and `receiptCosts` are tested against a two-RPC fake Base, whose oracle answers whatever the test sets.
++    - A fake oracle that passes is NOT production evidence of the live fee values.
++    - The tests prove the sizing (real nonce, signed maximum, the 68-byte coverage), the refusals and the arithmetic only.
++    - The oracle ABI (`getL1FeeUpperBound`, `isIsthmus`, `getOperatorFee`) is the OP-stack GasPriceOracle interface.
++      If the live oracle lacks one of them, the read fails and the step refuses: it never proceeds unbounded.
+   - The receipt cost adds the operator-fee ALLOWANCE (not the receipt's own operator fee fields), so the ledger can
+     over-count but never under-count.
+-- **The CLI's own transactions are not bounded by the driver.** They are gated before, costed after, and stop the run
+-  when over.
++- **The CLI's own transactions are not bounded by the driver.** They are gated before and costed after; the run stops
++  when one is over. Root must review and cap each actual request before sending it.
+ - **This is no evidence of decentralized custody.** The custody here is n = 1, t = 1, one chip and one operator.
+ 
+ ## 7. Tests (queued, `q.sh`, 256 MiB lane; no network, chain, keys or VMs)
+@@ -289,13 +318,16 @@
+ - syntax checks;
+ - the pinned `update` selector and the example budget;
+ - all suites (`core`, `plan`, `prepare`, `net`, `assert`, `sender`, `limitations`, `cli`);
+-- 12 mutation controls (`test/mutants.sh`). Each disables one guard in a temp copy and the suite must fail:
++- 14 mutation controls (`test/mutants.sh`). Each disables one guard in a temp copy and the suite must fail:
+   - the calldata id check;
+   - SYNTHETIC acceptance;
+   - the protected-policy constant;
+   - the rollback pass;
+   - the sender's balance + reserve gate;
+   - the operator fee omitted;
++  - L1 sizing with nonce 0;
++  - L1 sizing below the signed maximum;
++  - an undetermined operator fee treated as zero;
+   - broadcast before the durable intent;
+   - the cleanup reserve forgotten;
+   - the aggregate budget ignored;
+@@ -304,14 +336,17 @@
+ - gitleaks;
+ - the source repo's crypto-key scanner on the staged tree.
+ 
+-**Result.** Queue job c9 (final staged tree, docs included), 256 MiB lane: EXIT 0, peak 189 MiB. c8 matched it.
+-- Tests: 44 pass, 0 fail, 1 TODO. The TODO is the rollback property, which fails as expected.
+-- Mutation controls: 12/12 killed.
++**Result.** Queue job c11, 256 MiB lane: EXIT 0, peak 190 MiB.
++- Tests: 45 pass, 0 fail, 1 TODO. The TODO is the rollback property, which fails as expected.
++- Mutation controls: 14/14 killed.
+ - gitleaks: no leaks. Crypto-key scan: clean.
+-- Example budget: profile A worst case 4.73e13 wei, which fits 5.5e13. Update selector: `0xe4373411`.
++- Example budget: profile A worst case 4.73e13 wei, which fits 5.5e13. That profile is not completion of the matrix
++  (§0.1). Update selector: `0xe4373411`.
+ 
+ **Earlier runs.**
+ - c7 had 7 failures: `fees.bounded` was not yet observable, and a step count assumed every case was enabled. Both were
+   fixed in c8.
++- c10 failed only because two mutant patterns still named the pre-rename `totalMaxWei`. Fixed in c11.
++- Correction: the c9 handoff said 12/12 mutants. It was 11/11; the count had included the helper's definition line.
+ - The first handoff (7bcd501f) used a gas × fee-only cost cap, a post-receipt-only journal and a line-46 gitleaks
+   fingerprint. All three are superseded by §0.
+diff --git a/driver/assert.mjs b/driver/assert.mjs
+index 24a0068769060ed44ab06fa9693fb30af3047d91..3f5283ef913373ab4e5bd5446289daecd7921711 100644
+--- a/driver/assert.mjs
++++ b/driver/assert.mjs
+@@ -92,7 +92,7 @@
+     `balance ${facts.ownerBalanceWei} must back the whole aggregate budget ${pins.budget.totalWei} (plan worst case ${budget.worstCaseWei})`);
+   const f = facts.fees || {};
+   const feeOk = /^[0-9]+$/.test(String(f.l1UpperBoundWei)) && BigInt(f.l1UpperBoundWei) <= BigInt(pins.fees.l1FeeWei)
+-    && typeof f.isthmus === "boolean" && /^[0-9]+$/.test(String(f.operatorFeeWei)) && BigInt(f.operatorFeeWei) <= BigInt(pins.fees.operatorFeeWei)
++    && f.isthmus === true && /^[0-9]+$/.test(String(f.operatorFeeWei)) && BigInt(f.operatorFeeWei) <= BigInt(pins.fees.operatorFeeWei)
+     && /^[0-9]+$/.test(String(f.baseFeeWei)) && /^[0-9]+$/.test(String(f.tipWei)) && 2n * BigInt(f.baseFeeWei) + BigInt(f.tipWei) <= BigInt(pins.fees.maxFeePerGasWei);
+   set("fees.bounded", feeOk, `L1 bound ${f.l1UpperBoundWei} (size ${f.referenceSize}) <= ${pins.fees.l1FeeWei}; operator fee ${f.operatorFeeWei} (isthmus ${f.isthmus}) <= ${pins.fees.operatorFeeWei}; 2*base ${f.baseFeeWei} + tip ${f.tipWei} <= ${pins.fees.maxFeePerGasWei}`);
+   return obs;
+diff --git a/driver/cli.mjs b/driver/cli.mjs
+index 241b81ddb00541f8ed051d56692a0a2c23cb9332..7f8cbe64c8bdcc568d2c1f608fafaa0a395828ae 100644
+--- a/driver/cli.mjs
++++ b/driver/cli.mjs
+@@ -120,7 +120,8 @@
+   return { reader, pub, agreedScalar };
+ }
+ 
+-// the GasPriceOracle bounds at an agreed block (every RPC must answer the same), and the worst current base fee / tip
++// the GasPriceOracle bounds at an agreed block (every RPC must answer the same), and the worst current base fee / tip.
++// A PRE-CHECK at a pinned reference size only: every update is re-sized from its exact signed maximum at prepare/send.
+ async function feeFacts(pins, client, plan) {
+   const { pub, agreedScalar } = await chainOf(pins, client);
+   const ORACLE_ABI = [{ type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
+@@ -133,7 +134,8 @@
+   const blocks = await Promise.all(pub.map((c) => c.getBlock({ blockTag: "latest" })));
+   const tips = await Promise.all(pub.map((c) => c.request({ method: "eth_maxPriorityFeePerGas" }).then(BigInt)));
+   return { referenceSize: String(referenceSize), l1UpperBoundWei: String(await rd("getL1FeeUpperBound", [referenceSize])), isthmus,
+-    operatorFeeWei: String(isthmus ? await rd("getOperatorFee", [maxGas]) : 0n), operatorFeeAtGas: String(maxGas),
++    // not Isthmus = the operator fee is UNDETERMINED (no zero claim): fees.bounded then fails
++    operatorFeeWei: isthmus === true ? String(await rd("getOperatorFee", [maxGas])) : "undetermined", operatorFeeAtGas: String(maxGas),
+     baseFeeWei: String(blocks.map((b) => b.baseFeePerGas).reduce((a, x) => (x > a ? x : a), 0n)), tipWei: String(tips.reduce((a, x) => (x > a ? x : a), 0n)) };
+ }
+ 
+@@ -270,7 +272,7 @@
+       const sendPlan = await sender.prepare({ stepId: step.id, stepHash: step.stepHash, from: tx.from, data: tx.data, caps, budget: b });
+       if (fs.existsSync(file)) fs.renameSync(file, `${file}.superseded-${Date.now()}`);   // only unsigned plans are ever superseded
+       writePrivate(st.priv, path.basename(file), { calldata: prepared, data: tx.data, sendPlan });
+-      return out({ step: step.id, preparedHash: sendPlan.preparedHash, summary: prepared.summary, tx: sendPlan.tx, worstCaseWei: sendPlan.observed.totalMaxWei,
++      return out({ step: step.id, preparedHash: sendPlan.preparedHash, summary: prepared.summary, tx: sendPlan.tx, worstCaseWei: sendPlan.observed.totalAtBlockWei,
+         l1FeeUpperBoundWei: sendPlan.observed.l1FeeUpperBoundWei, operatorFeeBoundWei: sendPlan.observed.operatorFeeBoundWei, budget: b.gate,
+         next: `node driver/cli.mjs execute --pins <pins> --step ${step.id} --confirm ${sendPlan.preparedHash}` });
+     }
+diff --git a/driver/sender.mjs b/driver/sender.mjs
+index ca42b24878bb2522d24dea52aae0563a457c1a5e..54a9e50c012931f28602476c165afab02f8b8b1c 100644
+--- a/driver/sender.mjs
++++ b/driver/sender.mjs
+@@ -4,11 +4,17 @@
+ //   - exactly two distinct RPCs; every chain fact must agree at ONE block both serve; an RPC error is an error;
+ //   - the target's runtime code hash must be the pinned vault's; nonce latest == pending == agreed on both RPCs;
+ //   - gas = max estimate x 1.25 <= the step's gas cap; maxFee = 2 x base + max tip <= the fee cap;
+-//   - Base L1 data fee = GasPriceOracle.getL1FeeUpperBound(unsigned size) (the oracle adds the signature bytes);
+-//   - Base operator fee = GasPriceOracle.getOperatorFee(gas) when isIsthmus() is true. If either read fails, or a
+-//     bound exceeds its pinned allowance, the step REFUSES: no unaccounted cost is ever allowed;
+-//   - worst case = gas x maxFee + L1 bound + operator-fee bound, checked against the step cap, the AGGREGATE canary
+-//     budget (spent so far + this + the cleanup reserve) and the live balance;
++//   - Base L1 data fee = GasPriceOracle.getL1FeeUpperBound(argument), sized from the EXACT transaction (its real nonce,
++//     gas, fees, calldata): argument = max(unsigned, signedMax - 68), where signedMax is the encoding with yParity 1 and
++//     r = s = 2^256-1, so the oracle's own +68 signature allowance covers the largest signed form (the same correction
++//     as work/custody-operator-fees-20261023 7bf4c94); a smaller argument refuses (l1_size);
++//   - Base operator fee = GasPriceOracle.getOperatorFee(gas limit), and isIsthmus() MUST be true: not Isthmus, a revert
++//     or an RPC disagreement leaves the fee undetermined, and the step REFUSES (operator_fee). A bound over its pinned
++//     allowance refuses too (fee_unbounded): no unaccounted cost is ever allowed;
++//   - totalAtBlock = gas x maxFee + L1 bound + operator fee, checked against the step cap, the AGGREGATE canary budget
++//     (spent so far + this + the cleanup reserve) and the live balance. These are bounds at the AGREED BLOCK's oracle
++//     parameters (L1 fee inputs and operator-fee parameters can change before inclusion); send re-reads them fresh.
++//     They are not a timeless guarantee;
+ //   - send re-runs every check, signs the prepared fields, and writes the signed bytes + hash to a private 0600
+ //     intent file (temp, fsync, exclusive link, dir fsync) BEFORE any broadcast; a failed write broadcasts nothing;
+ //   - an intent file blocks any second signing for that step. Unknown outcomes go through resume, which never
+@@ -26,6 +32,19 @@
+ export class Refusal extends Error { constructor(code, message) { super(message); this.code = code; } }
+ const refuse = (code, message) => { throw new Refusal(code, message); };
+ 
++export const ORACLE_SIGNATURE_ALLOWANCE = 68;   // bytes getL1FeeUpperBound adds to its (unsigned) size argument
++// Encoded sizes of the EXACT transaction: unsigned, and the MAXIMUM signed size (yParity 1, r = s = 2^256-1; type 2
++// without an access list, as signed here). `argument` is the smallest oracle argument whose size + 68 covers signedMax.
++export function txSizes(viem, tx) {
++  const unsigned = (viem.serializeTransaction(tx).length - 2) / 2;
++  const signedMax = (viem.serializeTransaction(tx, { r: "0x" + "ff".repeat(32), s: "0x" + "ff".repeat(32), yParity: 1 }).length - 2) / 2;
++  return { unsigned, signedMax, argument: Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE) };
++}
++export function assertCoversSigned({ argument, signedMax }) {
++  if (!(Number.isSafeInteger(argument) && argument + ORACLE_SIGNATURE_ALLOWANCE >= signedMax))
++    refuse("l1_size", `the L1 fee size ${argument} (+${ORACLE_SIGNATURE_ALLOWANCE} signature bytes) undercounts the signed transaction (${signedMax} bytes)`);
++}
++
+ export const httpRpc = (timeoutMs = 15_000) => async (url, method, params) => {
+   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+     signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
+@@ -80,7 +99,7 @@
+     return { blk, at, call, nonce: all[0], balance };
+   }
+   // worst-case pricing; caps: { gas, maxFeePerGas, l1FeeWei, operatorFeeWei }
+-  async function pricing(o, { from, data, caps, gasFixed = null, fees = null }) {
++  async function pricing(o, { from, data, caps, nonce, gasFixed = null, fees = null }) {
+     const P = { from, to: vault, data, value: "0x0" };
+     await o.call(vault, data, from);                                                       // the exact update simulates (reverts throw)
+     const est = (await both("eth_estimateGas", [P, hexN(o.blk.number)])).map(BigInt);
+@@ -94,19 +113,25 @@
+     if (maxFee > BigInt(caps.maxFeePerGas)) refuse("fees", `maxFeePerGas ${maxFee} exceeds the cap ${caps.maxFeePerGas}`);
+     if (prio > maxFee) refuse("fees", "priority fee above max fee");
+     if (maxFee < o.blk.baseFee + prio) refuse("fees", `the base fee ${o.blk.baseFee} no longer fits the prepared max fee: prepare again`);
+-    const size = (viem.serializeTransaction(unsignedTx({ nonce: 0, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, data })).length - 2) / 2;
+-    let l1, isthmus, opFee;
+-    try {
+-      l1 = viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound",
+-        data: await o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound", args: [BigInt(size)] })) });
+-      isthmus = viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName: "isIsthmus", data: await o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName: "isIsthmus" })) });
+-      opFee = isthmus ? viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName: "getOperatorFee",
+-        data: await o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName: "getOperatorFee", args: [gas] })) }) : 0n;
+-    } catch (e) { if (e instanceof Refusal) throw e; refuse("fee_unbounded", `the L1/operator fee bound could not be read (${String(e.message).slice(0, 120)}): no unaccounted cost is allowed`); }
++    // the L1 data fee: sized from the EXACT transaction (its real nonce), conservatively for its maximum signed encoding
++    const sizes = txSizes(viem, unsignedTx({ nonce, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, data }));
++    assertCoversSigned(sizes);
++    const oracle = (functionName, args = []) => o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName, args }))
++      .then((d) => viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName, data: d }));
++    let l1;
++    try { l1 = await oracle("getL1FeeUpperBound", [BigInt(sizes.argument)]); }
++    catch (e) { if (e instanceof Refusal) throw e; refuse("fee_unbounded", `the L1 data-fee bound could not be read (${String(e.message).slice(0, 120)}): no unaccounted cost is allowed`); }
++    // the operator fee: the oracle's own computation for the gas LIMIT (non-decreasing in gas used), or no send at all
++    let isthmus, opFee;
++    try { isthmus = await oracle("isIsthmus"); }
++    catch (e) { if (e instanceof Refusal) throw e; refuse("operator_fee", `the GasPriceOracle cannot report the operator fee (isIsthmus(): ${String(e.message).slice(0, 120)}); an undetermined fee blocks sending`); }
++    if (isthmus !== true) refuse("operator_fee", "the GasPriceOracle reports no Isthmus operator-fee support; the operator fee is undetermined and sending stays blocked");
++    try { opFee = await oracle("getOperatorFee", [gas]); }
++    catch (e) { if (e instanceof Refusal) throw e; refuse("operator_fee", `getOperatorFee(${gas}) failed (${String(e.message).slice(0, 120)}); an undetermined fee blocks sending`); }
+     if (l1 > BigInt(caps.l1FeeWei)) refuse("fee_unbounded", `L1 fee upper bound ${l1} exceeds its pinned allowance ${caps.l1FeeWei}`);
+-    if (opFee > BigInt(caps.operatorFeeWei)) refuse("fee_unbounded", `operator fee bound ${opFee} exceeds its pinned allowance ${caps.operatorFeeWei}`);
+-    const total = gas * maxFee + l1 + opFee;
+-    return { gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, estimates: est.map(String), unsignedSize: size, l1FeeUpperBound: l1, isthmus, operatorFeeBound: opFee, totalMaxWei: total };
++    if (opFee > BigInt(caps.operatorFeeWei)) refuse("fee_unbounded", `operator fee ${opFee} exceeds its pinned allowance ${caps.operatorFeeWei}`);
++    const l2 = gas * maxFee, total = l2 + l1 + opFee;
++    return { gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, estimates: est.map(String), sizes, l2MaxWei: l2, l1FeeUpperBound: l1, operatorFeeBound: opFee, totalAtBlockWei: total };
+   }
+ 
+   // ---- the intent file: one private, exclusive, fsynced record per step, written BEFORE broadcast ----
+@@ -129,15 +154,18 @@
+   async function prepare({ stepId, stepHash, from, data, caps, budget }) {
+     if (fsImpl.existsSync(intentPath(stepId))) refuse("intent", "this step already has a signed intent: use resume");
+     const o = await observe(from);
+-    const pr = await pricing(o, { from, data, caps });
+-    if (pr.totalMaxWei > BigInt(budget.remainingWei)) refuse("aggregate_budget", `worst case ${pr.totalMaxWei} wei exceeds the remaining aggregate canary budget ${budget.remainingWei} wei`);
+-    if (o.balance < pr.totalMaxWei + BigInt(budget.reserveWei)) refuse("balance", `balance ${o.balance} < worst case ${pr.totalMaxWei} + cleanup reserve ${budget.reserveWei}`);
++    const pr = await pricing(o, { from, data, caps, nonce: o.nonce });
++    if (pr.totalAtBlockWei > BigInt(budget.remainingWei)) refuse("aggregate_budget", `worst case ${pr.totalAtBlockWei} wei exceeds the remaining aggregate canary budget ${budget.remainingWei} wei`);
++    if (o.balance < pr.totalAtBlockWei + BigInt(budget.reserveWei)) refuse("balance", `balance ${o.balance} < worst case ${pr.totalAtBlockWei} + cleanup reserve ${budget.reserveWei}`);
+     const prepared = { v: 1, stepId, stepHash, preparedAt: new Date(now()).toISOString(), dataSha256: sha256(Buffer.from(data.slice(2), "hex")),
+       tx: { type: "eip1559", chainId: 8453, from: lc(from), to: vault, value: "0", nonce: o.nonce.toString(), gas: pr.gas.toString(),
+             maxFeePerGas: pr.maxFeePerGas.toString(), maxPriorityFeePerGas: pr.maxPriorityFeePerGas.toString() },
+       observed: { block: o.blk.number.toString(), blockHash: o.blk.hash, rpcs: rpcs.map((u) => new URL(u).host), balanceWei: o.balance.toString(), baseFeePerGas: o.blk.baseFee.toString(),
+-        estimates: pr.estimates, unsignedSize: pr.unsignedSize, l1FeeUpperBoundWei: pr.l1FeeUpperBound.toString(), isthmus: pr.isthmus, operatorFeeBoundWei: pr.operatorFeeBound.toString(),
+-        totalMaxWei: pr.totalMaxWei.toString(), remainingBudgetWei: String(budget.remainingWei), cleanupReserveWei: String(budget.reserveWei) } };
++        estimates: pr.estimates, l2MaxWei: pr.l2MaxWei.toString(), l1FeeUpperBoundWei: pr.l1FeeUpperBound.toString(), operatorFeeBoundWei: pr.operatorFeeBound.toString(),
++        totalAtBlockWei: pr.totalAtBlockWei.toString(),
++        encodedBytes: { unsigned: pr.sizes.unsigned, signedMax: pr.sizes.signedMax, oracleArgument: pr.sizes.argument, oracleSignatureAllowance: ORACLE_SIGNATURE_ALLOWANCE },
++        feeNote: "L2 cap + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, at the agreed block's oracle parameters; send re-reads them. Not a guarantee against later L1-fee or operator-parameter changes.",
++        remainingBudgetWei: String(budget.remainingWei), cleanupReserveWei: String(budget.reserveWei) } };
+     prepared.preparedHash = "0x" + sha256(JSON.stringify(prepared));
+     return prepared;
+   }
+@@ -152,9 +180,9 @@
+     if (now() - Date.parse(prepared.preparedAt) > C.maxPrepAgeSec * 1000) refuse("stale_prepare", "the prepared record is too old: prepare again");
+     const o = await observe(prepared.tx.from);
+     if (o.nonce.toString() !== prepared.tx.nonce) refuse("nonce", `the owner nonce moved since prepare (${prepared.tx.nonce} -> ${o.nonce})`);
+-    const pr = await pricing(o, { from: prepared.tx.from, data, caps, gasFixed: BigInt(prepared.tx.gas), fees: prepared.tx });
+-    if (pr.totalMaxWei > BigInt(budget.remainingWei)) refuse("aggregate_budget", "the worst case no longer fits the remaining aggregate budget");
+-    if (o.balance < pr.totalMaxWei + BigInt(budget.reserveWei)) refuse("balance", "the balance no longer covers the worst case plus the cleanup reserve");
++    const pr = await pricing(o, { from: prepared.tx.from, data, caps, nonce: o.nonce, gasFixed: BigInt(prepared.tx.gas), fees: prepared.tx });
++    if (pr.totalAtBlockWei > BigInt(budget.remainingWei)) refuse("aggregate_budget", "the worst case no longer fits the remaining aggregate budget");
++    if (o.balance < pr.totalAtBlockWei + BigInt(budget.reserveWei)) refuse("balance", "the balance no longer covers the worst case plus the cleanup reserve");
+     let account;
+     try { account = accounts.privateKeyToAccount(await readKey()); } catch { refuse("key", "the owner key could not be read or is malformed"); }
+     if (lc(account.address) !== prepared.tx.from) refuse("key", "the key does not belong to the pinned canary owner");
+@@ -165,7 +193,7 @@
+     const p = viem.parseTransaction(raw);
+     if (lc(p.to) !== vault || lc(p.data) !== lc(data) || (p.value || 0n) !== 0n || String(p.nonce) !== prepared.tx.nonce || p.chainId !== 8453) refuse("sign", "the signed transaction differs from the prepared one");
+     const rec = { stepId: prepared.stepId, stepHash: prepared.stepHash, preparedHash, from: prepared.tx.from, nonce: prepared.tx.nonce, txHash, raw,
+-      worstCaseWei: pr.totalMaxWei.toString(), operatorFeeBoundWei: pr.operatorFeeBound.toString(), signedAt: new Date(now()).toISOString(), status: "signed", broadcasts: [] };
++      worstCaseWei: pr.totalAtBlockWei.toString(), operatorFeeBoundWei: pr.operatorFeeBound.toString(), signedAt: new Date(now()).toISOString(), status: "signed", broadcasts: [] };
+     writeIntent(rec, { create: true });                                                      // durable BEFORE any broadcast
+     return broadcastAndVerify(rec, data);
+   }
+diff --git a/test/assert.test.mjs b/test/assert.test.mjs
+index 4661e0b95a18b5cfd08432171f487619f2044f5d..c13069a537eacb508b62eac00a6ce7dd3fe326ad 100644
+--- a/test/assert.test.mjs
++++ b/test/assert.test.mjs
+@@ -88,7 +88,7 @@
+   assert.equal(o["read.committee"].ok, false);
+   o = A.evalInventory({ facts: { ...inv, ownerBalanceWei: "54999999999999" }, pins, budget });
+   assert.equal(o["read.owner"].ok, false, "the balance must back the whole aggregate budget");
+-  for (const f of [{ l1UpperBoundWei: "300000000001" }, { operatorFeeWei: "100000000001" }, { isthmus: undefined }, { baseFeeWei: "5000000" }, { l1UpperBoundWei: undefined }])
++  for (const f of [{ l1UpperBoundWei: "300000000001" }, { operatorFeeWei: "100000000001" }, { isthmus: undefined }, { isthmus: false, operatorFeeWei: "undetermined" }, { isthmus: false }, { baseFeeWei: "5000000" }, { l1UpperBoundWei: undefined }])
+     assert.equal(A.evalInventory({ facts: { ...inv, fees: { ...fees, ...f } }, pins, budget })["fees.bounded"].ok, false, JSON.stringify(f));
+   assert.equal(A.evalProtectedUnchanged({ before: { policyRev: "2", secretRev: "2" }, after: { policyRev: "2", secretRev: "2" } }).outcome, "pass");
+   assert.equal(A.evalProtectedUnchanged({ before: { policyRev: "2" }, after: { policyRev: "3" } }).outcome, "fail");
+diff --git a/test/mutants.sh b/test/mutants.sh
+index 2f1c6f87fbb447666016006f0af997dd42ab2309..fe18cec14650785a8ffa235cd19c4df4e05dc7e8 100755
+--- a/test/mutants.sh
++++ b/test/mutants.sh
+@@ -15,9 +15,12 @@
+ mutant "release accepts SYNTHETIC roots" driver/assert.mjs 'if (oks.some((m) => m[6]))' 'if (false)' test/assert.test.mjs
+ mutant "plan forgets which policy is protected" driver/plan.mjs 'export const PROTECTED_POLICY_4E62 = "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e";' 'export const PROTECTED_POLICY_4E62 = "0x' "$(printf '%064d' 0)"'";' test/plan.test.mjs
+ mutant "rollback reported as pass" driver/assert.mjs 'return { outcome: "expected-fail"' 'return { outcome: "pass"' test/assert.test.mjs
+-mutant "sender skips the balance + reserve gate" driver/sender.mjs 'if (o.balance < pr.totalMaxWei + BigInt(budget.reserveWei)) refuse("balance", `balance' 'if (false) refuse("balance", `balance' test/sender.test.mjs
+-mutant "sender omits the operator fee" driver/sender.mjs 'const total = gas * maxFee + l1 + opFee;' 'const total = gas * maxFee + l1;' test/sender.test.mjs
++mutant "sender skips the balance + reserve gate" driver/sender.mjs 'if (o.balance < pr.totalAtBlockWei + BigInt(budget.reserveWei)) refuse("balance", `balance' 'if (false) refuse("balance", `balance' test/sender.test.mjs
++mutant "sender omits the operator fee" driver/sender.mjs 'const l2 = gas * maxFee, total = l2 + l1 + opFee;' 'const l2 = gas * maxFee, total = l2 + l1;' test/sender.test.mjs
+ mutant "sender broadcasts before the intent is durable" driver/sender.mjs '    writeIntent(rec, { create: true });                                                      // durable BEFORE any broadcast' '    setTimeout(() => writeIntent(rec, { create: true }), 0);' test/sender.test.mjs
++mutant "sender sizes the L1 fee with nonce 0" driver/sender.mjs 'unsignedTx({ nonce, gas, maxFeePerGas: maxFee' 'unsignedTx({ nonce: 0, gas, maxFeePerGas: maxFee' test/sender.test.mjs
++mutant "sender sizes the L1 fee unsigned only" driver/sender.mjs 'argument: Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE)' 'argument: unsigned - 2' test/sender.test.mjs
++mutant "sender treats an undetermined operator fee as zero" driver/sender.mjs 'if (isthmus !== true) refuse("operator_fee"' 'if (false) refuse("operator_fee"' test/sender.test.mjs
+ mutant "budget forgets the cleanup reserve" driver/budget.mjs 'const owed = steps.filter((s) => s.spend?.cleanup' 'const owed = steps.filter((s) => false' test/sender.test.mjs
+ mutant "plan ignores the aggregate budget" driver/plan.mjs 'if (!budget.fits) for' 'if (false) for' test/plan.test.mjs
+ mutant "S0.root accepts a known-lacking control image" driver/cli.mjs '!KNOWN_LACKING_CONTROL_MANIFESTS.includes(rr.controlManifestSha256)' 'true' test/cli.test.mjs
+diff --git a/test/sender.test.mjs b/test/sender.test.mjs
+index 076998e47c943341518bcca4c90b652ee6d4f132..a0b4b0f3e8648d5670398388e1990616afd09871 100644
+--- a/test/sender.test.mjs
++++ b/test/sender.test.mjs
+@@ -6,7 +6,7 @@
+ import os from "node:os";
+ import path from "node:path";
+ import { pathToFileURL } from "node:url";
+-import { createSender, receiptCosts, ORACLE } from "../driver/sender.mjs";
++import { createSender, receiptCosts, ORACLE, txSizes, assertCoversSigned, ORACLE_SIGNATURE_ALLOWANCE } from "../driver/sender.mjs";
+ import { allowanceOf, planBudget, spentOf, gate } from "../driver/budget.mjs";
+ 
+ const REPO = process.env.CANARY_CLIENT_REPO || "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2";
+@@ -23,7 +23,7 @@
+ 
+ function fakeBase() {
+   const s = { head: 1000, baseFee: 2_000_000n, tip: 1_000_000n, nonce: 5, balance: 6n * 10n ** 13n, estimate: 120_000n, l1: 50_000_000_000n, isthmus: true, opFee: 0n,
+-    revert: false, oracleFails: false, pool: [], mined: new Map(), hooks: {}, sent: [] };
++    revert: false, oracleFails: false, opFeeFails: false, l1Args: [], pool: [], mined: new Map(), hooks: {}, sent: [] };
+   const hashOf = (n) => viem.keccak256(viem.toHex(`block-${n}`));
+   const block = (n) => ({ number: viem.toHex(n), hash: hashOf(n), baseFeePerGas: viem.toHex(s.baseFee) });
+   const enc = (t, v) => viem.encodeAbiParameters([{ type: t }], [v]);
+@@ -31,9 +31,9 @@
+     if (lc(to) === VAULT) { if (s.revert) throw new Error("execution reverted: StaleRevision()"); return "0x"; }
+     if (lc(to) === ORACLE) {
+       if (s.oracleFails) throw new Error("execution reverted");
+-      if (data.startsWith(viem.toFunctionSelector("getL1FeeUpperBound(uint256)"))) return enc("uint256", s.l1);
++      if (data.startsWith(viem.toFunctionSelector("getL1FeeUpperBound(uint256)"))) { s.l1Args.push(BigInt("0x" + data.slice(10))); return enc("uint256", s.l1); }
+       if (data.startsWith(viem.toFunctionSelector("isIsthmus()"))) return enc("bool", s.isthmus);
+-      if (data.startsWith(viem.toFunctionSelector("getOperatorFee(uint256)"))) return enc("uint256", s.opFee);
++      if (data.startsWith(viem.toFunctionSelector("getOperatorFee(uint256)"))) { if (s.opFeeFails) throw new Error("execution reverted"); return enc("uint256", s.opFee); }
+     }
+     throw new Error(`fake: no contract ${to}`);
+   }
+@@ -92,12 +92,13 @@
+     const p = await prep(r);
+     assert.equal(p.tx.gas, String(150_000n));                              // 120k x 1.25
+     assert.equal(p.tx.maxFeePerGas, String(2n * 2_000_000n + 1_000_000n));
+-    assert.equal(p.observed.totalMaxWei, String(150_000n * 5_000_000n + 50_000_000_000n + 0n));
+-    assert.equal(p.observed.isthmus, true);
++    assert.equal(p.observed.totalAtBlockWei, String(150_000n * 5_000_000n + 50_000_000_000n + 0n));
++    assert.match(p.observed.feeNote, /agreed block's oracle parameters.*Not a guarantee/);
+     r.f.s.opFee = 7_000_000_000n;
+-    assert.equal((await prep(r)).observed.totalMaxWei, String(150_000n * 5_000_000n + 50_000_000_000n + 7_000_000_000n));
++    assert.equal((await prep(r)).observed.totalAtBlockWei, String(150_000n * 5_000_000n + 50_000_000_000n + 7_000_000_000n));
+     for (const [mut, code] of [
+       [(s) => { s.oracleFails = true; }, "fee_unbounded"], [(s) => { s.opFee = 200_000_000_000n; }, "fee_unbounded"], [(s) => { s.l1 = 400_000_000_000n; }, "fee_unbounded"],
++      [(s) => { s.isthmus = false; }, "operator_fee"], [(s) => { s.opFeeFails = true; }, "operator_fee"],
+       [(s) => { s.estimate = 300_000n; }, "gas"], [(s) => { s.baseFee = 6_000_000n; }, "fees"], [(s) => { s.revert = true; }, undefined],
+       [(s) => { s.balance = 1_000_000_000_000n; }, "balance"],
+     ]) {
+@@ -224,3 +225,27 @@
+   assert.equal(gate({ steps, pins: pinsB, entries: [], done, step: steps[1], balanceWei: 1n }).ok, false);
+   assert.equal(gate({ steps, pins: pinsB, entries: [], done, step: steps[5] }).ok, true);
+ });
++
++test("L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused", async () => {
++  const r = rig();
++  try {
++    r.f.s.nonce = 23759;                                   // a real nonce needing 2 RLP bytes more than 0
++    const p = await prep(r);
++    const tx = { type: "eip1559", chainId: 8453, nonce: 23759, to: VAULT, value: 0n, data: DATA, gas: BigInt(p.tx.gas), maxFeePerGas: BigInt(p.tx.maxFeePerGas), maxPriorityFeePerGas: BigInt(p.tx.maxPriorityFeePerGas) };
++    const exact = txSizes(viem, tx);
++    assert.deepEqual(p.observed.encodedBytes, { unsigned: exact.unsigned, signedMax: exact.signedMax, oracleArgument: exact.argument, oracleSignatureAllowance: 68 });
++    assert.equal(r.f.s.l1Args.at(-1), BigInt(exact.argument), "the oracle got the exact-transaction argument");
++    assert.ok(exact.argument + ORACLE_SIGNATURE_ALLOWANCE >= exact.signedMax);
++    // the old sizing (nonce 0) gives a smaller argument that no longer covers this transaction's signed maximum
++    const zero = txSizes(viem, { ...tx, nonce: 0 });
++    assert.ok(zero.argument < exact.argument);
++    assert.throws(() => assertCoversSigned({ argument: zero.argument, signedMax: exact.signedMax }), (e) => e.code === "l1_size");
++    assert.throws(() => assertCoversSigned({ argument: exact.signedMax - 69, signedMax: exact.signedMax }), (e) => e.code === "l1_size");
++    assert.doesNotThrow(() => assertCoversSigned({ argument: exact.signedMax - 68, signedMax: exact.signedMax }));
++    // send re-sizes with the nonce at send time, and an operator fee that became undetermined refuses before the key is read
++    let keyReads = 0;
++    r.f.s.isthmus = false;
++    await assert.rejects(r.sender.send({ prepared: p, data: DATA, confirm: p.preparedHash, readKey: async () => { keyReads++; return KEY; }, caps: CAPS, budget: BUDGET }), (e) => e.code === "operator_fee");
++    assert.equal(keyReads, 0); assert.equal(r.f.s.sent.length, 0);
++  } finally { r.done(); }
++});

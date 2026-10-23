@@ -1,0 +1,7 @@
+private-backup/
+__pycache__/
+tests/__pycache__/
+logs/scan-gitleaks.json
+claude-progress.txt
+claude.err
+evidence/private/

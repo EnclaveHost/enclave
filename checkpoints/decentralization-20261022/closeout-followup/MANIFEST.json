@@ -40422,6 +40422,1938 @@
       "stored": "files/source-preservation/make-frozen-2100-snapshots.py",
       "sha256": "da64314c04fd7b1d4422fcd194339c0ffd37aa48f3a39595a98d7da0c4435b93",
       "bytes": 1681
+    },
+    {
+      "label": "FROZEN 2146 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed f2e7009e material and every recorded tree reproduced (recipient-restore-repo: touched files) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, served, published or activated by this capture; NOT production completion, NOT decentralized custody",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-2146-export/INVENTORY.json",
+      "sha256": "38e37627c5d6c31259b3d9e2c157fb76962c10db2057e43e7eba9d2e00bfaacc",
+      "bytes": 97410
+    },
+    {
+      "label": "FROZEN 2146 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed f2e7009e material and every recorded tree reproduced (recipient-restore-repo: touched files) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, served, published or activated by this capture; NOT production completion, NOT decentralized custody",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-2146-export/REBUILD.md",
+      "sha256": "88b9c5827e026c40a8ba85c31346a714ab964f167b7897458ff328cca11cd8c0",
+      "bytes": 5265
+    },
+    {
+      "label": "FROZEN 2146 batch exported from Git objects (never worktrees; ignored/untracked files and uncommitted WIP never read); bases rebuilt from pushed f2e7009e material and every recorded tree reproduced (recipient-restore-repo: touched files) - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: nothing signed, sent, served, published or activated by this capture; NOT production completion, NOT decentralized custody",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-2146-export/REPRODUCE-CHECK.txt",
+      "sha256": "474b6ea62217276177becede5bec91074f794fc18f41e7f44b37b5e752f0443d",
+      "bytes": 3575
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/patches/0001-1c8403e8.patch",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/patches/0001-1c8403e8.patch",
+      "sha256": "d9e879c477c20ce253c8733058151a13c5bf2a3719a9d7d0de47dba8f80a2a49",
+      "bytes": 4830
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/patches/0002-570947d4.patch",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/patches/0002-570947d4.patch",
+      "sha256": "be6467150ed751a529a2572f9eeedf31995f4bd8cadf65760dea958a74745f44",
+      "bytes": 4667
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/patches/0003-1535fcf0.patch",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/patches/0003-1535fcf0.patch",
+      "sha256": "a080a662ab7d12cec28782e837a9576a398e6b7f49f7c2e678f3e959b6fa29bb",
+      "bytes": 18127
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/README.md",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/README.md",
+      "sha256": "ea54cedb0f207da005a8d3dfdee5bdcd2d7703e23965d8b7cd9c080b3d88882f",
+      "bytes": 15428
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/custody-code-delay.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/custody-code-delay.json",
+      "sha256": "a843ab647535074069f10aa84f13e9202f719d84a3b54f5f19df3156a1e244ed",
+      "bytes": 755
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/operator-fees-confirmed.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/operator-fees-confirmed.json",
+      "sha256": "d7ee55117e80d117e7df56a76d9cc4ae23ed20df7bb6715b55775d93ce1bae6b",
+      "bytes": 1098
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/proofkey-affordability.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/proofkey-affordability.json",
+      "sha256": "6a4035a4959fe173c100831e78aa62920aa13cfeebc66a1730612ee428389aa2",
+      "bytes": 1340
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/protected-guest-health.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/protected-guest-health.json",
+      "sha256": "07f9fd71383f3591654afc290f9004bdf3e97ffb61d36248d646ace5f2c88955",
+      "bytes": 707
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json",
+      "sha256": "54f49dc727cf711199f7116fda745a780db8bd0f8b152fc3b98d7ac68e07ef1d",
+      "bytes": 753
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json",
+      "sha256": "e64f0433dd95aaced7b4f9d6beabe38a39f533a6a12ccd0bd5ef3aeea8a5e692",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/recipient-guestd-health.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/recipient-guestd-health.json",
+      "sha256": "04172af17bc4564638bf64d6e43a71e965f7b1f616372c0df8edf3843861a0ea",
+      "bytes": 845
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/registration-affordability.json",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/evidence/registration-affordability.json",
+      "sha256": "91a4689da137cbfae3d963c28656aafb4810bc2ae434ade3b3aa48db55c6253c",
+      "bytes": 1340
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/custody-code-delay.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/custody-code-delay.mjs",
+      "sha256": "b2187faa1d11459a89ba8dee85426833616a0ad08c97dd0e859b4e198a857dcb",
+      "bytes": 1317
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/proofkey-affordability.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/proofkey-affordability.mjs",
+      "sha256": "93f2851310ccd36551c6035128b2d84cbdf21e77b2fb12ca6ee2f0f2cfc79380",
+      "bytes": 2104
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/protected-guest-health.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/protected-guest-health.mjs",
+      "sha256": "57dd1b2a33a456e3dd6ccfafe19aceb008c449bbc58a84830ffd2a00d80bb804",
+      "bytes": 854
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/recipient-guestd-health.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/recipient-guestd-health.mjs",
+      "sha256": "678c239ce014a15f0e32facb65bf9bb52b9e8ae95f7a3cc6c312c761cd66ca90",
+      "bytes": 1205
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/registration-affordability.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/registration-affordability.mjs",
+      "sha256": "6551bbcc2fbceaba3cb9671ab6addde7c897d17ef100fcf53893b24ebedd9957",
+      "bytes": 2194
+    },
+    {
+      "label": "ROOT live custody reconciliation on dc07e225: guestd release capability over the authenticated control channel, deployed code delay and corrected operator fee bounds, control-restart incident read probes and the app-funded protected lease renewal receipt; read-only evidence and public metadata, no secrets or stored signatures",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/renew-protected.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/custody-live5-1535fcf0/files/probes/renew-protected.mjs",
+      "sha256": "f8c544d8370c27cafc8cbbe61d286b1c87c1e389a93b318bb4d22da07f44891b",
+      "bytes": 3928
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/patches/0001-7f11fbf3.patch",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/patches/0001-7f11fbf3.patch",
+      "sha256": "320343b02ec584b76dfddb4ccb4aa8bc5a787dbf79fbaba662d29bd7d685bf99",
+      "bytes": 38698
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/patches/0002-99cf7f16.patch",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/patches/0002-99cf7f16.patch",
+      "sha256": "fc1f2446c06f1667b1eb151f73301952dace124c542a60af12ceb615bfece5ba",
+      "bytes": 1228
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/patches/0003-9557ad6d.patch",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/patches/0003-9557ad6d.patch",
+      "sha256": "24888d5d6d52a0f1f1cef5fbcdbedab0c00a99f74cad92fe6fc64a3cd94107f6",
+      "bytes": 11076
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/PROGRESS.txt",
+      "sha256": "70beeff9cb30f5951757ce6a6c84aa7423b9ac269faa1d2619b9f3d1bce24d55",
+      "bytes": 2192
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/README.md",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/README.md",
+      "sha256": "3007efa9a6e6e718741a276228192b5d93c721ea5e44d1bdd090e7bf042adb26",
+      "bytes": 13392
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/activation.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/activation.mjs",
+      "sha256": "943257b6ad5f7937cad92a629953d75a0ec19bcb312aaf13b31abb385cf3e13f",
+      "bytes": 30379
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/EnclaveAddressBook.abi.json",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/EnclaveAddressBook.abi.json",
+      "sha256": "4f44d26dcdbcb19130d22bdbdd873f80a0a53d3179c90900863ce51103397b92",
+      "bytes": 2710
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/EnclaveAddressBook.sol",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/EnclaveAddressBook.sol",
+      "sha256": "124aa407863e2213d8ef700e6e9492e9112b7a8e1ce50fc10f324b781173ac9a",
+      "bytes": 3107
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/PROVENANCE.md",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/PROVENANCE.md",
+      "sha256": "519915442515742ed813394c7a36846ba55787d1b406bf75cdd2606e5af2985f",
+      "bytes": 1315
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/reproduce.cjs",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/reproduce.cjs",
+      "sha256": "c35060764dc5c17e5a57f1b87c61d7053ac915b3fe79a5797ec27dbd85b459be",
+      "bytes": 1606
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/runtime.hex",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/book-legacy/runtime.hex",
+      "sha256": "e37c549701943dfb3320d4fa3f59082695b782d2496c127a71bec1ea93f5dbdf",
+      "bytes": 3621
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/root-live-preflight-20261023.json",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/evidence/root-live-preflight-20261023.json",
+      "sha256": "dae31c3afff465d0e03d99fff683978313aa28318560ed76555a3d00a7dea442",
+      "bytes": 5677
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/test/activation.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/test/activation.test.mjs",
+      "sha256": "f91d44d0434d130b10e4bdb0c6937ab87121bd26a590ae7961c314c472f0ad4a",
+      "bytes": 24905
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/test/fake-base.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/test/fake-base.mjs",
+      "sha256": "412cb88bf5bc8ecb020d1f3c80bc4bfc2d9ccfd447685f56f12c484d84e77ee7",
+      "bytes": 15806
+    },
+    {
+      "label": "book sessionVaultFactory activation handoff on 24aac735: deployed original book ABI by exact code hash, bounded deployless impact reads, live preflight; source/test only; factory signing pending the human",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/trust.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/factory-wallet2-9557ad6d/files/trust.mjs",
+      "sha256": "7b02c31d3a6331c27e2cda1416308ba35a4bfc30e04cba6bf93e7e8c23ce195c",
+      "bytes": 3997
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0001-c4d96a11.patch",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0001-c4d96a11.patch",
+      "sha256": "41f52dc65ecf6f825ad79a35a2ce3c14e38eecade3b4464bd04c28133dd53e26",
+      "bytes": 157110
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0002-cb06e87b.patch",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0002-cb06e87b.patch",
+      "sha256": "7f6c2feaa1e0650c462317f71fc9647f37d455b2e5214019297a4c59dc1932e5",
+      "bytes": 40399
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0003-49fb0a6c.patch",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0003-49fb0a6c.patch",
+      "sha256": "779db25083e7fd0e750a97d5c84c029729fabede7e1091289d0485a9ac9f3e78",
+      "bytes": 18780
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0004-01525201.patch",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/patches/0004-01525201.patch",
+      "sha256": "a3cc118e91ba8a3eccc601d79a72c77590256e1a7ff0f05a5fb91e7a419cac6a",
+      "bytes": 54502
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/.gitleaksignore",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/.gitleaksignore",
+      "sha256": "29d26773cfe3e267556573f328f7df879e4017f7e96c184cf6dad1408fb079f6",
+      "bytes": 993
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/CANARY-APP-PLAN.md",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/CANARY-APP-PLAN.md",
+      "sha256": "f93e0d2cd8851571e62c32ed858ff71f22bf724705b540ce11d5eeef800fccd8",
+      "bytes": 3791
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/LEDGER-RECONCILIATION.md",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/LEDGER-RECONCILIATION.md",
+      "sha256": "2ec8c3f4733ef17531c09b3e9dee532efea5d27502f398b15fff0bded8057654",
+      "bytes": 7677
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/PREFLIGHT-CLI.md",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/PREFLIGHT-CLI.md",
+      "sha256": "efb1ca5f765f684f8c4155fb7a5589867cef160366c2b395efa490aa617472aa",
+      "bytes": 12021
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/README.md",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/README.md",
+      "sha256": "dd691fe2eb634be400187eb9ac833824a368c35f46640b466419a88d24042bc1",
+      "bytes": 28654
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/cli-pins/canary-contract-pins.json",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/cli-pins/canary-contract-pins.json",
+      "sha256": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
+      "bytes": 589
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/assert.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/assert.mjs",
+      "sha256": "f8b203af45b2b10fcd8fa9ed8e5c41a73ad77634c51fbac2fc8b7bbe7c170748",
+      "bytes": 10380
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/budget.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/budget.mjs",
+      "sha256": "ff4438cdd1abd0441c50516009720dfee9f0e96984e3531348df01154def7cfd",
+      "bytes": 4184
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/cli.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/cli.mjs",
+      "sha256": "0004515a83ddd68351a77e2ec1268fb1ffd5d75d0007a799da618f90b6791a9d",
+      "bytes": 31664
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/clipins.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/clipins.mjs",
+      "sha256": "7d3d4a8010b8ac7c3cb69e970c64fb02fab1a037d8e51bcfc3f6976467f9b7d3",
+      "bytes": 6658
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/plan.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/plan.mjs",
+      "sha256": "703523192bb74cb80cf0aed17615e385df0e9477355c51136a4722f2081daf5a",
+      "bytes": 30361
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/prepare.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/prepare.mjs",
+      "sha256": "fd4c8ab56e51494d8b193197a97e9bdb2ba3d6d98a956257d65e959b005f685d",
+      "bytes": 6677
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/sender.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/sender.mjs",
+      "sha256": "45bec80da4eb2100d66ed2d7522800f254e896b67ae5f54caf3ce180c678dce2",
+      "bytes": 24214
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/tx.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/driver/tx.mjs",
+      "sha256": "f7a473773a5d4e8feb572d2de50dba4f03c89b88bbaa8b82367ded30f8e523ce",
+      "bytes": 3132
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/pins.example.json",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/pins.example.json",
+      "sha256": "3fb4f099d7ad56a863f1fdab6ad2774eb795f82aabd2b14fffcd311c5786e2d3",
+      "bytes": 4668
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/proposals/cli-ledger-write-guard.patch",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/proposals/cli-ledger-write-guard.patch",
+      "sha256": "0688c3e4935683084858054f086a719050cd0642fab0844c73f9ca145a2313de",
+      "bytes": 2916
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/assert.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/assert.test.mjs",
+      "sha256": "edeb4bafee706d5f8f9000fae5341127e9c5ecc8e4b64bc37f0752be635ded80",
+      "bytes": 8988
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/cli.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/cli.test.mjs",
+      "sha256": "bd2ba719f106fff5a60de83587011bad942be5e2940c6fa6b119ac9186a6b8a1",
+      "bytes": 5465
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/clipins.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/clipins.test.mjs",
+      "sha256": "74e7777f949eb770f6279cb59792cf23977f886fad59546b630500b8e24330f9",
+      "bytes": 6258
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/core.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/core.test.mjs",
+      "sha256": "ab754b26c25617f239b281d9fe9e1480285a233e61a5860abdc5aea051157300",
+      "bytes": 10053
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/mutants.sh",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/mutants.sh",
+      "sha256": "50acb27d97d4a08f9b64d6cb60e559ac07f210daebd975aa299eec80607d8138",
+      "bytes": 3928
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/plan.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/plan.test.mjs",
+      "sha256": "eea94e83a0ef20622a9c8af534a540dd6af4dce8f7c4aae235f8eece4dec4c12",
+      "bytes": 11161
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/prepare.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/prepare.test.mjs",
+      "sha256": "f29be869b912160ac312d17b380611bf3b015be06d71deb18ecfe451c86db05b",
+      "bytes": 7131
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/run-tests.sh",
+      "sha256": "016804da86e35ba28882284088b946f1323d5fc5963fe369b8658ac8cf19e0b1",
+      "bytes": 1775
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/sender.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/test/sender.test.mjs",
+      "sha256": "929edecb73f0ddbf9afd35651f7de81924b04e172dfb6bd8ff32ffe7fc367818",
+      "bytes": 18509
+    },
+    {
+      "label": "custody v2 production canary driver on 7bcd501f: all-fee budget, durable intent, exact sender L1 size, fee-cap matrix, actual ledger rev16d pin; source/test only, nothing run against production",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/production-canary2-01525201/files/tools/budget-matrix.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/production-canary2-01525201/files/tools/budget-matrix.mjs",
+      "sha256": "879728390b6a8b6b2181ea9715c1012c9b4b0d7b13860d4440325b70597c94b2",
+      "bytes": 3405
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/patches/0001-f2a7b81e.patch",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/patches/0001-f2a7b81e.patch",
+      "sha256": "9455742bbeef0a46c5fd7767abf1bdb5a1a006490caea50e8491ca05abbe2c5f",
+      "bytes": 83182
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/patches/0002-1ac9ad2c.patch",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/patches/0002-1ac9ad2c.patch",
+      "sha256": "0636f67a436ec643981d2c81a13bcd7cb9b15b482d01d8d0cb6116a795612b6d",
+      "bytes": 1005
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/patches/0003-7bf4c942.patch",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/patches/0003-7bf4c942.patch",
+      "sha256": "ec051194fc3e65f9b3202a2ade5410f5afc52fb8fe5a53993cde42c7fc690d70",
+      "bytes": 28442
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/.gitignore",
+      "sha256": "44627057929a49ea2d001cde3bdca903a2f8840b60c2baee83b2abb4a970d262",
+      "bytes": 50
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/FEE-NOTES.md",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/FEE-NOTES.md",
+      "sha256": "1f3411ed807be990aa727d4e444202d42f7ec07a97c0a3ebe9372378a847dbc4",
+      "bytes": 1313
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/PROGRESS.txt",
+      "sha256": "680e3ec233aaabf8c85158df326e4f9e05218ca06ceb1993f55f6c79e1d4f38d",
+      "bytes": 761
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/README.md",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/README.md",
+      "sha256": "0cc45766caef2df616e560ae149b8b5dc14533cc473a1f4c2b923b3c44b5c359",
+      "bytes": 9488
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/bin/operator-propose.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/bin/operator-propose.mjs",
+      "sha256": "bd0458a00de28e1101fcc0f03d9bc51dfb8ce27f1e527050bc464b23737f0ea7",
+      "bytes": 3039
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/lib/proposer.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/lib/proposer.mjs",
+      "sha256": "b3a01eebfa03b8f2511f48c8fef29fc19b193a7b167935e1d32b564629987210",
+      "bytes": 33634
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/package-lock.json",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/package-lock.json",
+      "sha256": "bf7276af38c6a0da5537bf5d7c3212e9f095d10d25449aa8e169af8e7943a4de",
+      "bytes": 6916
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/package.json",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/package.json",
+      "sha256": "662477d0acf14e9a84c32f53d6d4a791388f033c443892e056e8a4e36219a687",
+      "bytes": 335
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/qrun.sh",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/qrun.sh",
+      "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+      "bytes": 515
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/run-tests.sh",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/run-tests.sh",
+      "sha256": "ae758e569fa328df7ddb8b5201d8f43cb90522620987361fef5542efe748f692",
+      "bytes": 302
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/test/fixtures/metal0-enrollment-unsigned-20261023.json",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/test/fixtures/metal0-enrollment-unsigned-20261023.json",
+      "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+      "bytes": 3801
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/test/helpers/fake-base.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/test/helpers/fake-base.mjs",
+      "sha256": "55af9f0f10ca73a11a970430d75b0b60853f3173969bb8e133c8061d98ede2a9",
+      "bytes": 8312
+    },
+    {
+      "label": "metal0 operator proposeOwner preparation and journaled explicit send for root, with L1/operator fee bounds; source/test only, nothing signed or sent; root's uncommitted FEE-NOTES.md edit NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/test/proposer.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/operator-fees-7bf4c942/files/test/proposer.test.mjs",
+      "sha256": "ca6df490aeebbdcc09f8160aca307a609f2ce8f4c0767e92ec21629775a31613",
+      "bytes": 21549
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/patches/0001-b03be02d.patch",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/patches/0001-b03be02d.patch",
+      "sha256": "cfc7613b814f04920fe4488950fe0a6f72e4536ae12001ee7e9570cf278b4b72",
+      "bytes": 70630
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/.gitignore",
+      "sha256": "33dd68293480171229c46fcf15b5259b4c9a6e9478f63864c0627c8f83cab34a",
+      "bytes": 103
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/ACTIVATION-PLAN.md",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/ACTIVATION-PLAN.md",
+      "sha256": "84f9b01ee36c68c75cdd459934f4772ec95c4a8312ccd5c18728ca265d71a759",
+      "bytes": 7349
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/RESULT.md",
+      "sha256": "19ffe88a891e3d4c397d0e6b2af662422376f9db4e0f2c6e31b088807eb51132",
+      "bytes": 5577
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/build-1.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/build-1.sh",
+      "sha256": "f1517a968b80d79d11fb0f989aead1251a71688d50cb2f4c3b2e0d3cb01987a0",
+      "bytes": 4839
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/control-old-gsup.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/control-old-gsup.sh",
+      "sha256": "233f4badd368858f4b70818461d79f8002b25b8b6936798c873c6cd25bb683b2",
+      "bytes": 759
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/entries.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/entries.py",
+      "sha256": "540c313603e42fa3cfaac57eefc782655bb27c5d163b058729939bf2865c8d75",
+      "bytes": 1314
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/build-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/build-1.guard.log",
+      "sha256": "43b035a59c0f2854a81d45c2c47d3927d909a8f78baf17a337238f8adf0ad974",
+      "bytes": 67
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/build-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/build-1.out",
+      "sha256": "775a92a9d93d81f0156c345db306d77adc5bbbf24e8a2d158e5cb40ae3f3749e",
+      "bytes": 2243
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/build-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/build-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/control-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/control-1.guard.log",
+      "sha256": "31de47584ac4995f0ba4dd5d9195d74f0f3e174b39780214742b6663f8e2ee68",
+      "bytes": 67
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/control-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/control-1.out",
+      "sha256": "aa98238e3e96f455cc35e68f1f81db14bda0d3784c2b21f270ad80fbc98bb6c0",
+      "bytes": 4474
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/control-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/control-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/measured-control-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/measured-control-1.guard.log",
+      "sha256": "6616ab64f8227659ab4df8c7ca6d024e40e78be9b103b3acc559b8daa0a58197",
+      "bytes": 67
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/measured-control-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/measured-control-1.out",
+      "sha256": "165dd9b3aba58342e2637b36553e01b178bf27916e9a3f285acc22802cc2ca81",
+      "bytes": 3376
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/measured-control-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/measured-control-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/related-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/related-1.guard.log",
+      "sha256": "7d8e51c841b02a2d5aa09035978abcfaed3ebadbdd95c4dff95b43991f271d3b",
+      "bytes": 67
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/related-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/related-1.out",
+      "sha256": "59891963d1741573026de2471bb9b81c892ba1d5b4f9619da568a40991060bc5",
+      "bytes": 16026
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/related-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/related-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/repro-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/repro-1.guard.log",
+      "sha256": "c200188dadfa11af92d26ed193fc5c5a65eb940ca28a2f0de69bf3bdfc7f656a",
+      "bytes": 66
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/repro-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/repro-1.out",
+      "sha256": "40f3760c83d29bfaee2b2a3144dad82d1c8ebdd4e575defcf322f1d21a164f65",
+      "bytes": 1498
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/repro-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/repro-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.guard.log",
+      "sha256": "b3d9753d8222aa99d6c2537963cfe376cc958d63ee8fde7b3f811eac4a4b6b23",
+      "bytes": 66
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.out",
+      "sha256": "fd95f157015b4d57840c03108c9dac249f8f014dcfc29cf61f6c435731bf4a7c",
+      "bytes": 384
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try2.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try2.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try3.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try3.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try4.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try4.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try5.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try5.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try6.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/scan-1.try6.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/test-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/test-1.guard.log",
+      "sha256": "82f73986861f7c6dcd5029984059a1ae6e0a7f9b83bf0bc467db4c8ab26ed6eb",
+      "bytes": 67
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/test-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/test-1.out",
+      "sha256": "a2ad4866e7f7b7beebb4cb42ac26b54dbb34c9207cb235c711aa01bc05413b4d",
+      "bytes": 1449
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/test-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/logs/test-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/measured-control-both.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/measured-control-both.sh",
+      "sha256": "ce751810d62e5757c2e7ce57ef098afefd5a8f99072848654d9d0574380240f2",
+      "bytes": 794
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/q.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/q.sh",
+      "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+      "bytes": 565
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/repro-1.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/repro-1.sh",
+      "sha256": "4851d242b52a2ebd1fc999f5de6bcb1838c553ba556410f1606195b2b42ae949",
+      "bytes": 1780
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/scan.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/scan.sh",
+      "sha256": "64e6de6ec032366266d83a5706c6b59d60622d01cae70910191cdeed6de49dc2",
+      "bytes": 1711
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/INVENTORY.sha256",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/INVENTORY.sha256",
+      "sha256": "91d0816b7cb176c8cb758d32b1e80219e38b82b77881d432700575a155a1dfcd",
+      "bytes": 649
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/entries-vs-production.jsonl",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/entries-vs-production.jsonl",
+      "sha256": "2cbdfb685c75ef7b69b79314effdddb1f72c2cc5ee38583ceb911f42f8a2fe60",
+      "bytes": 548
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/release-delta.expected",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/release-delta.expected",
+      "sha256": "692604f4bcf29d8f5e4316343d06bd6f59a6c1a5dfc274b51d8cf48c97b068fc",
+      "bytes": 505
+    },
+    {
+      "label": "metal0 custody vault restore evidence and activation plan for inner commit a6b1378c (measurement ee5df6b8, staged only); no production change",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/release-delta.txt",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-b03be02d/files/stage/release-delta.txt",
+      "sha256": "692604f4bcf29d8f5e4316343d06bd6f59a6c1a5dfc274b51d8cf48c97b068fc",
+      "bytes": 505
+    },
+    {
+      "label": "inner source commit a6b1378c on production scratch base deabf8f9 (gsup passes measured custody vault constants; harness + test). TOUCHED-FILE reproduction: base tree not in pushed objects and carries the rewritten literal; base gsup.mjs sha256 equals production deabf8f90 /opt/metal/gsup.mjs in the pushed inventory. Root activation of ee5df6b8 FAILED adoption and was rolled back",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/patches/0001-a6b1378c.patch",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/patches/0001-a6b1378c.patch",
+      "sha256": "a78a1c221eedd3449828c8b9b10782ce363ad8dd19c9ac6eda983c4e7c35a064",
+      "bytes": 17229
+    },
+    {
+      "label": "inner source commit a6b1378c on production scratch base deabf8f9 (gsup passes measured custody vault constants; harness + test). TOUCHED-FILE reproduction: base tree not in pushed objects and carries the rewritten literal; base gsup.mjs sha256 equals production deabf8f90 /opt/metal/gsup.mjs in the pushed inventory. Root activation of ee5df6b8 FAILED adoption and was rolled back",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/files/metal/guest/gsup.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/files/metal/guest/gsup.mjs",
+      "sha256": "2981a5feb98fe46b13968fd8d1ef2d503f624fc84b3d22824fe000bf45bb6a5a",
+      "bytes": 50341
+    },
+    {
+      "label": "inner source commit a6b1378c on production scratch base deabf8f9 (gsup passes measured custody vault constants; harness + test). TOUCHED-FILE reproduction: base tree not in pushed objects and carries the rewritten literal; base gsup.mjs sha256 equals production deabf8f90 /opt/metal/gsup.mjs in the pushed inventory. Root activation of ee5df6b8 FAILED adoption and was rolled back",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/files/test/helpers/gsup-env-harness.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/files/test/helpers/gsup-env-harness.mjs",
+      "sha256": "5977ba1edc73a274cdaeaf6d3c6948fbbdee07ff97181d7d081535ff98777282",
+      "bytes": 4050
+    },
+    {
+      "label": "inner source commit a6b1378c on production scratch base deabf8f9 (gsup passes measured custody vault constants; harness + test). TOUCHED-FILE reproduction: base tree not in pushed objects and carries the rewritten literal; base gsup.mjs sha256 equals production deabf8f90 /opt/metal/gsup.mjs in the pushed inventory. Root activation of ee5df6b8 FAILED adoption and was rolled back",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/files/test/metal-gsup-custody-env.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/files/test/metal-gsup-custody-env.test.mjs",
+      "sha256": "c333537a1e879b63411b7057a77b5acef2163758f8ccce11f9ca08d4a26efb0a",
+      "bytes": 9786
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/patches/0001-7426b299.patch",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/patches/0001-7426b299.patch",
+      "sha256": "442a540fa3572a8f90e9e9f7676d4673982935d01588d4d692deec04fb64177b",
+      "bytes": 119886
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/patches/0002-2c5d9b5a.patch",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/patches/0002-2c5d9b5a.patch",
+      "sha256": "6e7f63ff5ebcb088bd90ea796d66bd90f3025b9563fc4cb004918352942f5d33",
+      "bytes": 2398
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/patches/0003-2d407753.patch",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/patches/0003-2d407753.patch",
+      "sha256": "cb24859ddda0b80d7ba533824470dc4a3a70a27f423d0bddb0b1213bd5743694",
+      "bytes": 53365
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/.gitignore",
+      "sha256": "b44fb6fd178b7bc54a384b5c738c5caabdf56477a9d21d885b704e4d7eca7764",
+      "bytes": 121
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/ATTESTATION.md",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/ATTESTATION.md",
+      "sha256": "5fc0fb9540a5a28cafba54085bb4e13dcdca048e13dce01cb56050075e147631",
+      "bytes": 6919
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/README.md",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/README.md",
+      "sha256": "2921643edbddfa3bbb72272de5f4c6fffdee6aef6bddd62616ee65165f2cda81",
+      "bytes": 7901
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/RESULT.md",
+      "sha256": "eac0bec00d604ef7d1bbab88ec30d4d3ba986aa85ba1c4448fb01d52d4203495",
+      "bytes": 3073
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/REVIEWED-COPIES.json",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/REVIEWED-COPIES.json",
+      "sha256": "820653a14b6d217ace1b1fec9094a6c626ddd266f0541f1a9b12a141bae629e7",
+      "bytes": 624
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/ROOT-IMPLEMENT-ACTIVATION.txt",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/ROOT-IMPLEMENT-ACTIVATION.txt",
+      "sha256": "b4590ab8bfbba52c5b4b32f65b29be7a576157de34f7b636fd4c9a7de830cb81",
+      "bytes": 1835
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/activate.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/activate.py",
+      "sha256": "d57e857496f692f0411a6336a52d80292e22f89cbf28c0eb780db04fc4dd69df",
+      "bytes": 9667
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/admit.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/admit.py",
+      "sha256": "5434c827203406e5c9971d6173dd59821763238bc6c13294894f0216653f5020",
+      "bytes": 1443
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/apphealth.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/apphealth.py",
+      "sha256": "3babd979edfe9dd245ce5d4d2a2e12223dfd67c1fa761d76cb108b53b6b6f88f",
+      "bytes": 2841
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/attest-control.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/attest-control.mjs",
+      "sha256": "79c59a821c7b375fc383391c4ded09ebc60d2df662dd1b277cfead0b32d7c8de",
+      "bytes": 10315
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/baseline.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/baseline.guard.log",
+      "sha256": "8c4a4b0c2bb73fb03fb63eeddb16341504ac95d7bd9833a94041fe80d1d9a503",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/baseline.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/baseline.out",
+      "sha256": "dc63f8d39da9894032391a1c5d19b825211b0302d062c0be9e8f534d6250d97b",
+      "bytes": 2115
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/baseline.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/baseline.py",
+      "sha256": "277dd1a7b21902c9dbfcfc7b1a92d2fa7e78c174eb5d1bf22ae920bd793213db",
+      "bytes": 2267
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/check-attestation-verdict.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/check-attestation-verdict.py",
+      "sha256": "baf40f2f0035fe4e03b3113d64520d2ac0c3b027289897e14d1d6864965f8ae7",
+      "bytes": 3034
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/commit-attest.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/commit-attest.sh",
+      "sha256": "f5dc4a2a345be4842052500fbd9e77f2d7299ccaafc489550a6e3f5bb14315f0",
+      "bytes": 2385
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/commit-logs.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/commit-logs.sh",
+      "sha256": "b62a078bc9dc47245d8b95aadc31817cf664c54f56dfe97a836b88dad7554b8b",
+      "bytes": 481
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/commit.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/commit.sh",
+      "sha256": "110f133ea019e8187279edbb9526bd89098620ddcfb568fb20059dd065f54210",
+      "bytes": 998
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/common.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/common.py",
+      "sha256": "c1acb3ef4b36b603813277ec21c7c7b6571e228dac695759e90bc3e6a20c8341",
+      "bytes": 18519
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/evidence/baseline.json",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/evidence/baseline.json",
+      "sha256": "5d134c537c27c8beb8682d33932a1434323a98e102c53cde796f1d278c44528d",
+      "bytes": 2372
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/guestrows.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/guestrows.py",
+      "sha256": "29b7c9dac8e39990e3332cfa2c4f7f9f972ab559f37a4d720edf55eafacb06ab",
+      "bytes": 2616
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/keep.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/keep.py",
+      "sha256": "073990015c666d34ded40906cab550a65c30d0b71ae34248f521bafecbf26f9e",
+      "bytes": 2870
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-1.guard.log",
+      "sha256": "2dbe5cd54d7c485c308244c0f06aa6655ef376f629f39d3f7db19e71a0305598",
+      "bytes": 67
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-1.out",
+      "sha256": "54296e529d1f122b8259dc657696f19861dfa3e42e7b5cf32701de1da600af8c",
+      "bytes": 684
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-2.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-2.guard.log",
+      "sha256": "0b370488de4ed4304f6636be9c29eb450e10c6ca6252935d75480725baac75a3",
+      "bytes": 67
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-2.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-2.out",
+      "sha256": "29d5104cda93d9a9c0c192a5e7a38acf86dcf6488e8e06890d51cc10c68831c6",
+      "bytes": 775
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-2.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-2.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-3.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-3.guard.log",
+      "sha256": "cf1a60daec6d2a7e72adfabe20f50a74539f8cbab8a744e88d0fb537c1e51db4",
+      "bytes": 67
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-3.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-3.out",
+      "sha256": "c4fb6274dd91561178995aeeeaef9676ca30a298e5400a6a2fa857b7f6741e43",
+      "bytes": 775
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-3.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-mutants-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-1.guard.log",
+      "sha256": "4b338ffa323fe68b127e908d64874620eda136c9fa254ce768d87595560182fd",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-1.out",
+      "sha256": "69f934a9b19218666543bf64360183a27bc9d4417c3a07a4c1711a86aff7d773",
+      "bytes": 4239
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-2.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-2.guard.log",
+      "sha256": "f8c94175d8a4f36fc4eba9f44e32d629da19abd5d76b31ce6aa1a47b59c06e5b",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-2.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-2.out",
+      "sha256": "f069038d5f5afddbc6729acb929fcc4df65b89fd3ea9396eedbde46293779fa0",
+      "bytes": 2051
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-2.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/attest-tests-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/commit-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/commit-1.guard.log",
+      "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+      "bytes": 63
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/commit-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/commit-1.out",
+      "sha256": "5bc0d32f648b456cff67940744833421f3cbdcc3cba8490997dc7cd87ac63fbc",
+      "bytes": 408
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/commit-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/commit-1.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/mutants-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/mutants-1.guard.log",
+      "sha256": "3f3de336374300ff06138dda1a1f53a82f4714c2c3f776b9b0d6be4ce56b06a4",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/mutants-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/mutants-1.out",
+      "sha256": "587f73e89c2b688566befedd98a1554f4eace3b5b7b43e7b71f7f08325ca10a4",
+      "bytes": 565
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/mutants-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/mutants-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/scan-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/scan-1.guard.log",
+      "sha256": "6d16a22118790fa3b8cc54386cea26509728df8d780f895d124bc4809ebb7ebd",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/scan-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/scan-1.out",
+      "sha256": "3a9882e962f048e320e8eaa3d8f2fde7de7cc1e3f7b464e9b0008b88cf34e278",
+      "bytes": 386
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/scan-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/scan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-1.attempt-1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-1.attempt-1.guard.log",
+      "sha256": "a5ca794b84043962e70590537a4160e1dfe6a2abf8fec4d64ab742883701d6b5",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-1.attempt-1.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-1.attempt-1.out",
+      "sha256": "dc3ab63f98012c2f879d67aeff9d4ebb0734722b1cc52793aaa8d76f32c20ec0",
+      "bytes": 3202
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-1.attempt-1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-1.attempt-1.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-2.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-2.guard.log",
+      "sha256": "47c21a36d28b281b992615d8630f9c906b5b788578f03d57b238774fe9ba7165",
+      "bytes": 66
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-2.out",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-2.out",
+      "sha256": "31e9a66ff873b9287082270431fb7a0c6e7a3e0c13e69eb92d8007a831096268",
+      "bytes": 2138
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-2.rc",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/logs/tests-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/mutants-attest.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/mutants-attest.py",
+      "sha256": "7fef99e31481e8b5e9e226fdb2be0d8cbb7e7a5b16591115ea301dc0963f2567",
+      "bytes": 3341
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/mutants.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/mutants.py",
+      "sha256": "bc1d6729d9d4f783659911ddc0842d23cc99f0bf907ac332f6d3570ca29ad0cf",
+      "bytes": 2376
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/preflight.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/preflight.mjs",
+      "sha256": "1605f99a201973aae04aff9ac91c96984c19c4f766a28edbaf8813fe9943e553",
+      "bytes": 4370
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/prepare-admission.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/prepare-admission.py",
+      "sha256": "004dd71d624a2b119e52299c2692a2ff97cee87caf9544af32d761a07a70a5bc",
+      "bytes": 2156
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/q.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/q.sh",
+      "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+      "bytes": 565
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/recheck-admission.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/recheck-admission.py",
+      "sha256": "cc6dc6c9ed18beb5631c063859eed73be4f6f5751d6f1b95bef8626d2e4187c4",
+      "bytes": 809
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/renewal-watch.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/renewal-watch.py",
+      "sha256": "dd4e340c26b9e300919d4c66f4793304bdf4b26c6785bcdd196a946e491c5709",
+      "bytes": 1004
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/rollback.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/rollback.py",
+      "sha256": "01eb8a9f9c99de845a828dbc4ba5ada962474ebd9ae92dde3b62be1192d65f39",
+      "bytes": 1177
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/scan.sh",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/scan.sh",
+      "sha256": "62614e6332837b4946036ce746f2fd899b5596072a27f67bb79be41abfe66c50",
+      "bytes": 1270
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/stage.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/stage.py",
+      "sha256": "764233bb214ab63f146d02f912f14c44d9821025592fda6fba51c4eaa68ff4bb",
+      "bytes": 1826
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/tests/attest-control.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/tests/attest-control.test.mjs",
+      "sha256": "f30052e4a664b4e1e6c0f1058df9f74182353d584c81599387d6d26aa06a775d",
+      "bytes": 6441
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/tests/test_activation.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/tests/test_activation.py",
+      "sha256": "1e574d4bab7ce00bdcc9b35e8aaa5aee54fd42e3a6edc9ae8fb6ed86b353ffdb",
+      "bytes": 13191
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/tests/test_verdict_check.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/tests/test_verdict_check.py",
+      "sha256": "42901baaef78d15ef3fa561cc791095bbfd6ad475c210ab3c531145b284389ac",
+      "bytes": 2952
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/unadmit.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/unadmit.py",
+      "sha256": "f02a6b02844d7366f431080fdd90de65506c748dcac18cd4c42f2cd764e87583",
+      "bytes": 834
+    },
+    {
+      "label": "image-only activation adaptation for the restored custody vaults, its queue logs, and a nonce-bound SEV-SNP verification probe for ee5df6b8; source only; root's uncommitted operational files NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/verify-operational.py",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-activation-2d407753/files/verify-operational.py",
+      "sha256": "5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067",
+      "bytes": 9947
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/patches/0001-e84a1afd.patch",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/patches/0001-e84a1afd.patch",
+      "sha256": "3745badf43b292d3fcd5160120cb3e8ebf82280db08b8cff3b2789b3b28373f7",
+      "bytes": 46230
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/.cargo/config.toml",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/.cargo/config.toml",
+      "sha256": "ef16e1966bc191ac422480b80512dbafa8c4dba3cf3195170d4e63dcf461c061",
+      "bytes": 458
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/.gitignore",
+      "sha256": "2e14ff7a537cfbda6489df2fb28ed076b2181eeeb344e8ae5eea7d025fc7c340",
+      "bytes": 43
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/ARTIFACT.json",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/ARTIFACT.json",
+      "sha256": "948daf5c4b94a5437b61826057434ee79b6dffb5bba38dd0e924c2bc2f714a85",
+      "bytes": 1392
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/Cargo.lock",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/Cargo.lock",
+      "sha256": "aac608577ba6bf262f71611e88128b72e8efe08d9dc3fbfe7af7e81c8ec552f6",
+      "bytes": 3728
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/Cargo.toml",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/Cargo.toml",
+      "sha256": "874b7d5a3462155a9aea76ad29ce27f4e161fe27e12f80cdf60941e711724f86",
+      "bytes": 621
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/PROGRESS.txt",
+      "sha256": "31b8f26547d01df66fc647bf81b3d11f778e3f4b28deb437f267d4a903c05458",
+      "bytes": 989
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/README.md",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/README.md",
+      "sha256": "d00ae345b9b105406929e51bddfaf7b92f538a38d2584110aeea2f3ef1ce65a7",
+      "bytes": 11511
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/qrun.sh",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/qrun.sh",
+      "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+      "bytes": 515
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/src/lib.rs",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/src/lib.rs",
+      "sha256": "1d2e6e303473c25c2a9201a12ba813634d2518df9241d3490f9e91a430803814",
+      "bytes": 2254
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/src/proof.rs",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/src/proof.rs",
+      "sha256": "f7b3e871047447951e74cd133b61f0db929c7701d7fc44614e0f1752387975f1",
+      "bytes": 10497
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/test/kat.py",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/test/kat.py",
+      "sha256": "9773390b5435cbd14d3dded4f48b09b4a4d24709bfb4deff8f1c5173e4f6d951",
+      "bytes": 832
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/test/mutants.sh",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/test/mutants.sh",
+      "sha256": "b14d5f9e68cc2af146d74c093c2f6211018f5b169bc4239da91a8133a012c820",
+      "bytes": 2002
+    },
+    {
+      "label": "custody-canary-proof hash-only canary app source with ARTIFACT.json pins and tests; the untracked built component binary NOT included",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/test/smoke.py",
+      "stored": "files/source-preservation/frozen-2146-export/proof-app-e84a1afd/files/test/smoke.py",
+      "sha256": "f984a9a8a4aaa6b312ed36b7da2d6e70ea207e27c9cf51c1179e1e4ccc66325e",
+      "bytes": 6127
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/patches/0001-f0efadbd.patch",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/patches/0001-f0efadbd.patch",
+      "sha256": "70b6f9570ebcf39ac4f5281c95a90a7e3838e3ff4dc7c10946ad8a55c1802fb5",
+      "bytes": 14346
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/patches/0002-90a2b826.patch",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/patches/0002-90a2b826.patch",
+      "sha256": "379946e5e8aa4e2c7f6eeaa12ace496af155f4a9ea161f4078e613a24089c6b6",
+      "bytes": 14361
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/.gitignore",
+      "sha256": "454c8a68b00689cca3310be7f2f46e6f8108d8acfdd27a8df4844caf9a4544d8",
+      "bytes": 48
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/CURRENT-STATUS-DRAFT.md",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/CURRENT-STATUS-DRAFT.md",
+      "sha256": "b76bbbdc55c7cf2019733ecffcb8648b0293cebb6e29f69eb5bbae113f3fbeab",
+      "bytes": 12599
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/HANDOFF.md",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/HANDOFF.md",
+      "sha256": "c4165d714d20af150b12faa26b56535d5abc91742184c6e1b0411d9e94b59e28",
+      "bytes": 10538
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/q.sh",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/q.sh",
+      "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+      "bytes": 904
+    },
+    {
+      "label": "ipns-publisher same-CID recovery and r2 publication readiness handoff, and the custody v2 CURRENT STATUS draft (not yet public output); read-only, nothing published",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/scan-staged.sh",
+      "stored": "files/source-preservation/frozen-2146-export/publish-readiness-90a2b826/files/scan-staged.sh",
+      "sha256": "1bc926f8fa1d6eb573ba41dd522dc5a2f2f97e5cc6ba00fad69fca50aeed1423",
+      "bytes": 486
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/patches/0001-8578965c.patch",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/patches/0001-8578965c.patch",
+      "sha256": "50df640c5603ee071d6a33e7077633746b8a8000bac53b8f41f82ce8d6c13a82",
+      "bytes": 378346
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/.gitignore",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/.gitignore",
+      "sha256": "fbdfecb04b32a0f96d652e952cb83f8a2bbb69075af57de38a7b528f52b407f3",
+      "bytes": 43
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/HANDOFF.md",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/HANDOFF.md",
+      "sha256": "f2e7a9033c8dac183ae5ab7c97ba31025b21a585452d0ffc1b6f0cb0513569af",
+      "bytes": 10709
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/ROOT-CODE-ADMISSION-PLAN.txt",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/ROOT-CODE-ADMISSION-PLAN.txt",
+      "sha256": "f31536adf1a9b3e6de167b33067ab57f839e37606b7a8a05c18f97dc10d4c0db",
+      "bytes": 1701
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/code-admission-plan.json",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/code-admission-plan.json",
+      "sha256": "7885f3d88573f3cf090c4bb390787bc68d9f4f9199e01dc9a76c95f9284069f8",
+      "bytes": 6637
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/live-code-state.json",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/live-code-state.json",
+      "sha256": "f0cd691bf59c553ebae338c4e0ec6a9c961d2e626f16f2e7f3d3f7c986b9a612",
+      "bytes": 3577
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/original-code-path.json",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/original-code-path.json",
+      "sha256": "451ec6ee3110bfcb4405e25fc01e393638ad2f900f3f3a16494e364a8a07e51b",
+      "bytes": 4234
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/original-daemon-static.json",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/evidence/original-daemon-static.json",
+      "sha256": "8ed3b6497807d2913a6f55b91061df1afc6183e28a684535c7675203b7c0172a",
+      "bytes": 3243
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/codepath1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/codepath1.guard.log",
+      "sha256": "e6320aea364bd9213e8a5670816008b9ebce932c8de839150c700e73e702199e",
+      "bytes": 67
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/codepath1.queue.out",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/codepath1.queue.out",
+      "sha256": "a1ff1f7703635d10f616deac9243285b9d3e83f29e1b3b16d251451c383e702d",
+      "bytes": 597
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/codepath1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/codepath1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/commit1.queue.out",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/commit1.queue.out",
+      "sha256": "bf35f52a14b53e8194d8f29e441345033b5d1f4c6537877faa26dd1433118b2c",
+      "bytes": 98
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/compile1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/compile1.guard.log",
+      "sha256": "38bc73c888cbfc96ea4c0ccc57553fc2f8d7cd9d6a394af66f9f5516b9c626c9",
+      "bytes": 67
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/compile1.queue.out",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/compile1.queue.out",
+      "sha256": "5f5dc026739c567f04235a0a705b80c2731f41f95248bbf84b868c321b7ae3d7",
+      "bytes": 262
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/compile1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/compile1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/liveread1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/liveread1.guard.log",
+      "sha256": "4a5059ec44aad6955862ff23be71c3378385f328d47e0b4f306389a6a7b68ce7",
+      "bytes": 66
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/liveread1.queue.out",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/liveread1.queue.out",
+      "sha256": "f1772a15fb2217dc261a478f7f2a7cec287867ed388664230417437a5b721d38",
+      "bytes": 3788
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/liveread1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/liveread1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static1.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static1.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static1.queue.out",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static1.queue.out",
+      "sha256": "34bfb85ea589a50c5ddfbdc51ce2afd23845b173fc81cf8a080ca30ecfbafdb8",
+      "bytes": 1622
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static1.rc",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static2.guard.log",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static2.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static2.queue.out",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static2.queue.out",
+      "sha256": "d1359a14772046d20117f115bf46414dfad3dae9c27934699861886ffbb140a7",
+      "bytes": 1775
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static2.rc",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/logs/static2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/contracts/EnclaveSecretVaultV2.sol",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/contracts/EnclaveSecretVaultV2.sol",
+      "sha256": "2c7692ec13db18f567b3fa469db5931cfc4451540092259a0d28b651468a4469",
+      "bytes": 34632
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/contracts/foundry/test/EnclaveSecretVaultV2.t.sol",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/contracts/foundry/test/EnclaveSecretVaultV2.t.sol",
+      "sha256": "9fe98788d80c6236e22b73b1d70a67964aa0029f8b5739da114dc1a1700c91a0",
+      "bytes": 59866
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/chain.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/chain.mjs",
+      "sha256": "87ce4efcbdbeeaae8cf21cebc747ce01c7ddeea34cec5e401c9fb5d8e128d126",
+      "bytes": 14575
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/custodian.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/custodian.mjs",
+      "sha256": "be000ab881a504729d2ee73c79e3b3bffdbd19e1664cf2f7f21510d23ca7d9d2",
+      "bytes": 12922
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/cvm-gsup.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/cvm-gsup.mjs",
+      "sha256": "4cdbf8377dd3516fd631ce8e0af8f1485195edcdb652e7a222f312426a69dcba",
+      "bytes": 2138
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/daemon.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/daemon.mjs",
+      "sha256": "363d6858e58dd736193c3aaeffda5d112e5c5239f7bab37e37df0d39dc089eae",
+      "bytes": 12606
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/digests.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/digests.mjs",
+      "sha256": "8516cf108cda9fa97583cf21d51e7f2aca48cdb51ebad061f954172b17c3621e",
+      "bytes": 3399
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/host.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/host.mjs",
+      "sha256": "f7db81c8c7a2eca6d35879173b7278b63bffd15cce9de3eb095f59d3280c25e3",
+      "bytes": 8383
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/measured.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/measured.mjs",
+      "sha256": "a3da3f49e90764783cf292d4b5123cfa712e2085afb695daf7e90136eb3484d4",
+      "bytes": 549
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/member.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/member.mjs",
+      "sha256": "b7049b49e92ab9966267a812c51067e323cc92fa1cc092ec0c9f6cd5d7a998d4",
+      "bytes": 18919
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/owner.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/owner.mjs",
+      "sha256": "706fd42d5d23842c177ccae2267f1919814c788e3208a786b789f7d3649c148c",
+      "bytes": 3647
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/protocol.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/custody/v2/protocol.mjs",
+      "sha256": "3e3ad53e21cfa8d14e41d86f2a70527a735a012a0b3d9c096b0a8b6b888ab495",
+      "bytes": 18478
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/docs/security/secret-custody-v2-spec.md",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/docs/security/secret-custody-v2-spec.md",
+      "sha256": "51f14aa5495581fcd603ba3b850e99146a876fb26290d30baf68f24d4e8f2af8",
+      "bytes": 11614
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/docs/security/secret-custody-v2.md",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/docs/security/secret-custody-v2.md",
+      "sha256": "89c54ee43cb4c052550623b4fe52f15e24709c445bf24955fa8c355aefec96e8",
+      "bytes": 21457
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/isolation/m2/custody/v2.go",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/isolation/m2/custody/v2.go",
+      "sha256": "038589bc464cce1d678ab3518262ab7f720a1610d3efe89a55e1b18fea831741",
+      "bytes": 15356
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/isolation/m2/custody/v2client.go",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/isolation/m2/custody/v2client.go",
+      "sha256": "3184d374deb45eb90f06af3d47a79ab6620ec3605ff98ed217a07bd5c7f07973",
+      "bytes": 11623
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/isolation/m2/custody/v2member/member.go",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/isolation/m2/custody/v2member/member.go",
+      "sha256": "0eb06dbdc86e5335c1bbf8281a75e8b65f80c908a6c51e6a3b3dad6d15f5c571",
+      "bytes": 5019
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/scripts/build-custodian-v2.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/scripts/build-custodian-v2.mjs",
+      "sha256": "af911bca62c8ec5c229c2c33aa6e2911b754ac717c3d49212e8aed3a926725da",
+      "bytes": 7838
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/test/custody-v2-deploy.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/test/custody-v2-deploy.test.mjs",
+      "sha256": "38d3774d8a3a8a51b1967285e0773cd5bedea8dfa48b8b708a4c40944dd07575",
+      "bytes": 3875
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/test/custody-v2-e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/orig-9d43/test/custody-v2-e2e.test.mjs",
+      "sha256": "7a65eb3f393debdefa7e920de171b7f2400f4af7475f2015109dc2bfcdc442b0",
+      "bytes": 19043
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/live-read.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/live-read.mjs",
+      "sha256": "77bc406d65e24fe5649a8cd5b9bcc0ac98b295392f3af8c8d949e2590327bdfb",
+      "bytes": 7625
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/original-code-path.test.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/original-code-path.test.mjs",
+      "sha256": "cf08ebecfee3f6b73318600e278b15598de9b3ac61dec5da8f1384b76bffa580",
+      "bytes": 17705
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/q.sh",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/q.sh",
+      "sha256": "da3794f18305b00740dd72fdaba37d2b8a008544605f1b73c8ee383d112167e8",
+      "bytes": 542
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/static-original.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/files/tools/static-original.mjs",
+      "sha256": "98bdcd787e6feceb77879cce122db226dcfb27940492861a4931be02f0fbec9a",
+      "bytes": 3546
+    },
+    {
+      "label": "inner source commit a6b1378c on production scratch base deabf8f9 (gsup passes measured custody vault constants; harness + test). TOUCHED-FILE reproduction: base tree not in pushed objects and carries the rewritten literal; base gsup.mjs sha256 equals production deabf8f90 /opt/metal/gsup.mjs in the pushed inventory. Root activation of ee5df6b8 FAILED adoption and was rolled back",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/base-files/metal/guest/gsup.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/recipient-restore-repo-a6b1378c/base-files/metal/guest/gsup.mjs",
+      "sha256": "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99",
+      "bytes": 49848
+    },
+    {
+      "label": "R code admission plan: original committee 0x4774 can never admit new custodian code (no code-approval signer in the running daemon), new-committee route and gates; anvil test on the original vault bytes, read-only live state, static scan; nothing signed, voted or sent. DERIVATIVE FORM ONLY FOR A SCANNER FALSE POSITIVE: tools/compile.mjs is excluded from the patch and published as an exactly reversible converted copy (one comma -> semicolon in a contract-name lookup); the verifier reverses it and reproduces the original tree exactly",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export/code-admission-8578965c/sanitized/tools/compile.mjs",
+      "stored": "files/source-preservation/frozen-2146-export/code-admission-8578965c/sanitized/tools/compile.mjs",
+      "sha256": "362266aa9c1f462fc962972dd360d800bdc08f2ef8384f409479e89e8d326c80",
+      "bytes": 2564
+    },
+    {
+      "label": "receipt of the 2100 batch (f2e7009e, committed 21:10:37Z, pushed by 21:12:40Z; main 68b82926 unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-2100-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-2100-checkpoint.md",
+      "sha256": "edd1a71a462109c52dbff7f8e65bc14e2ed2a5c6a920b5dba789491e40b9cf01",
+      "bytes": 7893
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-2146.py",
+      "stored": "files/source-preservation/export-frozen-2146.py",
+      "sha256": "dccc8a54b0d7918e6ef820463d71119bdd0b7f1e801801ca8ebe7e3217da90e2",
+      "bytes": 27709
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-2146-export.py",
+      "stored": "files/source-preservation/verify-frozen-2146-export.py",
+      "sha256": "d5a1efff925d70acb2784d650dbcf83bcbdc5b655b536a03f1e18e594a2612cd",
+      "bytes": 9084
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-2146.py",
+      "stored": "files/source-preservation/capture-frozen-2146.py",
+      "sha256": "78595935aa709697050adb6f45fa8000fcb9c03b20959f308a4d88ec9130dbd4",
+      "bytes": 8626
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-pins.json",
+      "stored": "files/source-preservation/frozen-2146-pins.json",
+      "sha256": "f59fd2a83b539c11f758e7cf6669daeb0b391a4f3f81bdcd4896a60b914a0a3a",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-q.sh",
+      "stored": "files/source-preservation/frozen-2146-q.sh",
+      "sha256": "697596a7a38b30b36cb85f9c754cd1bda28fd2eb7bf7cfabb4b6c674ab75d708",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-export.sh",
+      "stored": "files/source-preservation/frozen-2146-export.sh",
+      "sha256": "466717c4e1c4c4169636368a257d7cac52d9002e7ab7aef22a1f58e0b239570c",
+      "bytes": 3608
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-capture.sh",
+      "stored": "files/source-preservation/frozen-2146-capture.sh",
+      "sha256": "91afe0e4f727a6f71f340486343d8d2a84cab07636d1f4870165315bb5f8440f",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-2146 checkpoint tooling (\"2146\" = batch start 2026-10-23T21:46:39Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-2146-labels.json",
+      "stored": "files/source-preservation/frozen-2146-labels.json",
+      "sha256": "b367261ab9d8be9821245aa1cb22e6c0e451c9a9140961db6146c70629eff442",
+      "bytes": 4032
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -40621,6 +42553,15 @@
       "added": 330,
       "bytes": 9497612,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2100\" is a batch identifier (start 21:00:37Z), not this time"
+    },
+    {
+      "at": "2026-10-23T21:56:04.302353+00:00",
+      "by": "source-preservation/capture-frozen-2146.py",
+      "onCheckpoint": "f2e7009eb0a26e0a727012c9d17de05f1cc13d96",
+      "entriesBefore": 5860,
+      "added": 276,
+      "bytes": 2581506,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"2146\" is a batch identifier (start 21:46:39Z), not this time"
     }
   ]
 }

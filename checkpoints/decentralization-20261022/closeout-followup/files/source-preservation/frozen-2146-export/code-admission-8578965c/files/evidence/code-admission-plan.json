@@ -1,0 +1,137 @@
+{
+ "format": "custody-code-admission-plan/1",
+ "preparedAt": "2026-10-23",
+ "unsigned": true,
+ "notSubmitted": true,
+ "agreedBlock": {
+  "number": "53001067",
+  "hash": "0x20850dfeb766101b62703d1b8fe1ed851fe1f9f6b4b09e265a9eb0aef7d34017",
+  "timestamp": "1792791481",
+  "baseFeePerGas": "5000000"
+ },
+ "A_originalCommittee": {
+  "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+  "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
+  "epoch": 1,
+  "t": 1,
+  "W": 1,
+  "machines": [
+   "0xF0F8078459c051a89197fac73Ff689c6DF96506a"
+  ],
+  "codeActiveAt": {
+   "running_2530eda0": "1792017007",
+   "corrected_fbe2f581": "0"
+  },
+  "verdict": "NOT EXECUTABLE: the corrected measurement can never be admitted to this committee with the running image",
+  "why": [
+   "proposeCode needs approval weight >= t (=1) from CURRENT-epoch machines over codeDigest (tests: empty -> Weight(0,1); outsider -> NotMachine; handover-type signature -> BadSignature).",
+   "The only current machine is 0xf0f8078459c051a89197fac73ff689c6df96506a; its key exists only inside the running 2530eda0 image (sealed to that measurement).",
+   "That image signs genesis, handover, deal and ack digests only; it has no code-digest signing and no /v2/custody/code-approve route (running bundle 7c2cd000 and source 9d43e63e8, evidence/original-daemon-static.json).",
+   "A handover can only add machines whose code is already active (BadCode otherwise), i.e. more 2530eda0 machines, which cannot sign code approvals either. The code set {2530eda0} is therefore permanent for this committee."
+  ],
+  "referenceOnly_unsubmittable": {
+   "codeDigestAdd": "0xa39fd1d7f9dd47c7d53ddd34a97fcf652b14123e2225f2abbdf72d0a7f7f4b64",
+   "eip191HashAdd": "0x0a74a7fe93c83db9f5a8a531ff057a8b8bd3a5cc182fb2835ae07128c5261e7d",
+   "codeDigestRemove": "0x5c3faf41fdc484dc7b61097e329e025b4bdc2798036db7f1d3ca4e550daebe0a",
+   "calldataNoApprovals": "0x1ff0855e47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3fbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "liveEthCallToday": {
+    "noApprovals": "Weight(0,1)",
+    "liveMachineWithZeroSignature": "BadSignature()"
+   },
+   "missing": "approvals=[65-byte low-s EIP-191 signature by 0xf0f8078459c051a89197fac73ff689c6df96506a over codeDigestAdd]: cannot be produced; must not be fabricated"
+  },
+  "clock": "cannot be started"
+ },
+ "B_newCommitteeSameVault": {
+  "what": "a NEW committee in the original vault, created by a corrected custodian (ab589bf8, measurement 70aadff5 / fbe2f581, release 23f7e51) with its own fresh identity; genesis code set = [fbe2f581], active at the genesis block FOR THIS COMMITTEE ONLY",
+  "isNotAnUpgradeOf": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+  "doesNotBypass": "0x4774's code delay: existing policies and bundles stay bound to 0x4774 until each OWNER moves them",
+  "prerequisites_blocked": [
+   {
+    "step": "enrollment TX1 proposeOwner(metal0,0x0b2d\u2026)",
+    "signer": "operator 0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "status": "BLOCKED: operator balance 376132087579 wei < 1038286650790 wei upper bound (custody-v2-live evidence/operator-fees-confirmed.json); no funding workaround"
+   },
+   {
+    "step": "enrollment TX2 acceptOwner(metal0)",
+    "signer": "admin 0x0b2d009c0c9af05b12100d77f3c815fea822ee61 (human)",
+    "status": "after TX1"
+   },
+   {
+    "step": "public HTTPS origin + direct ingress for the canary custodian",
+    "status": "root"
+   },
+   {
+    "step": "funded host submitter for createCommittee",
+    "costUpperBoundWei": "6544038431646"
+   }
+  ],
+  "steps": [
+   {
+    "n": 1,
+    "what": "host binding",
+    "signer": "operator 0xc9d0 signs hostDigest off-chain (no gas)"
+   },
+   {
+    "n": 2,
+    "what": "genesis createCommittee",
+    "signer": "the new machine (in TEE) + host submitter pays",
+    "costUpperBoundWei": "6544038431646"
+   },
+   {
+    "n": 3,
+    "what": "full secret lifecycle canary on a dedicated deployment/EOA (save, release, rotate, pause, migrate, restart)",
+    "status": "NOT DONE"
+   },
+   {
+    "n": 4,
+    "what": "existing deployments: unchanged on 0x4774 until the owner re-enters values to the new committee, or runs the owner-authorized rewrap (custody/v2/rewrap.mjs; image f01a7166; anvil + synthetic attestation only, no hardware)",
+    "signer": "each policy owner"
+   }
+  ]
+ },
+ "C_futureCodeOnCorrectedCommittee": {
+  "applies": "only to a committee whose current machines run code with approveCode (B, after it exists)",
+  "steps": [
+   {
+    "n": 1,
+    "cli": "node scripts/independent-custody.mjs code-permit --chain-id 8453 --vault 0xe486\u2026 --committee <B> --measurement <next> --add --expires-in <s<=2592000> --rpcs R1,R2 --out code.json",
+    "signer": "none (digest only)"
+   },
+   {
+    "n": 2,
+    "what": "Enclave seat owner signs code.json digest (codePermitDigest, EIP-191)",
+    "signer": "admin 0x0b2d (human); only valid while 0x0b2d is the host's ACCEPTED owner"
+   },
+   {
+    "n": 3,
+    "cli": "node scripts/independent-custody.mjs code --request code.json --permits permits.json --rpcs R1,R2 --out tx.json",
+    "signer": "the machine signs codeDigest inside its TEE via /v2/custody/code-approve"
+   },
+   {
+    "n": 4,
+    "what": "submit tx.json proposeCode",
+    "signer": "any funded submitter",
+    "costUpperBoundWei": "1243588911330",
+    "clock": "activeAt = block.timestamp + 604800 (tested exactly)"
+   },
+   {
+    "n": 5,
+    "what": "after activeAt: candidate POST /join; the coordinator proposes the handover; deal; acks",
+    "costUpperBoundWei": {
+     "proposeHandover_2machines": "7348366444415",
+     "postDeal_2recipients": "5504826239720",
+     "ackHandover_each": "2281394911330"
+    }
+   }
+  ],
+  "cancel": "removeCode with the same approval weight: immediate; also blocks the final ack of a pending handover to that code; the SAME measurement cannot be re-proposed in that epoch (single-use digest) - tested",
+  "expiry": "a code proposal does not expire; permits (<=30 d) gate only issuing the machine signature; handover proposals expire after 86400 s and may then be replaced"
+ },
+ "evidence": [
+  "evidence/original-code-path.json",
+  "evidence/live-code-state.json",
+  "evidence/original-daemon-static.json"
+ ]
+}

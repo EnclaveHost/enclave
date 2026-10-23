@@ -1,0 +1,24 @@
+[package]
+name = "custody-canary-proof"
+version = "0.1.0"
+edition = "2021"
+description = "Custody canary ONLY: HMAC proofs over high-entropy CANARY_ test markers staged as secrets (env). Never for real secrets."
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hmac = "=0.12.1"
+sha2 = { version = "=0.10.9", default-features = false }
+
+# the wasi:http 0.2 bindings only for the component (the p2 hello-world's pin: enclave-apps fd15327)
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasi = "=0.14.7"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

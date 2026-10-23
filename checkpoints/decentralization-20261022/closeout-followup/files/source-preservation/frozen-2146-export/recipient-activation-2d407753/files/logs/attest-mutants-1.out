@@ -1,0 +1,14 @@
+[queue] START available=23753MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+KILLED   attest-control.mjs nonce-binding-optional
+KILLED   attest-control.mjs unavailable-counts-as-pass
+KILLED   attest-control.mjs leak-chip-id
+KILLED   attest-control.mjs leak-raw-in-public
+KILLED   attest-control.mjs raw-world-readable
+KILLED   attest-control.mjs image-pin-unchecked
+KILLED   check-attestation-verdict.py accept-limited
+KILLED   check-attestation-verdict.py skip-required
+KILLED   check-attestation-verdict.py skip-time
+survived 0
+[memory-guard] exit=0 peakTreeRssMiB=122 minHostAvailableMiB=23626
+[memory-guard] at peak: node:53 node:52 python3:17
+[queue] EXIT 0

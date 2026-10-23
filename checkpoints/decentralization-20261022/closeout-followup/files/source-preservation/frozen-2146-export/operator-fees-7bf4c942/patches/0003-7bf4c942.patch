@@ -1,0 +1,379 @@
+From 7bf4c942e544165a1a6651afa795418114268f04 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:13:04 -0700
+Subject: [PATCH] Operator proposer fees: L1 size from the real nonce and the
+ signed maximum; operator fee bounded or the send is blocked
+
+From custody-operator-proposal-20261023 1ac9ad2 (ROOT-FEE-FOLLOWUP).
+
+- L1 data fee:
+  - the size is computed from the EXACT transaction, including the real nonce
+    (e.g. 23759, 2 bytes longer than the nonce 0 used before);
+  - its maximum signed encoding is yParity 1, r = s = 2^256-1;
+  - GasPriceOracle.getL1FeeUpperBound gets max(unsigned, signedMax-68), so the
+    oracle's own +68 covers the signed transaction. Anything smaller refuses
+    (l1_size); the old nonce-0 argument missed the signed maximum by 1 byte.
+- Operator fee:
+  - isIsthmus() must be true; getOperatorFee(gas limit) is the oracle's own
+    computation, non-decreasing in gas used, at the agreed block on both RPCs;
+  - otherwise (not Isthmus, a revert, RPC disagreement) the plan AND the send
+    refuse (operator_fee): an undetermined fee blocks sending; no all-fee claim.
+- fees.totalAtBlockWei = L2 cap + L1 bound + operator fee <= the unchanged
+  0.000005 ETH cap; it replaces totalMaxWei. Balance is checked against it at
+  send. These are bounds at the agreed block's oracle parameters, re-read at send.
+
+The fixed target, caps, private journal, two-RPC agreement and pinned delegation
+are unchanged. Tests 17/17 at 256 MiB; the unknown-outcome and journal tests are
+unchanged. Mutants (nonce-0 sizing, operator fee dropped, undetermined fee as
+zero) all fail the suite. FEE-NOTES.md is the file-only note for the canary fee
+work. Nothing was signed, sent or funded.
+---
+ FEE-NOTES.md               | 17 +++++++++
+ PROGRESS.txt               | 15 +++++---
+ README.md                  | 20 ++++++++--
+ lib/proposer.mjs           | 76 +++++++++++++++++++++++++++++++-------
+ test/helpers/fake-base.mjs | 18 ++++++++-
+ test/proposer.test.mjs     | 58 ++++++++++++++++++++++++++---
+ 6 files changed, 175 insertions(+), 29 deletions(-)
+ create mode 100644 FEE-NOTES.md
+
+diff --git a/FEE-NOTES.md b/FEE-NOTES.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d4a7936d379e37a3f98e50c53fb925c65d7e5a7
+--- /dev/null
++++ b/FEE-NOTES.md
+@@ -0,0 +1,17 @@
++# Fee accounting used here (for the production-canary fee work, H): file-only coordination; no shared files edited
++
++This repository (`custody-operator-fees-20261023`, from `custody-operator-proposal-20261023` 1ac9ad2) prices its one
++type-2 transaction on Base as follows (`lib/proposer.mjs`):
++
++1. **L2 cap:** gas limit × maxFeePerGas.
++2. **L1 data fee:** `GasPriceOracle(0x4200…000F).getL1FeeUpperBound(argument)`.
++   - `argument = max(unsigned, signedMax − 68)`, computed from the exact transaction, including its real nonce.
++   - `signedMax` is the encoding with yParity 1 and r = s = 2^256−1.
++   - The oracle treats the argument as unsigned and adds 68 bytes, so its size covers the signed maximum.
++   - A transaction built with nonce 0 undercounts once the real nonce needs more bytes (23759 needs 2 more).
++3. **Operator fee:** `isIsthmus()` must be true, and `getOperatorFee(gas limit)` is included (non-decreasing in gas
++   used). If it is undetermined (not Isthmus, a revert, or RPC disagreement), the plan and the send refuse; there is no
++   all-fee claim.
++
++All three values are at one block both RPCs agree on, and are re-read at send. Tests: `test/proposer.test.mjs` 16–17. The
++same accounting could apply to other single-transaction helpers; this note changes nothing outside this repository.
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+index 4b5fcc9f32f7e7ea1163518c229497ffce552e92..00830179562b380a1c742ceb444de0a73f2fc154 100644
+--- a/PROGRESS.txt
++++ b/PROGRESS.txt
+@@ -1,6 +1,9 @@
+-2026-10-23T20:19:30Z metal0 operator proposeOwner helper, source only.
+-- Commit f2a7b81 (README.md has the commands and limits). Nothing signed, sent or read from a real key; no RPC.
+-- Tests 15/15 (256 lane, peak ~200 MiB); all 9 safety mutants fail the suite.
+-- Scans: scan-crypto-keys and gitleaks clean.
+-- ROOT-FOLLOWUP 20:14 applied: the operator's EXACT EIP-7702 delegation (0xef0100+0x8900baca, keccak e2f1317f) and
+-  the executor runtime (dd893cd4) are pinned. Plain EOA / other code refuses.
++2026-10-23T21:12:15Z operator proposer fee correction (ROOT-FEE-FOLLOWUP), source only, from 1ac9ad2. No live chain, key,
++signing, funding or delegation change; caps unchanged.
++- L1 size from the real nonce plus the maximum signed encoding; oracle argument max(unsigned, signedMax-68); undercount
++  refused.
++- Operator fee from GasPriceOracle.getOperatorFee(gas limit) when isIsthmus(); undetermined -> refuse (plan and send).
++- fees.totalAtBlockWei replaces the misleading all-fee totalMaxWei.
++- Tests 17/17 (256 lane), incl. unchanged journal and unknown-outcome tests.
++- Mutants: nonce-0 sizing, no operator fee in the total, undetermined-as-zero -> all fail the suite.
++- Existing blocker unchanged: operator balance insufficient (root funding is separate).
+diff --git a/README.md b/README.md
+index 8374f4886f210374d153184ecc2db791cdf93a91..8a3c61afc3f7ade3d90003703f2a786ea51be3a2 100644
+--- a/README.md
++++ b/README.md
+@@ -36,9 +36,19 @@
+ - **Fees and caps:**
+   - gas = max estimate × 1.25 ≤ **150000**;
+   - maxFee = 2 × base + max tip ≤ **0.1 gwei**;
+-  - Base L1 fee from `GasPriceOracle.getL1FeeUpperBound(size)`;
+-  - worst case gas×maxFee + L1 ≤ **0.000005 ETH**;
+-  - balance ≥ worst case (checked at send; prepare reports the exact funding gap).
++  - **L1 data fee:** `GasPriceOracle.getL1FeeUpperBound(size)`, sized from the EXACT transaction (its real nonce, e.g.
++    23759, not 0):
++    - the oracle adds 68 signature bytes and assumes the worst fastlz case;
++    - the code passes `max(unsigned, signedMax − 68)`, where `signedMax` is the encoding with yParity 1 and r = s = 2^256−1;
++    - any smaller argument refuses (`l1_size`). The previous nonce-0 sizing passed 2 bytes too few and missed the
++      signed maximum by 1 byte;
++  - **Operator fee:** the oracle's own `getOperatorFee(gas limit)` (Isthmus predeploy; non-decreasing in gas used, so the
++    gas limit bounds it). If `isIsthmus()` is not true, or either call fails or the RPCs disagree, the operator fee is
++    undetermined and the plan and the send refuse (`operator_fee`). Sending stays blocked rather than claim a bound;
++  - **Cap:** `fees.totalAtBlockWei` = L2 cap (gas × maxFee) + L1 bound + operator fee ≤ **0.000005 ETH** (cap unchanged).
++    These are bounds at the agreed block's oracle parameters; `--send` re-reads them fresh. Later L1-fee or
++    operator-parameter changes before inclusion are not covered;
++  - balance ≥ that total (checked at send; prepare reports the exact funding gap).
+ 
+ ## Commands (from this directory; `npm ci --offline --ignore-scripts` first)
+ 
+@@ -105,6 +115,10 @@
+ - operator code (delegation removed, re-delegated, other code, executor runtime changed);
+ - RPC disagreement and errors;
+ - fee, gas, L1 and total caps;
++- L1 sizing with the real nonce (23759: 2 bytes more than nonce 0) and the maximum signed encoding (+67); nonce-0 or
++  unsigned-only arguments refused;
++- the operator fee for the gas limit in the total; refusal when undetermined (not Isthmus, reverting, RPC
++  disagreement) at prepare AND at send (before any key read); refusal when it pushes the total over the cap;
+ - unsettled nonce;
+ - send refusals before any key read (flag, wrong or non-current hash, stale or tampered plan, moved nonce, fees, balance,
+   authority);
+diff --git a/lib/proposer.mjs b/lib/proposer.mjs
+index eb15314e3434307667d7dc12bdfa8aa099e1092d..774964704ba90eea226365c5298ba211a8cae31a 100644
+--- a/lib/proposer.mjs
++++ b/lib/proposer.mjs
+@@ -55,7 +55,37 @@
+     outputs: [{ type: "address", name: "owner" }, { type: "address", name: "pendingOwner" }, { type: "uint64", name: "revision" }, { type: "bytes32", name: "policyHash" }] },
+ ];
+ const REGISTRY_GET = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "bytes" }] }];
+-const ORACLE_ABI = [{ type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] }];
++// Base GasPriceOracle predeploy, assumptions explicit:
++//   getL1FeeUpperBound(_unsignedTxSize) (Fjord+): treats its argument as an UNSIGNED size, adds ORACLE_SIGNATURE_ALLOWANCE
++//     (68) bytes for the signature and applies the worst-case fastlz bound -> the L1 data fee upper bound.
++//   isIsthmus() / getOperatorFee(_gasUsed) (Isthmus+): the predeploy computes the OP-stack operator fee the protocol
++//     charges for a given gas used, from the operator-fee parameters in force at the read block. The fee is non-decreasing
++//     in gas used, so getOperatorFee(gas limit) bounds this transaction's operator fee at those parameters. A chain whose
++//     oracle cannot answer (function absent / reverts / not Isthmus) leaves the operator fee UNDETERMINED: the plan refuses
++//     rather than claim a bound.
++// All three are bounds at the agreed block's oracle parameters (L1 fee inputs and operator-fee parameters can change
++// before inclusion); --send re-reads them fresh.
++const ORACLE_ABI = [
++  { type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "isIsthmus", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
++  { type: "function", name: "getOperatorFee", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++];
++export const ORACLE_SIGNATURE_ALLOWANCE = 68;
++/**
++ * Encoded sizes of the EXACT transaction (its real nonce, gas and fee fields): unsigned, and the MAXIMUM signed size
++ * (yParity 1, r = s = 2^256-1; type 2 without an access list, as signed here). `argument` is the size passed to
++ * getL1FeeUpperBound: the smallest value whose oracle-side size (argument + 68) still covers the maximum signed size.
++ */
++export function txSizes(tx) {
++  const unsigned = (serializeTransaction(tx).length - 2) / 2;
++  const signedMax = (serializeTransaction(tx, { r: "0x" + "ff".repeat(32), s: "0x" + "ff".repeat(32), yParity: 1 }).length - 2) / 2;
++  return { unsigned, signedMax, argument: Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE) };
++}
++/** Refuses a size argument whose oracle-side size would undercount the signed transaction. */
++export function assertCoversSigned({ argument, signedMax }) {
++  if (!(Number.isSafeInteger(argument) && argument + ORACLE_SIGNATURE_ALLOWANCE >= signedMax))
++    refuse("l1_size", `the L1 fee size ${argument} (+${ORACLE_SIGNATURE_ALLOWANCE} signature bytes) undercounts the signed transaction (${signedMax} bytes)`);
++}
+ const ZERO = "0x0000000000000000000000000000000000000000";
+ 
+ export class Refusal extends Error { constructor(code, message) { super(message); this.code = code; } }
+@@ -178,7 +208,7 @@
+     if (all.some((x) => x !== all[0])) refuse("nonce", "the operator's nonce is not settled (latest/pending/agreed differ): a transaction may be in flight");
+     return all[0];
+   }
+-  async function pricing(o, gasFixed = null, fees = null) {
++  async function pricing(o, nonce, gasFixed = null, fees = null) {
+     const P = { from: cfg.operator, to: cfg.ownership, data: cfg.data, value: "0x0" };
+     await o.call(cfg.ownership, cfg.data, cfg.operator);                                   // the exact call succeeds (reverts throw)
+     const est = (await both("eth_estimateGas", [P, hexN(o.blk.number)])).map(BigInt);
+@@ -196,12 +226,28 @@
+     if (maxFee > cfg.caps.maxFeePerGas) refuse("fees", `maxFeePerGas ${maxFee} exceeds the cap ${cfg.caps.maxFeePerGas}`);
+     if (prio > maxFee) refuse("fees", "priority fee above max fee");
+     if (maxFee < o.blk.baseFee + prio) refuse("fees", `the current base fee ${o.blk.baseFee} no longer fits the prepared max fee ${maxFee}: prepare again`);
+-    const size = (serializeTransaction(unsignedTx({ nonce: 0, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio })).length - 2) / 2;
+-    const l1 = decodeFunctionResult({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound",
+-      data: await o.call(cfg.oracle, encodeFunctionData({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound", args: [BigInt(size)] })) });
+-    const total = gas * maxFee + l1;
+-    if (total > cfg.caps.totalWei) refuse("cap", `the worst-case cost ${total} wei exceeds the cap ${cfg.caps.totalWei}`);
+-    return { gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, estimates: est.map(String), l1FeeUpperBound: l1, totalMaxWei: total, unsignedSize: size };
++    // the L1 data fee: sized from the EXACT transaction (its real nonce), conservatively for its maximum signed encoding
++    const sizes = txSizes(unsignedTx({ nonce, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio }));
++    assertCoversSigned(sizes);
++    const oracle = (functionName, args = []) => o.call(cfg.oracle, encodeFunctionData({ abi: ORACLE_ABI, functionName, args }))
++      .then((data) => decodeFunctionResult({ abi: ORACLE_ABI, functionName, data }));
++    const l1 = await oracle("getL1FeeUpperBound", [BigInt(sizes.argument)]);
++    // the operator fee: the oracle's own computation for the gas LIMIT, or no plan at all
++    let isthmus;
++    try { isthmus = await oracle("isIsthmus"); } catch (e) {
++      if (e instanceof Refusal) throw e;
++      refuse("operator_fee", `the GasPriceOracle cannot report the operator fee (isIsthmus(): ${String(e.message).slice(0, 120)}); sending stays blocked: an undetermined fee is not bounded`);
++    }
++    if (isthmus !== true) refuse("operator_fee", "the GasPriceOracle reports no Isthmus operator-fee support; the operator fee is undetermined and sending stays blocked");
++    let operatorFee;
++    try { operatorFee = await oracle("getOperatorFee", [gas]); } catch (e) {
++      if (e instanceof Refusal) throw e;
++      refuse("operator_fee", `getOperatorFee(${gas}) failed (${String(e.message).slice(0, 120)}); sending stays blocked: an undetermined fee is not bounded`);
++    }
++    const l2 = gas * maxFee, total = l2 + l1 + operatorFee;
++    if (total > cfg.caps.totalWei) refuse("cap", `the worst-case cost ${total} wei (L2 ${l2} + L1 ${l1} + operator ${operatorFee}) exceeds the cap ${cfg.caps.totalWei}`);
++    return { gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, estimates: est.map(String), l2MaxWei: l2, l1FeeUpperBound: l1, operatorFeeUpperBound: operatorFee,
++             totalAtBlockWei: total, sizes };
+   }
+ 
+   // ---- the journal: one private, exclusive, fsynced record per signed transaction ----
+@@ -228,7 +274,7 @@
+     const state = authorityState(o, verifiedJournal());
+     if (state !== "ready") return { status: state, authority: o.authority, block: o.blk.number.toString() };
+     const nonce = checkNonce(o);
+-    const pr = await pricing(o);
++    const pr = await pricing(o, nonce);
+     const plan = { v: 1, tool: "custody-operator-propose", planFileSha256: PLAN_FILE_SHA256, preparedAt: new Date(now()).toISOString(),
+       tx: { type: "eip1559", chainId: cfg.chainId, from: lc(cfg.operator), to: cfg.ownership, value: "0", data: cfg.data, nonce: nonce.toString(),
+             gas: pr.gas.toString(), maxFeePerGas: pr.maxFeePerGas.toString(), maxPriorityFeePerGas: pr.maxPriorityFeePerGas.toString() },
+@@ -236,8 +282,12 @@
+       observed: { block: o.blk.number.toString(), blockHash: o.blk.hash, rpcs, ownershipCodeHash: cfg.ownershipCodeHash, registry: cfg.registry, registryCodeHash: o.regCodeHash,
+                   host: { id: cfg.hostId, ...o.host }, authority: o.authority,
+                   operatorCode: { delegation: cfg.operatorDelegation, codeHash: o.operatorCodeHash, target: cfg.delegationTarget, targetCodeHash: o.delegationTargetCodeHash }, nonce: nonce.toString(), balanceWei: o.balance.toString(),
+-                  estimates: pr.estimates, baseFeePerGas: o.blk.baseFee.toString(), l1FeeUpperBoundWei: pr.l1FeeUpperBound.toString(), totalMaxWei: pr.totalMaxWei.toString(),
+-                  balanceSufficient: o.balance >= pr.totalMaxWei, fundingNeededWei: (o.balance >= pr.totalMaxWei ? 0n : pr.totalMaxWei - o.balance).toString() } };
++                  estimates: pr.estimates, baseFeePerGas: o.blk.baseFee.toString(),
++                  fees: { l2MaxWei: pr.l2MaxWei.toString(), l1DataUpperBoundWei: pr.l1FeeUpperBound.toString(), operatorFeeUpperBoundWei: pr.operatorFeeUpperBound.toString(),
++                          totalAtBlockWei: pr.totalAtBlockWei.toString(),
++                          encodedBytes: { unsigned: pr.sizes.unsigned, signedMax: pr.sizes.signedMax, oracleArgument: pr.sizes.argument, oracleSignatureAllowance: ORACLE_SIGNATURE_ALLOWANCE },
++                          note: "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's oracle parameters; --send re-reads them. Not a guarantee against later L1-fee or operator-parameter changes." },
++                  balanceSufficient: o.balance >= pr.totalAtBlockWei, fundingNeededWei: (o.balance >= pr.totalAtBlockWei ? 0n : pr.totalAtBlockWei - o.balance).toString() } };
+     const text = JSON.stringify(plan, null, 1) + "\n";
+     const planHash = "0x" + sha256(text);
+     ensureDir(PREP, 0o755);
+@@ -270,8 +320,8 @@
+     const nonce = checkNonce(o);
+     if (nonce.toString() !== plan.tx.nonce) refuse("nonce", `the operator nonce moved since prepare (${plan.tx.nonce} -> ${nonce})`);
+     if (o.regCodeHash !== plan.observed.registryCodeHash) refuse("host_entry", "the registry code changed since prepare");
+-    const pr = await pricing(o, BigInt(plan.tx.gas), plan.tx);
+-    if (o.balance < pr.totalMaxWei) refuse("balance", `the operator balance ${o.balance} wei is below the worst-case cost ${pr.totalMaxWei} wei`);
++    const pr = await pricing(o, nonce, BigInt(plan.tx.gas), plan.tx);
++    if (o.balance < pr.totalAtBlockWei) refuse("balance", `the operator balance ${o.balance} wei is below the worst-case cost ${pr.totalAtBlockWei} wei (L2 + L1 + operator fee)`);
+     // the key: read only now, never logged; the derived address must be the registered operator
+     if (typeof readKey !== "function") refuse("key", "no key reader");
+     let account;
+diff --git a/test/helpers/fake-base.mjs b/test/helpers/fake-base.mjs
+index 1c7cca222ea8addaee2ee9fe325f82b452924dfe..fe6c09f293326b7bcccbd83be866dd1dd01fe610 100644
+--- a/test/helpers/fake-base.mjs
++++ b/test/helpers/fake-base.mjs
+@@ -6,6 +6,8 @@
+ 
+ const lc = (a) => String(a).toLowerCase();
+ export const OWNERSHIP_CODE = "0xfeedbeef";   // the fake's code; tests set cfg-compatible hash through codeHashOverride
++/** The Fjord GasPriceOracle.getL1FeeUpperBound shape: size + 68 signature bytes, worst-case fastlz (+size/255 + 16). */
++export const l1UpperBound = (unsignedSize, perByte) => { const n = BigInt(unsignedSize) + 68n; return (n + n / 255n + 16n) * perByte; };
+ export const RPC_A = "https://rpc-a.test", RPC_B = "https://rpc-b.test";
+ const ZERO = "0x0000000000000000000000000000000000000000";
+ 
+@@ -15,7 +17,7 @@
+     ownershipCode: "0x6080", registry: PRODUCTION.registry, registryCode: "0x6060",
+     host: { endpoint: PRODUCTION.hostEndpoint, operator, active: true, payout: PRODUCTION.proposed },
+     authority: { owner: ZERO, pendingOwner: ZERO, revision: 0n, policyHash: "0x" + "00".repeat(32) },
+-    nonce: 7, balance: 10n ** 15n, l1Fee: 30_000_000_000n, estimate: 45_000n, operatorCode: PRODUCTION.operatorDelegation, executorCode: "0x5fe1",
++    nonce: 7, balance: 10n ** 15n, l1PerByte: 100_000_000n, isthmus: true, operatorScalar: 100n, operatorConstant: 1_000n, oracleArgs: [], operatorArgs: [], estimate: 45_000n, operatorCode: PRODUCTION.operatorDelegation, executorCode: "0x5fe1",
+     pool: [], mined: new Map(), sent: [],
+     hooks: {},                        // hooks[method] = (url, params, answer) => answer | throw
+     onBroadcast: null,
+@@ -58,7 +60,19 @@
+       }
+     }
+     if (t === PRODUCTION.registry && data.startsWith("0x8eaa6ac0")) return registryEntry();
+-    if (t === PRODUCTION.oracle && data.startsWith("0xf1c7a58b")) return encodeAbiParameters([{ type: "uint256" }], [s.l1Fee]);
++    if (t === PRODUCTION.oracle && data.startsWith("0xf1c7a58b")) {          // getL1FeeUpperBound: Fjord shape (size + 68, fastlz worst case)
++      const size = BigInt("0x" + data.slice(10)); s.oracleArgs.push(size);
++      return encodeAbiParameters([{ type: "uint256" }], [l1UpperBound(size, s.l1PerByte)]);
++    }
++    if (t === PRODUCTION.oracle && data === "0xb54501bc") {                     // isIsthmus()
++      if (s.isthmus === "revert") throw new Error("execution reverted");
++      return encodeAbiParameters([{ type: "bool" }], [s.isthmus === true]);
++    }
++    if (t === PRODUCTION.oracle && data.startsWith("0x275aedd2")) {          // getOperatorFee(gasUsed): non-decreasing in gas used
++      if (s.isthmus !== true) throw new Error("execution reverted");
++      const g = BigInt("0x" + data.slice(10)); s.operatorArgs.push(g);
++      return encodeAbiParameters([{ type: "uint256" }], [g * s.operatorScalar + s.operatorConstant]);
++    }
+     throw new Error(`fake: no contract at ${to}`);
+   }
+   const atKnown = (p) => { if (p && typeof p === "object" && p.blockHash && ![...Array(40)].some((_, i) => hashOf(s.head - i) === p.blockHash)) throw new Error("fake: unknown block hash"); };
+diff --git a/test/proposer.test.mjs b/test/proposer.test.mjs
+index 6fed7e6aa034ee6c67667b976dace9ed68d9ced4..6894cb958cf02d50bd31e07962b22baeb0f1b4cd 100644
+--- a/test/proposer.test.mjs
++++ b/test/proposer.test.mjs
+@@ -10,8 +10,9 @@
+ import { fileURLToPath } from "node:url";
+ import { keccak256 } from "viem";
+ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+-import { createProposer, checkPublicPlan, PRODUCTION } from "../lib/proposer.mjs";
+-import { fakeBase, RPC_B } from "./helpers/fake-base.mjs";
++import { createProposer, checkPublicPlan, PRODUCTION, txSizes, assertCoversSigned, ORACLE_SIGNATURE_ALLOWANCE } from "../lib/proposer.mjs";
++import { fakeBase, RPC_B, l1UpperBound } from "./helpers/fake-base.mjs";
++import { serializeTransaction } from "viem";
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+ const PLAN = fs.readFileSync(path.join(HERE, "fixtures/metal0-enrollment-unsigned-20261023.json"), "utf8");
+@@ -49,7 +50,7 @@
+   assert.deepEqual([plan.tx.to, plan.tx.data, plan.tx.value, plan.tx.nonce, plan.tx.chainId, plan.tx.from],
+                    [PRODUCTION.ownership, PRODUCTION.data, "0", "7", 8453, w.acct.address.toLowerCase()]);
+   assert.ok(BigInt(plan.tx.gas) <= 150_000n && BigInt(plan.tx.maxFeePerGas) <= 100_000_000n);
+-  assert.ok(BigInt(plan.observed.totalMaxWei) <= 5_000_000_000_000n);
++  assert.ok(BigInt(plan.observed.fees.totalAtBlockWei) <= 5_000_000_000_000n);
+   assert.equal(plan.observed.balanceSufficient, true);
+   assert.equal(fs.readFileSync(path.join(w.dir, "prepared/current"), "utf8").trim(), planHash);
+   assert.equal(w.keyReads(), 0);
+@@ -58,7 +59,7 @@
+   const w2 = world(); w2.f.s.balance = 0n;
+   const r2 = await prepared(w2);
+   assert.equal(r2.plan.observed.balanceSufficient, false);
+-  assert.equal(r2.plan.observed.fundingNeededWei, r2.plan.observed.totalMaxWei);
++  assert.equal(r2.plan.observed.fundingNeededWei, r2.plan.observed.fees.totalAtBlockWei);
+ });
+ 
+ test("prepare refuses wrong code, authority, host entry or operator state", async () => {
+@@ -104,7 +105,7 @@
+ 
+ test("fees, gas, the Base L1 fee and the total stay under the caps; an unsettled nonce refuses", async () => {
+   for (const [c, mutate] of [["fees", (s) => { s.baseFee = 60_000_000n; }], ["gas", (s) => { s.estimate = 130_000n; }],
+-    ["cap", (s) => { s.l1Fee = 5_000_000_000_000n; }], ["cap", (s) => { s.baseFee = 40_000_000n; s.estimate = 110_000n; }],
++    ["cap", (s) => { s.l1PerByte = 30_000_000_000n; }], ["cap", (s) => { s.baseFee = 40_000_000n; s.estimate = 110_000n; }],
+     ["nonce", (s) => { s.pool.push({ hash: "0x01", from: "", to: "", data: "0x", nonce: 7, gas: 1 }); }]]) {
+     const w = world(); mutate(w.f.s);
+     if (c === "nonce") w.f.s.pool[0].from = w.acct.address.toLowerCase();
+@@ -257,3 +258,50 @@
+     assert.equal(r.status, 64, `${args}: ${r.stderr}`);
+   }
+ });
++
++const txOf = (plan, nonce = Number(plan.tx.nonce)) => ({ type: "eip1559", chainId: 8453, nonce, to: PRODUCTION.ownership, value: 0n, data: PRODUCTION.data,
++  gas: BigInt(plan.tx.gas), maxFeePerGas: BigInt(plan.tx.maxFeePerGas), maxPriorityFeePerGas: BigInt(plan.tx.maxPriorityFeePerGas) });
++const bytesOf = (tx) => (serializeTransaction(tx).length - 2) / 2;
++
++test("L1 fee: sized with the REAL nonce and the maximum signed encoding; the old nonce-0 sizing undercounts and is refused", async () => {
++  const w = world(); w.f.s.nonce = 23759;
++  const { plan } = await prepared(w);
++  assert.equal(plan.tx.nonce, "23759");
++  const e = plan.observed.fees.encodedBytes;
++  assert.equal(e.unsigned, bytesOf(txOf(plan)), "the unsigned size is the exact transaction's, real nonce included");
++  const nonce0 = bytesOf(txOf(plan, 0));
++  assert.equal(e.unsigned - nonce0, 2, "nonce 23759 encodes in 2 more bytes than nonce 0");
++  assert.equal(e.signedMax - e.unsigned, 67, "yParity + 33-byte r + 33-byte s");
++  assert.deepEqual(txSizes(txOf(plan)), { unsigned: e.unsigned, signedMax: e.signedMax, argument: e.oracleArgument });
++  assert.ok(e.oracleArgument + ORACLE_SIGNATURE_ALLOWANCE >= e.signedMax, "the oracle-side size covers the maximum signed transaction");
++  assert.equal(w.f.s.oracleArgs.at(-1), BigInt(e.oracleArgument), "the oracle was asked for exactly that size");
++  assert.equal(BigInt(plan.observed.fees.l1DataUpperBoundWei), l1UpperBound(e.oracleArgument, w.f.s.l1PerByte));
++  // the previous code passed the nonce-0 unsigned size: with the oracle's 68 bytes it still misses the signed maximum
++  assert.throws(() => assertCoversSigned({ argument: nonce0, signedMax: e.signedMax }), /undercounts the signed transaction/);
++  assert.throws(() => assertCoversSigned({ argument: e.signedMax - ORACLE_SIGNATURE_ALLOWANCE - 1, signedMax: e.signedMax }), /undercounts/);
++  assert.doesNotThrow(() => assertCoversSigned(txSizes(txOf(plan))));
++  // a signature overhead above the allowance raises the argument instead of undercounting
++  const big = txSizes({ ...txOf(plan), data: "0x" + "ab".repeat(4000) });
++  assert.ok(big.argument >= big.unsigned && big.argument + ORACLE_SIGNATURE_ALLOWANCE >= big.signedMax);
++});
++
++test("operator fee: the oracle's fee for the gas LIMIT is part of the total; an undetermined operator fee blocks the plan and the send", async () => {
++  const w = world(); const p = w.mk(); const { planHash, plan } = await prepared(w, p);
++  const f = plan.observed.fees, gas = BigInt(plan.tx.gas);
++  assert.equal(w.f.s.operatorArgs.at(-1), gas, "evaluated for the gas limit, not the estimate");
++  assert.equal(BigInt(f.operatorFeeUpperBoundWei), gas * w.f.s.operatorScalar + w.f.s.operatorConstant);
++  assert.equal(BigInt(f.totalAtBlockWei), BigInt(f.l2MaxWei) + BigInt(f.l1DataUpperBoundWei) + BigInt(f.operatorFeeUpperBoundWei));
++  assert.match(f.note, /operator fee for the gas limit/); assert.equal(plan.observed.totalMaxWei, undefined, "no field claims an all-fee maximum");
++  for (const [c, mutate] of [["operator_fee", (s) => { s.isthmus = false; }], ["operator_fee", (s) => { s.isthmus = "revert"; }],
++    ["cap", (s) => { s.operatorConstant = 5_000_000_000_000n; }]]) {
++    const v = world(); mutate(v.f.s);
++    await assert.rejects(v.mk().prepare({ planText: PLAN }), code(c), c);
++  }
++  const d = world();
++  d.f.s.hooks.eth_call = (url, params, a) => (url === RPC_B && String(params[0].data).startsWith("0x275aedd2") ? a.slice(0, -1) + "f" : a);
++  await assert.rejects(d.mk().prepare({ planText: PLAN }), code("rpc_disagree"));
++  // --send re-reads it: an operator fee that became undetermined refuses before the key is read
++  w.f.s.isthmus = false;
++  await assert.rejects(p.send({ planHash, confirm: true, planText: PLAN }), code("operator_fee"));
++  assert.equal(w.keyReads(), 0); assert.equal(w.f.s.sent.length, 0);
++});

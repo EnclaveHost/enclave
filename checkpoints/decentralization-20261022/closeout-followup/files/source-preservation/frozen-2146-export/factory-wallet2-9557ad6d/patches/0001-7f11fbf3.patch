@@ -1,0 +1,597 @@
+From 7f11fbf3db3b837638781915159c781e4b697237 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:05:30 -0700
+Subject: [PATCH] Book ABI: select the deployed original book's actual ABI by
+ exact code hash; no pendingOwner
+
+Root's live preflight failed: eth_call execution reverted. Root's read-check
+(custody-v2-live-20261023/evidence/book-abi-readcheck.json) shows that the deployed
+book 0xe4f570e9 has no pendingOwner() selector. That book is the first,
+single-step-owner EnclaveAddressBook: Projects/enclave 6c1135b0f, reproduced byte for
+byte offline with that commit's settings (solc 0.8.35, runs 200; 1809 bytes, keccak
+e4f570e9). The source, ABI, runtime, a reproduce script and provenance are in
+evidence/book-legacy.
+
+activation.mjs:
+- BOOK_ABIS is keyed by exact code hash; any other book code refuses;
+- the pendingOwner read and check are removed (the book has no pending-owner state);
+- the strict owner and code pins stay;
+- every failed eth_call names the method, contract and provider.
+
+The test fake's book code is the actual deployed runtime. It answers only selectors
+dispatched by that bytecode and declared in its ABI; others revert. A test checks the
+selectors against root's live evidence.
+
+Counterexample: the previous activation.mjs (24aac73), run against this fixture,
+refuses with 'eth_call: execution reverted' (root's live failure); the fix prepares.
+
+activation 11/11 (256 MiB), browser 3/3 (512 MiB). Nothing was served or signed.
+---
+ PROGRESS.txt                                  |   9 ++
+ README.md                                     |  23 ++-
+ activation.mjs                                |  43 +++--
+ .../book-legacy/EnclaveAddressBook.abi.json   | 151 ++++++++++++++++++
+ evidence/book-legacy/EnclaveAddressBook.sol   |  65 ++++++++
+ evidence/book-legacy/PROVENANCE.md            |  15 ++
+ evidence/book-legacy/reproduce.cjs            |  16 ++
+ evidence/book-legacy/runtime.hex              |   1 +
+ test/activation.test.mjs                      |  40 ++++-
+ test/fake-base.mjs                            |  22 ++-
+ 10 files changed, 362 insertions(+), 23 deletions(-)
+ create mode 100644 evidence/book-legacy/EnclaveAddressBook.abi.json
+ create mode 100644 evidence/book-legacy/EnclaveAddressBook.sol
+ create mode 100644 evidence/book-legacy/PROVENANCE.md
+ create mode 100644 evidence/book-legacy/reproduce.cjs
+ create mode 100644 evidence/book-legacy/runtime.hex
+
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+index 1501f84a5caf66c9fe05783c8c44a3819261e67d..24514a1115e9c8a76b4e11164e3dd994aedbd414 100644
+--- a/PROGRESS.txt
++++ b/PROGRESS.txt
+@@ -13,3 +13,12 @@
+ - Verification refuses a wallet-added access list.
+ - feeBound.totalExcludingOperatorFeeWei is labelled as excluding the OP-stack operator fee (not an all-fee cap).
+ - activation 10/10 (256); 2 fee mutants caught. Browser suite not re-run: only the fee row text on the page changed.
++2026-10-23T21:05:21Z ROOT-FEE-REVIEW part 2 (book ABI), source only; nothing served or signed:
++- Deployed book e4f570e9 = Projects/enclave 6c1135b0f source, reproduced byte for byte offline (solc 0.8.35, runs 200).
++  It has a single-step owner and NO pendingOwner.
++- activation.mjs: the ABI is selected only by exact code hash; the pendingOwner read is removed; read failures name the
++  method, contract and provider.
++- Fixture: the test fake's book code is the actual runtime and answers only selectors in that code and ABI.
++- Counterexample: the previous 24aac73 code against the fixture refuses with 'eth_call: execution reverted' (root's live
++  failure); the fix prepares.
++- activation 11/11 (256, peak 238 MiB); browser 3/3 (512, peak 448 MiB).
+diff --git a/README.md b/README.md
+index 208278c7553a3a97cd4d83ed1868a8d79f685f6f..b49d12bd785ee186e95a7d125c1c058ff348524b 100644
+--- a/README.md
++++ b/README.md
+@@ -34,7 +34,12 @@
+ 1. **Code first:** chain id 8453 and the five pinned runtime hashes. Nothing is called before its code is the reviewed
+    code; the ledger must have code.
+ 2. **The book:**
+-   - `owner()` = administrator, `pendingOwner()` = 0;
++   - `owner()` = administrator. The book's ABI is selected ONLY by its exact code hash (`activation.mjs` `BOOK_ABIS`):
++     - the deployed book `0xe4f570e9…` is the first, single-step-owner `EnclaveAddressBook` (Projects/enclave 6c1135b0f);
++     - it has no `pendingOwner()` getter and no pending-owner state, so nothing pending is read (root's live read-check:
++       the selector is absent and the call reverts);
++     - any other book code refuses ("no reviewed ABI");
++     - every failed read names the method, contract and provider;
+    - `addr(sessionVaultFactory)` = 0. If it is already the factory: "nothing to sign"; any other value: refuse;
+    - `addr(deployments)` = the reviewed ledger;
+    - `factory.implementation()` = the reviewed implementation;
+@@ -112,6 +117,18 @@
+ 
+ The page polls about 2 minutes. Check repeats it, and accepts a pasted hash after a reload.
+ 
++## The deployed book's ABI (evidence/book-legacy)
++
++- **Source and settings:** `EnclaveAddressBook.sol` as committed at Projects/enclave 6c1135b0f (sha256 `124aa407…`), compiled
++  with that commit's deploy settings (solc 0.8.35, optimizer runs 200, no viaIR).
++- **Byte-for-byte match:** it reproduces the deployed runtime: `runtime.hex`, 1809 bytes, keccak `0xe4f570e9…`, the pinned
++  live hash. Re-check with `node evidence/book-legacy/reproduce.cjs <solc 0.8.35 package dir>`.
++- **Functions:** `owner`, `addr`, `set`, `setMany`, `all`, `count`, `setOwner`. Events: `AddressSet`, `OwnerChanged`.
++- **The test fake uses this exact runtime as the book's code.** It answers only selectors that are both dispatched by that
++  bytecode and declared in that ABI, and everything else reverts, so it cannot invent a getter such as `pendingOwner()`.
++- **Counterexample:** the previous `activation.mjs` (24aac73), run against this fixture, refuses with
++  `eth_call: execution reverted`, which was root's live preflight failure. The fixed code prepares.
++
+ ## What the administrator is told (page text, tested)
+ 
+ - **One shared entry:** one shared book entry changes. Both original custody vaults, and every consumer that reads this
+@@ -127,10 +144,10 @@
+ 
+ ## Tests (fake chain; loopback only; through `work/claude-test-queue.py`)
+ 
+-- **`./q.sh 256 activation-N ./run-tests.sh activation`:** `test/activation.test.mjs` 10/10 (fee review: 10/10, see PROGRESS.txt). It covers:
++- **`./q.sh 256 activation-N ./run-tests.sh activation`:** `test/activation.test.mjs` 11/11 (book-ABI review; peak 238 MiB). It covers:
+   - the evidence and frozen-request equality, the excluded keys, the byte-identical transport/RPC/`effectOf`;
+   - preparation and its exhaustive impact;
+-  - 20 refusals: code ×3, owner, pending owner, already set, other value, ledger, implementation, STRANDED ×2,
++  - 19 refusals: code ×3, owner, already set, other value, ledger, implementation, STRANDED ×2,
+     restored, claimant change, unreviewed vault-held id, other wallet, changed count, pending admin transaction, fee,
+     gas, balance;
+   - provider disagreement (batched reads, code), a wrong chain, a hanging provider;
+diff --git a/activation.mjs b/activation.mjs
+index 8ccf7593fdcc54bac6435482c25ccf56a1d16f7b..441d1ac08f95f49d4df40ba73dbb314156b449ed 100644
+--- a/activation.mjs
++++ b/activation.mjs
+@@ -3,7 +3,8 @@
+ // and verify what the wallet later returned. Nothing here signs, broadcasts, funds or delegates anything.
+ // Every preparation reads, at one anchor block both providers agree on (head - 2), with byte-identical answers:
+ //   - chain id; the runtime hashes of the book, factory, implementation and both custody vaults (the ledger's is read, not pinned);
+-//   - book.owner() = administrator, book.pendingOwner() = 0, book.addr(sessionVaultFactory) = 0 (= factory: nothing to
++//   - book.owner() = administrator (the deployed book has a single-step owner and NO pendingOwner getter; its ABI is
++//     selected only by its exact code hash), book.addr(sessionVaultFactory) = 0 (= factory: nothing to
+ //     sign), book.addr(deployments) = the reviewed ledger, factory.implementation() = the reviewed implementation;
+ //   - the administrator's nonce at the anchor and pending (equal);
+ //   - the EXHAUSTIVE impact over every id of the current ledger (custody-factory-consumer-review effectOf, verbatim):
+@@ -25,8 +26,21 @@
+ const stable = (o) => JSON.stringify(o, (_k, v) => (typeof v === "bigint" ? v.toString() : typeof v === "string" && /^0x[0-9a-fA-F]*$/.test(v) ? v.toLowerCase() : v));
+ export const keyOf = (k) => stringToHex(k, { size: 32 });
+ 
+-export const BOOK_ABI = parseAbi(["function owner() view returns (address)", "function pendingOwner() view returns (address)", "function addr(bytes32) view returns (address)",
+-  "function set(bytes32 key, address value)", "event AddressSet(bytes32 indexed key, address value)", "event OwnerChanged(address owner)"]);
++// The DEPLOYED original book's ABI (evidence/book-legacy: source at Projects/enclave 6c1135b0f, reproduced byte for byte
++// to the deployed runtime keccak 0xe4f570e9…). Single-step owner; there is no pendingOwner() and no pending-owner state.
++export const BOOK_ABI = parseAbi(["function owner() view returns (address)", "function addr(bytes32) view returns (address)",
++  "function set(bytes32 key, address value)", "function setMany(bytes32[] keys_, address[] values)", "function all() view returns (bytes32[] keys_, address[] values)",
++  "function count() view returns (uint256)", "function setOwner(address newOwner)", "event AddressSet(bytes32 indexed key, address value)", "event OwnerChanged(address owner)"]);
++/** Book ABIs by EXACT runtime code hash; no other code is read through any book ABI. */
++export const BOOK_ABIS = Object.freeze({
++  "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152": Object.freeze({ abi: BOOK_ABI, ownership: "single-step (setOwner); no pendingOwner getter",
++    source: "EnclaveAddressBook.sol @ Projects/enclave 6c1135b0f, solc 0.8.35 runs 200 (evidence/book-legacy)" }),
++});
++export function bookAbiFor(codeHash) {
++  const b = BOOK_ABIS[lc(codeHash)];
++  if (!b) throw Error(`no reviewed ABI for the address book's code ${codeHash}; stop and review`);
++  return b;
++}
+ export const FACTORY_ABI = parseAbi(["function implementation() view returns (address)", "function isVault(address) view returns (bool)"]);
+ export const SV_ABI = parseAbi(["function owner() view returns (address)"]);
+ export const VAULT_ABI = parseAbi(["function beneficialOwnerOf(bytes32) view returns (address)",
+@@ -63,8 +77,11 @@
+ 
+ // ---- reads ----
+ const tagOf = (n) => hex(n);
+-const read = async (c, address, abi, functionName, args, tag) =>
+-  decodeFunctionResult({ abi, functionName, data: await c.request("eth_call", [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }, tag]) });
++/** One eth_call; a failure names the method, the contract and the provider (never ignored, never read as a default). */
++const read = async (c, address, abi, functionName, args, tag) => {
++  try { return decodeFunctionResult({ abi, functionName, data: await c.request("eth_call", [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }, tag]) }); }
++  catch (e) { throw Error(`${functionName}() on ${address} failed on ${c.host}: ${String(e.shortMessage || e.message).slice(0, 200)}`); }
++};
+ const codeHash = (code) => (code && code !== "0x" ? keccak256(code) : null);
+ 
+ /**
+@@ -116,14 +133,14 @@
+     ledgerCodeHash: codeHash(ledCode) };
+ }
+ // phase 2: the state
+-async function readView(c, trust, tag) {
++async function readView(c, trust, tag, bookAbi) {
+   const k = keyOf(trust.key);
+-  const [owner, pendingOwner, current, deployments, implementation, bal, nonce, pending] = await Promise.all([
+-    read(c, trust.book, BOOK_ABI, "owner", [], tag), read(c, trust.book, BOOK_ABI, "pendingOwner", [], tag), read(c, trust.book, BOOK_ABI, "addr", [k], tag),
+-    read(c, trust.book, BOOK_ABI, "addr", [keyOf("deployments")], tag), read(c, trust.factory, FACTORY_ABI, "implementation", [], tag),
++  const [owner, current, deployments, implementation, bal, nonce, pending] = await Promise.all([
++    read(c, trust.book, bookAbi, "owner", [], tag), read(c, trust.book, bookAbi, "addr", [k], tag),
++    read(c, trust.book, bookAbi, "addr", [keyOf("deployments")], tag), read(c, trust.factory, FACTORY_ABI, "implementation", [], tag),
+     c.request("eth_getBalance", [trust.admin, tag]), c.request("eth_getTransactionCount", [trust.admin, tag]), c.request("eth_getTransactionCount", [trust.admin, "pending"])]);
+   return {
+-    book: { owner: lc(owner), pendingOwner: lc(pendingOwner), [trust.key]: lc(current), deployments: lc(deployments) }, implementation: lc(implementation),
++    book: { owner: lc(owner), [trust.key]: lc(current), deployments: lc(deployments) }, implementation: lc(implementation),
+     admin: { balance: String(BigInt(bal)), nonce: Number(BigInt(nonce)), pending: Number(BigInt(pending)) },
+   };
+ }
+@@ -137,11 +154,11 @@
+   if (codes[0].chainId !== trust.chainId) throw Error(`wrong chain ${codes[0].chainId}`);
+   for (const [k, want] of Object.entries(trust.codeHashes)) if (codes[0].codeHashes[k] !== want) throw Error(`the ${k} contract's code is not the reviewed code`);
+   if (!codes[0].ledgerCodeHash) throw Error("the ledger has no code");
+-  const views = await Promise.all(clients.map((c) => readView(c, trust, anchor.tag)));
++  const book = bookAbiFor(codes[0].codeHashes.book);   // selected only by the exact (pinned) code hash
++  const views = await Promise.all(clients.map((c) => readView(c, trust, anchor.tag, book.abi)));
+   if (stable(views[0]) !== stable(views[1])) throw Error(`the two providers disagree on chain state at block ${anchor.number}; check again shortly`);
+-  const v = { ...codes[0], ...views[0] };
++  const v = { ...codes[0], ...views[0], bookOwnership: book.ownership };
+   eq(v.book.owner, trust.admin, "the address book's owner is not the administrator");
+-  eq(v.book.pendingOwner, ZERO, "an address-book ownership handoff is pending; stop and review");
+   eq(v.book.deployments, trust.ledger, "the book names another deployments ledger than the reviewed one");
+   eq(v.implementation, trust.implementation, "the factory's implementation is not the reviewed one");
+   if (v.admin.pending !== v.admin.nonce) throw Error("an administrator transaction is pending or was mined in the last two blocks; wait for it to settle and check again");
+diff --git a/evidence/book-legacy/EnclaveAddressBook.abi.json b/evidence/book-legacy/EnclaveAddressBook.abi.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..670256890da283d5101b19ddee15c8a9a08ddfbb
+--- /dev/null
++++ b/evidence/book-legacy/EnclaveAddressBook.abi.json
+@@ -0,0 +1,151 @@
++[
++  {
++    "inputs": [],
++    "stateMutability": "nonpayable",
++    "type": "constructor"
++  },
++  {
++    "anonymous": false,
++    "inputs": [
++      {
++        "indexed": true,
++        "internalType": "bytes32",
++        "name": "key",
++        "type": "bytes32"
++      },
++      {
++        "indexed": false,
++        "internalType": "address",
++        "name": "value",
++        "type": "address"
++      }
++    ],
++    "name": "AddressSet",
++    "type": "event"
++  },
++  {
++    "anonymous": false,
++    "inputs": [
++      {
++        "indexed": false,
++        "internalType": "address",
++        "name": "owner",
++        "type": "address"
++      }
++    ],
++    "name": "OwnerChanged",
++    "type": "event"
++  },
++  {
++    "inputs": [
++      {
++        "internalType": "bytes32",
++        "name": "",
++        "type": "bytes32"
++      }
++    ],
++    "name": "addr",
++    "outputs": [
++      {
++        "internalType": "address",
++        "name": "",
++        "type": "address"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
++  {
++    "inputs": [],
++    "name": "all",
++    "outputs": [
++      {
++        "internalType": "bytes32[]",
++        "name": "keys_",
++        "type": "bytes32[]"
++      },
++      {
++        "internalType": "address[]",
++        "name": "values",
++        "type": "address[]"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
++  {
++    "inputs": [],
++    "name": "count",
++    "outputs": [
++      {
++        "internalType": "uint256",
++        "name": "",
++        "type": "uint256"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
++  {
++    "inputs": [],
++    "name": "owner",
++    "outputs": [
++      {
++        "internalType": "address",
++        "name": "",
++        "type": "address"
++      }
++    ],
++    "stateMutability": "view",
++    "type": "function"
++  },
++  {
++    "inputs": [
++      {
++        "internalType": "bytes32",
++        "name": "key",
++        "type": "bytes32"
++      },
++      {
++        "internalType": "address",
++        "name": "value",
++        "type": "address"
++      }
++    ],
++    "name": "set",
++    "outputs": [],
++    "stateMutability": "nonpayable",
++    "type": "function"
++  },
++  {
++    "inputs": [
++      {
++        "internalType": "bytes32[]",
++        "name": "keys_",
++        "type": "bytes32[]"
++      },
++      {
++        "internalType": "address[]",
++        "name": "values",
++        "type": "address[]"
++      }
++    ],
++    "name": "setMany",
++    "outputs": [],
++    "stateMutability": "nonpayable",
++    "type": "function"
++  },
++  {
++    "inputs": [
++      {
++        "internalType": "address",
++        "name": "newOwner",
++        "type": "address"
++      }
++    ],
++    "name": "setOwner",
++    "outputs": [],
++    "stateMutability": "nonpayable",
++    "type": "function"
++  }
++]
+diff --git a/evidence/book-legacy/EnclaveAddressBook.sol b/evidence/book-legacy/EnclaveAddressBook.sol
+new file mode 100644
+index 0000000000000000000000000000000000000000..9644e5456a503af7b4982d76494f8ceb5d6f22b8
+--- /dev/null
++++ b/evidence/book-legacy/EnclaveAddressBook.sol
+@@ -0,0 +1,65 @@
++// SPDX-License-Identifier: MIT
++pragma solidity ^0.8.20;
++
++/// @title EnclaveAddressBook — the one stable root the platform reads its
++///        contract addresses from.
++/// @notice Every Enclave component (supervisor, website, relays, CLI) bakes in
++///         exactly ONE address — this contract's — and resolves the rest
++///         (registry, deployments ledger, app catalog, pay forwarder, volume
++///         access) from it at start, then polls for changes. Redeploying any
++///         platform contract is then ONE owner transaction here instead of an
++///         enclave release + site rebuild + relay-box env edits (the drift
++///         class that repeatedly bit the 2026-07-07 contract redeploy).
++///
++/// Trust model (stated plainly, like everything else on this platform):
++///   - The owner — the platform's governance EOA, the same key that approves
++///     catalog apps and deploys contracts — can repoint any entry at any time,
++///     and running components follow within one poll WITHOUT a new measured
++///     release. Anyone verifying an enclave should understand that "which
++///     contracts it talks to" is governed by this key; the measurement pins
++///     the code and THIS book's address, not the addresses inside it.
++///   - Keys are short ascii labels right-padded to bytes32 ("registry",
++///     "deployments", "appCatalog", "enclavePay", "volumeAccess"); new keys
++///     can be added later without redeploying the book. Setting a key to
++///     address(0) retires it (readers treat zero as unset and keep their
++///     baked fallback).
++contract EnclaveAddressBook {
++    address public owner;
++    bytes32[] private _keys;                  // every key ever set, for all()
++    mapping(bytes32 => address) public addr;  // key -> current address
++    mapping(bytes32 => bool) private _seen;
++
++    event AddressSet(bytes32 indexed key, address value);
++    event OwnerChanged(address owner);
++
++    constructor() { owner = msg.sender; }
++
++    function set(bytes32 key, address value) public {
++        require(msg.sender == owner, "!owner");
++        require(key != bytes32(0), "key=0");
++        if (!_seen[key]) { _seen[key] = true; _keys.push(key); }
++        addr[key] = value;
++        emit AddressSet(key, value);
++    }
++
++    function setMany(bytes32[] calldata keys_, address[] calldata values) external {
++        require(keys_.length == values.length, "len");
++        for (uint256 i = 0; i < keys_.length; i++) set(keys_[i], values[i]);
++    }
++
++    /// @notice The whole book in one eth_call — how components resolve at boot.
++    function all() external view returns (bytes32[] memory keys_, address[] memory values) {
++        keys_ = _keys;
++        values = new address[](_keys.length);
++        for (uint256 i = 0; i < _keys.length; i++) values[i] = addr[_keys[i]];
++    }
++
++    function count() external view returns (uint256) { return _keys.length; }
++
++    function setOwner(address newOwner) external {
++        require(msg.sender == owner, "!owner");
++        require(newOwner != address(0), "owner=0");
++        owner = newOwner;
++        emit OwnerChanged(newOwner);
++    }
++}
+diff --git a/evidence/book-legacy/PROVENANCE.md b/evidence/book-legacy/PROVENANCE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f595bcff111a28d4839212e79500b5442806db24
+--- /dev/null
++++ b/evidence/book-legacy/PROVENANCE.md
+@@ -0,0 +1,15 @@
++# The deployed original EnclaveAddressBook (0xab214342…): actual ABI
++
++- Root's live read-check (`custody-v2-live-20261023/evidence/book-abi-readcheck.json`, block 52,999,644, both providers):
++  - code hash `0xe4f570e9…`;
++  - `owner()` (0x8da5cb5b) is present and answers the administrator;
++  - `pendingOwner()` (0xe30c3978) is NOT in the code, and the call reverts.
++- Source: `EnclaveAddressBook.sol` as committed at `/home/steven/Projects/enclave` 6c1135b0f (2026-07-07), sha256
++  `124aa407863e2213d8ef700e6e9492e9112b7a8e1ce50fc10f324b781173ac9a`. It has a single-step `setOwner`: no pending owner, no
++  two-step handoff. The later source (two-step `pendingOwner`/`acceptOwnership`, 2026-07-14) is NOT what is deployed.
++- Reproduced offline (`reproduce.cjs`, that commit's deploy settings: solc 0.8.35, optimizer runs 200, no viaIR):
++  - runtime = `runtime.hex`, 1809 bytes, keccak `0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152`,
++    equal to the deployed code hash pinned from live evidence;
++  - ABI = `EnclaveAddressBook.abi.json` (that commit's committed ABI).
++- Functions: `owner()`, `addr(bytes32)`, `set(bytes32,address)`, `setMany(bytes32[],address[])`, `all()`, `count()`,
++  `setOwner(address)`. Events: `AddressSet(bytes32 indexed key, address value)`, `OwnerChanged(address)`.
+diff --git a/evidence/book-legacy/reproduce.cjs b/evidence/book-legacy/reproduce.cjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6349accc18f26e6da9c0f54d8b013e4626972d8c
+--- /dev/null
++++ b/evidence/book-legacy/reproduce.cjs
+@@ -0,0 +1,16 @@
++// Reproduce the DEPLOYED original EnclaveAddressBook runtime (0xab214342…, keccak 0xe4f570e9…, 1809 bytes) from its
++// source as committed at /home/steven/Projects/enclave 6c1135b0f (2026-07-07), with that commit's deploy settings
++// (scripts/deploy-address-book.mjs: solc 0.8.35, optimizer enabled, runs 200, no viaIR), and compare.
++//   node evidence/book-legacy/reproduce.cjs <path to solc 0.8.35 package dir>
++const fs = require("fs"), path = require("path");
++const solc = require(path.resolve(process.argv[2]));
++const { keccak256 } = require(path.join(__dirname, "../../node_modules/viem/_cjs/index.js"));
++const src = fs.readFileSync(path.join(__dirname, "EnclaveAddressBook.sol"), "utf8");
++const out = JSON.parse(solc.compile(JSON.stringify({ language: "Solidity", sources: { "EnclaveAddressBook.sol": { content: src } },
++  settings: { optimizer: { enabled: true, runs: 200 }, outputSelection: { "*": { "*": ["abi", "evm.deployedBytecode.object"] } } } })));
++const c = out.contracts["EnclaveAddressBook.sol"].EnclaveAddressBook, rt = "0x" + c.evm.deployedBytecode.object;
++const want = fs.readFileSync(path.join(__dirname, "runtime.hex"), "utf8").trim();
++const ok = solc.version().startsWith("0.8.35") && rt === want && keccak256(rt) === "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152"
++  && JSON.stringify(c.abi) === JSON.stringify(JSON.parse(fs.readFileSync(path.join(__dirname, "EnclaveAddressBook.abi.json"), "utf8")));
++console.log(JSON.stringify({ solc: solc.version(), bytes: (rt.length - 2) / 2, keccak: keccak256(rt), matchesDeployed: ok }));
++process.exit(ok ? 0 : 1);
+diff --git a/evidence/book-legacy/runtime.hex b/evidence/book-legacy/runtime.hex
+new file mode 100644
+index 0000000000000000000000000000000000000000..ab6572031f5f97ecedb99a55da1cbfeac8f2c452
+--- /dev/null
++++ b/evidence/book-legacy/runtime.hex
+@@ -0,0 +1 @@
++0x608060405234801561000f575f5ffd5b506004361061007a575f3560e01c806313af40351161005857806313af4035146100bf5780633b3b57de146100d25780638da5cb5b14610112578063ba44593c14610124575f5ffd5b806306661abd1461007e57806310c4e8b01461009457806312d1a4a8146100aa575b5f5ffd5b6001546040519081526020015b60405180910390f35b61009c610137565b60405161008b9291906104fa565b6100bd6100b83660046105cb565b610256565b005b6100bd6100cd366004610652565b6102ec565b6100fa6100e0366004610672565b60026020525f90815260409020546001600160a01b031681565b6040516001600160a01b03909116815260200161008b565b5f546100fa906001600160a01b031681565b6100bd610132366004610689565b6103c1565b606080600180548060200260200160405190810160405280929190818152602001828054801561018457602002820191905f5260205f20905b815481526020019060010190808311610170575b5050600154939550505067ffffffffffffffff82111590506101a8576101a86106b3565b6040519080825280602002602001820160405280156101d1578160200160208202803683370190505b5090505f5b6001548110156102515760025f600183815481106101f6576101f66106c7565b905f5260205f20015481526020019081526020015f205f9054906101000a90046001600160a01b0316828281518110610231576102316106c7565b6001600160a01b03909216602092830291909101909101526001016101d6565b509091565b8281146102905760405162461bcd60e51b81526020600482015260036024820152623632b760e91b60448201526064015b60405180910390fd5b5f5b838110156102e5576102dd8585838181106102af576102af6106c7565b905060200201358484848181106102c8576102c86106c7565b90506020020160208101906101329190610652565b600101610292565b5050505050565b5f546001600160a01b0316331461032e5760405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606401610287565b6001600160a01b03811661036e5760405162461bcd60e51b815260206004820152600760248201526606f776e65723d360cc1b6044820152606401610287565b5f80546001600160a01b0319166001600160a01b0383169081179091556040519081527fa2ea9883a321a3e97b8266c2b078bfeec6d50c711ed71f874a90d500ae2eaf369060200160405180910390a150565b5f546001600160a01b031633146104035760405162461bcd60e51b815260206004820152600660248201526510b7bbb732b960d11b6044820152606401610287565b816104385760405162461bcd60e51b815260206004820152600560248201526406b65793d360dc1b6044820152606401610287565b5f8281526003602052604090205460ff16610497575f828152600360205260408120805460ff191660019081179091558054808201825591527fb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6018290555b5f8281526002602090815260409182902080546001600160a01b0319166001600160a01b038516908117909155915191825283917fb37614c7d254ea8d16eb81fa11dddaeb266aa8ba4917980859c7740aff30c691910160405180910390a25050565b604080825283519082018190525f9060208501906060840190835b81811015610533578351835260209384019390920191600101610515565b5050838103602080860191909152855180835291810192508501905f5b818110156105775782516001600160a01b0316845260209384019390920191600101610550565b50919695505050505050565b5f5f83601f840112610593575f5ffd5b50813567ffffffffffffffff8111156105aa575f5ffd5b6020830191508360208260051b85010111156105c4575f5ffd5b9250929050565b5f5f5f5f604085870312156105de575f5ffd5b843567ffffffffffffffff8111156105f4575f5ffd5b61060087828801610583565b909550935050602085013567ffffffffffffffff81111561061f575f5ffd5b61062b87828801610583565b95989497509550505050565b80356001600160a01b038116811461064d575f5ffd5b919050565b5f60208284031215610662575f5ffd5b61066b82610637565b9392505050565b5f60208284031215610682575f5ffd5b5035919050565b5f5f6040838503121561069a575f5ffd5b823591506106aa60208401610637565b90509250929050565b634e487b7160e01b5f52604160045260245ffd5b634e487b7160e01b5f52603260045260245ffdfea26469706673582212202bedd0ece74a720c2e286460efde57ec0c0557cfcd76debb8b4066c5399ce98464736f6c63430008230033
+diff --git a/test/activation.test.mjs b/test/activation.test.mjs
+index 3700b728fd82f81543ca8dec949424827bd93044..46ef41c76cd0e12c852ed91a435ead2b8b756423 100644
+--- a/test/activation.test.mjs
++++ b/test/activation.test.mjs
+@@ -10,9 +10,10 @@
+ import { spawnSync } from "node:child_process";
+ import { fileURLToPath } from "node:url";
+ import { decodeFunctionData, keccak256 } from "viem";
+-import { FakeBase, providers, fixtureTrust, memoryJournal, ZERO, EOA, POLICY_ID, l1UpperBound } from "./fake-base.mjs";
++import { FakeBase, providers, fixtureTrust, memoryJournal, ZERO, EOA, POLICY_ID, l1UpperBound, BOOK_RUNTIME, push4s } from "./fake-base.mjs";
+ import { clientsFor } from "../rpc.mjs";
+-import { frozen, checkFrozen, prepare, verify, effectOf, keyOf, BOOK_ABI, PURPOSE, txSizes, assertCoversSigned, ORACLE_SIGNATURE_ALLOWANCE } from "../activation.mjs";
++import { frozen, checkFrozen, prepare, verify, effectOf, keyOf, BOOK_ABI, PURPOSE, txSizes, assertCoversSigned, ORACLE_SIGNATURE_ALLOWANCE, bookAbiFor, observe } from "../activation.mjs";
++import { toFunctionSelector } from "viem";
+ import { activationApp, recoverInterruptedPreparation } from "../stage-app.mjs";
+ import { assets, TEXT } from "../page.mjs";
+ import { PRODUCTION } from "../trust.mjs";
+@@ -63,6 +64,40 @@
+   assert.match(TEXT.EFFECT, /4 deployments held by the administrator's SessionVault/); assert.match(TEXT.ROLLBACK, /No simple rollback/); assert.match(TEXT.LEDE, /secretVaultV2 entry is NOT part/);
+ });
+ 
++test("the deployed book's ACTUAL ABI: selected only by the exact code hash; no pendingOwner read; failures name the method", T, async (t) => {
++  // the fixture is the deployed runtime itself (reproduced from source at 6c1135b0f; keccak = the live pin)
++  assert.equal(keccak256(BOOK_RUNTIME), PRODUCTION.codeHashes.book);
++  assert.equal(sha("evidence/book-legacy/EnclaveAddressBook.sol"), "124aa407863e2213d8ef700e6e9492e9112b7a8e1ce50fc10f324b781173ac9a");
++  const live = JSON.parse(fs.readFileSync(path.join(root, "../custody-v2-live-20261023/evidence/book-abi-readcheck.json"), "utf8"));
++  for (const r of live.rows) {
++    assert.equal(r.codeHash, PRODUCTION.codeHashes.book, `${r.provider} reported the pinned code`);
++    const pending = r.calls.find((x) => x.function === "pendingOwner");
++    assert.deepEqual([pending.selector, pending.selectorPresentInCode, pending.error], ["0xe30c3978", false, "execution reverted"]);
++  }
++  const sels = push4s(BOOK_RUNTIME), fns = BOOK_ABI.filter((x) => x.type === "function");
++  for (const f of fns) assert.ok(sels.has(toFunctionSelector(f)), `${f.name} is dispatched by the deployed code`);
++  assert.ok(!sels.has("0xe30c3978"), "pendingOwner() is not in the deployed code");
++  assert.ok(!sels.has(toFunctionSelector("acceptOwnership()")), "no two-step handoff in the deployed code");
++  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, "evidence/book-legacy/EnclaveAddressBook.abi.json"), "utf8")).filter((x) => x.type === "function").map((x) => x.name).sort(),
++    fns.map((x) => x.name).sort(), "the ABI used is exactly the deployed source's committed ABI");
++  assert.match(bookAbiFor(PRODUCTION.codeHashes.book).ownership, /single-step.*no pendingOwner/);
++  assert.throws(() => bookAbiFor("0x" + "11".repeat(32)), /no reviewed ABI for the address book's code/);
++  // the fake behaves like the chain: pendingOwner() reverts; the preparation never calls it
++  const w = await world(t);
++  const pendingCall = { to: PRODUCTION.book, data: "0xe30c3978" };
++  assert.throws(() => w.base.answer("eth_call", [pendingCall, "latest"]), /execution reverted/);
++  for (const p of w.net.list) p.calls.length = 0;
++  const seen = [];
++  for (const p of w.net.list) p.override.eth_call = (params, base) => { seen.push(String(params[0].data).slice(0, 10)); return base.answer("eth_call", params); };
++  const o = await observe(w.clients, w.trust);
++  assert.equal(o.bookOwnership, bookAbiFor(PRODUCTION.codeHashes.book).ownership);
++  assert.ok(!seen.includes("0xe30c3978"), "no pendingOwner() call is ever made");
++  assert.equal(o.book.pendingOwner, undefined);
++  // a failing book read names the method, contract and provider
++  w.net.list[1].override.eth_call = (params, base) => { if (String(params[0].data).startsWith("0x8da5cb5b")) throw Object.assign(Error("x"), { rpc: { code: 3, message: "execution reverted" } }); return base.answer("eth_call", params); };
++  await assert.rejects(observe(w.clients, w.trust), /owner\(\) on 0xab214342d5a490150a4a977063a2f88e21f80907 failed on 127\.0\.0\.2:\d+: .*execution reverted/);
++});
++
+ test("prepare: the exact unsigned request at an agreed anchor with the exhaustive impact; no key, no send", T, async (t) => {
+   const w = await world(t);
+   const r = await prepare({ trust: w.trust, clients: w.clients });
+@@ -83,7 +118,6 @@
+     ["the v1 contract's code", (w) => w.base.edit((s) => { s.code[PRODUCTION.vaults.v1] = "0x6080dead"; })],
+     ["the implementation contract's code", (w) => w.base.edit((s) => { s.code[PRODUCTION.implementation] = "0x6080dead"; })],
+     ["owner is not the administrator", (w) => w.base.edit((s) => { s.book.owner = EOA.other; })],
+-    ["ownership handoff is pending", (w) => w.base.edit((s) => { s.book.pendingOwner = EOA.other; })],
+     ["already the original factory", (w) => w.base.edit((s) => { s.book.entries[keyOf("sessionVaultFactory")] = PRODUCTION.factory; })],
+     ["not zero; stop", (w) => w.base.edit((s) => { s.book.entries[keyOf("sessionVaultFactory")] = EOA.other; })],
+     ["another deployments ledger", (w) => w.base.edit((s) => { s.book.entries[keyOf("deployments")] = EOA.other; })],
+diff --git a/test/fake-base.mjs b/test/fake-base.mjs
+index 759b673663daac1e48d24e1e44ceb1d09cf88a24..af8ea4f30bff85b9ecd9f1693540da78acf066e2 100644
+--- a/test/fake-base.mjs
++++ b/test/fake-base.mjs
+@@ -5,13 +5,26 @@
+ // eth_call also executes viem's DEPLOYLESS Multicall3 (the exact bytecode activation.mjs sends), call by call, against
+ // the same contracts. Served as JSON-RPC by two loopback providers (127.0.0.1, 127.0.0.2) with per-provider overrides.
+ import http from "node:http";
+-import { encodeFunctionResult, decodeFunctionData, decodeAbiParameters, encodeEventTopics, encodeAbiParameters, keccak256, toHex, stringToHex } from "viem";
++import fs from "node:fs";
++import { encodeFunctionResult, decodeFunctionData, decodeAbiParameters, encodeEventTopics, encodeAbiParameters, keccak256, toHex, stringToHex, toFunctionSelector } from "viem";
+ import { multicall3Bytecode, deploylessCallViaBytecodeBytecode } from "../node_modules/viem/_esm/constants/contracts.js";
+ import { BOOK_ABI, FACTORY_ABI, SV_ABI, VAULT_ABI, LEDGER_ABI, ORACLE_ABI, MC_ABI } from "../activation.mjs";
+ import { PRODUCTION } from "../trust.mjs";
+ 
+ export const ZERO = "0x" + "0".repeat(40), ZERO32 = "0x" + "0".repeat(64);
+-export const CODE = Object.freeze({ book: "0x6080ff01", factory: "0x6080ff02", implementation: "0x6080ff03", v1: "0x6080ff04", v2: "0x6080ff05", ledger: "0x6080ff06", sv: "0x6080ff07" });
++// The book's code is the ACTUAL deployed runtime (evidence/book-legacy/runtime.hex, reproduced from source; keccak =
++// the production pin). The fake recognises the book by that bytecode and answers only selectors the bytecode itself
++// dispatches AND the deployed ABI declares; anything else reverts like the real contract (no fallback). It cannot invent
++// a getter such as pendingOwner().
++export const BOOK_RUNTIME = fs.readFileSync(new URL("../evidence/book-legacy/runtime.hex", import.meta.url), "utf8").trim().toLowerCase();
++/** Every PUSH4 immediate in the bytecode (the dispatcher's selectors are among them). */
++export function push4s(code) {
++  const b = Buffer.from(code.slice(2), "hex"), out = new Set();
++  for (let i = 0; i < b.length; i++) { const op = b[i]; if (op === 0x63) out.add("0x" + b.subarray(i + 1, i + 5).toString("hex")); if (op >= 0x60 && op <= 0x7f) i += op - 0x5f; }
++  return out;
++}
++const BOOK_SELECTORS = new Set(BOOK_ABI.filter((x) => x.type === "function").map((x) => toFunctionSelector(x)).filter((sel) => push4s(BOOK_RUNTIME).has(sel)));
++export const CODE = Object.freeze({ book: BOOK_RUNTIME, factory: "0x6080ff02", implementation: "0x6080ff03", v1: "0x6080ff04", v2: "0x6080ff05", ledger: "0x6080ff06", sv: "0x6080ff07" });
+ const lc = (a) => String(a ?? "").toLowerCase();
+ const hex = (n) => "0x" + BigInt(n).toString(16);
+ const key = (k) => stringToHex(k, { size: 32 });
+@@ -36,7 +49,7 @@
+     owner[POLICY_ID] = EOA.agent; for (const id of t.reviewedVaultHeld) owner[id] = t.sessionVault;
+     ids.slice(5).forEach((id, i) => { owner[id] = i % 2 ? EOA.other : t.admin; });
+     const s = { balance: {}, nonce: {}, code: {},
+-      book: { owner: t.admin, pendingOwner: ZERO, entries: { [key("deployments")]: t.ledger } },
++      book: { owner: t.admin, entries: { [key("deployments")]: t.ledger } },
+       implementation: t.implementation, vaults: { [lc(t.sessionVault)]: t.admin },     // factory vaults -> owner()
+       ledger: { ids, owner },
+       policies: { [lc(t.vaults.v1)]: { [POLICY_ID]: { owner: EOA.agent, policyRev: 1n } }, [lc(t.vaults.v2)]: { [POLICY_ID]: { owner: EOA.agent, policyRev: 2n } } } };
+@@ -71,8 +84,9 @@
+     const t = this.t, code = s.code[to] ?? "0x";
+     const unwrap = (o) => { const f = lc(s.book.entries[key(t.key)] ?? ZERO); return f === lc(t.factory) && (s.code[lc(o)] ?? "0x") !== "0x" && s.vaults[lc(o)] ? s.vaults[lc(o)] : o; };
+     if (code === CODE.book) {
++      if (!BOOK_SELECTORS.has(data.slice(0, 10))) throw Object.assign(Error("execution reverted"), { rpc: { code: 3, message: "execution reverted" } });
+       const { functionName: fn, args } = decodeFunctionData({ abi: BOOK_ABI, data });
+-      if (fn === "owner") return out(BOOK_ABI, fn, s.book.owner); if (fn === "pendingOwner") return out(BOOK_ABI, fn, s.book.pendingOwner);
++      if (fn === "owner") return out(BOOK_ABI, fn, s.book.owner);
+       if (fn === "addr") return out(BOOK_ABI, fn, s.book.entries[lc(args[0])] ?? ZERO);
+       if (fn === "set") {
+         if (from !== lc(s.book.owner)) throw revert("!owner");

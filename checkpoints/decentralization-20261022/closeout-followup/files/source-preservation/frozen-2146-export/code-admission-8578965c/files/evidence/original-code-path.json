@@ -1,0 +1,120 @@
+{
+ "at": "2026-10-23T21:37:23.653Z",
+ "testOnlyKeys": true,
+ "gasUsed": {
+  "createCommittee": "475628",
+  "proposeCode": "90280",
+  "proposeHandover_2machines": "533951",
+  "postDeal_2recipients": "400058",
+  "ackHandover_first": "165757",
+  "ackHandover_last_activates": "78252",
+  "removeCode": "68006"
+ },
+ "checks": [
+  {
+   "name": "original vault source + deployed settings + production immutables = production runtime code hash",
+   "ok": true,
+   "detail": {
+    "codeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
+    "compiler": "0.8.35+commit.47b9dedd.Emscripten.clang"
+   }
+  },
+  {
+   "name": "CODE_DELAY is 7 days and HANDOVER_TTL 1 day in the original bytecode",
+   "ok": true
+  },
+  {
+   "name": "sha256(SNP launch measurement 70aadff5…) = fbe2f581… (the vault's measurement field)",
+   "ok": true
+  },
+  {
+   "name": "genesis (original code set = [the running image's measurement]) succeeds",
+   "ok": true
+  },
+  {
+   "name": "after genesis: running code active at genesis time, corrected code NOT in the set",
+   "ok": true
+  },
+  {
+   "name": "a handover to a machine running the corrected code is refused before any code proposal",
+   "ok": true
+  },
+  {
+   "name": "proposeCode with no approvals: Weight(0,1)",
+   "ok": true
+  },
+  {
+   "name": "proposeCode approved by a machine outside the epoch: NotMachine()",
+   "ok": true
+  },
+  {
+   "name": "the member's HANDOVER signature (what the original daemon can sign) is not a code approval: BadSignature()",
+   "ok": true
+  },
+  {
+   "name": "a code approval for another epoch: BadSignature()",
+   "ok": true
+  },
+  {
+   "name": "proposeCode by the current machine over the codeDigest: activeAt = block.timestamp + 604800 exactly",
+   "ok": true,
+   "detail": {
+    "proposedAt": "1792791444",
+    "activeAt": "1793396244"
+   }
+  },
+  {
+   "name": "the same approval cannot be replayed (already proposed): BadSignature()",
+   "ok": true
+  },
+  {
+   "name": "handover to the corrected code at activeAt - 1: reverted",
+   "ok": true
+  },
+  {
+   "name": "handover to [original machine, corrected machine] at activeAt: accepted",
+   "ok": true
+  },
+  {
+   "name": "pending epoch 2: both Enclave-paid machines = ONE seat, t 1, W 1, expires after 1 day",
+   "ok": true
+  },
+  {
+   "name": "after deal + both acks: epoch 2 active; the original machine is still a member",
+   "ok": true
+  },
+  {
+   "name": "removeCode (same weight) is immediate",
+   "ok": true
+  },
+  {
+   "name": "after removal the pending handover cannot activate: the final ack reverts BadCode()",
+   "ok": true
+  },
+  {
+   "name": "the committee stays at epoch 1 (the old machine keeps serving)",
+   "ok": true
+  },
+  {
+   "name": "re-proposing the SAME measurement in the same epoch is impossible (single-use digest): BadSignature()",
+   "ok": true
+  },
+  {
+   "name": "production add digest is deterministic and differs from the removal digest",
+   "ok": true
+  }
+ ],
+ "production": {
+  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+  "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+  "epoch": 1,
+  "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
+  "onlyPossibleApprover": "0xf0f8078459c051a89197fac73ff689c6df96506a",
+  "codeDigestAdd": "0xa39fd1d7f9dd47c7d53ddd34a97fcf652b14123e2225f2abbdf72d0a7f7f4b64",
+  "codeDigestRemove": "0x5c3faf41fdc484dc7b61097e329e025b4bdc2798036db7f1d3ca4e550daebe0a",
+  "eip191SignedHashAdd": "0x0a74a7fe93c83db9f5a8a531ff057a8b8bd3a5cc182fb2835ae07128c5261e7d",
+  "proposeCodeCalldataNoApprovals": "0x1ff0855e47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3fbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "note": "A valid call needs approvers=[0xf0f8078459c051a89197fac73ff689c6df96506a] and approvals=[a 65-byte low-s EIP-191 signature by that TEE identity over codeDigestAdd]. The running image has no code that signs this digest."
+ },
+ "ok": true
+}

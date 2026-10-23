@@ -1,0 +1,17 @@
+{
+  "verify-operational.py": {
+    "sha256": "5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067",
+    "from": "work/linux-post-adoption-release/activation/verify-operational.py",
+    "identical": true
+  },
+  "guestrows.py": {
+    "sha256": "29b7c9dac8e39990e3332cfa2c4f7f9f972ab559f37a4d720edf55eafacb06ab",
+    "from": "work/linux-post-adoption-release/activation/guestrows.py",
+    "identical": true
+  },
+  "apphealth.py": {
+    "sha256": "3babd979edfe9dd245ce5d4d2a2e12223dfd67c1fa761d76cb108b53b6b6f88f",
+    "from": "work/linux-post-adoption-release/activation/apphealth.py",
+    "identical": true
+  }
+}

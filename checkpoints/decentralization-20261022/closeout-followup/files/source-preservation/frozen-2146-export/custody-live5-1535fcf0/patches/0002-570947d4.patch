@@ -1,0 +1,89 @@
+From 570947d44b48d9011921116b4d261ac1d9ab2c4c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:32:18 -0700
+Subject: [PATCH] Record deployed custody code delay and corrected operator fee
+ bounds
+
+---
+ evidence/custody-code-delay.json      | 18 +++++++++++++++++
+ evidence/operator-fees-confirmed.json | 29 +++++++++++++++++++++++++++
+ probes/custody-code-delay.mjs         |  9 +++++++++
+ 3 files changed, 56 insertions(+)
+ create mode 100644 evidence/custody-code-delay.json
+ create mode 100644 evidence/operator-fees-confirmed.json
+ create mode 100644 probes/custody-code-delay.mjs
+
+diff --git a/evidence/custody-code-delay.json b/evidence/custody-code-delay.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7ee9c8a249e03556d480b0b99cadf029cc989dfb
+--- /dev/null
++++ b/evidence/custody-code-delay.json
+@@ -0,0 +1,18 @@
++{
++  "at": "2026-10-23T21:23:51.832Z",
++  "readOnly": true,
++  "block": {
++    "number": "53000630",
++    "hash": "0xac6fd7b35b6ad12a51acaf6e7e07f6cb3e6b7ad9499d098b5fb686db50c238b9",
++    "timestamp": "1792790607",
++    "baseFeePerGas": "5000000"
++  },
++  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
++  "committee": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++  "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
++  "delaySeconds": "604800",
++  "correctedCodeActiveAt": "0",
++  "limits": [
++    "Existing committee code-admission state only. No code proposal, new committee, machine handover or policy migration was submitted. A new committee does not upgrade or migrate existing policies."
++  ]
++}
+diff --git a/evidence/operator-fees-confirmed.json b/evidence/operator-fees-confirmed.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fab5de25b20f7bc5629b8e795e2357588b3c934d
+--- /dev/null
++++ b/evidence/operator-fees-confirmed.json
+@@ -0,0 +1,29 @@
++{
++  "at": "2026-10-23T21:16:25.332Z",
++  "readOnly": true,
++  "notSigned": true,
++  "notSent": true,
++  "planHash": "0xd0cd987515b3637716b817cb19e7b1bf10733a95b33e0c678014b470d7b734a7",
++  "block": "53000414",
++  "blockHash": "0xb57a14e2dc384460cb199dc1550681e263d06cfd30741a4d8eeb5895e18235c8",
++  "rpcs": [
++    "https://mainnet.base.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++  ],
++  "balanceWei": "376132087579",
++  "fees": {
++    "l2MaxWei": "1037542000000",
++    "l1DataUpperBoundWei": "744650790",
++    "operatorFeeUpperBoundWei": "0",
++    "totalAtBlockWei": "1038286650790",
++    "encodedBytes": {
++      "unsigned": 114,
++      "signedMax": 181,
++      "oracleArgument": 114,
++      "oracleSignatureAllowance": 68
++    },
++    "note": "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's oracle parameters; --send re-reads them. Not a guarantee against later L1-fee or operator-parameter changes."
++  },
++  "balanceSufficient": false,
++  "fundingNeededWei": "662154563211"
++}
+diff --git a/probes/custody-code-delay.mjs b/probes/custody-code-delay.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..29ffbaae42c9d5c7e148284b0afe08b64be612b9
+--- /dev/null
++++ b/probes/custody-code-delay.mjs
+@@ -0,0 +1,9 @@
++// Read only: exact deployed committee's code-admission delay and corrected r2 measurement status.
++import fs from 'node:fs';
++import {parseAbi} from 'viem';
++import {pinBlock,readMany} from '../lib/live.mjs';
++const vault='0xe48699b8401564aace7a814ae4569b67a3f7eef5',committee='0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3',measurement='0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7';
++const abi=parseAbi(['function CODE_DELAY() view returns(uint64)','function codeActiveAt(bytes32,bytes32) view returns(uint64)']);
++const block=await pinBlock();const r=await readMany(block,[{address:vault,abi,functionName:'CODE_DELAY'},{address:vault,abi,functionName:'codeActiveAt',args:[committee,measurement]}]);
++const out={at:new Date().toISOString(),readOnly:true,block,vault,committee,measurement,delaySeconds:r[0].value,correctedCodeActiveAt:r[1].value,limits:['Existing committee code-admission state only. No code proposal, new committee, machine handover or policy migration was submitted. A new committee does not upgrade or migrate existing policies.']};
++fs.writeFileSync(new URL('../evidence/custody-code-delay.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');console.log(JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v));

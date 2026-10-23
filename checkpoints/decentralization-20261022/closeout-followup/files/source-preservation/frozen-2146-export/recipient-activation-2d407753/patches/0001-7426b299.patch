@@ -1,0 +1,1782 @@
+From 7426b29984c540c7e284a88fbbcd4d41641d1222 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:24:23 -0700
+Subject: [PATCH] metal0 control: image-only activation adaptation for the
+ restored custody vaults (a6b1378c, ee5df6b8)
+
+Adapted from the reviewed Oct-21 post-adoption activation to ONLY config.json dist: protected-field preconditions on root's
+21:13Z baseline (config 58aa9653, leaseGas 3570d2, WorkingDirectory metal-deabf8f90, KillMode control-group, both drop-ins,
+the two baseline guests), additive relay admission (35 + candidate, CAS with backup and restore-on-failure), fresh lease
+preflight on production-equal modules, restart/attach/adoption, the reviewed gate v4 byte copy, no extra renewal wait,
+safe rollback. Focused stub tests 16/16, safety mutants 11/11 killed. Source only; root executes each phase after review.
+---
+ .gitignore                       |   6 +
+ README.md                        | 116 ++++++++++++++
+ RESULT.md                        |  41 +++++
+ REVIEWED-COPIES.json             |  17 ++
+ ROOT-IMPLEMENT-ACTIVATION.txt    |   1 +
+ activate.py                      | 118 ++++++++++++++
+ admit.py                         |  16 ++
+ apphealth.py                     |  44 ++++++
+ baseline.guard.log               |   1 +
+ baseline.out                     |   3 +
+ baseline.py                      |  23 +++
+ commit.sh                        |  14 ++
+ common.py                        | 263 +++++++++++++++++++++++++++++++
+ evidence/baseline.json           |  76 +++++++++
+ guestrows.py                     |  41 +++++
+ keep.py                          |  34 ++++
+ logs/commit-1.out                |   1 +
+ logs/mutants-1.guard.log         |   1 +
+ logs/mutants-1.out               |  16 ++
+ logs/mutants-1.rc                |   1 +
+ logs/scan-1.guard.log            |   1 +
+ logs/scan-1.out                  |   8 +
+ logs/scan-1.rc                   |   1 +
+ logs/tests-1.attempt-1.guard.log |   1 +
+ logs/tests-1.attempt-1.out       |  37 +++++
+ logs/tests-1.attempt-1.rc        |   1 +
+ logs/tests-2.guard.log           |   1 +
+ logs/tests-2.out                 |  25 +++
+ logs/tests-2.rc                  |   1 +
+ mutants.py                       |  26 +++
+ preflight.mjs                    |  46 ++++++
+ prepare-admission.py             |  24 +++
+ q.sh                             |  11 ++
+ recheck-admission.py             |   9 ++
+ renewal-watch.py                 |  13 ++
+ rollback.py                      |  15 ++
+ scan.sh                          |  18 +++
+ stage.py                         |  23 +++
+ tests/test_activation.py         | 202 ++++++++++++++++++++++++
+ unadmit.py                       |  10 ++
+ verify-operational.py            | 134 ++++++++++++++++
+ 41 files changed, 1440 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 RESULT.md
+ create mode 100644 REVIEWED-COPIES.json
+ create mode 100644 ROOT-IMPLEMENT-ACTIVATION.txt
+ create mode 100644 activate.py
+ create mode 100644 admit.py
+ create mode 100644 apphealth.py
+ create mode 100644 baseline.guard.log
+ create mode 100644 baseline.out
+ create mode 100644 baseline.py
+ create mode 100755 commit.sh
+ create mode 100644 common.py
+ create mode 100644 evidence/baseline.json
+ create mode 100644 guestrows.py
+ create mode 100644 keep.py
+ create mode 100644 logs/commit-1.out
+ create mode 100644 logs/mutants-1.guard.log
+ create mode 100644 logs/mutants-1.out
+ create mode 100644 logs/mutants-1.rc
+ create mode 100644 logs/scan-1.guard.log
+ create mode 100644 logs/scan-1.out
+ create mode 100644 logs/scan-1.rc
+ create mode 100644 logs/tests-1.attempt-1.guard.log
+ create mode 100644 logs/tests-1.attempt-1.out
+ create mode 100644 logs/tests-1.attempt-1.rc
+ create mode 100644 logs/tests-2.guard.log
+ create mode 100644 logs/tests-2.out
+ create mode 100644 logs/tests-2.rc
+ create mode 100644 mutants.py
+ create mode 100644 preflight.mjs
+ create mode 100644 prepare-admission.py
+ create mode 100755 q.sh
+ create mode 100644 recheck-admission.py
+ create mode 100644 renewal-watch.py
+ create mode 100644 rollback.py
+ create mode 100755 scan.sh
+ create mode 100644 stage.py
+ create mode 100644 tests/test_activation.py
+ create mode 100644 unadmit.py
+ create mode 100644 verify-operational.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a01bcbb27eaffe53718b8613763a47205db0192
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,6 @@
++private-backup/
++__pycache__/
++tests/__pycache__/
++logs/scan-gitleaks.json
++claude-progress.txt
++claude.err
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d26c77c9c7eb9c20bd97b0de785f1dbe981fed2
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,116 @@
++# metal0 control: image-only activation of the restored custody vaults (ROOT EXECUTES each phase after review)
++
++Prepared 2026-10-23 (source only; nothing here was run against production, the relay, SSH or the chain). It is adapted from the
++reviewed Oct-21 `work/linux-post-adoption-release/activation/`, and changes **only config.json `dist`**:
++
++| Field | Value |
++|---|---|
++| Image | `dist-leasegas-deabf8f90` (ed918e4b) → `dist-leasegas-a6b1378cd` (**ee5df6b8…bc22ec**) |
++| Source | `work/custody-recipient-restore-20261023` commit a6b1378c (evidence b03be02d) |
++
++**Preserved exactly:**
++- every other byte of config.json, including `leaseGas` (digest 3570d2…);
++- the two user drop-ins (80-shield-inference `9f3acb48…`, 95-app-funded-leases `71b3feb3…`): never written;
++- WorkingDirectory `metal-deabf8f90` (the launcher files are byte-identical) and KillMode control-group;
++- lease-gas journals; guestd; and the app guests: gd9d4a391d (image-generator), gdd0646f2c (EyesOff) per root's 21:13Z baseline.
++
++**Root's files, kept untouched:** `baseline.py`, `baseline.out`, `baseline.guard.log`, `evidence/baseline.json`.
++
++**`verify-operational.py`, `guestrows.py` and `apphealth.py` are BYTE COPIES of the reviewed Oct-21 files** (`REVIEWED-COPIES.json`).
++Health, adoption, vouch and authority are not relaxed.
++
++## Phases (run from `/home/steven/Documents/Codex/2026-10-18/wo`; stop and review after each)
++
++| # | Command | Writes | Privilege / impact |
++|---|---|---|---|
++| 0 | `python3 work/custody-recipient-activation-20261023/stage.py` | `~/enclave-prod/dist-leasegas-a6b1378cd` (via `.staging`, every file hash = INVENTORY), `plan.json` | local copy only |
++| 1 | `python3 …/prepare-admission.py` | `admission.json`, `measurement.env` | **read-only** SSH read of the relay env sha+body, drop-in sha, service state; public attestation |
++| 2 | `python3 …/admit.py` | relay env (CAS + `.before-a6b1378cd` backup) | **privileged**; restarts `enclave-api-relay.service` |
++| 2b | `python3 …/recheck-admission.py` | `admission.json` stage | public read |
++| 3 | `node …/preflight.mjs` (< 6 min before 4) | `evidence/lease-preflight.json` (+ timestamped copy) | public chain reads |
++| 3b | `python3 work/custody-recipient-activation-20261023/baseline.py` (root's own, again just before 4) | `evidence/baseline.json` | read-only |
++| 4 | `python3 …/activate.py` | config.json `dist` (fresh `private-backup/`), `result.json`, `gate.json`, `apps-health.json` | restarts `enclave-metal.service` (the control VM only) |
++| 5 | `python3 …/renewal-watch.py` (any time), then `python3 …/keep.py --checked-attestation <root evidence> [--audit … --verified id=tx …]` | `result.json` | read-only on the host |
++| R | `python3 …/rollback.py` | config.json back (CAS) | restarts the control |
++| R2 | `python3 …/unadmit.py` (only while ed918e4b is attached) | relay env back (CAS on both versions) | **privileged**; relay restart |
++
++## Details root asked for
++
++**Admission (phases 1–2):**
++- **Additive.** All **35** currently admitted measurements are kept in their installed order, and ee5df6b8 is appended.
++- **What phase 1 checks.** The installed env must be exactly the deabf8f90 admission (`f33a6c91…`, one
++  `METAL_ALLOWED_MEASUREMENTS=` line). Its set must equal the PUBLIC allowlist, ed918e4b must be in it and the candidate must not.
++  The drop-in must be `21fadc72…`.
++- **What `admit.py` does.**
++  1. Compare-and-swap against the sha phase 1 read.
++  2. Write a fresh backup, refusing if one exists.
++  3. Replace the file atomically.
++  4. Restart `enclave-api-relay.service`, and check it is active.
++  5. **On any failure, put the old bytes back and restart again** (tested).
++- **No signature is needed.**
++- **Transient impact of the privileged relay restart (admit and unadmit):**
++  - every open api.enclave.host request and fleet tunnel drops for the restart, about seconds: metal0's control, custody-metal0,
++    other boxes;
++  - tunnels reconnect by themselves;
++  - metal0 reattaches at ed918e4b, which is still admitted (2b verifies this).
++  - Choose a quiet moment. Nothing else on the relay changes.
++
++**Preflight (phase 3):**
++- It uses the reviewed `live-preflight.mjs` logic, with the explicit two app ids.
++- Lease modules come from the restore repo and are asserted byte-equal to production's `metal-deabf8f90`. The old preflight
++  imported `work/enclave`, whose `lease-gas-owner.mjs` and `lease-executor-client.mjs` differ.
++- It writes a NEW file; `outputs/…/linux-conduit-funding-preflight.json` is not touched.
++- `activate.py` requires it to be under 360 s old, both apps active, the lease margin to exceed adoption (300 s) plus a controlled
++  rollback (480 s), reserves enabled and non-empty, one active runner.
++
++**`activate.py`:**
++- **Read-only checks first, then one write:**
++  - the protected fields equal the known metadata above (config sha 58aa9653…; no private backup is read);
++  - a fresh actual-health and `/availability` baseline must equal root's `evidence/baseline.json` (same guests, same history, same
++    image-generator title). Otherwise it refuses, and root reruns `baseline.py` and reviews.
++  - Then the single textual `dist` replacement: it refuses if the value is ambiguous, and asserts the parsed JSON differs only in
++    `dist`, with key order kept.
++- **Then:**
++  1. Restart.
++  2. Attach ee5df6b8 within 120 s.
++  3. Both apps adopted with the SAME guests within 300 s.
++  4. The reviewed gate v4, at its unchanged defaults:
++     - ≤ 300 s warm-up, then 420 s continuous actual health;
++     - the baseline guests running and owned, with no replacement or second guest;
++     - ≥ 3 vouch observations, never stale over 180 s;
++     - the journal fails closed; any death, reap, release or respawn line is a hard fail.
++- **No extra paid-renewal wait.** The lease code is byte-identical. Renewals seen so far are recorded; `renewal-watch.py` keeps
++  recording them for root's audit.
++- **Ends PROVISIONAL.**
++
++**Effect on guests and protections:**
++- guestd and the app guests are separate host services and are never touched.
++- During the restart (about 1–2 min plus attach) there are no new claims and no control API. App data keeps flowing through guestd.
++- The new supervisor adopts each running guest by record digest; the records are unchanged.
++- Platform host policy, admission bundle, isolation min-TCB, egress and lease-gas: unchanged, because the image delta is gsup only.
++
++**`keep.py`:**
++- It requires root's own fresh-attestation evidence file (it must name ee5df6b8).
++- It re-asserts, read-only: attached at ee5df6b8, both apps healthy, the same live guests.
++- Renewal proof: recorded if root passes `--audit` and `--verified`, and only for renewals `renewal-watch.py` saw. Otherwise the
++  keep records "app-paid renewals pending root audit".
++
++**Safe rollback (`activate.py` on any failure; `rollback.py`):**
++1. Stop the new control FIRST.
++2. Wait past every sponsored deadline it logged, on a block two public RPCs agree on. An unreadable journal means stop + 300 s
++   ttl + 60 s.
++3. Compare-and-swap: the config must still be what `activate.py` wrote, and the drop-ins must still be the baseline's.
++4. Restore the exact old bytes and mode.
++5. Start the previous control (ed918e4b is still admitted).
++
++Guests, drop-ins and journals are untouched. All of this is tested with stubs.
++
++## Retained limits
++
++- No custody release or hardware canary is part of this. The fix only removes the supervisor's refusal.
++- Still open, and not addressed by this:
++  - the owner-gas blocker (INSUFFICIENT BALANCE; metal0's payout = Enclave, no rate-0 for 0x29479…);
++  - the r2 two-guest need;
++  - the unset address-book `secretVaultV2`.
++- guestd's binary-to-source link (9d1562738cde ↔ 174edbb7) is still not rebuild-proven.
++- `metal-measured-control` test 4 fails identically before and after the restore. It is pre-existing and not called green.
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..31cbeb240f18e1d815548454004119b26520257d
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,41 @@
++# Image-only activation adaptation for the restored custody vaults: source + focused tests (2026-10-23)
++
++ROOT-IMPLEMENT-ACTIVATION.txt.
++- **Not done:** nothing executed against production, the relay, SSH, the chain or keys, and root's baseline was not rerun.
++- **Preserved, untouched:** root's `baseline.py`, `baseline.out`, `baseline.guard.log` and `evidence/baseline.json`.
++- **How:** all checks ran through the unchanged queue (256 lane).
++
++- **Runbook:** `README.md`, phases 0–5, R and R2, with commands, writes, privilege and transient impact.
++- **Shared logic:** `common.py`, holding the known current metadata and the candidate's exact hashes.
++- **Phase scripts:** `stage.py`, `prepare-admission.py`, `admit.py`, `recheck-admission.py`, `unadmit.py`, `preflight.mjs`,
++  `activate.py`, `renewal-watch.py`, `keep.py`, `rollback.py`.
++- **Byte copies of the reviewed gate:** `verify-operational.py`, `guestrows.py`, `apphealth.py` (`REVIEWED-COPIES.json`).
++
++## Tests
++
++- **`logs/tests-2.out`:** `tests/test_activation.py`, **16/16**. Everything is stubbed: temp files, a stub `systemctl`, and stub ops
++  for the rollback.
++  - **dist-only rewrite:** byte preservation, and refusing a missing, duplicated or ambiguous value;
++  - **protected fields:** leaseGas, WorkingDirectory, KillMode, unit state, a changed, added or missing drop-in;
++  - **additive admission:** the 35 in installed order plus the candidate; seven refusals, each pinned to its reason;
++  - **remote scripts:** the exact remote read, compare-and-swap and restore texts, run locally:
++    - CAS success writes a 0600 backup and restarts;
++    - a changed env, changed drop-in or existing backup is refused, with no restart;
++    - a failed restart restores the old bytes and restarts again;
++    - restore is compare-and-swap on both versions;
++  - **safe rollback:** stops before any write; waits for the deadline block; an unreadable journal means stop + 360 s; refuses a
++    concurrent config or drop-in change, and then never starts; restores the exact bytes and mode;
++  - **preflight:** staleness, margin, reserve, host, runner and coverage refusals;
++  - **baseline:** equality with root's actual 21:13Z record; a moved guest, a changed title or not-ready all refuse.
++- **`logs/mutants-1.out`:** 11 mutants of the safety guards; **all 11 killed**.
++  - They cover a config write before the stop, no deadline wait, no concurrent config check, no drop-in check, non-additive
++    admission, ignoring the public list, re-serialising the config, ignoring WorkingDirectory, ignoring drop-ins, a compare-and-swap
++    with no restore, and a zero lease margin.
++- **`logs/tests-1.attempt-1.*`:** the first run, rc 1. It was a test-fixture bug: non-hex fake measurements. Kept as evidence.
++
++## Not tested here
++
++`activate.py`, `keep.py` and `preflight.mjs` were not run end to end: they act on production, the relay or the chain, so root runs
++them. Their logic sits in tested `common.py` functions, and the gate is the reviewed byte copy.
++
++**Limits:** see `README.md`, "Retained limits". The owner-gas blocker stands.
+diff --git a/REVIEWED-COPIES.json b/REVIEWED-COPIES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7611f4d2415dccd52178f63983fbdd0ba95ae66
+--- /dev/null
++++ b/REVIEWED-COPIES.json
+@@ -0,0 +1,17 @@
++{
++  "verify-operational.py": {
++    "sha256": "5ef6fa9d59087a757e5e21911ec033b78c2b6fd06e6d9724c49d64e43ab1f067",
++    "from": "work/linux-post-adoption-release/activation/verify-operational.py",
++    "identical": true
++  },
++  "guestrows.py": {
++    "sha256": "29b7c9dac8e39990e3332cfa2c4f7f9f972ab559f37a4d720edf55eafacb06ab",
++    "from": "work/linux-post-adoption-release/activation/guestrows.py",
++    "identical": true
++  },
++  "apphealth.py": {
++    "sha256": "3babd979edfe9dd245ce5d4d2a2e12223dfd67c1fa761d76cb108b53b6b6f88f",
++    "from": "work/linux-post-adoption-release/activation/apphealth.py",
++    "identical": true
++  }
++}
+diff --git a/ROOT-IMPLEMENT-ACTIVATION.txt b/ROOT-IMPLEMENT-ACTIVATION.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..1e4c131674bc60e15b418dbb537aa48a1a2f4ff7
+--- /dev/null
++++ b/ROOT-IMPLEMENT-ACTIVATION.txt
+@@ -0,0 +1 @@
++Root reviewed restore a6b1378c build/evidence b03be02d. Implement a finite executable activation adaptation in THIS new folder (baseline.py/evidence/baseline.json already root-created, preserve them). Current root21:13 baseline exact2 running owned guests/actualapphealthPASS: EyesOff gdd0646f2c, image-generator gd9d4a391d. configSHA58aa9653,distdeabf,leaseGas present digest3570d2, WorkingDirectorymetal-deabf,KillModecontrol-group; dropins80+95 hashinbaseline. Root authenticated guestd supportsrelease,notdirectBootstrap; relayadmitteded918e4b35measurements. Source-only; no SSH/production/chain/key/baseline rerun yourself. Adapt prior Oct21 activation to ONLY configdist change and preserve actual currentconfig/dropins/workingdir/lease journals/guestIDs. Include root-command readonly preparation for fresh admission filehash/body/publicallowlist, stageverify exacthash, admissionCAS+backup rollback onfailure, preflight lease/funding (existing linux-lease-root-release/live-preflight.mjs logic but outputnewfile/explicit2ids), fresh baseline, controlledrestart/adoption/sameguests, bounded actualapphealth+vouch, safe rollback waitpendingdeadlines. No stale Oct21 oldconfig asserts. Rootwillreview eachphase beforeexecute. Because leasecode unchanged byteforbyte, do not impose an extra hour paid-renewal wait as new implementation validation; bound gate to appropriate stablehealth/adoption/vouch and retain ongoing renewal proof where available. No relaxationofhealth/authority. Preserveallcurrent35admissionmeasurements; reportprivilegedrelayrestart transientimpact andCAS. Testsfocused on CAS/rollback/protectedfields with stubs; sourcepreconditions validatecurrentknownmetadata withoutreadingprivatebackups. CommitwithSteveDeFacto viaqueue. No freshhardwarecanary; thisisreplacing existingcontrolVMunderroot, notnewguest.
+diff --git a/activate.py b/activate.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..205662c17947b74566b0fb38fa1eded448638b86
+--- /dev/null
++++ b/activate.py
+@@ -0,0 +1,118 @@
++# PHASE 4 (ROOT EXECUTES after phases 0-3 and review):
++#   python3 work/custody-recipient-activation-20261023/activate.py
++# Image-only cutover: config.json "dist" deabf8f90 -> a6b1378cd (ed918e4b -> ee5df6b8). Phases, each must pass, else SAFE
++# ROLLBACK (common.safe_rollback: stop the new control, wait out every sponsored deadline it logged on a block two public RPCs
++# agree on, CAS-restore config.json, start the previous control):
++#  0. preconditions, read-only: staged image hashes; admission verified (public allowlist = the 35 + ee5df6b8; attached at
++#     ed918e4b); a fresh lease/funding preflight (< 360 s) for both apps with margin; protected fields = the baseline
++#     (config sha 58aa9653, dist, leaseGas digest 3570d2, WorkingDirectory metal-deabf8f90, KillMode control-group, the two
++#     drop-ins' hashes); actual app health NOW; /availability names exactly ONE running owned guest per app and they equal
++#     root's evidence/baseline.json (gd9d4a391d image-generator, gdd0646f2c EyesOff at 21:13Z) - else refuse, rerun baseline.py.
++#  1. the one write: config.json with ONLY dist replaced (every other byte preserved; fresh private-backup/), then
++#     `systemctl --user restart enclave-metal.service` (KillMode control-group: the control VM and launcher restart; guestd is a
++#     separate service and every app guest keeps running).
++#  2. attach: the public attestation shows admittedAtAttach == ee5df6b8 within 120 s.
++#  3. adoption: "[claim] <id> adopted:" for both apps within 300 s, each adopting the SAME baseline guest.
++#  4. the reviewed operational gate v4 (verify-operational.py, byte-identical; defaults: <= 300 s warm-up, 420 s continuous
++#     actual health, the baseline guests running+owned, >= 3 vouch observations, journal fail-closed, finite deadline).
++#  5. renewal: NO extra paid-renewal wait (the lease code is byte-identical to deabf8f90); every "[lease-gas] renew <id> landed"
++#     line seen so far is recorded, and renewal-watch.py keeps recording them. Ends PROVISIONAL; root verifies a fresh
++#     attestation and capabilities, then keep.py (or rollback.py).
++import argparse, json, re, subprocess, sys, time
++from common import *
++import apphealth, guestrows
++ap = argparse.ArgumentParser(); ap.add_argument('--availability', default='https://api.enclave.host/t/metal0/availability')
++args = ap.parse_args()
++os.umask(0o077)
++ids = list(APPS)
++plan = json.loads((A/'plan.json').read_text()); ad = json.loads((A/'admission.json').read_text())
++assert plan['measurement'] == NEW['measurement'] and plan['image'] == NEW['dist']
++for f, h in NEW['files'].items(): assert sha((Path(NEW['dist'])/f).read_bytes()) == h, f'staged image {f} changed'
++assert ad['stage'] == 'verified active; old control still connected', ad['stage']
++al = public_attestation(get)['operatorAllowlist']
++assert al['admittedAtAttach'] == CURRENT['measurement'], 'production is not attached at ed918e4b'
++assert set(ad['existing'] + [NEW['measurement']]) <= set(al['measurements']), 'the public allowlist lost a measurement or lacks the candidate'
++pre = json.loads((EVIDENCE/'lease-preflight.json').read_text()); probs = preflight_problems(pre, ids, time.time())
++assert not probs, 'lease preflight: ' + '; '.join(probs)
++backup = A/'private-backup'
++assert not backup.exists() and not (A/'result.json').exists(), 'an earlier attempt exists: inspect'
++old = CONFIG.read_bytes(); unit = read_unit(); drops = read_dropins()
++probs = protected_problems(old, unit, drops); assert not probs, 'protected fields: ' + '; '.join(probs)
++new = rewrite_dist(old, CURRENT['dist'], NEW['dist'])
++# the pre-cutover baseline, mandatory and equal to root's: actual health and the guest each app runs now
++specs, titles = {}, {}
++for i, s in APPS.items():
++    spec = dict(s)
++    if s['kind'] == 'html':
++        st, ctype, body = apphealth.fetch(s['url']); spec.update(minBytes=1024, title=apphealth.title_of(body) if st == 200 else None); titles[i] = spec['title']
++    ok, detail = apphealth.check(spec); assert ok, f'{i[:10]} is not actually healthy BEFORE the cutover ({detail})'
++    specs[i] = spec
++(A/'apps-health.json').write_text(json.dumps(specs, indent=2) + '\n'); apphealth.load_specs(A/'apps-health.json', ids)
++st, body = get(args.availability); assert st == 200, f'/availability -> {st}'
++held = (json.loads(body).get('instanceSweep') or {}).get('held'); assert isinstance(held, list), 'no instanceSweep.held'
++base = guestrows.baseline(held, ids)
++probs = baseline_problems(json.loads((EVIDENCE/'baseline.json').read_text()), base, titles); assert not probs, 'baseline: ' + '; '.join(probs)
++snap = {i: base[i]['guest'] for i in ids}; history = {i: base[i]['history'] for i in ids}
++
++backup.mkdir(mode=0o700); (backup/'config.json').write_bytes(old); (backup/'config.json').chmod(0o600)
++mode = CONFIG.stat().st_mode & 0o777
++result = {'startedAt': utc(), 'measurement': NEW['measurement'], 'commit': NEW['commit'], 'image': NEW['dist'], 'previousImage': CURRENT['dist'],
++          'configBeforeSha256': sha(old), 'configAfterSha256': sha(new), 'protected': {'unit': unit, 'dropins': drops}, 'state': 'starting',
++          'preCutoverGuests': snap, 'preCutoverHistory': history, 'appsHealth': specs, 'adoption': {}, 'guests': {}, 'renewalsObserved': {},
++          'productionActivated': False}
++def save(): (A/'result.json').write_text(json.dumps(result, indent=2) + '\n')
++BAD = [re.compile(p) for p in (r'^\[bill\] (\S+) (instance respawned|respawn failed)', r'^\[claim\] (\S+) (app instance died|app died|lease lost|lease looks lost)',
++                               r'^\[instance\] reaped orphan (\S+)', r'^\[release\] (\S+) ', r'^\[isolation\] (0x[0-9a-f]{8}): guest \S+ app ')]
++def bad(lines):
++    return [l[:200] for l in lines for r in BAD for m in [r.match(l)]
++            if m and any(i == m.group(1).lower() or (i.startswith(m.group(1).lower()) and len(m.group(1)) == 10) for i in ids)]
++save(); mutated = False
++since = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'); result['journalSince'] = since
++try:
++    assert CONFIG.read_bytes() == old and read_dropins() == CURRENT['dropins']
++    atomic_config(new, mode); mutated = True
++    systemctl('restart', UNIT, timeout=60)
++    print('Control restarted on the candidate image; awaiting fresh hardware-attested attachment.', flush=True)
++    end = time.monotonic() + ATTACH_S
++    while time.monotonic() < end:
++        try:
++            if public_attestation(get)['operatorAllowlist'].get('admittedAtAttach') == NEW['measurement']:
++                subprocess.run(['systemctl', '--user', 'is-active', '--quiet', UNIT], check=True)
++                result.update(state='attached; adoption pending', attachedAt=utc()); save(); print(result['state'], flush=True); break
++        except (AssertionError, ValueError, KeyError) as e: result['lastObservationError'] = str(e)[:120]; save()
++        time.sleep(5)
++    else: raise RuntimeError(f'the candidate measurement did not attach within {ATTACH_S} s')
++    end = time.monotonic() + ADOPT_S
++    while time.monotonic() < end:
++        lines = journal(since)
++        if bad(lines): raise RuntimeError('during adoption: ' + ' | '.join(bad(lines)))
++        for i in ids:
++            if i not in result['adoption']:
++                a = next((l for l in lines if l.startswith('[claim] ' + i + ' adopted:')), None)
++                g = next((m.group(1) for l in lines for m in [re.match(r'^\[isolation\] ' + i[:10] + r': adopted guest (\S+) ', l)] if m), None)
++                if a and g: result['adoption'][i] = a[:300]; result['guests'][i] = g; save(); print(a[:200], '<-', g, flush=True)
++        if len(result['adoption']) == len(ids): break
++        time.sleep(5)
++    else: raise RuntimeError(f'both apps were not adopted (with their guest) within {ADOPT_S} s')
++    for i in ids:
++        if result['guests'][i] != snap[i]: raise RuntimeError(f'{i[:10]} adopted {result["guests"][i]}, not the baseline guest {snap[i]}')
++    result.update(state='adopted the same guests; operational gate running'); save(); print(result['state'], flush=True)
++    gate = [sys.executable, str(A/'verify-operational.py'), '--availability', args.availability, '--apps-json', str(A/'apps-health.json'),
++            '--since', since, '--out', str(A/'gate.json')]
++    for i in ids: gate += ['--expect-guest', f'{i}={snap[i]}'] + [x for vm in history[i] for x in ('--known-failed', f'{i}={vm}')]
++    if subprocess.run(gate).returncode != 0: raise RuntimeError('the operational gate FAILED: ' + json.dumps(json.loads((A/'gate.json').read_text()).get('why'))[:400])
++    lines = journal(since)
++    if bad(lines): raise RuntimeError('after the gate: ' + ' | '.join(bad(lines)))
++    for i in ids:
++        m = next((m for l in lines for m in [re.match(r'^\[lease-gas\] renew ' + i + r' landed in (0x[0-9a-f]{64})', l)] if m), None)
++        if m: result['renewalsObserved'][i] = m.group(1)
++    result['renewalWarnings'] = [l[:200] for l in lines if l.startswith('[lease-gas] ') and ' not sent' in l][-6:]
++    result.update(state='PROVISIONAL: attached ee5df6b8, the same guests adopted, operational gate v4 PASSED; root fresh '
++                        'attestation/capability check and keep.py pending (renewal-watch.py records app-paid renewals as they land)',
++                  productionActivated='provisional', provisionalAt=utc()); save(); print(result['state'], flush=True)
++except BaseException as e:
++    result.update(state='activation failed; safe rollback pending', error=type(e).__name__, detail=str(e)[:600]); save()
++    print('FAILED:', result['detail'], flush=True)
++    if mutated:
++        safe_rollback(result, save, since=since, old_config=old, new_config=new); print(result['state'], flush=True)
++    raise
+diff --git a/admit.py b/admit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..afd3527936c1cbbeb363e1259eaba69c43583322
+--- /dev/null
++++ b/admit.py
+@@ -0,0 +1,16 @@
++# PHASE 2 (ROOT EXECUTES, privileged, after reviewing admission.json + measurement.env):
++#   python3 work/custody-recipient-activation-20261023/admit.py
++# On the API relay: COMPARE-AND-SWAP the measurement env (it must still be exactly what prepare-admission read), a FRESH
++# backup beside it (.before-a6b1378cd; refuses if one exists), atomic replace, restart enclave-api-relay.service; on ANY
++# failure the previous bytes are restored and the service restarted. TRANSIENT IMPACT: the relay restart drops every
++# open api.enclave.host connection and fleet tunnel (metal0's control, custody-metal0, other boxes) for the restart
++# (seconds); tunnels reconnect by themselves. The running ed918e4b stays admitted, so metal0 reattaches unchanged.
++import json, sys
++from common import *
++ad = json.loads((A/'admission.json').read_text()); assert ad['stage'] == 'prepared only', ad['stage']
++body = (A/'measurement.env').read_text(); assert sha(body.encode()) == ad['environmentSha256']
++args = (RELAY['env'], RELAY['dropin'], ad['remoteBackup'], body, ad['replacesInstalledSha256'], ad['dropinSha256'], NEW['commit'][:9], 'systemctl', RELAY['service'])
++code, out, err = run_remote(remote(REMOTE_CAS, args))
++(A/'admission-apply.out').write_text(out + err); print(out + err, end='')
++if code: sys.exit(code)
++ad.update(stage='installed; public endpoint recheck pending', installedAt=utc()); (A/'admission.json').write_text(json.dumps(ad, indent=2) + '\n')
+diff --git a/apphealth.py b/apphealth.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a48dcc024a6896cb8a6931e207852f60a6e2487
+--- /dev/null
++++ b/apphealth.py
+@@ -0,0 +1,44 @@
++# ACTUAL application health, the ONE definition used by activate.py (pre-cutover baseline, renewal phase) and by
++# verify-operational.py (the gate). A status code alone is never health (a 404 or an error page is not the app).
++#   kind "json-ping"  (EyesOff /ping): HTTP 200, JSON body with ok === true AND pong === true;
++#   kind "html"       (image-generator /): HTTP 200, text/html, >= minBytes, and - when the pre-cutover baseline had one -
++#                     the SAME <title> (the app's identity as the previous control served it).
++# Specs live in apps-health.json, which activate.py writes from the pre-cutover baseline.
++import json, re, ssl, urllib.error, urllib.request
++
++CTX = ssl.create_default_context()
++
++def fetch(url, timeout=12):
++    req = urllib.request.Request(url, headers={'user-agent': 'enclave-activation-health/1', 'cache-control': 'no-cache'})
++    try:
++        with urllib.request.urlopen(req, timeout=timeout, context=CTX) as r:
++            return r.status, (r.headers.get('content-type') or '').lower(), r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, '', b''
++    except Exception as e: return None, '', type(e).__name__.encode()
++
++def title_of(body):
++    m = re.search(rb'<title[^>]*>(.*?)</title>', body, re.I | re.S)
++    return re.sub(r'\s+', ' ', m.group(1).decode('utf-8', 'replace')).strip() if m else None
++
++def check(spec, timeout=12):
++    """-> (ok, detail). Fails closed on anything but the app's own healthy answer."""
++    st, ctype, body = fetch(spec['url'], timeout)
++    if st != 200: return False, f"HTTP {st}{'' if st else ' ' + body.decode(errors='replace')[:60]}"
++    if spec['kind'] == 'json-ping':
++        try: j = json.loads(body)
++        except Exception: return False, 'not JSON'
++        return (True, 'ok/pong') if isinstance(j, dict) and j.get('ok') is True and j.get('pong') is True else (False, f'ping body {str(j)[:80]}')
++    if spec['kind'] == 'html':
++        if 'text/html' not in ctype: return False, f'content-type {ctype or "none"}'
++        if len(body) < int(spec.get('minBytes', 1024)): return False, f'{len(body)} bytes'
++        if spec.get('title') is not None and title_of(body) != spec['title']: return False, f'title {title_of(body)!r} is not {spec["title"]!r}'
++        return True, f'html {len(body)}B' + (f' title {spec["title"]!r}' if spec.get('title') is not None else ' (no title in the baseline)')
++    return False, f'unknown health kind {spec.get("kind")}'
++
++def load_specs(path, ids=None):
++    specs = json.loads(open(path).read())
++    for i, s in specs.items():
++        assert re.fullmatch(r'0x[0-9a-f]{64}', i) and s['kind'] in ('json-ping', 'html'), i
++        assert s['url'].startswith(('https://', 'http://127.0.0.1')), s['url']
++    if ids is not None: assert set(specs) == set(ids), 'health specs must cover exactly the apps'
++    return specs
+diff --git a/baseline.guard.log b/baseline.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..c18e9cc5b655d0cd64f3e0c52d7cb49fc00275c0
+--- /dev/null
++++ b/baseline.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=30 minHostAvailableMiB=24414
+diff --git a/baseline.out b/baseline.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..41b9b8e6f9827efd5e3b72414a672ee46fc59a3f
+--- /dev/null
++++ b/baseline.out
+@@ -0,0 +1,3 @@
++[queue] START available=24498MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++{"at": "2026-10-23T21:13:41.968393+00:00", "readOnly": true, "config": {"sha256": "58aa9653586b6e4d67f2198dde111fad0329d2b33770c4f4a4ba14d5ddc220b3", "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90", "mode": "snp", "leaseGasConfigured": true, "leaseGasDigest": "3570d276b92175e8125a152d15eb7f5a7022301b15535c604923020971672562"}, "unit": {"ActiveState": "active", "SubState": "running", "MainPID": "3480942", "WorkingDirectory": "/home/steven/enclave-prod/metal-deabf8f90", "KillMode": "control-group"}, "dropins": [{"path": "/home/steven/.config/systemd/user/enclave-metal.service.d/80-shield-inference.conf", "sha256": "9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b"}, {"path": "/home/steven/.config/systemd/user/enclave-metal.service.d/95-app-funded-leases.conf", "sha256": "71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa"}], "held": [{"id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9", "vm": "gd9d4a391d", "status": "running", "owned": true}, {"id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c", "vm": "gdd0646f2c", "status": "running", "owned": true}], "baseline": {"0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {"guest": "gdd0646f2c", "history": []}, "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {"guest": "gd9d4a391d", "history": []}}, "health": {"0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {"ok": true, "detail": "html 42685B title 'image generator'", "spec": {"url": "https://da09d0f2.app.enclave.host/", "kind": "html", "minBytes": 1024, "title": "image generator"}}, "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {"ok": true, "detail": "ok/pong", "spec": {"url": "https://9eb4e600.app.enclave.host/ping", "kind": "json-ping"}}}, "readyForPlan": true, "limits": ["Read-only baseline; no restart, config or admission change. Fresh lease and admission checks are still needed before activation."]}
++[queue] EXIT 0
+diff --git a/baseline.py b/baseline.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..de30a1b99ccead6869747fbfd9fd6e74745526de
+--- /dev/null
++++ b/baseline.py
+@@ -0,0 +1,23 @@
++"""Root read-only baseline for the image-only custody recipient repair. Never emits private config."""
++from pathlib import Path
++import sys,json,hashlib,datetime,urllib.request,subprocess
++sys.path.insert(0,str(Path('work/linux-post-adoption-release/activation').resolve()))
++import apphealth,guestrows
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'readOnly':True}
++p=Path('/home/steven/Projects/enclave/metal/config.json');raw=p.read_bytes();c=json.loads(raw)
++out['config']={'sha256':hashlib.sha256(raw).hexdigest(),'dist':c.get('dist'),'mode':c.get('mode'),'leaseGasConfigured':bool(c.get('leaseGas')),'leaseGasDigest':hashlib.sha256(json.dumps(c.get('leaseGas'),sort_keys=True).encode()).hexdigest()}
++out['unit']=dict(l.split('=',1) for l in subprocess.check_output(['systemctl','--user','show','enclave-metal.service','-p','ActiveState','-p','SubState','-p','MainPID','-p','WorkingDirectory','-p','KillMode'],text=True).splitlines() if '=' in l)
++out['dropins']=[{'path':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(Path('/home/steven/.config/systemd/user/enclave-metal.service.d').glob('*.conf'))]
++with urllib.request.urlopen('https://api.enclave.host/t/metal0/availability',timeout=15) as r:
++ d=json.loads(r.read(1048576));assert r.status==200
++held=d.get('instanceSweep',{}).get('held');assert isinstance(held,list)
++out['held']=[{k:r.get(k) for k in ['id','vm','status','owned']} for r in held]
++ids=sorted(set(r['id'].lower() for r in held if r.get('status')!='failed'))
++out['baseline']=guestrows.baseline(held,ids)
++apps=json.loads(Path('work/linux-post-adoption-release/activation/apps-health.json').read_text());out['health']={}
++for i,s in apps.items():
++ ok,detail=apphealth.check(s);out['health'][i]={'ok':ok,'detail':detail,'spec':s}
++out['readyForPlan']=out['unit']['ActiveState']=='active' and all(r['ok'] for r in out['health'].values()) and set(apps)<=set(out['baseline'])
++out['limits']=['Read-only baseline; no restart, config or admission change. Fresh lease and admission checks are still needed before activation.']
++Path('work/custody-recipient-activation-20261023/evidence/baseline.json').write_text(json.dumps(out,indent=2)+'\n');print(json.dumps(out))
++if not out['readyForPlan']:raise SystemExit(1)
+diff --git a/commit.sh b/commit.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..33cbfb6b6203dabffedbdb376f6453a7accc2907
+--- /dev/null
++++ b/commit.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")"
++git add -A
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "metal0 control: image-only activation adaptation for the restored custody vaults (a6b1378c, ee5df6b8)
++
++Adapted from the reviewed Oct-21 post-adoption activation to ONLY config.json dist: protected-field preconditions on root's
++21:13Z baseline (config 58aa9653, leaseGas 3570d2, WorkingDirectory metal-deabf8f90, KillMode control-group, both drop-ins,
++the two baseline guests), additive relay admission (35 + candidate, CAS with backup and restore-on-failure), fresh lease
++preflight on production-equal modules, restart/attach/adoption, the reviewed gate v4 byte copy, no extra renewal wait,
++safe rollback. Focused stub tests 16/16, safety mutants 11/11 killed. Source only; root executes each phase after review."
++git log -1 --format='%H %T %an <%ae> %cI'
++git show --stat --format= HEAD | tail -1
++[ -z "$(git status --porcelain)" ]
+diff --git a/common.py b/common.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1293ad379e5e7b6ff8335511ef313da78878ca20
+--- /dev/null
++++ b/common.py
+@@ -0,0 +1,263 @@
++# Shared by every script here (prepared by Claude 2026-10-23; ROOT EXECUTES each phase after review). Adapted from the
++# reviewed work/linux-post-adoption-release/activation/common.py (Oct-21) to an IMAGE-ONLY change: config.json "dist" moves
++# from dist-leasegas-deabf8f90 (ed918e4b) to dist-leasegas-a6b1378cd (ee5df6b8). Nothing else is written: not the rest of
++# config.json (leaseGas and every other byte stay), not the drop-ins (80-shield-inference, 95-app-funded-leases), not the
++# unit's WorkingDirectory (metal-deabf8f90: the launcher files are byte-identical), not lease-gas journals, not guestd.
++# No keys, env files, private state or release journals are read; journal lines are filtered to the prefixes below.
++from pathlib import Path
++import hashlib, json, os, re, subprocess, time, datetime, urllib.request
++
++W = Path('/home/steven/Documents/Codex/2026-10-18/wo')
++A = Path(__file__).resolve().parent
++EVIDENCE = A / 'evidence'
++CONFIG = Path('/home/steven/Projects/enclave/metal/config.json')
++UNIT = 'enclave-metal.service'
++DROPIN_DIR = Path('/home/steven/.config/systemd/user/enclave-metal.service.d')
++RPCS = ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://base-mainnet.public.blastapi.io']
++utc = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++sha = lambda b: hashlib.sha256(b).hexdigest()
++
++# ---- current production, as root's read-only baseline recorded it (evidence/baseline.json, 2026-10-23T21:13:41Z) -----------
++CURRENT = {
++    'configSha256': '58aa9653586b6e4d67f2198dde111fad0329d2b33770c4f4a4ba14d5ddc220b3',
++    'dist': '/home/steven/enclave-prod/dist-leasegas-deabf8f90',
++    'measurement': 'ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2',
++    'leaseGasDigest': '3570d276b92175e8125a152d15eb7f5a7022301b15535c604923020971672562',
++    'workingDirectory': '/home/steven/enclave-prod/metal-deabf8f90',
++    'killMode': 'control-group',
++    'dropins': {'80-shield-inference.conf': '9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b',
++                '95-app-funded-leases.conf': '71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa'},
++}
++# ---- the candidate (work/custody-recipient-restore-20261023, commit a6b1378c, stage/INVENTORY.sha256) ------------------------
++NEW = {
++    'commit': 'a6b1378cdf430217025987d90c040d0e25a9993d',
++    'staged': W / 'work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd',
++    'dist': '/home/steven/enclave-prod/dist-leasegas-a6b1378cd',
++    'measurement': 'ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec',
++    'files': {'MEASUREMENT': 'd99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9',
++              'cmdline': 'd9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8',
++              'initramfs.cpio.gz': '5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de',
++              'manifest.json': '3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b',
++              'vmlinuz': '1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7'},
++}
++APPS = {'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9': {'url': 'https://da09d0f2.app.enclave.host/', 'kind': 'html'},       # image-generator
++        '0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c': {'url': 'https://9eb4e600.app.enclave.host/ping', 'kind': 'json-ping'}}  # EyesOff
++# ---- the API relay's measurement admission (root's SSH, as the Oct-21 admit.py) ------------------------------------------
++RELAY = {'env': '/etc/nan-relay/linux-leasegas-measurements.env',
++         'dropin': '/etc/systemd/system/enclave-api-relay.service.d/zzzzz-linux-leasegas-measurement.conf',
++         'dropinSha256': '21fadc7209de6f7ba82fd614bcddd2fe1ba2cfa9feba988d34ab36b68d5caf9a',
++         'installedSha256': 'f33a6c9145bf6448f99ff434c98568a2a157ee6a4e1d13a866b67ba874b18062',   # the deabf8f90 admission (2026-10-21T08:04Z)
++         'expectedCount': 35, 'service': 'enclave-api-relay.service'}
++SSH = ['ssh', '-p', '32423', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'UserKnownHostsFile=work/control-vm/known_hosts',
++       '-i', '/home/steven/.ssh/minipc', 'controladmin@127.0.0.1', 'sudo -n python3 -']
++MEASUREMENT_RE = re.compile(r'[0-9a-f]{96}')
++
++# ---- the one config change ---------------------------------------------------------------------------------------------------
++def rewrite_dist(raw, old_dist, new_dist):
++    """-> the config bytes with ONLY the "dist" value replaced, every other byte preserved; refuses an ambiguous file."""
++    text = raw.decode('utf-8')
++    needle = json.dumps(old_dist)
++    hits = [m.start() for m in re.finditer(r'"dist"\s*:\s*' + re.escape(needle), text)]
++    if len(hits) != 1: raise AssertionError(f'expected exactly one "dist": {needle} entry, found {len(hits)}')
++    if text.count(needle) != 1: raise AssertionError(f'{needle} occurs elsewhere in the config: refusing a textual rewrite')
++    new = text.replace(needle, json.dumps(new_dist), 1).encode('utf-8')
++    a, b = json.loads(raw), json.loads(new)
++    if b != {**a, 'dist': new_dist} or list(a) != list(b): raise AssertionError('the rewrite changed more than dist')
++    return new
++
++def protected_problems(config_raw, unit, dropins, current=CURRENT):
++    """Every protected field that is not what the reviewed baseline recorded -> list of problems (empty = ok)."""
++    out = []
++    c = json.loads(config_raw)
++    if sha(config_raw) != current['configSha256']: out.append(f'config sha {sha(config_raw)[:16]} is not the baseline {current["configSha256"][:16]}')
++    if c.get('dist') != current['dist']: out.append(f'config dist {c.get("dist")!r} is not {current["dist"]!r}')
++    if c.get('mode') != 'snp': out.append(f'config mode {c.get("mode")!r} is not snp')
++    if not c.get('leaseGas'): out.append('config has no leaseGas')
++    elif sha(json.dumps(c['leaseGas'], sort_keys=True).encode()) != current['leaseGasDigest']: out.append('config leaseGas digest changed')
++    if c.get('direct'): out.append('config carries direct settings')
++    if unit.get('WorkingDirectory') != current['workingDirectory']: out.append(f'WorkingDirectory {unit.get("WorkingDirectory")!r}')
++    if unit.get('KillMode') != current['killMode']: out.append(f'KillMode {unit.get("KillMode")!r}')
++    if unit.get('ActiveState') != 'active': out.append(f'unit ActiveState {unit.get("ActiveState")!r}')
++    if dropins != current['dropins']: out.append(f'drop-ins {dropins} are not the baseline {current["dropins"]}')
++    return out
++
++def read_unit():
++    keys = ['ActiveState', 'SubState', 'MainPID', 'WorkingDirectory', 'KillMode']
++    r = subprocess.check_output(['systemctl', '--user', 'show', UNIT] + [x for k in keys for x in ('-p', k)], text=True)
++    return dict(l.split('=', 1) for l in r.splitlines() if '=' in l)
++
++def read_dropins(d=DROPIN_DIR):
++    return {p.name: sha(p.read_bytes()) for p in sorted(d.glob('*.conf'))}
++
++def atomic_config(raw, mode, config=CONFIG):
++    tmp = config.with_name(config.name + '.custody-restore-tmp'); assert not tmp.exists(), f'{tmp} exists: inspect'
++    tmp.write_bytes(raw); tmp.chmod(mode); os.replace(tmp, config)
++
++# ---- the API relay admission ---------------------------------------------------------------------------------------------
++def admission_body(remote_body, public_list, old=CURRENT['measurement'], new=NEW['measurement'], expected=RELAY['expectedCount']):
++    """-> (existing list in the installed order, the new env file text). Additive: every installed measurement is kept."""
++    m = re.fullmatch(r'METAL_ALLOWED_MEASUREMENTS=([0-9a-f,]+)\n', remote_body)
++    if not m: raise AssertionError('the installed env file is not exactly one METAL_ALLOWED_MEASUREMENTS= line')
++    existing = m.group(1).split(',')
++    if not all(MEASUREMENT_RE.fullmatch(x) for x in existing) or len(set(existing)) != len(existing): raise AssertionError('malformed or duplicate measurement')
++    if len(existing) != expected: raise AssertionError(f'{len(existing)} installed measurements, the reviewed state is {expected}')
++    if set(existing) != set(public_list) or len(public_list) != len(set(public_list)): raise AssertionError('the installed list is not the public allowlist')
++    if old not in existing: raise AssertionError('the running measurement is not admitted')
++    if new in existing: raise AssertionError('the candidate is already admitted: inspect')
++    return existing, 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(existing + [new]) + '\n'
++
++# Remote scripts (run as `sudo -n python3 -` on the API relay; ARGS is substituted with a repr'd tuple). SYSTEMCTL is an
++# argument so the tests can run the SAME text against temp files with a stub.
++REMOTE_READ = '''import hashlib, json, subprocess
++from pathlib import Path
++ENV, DROP, SYSTEMCTL, SERVICE = ARGS
++e, d = Path(ENV).read_bytes(), Path(DROP).read_bytes()
++active = subprocess.run([SYSTEMCTL, 'is-active', SERVICE], capture_output=True, text=True).stdout.strip()
++print(json.dumps({'envSha256': hashlib.sha256(e).hexdigest(), 'envBody': e.decode(), 'dropinSha256': hashlib.sha256(d).hexdigest(), 'serviceActive': active}))
++'''
++REMOTE_CAS = '''import hashlib, os, subprocess
++from pathlib import Path
++ENV, DROP, BACKUP, BODY, EXPECT, DROPSHA, TAG, SYSTEMCTL, SERVICE = ARGS
++e, dr, b = Path(ENV), Path(DROP), Path(BACKUP)
++assert hashlib.sha256(e.read_bytes()).hexdigest() == EXPECT, 'installed admission changed since prepare-admission: inspect first'
++assert hashlib.sha256(dr.read_bytes()).hexdigest() == DROPSHA, 'admission drop-in changed: inspect first'
++assert not b.exists(), 'a backup from an earlier attempt exists: inspect first'
++assert subprocess.run([SYSTEMCTL, 'is-active', SERVICE], capture_output=True, text=True).stdout.strip() == 'active'
++old = e.read_bytes(); b.write_bytes(old); b.chmod(0o600)
++try:
++    t = e.with_name(e.name + '.tmp-' + TAG); assert not t.exists(); t.write_text(BODY); t.chmod(0o644); os.replace(t, e)
++    subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)
++    subprocess.run([SYSTEMCTL, 'is-active', '--quiet', SERVICE], check=True)
++    print('ADMISSION-UPDATED API service active')
++except BaseException:
++    e.write_bytes(old); subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)
++    print('ADMISSION-RESTORED after failure')
++    raise
++'''
++REMOTE_RESTORE = '''import hashlib, os, subprocess
++from pathlib import Path
++ENV, BACKUP, NEW, OLD, TAG, SYSTEMCTL, SERVICE = ARGS
++e, b = Path(ENV), Path(BACKUP)
++assert hashlib.sha256(e.read_bytes()).hexdigest() == NEW, 'the installed env is not the one admit.py wrote'
++assert hashlib.sha256(b.read_bytes()).hexdigest() == OLD, 'the backup is not the replaced env'
++t = e.with_name(e.name + '.restore-' + TAG); assert not t.exists(); t.write_bytes(b.read_bytes()); t.chmod(0o644); os.replace(t, e)
++subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)
++print('ADMISSION-RESTORED')
++'''
++def remote(template, args):
++    return template.replace('ARGS', repr(tuple(args)))
++
++def run_remote(script, timeout=60, ssh=SSH):
++    r = subprocess.run(ssh, input=script, text=True, capture_output=True, timeout=timeout, cwd=str(W))
++    return r.returncode, r.stdout, r.stderr
++
++def public_attestation(get):
++    import secrets
++    st, body = get('https://api.enclave.host/v1/enclaves/metal0/attestation?nonce=' + secrets.token_hex(32))
++    assert st == 200, f'attestation -> {st}'
++    return json.loads(body)
++
++def get(url, timeout=12):
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'enclave-custody-restore/1'}), timeout=timeout) as r: return r.status, r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, b''
++    except Exception as e: return None, type(e).__name__.encode()
++
++# ---- journal, deadlines, verified block (as the Oct-21 common.py) ---------------------------------------------------------
++PREFIXES = ('[claim] ', '[release] ', '[bill] ', '[instance] ', '[isolation] ', '[lease-gas] ')
++def journal(since):
++    r = subprocess.run(['journalctl', '--user', '-u', UNIT, '--since', since, '-o', 'cat', '--no-pager'], capture_output=True, text=True, timeout=30)
++    if r.returncode != 0: raise RuntimeError(f'journal unreadable (exit {r.returncode}): {r.stderr.strip()[:160]}')   # fail closed
++    return [l for l in r.stdout.splitlines() if l.startswith(PREFIXES)]
++
++def pending_deadlines(lines):
++    return sorted({int(x) for l in lines for x in re.findall(r'deadline (\d{10})', l)})
++
++def rpc(url, method, params):
++    body = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode()
++    req = urllib.request.Request(url, data=body, headers={'content-type': 'application/json', 'user-agent': 'enclave-custody-restore/1'})
++    with urllib.request.urlopen(req, timeout=15) as r: return json.load(r)['result']
++
++def verified_block_after(ts, rpcs, limit_s):
++    """Wait until >= 2 public RPCs agree (same number AND hash) on a block whose timestamp is past ts. -> the block."""
++    end = time.monotonic() + limit_s
++    while time.monotonic() < end:
++        heads = []
++        for u in rpcs:
++            try: heads.append(int(rpc(u, 'eth_blockNumber', []), 16))
++            except Exception: pass
++        if len(heads) >= 2:
++            n = sorted(heads, reverse=True)[1]
++            seen = {}
++            for u in rpcs:
++                try:
++                    b = rpc(u, 'eth_getBlockByNumber', [hex(n), False]); seen.setdefault((b['hash'], int(b['timestamp'], 16)), []).append(u)
++                except Exception: pass
++            for (h, t), who in seen.items():
++                if len(who) >= 2 and t > ts: return {'number': n, 'hash': h, 'timestamp': t, 'agreeing': who}
++        time.sleep(10)
++    raise RuntimeError(f'no two RPCs agreed on a block past {ts} within {limit_s}s')
++
++def systemctl(*args, timeout=60):
++    subprocess.run(['systemctl', '--user', *args], check=True, timeout=timeout)
++
++class Ops:
++    """The side effects safe_rollback needs; tests substitute every one."""
++    systemctl = staticmethod(systemctl); journal = staticmethod(journal); verified_block_after = staticmethod(verified_block_after)
++    now = staticmethod(lambda: int(time.time())); read_dropins = staticmethod(read_dropins)
++
++def safe_rollback(result, save, *, since, old_config, new_config, config=CONFIG, ops=Ops, rpcs=RPCS):
++    """Stop the new control FIRST (it signs nothing more), let every sponsored request it signed expire on a verified block,
++    restore the previous config by compare-and-swap and start the previous control. Drop-ins are never written (they must
++    still be the baseline's); guestd, its guests and lease journals are never touched."""
++    ops.systemctl('stop', UNIT)
++    result.update(state='new control stopped; waiting out its pending sponsored requests', stoppedAt=utc()); save()
++    stopped = ops.now()
++    try: deadlines = pending_deadlines(ops.journal(since))
++    except Exception as e:
++        # an unreadable journal is no evidence that nothing is pending: every sponsored request has a deadline <= its
++        # authority block + the lease client's 300 s ttl, and nothing was signed after the stop
++        deadlines = [stopped + 300 + 60]; result['journalUnreadableAtRollback'] = str(e)[:200]
++    result['pendingSponsoredDeadlines'] = deadlines; save()
++    if deadlines:
++        wait = max(0, deadlines[-1] - ops.now()) + 900
++        result['deadlineBlock'] = ops.verified_block_after(deadlines[-1], rpcs, wait); save()
++    assert config.read_bytes() == new_config, 'config changed concurrently: refuse overwriting it'
++    assert ops.read_dropins() == CURRENT['dropins'], 'drop-ins changed concurrently: refuse restarting into an unknown unit'
++    atomic_config(old_config, config.stat().st_mode & 0o777, config)
++    ops.systemctl('start', UNIT)
++    result.update(state='rolled back to the previous control image (deabf8f90, ed918e4b)', rolledBackAt=utc(), productionActivated=False); save()
++
++# ---- activation preconditions (pure functions: tested with stubs) ---------------------------------------------------------
++ATTACH_S, ADOPT_S = 120, 300
++ROLLBACK_MARGIN_S = 480   # stop + the 300 s sponsored ttl + slack, as the Oct-21 activate.py
++
++def preflight_problems(pre, ids, now):
++    """The lease/funding preflight (evidence/lease-preflight.json) must be fresh and cover both apps with margin."""
++    out = []
++    age = now - float(pre['block']['timestamp'])
++    if age >= 360: out.append(f'preflight is {int(age)} s old: refresh it (< 360 s)')
++    rows = {r['id'].lower(): r for r in pre['rows']}
++    for i in ids:
++        r = rows.get(i)
++        if not r: out.append(f'{i[:10]}: not in the preflight'); continue
++        if not r.get('active'): out.append(f'{i[:10]}: deployment not active')
++        if int(r['leaseRemainingSeconds']) - age <= ROLLBACK_MARGIN_S + ADOPT_S: out.append(f'{i[:10]}: lease margin {int(r["leaseRemainingSeconds"]) - int(age)} s too small for adoption + a controlled rollback')
++        if not (r['reserve']['enabled'] and int(r['reserve']['balanceWei']) > 0): out.append(f'{i[:10]}: reserve disabled or empty')
++        if r.get('hostActive') is not True: out.append(f'{i[:10]}: runner registry entry not active')
++    if len({str(rows[i]['runner']).lower() for i in ids if i in rows}) != 1: out.append('the apps are not leased by one runner')
++    return out
++
++def baseline_problems(recorded, fresh_guests, fresh_titles):
++    """Root's recorded baseline (evidence/baseline.json) must be ready and name exactly the guests and app identity seen now."""
++    out = []
++    if recorded.get('readyForPlan') is not True: out.append('root baseline not readyForPlan')
++    if recorded.get('config', {}).get('sha256') != CURRENT['configSha256']: out.append('root baseline recorded another config')
++    rec = {i: recorded['baseline'][i] for i in recorded.get('baseline', {})}
++    if set(rec) != set(APPS): out.append('root baseline does not cover exactly the two apps')
++    for i in APPS:
++        if i in rec and (rec[i]['guest'], sorted(rec[i]['history'])) != (fresh_guests[i]['guest'], sorted(fresh_guests[i]['history'])):
++            out.append(f'{i[:10]}: guest now {fresh_guests[i]} is not root\'s baseline {rec[i]}: rerun root baseline.py and review')
++        want = (recorded.get('health', {}).get(i, {}).get('spec') or {}).get('title')
++        if APPS[i]['kind'] == 'html' and want != fresh_titles.get(i): out.append(f'{i[:10]}: title {fresh_titles.get(i)!r} is not the baseline {want!r}')
++    return out
+diff --git a/evidence/baseline.json b/evidence/baseline.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fbf8dc440aab5e937abf1da6cdcf26c3e1edaeb5
+--- /dev/null
++++ b/evidence/baseline.json
+@@ -0,0 +1,76 @@
++{
++  "at": "2026-10-23T21:13:41.968393+00:00",
++  "readOnly": true,
++  "config": {
++    "sha256": "58aa9653586b6e4d67f2198dde111fad0329d2b33770c4f4a4ba14d5ddc220b3",
++    "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
++    "mode": "snp",
++    "leaseGasConfigured": true,
++    "leaseGasDigest": "3570d276b92175e8125a152d15eb7f5a7022301b15535c604923020971672562"
++  },
++  "unit": {
++    "ActiveState": "active",
++    "SubState": "running",
++    "MainPID": "3480942",
++    "WorkingDirectory": "/home/steven/enclave-prod/metal-deabf8f90",
++    "KillMode": "control-group"
++  },
++  "dropins": [
++    {
++      "path": "/home/steven/.config/systemd/user/enclave-metal.service.d/80-shield-inference.conf",
++      "sha256": "9f3acb480ce85b85cb02acd3fa0a9d5eb50e5b0a823a3a09b150cbe88eddd40b"
++    },
++    {
++      "path": "/home/steven/.config/systemd/user/enclave-metal.service.d/95-app-funded-leases.conf",
++      "sha256": "71b3feb343f3f02ac4fc555df33d8571ffeb2e92d7dd0b4f33474ad549037daa"
++    }
++  ],
++  "held": [
++    {
++      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++      "vm": "gd9d4a391d",
++      "status": "running",
++      "owned": true
++    },
++    {
++      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++      "vm": "gdd0646f2c",
++      "status": "running",
++      "owned": true
++    }
++  ],
++  "baseline": {
++    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
++      "guest": "gdd0646f2c",
++      "history": []
++    },
++    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
++      "guest": "gd9d4a391d",
++      "history": []
++    }
++  },
++  "health": {
++    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
++      "ok": true,
++      "detail": "html 42685B title 'image generator'",
++      "spec": {
++        "url": "https://da09d0f2.app.enclave.host/",
++        "kind": "html",
++        "minBytes": 1024,
++        "title": "image generator"
++      }
++    },
++    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
++      "ok": true,
++      "detail": "ok/pong",
++      "spec": {
++        "url": "https://9eb4e600.app.enclave.host/ping",
++        "kind": "json-ping"
++      }
++    }
++  },
++  "readyForPlan": true,
++  "limits": [
++    "Read-only baseline; no restart, config or admission change. Fresh lease and admission checks are still needed before activation."
++  ]
++}
+diff --git a/guestrows.py b/guestrows.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f70d73ee98163b9cad165b88b41fded2a675a34
+--- /dev/null
++++ b/guestrows.py
+@@ -0,0 +1,41 @@
++# The ONE reading of /availability instanceSweep.held per app, used by activate.py (pre-cutover baseline) and by
++# verify-operational.py (the gate). guestd's own vm status enum (isolation/m4/guestd/server.go) is exactly:
++#   "starting" -> "running" -> (ended: removed from the map) | "failed" (kept until the supervisor deletes it).
++# held rows carry {id (deployment), vm, status (v.status or null), owned}. guestd RETAINS failed guests as tombstones beside
++# the live one (metal0 07:51Z: image-generator held gd491817b2 running plus 3 failed rows), so per app:
++#   - "failed" rows are terminal HISTORY: recorded as evidence, never deleted here, never counted as the live guest;
++#   - every other row is a NONTERMINAL candidate ("starting", "running", null or any status this code does not know -
++#     unknown fails closed); there must be exactly ONE, it must be "running" and owned, with a well-formed guest id.
++import re
++TERMINAL = {'failed'}
++VM = re.compile(r'[A-Za-z0-9-]{1,64}')
++
++def rows_of(held, app):
++    return [r for r in (held or []) if str(r.get('id', '')).lower() == app]
++
++def classify(held, app):
++    """-> (live_rows, history_vms): every non-failed row of the app, and the failed rows' guest ids."""
++    rows = rows_of(held, app)
++    return [r for r in rows if r.get('status') not in TERMINAL], sorted(str(r.get('vm')) for r in rows if r.get('status') in TERMINAL)
++
++def the_live_guest(held, app):
++    """-> (vm, None) for exactly one running, owned, well-formed live guest; else (None, why)."""
++    live, _ = classify(held, app)
++    if not live: return None, 'no live guest (only failed history, or none)'
++    if len(live) > 1: return None, 'more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live)
++    r = live[0]
++    if r.get('status') != 'running': return None, f"its only nonterminal guest {r.get('vm')} is {r.get('status')!r}, not running"
++    if r.get('owned') is not True: return None, f"its running guest {r.get('vm')} is not owned"
++    if not VM.fullmatch(str(r.get('vm'))): return None, f"malformed guest id {r.get('vm')!r}"
++    return str(r['vm']), None
++
++def baseline(held, apps):
++    """Pre-cutover baseline: {app: {'guest': vm, 'history': [failed vms]}}; raises naming every app that does not have
++    exactly one running owned guest."""
++    out, bad = {}, []
++    for app in apps:
++        vm, why = the_live_guest(held, app)
++        if why: bad.append(f'{app[:10]}: {why}')
++        else: out[app] = {'guest': vm, 'history': classify(held, app)[1]}
++    if bad: raise AssertionError('pre-cutover baseline refused: ' + '; '.join(bad))
++    return out
+diff --git a/keep.py b/keep.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..fea62234286b62c8958dab3cb884b0083b42a46c
+--- /dev/null
++++ b/keep.py
+@@ -0,0 +1,34 @@
++# PHASE 5 (ROOT EXECUTES after its own fresh attestation + capability check): records KEEP; changes nothing on the host.
++#   python3 keep.py --checked-attestation <root's fresh attestation/capability evidence file>
++#                   [--audit <root's chain audit output> --verified <app id>=<tx> ...]
++# Re-asserts read-only, at keep time: attached at ee5df6b8; both apps actually healthy; each app's ONE live guest is still the
++# baseline guest. Renewal proof is recorded where available (audited --verified pairs must be renewals renewal-watch.py saw);
++# without it the keep records "renewals pending audit" honestly - the lease code is byte-identical to deabf8f90's.
++import argparse, json
++from common import *
++import apphealth, guestrows
++ap = argparse.ArgumentParser(); ap.add_argument('--checked-attestation', required=True)
++ap.add_argument('--audit'); ap.add_argument('--verified', action='append', default=[])
++ap.add_argument('--availability', default='https://api.enclave.host/t/metal0/availability')
++a = ap.parse_args()
++r = json.loads((A/'result.json').read_text())
++assert r.get('productionActivated') == 'provisional', 'not provisional: ' + r.get('state', '')
++assert public_attestation(get)['operatorAllowlist']['admittedAtAttach'] == NEW['measurement'], 'not attached at ee5df6b8'
++specs = apphealth.load_specs(A/'apps-health.json', list(APPS))
++for i, s in specs.items(): ok, d = apphealth.check(s); assert ok, f'{i[:10]} not healthy ({d})'
++st, body = get(a.availability); assert st == 200
++held = json.loads(body)['instanceSweep']['held']
++for i in APPS: vm, why = guestrows.the_live_guest(held, i); assert vm == r['preCutoverGuests'][i], f'{i[:10]}: {vm or why} is not the baseline guest'
++ev = Path(a.checked_attestation).read_bytes(); assert NEW['measurement'].encode() in ev, 'the attestation evidence does not name ee5df6b8'
++v = dict(x.lower().split('=', 1) for x in a.verified)
++if v:
++    assert a.audit, '--verified needs --audit'
++    obs = {k.lower(): t.lower() for k, t in r.get('renewalsObserved', {}).items()}
++    assert all(obs.get(k) == t for k, t in v.items()), 'an audited transaction is not a renewal renewal-watch.py recorded'
++    audit = Path(a.audit).read_bytes().lower()
++    for t in v.values(): assert t.encode() in audit, f'{t} is not in the audit output'
++r.update(state='KEPT: ee5df6b8 attached, same guests, gate v4 passed, root attestation checked'
++               + ('; app-paid renewals audited: ' + ','.join(k[:10] for k in v) if v else '; app-paid renewals pending root audit'),
++         productionActivated=True, keptAt=utc(), attestationEvidence={'file': str(Path(a.checked_attestation).resolve()), 'sha256': sha(ev)},
++         **({'audit': {'file': str(Path(a.audit).resolve()), 'sha256': sha(Path(a.audit).read_bytes()), 'verified': v}} if v else {}))
++(A/'result.json').write_text(json.dumps(r, indent=2) + '\n'); print(r['state'])
+diff --git a/logs/commit-1.out b/logs/commit-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8959db2c0d3d7b3f270bbe0ae860edd9a215e772
+--- /dev/null
++++ b/logs/commit-1.out
+@@ -0,0 +1 @@
++[queue] START available=23799MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+diff --git a/logs/mutants-1.guard.log b/logs/mutants-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d14422a0c81890fbb02207e469659ffb40249617
+--- /dev/null
++++ b/logs/mutants-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=22431
+diff --git a/logs/mutants-1.out b/logs/mutants-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbc9f13e1c2f3051ed9842af3e26477969d64d2a
+--- /dev/null
++++ b/logs/mutants-1.out
+@@ -0,0 +1,16 @@
++[queue] START available=22703MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++KILLED   config-before-stop
++KILLED   no-deadline-wait
++KILLED   no-concurrent-config-cas
++KILLED   no-dropin-check
++KILLED   non-additive-admission
++KILLED   admission-ignores-public
++KILLED   reserialize-config
++KILLED   ignore-workingdir
++KILLED   ignore-dropins
++KILLED   cas-no-restore
++KILLED   small-margin-ok
++mutants 11 survived 0
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=22431
++[memory-guard] at peak: python3:28 python3:22 python3:17
++[queue] EXIT 0
+diff --git a/logs/mutants-1.rc b/logs/mutants-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/mutants-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-1.guard.log b/logs/scan-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c5ebdc48eba554cebf015047b595755dd52ec19
+--- /dev/null
++++ b/logs/scan-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=23820
+diff --git a/logs/scan-1.out b/logs/scan-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..ba10f3772bf616e1553c9862e0fb961c7ac29fce
+--- /dev/null
++++ b/logs/scan-1.out
+@@ -0,0 +1,8 @@
++[queue] START available=23880MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++2:24PM INF scanned ~104013 bytes (104.01 KB) in 17.3ms
++2:24PM INF no leaks found
++literal files []
++[scan] files 39 gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=48 minHostAvailableMiB=23820
++[memory-guard] at peak: gitleaks:38 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-1.rc b/logs/scan-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/tests-1.attempt-1.guard.log b/logs/tests-1.attempt-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..dd22b0455bdd83cba3d56e027b4988d39b9d6a1c
+--- /dev/null
++++ b/logs/tests-1.attempt-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=28 minHostAvailableMiB=23800
+diff --git a/logs/tests-1.attempt-1.out b/logs/tests-1.attempt-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e1175e2ef03c6d19cd3029fd981120d6e9bf3d2
+--- /dev/null
++++ b/logs/tests-1.attempt-1.out
+@@ -0,0 +1,37 @@
++[queue] START available=23815MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++test_additive_in_installed_order (test_activation.Admission.test_additive_in_installed_order) ... FAIL
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_baseline_must_equal_root_record (test_activation.Preconditions.test_baseline_must_equal_root_record) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_failed_restart_restores_previous_bytes (test_activation.RemoteScripts.test_cas_failed_restart_restores_previous_bytes) ... ok
++test_cas_refuses_changed_env_dropin_or_existing_backup (test_activation.RemoteScripts.test_cas_refuses_changed_env_dropin_or_existing_backup) ... ok
++test_cas_success_writes_backup_and_restarts (test_activation.RemoteScripts.test_cas_success_writes_backup_and_restarts) ... ok
++test_read_reports_hashes_and_body (test_activation.RemoteScripts.test_read_reports_hashes_and_body) ... ok
++test_restore_is_cas_on_both_versions (test_activation.RemoteScripts.test_restore_is_cas_on_both_versions) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_missing_duplicate_or_ambiguous (test_activation.RewriteDist.test_refuses_missing_duplicate_or_ambiguous) ... ok
++test_refuses_concurrent_config_or_dropin_change (test_activation.SafeRollback.test_refuses_concurrent_config_or_dropin_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++
++======================================================================
++FAIL: test_additive_in_installed_order (test_activation.Admission.test_additive_in_installed_order)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-activation-20261023/tests/test_activation.py", line 58, in test_additive_in_installed_order
++    existing, text = C.admission_body(self.body, list(reversed(EXISTING)))
++                     ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-activation-20261023/common.py", line 100, in admission_body
++    if not m: raise AssertionError('the installed env file is not exactly one METAL_ALLOWED_MEASUREMENTS= line')
++              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++AssertionError: the installed env file is not exactly one METAL_ALLOWED_MEASUREMENTS= line
++
++----------------------------------------------------------------------
++Ran 16 tests in 0.293s
++
++FAILED (failures=1)
++[memory-guard] exit=1 peakTreeRssMiB=28 minHostAvailableMiB=23800
++[memory-guard] at peak: python3:28
++[queue] EXIT 1
+diff --git a/logs/tests-1.attempt-1.rc b/logs/tests-1.attempt-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/tests-1.attempt-1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/tests-2.guard.log b/logs/tests-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..cabce4bad3e4997c5ad4136b35d973eb610491e4
+--- /dev/null
++++ b/logs/tests-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=23763
+diff --git a/logs/tests-2.out b/logs/tests-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..16440670e1d6f06379708812bcdc13e0dfbb70e9
+--- /dev/null
++++ b/logs/tests-2.out
+@@ -0,0 +1,25 @@
++[queue] START available=23807MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++test_additive_in_installed_order (test_activation.Admission.test_additive_in_installed_order) ... ok
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_baseline_must_equal_root_record (test_activation.Preconditions.test_baseline_must_equal_root_record) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_failed_restart_restores_previous_bytes (test_activation.RemoteScripts.test_cas_failed_restart_restores_previous_bytes) ... ok
++test_cas_refuses_changed_env_dropin_or_existing_backup (test_activation.RemoteScripts.test_cas_refuses_changed_env_dropin_or_existing_backup) ... ok
++test_cas_success_writes_backup_and_restarts (test_activation.RemoteScripts.test_cas_success_writes_backup_and_restarts) ... ok
++test_read_reports_hashes_and_body (test_activation.RemoteScripts.test_read_reports_hashes_and_body) ... ok
++test_restore_is_cas_on_both_versions (test_activation.RemoteScripts.test_restore_is_cas_on_both_versions) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_missing_duplicate_or_ambiguous (test_activation.RewriteDist.test_refuses_missing_duplicate_or_ambiguous) ... ok
++test_refuses_concurrent_config_or_dropin_change (test_activation.SafeRollback.test_refuses_concurrent_config_or_dropin_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++
++----------------------------------------------------------------------
++Ran 16 tests in 0.290s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=23763
++[memory-guard] at peak: python3:28
++[queue] EXIT 0
+diff --git a/logs/tests-2.rc b/logs/tests-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/tests-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/mutants.py b/mutants.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca6e366dafa81d358024916ef1ff29e30f7f7712
+--- /dev/null
++++ b/mutants.py
+@@ -0,0 +1,26 @@
++"""Mutation check of common.py's safety logic: each mutant weakens one guard; the unchanged test suite must FAIL on it."""
++import shutil, subprocess, sys, tempfile
++from pathlib import Path
++A = Path(__file__).resolve().parent; SRC = (A/'common.py').read_text()
++MUT = {
++ 'config-before-stop': [("    ops.systemctl('stop', UNIT)\n", "    atomic_config(old_config, config.stat().st_mode & 0o777, config)\n    ops.systemctl('stop', UNIT)\n")],
++ 'no-deadline-wait': [("    if deadlines:\n        wait", "    if False:\n        wait")],
++ 'no-concurrent-config-cas': [("    assert config.read_bytes() == new_config, 'config changed concurrently: refuse overwriting it'\n", "")],
++ 'no-dropin-check': [("    assert ops.read_dropins() == CURRENT['dropins'], 'drop-ins changed concurrently: refuse restarting into an unknown unit'\n", "")],
++ 'non-additive-admission': [("','.join(existing + [new])", "','.join([new])")],
++ 'admission-ignores-public': [("    if set(existing) != set(public_list) or len(public_list) != len(set(public_list)): raise AssertionError('the installed list is not the public allowlist')\n", "")],
++ 'reserialize-config': [("    new = text.replace(needle, json.dumps(new_dist), 1).encode('utf-8')", "    new = (json.dumps({**json.loads(raw), 'dist': new_dist}, indent=2) + '\\n').encode()")],
++ 'ignore-workingdir': [("    if unit.get('WorkingDirectory') != current['workingDirectory']:", "    if False:")],
++ 'ignore-dropins': [("    if dropins != current['dropins']:", "    if False:")],
++ 'cas-no-restore': [("    e.write_bytes(old); subprocess.run([SYSTEMCTL, 'restart', SERVICE], check=True, timeout=45)\n    print('ADMISSION-RESTORED after failure')", "    print('ADMISSION-RESTORED after failure')")],
++ 'small-margin-ok': [("<= ROLLBACK_MARGIN_S + ADOPT_S", "<= 0")],
++}
++bad = 0
++for name, subs in MUT.items():
++    s = SRC
++    for a, b in subs: assert a in s, (name, a[:60]); s = s.replace(a, b)
++    d = Path(tempfile.mkdtemp()); shutil.copytree(A/'tests', d/'tests'); shutil.copytree(A/'evidence', d/'evidence'); (d/'common.py').write_text(s)
++    r = subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tests'], cwd=d, capture_output=True, text=True)
++    killed = r.returncode != 0; bad += not killed
++    print(('KILLED  ' if killed else 'SURVIVED'), name); shutil.rmtree(d)
++print(f'mutants {len(MUT)} survived {bad}'); sys.exit(1 if bad else 0)
+diff --git a/preflight.mjs b/preflight.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fa2271de6df77decab62fde9be7f29d0dbf71ef
+--- /dev/null
++++ b/preflight.mjs
+@@ -0,0 +1,46 @@
++// PHASE 3 (ROOT EXECUTES, read-only, minutes before activate.py): node work/custody-recipient-activation-20261023/preflight.mjs
++// The reviewed linux-lease-root-release/live-preflight.mjs logic (quorum-verified lease authority, each app's ledger row,
++// reserve, renew budget and runner's registry entry), with two corrections: the lease modules are imported from the restore
++// repo at a6b1378c and asserted byte-equal to PRODUCTION's release (~/enclave-prod/metal-deabf8f90), not work/enclave's
++// (whose lease-gas-owner/lease-executor-client differ); the apps are the explicit two ids, not a funding-proposal slice.
++// Output: a NEW file evidence/lease-preflight.json (plus a timestamped copy). Reads public chain state only.
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const REPO = path.resolve(HERE, '../custody-recipient-restore-20261023/repo'), PROD = '/home/steven/enclave-prod/metal-deabf8f90';
++const MODS = ['client/lease-executor-authority.mjs', 'network/lease-gas-owner.mjs', 'client/lease-executor-client.mjs'];
++const h = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
++for (const m of MODS) if (h(path.join(REPO, m)) !== h(path.join(PROD, m))) throw new Error(`${m} differs from the production release`);
++const imp = (m) => import(pathToFileURL(path.join(REPO, m)).href);
++const { createPublicClient, http } = await import(pathToFileURL(path.join(REPO, 'node_modules/viem/_esm/index.js')).href);
++const { verifiedLeaseAuthority } = await imp(MODS[0]);
++const { parseDeploymentRecord, LEDGER_ABI, OWNER_ABI, REGISTRY_ABI } = await imp(MODS[1]);
++const { STATUS, KIND } = await imp(MODS[2]);
++const IDS = ['0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9', '0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c'];
++const deployment = parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),
++  { expectedDigest: 'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089' });
++const urls = ['https://base-rpc.publicnode.com', 'https://mainnet.base.org', 'https://base-mainnet.public.blastapi.io'];
++const clients = urls.map((url) => createPublicClient({ transport: http(url, { timeout: 12000, retryCount: 0 }) }));
++const a = await verifiedLeaseAuthority({ clients, deployment, quorum: 2 });
++const rows = [];
++for (const id of IDS) {
++  const dep = await a.client.readContract({ address: a.pins.ledger, abi: LEDGER_ABI, functionName: 'get', args: [id] });
++  const [reserve, renew, host] = await Promise.all([
++    a.client.readContract({ address: a.pins.reserve, abi: OWNER_ABI, functionName: 'reserveOf', args: [id, dep.owner] }),
++    a.client.readContract({ address: a.pins.reserve, abi: OWNER_ABI, functionName: 'statusOf', args: [id, KIND.renew, dep.runner, dep.runnerOperator] }),
++    a.client.readContract({ address: a.pins.registry, abi: REGISTRY_ABI, functionName: 'get', args: [dep.runner] })]);
++  rows.push({ id, owner: dep.owner, active: dep.active, runner: dep.runner, runnerOperator: dep.runnerOperator, leaseUntil: dep.leaseUntil,
++    leaseRemainingSeconds: dep.leaseUntil - a.block.timestamp, reserve, renewStatus: STATUS[Number(renew[0])],
++    renewBudget: { availableWei: renew[1], epochLeftWei: renew[2], maxPerOpWei: renew[3] }, hostActive: host.active, hostOperator: host.operator });
++}
++const data = { at: new Date().toISOString(), readOnly: true, modules: Object.fromEntries(MODS.map((m) => [m, h(path.join(REPO, m))])),
++  quorum: a.quorum, agreeing: a.agreeing, block: a.block, rows };
++const text = JSON.stringify(data, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 2) + '\n';
++fs.mkdirSync(path.join(HERE, 'evidence'), { recursive: true });
++fs.writeFileSync(path.join(HERE, 'evidence', `lease-preflight-${data.at.replace(/[:.]/g, '')}.json`), text);
++fs.writeFileSync(path.join(HERE, 'evidence', 'lease-preflight.json'), text);
++console.log(JSON.stringify({ at: data.at, block: String(a.block.number), agreeing: a.agreeing,
++  rows: rows.map((r) => ({ id: r.id.slice(0, 10), leaseRemainingSeconds: String(r.leaseRemainingSeconds), enabled: r.reserve.enabled,
++    balanceWei: String(r.reserve.balanceWei), renewStatus: r.renewStatus, hostActive: r.hostActive })) }));
+diff --git a/prepare-admission.py b/prepare-admission.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..27cc6a4596d3fb3f1e25d6a3f31b7fa8e41bdcc6
+--- /dev/null
++++ b/prepare-admission.py
+@@ -0,0 +1,24 @@
++# PHASE 1 (ROOT EXECUTES, read-only): python3 work/custody-recipient-activation-20261023/prepare-admission.py
++# Reads (a) the PUBLIC attestation allowlist, (b) over root's SSH, READ-ONLY, the relay's installed measurement env file
++# (its sha256 and body - a public measurement list, no secret) and its drop-in sha256 and the API service state.
++# Asserts: the installed file is the deabf8f90 admission (f33a6c91...) holding exactly the 35 public measurements, the
++# running ed918e4b among them, the candidate not yet; the drop-in is the installed one. Writes admission.json +
++# measurement.env (ADDITIVE: all 35 in their installed order, then ee5df6b8). Changes nothing anywhere.
++import json, sys
++from common import *
++assert not (A/'admission.json').exists(), 'already prepared: inspect'
++att = public_attestation(get); al = att['operatorAllowlist']
++assert al['admittedAtAttach'] == CURRENT['measurement'], f"production attached at {al['admittedAtAttach'][:16]}, not ed918e4b"
++code, out, err = run_remote(remote(REMOTE_READ, (RELAY['env'], RELAY['dropin'], 'systemctl', RELAY['service'])))
++if code: sys.exit(f'remote read failed ({code}): {err.strip()[:300]}')
++r = json.loads(out.strip().splitlines()[-1])
++assert r['serviceActive'] == 'active', r['serviceActive']
++assert r['envSha256'] == RELAY['installedSha256'], f"installed env {r['envSha256'][:16]} is not the deabf8f90 admission: inspect first"
++assert r['dropinSha256'] == RELAY['dropinSha256'], 'the admission drop-in changed: inspect first'
++existing, body = admission_body(r['envBody'], al['measurements'])
++(A/'measurement.env').write_text(body)
++rec = {'at': utc(), 'stage': 'prepared only', 'existing': existing, 'added': NEW['measurement'], 'admittedAtAttach': al['admittedAtAttach'],
++       'replacesInstalledSha256': r['envSha256'], 'environmentSha256': sha(body.encode()), 'dropinSha256': r['dropinSha256'],
++       'remoteBackup': RELAY['env'] + '.before-' + NEW['commit'][:9]}
++(A/'admission.json').write_text(json.dumps(rec, indent=2) + '\n')
++print(json.dumps({'existing': len(existing), 'added': NEW['measurement'][:16], 'replaces': r['envSha256'][:16], 'new': rec['environmentSha256'][:16]}))
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/recheck-admission.py b/recheck-admission.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1e0abc7ed8dca0700d1067d7d692e01c6b9112f
+--- /dev/null
++++ b/recheck-admission.py
+@@ -0,0 +1,9 @@
++# PHASE 2b (ROOT EXECUTES, read-only): the PUBLIC allowlist now lists all 35 + ee5df6b8, and metal0 is still attached at ed918e4b.
++import json
++from common import *
++ad = json.loads((A/'admission.json').read_text()); assert ad['stage'] == 'installed; public endpoint recheck pending'
++al = public_attestation(get)['operatorAllowlist']
++assert al['admittedAtAttach'] == CURRENT['measurement'], 'metal0 is not attached at ed918e4b after the relay restart: inspect'
++assert sorted(al['measurements']) == sorted(ad['existing'] + [ad['added']]), 'public allowlist is not existing + candidate'
++ad.update(stage='verified active; old control still connected', verifiedAt=utc()); (A/'admission.json').write_text(json.dumps(ad, indent=2) + '\n')
++print(json.dumps({'stage': ad['stage'], 'allowed': len(al['measurements'])}))
+diff --git a/renewal-watch.py b/renewal-watch.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0eef6188367b6485abcb1334a98dc1dc05c6ae20
+--- /dev/null
++++ b/renewal-watch.py
+@@ -0,0 +1,13 @@
++# READ-ONLY (ROOT, any time after activate.py): records every "[lease-gas] renew <id> landed in <tx>" line the new control has
++# logged since its start into result.json renewalsObserved (no host change). Root audits those transactions on chain
++# (e.g. work/lease-relay-activation/audit-paid-leases.mjs) and passes them to keep.py --verified.
++import json, re
++from common import *
++r = json.loads((A/'result.json').read_text()); assert r.get('journalSince'), 'no activation recorded'
++lines = journal(r['journalSince'])
++for i in APPS:
++    for l in lines:
++        m = re.match(r'^\[lease-gas\] renew ' + i + r' landed in (0x[0-9a-f]{64})', l)
++        if m: r.setdefault('renewalsObserved', {})[i] = m.group(1)
++r['renewalWarnings'] = [l[:200] for l in lines if l.startswith('[lease-gas] ') and ' not sent' in l][-6:]; r['renewalWatchAt'] = utc()
++(A/'result.json').write_text(json.dumps(r, indent=2) + '\n'); print(json.dumps({'renewalsObserved': r['renewalsObserved'], 'warnings': len(r['renewalWarnings'])}))
+diff --git a/rollback.py b/rollback.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..a2b80f4659df9f6c9ce5396fc0ebf505dec54bdc
+--- /dev/null
++++ b/rollback.py
+@@ -0,0 +1,15 @@
++# ROOT EXECUTES to roll back a PROVISIONAL or kept activation: the same safe rollback activate.py uses on failure (stop the
++# new control first, wait out every sponsored deadline it logged on a verified block, CAS-restore config.json from THIS
++# directory's private-backup, start the previous control on dist-leasegas-deabf8f90 / ed918e4b, still admitted).
++# The private backup is only compared and written back, never printed. guestd, guests, drop-ins and journals are not touched.
++import json
++from common import *
++r = json.loads((A/'result.json').read_text())
++old = (A/'private-backup/config.json').read_bytes(); new = CONFIG.read_bytes()
++assert sha(new) == r['configAfterSha256'], 'the active config is not the one activate.py wrote'
++assert sha(old) == r['configBeforeSha256']
++assert r.get('productionActivated') in ('provisional', True), 'nothing to roll back: ' + r.get('state', '')
++def save(): (A/'result.json').write_text(json.dumps(r, indent=2) + '\n')
++r['rollbackRequestedAt'] = utc(); save()
++safe_rollback(r, save, since=r['journalSince'], old_config=old, new_config=new)
++r['state'] = 'rolled back to the previous control image (operator)'; save(); print(r['state'])
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..9656d408f3c8b2c2371ddbd21fa973e635fd6e49
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++# Secret + rewritten-literal scans (checkpoint's own unchanged scanners/config) of every file to be committed: the outer
++# files to be committed (git ls-files: tracked + untracked not ignored).
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d)
++for f in $(git ls-files --others --cached --exclude-standard); do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find "$st" -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - "$st" <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] files $(find "$st" -type f | wc -l) gitleaks=$g scan-crypto-keys=$k literal=$l"; rm -rf "$st"
++[ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/stage.py b/stage.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a46fcff2d73eeb88daa8d488ae47ef5136b65e7
+--- /dev/null
++++ b/stage.py
+@@ -0,0 +1,23 @@
++# PHASE 0 (ROOT EXECUTES): python3 work/custody-recipient-activation-20261023/stage.py
++# Copies ONLY the candidate image dir into ~/enclave-prod/dist-leasegas-a6b1378cd (via a .staging dir, then rename), each
++# file compared with the exact reviewed hashes (restore stage/INVENTORY.sha256). No release dir is staged: WorkingDirectory
++# stays metal-deabf8f90 (the launcher files are byte-identical). Never overwrites; deabf8f90's image and release stay as the
++# rollback. No config, drop-in or service is touched. Writes plan.json.
++import json, shutil, os
++from common import *
++os.umask(0o022)
++src, dest = NEW['staged'], Path(NEW['dist']); tmp = dest.with_name(dest.name + '.staging')
++assert not (A/'plan.json').exists(), 'already staged: inspect'
++assert not dest.exists() and not tmp.exists(), 'destination exists: inspect rather than overwrite'
++for d in (CURRENT['dist'], CURRENT['workingDirectory']): assert Path(d).is_dir(), f'rollback target {d} missing'
++files = sorted(p.name for p in src.iterdir())
++assert files == sorted(NEW['files']), files
++for f, h in NEW['files'].items(): assert sha((src/f).read_bytes()) == h, f'staged {f} changed'
++assert (src/'MEASUREMENT').read_text().strip() == NEW['measurement']
++shutil.copytree(src, tmp)
++for f, h in NEW['files'].items(): assert sha((tmp/f).read_bytes()) == h, f'copy of {f} differs'
++os.rename(tmp, dest)
++plan = {'at': utc(), 'stage': 'image staged; no config or service changed', 'image': NEW['dist'], 'measurement': NEW['measurement'],
++        'commit': NEW['commit'], 'files': NEW['files'], 'previousImage': CURRENT['dist'], 'previousMeasurement': CURRENT['measurement'],
++        'workingDirectory': CURRENT['workingDirectory'], 'apps': {i: s['url'] for i, s in APPS.items()}}
++(A/'plan.json').write_text(json.dumps(plan, indent=2) + '\n'); print(json.dumps(plan, indent=2))
+diff --git a/tests/test_activation.py b/tests/test_activation.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..2bdc01aa12912127c657c21a76e4b2d08bf62d4a
+--- /dev/null
++++ b/tests/test_activation.py
+@@ -0,0 +1,202 @@
++"""Focused tests of the activation adaptation, all with stubs: no production file, service, SSH or network is touched.
++   python3 -m unittest discover -s tests -v   (from this directory)"""
++import hashlib, json, os, stat, subprocess, sys, tempfile, unittest
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++import common as C
++
++M = lambda c: c * 96
++OLD, NEWM = C.CURRENT['measurement'], C.NEW['measurement']
++EXISTING = [OLD] + [hashlib.sha384(str(n).encode()).hexdigest() for n in range(34)]   # 35 distinct well-formed measurements
++assert len(EXISTING) == 35 and NEWM not in EXISTING
++
++
++class RewriteDist(unittest.TestCase):
++    raw = ('{\n  "name": "metal0",\n  "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",\n  "leaseGas": {"rpcs": ["x"]},\n'
++           '    "odd":   [1,2 , 3]\n}\n').encode()
++
++    def test_only_dist_changes_every_other_byte_preserved(self):
++        new = C.rewrite_dist(self.raw, C.CURRENT['dist'], C.NEW['dist'])
++        self.assertEqual(new, self.raw.replace(b'dist-leasegas-deabf8f90', b'dist-leasegas-a6b1378cd'))
++        self.assertEqual(json.loads(new), {**json.loads(self.raw), 'dist': C.NEW['dist']})
++
++    def test_refuses_missing_duplicate_or_ambiguous(self):
++        for bad in [self.raw.replace(b'"dist"', b'"distx"'),
++                    self.raw.replace(b'"odd"', b'"other": "/home/steven/enclave-prod/dist-leasegas-deabf8f90", "odd"'),
++                    self.raw.replace(b'deabf8f90', b'51516b778')]:
++            with self.assertRaises(AssertionError): C.rewrite_dist(bad, C.CURRENT['dist'], C.NEW['dist'])
++
++
++class Protected(unittest.TestCase):
++    def setUp(self):
++        self.cfg = json.dumps({'dist': C.CURRENT['dist'], 'mode': 'snp', 'leaseGas': {'rpcs': ['a']}}).encode()
++        self.cur = {**C.CURRENT, 'configSha256': C.sha(self.cfg), 'leaseGasDigest': C.sha(json.dumps({'rpcs': ['a']}, sort_keys=True).encode())}
++        self.unit = {'ActiveState': 'active', 'WorkingDirectory': C.CURRENT['workingDirectory'], 'KillMode': 'control-group'}
++        self.drops = dict(C.CURRENT['dropins'])
++
++    def test_baseline_passes(self):
++        self.assertEqual(C.protected_problems(self.cfg, self.unit, self.drops, self.cur), [])
++
++    def test_every_protected_field_refuses(self):
++        cases = [
++            (json.dumps({'dist': C.CURRENT['dist'], 'mode': 'snp', 'leaseGas': {'rpcs': ['b']}}).encode(), self.unit, self.drops),
++            (self.cfg, {**self.unit, 'WorkingDirectory': '/home/steven/enclave-prod/metal-a6b1378cd'}, self.drops),
++            (self.cfg, {**self.unit, 'KillMode': 'process'}, self.drops),
++            (self.cfg, {**self.unit, 'ActiveState': 'failed'}, self.drops),
++            (self.cfg, self.unit, {**self.drops, '95-app-funded-leases.conf': '0' * 64}),
++            (self.cfg, self.unit, {**self.drops, '99-new.conf': '1' * 64}),
++            (self.cfg, self.unit, {'80-shield-inference.conf': self.drops['80-shield-inference.conf']}),
++        ]
++        for cfg, unit, drops in cases:
++            self.assertTrue(C.protected_problems(cfg, unit, drops, self.cur), (unit, drops))
++
++
++class Admission(unittest.TestCase):
++    body = 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING) + '\n'
++
++    def test_additive_in_installed_order(self):
++        existing, text = C.admission_body(self.body, list(reversed(EXISTING)))
++        self.assertEqual(existing, EXISTING)
++        self.assertEqual(text, 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n')
++
++    def test_refusals(self):
++        cases = [(self.body + 'X=1\n', EXISTING), (self.body.replace('\n', ''), EXISTING),
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[:34]) + '\n', EXISTING[:34]),       # not the reviewed 35
++                 (self.body, EXISTING[:34] + [M('f')]),                                                   # public != installed
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[1:] + [M('e')]) + '\n', EXISTING[1:] + [M('e')]),  # running absent
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[:34] + [NEWM]) + '\n', EXISTING[:34] + [NEWM]),    # already admitted
++                 ('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING[:34] + [EXISTING[3]]) + '\n', EXISTING)]           # duplicate
++        why = ['not exactly one', 'not exactly one', 'reviewed state is 35', 'not the public allowlist', 'running measurement is not admitted',
++               'already admitted', 'duplicate']
++        for (body, pub), w in zip(cases, why):
++            with self.assertRaisesRegex(AssertionError, w): C.admission_body(body, pub)
++
++
++class RemoteScripts(unittest.TestCase):
++    """The SAME remote script text admit/unadmit/prepare send over SSH, run locally against temp files and a stub systemctl."""
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp())
++        self.env, self.drop, self.log = self.d/'m.env', self.d/'drop.conf', self.d/'systemctl.log'
++        self.env.write_text('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING) + '\n'); self.drop.write_text('[Service]\nEnvironmentFile=x\n')
++        self.ctl = self.d/'systemctl'
++        self.ctl.write_text(f'#!/bin/sh\necho "$@" >> {self.log}\nif [ "$1" = restart ] && [ -e {self.d}/fail-restart ]; then rm {self.d}/fail-restart; exit 1; fi\n'
++                            f'if [ "$1" = is-active ]; then echo active; fi\nexit 0\n')
++        self.ctl.chmod(0o755)
++
++    def run_script(self, template, args):
++        return subprocess.run([sys.executable, '-'], input=C.remote(template, args), text=True, capture_output=True)
++
++    def cas(self, body, expect=None, backup=None):
++        backup = backup or self.d/'m.env.before-a6b1378cd'
++        args = (str(self.env), str(self.drop), str(backup), body, expect or C.sha(self.env.read_bytes()), C.sha(self.drop.read_bytes()),
++                'a6b1378cd', str(self.ctl), 'enclave-api-relay.service')
++        return self.run_script(C.REMOTE_CAS, args), backup
++
++    def test_read_reports_hashes_and_body(self):
++        r = self.run_script(C.REMOTE_READ, (str(self.env), str(self.drop), str(self.ctl), 'enclave-api-relay.service'))
++        out = json.loads(r.stdout); self.assertEqual(out['envSha256'], C.sha(self.env.read_bytes())); self.assertEqual(out['envBody'], self.env.read_text())
++        self.assertEqual(out['serviceActive'], 'active')
++
++    def test_cas_success_writes_backup_and_restarts(self):
++        old = self.env.read_bytes(); new = 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n'
++        r, backup = self.cas(new)
++        self.assertEqual(r.returncode, 0, r.stderr); self.assertEqual(self.env.read_text(), new); self.assertEqual(backup.read_bytes(), old)
++        self.assertEqual(stat.S_IMODE(backup.stat().st_mode), 0o600); self.assertIn('restart enclave-api-relay.service', self.log.read_text())
++
++    def test_cas_refuses_changed_env_dropin_or_existing_backup(self):
++        old = self.env.read_bytes()
++        r, _ = self.cas('X', expect='0' * 64); self.assertNotEqual(r.returncode, 0); self.assertEqual(self.env.read_bytes(), old)
++        (self.d/'m.env.before-a6b1378cd').write_text('earlier'); r, _ = self.cas('X'); self.assertNotEqual(r.returncode, 0); self.assertEqual(self.env.read_bytes(), old)
++        self.assertFalse(self.log.exists() and 'restart' in self.log.read_text(), 'no restart on a refused CAS')
++
++    def test_cas_failed_restart_restores_previous_bytes(self):
++        old = self.env.read_bytes(); (self.d/'fail-restart').write_text('')
++        r, _ = self.cas('METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n')
++        self.assertNotEqual(r.returncode, 0); self.assertEqual(self.env.read_bytes(), old)
++        self.assertEqual(self.log.read_text().count('restart enclave-api-relay.service'), 2, 'the restore restarts the relay again')
++
++    def test_restore_is_cas_on_both_versions(self):
++        old = self.env.read_bytes(); new = 'METAL_ALLOWED_MEASUREMENTS=' + ','.join(EXISTING + [NEWM]) + '\n'
++        r, backup = self.cas(new); self.assertEqual(r.returncode, 0)
++        args = (str(self.env), str(backup), C.sha(new.encode()), C.sha(old), 'a6b1378cd', str(self.ctl), 'enclave-api-relay.service')
++        bad = self.run_script(C.REMOTE_RESTORE, (args[0], args[1], '0' * 64) + args[3:]); self.assertNotEqual(bad.returncode, 0); self.assertEqual(self.env.read_text(), new)
++        ok = self.run_script(C.REMOTE_RESTORE, args); self.assertEqual(ok.returncode, 0, ok.stderr); self.assertEqual(self.env.read_bytes(), old)
++
++
++class SafeRollback(unittest.TestCase):
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp()); self.cfg = self.d/'config.json'
++        self.old, self.new = b'{"dist": "old"}\n', b'{"dist": "new"}\n'
++        self.cfg.write_bytes(self.new); self.cfg.chmod(0o640)
++        self.calls = []
++        test = self
++        class Ops:
++            lines = ['[lease-gas] renew 0xab sponsored deadline 1790000000 sent']
++            drops = dict(C.CURRENT['dropins'])
++            @staticmethod
++            def systemctl(*a, **k): test.calls.append(('systemctl', a, test.cfg.read_bytes()))
++            @staticmethod
++            def journal(since):
++                if Ops.lines is None: raise RuntimeError('unreadable')
++                return Ops.lines
++            @staticmethod
++            def verified_block_after(ts, rpcs, limit): test.calls.append(('block', ts, limit)); return {'number': 1, 'timestamp': ts + 1}
++            now = staticmethod(lambda: 1789999000)
++            @staticmethod
++            def read_dropins(): return Ops.drops
++        self.ops = Ops; self.result = {}
++
++    def roll(self):
++        C.safe_rollback(self.result, lambda: None, since='x', old_config=self.old, new_config=self.new, config=self.cfg, ops=self.ops)
++
++    def test_stop_first_wait_deadline_then_restore_and_start(self):
++        self.roll()
++        self.assertEqual(self.calls[0][:2], ('systemctl', ('stop', C.UNIT))); self.assertEqual(self.calls[0][2], self.new, 'stopped before any config write')
++        self.assertEqual(self.calls[1][:2], ('block', 1790000000)); self.assertEqual(self.calls[2][:2], ('systemctl', ('start', C.UNIT)))
++        self.assertEqual(self.calls[2][2], self.old, 'started only after the exact old bytes were restored')
++        self.assertEqual(self.cfg.read_bytes(), self.old); self.assertEqual(stat.S_IMODE(self.cfg.stat().st_mode), 0o640)
++        self.assertIs(self.result['productionActivated'], False)
++
++    def test_unreadable_journal_waits_the_ttl_bound(self):
++        self.ops.lines = None; self.roll()
++        self.assertEqual(self.result['pendingSponsoredDeadlines'], [1789999000 + 360]); self.assertEqual(self.calls[1][1], 1789999360)
++
++    def test_refuses_concurrent_config_or_dropin_change(self):
++        self.cfg.write_bytes(b'{"dist": "someone else"}\n')
++        with self.assertRaises(AssertionError): self.roll()
++        self.assertEqual(self.cfg.read_bytes(), b'{"dist": "someone else"}\n'); self.assertNotIn(('systemctl', ('start', C.UNIT)), [c[:2] for c in self.calls])
++        self.cfg.write_bytes(self.new); self.calls.clear(); self.ops.drops = {**C.CURRENT['dropins'], '99-x.conf': 'f' * 64}
++        with self.assertRaises(AssertionError): self.roll()
++        self.assertEqual(self.cfg.read_bytes(), self.new); self.assertNotIn(('systemctl', ('start', C.UNIT)), [c[:2] for c in self.calls])
++
++
++class Preconditions(unittest.TestCase):
++    ids = list(C.APPS)
++    def pre(self, **over):
++        rows = [{'id': i, 'active': True, 'runner': '0xR', 'leaseRemainingSeconds': '1500', 'hostActive': True,
++                 'reserve': {'enabled': True, 'balanceWei': '100'}} for i in self.ids]
++        for r in rows: r.update(over)
++        return {'block': {'timestamp': '1000'}, 'rows': rows}
++
++    def test_preflight(self):
++        self.assertEqual(C.preflight_problems(self.pre(), self.ids, 1010), [])
++        self.assertTrue(C.preflight_problems(self.pre(), self.ids, 1400))                         # stale
++        self.assertTrue(C.preflight_problems(self.pre(leaseRemainingSeconds='700'), self.ids, 1010))   # margin
++        self.assertTrue(C.preflight_problems(self.pre(reserve={'enabled': False, 'balanceWei': '1'}), self.ids, 1010))
++        self.assertTrue(C.preflight_problems(self.pre(hostActive=False), self.ids, 1010))
++        p = self.pre(); p['rows'][1]['runner'] = '0xS'; self.assertTrue(C.preflight_problems(p, self.ids, 1010))
++        p = self.pre(); p['rows'].pop(); self.assertTrue(C.preflight_problems(p, self.ids, 1010))
++
++    def test_baseline_must_equal_root_record(self):
++        rec = json.loads((Path(C.EVIDENCE)/'baseline.json').read_text())   # root's actual 21:13Z record (read-only)
++        fresh = {i: dict(rec['baseline'][i]) for i in self.ids}
++        titles = {'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9': 'image generator'}
++        self.assertEqual(C.baseline_problems(rec, fresh, titles), [])
++        moved = {**fresh, self.ids[0]: {'guest': 'gd00000000', 'history': []}}
++        self.assertTrue(C.baseline_problems(rec, moved, titles))
++        self.assertTrue(C.baseline_problems(rec, fresh, {self.ids[0]: 'Not Found'}))
++        self.assertTrue(C.baseline_problems({**rec, 'readyForPlan': False}, fresh, titles))
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/unadmit.py b/unadmit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..68bdbf93869626130aa23a13909f7d82d61ee3fc
+--- /dev/null
++++ b/unadmit.py
+@@ -0,0 +1,10 @@
++# ROOT EXECUTES only to undo admit.py: restores the env file it replaced (CAS on both versions) and restarts the API relay
++# (same transient impact as admit.py). Never run while the new measurement is attached.
++import json, sys
++from common import *
++ad = json.loads((A/'admission.json').read_text())
++assert public_attestation(get)['operatorAllowlist']['admittedAtAttach'] != NEW['measurement'], 'the candidate is attached: roll back the control first'
++args = (RELAY['env'], ad['remoteBackup'], ad['environmentSha256'], ad['replacesInstalledSha256'], NEW['commit'][:9], 'systemctl', RELAY['service'])
++code, out, err = run_remote(remote(REMOTE_RESTORE, args)); print(out + err, end='')
++if code: sys.exit(code)
++ad.update(stage='unadmitted (restored)', unadmittedAt=utc()); (A/'admission.json').write_text(json.dumps(ad, indent=2) + '\n')
+diff --git a/verify-operational.py b/verify-operational.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2d68a59f892b04c262cc73983a624ad82821419
+--- /dev/null
++++ b/verify-operational.py
+@@ -0,0 +1,134 @@
++# OPERATIONAL GATE v3 (prepared by Claude, 2026-10-21; v2 kept in prior-gate2/, the first version in
++# linux-post-adoption-repair/activation-gate/). activate.py runs it after attach + adoption; root may run it alone.
++# READ-ONLY: the apps' public endpoints, the control's public /availability, and this host's enclave-metal journal lines
++# (journalctl -o cat; only the prefixes below are kept, nothing else read or stored).
++#
++# v3 closes root's review holes (ROOT-GATE-REVIEW.txt):
++#  - ACTUAL app health (apphealth.py, the same definition activate.py uses): EyesOff /ping JSON ok+pong, image-generator
++#    200 text/html with the pre-cutover <title>; a 404 or error page is never healthy;
++#  - the journal FAILS CLOSED: a non-zero journalctl exit, or a journal that does not show both apps' adoption lines
++#    (the run's own anchor), is no evidence of "no error lines" - that poll is not clean;
++#  - FINITE: a hard overall deadline (default warmup + window + 4 polls + 120 s); missing it fails, naming what was
++#    missing (e.g. vouch cycles); a vouch timestamp that stops advancing for --vouch-stale s inside the window fails;
++#  - guest ids are MANDATORY inputs (--expect-guest for every app, from the pre-cutover baseline); never inferred.
++# v4 (root, metal0 07:51Z: guestd RETAINS failed guests beside the live one) reads held rows through guestrows.py: per app
++# exactly ONE nonterminal row (guestd's enum: starting/running; null or unknown fails closed) and it must be the expected
++# guest, running and owned; "failed" rows are terminal history, allowed only if the baseline recorded them
++# (--known-failed); a guest failing during the gate, a second nonterminal guest, or a replacement fails at once.
++# Warm-up (<= --warmup s) tolerates only "not yet" states before the window starts: the platform gate's first admit, the
++# first reconcile pass's `held`. Once every check passes the window starts and EVERY poll must pass. HARD failures end the
++# gate at any time: a death/reap/release/respawn/new-launch journal line for an app, an app unvouched, another guest id.
++import argparse, datetime, json, re, subprocess, sys, time, urllib.request
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import apphealth, guestrows
++
++ap = argparse.ArgumentParser()
++ap.add_argument('--availability', required=True)
++ap.add_argument('--apps-json', required=True, help='apps-health.json: {deployment id: {url, kind, title?, minBytes?}}')
++ap.add_argument('--expect-guest', action='append', required=True, metavar='DEPLOYMENT_ID=VM_ID')
++ap.add_argument('--known-failed', action='append', default=[], metavar='DEPLOYMENT_ID=VM_ID', help='baseline failed (history) rows')
++ap.add_argument('--since', required=True)
++ap.add_argument('--window', type=int, default=420)
++ap.add_argument('--warmup', type=int, default=300)
++ap.add_argument('--min-vouches', type=int, default=3)   # the vouch in effect at the window's start + 2 completed cycles
++ap.add_argument('--vouch-stale', type=int, default=180)  # three missed 60 s passes
++ap.add_argument('--poll', type=int, default=15)
++ap.add_argument('--deadline', type=int, default=None)
++ap.add_argument('--journal-cmd', default='journalctl --user -u enclave-metal.service --since {since} -o cat --no-pager',
++                help=argparse.SUPPRESS)   # the gate's own test substitutes a fixture
++ap.add_argument('--out', required=True)
++a = ap.parse_args()
++apps = apphealth.load_specs(a.apps_json)
++expect = {}
++for s in a.expect_guest:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and re.fullmatch(r'[A-Za-z0-9-]{1,64}', v), s; expect[i] = v
++assert set(expect) == set(apps), 'an expected (pre-cutover) guest id is required for every app'
++known_failed = {i: set() for i in apps}
++for s in a.known_failed:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and guestrows.VM.fullmatch(v) and v != expect[i], s; known_failed[i].add(v)
++deadline = a.deadline if a.deadline is not None else a.warmup + a.window + 4 * a.poll + 120
++now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++
++def get(url, timeout=12):
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'enclave-activation-gate/3'}), timeout=timeout,
++                                    context=apphealth.CTX) as r: return r.status, r.read(1 << 20)
++    except Exception as e: return None, type(e).__name__.encode()
++
++def journal():
++    """-> (lines, problem). Fails closed: an unreadable journal, or one without the run's adoption anchor, is a problem."""
++    cmd = [x.replace('{since}', a.since) for x in a.journal_cmd.split(' ')]
++    try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
++    except Exception as e: return [], f'journal unreadable: {type(e).__name__}'
++    if r.returncode != 0: return [], f'journal unreadable: exit {r.returncode} {r.stderr.strip()[:120]}'
++    lines = [l for l in r.stdout.splitlines() if l.startswith(('[claim] ', '[release] ', '[bill] ', '[instance] ', '[isolation] '))]
++    missing = [i[:10] for i in apps if not any(l.startswith(f'[claim] {i} adopted:') for l in lines)]
++    return lines, (f'journal shows no adoption line for {missing}: not this run\'s journal' if missing else None)
++BAD = [re.compile(p) for p in (r'^\[bill\] (\S+) (instance respawned|respawn failed)', r'^\[claim\] (\S+) (app instance died|app died|lease lost|lease looks lost)',
++                               r'^\[instance\] reaped orphan (\S+)', r'^\[release\] (\S+) ', r'^\[isolation\] (0x[0-9a-f]{8}): guest \S+ app ')]
++def app_of(token):
++    t = token.lower()
++    return next((i for i in apps if i == t or (len(t) == 10 and i.startswith(t))), None)
++
++result = {'startedAt': now(), 'gate': 4, 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
++          'deadline': deadline, 'minVouches': a.min_vouches, 'polls': [], 'state': 'observing'}
++def save(): open(a.out, 'w').write(json.dumps(result, indent=2) + '\n')
++def finish(state, code, **kw):
++    result.update(state=state, at=now(), **kw); save(); print(state, json.dumps(kw)[:2000]); sys.exit(code)
++t0 = time.monotonic(); good_since = None; vouch_ats = set(); last_vouch = None; last_vouch_change = None
++while True:
++    hard, soft = [], []
++    p = {'at': now()}; cur_vouch = None
++    for i, spec in apps.items():
++        ok, detail = apphealth.check(spec); p[i[:10]] = detail
++        if not ok: soft.append(f'{i[:10]}: app not healthy ({detail})')
++    st, body = get(a.availability)
++    try: av = json.loads(body) if st == 200 else None
++    except Exception: av = None
++    if not isinstance(av, dict): soft.append(f'/availability -> {st}')
++    else:
++        v, held = av.get('tenantVouch') or {}, (av.get('instanceSweep') or {}).get('held')
++        if v.get('ok') is True and v.get('at'):
++            cur_vouch = v['at']; vouch_ats.add(cur_vouch)
++            if cur_vouch != last_vouch: last_vouch, last_vouch_change = cur_vouch, time.monotonic()
++        else: soft.append(f"tenantVouch not ok: {str(v.get('reason'))[:120]}")
++        for u in v.get('unvouched') or []:
++            if app_of(str(u.get('id', ''))): hard.append(f"{str(u.get('id'))[:10]} UNVOUCHED ({u.get('expiresIn')}s)")
++        if held is None: soft.append('instanceSweep.held not published')
++        else:
++            for i in apps:
++                live, history = guestrows.classify(held, i); p.setdefault('history', {})[i[:10]] = history
++                new_failed = sorted(set(history) - known_failed[i])
++                if new_failed: hard.append(f'{i[:10]}: guest(s) {new_failed} failed since the baseline')
++                if len(live) > 1:
++                    hard.append(f'{i[:10]}: more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live))
++                elif live and live[0].get('vm') != expect[i]:
++                    hard.append(f'{i[:10]}: its nonterminal guest {live[0].get("vm")}={live[0].get("status")} is not the pre-cutover {expect[i]} (relaunched/replaced)')
++                elif live and live[0].get('status') != 'running':
++                    hard.append(f'{i[:10]}: the expected guest {expect[i]} is {live[0].get("status")!r}, not running')
++                elif not live: soft.append(f'{i[:10]}: no live guest held')
++                elif live[0].get('owned') is not True: soft.append(f'{i[:10]}: the expected guest {expect[i]} is not owned (yet)')
++    lines, jproblem = journal()
++    if jproblem: soft.append(jproblem)
++    for l in lines:
++        for r in BAD:
++            m = r.match(l)
++            if m and app_of(m.group(1)): hard.append('journal: ' + l[:200])
++    if good_since is not None and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
++        hard.append(f'vouch stale: tenantVouch.at {last_vouch} has not advanced for {int(time.monotonic() - last_vouch_change)} s')
++    p['hard'], p['soft'] = hard, soft
++    result['polls'].append(p); result['vouchCycles'] = len(vouch_ats); result['guests'] = expect
++    elapsed = time.monotonic() - t0
++    if hard: finish('FAIL', 1, why=hard)
++    if soft:
++        if good_since is not None: finish('FAIL', 1, why=['after the window started: '] + soft)
++        if elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded: '] + soft)
++    else:
++        if good_since is None: good_since = time.monotonic(); vouch_ats = {cur_vouch}   # the window starts now
++        if time.monotonic() - good_since >= a.window and len(vouch_ats) >= a.min_vouches:
++            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats))
++    if elapsed > deadline:
++        finish('FAIL', 1, why=[f'overall deadline {deadline} s passed: window {"not started" if good_since is None else f"{int(time.monotonic() - good_since)} s of {a.window}"},'
++                               f' vouch cycles {len(vouch_ats)} of {a.min_vouches}'])
++    save(); time.sleep(a.poll)

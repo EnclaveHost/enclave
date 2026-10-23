@@ -1,0 +1,18 @@
+[queue] START available=24008MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+REPRODUCIBLE initramfs.cpio.gz
+REPRODUCIBLE vmlinuz
+REPRODUCIBLE cmdline
+REPRODUCIBLE manifest.json
+Files /home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs and /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/metal/guest/gsup.mjs differ
+Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test/helpers: gsup-env-harness.mjs
+Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test: metal-gsup-custody-env.test.mjs
+RELEASE-DELTA-EXACT
+d99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9  dist-leasegas-a6b1378cd/MEASUREMENT
+d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-a6b1378cd/cmdline
+5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de  dist-leasegas-a6b1378cd/initramfs.cpio.gz
+3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b  dist-leasegas-a6b1378cd/manifest.json
+1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-a6b1378cd/vmlinuz
+1f2a54b3cabcd16e9a9686a628cff763358a9745bc0e4ec76dbd4564c6765b68  metal-a6b1378cd/(tree digest: sha256 of the sorted per-file sha256 list)
+[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23772
+[memory-guard] at peak: python3:52 bash:6
+[queue] EXIT 0

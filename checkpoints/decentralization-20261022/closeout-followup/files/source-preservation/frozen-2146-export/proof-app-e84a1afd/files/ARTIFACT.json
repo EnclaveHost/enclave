@@ -1,0 +1,19 @@
+{
+  "artifact": "out/custody_canary_proof.wasm (untracked)",
+  "sha256": "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
+  "size": 101222,
+  "cidV1Raw": "bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm",
+  "exports": ["wasi:http/incoming-handler@0.2.4"],
+  "imports": ["wasi:io/poll@0.2.12", "wasi:clocks/monotonic-clock@0.2.12", "wasi:io/error@0.2.12", "wasi:io/streams@0.2.12",
+              "wasi:cli/stdout@0.2.12", "wasi:cli/stderr@0.2.12", "wasi:cli/stdin@0.2.12", "wasi:http/types@0.2.12",
+              "wasi:cli/environment@0.2.12", "wasi:cli/exit@0.2.12", "wasi:cli/terminal-input@0.2.12",
+              "wasi:cli/terminal-output@0.2.12", "wasi:cli/terminal-stdin@0.2.12", "wasi:cli/terminal-stdout@0.2.12",
+              "wasi:cli/terminal-stderr@0.2.12"],
+  "toolchain": "rustc 1.99.0-nightly 84b36a78a28a63f134171c670be1932ffa2485f8, target wasm32-wasip2, cargo --offline --locked --release",
+  "inputs": {
+    "Cargo.lock": "aac608577ba6bf262f71611e88128b72e8efe08d9dc3fbfe7af7e81c8ec552f6",
+    ".cargo/config.toml": "ef16e1966bc191ac422480b80512dbafa8c4dba3cf3195170d4e63dcf461c061"
+  },
+  "reproduced": "3 separate target dirs, identical sha256",
+  "runtime": "release-16c2999d (release.json sha256 16c2999d7715a38f8a29adcff03d9c3c0e071eb1c0afc207c1f335b654dca0aa), wasmtime 9caac5e682396f9dd275b1599843d80568bd7067e4abd3136cfa798800b905b9"
+}

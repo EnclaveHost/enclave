@@ -1,0 +1,825 @@
+From 2d4077530caa03228deac1abda3de8cb03d9550b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:38:52 -0700
+Subject: [PATCH] metal0 control: nonce-bound SEV-SNP verification probe for
+ the recipient image ee5df6b8 (source + offline tests; not run live)
+
+attest-control.mjs wraps the existing trusted verifier (verifier/consumer.mjs verifyMetalBox at a6b1378c, 9 module hashes
+pinned): our nonce, AMD chain to the pinned ARK, CRL, policy/VMPL, Turin TCB floor, measurement caller-pinned to ee5df6b8 and
+re-tied to the reviewed staged image. Public verdict only (raw 0600 gitignored, no chip id); UNAVAILABLE never counted as PASS.
+check-attestation-verdict.py is the strict check root runs before keep.py (whose evidence test is a substring). Offline:
+6/6 + 21/21, mutants 9/9 killed with a passing control.
+---
+ .gitignore                      |   1 +
+ ATTESTATION.md                  | 101 +++++++++++++++++++++++++++
+ attest-control.mjs              | 119 ++++++++++++++++++++++++++++++++
+ check-attestation-verdict.py    |  39 +++++++++++
+ commit-attest.sh                |  25 +++++++
+ logs/attest-mutants-1.guard.log |   1 +
+ logs/attest-mutants-1.out       |  14 ++++
+ logs/attest-mutants-1.rc        |   1 +
+ logs/attest-mutants-2.guard.log |   1 +
+ logs/attest-mutants-2.out       |  15 ++++
+ logs/attest-mutants-2.rc        |   1 +
+ logs/attest-mutants-3.guard.log |   1 +
+ logs/attest-mutants-3.out       |  15 ++++
+ logs/attest-mutants-3.rc        |   1 +
+ logs/attest-tests-1.guard.log   |   1 +
+ logs/attest-tests-1.out         |  75 ++++++++++++++++++++
+ logs/attest-tests-1.rc          |   1 +
+ logs/attest-tests-2.guard.log   |   1 +
+ logs/attest-tests-2.out         |  55 +++++++++++++++
+ logs/attest-tests-2.rc          |   1 +
+ mutants-attest.py               |  43 ++++++++++++
+ tests/attest-control.test.mjs   |  80 +++++++++++++++++++++
+ tests/test_verdict_check.py     |  34 +++++++++
+ 23 files changed, 626 insertions(+)
+ create mode 100644 ATTESTATION.md
+ create mode 100644 attest-control.mjs
+ create mode 100644 check-attestation-verdict.py
+ create mode 100755 commit-attest.sh
+ create mode 100644 logs/attest-mutants-1.guard.log
+ create mode 100644 logs/attest-mutants-1.out
+ create mode 100644 logs/attest-mutants-1.rc
+ create mode 100644 logs/attest-mutants-2.guard.log
+ create mode 100644 logs/attest-mutants-2.out
+ create mode 100644 logs/attest-mutants-2.rc
+ create mode 100644 logs/attest-mutants-3.guard.log
+ create mode 100644 logs/attest-mutants-3.out
+ create mode 100644 logs/attest-mutants-3.rc
+ create mode 100644 logs/attest-tests-1.guard.log
+ create mode 100644 logs/attest-tests-1.out
+ create mode 100644 logs/attest-tests-1.rc
+ create mode 100644 logs/attest-tests-2.guard.log
+ create mode 100644 logs/attest-tests-2.out
+ create mode 100644 logs/attest-tests-2.rc
+ create mode 100644 mutants-attest.py
+ create mode 100644 tests/attest-control.test.mjs
+ create mode 100644 tests/test_verdict_check.py
+
+diff --git a/.gitignore b/.gitignore
+index 7a01bcbb27eaffe53718b8613763a47205db0192..d3c19c96b3b030a4c93436db5af8b29e52e79bf0 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -4,3 +4,4 @@
+ logs/scan-gitleaks.json
+ claude-progress.txt
+ claude.err
++evidence/private/
+diff --git a/ATTESTATION.md b/ATTESTATION.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..6858a04a05e2428e0d4fb024ceec21fa77f5c8cd
+--- /dev/null
++++ b/ATTESTATION.md
+@@ -0,0 +1,101 @@
++# Nonce-bound SEV-SNP verification of the control recipient image (ROOT-ATTESTATION-VERIFY.txt)
++
++Source and offline tests only (2026-10-23). **No live probe was run.** Root runs it fresh after activation, after review. The
++activation scripts are unchanged; this adds new files only. `.gitignore` gains `evidence/private/`.
++
++## Root's commands, after `activate.py` reports PROVISIONAL
++
++```
++node   work/custody-recipient-activation-20261023/attest-control.mjs            # --target new (default)
++python3 work/custody-recipient-activation-20261023/check-attestation-verdict.py work/custody-recipient-activation-20261023/evidence/attestation-<UTC>.json
++```
++
++`attest-control.mjs` behaves as follows.
++
++**Before any network call** it asserts:
++- the restore repo is at **a6b1378c**, and the 9 verifier modules have their pinned sha256s. `relay/snp-verify.mjs` is `10520dd2…`, the
++  same file as the control image's `/app/relay/snp-verify.mjs`.
++- the staged image `~/enclave-prod/dist-leasegas-a6b1378cd` still has the reviewed `MEASUREMENT` (`d99cb428…`), which names the
++  pin, and the reviewed `manifest.json` (`3874066d…`).
++
++**Then** it calls the existing trusted verifier unchanged: `verifier/consumer.mjs verifyMetalBox` (the CLI's `enclave attest`).
++- The measurement is caller-pinned to **ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec**.
++- `--target current` pins ed918e4b instead, for a pre-activation comparison.
++
++| Check | Rests on | Reported as |
++|---|---|---|
++| freshness | OUR random 32-byte nonce → `GET /v1/enclaves/metal0/attestation?nonce=` → the box's agent quotes `report_data[0:32] = sha256(transport SPKI ‖ nonce)`, `[32:64] = 0` | `binding` PASS/FAIL; `freshness: "verifier nonce"` |
++| report shape, product line | the report itself (v≥2, Turin from CPUID, confirmed by the chain) | PASS/FAIL |
++| signature + chain + CRL | VCEK from the box's cert table, else AMD KDS directly; chained to the **pinned** AMD ARK; AMD CRL; VCEK chip/TCB match the report | `chain` PASS/FAIL, `crl` PASS/FAIL/UNAVAILABLE |
++| guest policy, VMPL | DEBUG and MIGRATE_MA refused; VMPL 0 | PASS/FAIL |
++| certificate TCB | the published Turin floor (fmc 1, bl 3, tee 2, snp 5, ucode 117 = the image's isolationMinTcb) on reported and committed TCB | `tcb policy` PASS/FAIL |
++| what runs | launch measurement == the pin above (caller-pinned, so "verified" is possible; the relay's own allowlist alone would be "limited") | `measurement` PASS/FAIL |
++
++**UNAVAILABLE, never counted as PASS.** These are listed in every verdict:
++- **Operator identity:** this route returns no attach operator signature.
++- **Attach-key equality:** this route does not return the relay's attach-time key. The verdict names the bound key's sha256.
++- **The supervisor's custody env:** this is not attestable directly. It is implied only by the measurement, because the vault
++  constants are measured gsup source.
++
++A check the verifier never reached (because an earlier one failed) is also UNAVAILABLE.
++
++**Exit code:** 0 only when status is `verified`, `admissionSafe` is true, all 7 required checks PASS, the observed measurement equals
++the pin, the binding is to the verifier nonce, and VMPL is 0. Anything else exits 1.
++
++**Outputs:**
++- **Public:** `evidence/attestation-<UTC>.json`. It holds the verdict, checks, reasons, TCB, policy, `reportData`, `hostData`, the ARK
++  fingerprint, `chipIdSha256` and `rawSha256`. It carries **no** raw report, chip id or VCEK fingerprint; the reasons are scrubbed of
++  the chip id.
++- **Private:** `evidence/private/attestation-raw-<UTC>.json` holds the relay's exact answer. It is mode **0600** in a 0700 directory,
++  gitignored, and never overwritten.
++
++## `keep.py`'s evidence requirement (frozen; documented, not changed)
++
++`keep.py --checked-attestation <file>` only asserts that the file's bytes **contain the ee5df6b8 hex**. That is a substring test:
++- a rejected verdict, a verdict that was never fresh, a `--target current` run's expectation, or any text naming the measurement
++  would satisfy it.
++- It does not check the verdict.
++
++**Root must not treat it as verification.** Before `keep.py`:
++1. Run `check-attestation-verdict.py` on the public verdict. It accepts ONLY an `attest-control/1` verdict for target `new` with all
++   of the following:
++   - `pass` true and `status: "verified"`, with `admissionSafe`;
++   - every required check PASS, and no failed check;
++   - observed = expected = ee5df6b8;
++   - freshness by the verifier's nonce, and VMPL 0;
++   - produced **after** `result.json` `attachedAt`;
++   - its private raw answer present, mode 0600, and hashing to `rawSha256`.
++2. Pass that same verdict file to `keep.py --checked-attestation`.
++
++## Tests
++
++All offline, through the queue (512 lane, peak ≤ 45 MiB).
++
++**Results:**
++- **`logs/attest-tests-2.out`:** `tests/attest-control.test.mjs` 6/6, and `python3 -m unittest discover -s tests` **21/21**. The latter
++  is the 16 earlier activation tests plus 5 for the checker.
++- **`logs/attest-mutants-3.out`:** 9 mutants, **all killed**; the unmutated control passes. They cover a nonce binding made
++  optional, an UNAVAILABLE counted as PASS, a chip id leaked, the raw answer leaked into the public file, a world-readable raw file,
++  an image pin left unchecked, the checker accepting "limited", skipping required checks, and skipping the time check.
++- **Earlier runs, kept:**
++  - `attest-mutants-1` is **invalid**: its copies ran in `/tmp`, where the restore repo path does not resolve, so every copy failed.
++  - `attest-mutants-2` was valid. It found the time check masked by a missing-raw-file failure; the test was fixed.
++
++**What the offline tests show:**
++- The only authentic Turin report on hand is public: the M4a domain document in the restore repo's `test/fixtures/verifier`, with
++  AMD's Turin chain, CRL and VCEK.
++- Run through the **real** verifier with its own measurement pinned, the AMD signature/chain, CRL, policy, TCB and measurement
++  checks **PASS**, and the verdict is **REJECTED at `binding`**, because that report is not bound to our nonce. That is the
++  freshness property.
++- With the ee5df6b8 pin, it is **REJECTED at `measurement`**, and `binding` shows as UNAVAILABLE.
++- Another nonce, an HTTP error, a non-metal document or a network failure are each **unavailable**.
++- The public verdict leaks neither the chip id nor the report. `persist` writes 0600 and refuses to overwrite.
++- `checkImage` refuses another manifest or MEASUREMENT.
++
++## Limits
++
++- There is **no authentic metal-format control document offline**, so a live PASS cannot be shown here. Root's fresh run after
++  activation is the proof.
++- The relay can withhold or delay a quote, but cannot forge one.
++- The TLS of the request ends at the relay. The report binds the box's transport key, whose sha256 the verdict names.
++- Operator identity and attach-key equality stay UNAVAILABLE from this route.
+diff --git a/attest-control.mjs b/attest-control.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..688a87dedcf24b7171f6c904d2637330e83e5afd
+--- /dev/null
++++ b/attest-control.mjs
+@@ -0,0 +1,119 @@
++// NONCE-BOUND SEV-SNP verification of metal0's CONTROL VM against the pinned restore image (ROOT EXECUTES after activation;
++// prepared 2026-10-23; not run by its author). It is a thin, reviewed wrapper around the EXISTING trusted client verifier,
++// verifier/consumer.mjs verifyMetalBox (rules in verifier/metal-box.mjs + verifier/snp.mjs; the CLI's `enclave attest`),
++// imported from the restore repo at a6b1378c with every module hash pinned:
++//   1. FRESHNESS: OUR random 32-byte nonce -> GET api.enclave.host/v1/enclaves/metal0/attestation?nonce=; the relay forwards it
++//      over the box's tunnel; the box's agent answers with a NEW quote whose report_data[0:32] = sha256(transport SPKI || nonce)
++//      and report_data[32:64] = 0 (metal format). The relay cannot forge it (it is AMD-signed), only withhold it.
++//   2. GENUINENESS: VCEK (the box's own cert table, else AMD KDS directly) signs the report, chains to the PINNED AMD ARK, CRL,
++//      VCEK chip/TCB match the report, guest policy (no DEBUG / MIGRATE_MA), VMPL 0, the published Turin TCB floor.
++//   3. WHAT RUNS: the launch measurement must equal the PINNED full ee5df6b8... value (caller-pinned, so the verdict can be
++//      "verified", never the operator-stated "limited"); the pin is re-tied to the reviewed staged image (MEASUREMENT and
++//      manifest.json hashes) before any network call.
++// Output: a PUBLIC verdict (no raw report, chip id or VCEK fingerprint; their sha256 only) to evidence/attestation-<UTC>.json,
++// and the RAW relay answer to evidence/private/attestation-raw-<UTC>.json, mode 0600, gitignored. Exit 0 ONLY for status
++// "verified" with every required check true. UNAVAILABLE checks are listed as such and are never counted as a PASS.
++//   node work/custody-recipient-activation-20261023/attest-control.mjs [--target new|current]
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++import { execFileSync } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++export const REPO = path.resolve(HERE, '../custody-recipient-restore-20261023/repo');
++export const REPO_COMMIT = 'a6b1378cdf430217025987d90c040d0e25a9993d';
++export const VERIFIER_PINS = {
++  'verifier/consumer.mjs': '907e40bfd42529aa907c3267b7ec0cb9652d9c250b196e00c1508a7e460608e1',
++  'verifier/metal-box.mjs': '6bcbb136b320ed01add947626d7a19d44a9e6db9606744cc8c0e667bc89abef2',
++  'verifier/snp.mjs': 'beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721',
++  'verifier/envelope.mjs': 'ba94f540c5e3574c5750dbf8a0d5cf24885dd0ae3ffcc8729f526700015e4b39',
++  'verifier/collateral.mjs': 'c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f',
++  'verifier/collateral-cache.mjs': 'eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6',
++  'verifier/der.mjs': '3606e988e4d340973c105fdc7fc0ee39db13034419561fbbe2e0ee396ade9775',
++  'verifier/tls-binding.mjs': 'f11b1ff36e43f90c20b2349a9880dc1f86821a7270b31273c612bd4a532dc8e7',
++  'relay/snp-verify.mjs': '10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91',   // = the control image's /app/relay/snp-verify.mjs
++};
++export const TARGETS = {
++  new: { measurement: 'ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec',
++         image: '/home/steven/enclave-prod/dist-leasegas-a6b1378cd', source: 'restore build a6b1378c (reproducible; custody-recipient-restore-20261023 stage/INVENTORY.sha256)',
++         files: { MEASUREMENT: 'd99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9', 'manifest.json': '3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b' } },
++  current: { measurement: 'ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2',
++             image: '/home/steven/enclave-prod/dist-leasegas-deabf8f90', source: 'production deabf8f90 (reproduced byte-identically by the restore control build)',
++             files: { 'manifest.json': 'c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4' } },
++};
++// what the route and this tool cannot establish: listed in every verdict, never counted as a pass
++export const UNAVAILABLE = [
++  'operator identity: this route returns no attach operator signature, so the registry operator behind metal0 is not checked here (the relay checks it at attach; root reads it separately)',
++  'attach-key equality: the snp route does not return the relay\'s attach-time transport key; the verdict binds the key the document names (transportKeySha256)',
++  'custody vault in the supervisor env: not directly attestable; implied only by the measurement (the vault constants are measured gsup source in the initramfs)',
++];
++export const REQUIRED_CHECKS = ['report shape', 'product line', 'guest policy', 'chain', 'tcb policy', 'measurement', 'binding'];
++const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
++
++export function checkPins(repo = REPO) {
++  const head = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).toString().trim();
++  if (head !== REPO_COMMIT) throw new Error(`restore repo HEAD ${head} is not ${REPO_COMMIT}`);
++  for (const [f, h] of Object.entries(VERIFIER_PINS)) if (sha(fs.readFileSync(path.join(repo, f))) !== h) throw new Error(`${f} is not the pinned verifier`);
++}
++export function checkImage(target) {
++  const t = TARGETS[target]; if (!t) throw new Error(`unknown target ${target}`);
++  for (const [f, h] of Object.entries(t.files)) if (sha(fs.readFileSync(path.join(t.image, f))) !== h) throw new Error(`${t.image}/${f} is not the reviewed file`);
++  if (t.files.MEASUREMENT && fs.readFileSync(path.join(t.image, 'MEASUREMENT'), 'utf8').trim() !== t.measurement) throw new Error('MEASUREMENT does not name the pin');
++  return t;
++}
++
++// -> { verdict (public), raw (the relay answer, private) }; deps lets the tests pass offline fetch/collateral/clock
++export async function probe({ target = 'new', expectedMeasurement = null, apiBase = 'https://api.enclave.host', deps = {} } = {}) {
++  const C = await import(pathToFileURL(path.join(REPO, 'verifier/consumer.mjs')).href);
++  const want = expectedMeasurement || TARGETS[target].measurement;
++  let rawBody = null;
++  const realFetch = deps.fetchImpl || globalThis.fetch;
++  const fetchImpl = async (url, opts) => {   // records the relay's exact answer for the private raw file; changes nothing
++    const r = await realFetch(url, opts); const text = await r.text(); rawBody = { url, status: r.status, text };
++    return { status: r.status, text: async () => text };
++  };
++  const v = await C.verifyMetalBox({ apiBase, name: 'metal0', expected: { measurements: [want], source: TARGETS[target]?.source || 'test' },
++                                     collateral: deps.collateral ?? null, fetchImpl, now: deps.now, timeoutMs: deps.timeoutMs ?? 20000 });
++  const claims = v.claims || {};
++  const chipId = claims.chipId ? String(claims.chipId) : null;
++  const scrub = (s) => { let t = String(s); for (const x of [chipId, chipId && chipId.slice(0, 16), claims.vcekFingerprint].filter(Boolean)) t = t.split(x).join('<redacted>'); return t; };
++  const checks = v.checks || {};
++  const required = Object.fromEntries(REQUIRED_CHECKS.map((k) => [k, checks[k] === true ? 'PASS' : checks[k] === false ? 'FAIL' : 'UNAVAILABLE']));
++  const pass = v.status === 'verified' && v.admissionSafe === true && Object.values(required).every((x) => x === 'PASS')
++    && claims.measurement === want && claims.freshness === 'verifier nonce' && claims.vmpl === 0;
++  const verdict = {
++    probe: 'attest-control/1', at: v.at, target, pass, status: v.status, admissionSafe: v.admissionSafe === true,
++    expectedMeasurement: want, observedMeasurement: claims.measurement ?? null, measurementMatches: claims.measurement === want,
++    freshness: claims.freshness ?? null, nonce: v.nonce ?? null, transportKeySha256: v.transportKeySha256 ?? null,
++    required, checks, crl: checks.crl === true ? 'PASS' : checks.crl === false ? 'FAIL' : 'UNAVAILABLE', failedChecks: v.failedChecks || [], omissions: v.omissions || [],
++    product: claims.product ?? null, reportVersion: claims.reportVersion ?? null, vmpl: claims.vmpl ?? null, guestPolicy: claims.guestPolicy ?? null,
++    tcb: claims.tcb ?? null, firmware: claims.firmware ?? null, hostData: claims.hostData ?? null, reportData: claims.reportData ?? null,
++    arkFingerprint: claims.arkFingerprint ?? null, vcekSource: claims.vcekSource ?? null, collateral: claims.collateral ?? null,
++    chipIdSha256: chipId ? sha(Buffer.from(chipId, 'hex')) : null, relayAdmittedAtAttach: v.expected?.admittedAtAttach ?? null,
++    unavailable: UNAVAILABLE, reasons: (v.reasons || []).map(scrub),
++    rawSha256: rawBody ? sha(Buffer.from(JSON.stringify(rawBody))) : null,
++  };
++  return { verdict, raw: rawBody };
++}
++
++export function persist(verdict, raw, dir = path.join(HERE, 'evidence')) {
++  const stamp = String(verdict.at).replace(/[:.]/g, '');
++  const priv = path.join(dir, 'private'); fs.mkdirSync(priv, { recursive: true, mode: 0o700 }); fs.chmodSync(priv, 0o700);
++  const rawFile = path.join(priv, `attestation-raw-${stamp}.json`);
++  if (raw) { fs.writeFileSync(rawFile, JSON.stringify(raw), { mode: 0o600, flag: 'wx' }); fs.chmodSync(rawFile, 0o600); }
++  const pub = path.join(dir, `attestation-${stamp}.json`);
++  fs.writeFileSync(pub, JSON.stringify(verdict, null, 2) + '\n', { flag: 'wx' });
++  return { pub, rawFile: raw ? rawFile : null };
++}
++
++if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1])) {
++  const i = process.argv.indexOf('--target'); const target = i > 0 ? process.argv[i + 1] : 'new';
++  checkPins(); checkImage(target);
++  const { verdict, raw } = await probe({ target });
++  const files = persist(verdict, raw);
++  console.log(JSON.stringify({ pass: verdict.pass, status: verdict.status, target, required: verdict.required, crl: verdict.crl,
++                               observed: verdict.observedMeasurement?.slice(0, 16), expected: verdict.expectedMeasurement.slice(0, 16),
++                               failedChecks: verdict.failedChecks, unavailable: verdict.unavailable.length, verdict: files.pub, rawSha256: verdict.rawSha256 }));
++  process.exit(verdict.pass ? 0 : 1);
++}
+diff --git a/check-attestation-verdict.py b/check-attestation-verdict.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e2e4431fb636e7e57ab51f58b6b6092d7cfd381
+--- /dev/null
++++ b/check-attestation-verdict.py
+@@ -0,0 +1,39 @@
++# READ-ONLY, ROOT runs it BEFORE keep.py (keep.py stays frozen; its own --checked-attestation test is only that the file
++# CONTAINS the ee5df6b8 hex - a substring, which a failed verdict or any text naming the measurement would also satisfy):
++#   python3 work/custody-recipient-activation-20261023/check-attestation-verdict.py evidence/attestation-<UTC>.json
++# Accepts ONLY an attest-control/1 verdict for target "new" that PASSED: status verified, admissionSafe, every required
++# check PASS, observed == expected == the pinned ee5df6b8, freshness by the verifier's own nonce, VMPL 0, produced AFTER this
++# activation attached (result.json attachedAt), with its private raw answer present (0600) and hashing to rawSha256.
++import json, os, stat, sys, hashlib, datetime
++from pathlib import Path
++from common import A, NEW
++REQUIRED = ['report shape', 'product line', 'guest policy', 'chain', 'tcb policy', 'measurement', 'binding']
++def problems(v, attached_at=None, raw_dir=None):
++    out = []
++    want = NEW['measurement']
++    if v.get('probe') != 'attest-control/1': out.append('not an attest-control/1 verdict')
++    if v.get('target') != 'new': out.append(f"target {v.get('target')!r} is not new")
++    if v.get('pass') is not True: out.append('pass is not true')
++    if v.get('status') != 'verified' or v.get('admissionSafe') is not True: out.append(f"status {v.get('status')!r} / admissionSafe {v.get('admissionSafe')!r}")
++    if v.get('expectedMeasurement') != want or v.get('observedMeasurement') != want or v.get('measurementMatches') is not True: out.append('measurement is not the pinned ee5df6b8')
++    req = v.get('required') or {}
++    for k in REQUIRED:
++        if req.get(k) != 'PASS': out.append(f'required check {k!r} is {req.get(k)!r}')
++    if v.get('freshness') != 'verifier nonce' or not isinstance(v.get('nonce'), str) or len(v['nonce']) != 64: out.append('not bound to the verifier nonce')
++    if v.get('vmpl') != 0: out.append(f"vmpl {v.get('vmpl')!r}")
++    if v.get('failedChecks'): out.append(f"failed checks {v['failedChecks']}")
++    if attached_at is not None and str(v.get('at', '')) <= attached_at: out.append(f"verdict at {v.get('at')} is not after the attachment {attached_at}")
++    if raw_dir is not None:
++        stamp = str(v.get('at', '')).replace(':', '').replace('.', '')
++        raw = Path(raw_dir) / f'attestation-raw-{stamp}.json'
++        if not raw.exists(): out.append(f'private raw answer {raw.name} missing')
++        else:
++            if stat.S_IMODE(raw.stat().st_mode) != 0o600: out.append('private raw answer is not 0600')
++            if hashlib.sha256(raw.read_bytes()).hexdigest() != v.get('rawSha256'): out.append('raw answer does not hash to rawSha256')
++    return out
++if __name__ == '__main__':
++    f = Path(sys.argv[1]); v = json.loads(f.read_text())
++    r = json.loads((A / 'result.json').read_text())
++    p = problems(v, attached_at=r.get('attachedAt'), raw_dir=A / 'evidence' / 'private')
++    print(json.dumps({'file': str(f), 'ok': not p, 'problems': p}))
++    sys.exit(1 if p else 0)
+diff --git a/commit-attest.sh b/commit-attest.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..11b2a3cf9e909b5ee81db1cb7f652bf4e17698a6
+--- /dev/null
++++ b/commit-attest.sh
+@@ -0,0 +1,25 @@
++#!/bin/bash
++# Scan (unchanged scanners) then commit ONLY this task's files; root's live files (admission, plan, preflight, root logs) stay untracked.
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES="attest-control.mjs check-attestation-verdict.py mutants-attest.py ATTESTATION.md .gitignore tests/attest-control.test.mjs tests/test_verdict_check.py commit-attest.sh logs/attest-tests-1.out logs/attest-tests-1.guard.log logs/attest-tests-1.rc logs/attest-tests-2.out logs/attest-tests-2.guard.log logs/attest-tests-2.rc logs/attest-mutants-1.out logs/attest-mutants-1.guard.log logs/attest-mutants-1.rc logs/attest-mutants-2.out logs/attest-mutants-2.guard.log logs/attest-mutants-2.rc logs/attest-mutants-3.out logs/attest-mutants-3.guard.log logs/attest-mutants-3.rc"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d); for f in $FILES; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++/home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path /dev/null
++find "$st" -type f -print0 | xargs -0 python3 "$CKR/.githooks/scan-crypto-keys.py" --files
++python3 - "$st" <<'PY'
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++assert not bad, bad; print('literal: none')
++PY
++rm -rf "$st" "$cfg"; echo "[scan] clean"
++git add -- $FILES
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "metal0 control: nonce-bound SEV-SNP verification probe for the recipient image ee5df6b8 (source + offline tests; not run live)
++
++attest-control.mjs wraps the existing trusted verifier (verifier/consumer.mjs verifyMetalBox at a6b1378c, 9 module hashes
++pinned): our nonce, AMD chain to the pinned ARK, CRL, policy/VMPL, Turin TCB floor, measurement caller-pinned to ee5df6b8 and
++re-tied to the reviewed staged image. Public verdict only (raw 0600 gitignored, no chip id); UNAVAILABLE never counted as PASS.
++check-attestation-verdict.py is the strict check root runs before keep.py (whose evidence test is a substring). Offline:
++6/6 + 21/21, mutants 9/9 killed with a passing control."
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/attest-mutants-1.guard.log b/logs/attest-mutants-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..579b42347edeee010e11aa5b66226e475317b0e8
+--- /dev/null
++++ b/logs/attest-mutants-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=122 minHostAvailableMiB=23626
+diff --git a/logs/attest-mutants-1.out b/logs/attest-mutants-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..740e404cf457af094b24333f7cb2eb7fd6d34fa7
+--- /dev/null
++++ b/logs/attest-mutants-1.out
+@@ -0,0 +1,14 @@
++[queue] START available=23753MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++KILLED   attest-control.mjs nonce-binding-optional
++KILLED   attest-control.mjs unavailable-counts-as-pass
++KILLED   attest-control.mjs leak-chip-id
++KILLED   attest-control.mjs leak-raw-in-public
++KILLED   attest-control.mjs raw-world-readable
++KILLED   attest-control.mjs image-pin-unchecked
++KILLED   check-attestation-verdict.py accept-limited
++KILLED   check-attestation-verdict.py skip-required
++KILLED   check-attestation-verdict.py skip-time
++survived 0
++[memory-guard] exit=0 peakTreeRssMiB=122 minHostAvailableMiB=23626
++[memory-guard] at peak: node:53 node:52 python3:17
++[queue] EXIT 0
+diff --git a/logs/attest-mutants-1.rc b/logs/attest-mutants-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/attest-mutants-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/attest-mutants-2.guard.log b/logs/attest-mutants-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec118163d4707bc8d13e6f0621a7275679fb84f2
+--- /dev/null
++++ b/logs/attest-mutants-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=123 minHostAvailableMiB=23531
+diff --git a/logs/attest-mutants-2.out b/logs/attest-mutants-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..512cafe8ef67242317cbc194ab04d0e6ce5d5503
+--- /dev/null
++++ b/logs/attest-mutants-2.out
+@@ -0,0 +1,15 @@
++[queue] START available=23857MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++control (unmutated): (0, 0)
++KILLED   attest-control.mjs nonce-binding-optional (1, 0)
++KILLED   attest-control.mjs unavailable-counts-as-pass (1, 0)
++KILLED   attest-control.mjs leak-chip-id (1, 0)
++KILLED   attest-control.mjs leak-raw-in-public (1, 0)
++KILLED   attest-control.mjs raw-world-readable (1, 0)
++KILLED   attest-control.mjs image-pin-unchecked (1, 0)
++KILLED   check-attestation-verdict.py accept-limited (0, 1)
++KILLED   check-attestation-verdict.py skip-required (0, 1)
++SURVIVED check-attestation-verdict.py skip-time (0, 0)
++survived 1
++[memory-guard] exit=1 peakTreeRssMiB=123 minHostAvailableMiB=23531
++[memory-guard] at peak: node:53 node:52 python3:17
++[queue] EXIT 1
+diff --git a/logs/attest-mutants-2.rc b/logs/attest-mutants-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/attest-mutants-2.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/attest-mutants-3.guard.log b/logs/attest-mutants-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..db29133906de0e92b431d7aae81ba740ef573c54
+--- /dev/null
++++ b/logs/attest-mutants-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=131 minHostAvailableMiB=22841
+diff --git a/logs/attest-mutants-3.out b/logs/attest-mutants-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..5d2c04a24b5510ba019c2957f7329748a8b6d3e3
+--- /dev/null
++++ b/logs/attest-mutants-3.out
+@@ -0,0 +1,15 @@
++[queue] START available=23947MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++control (unmutated): (0, 0)
++KILLED   attest-control.mjs nonce-binding-optional (1, 0)
++KILLED   attest-control.mjs unavailable-counts-as-pass (1, 0)
++KILLED   attest-control.mjs leak-chip-id (1, 0)
++KILLED   attest-control.mjs leak-raw-in-public (1, 0)
++KILLED   attest-control.mjs raw-world-readable (1, 0)
++KILLED   attest-control.mjs image-pin-unchecked (1, 0)
++KILLED   check-attestation-verdict.py accept-limited (0, 1)
++KILLED   check-attestation-verdict.py skip-required (0, 1)
++KILLED   check-attestation-verdict.py skip-time (0, 1)
++survived 0
++[memory-guard] exit=0 peakTreeRssMiB=131 minHostAvailableMiB=22841
++[memory-guard] at peak: node:61 node:52 python3:17
++[queue] EXIT 0
+diff --git a/logs/attest-mutants-3.rc b/logs/attest-mutants-3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/attest-mutants-3.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/attest-tests-1.guard.log b/logs/attest-tests-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..490287c7dee739bd09c16dc17898348d841b00ef
+--- /dev/null
++++ b/logs/attest-tests-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=45 minHostAvailableMiB=28023
+diff --git a/logs/attest-tests-1.out b/logs/attest-tests-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..5d87a2e6854bbb35c386c9491d2f67eb132e8c87
+--- /dev/null
++++ b/logs/attest-tests-1.out
+@@ -0,0 +1,75 @@
++[queue] START available=28006MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: the verifier pins hold for the restore repo at a6b1378c
++ok 1 - the verifier pins hold for the restore repo at a6b1378c
++  ---
++  duration_ms: 13.695601
++  type: 'test'
++  ...
++# Subtest: genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
++ok 2 - genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
++  ---
++  duration_ms: 18.417143
++  type: 'test'
++  ...
++# Subtest: a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
++ok 3 - a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
++  ---
++  duration_ms: 3.247154
++  type: 'test'
++  ...
++# Subtest: relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
++ok 4 - relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
++  ---
++  duration_ms: 2.300582
++  type: 'test'
++  ...
++# Subtest: persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
++ok 5 - persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
++  ---
++  duration_ms: 4.353605
++  type: 'test'
++  ...
++# Subtest: checkImage ties each pin to the reviewed image files and refuses another file
++ok 6 - checkImage ties each pin to the reviewed image files and refuses another file
++  ---
++  duration_ms: 0.985412
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 6
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 137.838919
++test_additive_in_installed_order (test_activation.Admission.test_additive_in_installed_order) ... ok
++test_refusals (test_activation.Admission.test_refusals) ... ok
++test_baseline_must_equal_root_record (test_activation.Preconditions.test_baseline_must_equal_root_record) ... ok
++test_preflight (test_activation.Preconditions.test_preflight) ... ok
++test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
++test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
++test_cas_failed_restart_restores_previous_bytes (test_activation.RemoteScripts.test_cas_failed_restart_restores_previous_bytes) ... ok
++test_cas_refuses_changed_env_dropin_or_existing_backup (test_activation.RemoteScripts.test_cas_refuses_changed_env_dropin_or_existing_backup) ... ok
++test_cas_success_writes_backup_and_restarts (test_activation.RemoteScripts.test_cas_success_writes_backup_and_restarts) ... ok
++test_read_reports_hashes_and_body (test_activation.RemoteScripts.test_read_reports_hashes_and_body) ... ok
++test_restore_is_cas_on_both_versions (test_activation.RemoteScripts.test_restore_is_cas_on_both_versions) ... ok
++test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
++test_refuses_missing_duplicate_or_ambiguous (test_activation.RewriteDist.test_refuses_missing_duplicate_or_ambiguous) ... ok
++test_refuses_concurrent_config_or_dropin_change (test_activation.SafeRollback.test_refuses_concurrent_config_or_dropin_change) ... ok
++test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
++test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
++test_every_weakening_refused (test_verdict_check.VerdictCheck.test_every_weakening_refused) ... ok
++test_good_passes (test_verdict_check.VerdictCheck.test_good_passes) ... ok
++test_raw_mode_and_presence (test_verdict_check.VerdictCheck.test_raw_mode_and_presence) ... ok
++test_substring_alone_is_not_enough (test_verdict_check.VerdictCheck.test_substring_alone_is_not_enough) ... ok
++
++----------------------------------------------------------------------
++Ran 20 tests in 0.445s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=45 minHostAvailableMiB=28023
++[memory-guard] at peak: python3:28 python3:11 bash:6
++[queue] EXIT 0
+diff --git a/logs/attest-tests-1.rc b/logs/attest-tests-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/attest-tests-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/attest-tests-2.guard.log b/logs/attest-tests-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..3b73c7cb4997d2da9df9ff5d35e7ea9f5d2e8635
+--- /dev/null
++++ b/logs/attest-tests-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=23976
+diff --git a/logs/attest-tests-2.out b/logs/attest-tests-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a3fe9ae7d8dba1ea2b0874b00918455fc71694e
+--- /dev/null
++++ b/logs/attest-tests-2.out
+@@ -0,0 +1,55 @@
++[queue] START available=24054MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: the verifier pins hold for the restore repo at a6b1378c
++ok 1 - the verifier pins hold for the restore repo at a6b1378c
++  ---
++  duration_ms: 5.08284
++  type: 'test'
++  ...
++# Subtest: genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
++ok 2 - genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
++  ---
++  duration_ms: 12.64692
++  type: 'test'
++  ...
++# Subtest: a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
++ok 3 - a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
++  ---
++  duration_ms: 2.330711
++  type: 'test'
++  ...
++# Subtest: relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
++ok 4 - relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
++  ---
++  duration_ms: 1.557528
++  type: 'test'
++  ...
++# Subtest: persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
++ok 5 - persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
++  ---
++  duration_ms: 3.210835
++  type: 'test'
++  ...
++# Subtest: checkImage ties each pin to the reviewed image files and refuses another file
++ok 6 - checkImage ties each pin to the reviewed image files and refuses another file
++  ---
++  duration_ms: 0.444857
++  type: 'test'
++  ...
++1..6
++# tests 6
++# suites 0
++# pass 6
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 72.808269
++.....................
++----------------------------------------------------------------------
++Ran 21 tests in 0.280s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=23976
++[memory-guard] at peak: python3:28 python3:18 bash:6
++[queue] EXIT 0
+diff --git a/logs/attest-tests-2.rc b/logs/attest-tests-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/attest-tests-2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/mutants-attest.py b/mutants-attest.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..eec4bb2924b30880b755df373228dac8d0e512a5
+--- /dev/null
++++ b/mutants-attest.py
+@@ -0,0 +1,43 @@
++"""Mutation check for attest-control.mjs and check-attestation-verdict.py: each mutant weakens one rule; tests must FAIL.
++The copies live BESIDE this folder (work/.attest-mut-*) so ../custody-recipient-restore-20261023/repo resolves exactly as for
++the real file; the UNMUTATED copy runs first and must PASS (attest-mutants-1 ran in /tmp, where every copy failed: invalid)."""
++import shutil, subprocess, sys, tempfile
++from pathlib import Path
++A = Path(__file__).resolve().parent
++MUT = {
++ 'attest-control.mjs': {
++  'nonce-binding-optional': [("const required = Object.fromEntries(REQUIRED_CHECKS.map((k) => [k, checks[k] === true ? 'PASS' : checks[k] === false ? 'FAIL' : 'UNAVAILABLE']));",
++                              "const required = Object.fromEntries(REQUIRED_CHECKS.map((k) => [k, checks[k] === true || k === 'binding' ? 'PASS' : checks[k] === false ? 'FAIL' : 'UNAVAILABLE']));")],
++  'unavailable-counts-as-pass': [("checks[k] === false ? 'FAIL' : 'UNAVAILABLE']));", "checks[k] === false ? 'FAIL' : 'PASS']));")],
++  'leak-chip-id': [("    chipIdSha256: chipId ? sha(Buffer.from(chipId, 'hex')) : null,", "    chipIdSha256: chipId ? sha(Buffer.from(chipId, 'hex')) : null, chipId,")],
++  'leak-raw-in-public': [("    rawSha256: rawBody ? sha(Buffer.from(JSON.stringify(rawBody))) : null,", "    rawSha256: rawBody ? sha(Buffer.from(JSON.stringify(rawBody))) : null, raw: rawBody,")],
++  'raw-world-readable': [("{ mode: 0o600, flag: 'wx' }); fs.chmodSync(rawFile, 0o600);", "{ mode: 0o644, flag: 'wx' });")],
++  'image-pin-unchecked': [("if (sha(fs.readFileSync(path.join(t.image, f))) !== h) throw", "if (false) throw")],
++ },
++ 'check-attestation-verdict.py': {
++  'accept-limited': [("    if v.get('status') != 'verified' or v.get('admissionSafe') is not True:", "    if False:")],
++  'skip-required': [("        if req.get(k) != 'PASS':", "        if req.get(k) == 'FAIL':")],
++  'skip-time': [("    if attached_at is not None and str(v.get('at', '')) <= attached_at:", "    if False:")],
++ },
++}
++def run(fname=None, s=None):
++    d = Path(tempfile.mkdtemp(prefix='.attest-mut-', dir=A.parent))
++    try:
++        for x in ['common.py', 'attest-control.mjs', 'check-attestation-verdict.py', 'apphealth.py', 'guestrows.py']: shutil.copy(A / x, d / x)
++        shutil.copytree(A / 'tests', d / 'tests', ignore=shutil.ignore_patterns('__pycache__')); shutil.copytree(A / 'evidence', d / 'evidence', ignore=shutil.ignore_patterns('private'))
++        if fname: (d / fname).write_text(s)
++        r1 = subprocess.run(['node', '--test', '--test-concurrency=1', 'tests/attest-control.test.mjs'], cwd=d, capture_output=True, text=True)
++        r2 = subprocess.run([sys.executable, '-m', 'unittest', 'tests.test_verdict_check'], cwd=d, capture_output=True, text=True)
++        return r1.returncode, r2.returncode
++    finally: shutil.rmtree(d)
++c = run(); print('control (unmutated):', c); assert c == (0, 0), 'the unmutated copy must pass'
++bad = 0
++for fname, muts in MUT.items():
++    src = (A / fname).read_text()
++    for name, subs in muts.items():
++        s = src
++        for a, b in subs: assert a in s, (name, a[:50]); s = s.replace(a, b)
++        r1, r2 = run(fname, s)
++        killed = r1 != 0 or r2 != 0; bad += not killed
++        print(('KILLED  ' if killed else 'SURVIVED'), fname, name, (r1, r2))
++print('survived', bad); sys.exit(1 if bad else 0)
+diff --git a/tests/attest-control.test.mjs b/tests/attest-control.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0dd4f141b781f11b0f97d1470700e9e874601b8f
+--- /dev/null
++++ b/tests/attest-control.test.mjs
+@@ -0,0 +1,80 @@
++// Offline tests of attest-control.mjs through the REAL verifier (verifier/consumer.mjs at a6b1378c). The only authentic Turin
++// report on hand is the M4a domain document (test/fixtures/verifier/turin-m4a, public, AMD-signed); there is no authentic
++// metal-format control document offline, so a live PASS cannot be shown here - root's fresh run is the proof. What these show:
++// the AMD signature/chain/CRL/TCB/measurement checks really run (they PASS on genuine evidence), a report not bound to OUR
++// nonce is REJECTED at the binding, a wrong pin is REJECTED at the measurement, relay misbehaviour is UNAVAILABLE, and the
++// public verdict never carries the raw report, chip id or VCEK fingerprint (raw stays 0600 in evidence/private).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { pathToFileURL } from 'node:url';
++import * as P from '../attest-control.mjs';
++
++const FX = path.join(P.REPO, 'test/fixtures');
++const saved = JSON.parse(fs.readFileSync(path.join(FX, 'verifier/turin-m4a/doc.json'), 'utf8')); const m4a = saved.doc ?? saved;
++const report = Buffer.from(m4a.report, 'base64'); const MEAS = report.subarray(0x90, 0xc0).toString('hex');
++const CHIP = report.subarray(0x1a0, 0x1e0).toString('hex');
++const { memoryCollateral } = await import(pathToFileURL(path.join(P.REPO, 'verifier/collateral.mjs')).href);
++const collateral = memoryCollateral({ chains: { Turin: fs.readFileSync(path.join(FX, 'amd/Turin-cert_chain.pem'), 'utf8') },
++  vceks: { Turin: fs.readFileSync(path.join(FX, 'verifier/turin-m4a/vcek-kds-amd.der')) }, crls: { Turin: fs.readFileSync(path.join(FX, 'verifier/amd/Turin-crl.der')) } });
++const NOW = '2026-09-24T05:00:00Z';
++const metalDoc = { format: 'sev-snp-guest-metal-v1', body: m4a.report, transportKey: m4a.transportKey, name: 'metal0' };
++const relay = (answer) => async (url) => { const nonce = new URL(url).searchParams.get('nonce'); const a = answer(nonce); return { status: a.status, text: async () => JSON.stringify(a.body) }; };
++const honest = relay((nonce) => ({ status: 200, body: { name: 'metal0', nonce, document: metalDoc, operatorAllowlist: { measurements: [MEAS], admittedAtAttach: MEAS } } }));
++
++test('the verifier pins hold for the restore repo at a6b1378c', () => { P.checkPins(); });
++
++test('genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED', async () => {
++  const { verdict, raw } = await P.probe({ expectedMeasurement: MEAS, deps: { fetchImpl: honest, collateral, now: NOW } });
++  assert.equal(verdict.status, 'rejected'); assert.equal(verdict.pass, false);
++  for (const k of ['report shape', 'product line', 'guest policy', 'chain', 'tcb policy', 'measurement']) assert.equal(verdict.required[k], 'PASS', k);
++  assert.equal(verdict.crl, 'PASS'); assert.equal(verdict.required.binding, 'FAIL'); assert.deepEqual(verdict.failedChecks, ['binding']);
++  assert.equal(verdict.product, 'Turin'); assert.equal(verdict.observedMeasurement, MEAS);
++  // the public verdict never carries the raw report, the chip id or the VCEK fingerprint; the raw answer does (private)
++  const pub = JSON.stringify(verdict);
++  for (const secretish of [CHIP, CHIP.slice(0, 16), m4a.report.slice(0, 64)]) assert.ok(!pub.includes(secretish), 'public verdict leaks ' + secretish.slice(0, 8));
++  assert.ok(!('vcekFingerprint' in verdict)); assert.match(verdict.chipIdSha256, /^[0-9a-f]{64}$/);
++  assert.ok(raw.text.includes(m4a.report.slice(0, 64))); assert.equal(verdict.unavailable.length, 3);
++});
++
++test('a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)', async () => {
++  const { verdict } = await P.probe({ deps: { fetchImpl: honest, collateral, now: NOW } });
++  assert.equal(verdict.expectedMeasurement, P.TARGETS.new.measurement); assert.equal(verdict.status, 'rejected');
++  assert.equal(verdict.required.measurement, 'FAIL'); assert.equal(verdict.required.binding, 'UNAVAILABLE', 'a check never reached is UNAVAILABLE, not PASS');
++  assert.equal(verdict.pass, false); assert.equal(verdict.measurementMatches, false);
++});
++
++test('relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure', async () => {
++  const cases = [relay(() => ({ status: 200, body: { name: 'metal0', nonce: '00'.repeat(32), document: metalDoc } })),
++                 relay(() => ({ status: 504, body: { error: 'timeout' } })),
++                 relay((nonce) => ({ status: 200, body: { name: 'metal0', nonce, document: { ...metalDoc, format: 'sev-snp-guest-domain-v1' } } })),
++                 async () => { throw new Error('ECONNREFUSED'); }];
++  for (const fetchImpl of cases) {
++    const { verdict } = await P.probe({ deps: { fetchImpl, collateral, now: NOW } });
++    assert.equal(verdict.status, 'unavailable'); assert.equal(verdict.pass, false);
++    assert.ok(Object.values(verdict.required).every((x) => x === 'UNAVAILABLE'));
++  }
++});
++
++test('persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw', async () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'attest-'));
++  const { verdict, raw } = await P.probe({ expectedMeasurement: MEAS, deps: { fetchImpl: honest, collateral, now: NOW } });
++  const f = P.persist(verdict, raw, dir);
++  assert.equal(fs.statSync(f.rawFile).mode & 0o777, 0o600); assert.equal(fs.statSync(path.join(dir, 'private')).mode & 0o777, 0o700);
++  assert.ok(!fs.readFileSync(f.pub, 'utf8').includes(m4a.report.slice(0, 64)));
++  assert.throws(() => P.persist(verdict, raw, dir), /EEXIST/);
++  const crypto = await import('node:crypto');
++  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(f.rawFile)).digest('hex'), verdict.rawSha256);
++});
++
++test('checkImage ties each pin to the reviewed image files and refuses another file', () => {
++  const t = { ...P.TARGETS.new, image: path.resolve(P.REPO, '../stage/dist-leasegas-a6b1378cd') };
++  const orig = P.TARGETS.new; P.TARGETS.new = t;
++  try {
++    P.checkImage('new');
++    P.TARGETS.new = { ...t, files: { ...t.files, 'manifest.json': '0'.repeat(64) } }; assert.throws(() => P.checkImage('new'), /not the reviewed file/);
++    P.TARGETS.new = { ...t, measurement: '1'.repeat(96) }; assert.throws(() => P.checkImage('new'), /does not name the pin/);
++  } finally { P.TARGETS.new = orig; }
++});
+diff --git a/tests/test_verdict_check.py b/tests/test_verdict_check.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d9bdb9bcee3eee23f67da1dcfe93c7783560be9
+--- /dev/null
++++ b/tests/test_verdict_check.py
+@@ -0,0 +1,34 @@
++"""check-attestation-verdict.py: only a genuine PASS verdict for ee5df6b8 is accepted; every weakening is refused."""
++import hashlib, importlib.util, json, os, sys, tempfile, unittest
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++spec = importlib.util.spec_from_file_location('cv', str(Path(__file__).resolve().parents[1] / 'check-attestation-verdict.py'))
++cv = importlib.util.module_from_spec(spec); spec.loader.exec_module(cv)
++from common import NEW
++GOOD = {'probe': 'attest-control/1', 'target': 'new', 'pass': True, 'status': 'verified', 'admissionSafe': True,
++        'expectedMeasurement': NEW['measurement'], 'observedMeasurement': NEW['measurement'], 'measurementMatches': True,
++        'required': {k: 'PASS' for k in cv.REQUIRED}, 'freshness': 'verifier nonce', 'nonce': 'ab' * 32, 'vmpl': 0, 'failedChecks': [],
++        'at': '2026-10-23T23:00:00.000Z', 'rawSha256': None}
++
++class VerdictCheck(unittest.TestCase):
++    def setUp(self):
++        self.d = Path(tempfile.mkdtemp()); raw = self.d / 'attestation-raw-2026-10-23T230000000Z.json'
++        raw.write_text('{"raw": true}'); raw.chmod(0o600); self.v = dict(GOOD, rawSha256=hashlib.sha256(raw.read_bytes()).hexdigest()); self.raw = raw
++    def check(self, v): return cv.problems(v, attached_at='2026-10-23T22:00:00+00:00', raw_dir=self.d)
++    def test_good_passes(self): self.assertEqual(self.check(self.v), [])
++    def test_every_weakening_refused(self):
++        bad = [dict(self.v, status='limited'), dict(self.v, pass_=1, **{'pass': False}), dict(self.v, observedMeasurement=NEW['measurement'][:-1] + '0'),
++               dict(self.v, expectedMeasurement='ed918e4b' + NEW['measurement'][8:]), dict(self.v, required={**self.v['required'], 'binding': 'UNAVAILABLE'}),
++               dict(self.v, freshness='none (key possession only)'), dict(self.v, vmpl=1), dict(self.v, target='current'), dict(self.v, failedChecks=['crl']),
++               dict(self.v, at='2026-10-23T21:00:00.000Z'), dict(self.v, rawSha256='0' * 64), dict(self.v, probe='other'), dict(self.v, admissionSafe=False)]
++        for b in bad: self.assertTrue(self.check(b), b)
++    def test_verdict_before_attachment_refused_on_time_alone(self):
++        raw = self.d / 'attestation-raw-2026-10-23T210000000Z.json'; raw.write_text('{"raw": "early"}'); raw.chmod(0o600)
++        early = dict(self.v, at='2026-10-23T21:00:00.000Z', rawSha256=hashlib.sha256(raw.read_bytes()).hexdigest())
++        p = self.check(early); self.assertEqual(len(p), 1, p); self.assertIn('not after the attachment', p[0])
++    def test_substring_alone_is_not_enough(self):
++        self.assertTrue(self.check({'note': 'mentions ' + NEW['measurement']}))   # what keep.py's own substring test would accept
++    def test_raw_mode_and_presence(self):
++        self.raw.chmod(0o644); self.assertTrue(self.check(self.v)); self.raw.unlink(); self.assertTrue(self.check(self.v))
++
++if __name__ == '__main__': unittest.main()

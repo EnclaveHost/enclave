@@ -1,0 +1,10 @@
+# Adjudicated false positive (2026-10-23), exact scope: ONE finding = file pins.example.json + rule generic-api-key + line 45.
+# That line is `"relay/secrets.js": "<sha256>"`, the PUBLIC sha256 of the public source file relay/secrets.js at repo-r2
+# ab589bf8 (test/plan.test.mjs re-hashes every pinned file). `gitleaks dir` fingerprints are file:rule:line, so any other
+# file, rule or line is still reported; if this line moves the finding reappears (fail closed). `gitleaks git` fingerprints
+# carry the commit and are NOT covered by this entry.
+pins.example.json:generic-api-key:45
+# Adjudicated false positive (2026-10-23), exact scope: cli-pins/canary-contract-pins.json + generic-api-key + line 12, i.e.
+# `"secretVaultV2": "0xe48699b8…"`, the PUBLIC address of the original custody vault (a contract address, not a secret);
+# test/clipins.test.mjs re-reads the file and checks its sha256 against pins.example.json cli.pinsSha256.
+cli-pins/canary-contract-pins.json:generic-api-key:12

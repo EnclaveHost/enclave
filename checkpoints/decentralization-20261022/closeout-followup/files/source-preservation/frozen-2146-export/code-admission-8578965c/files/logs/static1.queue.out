@@ -1,0 +1,62 @@
+[queue] START available=23650MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "ok": true,
+ "bundle": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-runtime-provenance/embedded-bundle.mjs",
+  "sha256": "7c2cd000f5e57d9c5bf8a9e28985b7950ad912ea0deef721bdaabc7a479715a5",
+  "isRunningImageFile": true,
+  "signDigestCallSites": [
+   "genesisDigest",
+   "dealDigest",
+   "ackDigest"
+  ],
+  "routes": [
+   "/v2/custody/approve",
+   "/v2/custody/challenge",
+   "/v2/custody/evidence",
+   "/v2/custody/host-binding",
+   "/v2/custody/join",
+   "/v2/custody/release"
+  ],
+  "strings": {
+   "enclave-custody-v2 code": 0,
+   "code-approve": 0,
+   "approveCode": 0,
+   "owner-read": 0,
+   "enclave-custody-v2 handover": 2
+  },
+  "peerQuoteAllowsThePeersOwnMeasurement": true,
+  "candidateNeedsActiveCode": true,
+  "genesisCodeSetIsOwnMeasurement": true
+ },
+ "source": {
+  "commit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5",
+  "signDigestCallSites": [
+   "genesisDigest",
+   "dealDigest",
+   "ackDigest"
+  ],
+  "routes": [
+   "/v2/custody/approve",
+   "/v2/custody/challenge",
+   "/v2/custody/evidence",
+   "/v2/custody/host-binding",
+   "/v2/custody/join",
+   "/v2/custody/release"
+  ],
+  "strings": {
+   "enclave-custody-v2 code": 0,
+   "code-approve": 0,
+   "approveCode": 0,
+   "owner-read": 0,
+   "enclave-custody-v2 handover": 0
+  },
+  "peerQuoteAllowsThePeersOwnMeasurement": true,
+  "candidateNeedsActiveCode": true,
+  "genesisCodeSetIsOwnMeasurement": true,
+  "files": 12
+ }
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

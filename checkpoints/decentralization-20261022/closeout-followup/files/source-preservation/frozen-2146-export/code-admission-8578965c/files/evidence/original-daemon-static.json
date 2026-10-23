@@ -1,0 +1,128 @@
+{
+ "at": "2026-10-23T21:39:22.872Z",
+ "runningBundle": {
+  "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-runtime-provenance/embedded-bundle.mjs",
+  "sha256": "7c2cd000f5e57d9c5bf8a9e28985b7950ad912ea0deef721bdaabc7a479715a5",
+  "isRunningImageFile": true,
+  "signDigestCallSites": [
+   "genesisDigest",
+   "dealDigest",
+   "ackDigest"
+  ],
+  "signDigestOnVariable": [
+   "digest2"
+  ],
+  "handoverDigestComputed": 1,
+  "routes": [
+   "/v2/custody/approve",
+   "/v2/custody/challenge",
+   "/v2/custody/evidence",
+   "/v2/custody/host-binding",
+   "/v2/custody/join",
+   "/v2/custody/release"
+  ],
+  "strings": {
+   "enclave-custody-v2 code": 0,
+   "code-approve": 0,
+   "approveCode": 0,
+   "owner-read": 0,
+   "enclave-custody-v2 handover": 2
+  },
+  "peerQuoteAllowsThePeersOwnMeasurement": true,
+  "candidateNeedsActiveCode": true,
+  "genesisCodeSetIsOwnMeasurement": true
+ },
+ "source9d43": {
+  "commit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5",
+  "signDigestCallSites": [
+   "genesisDigest",
+   "dealDigest",
+   "ackDigest"
+  ],
+  "signDigestOnVariable": [
+   "digest"
+  ],
+  "handoverDigestComputed": 1,
+  "routes": [
+   "/v2/custody/approve",
+   "/v2/custody/challenge",
+   "/v2/custody/evidence",
+   "/v2/custody/host-binding",
+   "/v2/custody/join",
+   "/v2/custody/release"
+  ],
+  "strings": {
+   "enclave-custody-v2 code": 0,
+   "code-approve": 0,
+   "approveCode": 0,
+   "owner-read": 0,
+   "enclave-custody-v2 handover": 0
+  },
+  "peerQuoteAllowsThePeersOwnMeasurement": true,
+  "candidateNeedsActiveCode": true,
+  "genesisCodeSetIsOwnMeasurement": true,
+  "files": [
+   {
+    "file": "contracts/EnclaveSecretVaultV2.sol",
+    "blob": "7a385bbcc7914b495c7b7e5c312b3e547119ee11",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/chain.mjs",
+    "blob": "30919bbe2aed17c1c49afc0b15e0c89961f8ef3e",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/custodian.mjs",
+    "blob": "0882b2c0c24f4aa83f9c14d45b2dc79c5429050c",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/cvm-gsup.mjs",
+    "blob": "ccf8a3d0181dfc970bec1d358491468627aa2411",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/daemon.mjs",
+    "blob": "e6e45132496d54cd7c8a5e4e4926d7aadeff1dbb",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/digests.mjs",
+    "blob": "61bbe3d660b3cc650015eac2cce76ccc3ac13721",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/host.mjs",
+    "blob": "05d364aecae08c3430510c061e8eca61f3c186e1",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/measured.mjs",
+    "blob": "9fde7ffcd3f78195faf61418712beb661078e5a2",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/member.mjs",
+    "blob": "1dfc137dcf2f170583af4c4596bf11b7e0981e2b",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/owner.mjs",
+    "blob": "1628c86e5d88a75f4532874ad8f59e5b36158326",
+    "snapshotMatches": true
+   },
+   {
+    "file": "custody/v2/protocol.mjs",
+    "blob": "1c7e041d378a91f6767e341977280c81671997f3",
+    "snapshotMatches": true
+   },
+   {
+    "file": "docs/security/secret-custody-v2-spec.md",
+    "blob": "ae96f2a4ff676d73ed09add0574752415801a6f4",
+    "snapshotMatches": true
+   }
+  ]
+ },
+ "ok": true
+}

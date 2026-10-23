@@ -1,0 +1,7 @@
+repo/
+control-wt/
+stage/dist-*/
+stage/metal-*/
+stage/control-*/
+stage/repro-*/
+logs/scan-gitleaks.json

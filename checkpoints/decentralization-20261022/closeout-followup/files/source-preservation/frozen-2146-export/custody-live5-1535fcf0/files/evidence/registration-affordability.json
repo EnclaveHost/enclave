@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-23T21:37:05.541Z",
+  "readOnly": true,
+  "rows": [
+    {
+      "endpoint": "https://mainnet.base.org",
+      "block": "53001038",
+      "baseFee": "5000000",
+      "gas": "50354",
+      "balance": "376132087579",
+      "baseFeeOnlyCost": "251770000000",
+      "fields": {
+        "repo": "EnclaveHost/enclave",
+        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "cpuPrice": "834",
+        "gpuPrice": "1667"
+      },
+      "limits": [
+        "Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin."
+      ]
+    },
+    {
+      "endpoint": "https://base-rpc.publicnode.com",
+      "block": "53001039",
+      "baseFee": "5000000",
+      "gas": "50354",
+      "balance": "376132087579",
+      "baseFeeOnlyCost": "251770000000",
+      "fields": {
+        "repo": "EnclaveHost/enclave",
+        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "cpuPrice": "834",
+        "gpuPrice": "1667"
+      },
+      "limits": [
+        "Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin."
+      ]
+    }
+  ]
+}

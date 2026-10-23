@@ -1,0 +1,672 @@
+From 01525201fb05091a9c2295d7a0b576e868bc09d5 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:36:47 -0700
+Subject: [PATCH] Ledger review: canary CLI pins on ledger rev16d 0xB1783B61
+ (not the CLI's retired default), S0.clipins reconciliation + mined-target
+ checks, PREFLIGHT pin corrected, unapplied CLI guard proposal
+
+---
+ .gitleaksignore                        |  4 ++
+ LEDGER-RECONCILIATION.md               | 94 ++++++++++++++++++++++++++
+ PREFLIGHT-CLI.md                       | 11 ++-
+ README.md                              | 26 +++++--
+ cli-pins/canary-contract-pins.json     | 14 ++++
+ driver/cli.mjs                         | 23 +++++++
+ driver/clipins.mjs                     | 75 ++++++++++++++++++++
+ driver/plan.mjs                        | 25 ++++---
+ pins.example.json                      |  5 ++
+ proposals/cli-ledger-write-guard.patch | 37 ++++++++++
+ test/cli.test.mjs                      |  2 +-
+ test/clipins.test.mjs                  | 83 +++++++++++++++++++++++
+ test/mutants.sh                        |  3 +
+ test/plan.test.mjs                     |  5 +-
+ test/prepare.test.mjs                  |  2 +-
+ tools/budget-matrix.mjs                |  2 +-
+ 16 files changed, 390 insertions(+), 21 deletions(-)
+ create mode 100644 LEDGER-RECONCILIATION.md
+ create mode 100644 cli-pins/canary-contract-pins.json
+ create mode 100644 driver/clipins.mjs
+ create mode 100644 proposals/cli-ledger-write-guard.patch
+ create mode 100644 test/clipins.test.mjs
+
+diff --git a/.gitleaksignore b/.gitleaksignore
+index 165fb7fd19da8254203f8d59f3f06ddccb4c7f9d..8e4501eb6a2b3ab8b7f584fdb5a57628671f1b40 100644
+--- a/.gitleaksignore
++++ b/.gitleaksignore
+@@ -4,3 +4,7 @@
+ # file, rule or line is still reported; if this line moves the finding reappears (fail closed). `gitleaks git` fingerprints
+ # carry the commit and are NOT covered by this entry.
+ pins.example.json:generic-api-key:45
++# Adjudicated false positive (2026-10-23), exact scope: cli-pins/canary-contract-pins.json + generic-api-key + line 12, i.e.
++# `"secretVaultV2": "0xe48699b8…"`, the PUBLIC address of the original custody vault (a contract address, not a secret);
++# test/clipins.test.mjs re-reads the file and checks its sha256 against pins.example.json cli.pinsSha256.
++cli-pins/canary-contract-pins.json:generic-api-key:12
+diff --git a/LEDGER-RECONCILIATION.md b/LEDGER-RECONCILIATION.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..160e9c0dc9be9d18546fc38ea4bc61c1fa441b40
+--- /dev/null
++++ b/LEDGER-RECONCILIATION.md
+@@ -0,0 +1,94 @@
++# ROOT-LEDGER-REVIEW: every pin reconciled against root's live evidence and the deployed contracts
++
++**What this is.** Source and records only: no chain write, key, SSH or production action. Live facts are root's
++receipts, not today's truth, and the driver re-reads them at one agreed block (`S0.chain`, `S0.clipins`) before anything
++spends.
++
++**Evidence used:**
++- `work/existing-custody-audit/evidence/live-custody.json`, block 52849851;
++- `work/custody-v2-live-20261023/evidence/known-state.json`, block 52994819 (2026-10-23T18:10Z);
++- `work/enclave` `contracts/deployments/network-profile-base.json` (sha256 `ee957827…`, clean) and
++  `source-verification-base.json`;
++- `work/lease-gas-wallet-signing/trust.mjs`;
++- `work/lease-release-packaging/src/test/fixtures/ledger-rev16d-source/EnclaveDeployments.sol` (sha256 `2771a524…` = the
++  verified rev16d source of `4b7419bb0`).
++
++## 1. Pin table
++
++| contract | canary pin | live evidence | reviewed code hash | CLI baked default | other pin files | verdict |
++|---|---|---|---|---|---|---|
++| original vault v2 | `0xe48699b8…eef5` | code `0x4b949b37…`, `book()` = `0xab214342…` (live-custody) | `0x4b949b37…` (live) | — | tracked `contract-pins-base.json` and the reviewed **network profile**: `0x56b81b39…` = the MODIFIED vault (code `0xb27f04b1…`). Untracked `contract-pins-production-base.json`: `0xe486…` | **pin `0xe486`. Never pass the tracked pins file or the profile to the CLI for the canary** |
++| address book | `0xab214342…0907` | owner `0x0b2d…`; entries below (both blocks) | not in the profile | `0xab214342…` | — | ok |
++| **deployments (ledger)** | **`0xb1783b61…117b`** | book `deployments` = `0xB1783B61…` (both blocks); immutables of proofOfTime/verificationFees/connectivity = this ledger | `0x71d50076…` (rev16d, full match with `4b7419bb0`) | **`0xF9e71385…` (RETIRED)** | all three pin files: `0xb1783b61` | **The PREFLIGHT pin was wrong (it used the CLI default); corrected** |
++| registry | `0x868eb7fc…ccac` | book `registry` (both blocks) | `0x39911d6f…` | same | same | ok |
++| appCatalog | `0x18419ca2…26e3` | not in the recorded book entries (read live by `S0.clipins`) | `0x3f3c4cc0…` | same | same | ok, re-read live |
++| proofOfTime / enclavePay / verificationFees | `0x6f462d77…` / `0x580270e8…` / `0x87c72665…` | — | `0x6b2eff59…` / `0xf902e348…` / `0xf649e393…` | — | same | required by the CLI validator; code checked live |
++| sessionVaultFactory | **`0x0` (disabled)** | book `sessionVaultFactory` = `0x0` (live-custody) | — | `0x1f5c887c…` (legacy) | tracked: `0xec9277a3…`; untracked production: `0x1f5c887c…` | **zero**, matching the book. Every session path refuses |
++| USDC | (CLI default) `0x833589fc…2913` | — | `0xa6705a10…` | same | — | code checked live |
++| lease-gas reserve / executor | `0x12a3f873…3639` / `0x8900baca…d343` | `work/lease-gas-wallet-signing/trust.mjs` PRODUCTION.ledger = `0xB1783B61…` ("ledger16d"); the lease-gas record's own `ledger` field is checked by the existing CLI against its reviewed record (root's `--lease-gas` file, not read here) | reserve `0xcc00efe9…`, executor `0xdd893cd4…` | — | — | ok, as far as these records show |
++
++## 2. Deployed ABI vs CLI ABI (ledger rev16d)
++
++The verified rev16d source exposes the following functions:
++- `create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, string configCid, address feeRecipient, uint256 feePerSec6, uint256 maxRate6) returns (bytes32)`;
++- `fundWithAuthorization(bytes32, address, uint256, uint256, uint256, bytes32, bytes)`;
++- `fundEth(bytes32) payable`;
++- `setActive(bytes32, bool)`;
++- `deploymentsSchema = 16`;
++- `event Created(bytes32 indexed id, address indexed owner, string appRef, uint16 gpuMilli, uint16 cpuMilli, uint256 rate)`.
++
++The CLI's ABI for schema ≥ 8 has exactly these argument lists. Its `DEP_CREATED_TOPIC` `0x3b201eb1…3239` equals
++keccak256 of that event signature.
++
++**There is no ABI discrepancy on rev16d.** The hazard is the ADDRESS, not the ABI. The retired ledger also answers
++`create`, so a wrong-ledger create would succeed silently and produce a deployment the original vault can never see.
++
++## 3. How the current CLI picks addresses (`work/enclave` e762a9c5; `cli/enclave.mjs` sha256 `f83cab27…`, uncommitted)
++
++- **Default mode.**
++  - `resolveAddressBook()` reads `book.all()` through ONE RPC with a 4 s timeout.
++  - If that read fails, it **keeps the baked addresses**: ledger = the retired `0xF9e71385…`, with only a stderr
++    warning. Catalog writes are refused, but **ledger and registry writes are not**.
++  - Default mode is therefore unsafe for the canary.
++- **`--contract-pins FILE`** (required by `--chain-only` and independent mode). It overwrites DEFAULTS and disables the
++  book. In independent mode a reviewed `--profile` is cross-checked against `--contract-pins` (they must agree).
++  - Nothing checks the pins against the book.
++  - Without a profile, nothing checks the pinned code.
++  - So any wrong pins file is used silently.
++- **With the reviewed profile, the custody vault is wrong.** The reviewed profile's derived pins name secretVaultV2 =
++  `0x56b81b39…`. Any CLI custody-v2 command run with the profile or the tracked pins file targets the modified vault.
++  The canary does not run custody through the CLI: the driver pins `0xE486` itself.
++- **Uncommitted / untracked state:**
++  - `cli/enclave.mjs` has 1296 inserted lines vs HEAD, including a new `--ledger` default from
++    `DEFAULTS.DEPLOYMENTS_ADDRESS`.
++  - `contract-pins-production-base.json` is untracked: correct ledger and vault, but `sessionVaultFactory` `0x1f5c…`
++    while the book names `0x0`.
++  - The canary therefore uses its own committed pins file, and the driver rechecks it at run time.
++
++## 4. Corrections
++
++- **Canary pins file** (`cli-pins/canary-contract-pins.json`, sha256 `bbc47f6c…`, pinned in `pins.example.json`
++  `cli.pinsSha256`). The ONLY pins file for the canary's CLI steps.
++- **New read step `S0.clipins`.** It resolves the new prerequisite `cli.pins` from the pinned file bytes plus, at one
++  agreed block on every RPC:
++  - every address = the reviewed one, with the reviewed runtime code hash (USDC too);
++  - the original vault's `book()` = `0xab21…`;
++  - book `deployments`, `registry` and `sessionVaultFactory` (and `appCatalog` when named) = the pins;
++  - no pin names the retired ledger or the modified vault.
++
++  Every CLI spending step (create, lease-gas, stop) requires `cli.pins`, and its command string carries
++  `--independent --contract-pins cli-pins/canary-contract-pins.json --max-fee-gwei 0.012 --signer-mode handoff`.
++- **`record` for a CLI step** now fails unless:
++  - `obs.cliPinsSha256` is that file's hash;
++  - every mined transaction's `to` is the step's own contract: the pinned ledger, or for lease steps the reserve
++    `0x12a3…`. This is after the fact, but it is detected before any later step.
++- **Proposal for `work/enclave` (NOT applied; shared repo untouched): `proposals/cli-ledger-write-guard.patch`.** It
++  refuses ledger and registry writes when the addresses came from a silent baked fallback, or name the retired ledger.
++  `test/clipins.test.mjs` checks only that it applies to the reviewed `f83cab27…` bytes and parses. It is not a
++  behaviour test of the full CLI.
++
++**Unchanged:**
++- **Not ready.** The recipient blocker remains, and the CLI steps still need root's manual review of each handoff
++  transaction (`PREFLIGHT-CLI.md`).
++- **Budget shortfall** and caps: unchanged.
++- **Policy 0x4e62 and the old canary:** protected (the plan refuses them; `Z.final` re-reads 0x4e62).
+diff --git a/PREFLIGHT-CLI.md b/PREFLIGHT-CLI.md
+index bfab257e8d0e59ee190697da3758105b05021db1..84e4b8b6f597607b751d2d0f543d148a9fd67bd0 100644
+--- a/PREFLIGHT-CLI.md
++++ b/PREFLIGHT-CLI.md
+@@ -1,5 +1,8 @@
+ # ROOT-CLI-PREFLIGHT: fee-cap budget and CLI transaction support (source review only)
+ 
++> **Superseded pin:** the first version of this file named the ledger `0xF9e71385…` (the CLI's baked default). That was
++> wrong. The ledger is `0xB1783B61…`; see `LEDGER-RECONCILIATION.md`.
++
+ Nothing here was signed, sent, simulated against Base, or run against production. The numbers come from
+ `tools/budget-matrix.mjs`, the driver's own `buildPlan`/`planBudget` with only the pins varied, in queue job c13. They are
+ WORST CASES at pinned caps. They are not live affordability: a snapshot from one block (base fee 5 mwei, tip 1 mwei) says
+@@ -78,7 +81,11 @@
+ | `network/lease-gas-owner.mjs` | `92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988` | clean at HEAD |
+ 
+ **Pinned addresses (from source):**
+-- EnclaveDeployments ledger `0xF9e71385C5cB49844F2457ba6567De0742f8B89a`.
++- **CORRECTED (ROOT-LEDGER-REVIEW):** EnclaveDeployments ledger **`0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B`** (ledger
++  rev16d). This is the ledger the original vault's book `0xab21…` names. The earlier `0xF9e71385…` was the CLI's baked
++  default: a RETIRED ledger, and unsafe. See `LEDGER-RECONCILIATION.md`. Every CLI step must run as
++  `enclave --independent --rpc A,B --contract-pins cli-pins/canary-contract-pins.json …`, after the driver's `S0.clipins`
++  step has passed.
+ - USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`.
+ - Lease-gas reserve `0x12a3f873041dec436daa0085b766a399a6fa3639` (runtime `0xcc00efe9…`) and executor
+   `0x8900baca2167873ba2f8a8bae8b4876e6396d343` (`work/lease-enrollment-signing/trust.mjs`).
+@@ -127,7 +134,7 @@
+ 2. Run the CLI in independent handoff mode with `--max-fee-gwei 0.012`. Nothing is signed, and the exact transaction is
+    printed and journaled.
+ 3. Root reviews each printed transaction against this table:
+-   - `to` ∈ {Deployments `0xF9e7…`, reserve `0x12a3…`};
++   - `to` ∈ {Deployments `0xB1783B61…` (rev16d), reserve `0x12a3…`}. The `record` step re-checks each mined `to`;
+    - the selector and decoded arguments, including the NEW canary id (never 0x4e62 or another old id);
+    - `value` (non-zero only for the deposit, exactly the pinned amount);
+    - `gas` ≤ the step's assumption (create 600k, fund 200k, configure 250k, deposit 100k, stop 100k);
+diff --git a/README.md b/README.md
+index eb30379e3ea34564720315d6eabb0e707333ce57..c0932ac3f9942e0a06b5e6bb1dc527faf9e32ba5 100644
+--- a/README.md
++++ b/README.md
+@@ -114,6 +114,16 @@
+      this revision and was re-adjudicated).
+    - `gitleaks git` fingerprints carry the commit and are NOT covered by this entry.
+ 
++**ROOT-LEDGER-REVIEW (see `LEDGER-RECONCILIATION.md`).**
++- The canary ledger is **`0xB1783B61…` (rev16d, the original vault's book entry)**, NOT the CLI's baked, retired
++  `0xF9e71385…`. PREFLIGHT-CLI.md is corrected.
++- CLI steps now require `S0.clipins` (the reconciled `cli-pins/canary-contract-pins.json`) and `record` checks every
++  mined target.
++- **No rev16d ABI discrepancy.**
++- **The CLI hazards are default-mode silent fallback and unreconciled pins.** The tracked pins file and the reviewed
++  profile name the MODIFIED vault 0x56b8.
++- `proposals/cli-ledger-write-guard.patch` is not applied to `work/enclave`.
++
+ **ROOT-CLI-PREFLIGHT (see `PREFLIGHT-CLI.md`, computed by `tools/budget-matrix.mjs` in queue job c13).**
+ - **A 12 mwei fee cap does NOT fit the full matrix** into 5.5e13: 8.74e13 with the literal CLI constants, 9.74e13 with
+   the CLI re-derived from gas. A fit needs maxFee ≤ 5.1 mwei, below 2 × base + tip at root's block (11 mwei). The
+@@ -346,12 +356,18 @@
+ - gitleaks;
+ - the source repo's crypto-key scanner on the staged tree.
+ 
+-**Result.** Queue job c11, 256 MiB lane: EXIT 0, peak 190 MiB.
+-- Tests: 45 pass, 0 fail, 1 TODO. The TODO is the rollback property, which fails as expected.
+-- Mutation controls: 14/14 killed.
++**Result.** Queue job c17 (final staged tree), 256 MiB lane: EXIT 0.
++- Tests: 49 pass, 0 fail, 1 TODO. The TODO is the rollback property, which fails as expected.
++- Mutation controls: 17/17 killed (`grep -c '^mutant "' test/mutants.sh`).
+ - gitleaks: no leaks. Crypto-key scan: clean.
+-- Example budget: profile A worst case 4.73e13 wei, which fits 5.5e13. That profile is not completion of the matrix
+-  (§0.1). Update selector: `0xe4373411`.
++- Budget unchanged: profile A worst case 4.73e13 wei fits 5.5e13; the full matrix does NOT fit.
++
++**gitleaks adjudications (all exact-scope).**
++- `.gitleaksignore` holds two line fingerprints:
++  - `pins.example.json` line 45: the public sha256 of `relay/secrets.js`;
++  - `cli-pins/canary-contract-pins.json` line 12: the public original-vault address under the key `secretVaultV2`.
++- `test/clipins.test.mjs` lines 24 and 32 carry inline `gitleaks:allow` comments for the same public addresses.
++- Any other finding still fails.
+ 
+ **Earlier runs.**
+ - c7 had 7 failures: `fees.bounded` was not yet observable, and a step count assumed every case was enabled. Both were
+diff --git a/cli-pins/canary-contract-pins.json b/cli-pins/canary-contract-pins.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..440da409dd3522ce7d99053469b657537c02801b
+--- /dev/null
++++ b/cli-pins/canary-contract-pins.json
+@@ -0,0 +1,14 @@
++{
++  "version": 1,
++  "chainId": 8453,
++  "contracts": {
++    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++    "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
++    "appCatalog": "0x18419ca2b502d423a8de6269aeee171a378626e3",
++    "proofOfTime": "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2",
++    "enclavePay": "0x580270e88e5df35dad59e7fe3d907ebea96673a6",
++    "verificationFees": "0x87c7266543ff5839b2c20226bd9b3cd511a23641",
++    "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
++    "secretVaultV2": "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
++  }
++}
+diff --git a/driver/cli.mjs b/driver/cli.mjs
+index 7f8cbe64c8bdcc568d2c1f608fafaa0a395828ae..8515641b41430b5e3582480f993510fcbc7e6ac5 100644
+--- a/driver/cli.mjs
++++ b/driver/cli.mjs
+@@ -31,6 +31,7 @@
+ import { createRelay, evalLegacyCheck, evalRelayRefusals, evalClearProof } from "./relay.mjs";
+ import { probeNonce, probeStale } from "./probe.mjs";
+ import * as A from "./assert.mjs";
++import { evalCliPins, checkCliTargets, parsePins, REVIEWED, BOOK } from "./clipins.mjs";
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+ const ROOT = path.resolve(HERE, "..");
+@@ -198,6 +199,25 @@
+       return journalIt(st, step, { outcome: ok ? "pass" : "fail", evidence: { facts, protectedUnchanged: prot2.evidence, nonceDelta, transactionsThisJournal: sent,
+         note: "nonce delta also counts the CLI's own deployment create/stop transactions" } });
+     }
++    if (id === "S0.clipins") {
++      const file = path.join(ROOT, pins.cli.pinsFile);
++      if (fs.realpathSync(file) !== file) throw new Error("cli.pinsFile must not be a symlink");
++      const pinsText = fs.readFileSync(file, "utf8");
++      if (sha256hex(pinsText) !== pins.cli.pinsSha256) throw new Error("the CLI pins file is not the pinned bytes");
++      const P = parsePins(pinsText);
++      const addrs = [...new Set([...Object.values(P), ...Object.values(REVIEWED).map((r) => r.address)].filter((a) => !/^0x0{40}$/.test(a)))];
++      const codeHashes = {};
++      for (const a of addrs) codeHashes[a] = await agreedScalar((c, blockNumber) => c.getCode({ address: a, blockNumber }).then((code) => client.viem.keccak256(code || "0x")));
++      const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
++      const VAULT_BOOK_ABI = [{ type: "function", name: "book", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
++      const book = {};
++      for (const k of ["deployments", "registry", "appCatalog", "sessionVaultFactory"])
++        book[k] = (await agreedScalar((c, blockNumber) => c.readContract({ address: BOOK, abi: BOOK_ABI, functionName: "addr", args: [client.viem.stringToHex(k, { size: 32 })], blockNumber }))).toLowerCase();
++      const vaultBook = (await agreedScalar((c, blockNumber) => c.readContract({ address: ORIGINAL_VAULT_V2, abi: VAULT_BOOK_ABI, functionName: "book", blockNumber }))).toLowerCase();
++      const r = evalCliPins({ pinsText, facts: { codeHashes, book, vaultBook } });
++      return journalIt(st, step, { outcome: r.ok ? "pass" : "fail", reasons: r.reasons, evidence: { pinsSha256: r.pinsSha256, book, vaultBook, codeHashes, reasons: r.reasons,
++        resolves: { "cli.pins": { ok: r.ok, note: `pins ${r.pinsSha256}` } } } });
++    }
+     const which = step.deployment || (id.startsWith("M.") ? "C2" : "C1");
+     const dep = C[which];
+     const r = await reader.readRelease({ id: dep, endpoint: pins.recipient.endpoint });
+@@ -339,6 +359,9 @@
+       const reasons = [];
+       if (BigInt(costs.costWei) > allowance) reasons.push(`cost ${costs.costWei} > allowance ${allowance}`);
+       if (costs.txs.length > 4) reasons.push(`${costs.txs.length} transactions for one CLI operation: more than this step allows`);
++      // the CLI must have run with the reconciled pins file, and every transaction must target the step's own contract
++      if (obs.cliPinsSha256 !== pins.cli.pinsSha256) reasons.push("obs.cliPinsSha256 is not the reconciled CLI pins file (S0.clipins)");
++      reasons.push(...checkCliTargets({ stepId: id, txs: costs.txs, pins: parsePins(fs.readFileSync(path.join(ROOT, pins.cli.pinsFile), "utf8")) }));
+       if (costs.txs.some((t) => t.status !== "success")) reasons.push("a CLI transaction reverted");
+       if (usdc > (step.spend.usdc ? BigInt(pins.budget.usdcFundUnits) : 0n)) reasons.push(`USDC ${usdc} over the per-deployment allowance`);
+       const spentAfter = spentOf(st.entries, st.plan.steps, pins) + BigInt(costs.costWei);
+diff --git a/driver/clipins.mjs b/driver/clipins.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..defc7fad4ee6ec176da9dd07ba3ff0d2bc7cbd8a
+--- /dev/null
++++ b/driver/clipins.mjs
+@@ -0,0 +1,75 @@
++// The contract-pins file root passes to the EXISTING CLI (`enclave --independent --contract-pins FILE …`) for the canary's
++// CLI steps, reconciled against the chain before any of them may run (ROOT-LEDGER-REVIEW). Pure: the caller reads the
++// facts at one agreed block.
++//
++// Why: the CLI's baked default ledger is the RETIRED 0xF9e71385… (cli/enclave.mjs DEFAULTS). The original vault 0xE486
++// reads deployments through its book 0xab21…, whose "deployments" entry is ledger rev16d 0xB1783B61… (live-custody.json
++// block 52849851; known-state.json block 52994819). A deployment created on any other ledger can never get a custody
++// release. The CLI falls back to the baked addresses with only a warning when its book read fails, and in independent
++// mode it uses whatever pins file it is given without comparing it to the book. The tracked contracts/deployments/
++// contract-pins-base.json and the reviewed network profile also name secretVaultV2 = 0x56b81b39… (the MODIFIED vault),
++// not the original 0xE486.
++import { createHash } from "node:crypto";
++
++export const BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907";
++export const RETIRED_LEDGER = "0xf9e71385c5cb49844f2457ba6567de0742f8b89a";
++export const MODIFIED_VAULT_V2 = "0x56b81b3970a8ac2c52f9874bd2758ede30758228";
++// runtime code hashes from work/enclave contracts/deployments/network-profile-base.json (sha256 ee957827…; clean at
++// e762a9c5) and source-verification-base.json (deployments = ledger-rev16d, full match with 4b7419bb0)
++export const REVIEWED = Object.freeze({
++  deployments: { address: "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b", codeHash: "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682" },
++  registry: { address: "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac", codeHash: "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518" },
++  appCatalog: { address: "0x18419ca2b502d423a8de6269aeee171a378626e3", codeHash: "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f" },
++  proofOfTime: { address: "0x6f462d77727f10f05a3e660650e7dcc9cc60e6b2", codeHash: "0x6b2eff59ba3f32f2d56515ec1b625dfabea05d2dbe8c7edd63a72e4bb20b0f72" },
++  enclavePay: { address: "0x580270e88e5df35dad59e7fe3d907ebea96673a6", codeHash: "0xf902e3481a78768e93e7f1c0eacdc730ba110581f39c540fa6f50291d714f025" },
++  verificationFees: { address: "0x87c7266543ff5839b2c20226bd9b3cd511a23641", codeHash: "0xf649e393d201db4cd3a0377384381a95bf32e33d53bab290a6824067d7f66ab9" },
++  usdc: { address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", codeHash: "0xa6705a10bb756b5dea144591118be77d7af0c3eee3bf2dfe2583dcb0364fefab" },
++  secretVaultV2: { address: "0xe48699b8401564aace7a814ae4569b67a3f7eef5", codeHash: "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b" },
++});
++// the lease-gas reserve the canary's lease-gas steps may target (work/lease-enrollment-signing/trust.mjs)
++export const LEASE_RESERVE = "0x12a3f873041dec436daa0085b766a399a6fa3639";
++const KEYS = ["registry", "deployments", "appCatalog", "proofOfTime", "enclavePay", "verificationFees", "sessionVaultFactory", "secretVaultV2"];
++const ZERO = "0x0000000000000000000000000000000000000000";
++const lc = (a) => String(a ?? "").toLowerCase();
++
++export const sha256 = (text) => createHash("sha256").update(text).digest("hex");
++
++// the same document rules as work/enclave network/contract-pins.mjs validateContractPins
++export function parsePins(text) {
++  const v = JSON.parse(text);
++  if (!v || v.version !== 1 || v.chainId !== 8453 || !v.contracts || Object.keys(v).some((k) => !["version", "chainId", "contracts"].includes(k)))
++    throw new Error("invalid contract pin document");
++  if (Object.keys(v.contracts).some((k) => !KEYS.includes(k))) throw new Error("unknown contract pin");
++  for (const k of KEYS) if (!/^0x[0-9a-fA-F]{40}$/.test(String(v.contracts[k]))) throw new Error(`missing or invalid contract pin: ${k}`);
++  return Object.fromEntries(KEYS.map((k) => [k, lc(v.contracts[k])]));
++}
++
++// facts (one agreed block, every RPC agreeing): { block, codeHashes: {address: keccak}, book: {registry, deployments,
++//   appCatalog, sessionVaultFactory}, vaultBook }
++export function evalCliPins({ pinsText, facts }) {
++  const reasons = [];
++  let pins = null;
++  try { pins = parsePins(pinsText); } catch (e) { return { ok: false, reasons: [e.message], pinsSha256: sha256(pinsText) }; }
++  if (Object.values(pins).includes(RETIRED_LEDGER)) reasons.push("the pins name the RETIRED ledger 0xF9e71385… (the CLI's baked default)");
++  if (pins.secretVaultV2 === MODIFIED_VAULT_V2) reasons.push("secretVaultV2 is the MODIFIED vault 0x56b81b39…, not the original 0xE486");
++  for (const k of ["deployments", "registry", "appCatalog", "proofOfTime", "enclavePay", "verificationFees", "secretVaultV2"]) {
++    if (pins[k] !== REVIEWED[k].address) reasons.push(`${k} ${pins[k]} is not the reviewed ${REVIEWED[k].address}`);
++    else if (lc(facts.codeHashes?.[pins[k]]) !== REVIEWED[k].codeHash) reasons.push(`${k} runtime code hash ${facts.codeHashes?.[pins[k]] ?? "unread"} is not the reviewed ${REVIEWED[k].codeHash}`);
++  }
++  if (lc(facts.codeHashes?.[REVIEWED.usdc.address]) !== REVIEWED.usdc.codeHash) reasons.push("USDC runtime code hash is not the reviewed one");
++  // the book the original vault reads through must name exactly these
++  if (lc(facts.vaultBook) !== BOOK) reasons.push(`the original vault's book is ${facts.vaultBook}, not ${BOOK}`);
++  for (const k of ["deployments", "registry"]) if (lc(facts.book?.[k]) !== pins[k]) reasons.push(`book ${k} is ${facts.book?.[k] ?? "unread"}, pins say ${pins[k]}`);
++  if (facts.book?.appCatalog !== undefined && lc(facts.book.appCatalog) !== ZERO && lc(facts.book.appCatalog) !== pins.appCatalog) reasons.push("book appCatalog differs from the pins");
++  const bookFactory = lc(facts.book?.sessionVaultFactory ?? "unread");
++  if (bookFactory === "unread") reasons.push("book sessionVaultFactory unread");
++  else if (pins.sessionVaultFactory !== bookFactory) reasons.push(`sessionVaultFactory ${pins.sessionVaultFactory} differs from the book's ${bookFactory} (zero disables every session path)`);
++  return { ok: reasons.length === 0, reasons, pinsSha256: sha256(pinsText), pins };
++}
++
++// After root ran the CLI: every transaction must target the contract its step allows, never the retired ledger.
++export function checkCliTargets({ stepId, txs, pins }) {
++  const allowed = /leasegas$/.test(stepId) ? [LEASE_RESERVE] : [pins.deployments];
++  const bad = txs.filter((t) => !allowed.includes(lc(t.to)));
++  return bad.length ? [`${stepId}: transaction(s) to ${bad.map((t) => t.to).join(", ")}; only ${allowed.join(", ")} is allowed`] : [];
++}
+diff --git a/driver/plan.mjs b/driver/plan.mjs
+index da6c7f920d33addcaf97d7aa5ce4fddb5966161d..9e09f8ef6354ff0f2e4f769cefeb214af32136f4 100644
+--- a/driver/plan.mjs
++++ b/driver/plan.mjs
+@@ -42,6 +42,7 @@
+   "recipient.billing": "the canary lease is paid within the owner's USDC, or rate 0 because the owner is ALREADY that runner's declared payout wallet. Never a payout declaration on metal0 (its payout wallet decides the Enclave custody seat). Lease gas: the EXISTING app-funded lease-gas reserve (0x12a3f873…, executor 0x8900baca…, metal0 operator's 7702 delegation unchanged) configured + deposited by the canary owner with the existing `enclave --independent lease-gas` CLI; no direct operator gas, no new contract",
+   "image.recipient": "hello-world catalog version pinned with appId, measurement and runtimeId from isolation/m4/expected-measurement.sh --pin for the runner's domain release; minTcb from the real chip",
+   "relay.v2aware": "relay CUSTODY_VAULT_V2 = 0xE486 (root R5, public env keys only)",
++  "cli.pins": "S0.clipins: the contract-pins file root passes to the EXISTING CLI (--independent --contract-pins) matches its pinned sha256, names ledger rev16d 0xB1783B61… (NOT the CLI's baked retired 0xF9e71385…) and the original vault 0xE486 (NOT the modified 0x56b81b39…), every address has the reviewed runtime code hash, and the book the original vault reads through names the same ledger/registry/factory at one agreed block",
+   "hw.oneGuest": "root confirms (S0.root) each recipient boot is ONE new SNP guest (hello-world 1024 MiB, unit cap +768) beside the protected production QEMUs, and the previous canary guest is stopped first",
+   "deploy.C1": "C1 created by this plan (D1.create records its id; D1.check reads): ledger owner = canary owner, v2 policyRev 0, no relay record, live lease on the recipient runner",
+   "deploy.C2": "C2 created by this plan after C1 is stopped: same conditions as C1",
+@@ -61,6 +62,8 @@
+   need(typeof p.owner?.keyEnv === "string" && /^[A-Z][A-Z0-9_]{2,63}$/.test(p.owner.keyEnv), "owner.keyEnv must be an env var NAME");
+   need(Array.isArray(p.rpcs) && p.rpcs.every((u) => /^https:\/\/[^\s]+$/.test(u)) && new Set(p.rpcs.map(lc)).size === p.rpcs.length, "rpcs must be distinct https URLs");
+   need(p.deployments === undefined, "deployment ids are learned from the journal (D1/D2.create), never pinned");
++  need(typeof p.cli?.pinsFile === "string" && /^[A-Za-z0-9_./-]+$/.test(p.cli.pinsFile) && !p.cli.pinsFile.includes("..") && /^[0-9a-f]{64}$/.test(String(p.cli?.pinsSha256)),
++    "cli.pinsFile (repo-relative) and cli.pinsSha256: the contract-pins file the CLI steps must use");
+   need(/^[0-9]{8}T[0-9]{6}Z$/.test(String(p.runLabel)), "runLabel: UTC stamp YYYYMMDDTHHMMSSZ");
+   need(/^0x[0-9a-f]{64}$/.test(String(p.vaultCodeHash)), "vaultCodeHash: the original runtime keccak");
+   need(/^0x[0-9a-f]{64}$/.test(String(p.custodian?.measurementSha256)), "custodian.measurementSha256: the live custodian's chain measurement");
+@@ -97,7 +100,7 @@
+   for (const k of ["trackN.committee", "trackN.memory", "outage.sharedConsent"])
+     if (pins.approvals?.[k]?.by && pins.approvals[k].at && pins.approvals[k].reviewedPlan === true) ok(k, `approval:${pins.approvals[k].by}`);
+   const fromObservation = new Set(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+-    "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"]);
++    "recipient.billing", "relay.v2aware", "hw.oneGuest", "cli.pins", "deploy.C1", "deploy.C2"]);
+   for (const [k, v] of Object.entries(observations)) if (fromObservation.has(k) && v?.ok === true && v.stepId) ok(k, `observation:${v.stepId}`);
+   return r;
+ }
+@@ -121,15 +124,17 @@
+       title: "GET custody-metal0 /v2/custody/info: encKey = chain machine encKey; measurement sha = 0x2530eda0 (c8663742, the live image)" },
+     { id: "S0.root", case: "inventory", kind: "operator", after: [], requires: base, resolves: ["recipient.runner", "recipient.billing", "relay.v2aware", "hw.oneGuest"],
+       title: "root's live inventory: recipient runner (snp-guest-per-app, active entry, supervisor CUSTODY_VAULT_V2), billing mode, relay CUSTODY_VAULT_V2, one-guest confirmation; public facts only" },
++    { id: "S0.clipins", case: "inventory", kind: "read", after: [], requires: base, resolves: ["cli.pins"],
++      title: "the CLI contract-pins file: sha256 = pins.cli.pinsSha256; reviewed addresses + runtime code hashes; the original vault's book names the same ledger/registry/factory (agreed block)" },
+     { id: "S1.markers", case: "inventory", kind: "local", after: ["S0.chain"], requires: base,
+       title: "marker sets c1-rev1, c1-rev2, c2-legacy, c2-rev2 created (0600 in private/); journal keeps commitments only" },
+     // ---- C1: brand-new dedicated deployment (existing CLI; ledger owner = canary owner) ----
+-    { id: "D1.create", case: "create", kind: "operator", after: ["S0.chain", "S0.custodian", "S0.root"], requires: pre,
+-      command: "enclave deploy <hello-world version> --chain-only --contract-pins <pins> --cpu 0.1 --gpu 0 --max-rate <runner rate> --isolation snp-guest-per-app --public [--fund <usd>]",
++    { id: "D1.create", case: "create", kind: "operator", after: ["S0.chain", "S0.custodian", "S0.root", "S0.clipins"], requires: [...pre, "cli.pins"],
++      command: "enclave --independent --rpc <A,B> --contract-pins cli-pins/canary-contract-pins.json --max-fee-gwei 0.012 --signer-mode handoff --from <owner> deploy <hello-world version> --cpu 0.1 --gpu 0 --max-rate <runner rate> --isolation snp-guest-per-app --public [--fund <usd>]",
+       title: "root creates C1 with the existing CLI from the canary owner (Sep-24 recipe: public, cpuMilli 100, envelope {isolation:{require:snp-guest-per-app}}; create gasUsed was 411747); records the id and tx hashes",
+       learns: "C1", spend: { txs: ["create"], usdc: true } },
+-    { id: "D1.leasegas", case: "create", kind: "operator", after: ["D1.create"], requires: pre, spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true },
+-      command: "enclave --independent … lease-gas configure <C1> [policy flags] --signer … ; lease-gas deposit <C1> --wei <budget.leaseDepositWei> --signer …",
++    { id: "D1.leasegas", case: "create", kind: "operator", after: ["D1.create"], requires: [...pre, "cli.pins"], spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true },
++      command: "enclave --independent --rpc <A,B> --contract-pins cli-pins/canary-contract-pins.json --max-fee-gwei 0.012 --signer-mode handoff --from <owner> lease-gas configure <C1> [policy flags] --lease-gas RECORD --lease-gas-digest sha256:… ; … lease-gas deposit <C1> --wei <budget.leaseDepositWei> …",
+       title: "the canary owner configures + funds C1's app-funded lease-gas reserve with the existing CLI (journaled independent signer); records the tx hashes" },
+     { id: "D1.check", case: "create", kind: "read", after: ["D1.leasegas"], requires: pre, resolves: ["deploy.C1"], deployment: "C1",
+       title: "C1: ledger owner = canary owner, v2 policyRev 0, relay /exists false, live lease held by the recipient runner" },
+@@ -186,12 +191,12 @@
+     // ---- relay refusals for a custody-held id (owner signature only; no gas) ----
+     { id: "N.relay", case: "relay-refusals", kind: "relay", after: ["C1.release.3"], requires: c1,
+       title: "owner-signed legacy set for C1: 409 custody_held; /get signed by a throwaway in-memory key: refused; /exists: custody:true" },
+-    { id: "D1.stop", case: "inventory", kind: "operator", after: ["N.relay"], requires: c1, spend: { txs: ["stop"], cleanup: true },
+-      command: "enclave stop <C1>", title: "root stops C1 with the existing CLI (setActive false) so the next canary guest is the only one" },
++    { id: "D1.stop", case: "inventory", kind: "operator", after: ["N.relay"], requires: [...c1, "cli.pins"], spend: { txs: ["stop"], cleanup: true },
++      command: "enclave --independent --rpc <A,B> --contract-pins cli-pins/canary-contract-pins.json --max-fee-gwei 0.012 --signer-mode handoff --from <owner> stop <C1>", title: "root stops C1 with the existing CLI (setActive false) so the next canary guest is the only one" },
+     // ---- migration: dedicated legacy relay-held canary C2 -> v2 ----
+-    { id: "D2.create", case: "migration", kind: "operator", after: ["D1.stop"], requires: pre, learns: "C2", spend: { txs: ["create"], usdc: true },
++    { id: "D2.create", case: "migration", kind: "operator", after: ["D1.stop"], requires: [...pre, "cli.pins"], learns: "C2", spend: { txs: ["create"], usdc: true },
+       command: "enclave deploy <same version> --chain-only ... (as D1.create)", title: "root creates C2 exactly like C1; records the id and tx hashes" },
+-    { id: "D2.leasegas", case: "migration", kind: "operator", after: ["D2.create"], requires: pre, spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true },
++    { id: "D2.leasegas", case: "migration", kind: "operator", after: ["D2.create"], requires: [...pre, "cli.pins"], spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true },
+       command: "as D1.leasegas, for C2", title: "configure + fund C2's lease-gas reserve (existing CLI)" },
+     { id: "D2.check", case: "migration", kind: "read", after: ["D2.leasegas"], requires: pre, resolves: ["deploy.C2"], deployment: "C2",
+       title: "C2: as D1.check, and the relay holds no record yet" },
+@@ -215,7 +220,7 @@
+       title: "restart C2: revision 2" },
+     { id: "M.markers", case: "migration", kind: "operator", after: ["M.release.2"], requires: c2, markerSets: ["c2-legacy", "c2-rev2"],
+       title: "marker search: c2-legacy and c2-rev2 absent from every searched location; control found" },
+-    { id: "D2.stop", case: "migration", kind: "operator", after: ["M.markers"], requires: c2, spend: { txs: ["stop"], cleanup: true }, command: "enclave stop <C2>", title: "root stops C2" },
++    { id: "D2.stop", case: "migration", kind: "operator", after: ["M.markers"], requires: [...c2, "cli.pins"], spend: { txs: ["stop"], cleanup: true }, command: "enclave --independent --rpc <A,B> --contract-pins cli-pins/canary-contract-pins.json --max-fee-gwei 0.012 --signer-mode handoff --from <owner> stop <C2>", title: "root stops C2" },
+     // ---- track N: dedicated r2 committee (blocked until root routes it) ----
+     { id: "O.stopped", case: "outage", kind: "hardware", after: ["D2.stop"], requires: ["trackN.committee", "trackN.memory"],
+       title: "canary custodian stopped; boot C3: front 'insufficient custodian quorum ... (need 1)'; app not started" },
+diff --git a/pins.example.json b/pins.example.json
+index 243715a3f42380035003fa8d669f61529e38ec9e..59d3eb0c664e08a47a024deaaf9733436a44b5f3 100644
+--- a/pins.example.json
++++ b/pins.example.json
+@@ -102,5 +102,10 @@
+       "migration"
+     ],
+     "note": "profile A (fits the aggregate worst case); migration alone needs a second run with its own budget"
++  },
++  "cli": {
++    "pinsFile": "cli-pins/canary-contract-pins.json",
++    "pinsSha256": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
++    "note": "the ONLY pins file for the canary's CLI steps (enclave --independent --contract-pins <this>). Never contracts/deployments/contract-pins-base.json or the reviewed network profile: both name secretVaultV2 0x56b81b39 (modified vault)"
+   }
+ }
+diff --git a/proposals/cli-ledger-write-guard.patch b/proposals/cli-ledger-write-guard.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..0bb29913c5397b3e0eac51b3345fda178a376167
+--- /dev/null
++++ b/proposals/cli-ledger-write-guard.patch
+@@ -0,0 +1,37 @@
++--- a/cli/enclave.mjs	2026-10-23 14:34:27.524325214 -0700
+++++ b/cli/enclave.mjs	2026-10-23 14:34:27.537174551 -0700
++@@ -655,6 +655,7 @@
++ async function sendTx(account, { address, abi, functionName, args: a, value }) {
++   // before the --unsigned branch below, so an unsigned transaction for someone else to sign is guarded too (enclave-b4)
++   if (String(address).toLowerCase() === String(DEFAULTS.APP_CATALOG_ADDRESS).toLowerCase()) catalogWriteAllowed();
+++  if ([DEFAULTS.DEPLOYMENTS_ADDRESS, DEFAULTS.REGISTRY_ADDRESS].some((a) => String(address).toLowerCase() === String(a).toLowerCase())) ledgerWriteAllowed(address);
++   const name = { [DEFAULTS.DEPLOYMENTS_ADDRESS]: "EnclaveDeployments",
++                  [DEFAULTS.APP_CATALOG_ADDRESS]: "EnclaveAppCatalog" }[address] || address;
++   trace(`tx ${name}.${functionName}(${a.map(fmtArg).join(", ")})${value ? ` value=${formatUnits(value, 18)} ETH` : ""}`);
++@@ -5896,7 +5897,17 @@
++ // deploy would have read versions and fees from it). So an unread book is said
++ // on stderr, not only under --trace, and a catalog WRITE is refused unless the
++ // catalog address came from the book or the book was switched off on purpose.
++-const BOOK = { wanted: false, catalogFromBook: false, why: "" };
+++const BOOK = { wanted: false, catalogFromBook: false, ledgerFromBook: false, why: "" };
+++// The baked ledger is RETIRED (the book names ledger rev16d 0xB1783B61…). A write to the ledger or registry must come from
+++// the book read at start or from explicit pins, never from a silent fallback to the baked addresses; and no pin may name
+++// the retired ledger. (Proposal from work/custody-v2-production-canary-20261023/proposals; not applied there.)
+++const RETIRED_LEDGERS = ["0xf9e71385c5cb49844f2457ba6567de0742f8b89a"];
+++function ledgerWriteAllowed(address) {
+++  if (RETIRED_LEDGERS.includes(String(address).toLowerCase())) throw new Error(`refusing to write to the retired ledger ${address}: pass --contract-pins naming the book's current ledger`);
+++  if (CONTRACT_PINS || !BOOK.wanted || BOOK.ledgerFromBook) return;
+++  throw new Error(`refusing to write to the ledger or registry: the on-chain address book was not read (${BOOK.why}), so this CLI `
+++    + `would use its baked addresses. Retry, pass --contract-pins, or set ENCLAVE_ADDRESS_BOOK="" to use the baked addresses on purpose.`);
+++}
++ function catalogWriteAllowed() {
++   if (!BOOK.wanted || BOOK.catalogFromBook) return;
++   throw new Error(`refusing to write to the app catalog: the on-chain address book was not read (${BOOK.why}), so this CLI `
++@@ -5922,6 +5933,7 @@
++       if (name && DEFAULTS[name] !== undefined && !/^0x0{40}$/i.test(v)) {
++         DEFAULTS[name] = v;
++         if (name === "APP_CATALOG_ADDRESS") BOOK.catalogFromBook = true;
+++        if (name === "DEPLOYMENTS_ADDRESS") BOOK.ledgerFromBook = true;
++       }
++     });
++     if (!BOOK.catalogFromBook) BOOK.why = "it names no appCatalog";
+diff --git a/test/cli.test.mjs b/test/cli.test.mjs
+index 810584abbb9575b8be351773e6fece8499713513..204e74ce1af13fa7c9b503ab08eaeb1f7248cb7c 100644
+--- a/test/cli.test.mjs
++++ b/test/cli.test.mjs
+@@ -44,7 +44,7 @@
+   try {
+     const out = JSON.parse(run(["status", "--pins", f.file]).stdout);
+     const ready = out.steps.filter((s) => s.status === "ready").map((s) => s.id).sort();
+-    assert.deepEqual(ready, ["S0.chain", "S0.custodian", "S0.root"]);
++    assert.deepEqual(ready, ["S0.chain", "S0.clipins", "S0.custodian", "S0.root"]);
+   } finally { cleanup(f); }
+ });
+ 
+diff --git a/test/clipins.test.mjs b/test/clipins.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..67515b3a38343d5b6dd2ac2125dcfe67ccd8d6a5
+--- /dev/null
++++ b/test/clipins.test.mjs
+@@ -0,0 +1,83 @@
++// ROOT-LEDGER-REVIEW: the CLI contract-pins file must name the book's CURRENT ledger (rev16d 0xB1783B61…) and the ORIGINAL
++// vault, with reviewed code, before any CLI step; and every CLI transaction must target its step's contract. No network.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { spawnSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { evalCliPins, checkCliTargets, parsePins, REVIEWED, BOOK, RETIRED_LEDGER, MODIFIED_VAULT_V2, LEASE_RESERVE } from "../driver/clipins.mjs";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const CANARY = fs.readFileSync(path.join(ROOT, "cli-pins/canary-contract-pins.json"), "utf8");
++const example = JSON.parse(fs.readFileSync(path.join(ROOT, "pins.example.json"), "utf8"));
++const ZERO = "0x0000000000000000000000000000000000000000";
++const goodFacts = () => ({
++  codeHashes: Object.fromEntries(Object.values(REVIEWED).map((r) => [r.address, r.codeHash])),
++  book: { deployments: REVIEWED.deployments.address, registry: REVIEWED.registry.address, appCatalog: REVIEWED.appCatalog.address, sessionVaultFactory: ZERO },
++  vaultBook: BOOK,
++});
++const doc = (contracts) => JSON.stringify({ version: 1, chainId: 8453, contracts });
++// the two files the CLI could be handed instead (values copied from work/enclave contracts/deployments at e762a9c5)
++const TRACKED_BASE = { ...parsePins(CANARY), sessionVaultFactory: "0xec9277a32f98ad3108747fe3da78c35e1bee097b", secretVaultV2: MODIFIED_VAULT_V2 };   // gitleaks:allow (public contract address, not a secret)
++const UNTRACKED_PRODUCTION = { ...parsePins(CANARY), sessionVaultFactory: "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c" };
++
++test("the canary pins file is the pinned bytes and reconciles with the book, the original vault and the reviewed code", () => {
++  assert.equal(createHash("sha256").update(CANARY).digest("hex"), example.cli.pinsSha256);
++  const r = evalCliPins({ pinsText: CANARY, facts: goodFacts() });
++  assert.deepEqual(r.reasons, []); assert.equal(r.ok, true);
++  assert.equal(r.pins.deployments, "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b");
++  assert.equal(r.pins.secretVaultV2, "0xe48699b8401564aace7a814ae4569b67a3f7eef5");   // gitleaks:allow (public contract address, not a secret)
++});
++
++test("refused: the CLI's retired baked ledger, the modified vault, other pin files, book or code mismatches", () => {
++  const P = parsePins(CANARY);
++  const cases = [
++    [doc({ ...P, deployments: RETIRED_LEDGER }), goodFacts(), /RETIRED ledger/],
++    [doc(TRACKED_BASE), goodFacts(), /MODIFIED vault/],
++    [doc(TRACKED_BASE), goodFacts(), /sessionVaultFactory/],
++    [doc(UNTRACKED_PRODUCTION), goodFacts(), /sessionVaultFactory 0x1f5c/],
++    [CANARY, { ...goodFacts(), book: { ...goodFacts().book, deployments: RETIRED_LEDGER } }, /book deployments/],
++    [CANARY, { ...goodFacts(), vaultBook: "0xf76a138ceb162aa4bab47d4787793c569759cac8" }, /original vault's book/],
++    [CANARY, { ...goodFacts(), codeHashes: { ...goodFacts().codeHashes, [REVIEWED.deployments.address]: "0x" + "00".repeat(32) } }, /deployments runtime code hash/],
++    [CANARY, { ...goodFacts(), codeHashes: { ...goodFacts().codeHashes, [REVIEWED.usdc.address]: undefined } }, /USDC/],
++    [CANARY, { ...goodFacts(), book: { ...goodFacts().book, sessionVaultFactory: undefined } }, /sessionVaultFactory unread/],
++    [CANARY, { ...goodFacts(), book: { ...goodFacts().book, appCatalog: "0x" + "12".repeat(20) } }, /appCatalog/],
++    [doc({ ...P, unknown: ZERO }), goodFacts(), /unknown contract pin/],
++    [JSON.stringify({ version: 1, chainId: 1, contracts: P }), goodFacts(), /invalid contract pin document/],
++  ];
++  for (const [text, facts, re] of cases) {
++    const r = evalCliPins({ pinsText: text, facts });
++    assert.equal(r.ok, false, String(re)); assert.match(r.reasons.join("; "), re);
++  }
++});
++
++test("every CLI transaction must target its step's contract: the pinned ledger, or the lease-gas reserve for lease steps", () => {
++  const pins = parsePins(CANARY);
++  assert.deepEqual(checkCliTargets({ stepId: "D1.create", txs: [{ to: REVIEWED.deployments.address }, { to: REVIEWED.deployments.address }], pins }), []);
++  assert.deepEqual(checkCliTargets({ stepId: "D1.leasegas", txs: [{ to: LEASE_RESERVE }, { to: LEASE_RESERVE.toUpperCase().replace("0X", "0x") }], pins }), []);
++  assert.match(checkCliTargets({ stepId: "D1.create", txs: [{ to: RETIRED_LEDGER }], pins }).join(), /only 0xb1783b61/);
++  assert.match(checkCliTargets({ stepId: "D1.stop", txs: [{ to: LEASE_RESERVE }], pins }).join(), /not|only/);
++  assert.match(checkCliTargets({ stepId: "D2.leasegas", txs: [{ to: REVIEWED.deployments.address }], pins }).join(), /only 0x12a3/);
++});
++
++test("proposal patch (not applied to work/enclave): applies cleanly to the reviewed cli/enclave.mjs bytes and parses", { timeout: 30000 }, () => {
++  const src = "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/cli/enclave.mjs";
++  const bytes = fs.readFileSync(src);
++  assert.equal(createHash("sha256").update(bytes).digest("hex"), "f83cab274f9cd0fcac16182363ed4927c2495f5b82bafacbed70e896b8f0ca8e",
++    "work/enclave cli/enclave.mjs moved since the review: re-derive the proposal");
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "canary-patch-"));
++  try {
++    fs.mkdirSync(path.join(dir, "a/cli"), { recursive: true });
++    fs.writeFileSync(path.join(dir, "a/cli/enclave.mjs"), bytes);
++    const r = spawnSync("patch", ["-p1", "-d", path.join(dir, "a"), "-i", path.join(ROOT, "proposals/cli-ledger-write-guard.patch")], { encoding: "utf8", timeout: 20000 });
++    assert.equal(r.status, 0, r.stdout + r.stderr);
++    const patched = fs.readFileSync(path.join(dir, "a/cli/enclave.mjs"), "utf8");
++    assert.equal((patched.match(/ledgerWriteAllowed\(/g) || []).length, 2);
++    assert.match(patched, /RETIRED_LEDGERS = \["0xf9e71385c5cb49844f2457ba6567de0742f8b89a"\]/);
++    const c = spawnSync(process.execPath, ["--check", path.join(dir, "a/cli/enclave.mjs")], { encoding: "utf8", timeout: 20000 });
++    assert.equal(c.status, 0, c.stderr);
++  } finally { fs.rmSync(dir, { recursive: true }); }
++});
+diff --git a/test/mutants.sh b/test/mutants.sh
+index fe18cec14650785a8ffa235cd19c4df4e05dc7e8..938479a699aeae8a0af24ec5326b825c1ff54555 100755
+--- a/test/mutants.sh
++++ b/test/mutants.sh
+@@ -24,5 +24,8 @@
+ mutant "budget forgets the cleanup reserve" driver/budget.mjs 'const owed = steps.filter((s) => s.spend?.cleanup' 'const owed = steps.filter((s) => false' test/sender.test.mjs
+ mutant "plan ignores the aggregate budget" driver/plan.mjs 'if (!budget.fits) for' 'if (false) for' test/plan.test.mjs
+ mutant "S0.root accepts a known-lacking control image" driver/cli.mjs '!KNOWN_LACKING_CONTROL_MANIFESTS.includes(rr.controlManifestSha256)' 'true' test/cli.test.mjs
++mutant "CLI pins: book ledger not compared" driver/clipins.mjs 'for (const k of ["deployments", "registry"]) if (lc(facts.book?.[k]) !== pins[k])' 'for (const k of []) if (lc(facts.book?.[k]) !== pins[k])' test/clipins.test.mjs
++mutant "CLI pins: retired ledger accepted" driver/clipins.mjs 'if (Object.values(pins).includes(RETIRED_LEDGER))' 'if (false)' test/clipins.test.mjs
++mutant "CLI targets not checked" driver/clipins.mjs 'const bad = txs.filter((t) => !allowed.includes(lc(t.to)));' 'const bad = [];' test/clipins.test.mjs
+ mutant "relay getMeta leaks values" driver/relay.mjs 'const out = { status: r.status, error: r.body?.error ?? null, rev: r.body?.rev ?? null, names };' 'const out = { status: r.status, error: r.body?.error ?? null, rev: r.body?.rev ?? null, names, env };' test/net.test.mjs
+ echo "== MUTANTS rc=$rc"; exit $rc
+diff --git a/test/plan.test.mjs b/test/plan.test.mjs
+index 082f22d7d7552cb5e7d57e8e4cef1239fd39fd56..ce9faabb079a2e8f1240c9dff253f832f4ee357c 100644
+--- a/test/plan.test.mjs
++++ b/test/plan.test.mjs
+@@ -16,7 +16,7 @@
+   mut(p); return p; };
+ const everything = (p) => { p.cases = { disabled: [] }; p.budget.totalWei = "1000000000000000"; };
+ const allObs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+-  "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "x" }]));
++  "recipient.billing", "relay.v2aware", "hw.oneGuest", "cli.pins", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "x" }]));
+ const C1 = "0x" + "c1".repeat(32), C2 = "0x" + "c2".repeat(32);
+ const st = (plan, id) => plan.steps.find((s) => s.id === id);
+ 
+@@ -63,6 +63,9 @@
+   assert.equal(st(plan, "D1.create").status, "blocked");
+   plan = buildPlan(p, { ...allObs, "fees.bounded": undefined });
+   assert.match(st(plan, "C1.create").blockedBy.join(), /fees.bounded/);
++  plan = buildPlan(p, { ...allObs, "cli.pins": undefined });
++  for (const id of ["D1.create", "D1.leasegas", "D1.stop", "D2.create", "D2.leasegas", "D2.stop"]) assert.match(st(plan, id).blockedBy.join(), /cli.pins/, id);
++  assert.match(st(plan, "D1.create").command, /--independent .*--contract-pins cli-pins\/canary-contract-pins\.json .*--max-fee-gwei 0\.012/);
+   plan = buildPlan(p, { ...allObs, "deploy.C1": undefined, "deploy.C2": undefined });
+   assert.equal(st(plan, "D1.create").status, "ready");
+   assert.equal(st(plan, "D1.leasegas").status, "ready");
+diff --git a/test/prepare.test.mjs b/test/prepare.test.mjs
+index 0079bf57dac3872268fc122dc3cf973c9db1010f..2318f2e79efac9d7a19fa86ae1f12078759d33e3 100644
+--- a/test/prepare.test.mjs
++++ b/test/prepare.test.mjs
+@@ -17,7 +17,7 @@
+ const { source, ...image } = ex.imageCandidateFromChain;
+ const pins = { ...ex, image, owner: { ...ex.owner, reuseScope: { statedBy: "root", at: "t", onlyPlanCreatedDeployments: true } } };
+ const obs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+-  "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "x" }]));
++  "recipient.billing", "relay.v2aware", "hw.oneGuest", "cli.pins", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "x" }]));
+ const C1 = "0x" + "c1".repeat(32);
+ const plan = buildPlan(pins, obs, { C1, C2: "0x" + "c2".repeat(32) });
+ const step = (id) => plan.steps.find((s) => s.id === id);
+diff --git a/tools/budget-matrix.mjs b/tools/budget-matrix.mjs
+index 3c2685f92d003b2965bcd7c6ecff51b97b8125f0..1fe971faee55b3e29e87c8d6657b259535ed39f9 100644
+--- a/tools/budget-matrix.mjs
++++ b/tools/budget-matrix.mjs
+@@ -11,7 +11,7 @@
+ const { source, ...image } = ex.imageCandidateFromChain;
+ const C1 = "0x" + "c1".repeat(32), C2 = "0x" + "c2".repeat(32);
+ const obs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+-  "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "calc" }]));
++  "recipient.billing", "relay.v2aware", "hw.oneGuest", "cli.pins", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "calc" }]));
+ 
+ // CLI operations re-derived from GAS assumptions at the fee cap (assumptions, not receipts, except create 411747 on Sep-24):
+ //   create operation = Deployments.create (cap 600k; Sep-24 gasUsed 411747) + fundWithAuthorization (cap 200k): 2 txs

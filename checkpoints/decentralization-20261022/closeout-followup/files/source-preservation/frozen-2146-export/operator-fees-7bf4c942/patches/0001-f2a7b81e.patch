@@ -1,0 +1,1358 @@
+From f2a7b81eded88c6b799ece5f5caadee29ea62447 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 13:19:24 -0700
+Subject: [PATCH] metal0 operator proposeOwner: prepare (default) and
+ journaled, explicit send for root
+
+One transaction only: EnclaveHostOwnership(0xbbd885d3).proposeOwner(metal0,
+Enclave wallet 0x0b2d) from the registry operator 0xc9d0, exactly tx 1 of the
+public plan metal0-enrollment-unsigned-20261023.json (sha256 9f6eba17).
+Two RPCs at one agreed block: ownership code hash and registry; metal0's entry
+(active, operator, payout, endpoint); authority zero/zero; the operator's
+EXACT EIP-7702 delegation to the reviewed executor runtime; nonce settled;
+simulation; gas <= 150000, maxFee <= 0.1 gwei, gas*maxFee + Base L1 upper
+bound <= 0.000005 ETH; balance at send.
+The key is read only by --send, after fresh checks. The signed bytes are
+journaled 0600 and fsynced before broadcast. Resume never signs and re-sends
+only the same bytes; a nonce conflict is final. Verification needs agreeing
+receipts, 2 confirmations, an exact tx and the pending owner.
+Tests: a two-RPC fake chain with a test key, 15/15. All 9 safety mutants fail
+the suite. Nothing was signed or sent.
+---
+ .gitignore                                    |   5 +
+ README.md                                     | 139 +++++++
+ bin/operator-propose.mjs                      |  41 ++
+ lib/proposer.mjs                              | 361 ++++++++++++++++++
+ package-lock.json                             | 217 +++++++++++
+ package.json                                  |   8 +
+ qrun.sh                                       |  10 +
+ run-tests.sh                                  |   5 +
+ .../metal0-enrollment-unsigned-20261023.json  | 101 +++++
+ test/helpers/fake-base.mjs                    | 101 +++++
+ test/proposer.test.mjs                        | 259 +++++++++++++
+ 11 files changed, 1247 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 bin/operator-propose.mjs
+ create mode 100644 lib/proposer.mjs
+ create mode 100644 package-lock.json
+ create mode 100644 package.json
+ create mode 100755 qrun.sh
+ create mode 100755 run-tests.sh
+ create mode 100644 test/fixtures/metal0-enrollment-unsigned-20261023.json
+ create mode 100644 test/helpers/fake-base.mjs
+ create mode 100644 test/proposer.test.mjs
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..bde247a6a65d5e877660d4ae48d463aa61363c29
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,5 @@
++node_modules/
++journal/
++prepared/
++logs/
++ROOT-*.txt
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..8374f4886f210374d153184ecc2db791cdf93a91
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,139 @@
++# metal0 operator `proposeOwner` (root executes; nothing here was signed or sent)
++
++**What it does.** One transaction, from the public simulated plan
++`custody-v2-live-20261023/evidence/metal0-enrollment-unsigned-20261023.json` (sha256 `9f6eba17…`, tx 1):
++
++`EnclaveHostOwnership(0xbbd885d3…).proposeOwner(metal0 0x4dde6d1b…, Enclave wallet 0x0b2d009c…)`
++
++- **From:** the metal0 registry operator `0xc9d0835c…`.
++- **Value 0.** The calldata is exactly the plan's `0x03ba33a4…`.
++- **Not handled here:** `acceptOwner`, which is the Enclave admin wallet's (the wallet worker does it).
++- **No arbitrary inputs:** no option or config can change the target, function, arguments, value or caps. The library
++  refuses a config that differs from `PRODUCTION`; only the operator address, the RPC URLs and the polling may differ,
++  and those for tests only.
++- **Untouched:** contracts, the v2 committee/policy and the book.
++
++**Pinned (checked at ONE block that both RPCs agree on).** `mainnet.base.org` and `base.public.blockpi.network`; any
++disagreement or RPC error refuses, and an error is never read as "absent".
++- Chain 8453.
++- `EnclaveHostOwnership` runtime keccak `0xe38a0e16…`, and its `registry()` = `0x868eb7fc…` (registry code non-empty,
++  hash recorded and re-checked at send).
++- metal0's schema-4 entry:
++  - active;
++  - operator = `0xc9d0…`;
++  - payoutWallet = `0x0b2d…` (owner and vault seat flag agree);
++  - endpoint `https://api.enclave.host/t/metal0`.
++- `authority(metal0)`:
++  - owner 0 and pending 0 → ready;
++  - pending `0x0b2d` with this tool's verified journal → done;
++  - owner `0x0b2d` → already accepted;
++  - anything else refuses.
++- **The operator's code is EXACTLY the existing EIP-7702 delegation** `0xef0100‖0x8900baca…` (keccak `0xe2f1317f…`). The
++  target's runtime keccak is `0xdd893cd4…` (`work/lease-enrollment-signing/trust.mjs`). A plain EOA, another target or
++  other code refuses. The transaction never re-delegates (type 2, no authorization list).
++- Nonce: agreed-block = latest = pending on both RPCs.
++- The exact call simulates successfully; `eth_estimateGas` from both.
++- **Fees and caps:**
++  - gas = max estimate × 1.25 ≤ **150000**;
++  - maxFee = 2 × base + max tip ≤ **0.1 gwei**;
++  - Base L1 fee from `GasPriceOracle.getL1FeeUpperBound(size)`;
++  - worst case gas×maxFee + L1 ≤ **0.000005 ETH**;
++  - balance ≥ worst case (checked at send; prepare reports the exact funding gap).
++
++## Commands (from this directory; `npm ci --offline --ignore-scripts` first)
++
++```sh
++# 1. prepare (default). Chain reads only; NO key. Writes prepared/<planHash>.json (public) and prepared/current.
++node bin/operator-propose.mjs
++# -> {"status":"prepared","planHash":"0x…","plan":{… "observed":{… "balanceSufficient":…,"fundingNeededWei":…}}}
++#    Review plan.tx (nonce, gas, fees) and observed. If balanceSufficient is false, fund first (the approved
++#    0.000005 ETH), then prepare AGAIN: a plan is valid for 1 h and only while its nonce and fees still hold.
++
++# 2. send (explicit). It re-runs every check fresh. Only then does it read registryKey from
++#    /home/steven/Projects/enclave/metal/config.json, derive the address (must be 0xc9d0…), sign the prepared fields,
++#    journal, broadcast to both RPCs, and verify.
++node bin/operator-propose.mjs --send --plan-hash 0x<prepared/current> --broadcast-propose-owner
++
++# 3. after an "unknown" outcome, a timeout or a crash. NEVER signs; reads the journal's bytes.
++node bin/operator-propose.mjs --resume --plan-hash 0x<h>               # checks the chain only
++node bin/operator-propose.mjs --resume --plan-hash 0x<h> --rebroadcast # re-sends the SAME bytes, only while the nonce
++                                                                       # is unused on both RPCs
++node bin/operator-propose.mjs --status --plan-hash 0x<h>               # journal, public fields
++```
++
++Exit codes:
++- 0: prepared, verified, accepted, proposed, or a status read;
++- 2: refused (`{"refused":code,"message"}`);
++- 3: unknown, pending, conflict or failed;
++- 64: usage;
++- 1: other error.
++
++**Order with the funding.** Prepare once to read the exact `fundingNeededWei` and fee. Fund. Prepare again. Send within
++the hour.
++
++## Journal and outcome rules
++- `journal/` is 0700; `journal/<planHash>.json` is 0600. It holds the signed raw transaction and its hash, written to a
++  temp file, fsynced, linked exclusively and dir-fsynced BEFORE any broadcast. If the write fails, nothing is broadcast.
++- Once any journal record exists, `--send` refuses: this tool never signs a second transaction. Unknown outcomes,
++  timeouts, rejections and crashes go through `--resume`, which uses only the journaled bytes.
++- `conflict` means the nonce was consumed by another transaction and this one never landed. It is final: nothing is
++  re-signed, so root decides. There is no automatic replacement or fee bump.
++- **Verified requires all of:**
++  - both RPCs return the receipt with the same block hash and status 1;
++  - at least 2 confirmations on both;
++  - the mined transaction's from, to, value 0, input, nonce and block are exact;
++  - then, at an agreed block at or after it, `pendingOwner = 0x0b2d` with owner 0, or owner `0x0b2d`.
++- **Output:** the plan hash, tx hash, broadcast results and receipt summary only. The key is never printed, and a
++  key-read error is replaced by a generic refusal. The raw signed transaction exists only in the private journal.
++  `prepared/` and `journal/` are gitignored.
++
++## Tests (`node --test test/proposer.test.mjs`; all through `work/claude-test-queue.py`, 256 MiB)
++
++**Setup:** a two-RPC fake of Base (`test/helpers/fake-base.mjs`).
++- It decodes signed transactions, recovers the signer and applies `proposeOwner` as the contract does.
++- Tests use a fresh test key and a temp directory; no network, and the production key file is never read.
++- The fake cannot hold the deployed ownership and executor bytecode, so a test-only `codeHashOf` seam maps the fake's
++  code to the pinned hashes. The CLI never passes it, and the 7702 designator is always hashed with keccak256.
++
++**Results:** 15/15, peak 196-205 MiB.
++
++**Coverage:**
++- the constants vs the public plan;
++- un-configurable targets;
++- wrong ownership code, registry, host entry (inactive, operator, payout, endpoint, registry code);
++- authority (another owner, another pending, unverified pending, already accepted);
++- operator code (delegation removed, re-delegated, other code, executor runtime changed);
++- RPC disagreement and errors;
++- fee, gas, L1 and total caps;
++- unsettled nonce;
++- send refusals before any key read (flag, wrong or non-current hash, stale or tampered plan, moved nonce, fees, balance,
++  authority);
++- a wrong key;
++- the journal written before broadcast (mode 0600/0700, same bytes to both RPCs) and verified, never twice;
++- a journal write failure;
++- a crash, then restart and rebroadcast of the same bytes;
++- an unknown outcome that landed;
++- a rejection, then a nonce conflict;
++- rebroadcast refused while the RPCs disagree on the nonce;
++- receipt disagreement, confirmations and a revert;
++- CLI flags.
++
++**Mutants (one change each in `lib/proposer.mjs`; the suite must fail; all 9 do):**
++- broadcast before journal;
++- sign twice;
++- no conflict detection;
++- unsettled nonce accepted;
++- one RPC wins;
++- rebroadcast at any nonce;
++- key read before checks;
++- any operator code;
++- any executor code.
++
++## Limits
++- **Fresh state is at the agreed block** (latest − 2) and the RPCs' "latest/pending". A transaction from another holder of
++  the operator key between the check and the broadcast is caught only as `conflict` afterwards.
++- **The 7702 delegation stays executable.** Root says normal outgoing EOA signatures remain valid, and this tool does
++  not change the delegation. Nothing here inspects the executor's storage.
++- **The fake is not the chain.** These tests prove the tool's logic, not the live contracts. Root's preflight and the
++  plan's 2-RPC simulation are the live evidence.
++- `acceptOwner` (the admin wallet), the funding transaction and the canary custodian are outside this tool.
+diff --git a/bin/operator-propose.mjs b/bin/operator-propose.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4b204177cecb2de1ef501bfc7012dc635137fff7
+--- /dev/null
++++ b/bin/operator-propose.mjs
+@@ -0,0 +1,41 @@
++#!/usr/bin/env node
++// metal0 operator: EnclaveHostOwnership.proposeOwner(metal0, Enclave wallet), lib/proposer.mjs. ROOT runs this.
++//   node bin/operator-propose.mjs [--prepare]                                      (default; reads chain only, no key)
++//   node bin/operator-propose.mjs --send --plan-hash 0x<current> --broadcast-propose-owner
++//   node bin/operator-propose.mjs --resume --plan-hash 0x<h> [--rebroadcast]       (never signs; same bytes only)
++//   node bin/operator-propose.mjs --status --plan-hash 0x<h>                       (journal, public fields only)
++// Output is public JSON: plan hash, tx hash, receipt summary. The key and the signed bytes are never printed.
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { createProposer, PRODUCTION, Refusal } from "../lib/proposer.mjs";
++
++const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const PLAN_FILE = path.resolve(HERE, "../custody-v2-live-20261023/evidence/metal0-enrollment-unsigned-20261023.json");
++const argv = process.argv.slice(2);
++const flag = (f) => argv.includes(f);
++const val = (f) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : undefined; };
++const KNOWN = new Set(["--prepare", "--send", "--resume", "--status", "--plan-hash", "--broadcast-propose-owner", "--rebroadcast", "--plan-file", "--dir"]);
++for (let i = 0; i < argv.length; i++) {
++  if (!KNOWN.has(argv[i])) { console.error(JSON.stringify({ refused: "usage", message: `unknown argument ${argv[i]}` })); process.exit(64); }
++  if (["--plan-hash", "--plan-file", "--dir"].includes(argv[i])) i++;
++}
++const modes = ["--send", "--resume", "--status"].filter(flag);
++if (modes.length > 1) { console.error(JSON.stringify({ refused: "usage", message: "one mode at a time" })); process.exit(64); }
++const dir = path.resolve(val("--dir") || HERE);
++// the operator key: read ONLY by --send, after every fresh check, immediately before signing
++const readKey = async () => JSON.parse(fs.readFileSync(PRODUCTION.keyFile, "utf8")).registryKey;
++const p = createProposer({ dir, readKey });
++const planText = () => fs.readFileSync(path.resolve(val("--plan-file") || PLAN_FILE), "utf8");
++try {
++  let out;
++  if (flag("--send")) out = await p.send({ planHash: val("--plan-hash"), confirm: flag("--broadcast-propose-owner"), planText: planText() });
++  else if (flag("--resume")) out = await p.resume({ planHash: val("--plan-hash"), rebroadcast: flag("--rebroadcast") });
++  else if (flag("--status")) out = p.status(val("--plan-hash"));
++  else out = await p.prepare({ planText: planText() });
++  console.log(JSON.stringify(out, (k, v) => (typeof v === "bigint" ? v.toString() : v), 1));
++  process.exit(["prepared", "verified", "accepted", "proposed", "signed", "broadcast"].includes(out.status) || flag("--status") ? 0 : 3);
++} catch (e) {
++  console.error(JSON.stringify(e instanceof Refusal ? { refused: e.code, message: e.message } : { error: String(e.message).slice(0, 300) }));
++  process.exit(e instanceof Refusal ? 2 : 1);
++}
+diff --git a/lib/proposer.mjs b/lib/proposer.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..eb15314e3434307667d7dc12bdfa8aa099e1092d
+--- /dev/null
++++ b/lib/proposer.mjs
+@@ -0,0 +1,361 @@
++// The metal0 registry operator's ONE transaction: EnclaveHostOwnership(0xbbd885…).proposeOwner(metal0, Enclave wallet).
++// Exactly the public, simulated plan custody-v2-live-20261023/evidence/metal0-enrollment-unsigned-20261023.json (tx 1;
++// tx 2, acceptOwner, is the Enclave admin wallet's and is NOT handled here). No other target, function, argument or value.
++//
++//   prepare (default): two RPCs, one agreed block. Check the ownership code hash, its registry, the host entry (active,
++//     operator, payout, endpoint), the authority (owner and pending zero), the nonce (latest == pending on both), the
++//     simulation, gas, fees, the Base L1 fee upper bound, the caps and the balance. Writes a public prepared plan
++//     (no key is read).
++//   send: requires the CURRENT prepared plan's hash and an explicit flag. It re-runs every check fresh, then reads the
++//     operator key through a callback, derives and compares the address, and signs exactly the prepared fields. The
++//     signed bytes and hash go to a private 0600 journal (fsynced, exclusive) BEFORE any broadcast. Then it broadcasts
++//     and verifies the receipt.
++//   resume: never signs. With the journal's bytes it checks the chain; only with --rebroadcast does it re-send the SAME
++//     bytes, and only while the nonce is still unused.
++// Every chain fact needs both RPCs to agree; an RPC error is an error, never "absent".
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++import { encodeFunctionData, decodeFunctionResult, encodeAbiParameters, keccak256, serializeTransaction, parseTransaction, getAddress } from "viem";
++import { privateKeyToAccount } from "viem/accounts";
++
++const lc = (a) => String(a).toLowerCase();
++const sha256 = (b) => createHash("sha256").update(b).digest("hex");
++const hexN = (n) => "0x" + BigInt(n).toString(16);
++
++export const PLAN_FILE_SHA256 = "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82";
++export const PRODUCTION = Object.freeze({
++  chainId: 8453,
++  ownership: "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  ownershipCodeHash: "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++  registry: "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++  hostId: "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  hostEndpoint: "https://api.enclave.host/t/metal0",
++  operator: "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  // the operator is an EIP-7702-delegated EOA: the lease executor's delegation must stay EXACTLY as it is (root
++  // 2026-10-23; work/lease-enrollment-signing/trust.mjs executor/executorRuntimeHash/delegationCodeHash). A plain
++  // EOA, another target or any other code refuses; this transaction neither touches nor re-delegates it.
++  operatorDelegation: "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
++  operatorDelegationCodeHash: "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
++  delegationTarget: "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++  delegationTargetCodeHash: "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2",
++  proposed: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",   // the Enclave admin wallet (also metal0's payout wallet)
++  data: "0x03ba33a44dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61",
++  oracle: "0x420000000000000000000000000000000000000f",       // Base GasPriceOracle predeploy
++  rpcs: Object.freeze(["https://mainnet.base.org", "https://base.public.blockpi.network/v1/rpc/public"]),
++  keyFile: "/home/steven/Projects/enclave/metal/config.json",  // field registryKey; read only by --send, at runtime
++  caps: Object.freeze({ gas: 150_000n, maxFeePerGas: 100_000_000n /* 0.1 gwei */, totalWei: 5_000_000_000_000n /* 0.000005 ETH */ }),
++  confirmations: 2, readDepth: 2, maxPlanAgeSec: 3600, receiptPolls: 60, pollMs: 4000,
++});
++
++const OWNERSHIP_ABI = [
++  { type: "function", name: "proposeOwner", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }, { type: "address" }], outputs: [] },
++  { type: "function", name: "registry", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
++  { type: "function", name: "authority", stateMutability: "view", inputs: [{ type: "bytes32" }],
++    outputs: [{ type: "address", name: "owner" }, { type: "address", name: "pendingOwner" }, { type: "uint64", name: "revision" }, { type: "bytes32", name: "policyHash" }] },
++];
++const REGISTRY_GET = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "bytes" }] }];
++const ORACLE_ABI = [{ type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] }];
++const ZERO = "0x0000000000000000000000000000000000000000";
++
++export class Refusal extends Error { constructor(code, message) { super(message); this.code = code; } }
++const refuse = (code, message) => { throw new Refusal(code, message); };
++
++/** The public plan file must be exactly the reviewed one and carry exactly these constants. */
++export function checkPublicPlan(text) {
++  const cfg = PRODUCTION;
++  if (sha256(text) !== PLAN_FILE_SHA256) refuse("plan_file", "the public enrollment plan file differs from the reviewed one");
++  const p = JSON.parse(text), tx = p.unsigned?.[0], pre = p.preconditions || {};
++  const want = { chainId: cfg.chainId, to: cfg.ownership, value: "0x0", data: cfg.data, from: PRODUCTION.operator };
++  for (const [k, v] of Object.entries(want)) if (lc(tx?.[k]) !== lc(v)) refuse("plan_file", `plan tx1.${k} differs`);
++  for (const [k, v] of [["ownershipContract", cfg.ownership], ["ownershipCodeHash", cfg.ownershipCodeHash], ["ownershipRegistry", cfg.registry],
++    ["hostId", cfg.hostId], ["hostEndpoint", cfg.hostEndpoint], ["hostOperator", PRODUCTION.operator], ["payoutWallet", cfg.proposed]])
++    if (lc(pre[k]) !== lc(v)) refuse("plan_file", `plan precondition ${k} differs`);
++  if (encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "proposeOwner", args: [cfg.hostId, cfg.proposed] }) !== cfg.data) refuse("plan_file", "calldata is not proposeOwner(hostId, proposed)");
++  return p;
++}
++
++// the registry's schema-4 Enclave tuple, read like EnclaveSecretVaultV2._hostOf: head words 3 (operator), 6 (active),
++// 10 (payoutWallet), and the endpoint string at word 0's offset; later schemas append fields
++export function parseRegistryEntry(ret) {
++  const b = Buffer.from(String(ret).slice(2), "hex");
++  const word = (off) => { if (off + 32 > b.length) refuse("host_entry", "registry answer too short"); return BigInt("0x" + b.subarray(off, off + 32).toString("hex")); };
++  const base = Number(word(0));
++  if (base + 11 * 32 > b.length) refuse("host_entry", "registry answer is not a schema-4 entry");
++  const w = (i) => word(base + i * 32);
++  const addr = (v) => { if (v >> 160n) refuse("host_entry", "malformed address"); return "0x" + v.toString(16).padStart(40, "0"); };
++  const active = w(6); if (active > 1n) refuse("host_entry", "malformed active flag");
++  const eo = base + Number(w(0)), len = Number(word(eo));
++  if (eo + 32 + len > b.length) refuse("host_entry", "malformed endpoint");
++  return { endpoint: b.subarray(eo + 32, eo + 32 + len).toString("utf8"), operator: addr(w(3)), active: active === 1n, payoutWallet: addr(w(10)) };
++}
++
++/** JSON-RPC over fetch with a deadline; an error answer throws. */
++export const httpRpc = (timeoutMs = 15_000) => async (url, method, params) => {
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
++    signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
++  if (!r.ok) throw new Error(`${new URL(url).host} ${method}: HTTP ${r.status}`);
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(`${new URL(url).host} ${method}: ${String(j.error.message || j.error.code).slice(0, 200)}`), { rpcError: j.error });
++  return j.result;
++};
++
++// codeHashOf: a TEST seam only (a fake chain cannot produce the deployed ownership/executor bytecode); the CLI never
++// passes it. The operator's 7702 designator is always hashed with keccak256.
++export function createProposer({ cfg = PRODUCTION, rpc = httpRpc(), readKey = null, dir, now = () => Date.now(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), fsImpl = fs,
++                                 codeHashOf = keccak256 } = {}) {
++  if (!dir) throw new Error("a working directory is required");
++  // the transaction's target can never differ from production: only the operator address (tests sign with their own
++  // key), the RPC URLs and the polling cadence may
++  for (const k of ["chainId", "ownership", "ownershipCodeHash", "registry", "hostId", "hostEndpoint", "proposed", "data", "oracle",
++    "operatorDelegation", "operatorDelegationCodeHash", "delegationTarget", "delegationTargetCodeHash"])
++    if (cfg[k] !== PRODUCTION[k]) throw new Error(`config ${k} must be the production value`);
++  for (const k of ["gas", "maxFeePerGas", "totalWei"]) if (cfg.caps?.[k] !== PRODUCTION.caps[k]) throw new Error(`cap ${k} must be the production value`);
++  const rpcs = [...cfg.rpcs];
++  if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
++  const PREP = path.join(dir, "prepared"), JOUR = path.join(dir, "journal");
++  const both = (method, params) => Promise.all(rpcs.map((u) => rpc(u, method, params)));
++  const agree = async (what, method, params) => {
++    const r = await both(method, params);
++    if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) refuse("rpc_disagree", `the RPCs disagree on ${what}`);
++    return r[0];
++  };
++  const unsignedTx = (t) => ({ type: "eip1559", chainId: cfg.chainId, nonce: Number(t.nonce), to: cfg.ownership, value: 0n, data: cfg.data,
++    gas: BigInt(t.gas), maxFeePerGas: BigInt(t.maxFeePerGas), maxPriorityFeePerGas: BigInt(t.maxPriorityFeePerGas) });
++
++  // ---- one agreed block and every fact at it ----
++  async function agreedBlock() {
++    const ids = await both("eth_chainId", []);
++    if (ids.some((x) => Number(x) !== cfg.chainId)) refuse("chain", "an RPC is not on Base");
++    const heads = (await both("eth_blockNumber", [])).map((x) => BigInt(x));
++    const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - BigInt(cfg.readDepth);
++    const blocks = await both("eth_getBlockByNumber", [hexN(n), false]);
++    if (!blocks[0] || !blocks[1] || lc(blocks[0].hash) !== lc(blocks[1].hash)) refuse("rpc_disagree", `the RPCs disagree on block ${n}`);
++    const latest = await both("eth_getBlockByNumber", ["latest", false]);
++    const base = latest.map((b) => BigInt(b.baseFeePerGas)).reduce((a, x) => (x > a ? x : a), BigInt(blocks[0].baseFeePerGas));
++    return { number: n, hash: lc(blocks[0].hash), baseFee: base, timestamp: Number(blocks[0].timestamp) };
++  }
++  async function observe() {
++    const blk = await agreedBlock();
++    const at = { blockHash: blk.hash, requireCanonical: true };
++    const call = (to, data, from) => agree(`eth_call ${to} ${data.slice(0, 10)}`, "eth_call", [{ to, data, ...(from ? { from } : {}) }, at]);
++    const code = await agree("ownership code", "eth_getCode", [cfg.ownership, at]);
++    if (codeHashOf(code) !== cfg.ownershipCodeHash) refuse("ownership_code", "EnclaveHostOwnership code hash differs from the reviewed one");
++    const reg = decodeFunctionResult({ abi: OWNERSHIP_ABI, functionName: "registry", data: await call(cfg.ownership, encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "registry" })) });
++    if (lc(reg) !== lc(cfg.registry)) refuse("ownership_registry", "the ownership extension names another registry");
++    const regCode = await agree("registry code", "eth_getCode", [cfg.registry, at]);
++    if (!regCode || regCode === "0x") refuse("host_entry", "the registry has no code");
++    const host = parseRegistryEntry(await call(cfg.registry, encodeFunctionData({ abi: REGISTRY_GET, functionName: "get", args: [cfg.hostId] })));
++    if (!host.active) refuse("host_entry", "the host entry is not active");
++    if (lc(host.operator) !== lc(cfg.operator)) refuse("host_entry", "the host's registry operator differs");
++    if (lc(host.payoutWallet) !== lc(cfg.proposed)) refuse("host_entry", "the host's payout wallet is not the proposed Enclave wallet (owner and seat flag would disagree)");
++    if (host.endpoint !== cfg.hostEndpoint) refuse("host_entry", "the host endpoint differs");
++    const [owner, pendingOwner, revision, policyHash] = decodeFunctionResult({ abi: OWNERSHIP_ABI, functionName: "authority",
++      data: await call(cfg.ownership, encodeFunctionData({ abi: OWNERSHIP_ABI, functionName: "authority", args: [cfg.hostId] })) });
++    const authority = { owner: lc(owner), pendingOwner: lc(pendingOwner), revision: revision.toString(), policyHash };
++    const nonceAt = BigInt(await agree("nonce at block", "eth_getTransactionCount", [cfg.operator, at]));
++    const nl = (await both("eth_getTransactionCount", [cfg.operator, "latest"])).map(BigInt), np = (await both("eth_getTransactionCount", [cfg.operator, "pending"])).map(BigInt);
++    const balance = BigInt(await agree("balance", "eth_getBalance", [cfg.operator, at]));
++    // the operator's code: exactly the reviewed EIP-7702 delegation to the reviewed executor runtime
++    const opCode = lc(await agree("operator code", "eth_getCode", [cfg.operator, at]));
++    if (opCode !== cfg.operatorDelegation || keccak256(opCode) !== cfg.operatorDelegationCodeHash)
++      refuse("operator", opCode === "0x" ? "the operator has no EIP-7702 delegation (the reviewed lease-executor delegation is missing)" : "the operator's code is not the reviewed EIP-7702 delegation");
++    const target = await agree("delegation target code", "eth_getCode", [cfg.delegationTarget, at]);
++    if (codeHashOf(target) !== cfg.delegationTargetCodeHash) refuse("operator", "the delegation target's runtime differs from the reviewed executor");
++    return { blk, at, call, host, regCodeHash: keccak256(regCode), authority, nonceAt, nonceLatest: nl, noncePending: np, balance,
++             operatorCodeHash: keccak256(opCode), delegationTargetCodeHash: cfg.delegationTargetCodeHash };
++  }
++  function authorityState(o, verifiedJournal) {
++    const a = o.authority, P = lc(cfg.proposed);
++    if (a.owner === P) return "accepted";
++    if (a.owner !== ZERO) refuse("authority", `the host already has another owner ${a.owner}`);
++    if (a.pendingOwner === P) return verifiedJournal ? "proposed" : refuse("authority", "the proposal is already pending, but not from a verified journal entry of this tool");
++    if (a.pendingOwner !== ZERO) refuse("authority", `another owner ${a.pendingOwner} is pending`);
++    return "ready";
++  }
++  function checkNonce(o) {
++    const all = [o.nonceAt, ...o.nonceLatest, ...o.noncePending];
++    if (all.some((x) => x !== all[0])) refuse("nonce", "the operator's nonce is not settled (latest/pending/agreed differ): a transaction may be in flight");
++    return all[0];
++  }
++  async function pricing(o, gasFixed = null, fees = null) {
++    const P = { from: cfg.operator, to: cfg.ownership, data: cfg.data, value: "0x0" };
++    await o.call(cfg.ownership, cfg.data, cfg.operator);                                   // the exact call succeeds (reverts throw)
++    const est = (await both("eth_estimateGas", [P, hexN(o.blk.number)])).map(BigInt);
++    const estMax = est[0] > est[1] ? est[0] : est[1];
++    const gas = gasFixed ?? (estMax * 5n + 3n) / 4n;                                        // +25 %
++    if (estMax > gas) refuse("gas", `the estimate ${estMax} exceeds the prepared gas ${gas}`);
++    if (gas > cfg.caps.gas) refuse("gas", `gas ${gas} exceeds the cap ${cfg.caps.gas}`);
++    let prio, maxFee;
++    if (fees) ({ maxPriorityFeePerGas: prio, maxFeePerGas: maxFee } = { maxPriorityFeePerGas: BigInt(fees.maxPriorityFeePerGas), maxFeePerGas: BigInt(fees.maxFeePerGas) });
++    else {
++      const tips = (await both("eth_maxPriorityFeePerGas", [])).map(BigInt);
++      prio = tips[0] > tips[1] ? tips[0] : tips[1];
++      maxFee = 2n * o.blk.baseFee + prio;
++    }
++    if (maxFee > cfg.caps.maxFeePerGas) refuse("fees", `maxFeePerGas ${maxFee} exceeds the cap ${cfg.caps.maxFeePerGas}`);
++    if (prio > maxFee) refuse("fees", "priority fee above max fee");
++    if (maxFee < o.blk.baseFee + prio) refuse("fees", `the current base fee ${o.blk.baseFee} no longer fits the prepared max fee ${maxFee}: prepare again`);
++    const size = (serializeTransaction(unsignedTx({ nonce: 0, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio })).length - 2) / 2;
++    const l1 = decodeFunctionResult({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound",
++      data: await o.call(cfg.oracle, encodeFunctionData({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound", args: [BigInt(size)] })) });
++    const total = gas * maxFee + l1;
++    if (total > cfg.caps.totalWei) refuse("cap", `the worst-case cost ${total} wei exceeds the cap ${cfg.caps.totalWei}`);
++    return { gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, estimates: est.map(String), l1FeeUpperBound: l1, totalMaxWei: total, unsignedSize: size };
++  }
++
++  // ---- the journal: one private, exclusive, fsynced record per signed transaction ----
++  const ensureDir = (d, mode) => { fsImpl.mkdirSync(d, { recursive: true, mode }); fsImpl.chmodSync(d, mode); };
++  const fsyncDir = (d) => { const fd = fsImpl.openSync(d, "r"); try { fsImpl.fsyncSync(fd); } finally { fsImpl.closeSync(fd); } };
++  const journalFiles = () => (fsImpl.existsSync(JOUR) ? fsImpl.readdirSync(JOUR).filter((f) => /^0x[0-9a-f]{64}\.json$/.test(f)) : []);
++  const readJournal = (planHash) => JSON.parse(fsImpl.readFileSync(path.join(JOUR, `${planHash}.json`), "utf8"));
++  function writeJournal(rec, { create = false } = {}) {
++    ensureDir(JOUR, 0o700);
++    const final = path.join(JOUR, `${rec.planHash}.json`), tmp = path.join(JOUR, `.${rec.planHash}.${process.pid}.${now()}.tmp`);
++    const fd = fsImpl.openSync(tmp, "wx", 0o600);
++    try { fsImpl.writeFileSync(fd, JSON.stringify(rec, null, 1) + "\n"); fsImpl.fsyncSync(fd); } finally { fsImpl.closeSync(fd); }
++    if (create) { try { fsImpl.linkSync(tmp, final); } finally { fsImpl.unlinkSync(tmp); } }   // exclusive: an existing record wins
++    else fsImpl.renameSync(tmp, final);
++    fsyncDir(JOUR);
++  }
++  const verifiedJournal = () => journalFiles().some((f) => { try { return JSON.parse(fsImpl.readFileSync(path.join(JOUR, f), "utf8")).status === "verified"; } catch { return false; } });
++  const publicOf = (rec) => ({ planHash: rec.planHash, txHash: rec.txHash, nonce: rec.nonce, status: rec.status, broadcasts: rec.broadcasts, receipt: rec.receipt || null, note: rec.note || null });
++
++  // ---- prepare ----
++  async function prepare({ planText }) {
++    checkPublicPlan(planText);
++    const o = await observe();
++    const state = authorityState(o, verifiedJournal());
++    if (state !== "ready") return { status: state, authority: o.authority, block: o.blk.number.toString() };
++    const nonce = checkNonce(o);
++    const pr = await pricing(o);
++    const plan = { v: 1, tool: "custody-operator-propose", planFileSha256: PLAN_FILE_SHA256, preparedAt: new Date(now()).toISOString(),
++      tx: { type: "eip1559", chainId: cfg.chainId, from: lc(cfg.operator), to: cfg.ownership, value: "0", data: cfg.data, nonce: nonce.toString(),
++            gas: pr.gas.toString(), maxFeePerGas: pr.maxFeePerGas.toString(), maxPriorityFeePerGas: pr.maxPriorityFeePerGas.toString() },
++      caps: { gas: cfg.caps.gas.toString(), maxFeePerGas: cfg.caps.maxFeePerGas.toString(), totalWei: cfg.caps.totalWei.toString() },
++      observed: { block: o.blk.number.toString(), blockHash: o.blk.hash, rpcs, ownershipCodeHash: cfg.ownershipCodeHash, registry: cfg.registry, registryCodeHash: o.regCodeHash,
++                  host: { id: cfg.hostId, ...o.host }, authority: o.authority,
++                  operatorCode: { delegation: cfg.operatorDelegation, codeHash: o.operatorCodeHash, target: cfg.delegationTarget, targetCodeHash: o.delegationTargetCodeHash }, nonce: nonce.toString(), balanceWei: o.balance.toString(),
++                  estimates: pr.estimates, baseFeePerGas: o.blk.baseFee.toString(), l1FeeUpperBoundWei: pr.l1FeeUpperBound.toString(), totalMaxWei: pr.totalMaxWei.toString(),
++                  balanceSufficient: o.balance >= pr.totalMaxWei, fundingNeededWei: (o.balance >= pr.totalMaxWei ? 0n : pr.totalMaxWei - o.balance).toString() } };
++    const text = JSON.stringify(plan, null, 1) + "\n";
++    const planHash = "0x" + sha256(text);
++    ensureDir(PREP, 0o755);
++    fsImpl.writeFileSync(path.join(PREP, `${planHash}.json`), text, { flag: "wx", mode: 0o644 });
++    fsImpl.writeFileSync(path.join(PREP, "current.tmp"), planHash + "\n"); fsImpl.renameSync(path.join(PREP, "current.tmp"), path.join(PREP, "current"));
++    return { status: "prepared", planHash, plan };
++  }
++
++  function loadCurrentPlan(planHash) {
++    if (!/^0x[0-9a-f]{64}$/.test(String(planHash))) refuse("plan_hash", "--plan-hash must be the prepared plan's 0x sha256");
++    let cur; try { cur = fsImpl.readFileSync(path.join(PREP, "current"), "utf8").trim(); } catch { refuse("plan_hash", "no prepared plan"); }
++    if (cur !== planHash) refuse("plan_hash", "--plan-hash is not the CURRENT prepared plan");
++    const text = fsImpl.readFileSync(path.join(PREP, `${planHash}.json`), "utf8");
++    if ("0x" + sha256(text) !== planHash) refuse("plan_hash", "the prepared plan file does not hash to --plan-hash");
++    const plan = JSON.parse(text);
++    if (plan.planFileSha256 !== PLAN_FILE_SHA256 || lc(plan.tx.to) !== cfg.ownership || plan.tx.data !== cfg.data || plan.tx.value !== "0" || lc(plan.tx.from) !== lc(cfg.operator) || plan.tx.chainId !== cfg.chainId)
++      refuse("plan_hash", "the prepared plan is not this tool's transaction");
++    return plan;
++  }
++
++  // ---- send: fresh checks, key, sign, journal, broadcast, verify ----
++  async function send({ planHash, confirm, planText }) {
++    if (confirm !== true) refuse("confirm", "--send needs the explicit broadcast flag");
++    checkPublicPlan(planText);
++    if (journalFiles().length) refuse("journal", "a signed transaction is already journaled: use --resume (this tool never signs twice)");
++    const plan = loadCurrentPlan(planHash);
++    if (now() - Date.parse(plan.preparedAt) > cfg.maxPlanAgeSec * 1000) refuse("stale_plan", "the prepared plan is older than the allowed age: prepare again");
++    const o = await observe();
++    if (authorityState(o, false) !== "ready") refuse("authority", "the authority is no longer zero/zero");
++    const nonce = checkNonce(o);
++    if (nonce.toString() !== plan.tx.nonce) refuse("nonce", `the operator nonce moved since prepare (${plan.tx.nonce} -> ${nonce})`);
++    if (o.regCodeHash !== plan.observed.registryCodeHash) refuse("host_entry", "the registry code changed since prepare");
++    const pr = await pricing(o, BigInt(plan.tx.gas), plan.tx);
++    if (o.balance < pr.totalMaxWei) refuse("balance", `the operator balance ${o.balance} wei is below the worst-case cost ${pr.totalMaxWei} wei`);
++    // the key: read only now, never logged; the derived address must be the registered operator
++    if (typeof readKey !== "function") refuse("key", "no key reader");
++    let account;
++    try { const k = await readKey(); account = privateKeyToAccount(String(k).startsWith("0x") ? k : "0x" + k); }
++    catch { refuse("key", "the operator key could not be read or is malformed"); }
++    if (lc(account.address) !== lc(cfg.operator)) refuse("key", "the key does not belong to the registered operator");
++    let raw;
++    try { raw = await account.signTransaction(unsignedTx(plan.tx)); } catch { refuse("sign", "signing failed"); }
++    account = null;
++    const txHash = keccak256(raw);
++    const parsed = parseTransaction(raw);
++    if (lc(parsed.to) !== cfg.ownership || parsed.data !== cfg.data || (parsed.value || 0n) !== 0n || String(parsed.nonce) !== plan.tx.nonce) refuse("sign", "the signed transaction differs from the plan");
++    const rec = { planHash, from: lc(cfg.operator), nonce: plan.tx.nonce, txHash, raw, signedAt: new Date(now()).toISOString(), status: "signed", broadcasts: [] };
++    writeJournal(rec, { create: true });                                                     // durable BEFORE any broadcast
++    return await broadcastAndVerify(rec);
++  }
++
++  async function broadcastAndVerify(rec) {
++    for (const u of rpcs) {
++      let r;
++      try { r = { rpc: new URL(u).host, at: new Date(now()).toISOString(), result: lc(await rpc(u, "eth_sendRawTransaction", [rec.raw])) }; }
++      catch (e) { r = { rpc: new URL(u).host, at: new Date(now()).toISOString(), error: String(e.message).slice(0, 200) }; }
++      if (r.result && r.result !== rec.txHash) r.error = `answered another hash ${r.result}`;
++      rec.broadcasts.push(r);
++    }
++    rec.status = "broadcast";
++    writeJournal(rec);
++    return await awaitReceipt(rec);
++  }
++
++  async function awaitReceipt(rec) {
++    for (let i = 0; i < cfg.receiptPolls; i++) {
++      const v = await checkOutcome(rec).catch((e) => ({ status: "unknown", note: e.message }));
++      if (["verified", "failed", "conflict"].includes(v.status)) { Object.assign(rec, v); writeJournal(rec); return publicOf(rec); }
++      rec.note = v.note; await sleep(cfg.pollMs);
++    }
++    rec.status = "unknown"; writeJournal(rec);
++    return publicOf(rec);
++  }
++
++  // the journaled transaction's outcome, from both RPCs; never signs
++  async function checkOutcome(rec) {
++    const rcpts = await both("eth_getTransactionReceipt", [rec.txHash]);
++    if (rcpts.every((r) => !r)) {
++      const latest = (await both("eth_getTransactionCount", [rec.from, "latest"])).map(BigInt);
++      if (latest.every((n) => n > BigInt(rec.nonce))) {
++        const txs = await both("eth_getTransactionByHash", [rec.txHash]);
++        if (txs.every((t) => !t)) return { status: "conflict", note: `nonce ${rec.nonce} was used by another transaction; this one never landed. Stop: nothing is re-signed` };
++      }
++      return { status: "pending", note: "no receipt yet" };
++    }
++    if (!rcpts[0] || !rcpts[1] || lc(rcpts[0].blockHash) !== lc(rcpts[1].blockHash)) return { status: "pending", note: "the RPCs do not yet agree on the receipt" };
++    const r = rcpts[0];
++    const heads = (await both("eth_blockNumber", [])).map(BigInt), bn = BigInt(r.blockNumber);
++    if (heads.some((h) => h - bn < BigInt(cfg.confirmations))) return { status: "pending", note: "awaiting confirmations" };
++    const txs = await both("eth_getTransactionByHash", [rec.txHash]);
++    for (const t of txs) if (!t || lc(t.from) !== rec.from || lc(t.to) !== cfg.ownership || BigInt(t.value) !== 0n || lc(t.input) !== lc(cfg.data) || BigInt(t.nonce) !== BigInt(rec.nonce) || lc(t.blockHash) !== lc(r.blockHash))
++      return { status: "failed", note: "the mined transaction does not match the journal (from/to/value/data/nonce/block)" };
++    if (BigInt(r.status) !== 1n) return { status: "failed", note: "the transaction reverted", receipt: { blockNumber: bn.toString(), blockHash: lc(r.blockHash), status: "reverted" } };
++    const o = await observe();
++    if (o.blk.number < bn) return { status: "pending", note: "the agreed read block is behind the receipt" };
++    const P = lc(cfg.proposed), a = o.authority;
++    if (!((a.owner === ZERO && a.pendingOwner === P) || a.owner === P)) return { status: "failed", note: `after the receipt the authority is owner ${a.owner} pending ${a.pendingOwner}` };
++    return { status: "verified", note: a.owner === P ? "already accepted by the Enclave wallet" : "pending owner = Enclave wallet; next: its acceptOwner",
++             receipt: { blockNumber: bn.toString(), blockHash: lc(r.blockHash), status: "success", gasUsed: BigInt(r.gasUsed).toString(), confirmationsAtCheck: (heads[0] - bn).toString(),
++                        authorityAfter: { ...a, atBlock: o.blk.number.toString() } } };
++  }
++
++  // ---- resume: the journaled bytes only ----
++  async function resume({ planHash, rebroadcast = false }) {
++    let rec; try { rec = readJournal(planHash); } catch { refuse("journal", "no journal record for this plan hash"); }
++    if (keccak256(rec.raw) !== rec.txHash || rec.planHash !== planHash) refuse("journal", "the journal record is inconsistent");
++    if (rec.status === "verified" || rec.status === "conflict") return publicOf(rec);
++    const v = await checkOutcome(rec).catch((e) => ({ status: "unknown", note: e.message }));
++    if (["verified", "failed", "conflict"].includes(v.status)) { Object.assign(rec, v); writeJournal(rec); return publicOf(rec); }
++    if (!rebroadcast) { rec.note = v.note; writeJournal(rec); return { ...publicOf(rec), status: v.status, hint: "not landed yet: --resume --rebroadcast re-sends the SAME bytes" }; }
++    // re-send the same bytes only while the nonce is still unused on both RPCs
++    const latest = (await both("eth_getTransactionCount", [rec.from, "latest"])).map(BigInt);
++    if (latest.some((n) => n !== BigInt(rec.nonce))) refuse("nonce", "the nonce is no longer the journaled one on both RPCs: not re-sending");
++    return await broadcastAndVerify(rec);
++  }
++
++  return { prepare, send, resume, observe, status: (planHash) => publicOf(readJournal(planHash)) };
++}
++
++// test helper: the ABI encodings a fake chain answers with
++export const abi = { OWNERSHIP_ABI, REGISTRY_GET, ORACLE_ABI, encodeAbiParameters, getAddress };
+diff --git a/package-lock.json b/package-lock.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..c0a5d07553367af160d20aca44977fd10255fec9
+--- /dev/null
++++ b/package-lock.json
+@@ -0,0 +1,217 @@
++{
++  "name": "custody-operator-proposal",
++  "lockfileVersion": 3,
++  "requires": true,
++  "packages": {
++    "": {
++      "name": "custody-operator-proposal",
++      "dependencies": {
++        "viem": "2.53.1"
++      }
++    },
++    "node_modules/@adraffy/ens-normalize": {
++      "version": "1.11.1",
++      "resolved": "https://registry.npmjs.org/@adraffy/ens-normalize/-/ens-normalize-1.11.1.tgz",
++      "integrity": "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==",
++      "license": "MIT"
++    },
++    "node_modules/@noble/ciphers": {
++      "version": "1.3.0",
++      "resolved": "https://registry.npmjs.org/@noble/ciphers/-/ciphers-1.3.0.tgz",
++      "integrity": "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==",
++      "license": "MIT",
++      "engines": {
++        "node": "^14.21.3 || >=16"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@noble/curves": {
++      "version": "1.9.1",
++      "resolved": "https://registry.npmjs.org/@noble/curves/-/curves-1.9.1.tgz",
++      "integrity": "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==",
++      "license": "MIT",
++      "dependencies": {
++        "@noble/hashes": "1.8.0"
++      },
++      "engines": {
++        "node": "^14.21.3 || >=16"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@noble/hashes": {
++      "version": "1.8.0",
++      "resolved": "https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz",
++      "integrity": "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==",
++      "license": "MIT",
++      "engines": {
++        "node": "^14.21.3 || >=16"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@scure/base": {
++      "version": "1.2.6",
++      "resolved": "https://registry.npmjs.org/@scure/base/-/base-1.2.6.tgz",
++      "integrity": "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@scure/bip32": {
++      "version": "1.7.0",
++      "resolved": "https://registry.npmjs.org/@scure/bip32/-/bip32-1.7.0.tgz",
++      "integrity": "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==",
++      "license": "MIT",
++      "dependencies": {
++        "@noble/curves": "~1.9.0",
++        "@noble/hashes": "~1.8.0",
++        "@scure/base": "~1.2.5"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/@scure/bip39": {
++      "version": "1.6.0",
++      "resolved": "https://registry.npmjs.org/@scure/bip39/-/bip39-1.6.0.tgz",
++      "integrity": "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==",
++      "license": "MIT",
++      "dependencies": {
++        "@noble/hashes": "~1.8.0",
++        "@scure/base": "~1.2.5"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
++      }
++    },
++    "node_modules/abitype": {
++      "version": "1.2.3",
++      "resolved": "https://registry.npmjs.org/abitype/-/abitype-1.2.3.tgz",
++      "integrity": "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/wevm"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.0.4",
++        "zod": "^3.22.0 || ^4.0.0"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        },
++        "zod": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/eventemitter3": {
++      "version": "5.0.1",
++      "resolved": "https://registry.npmjs.org/eventemitter3/-/eventemitter3-5.0.1.tgz",
++      "integrity": "sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==",
++      "license": "MIT"
++    },
++    "node_modules/isows": {
++      "version": "1.0.7",
++      "resolved": "https://registry.npmjs.org/isows/-/isows-1.0.7.tgz",
++      "integrity": "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/wevm"
++        }
++      ],
++      "license": "MIT",
++      "peerDependencies": {
++        "ws": "*"
++      }
++    },
++    "node_modules/ox": {
++      "version": "0.14.29",
++      "resolved": "https://registry.npmjs.org/ox/-/ox-0.14.29.tgz",
++      "integrity": "sha512-M5j87Ec4V99MQdRct/g09eWXW60g6zhHTUs1lr4deUtrPDnezBdCJTgKd7pxqTpSZBFveV0ALi9jMMuT1qKyNg==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/wevm"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "@adraffy/ens-normalize": "^1.11.0",
++        "@noble/ciphers": "^1.3.0",
++        "@noble/curves": "1.9.1",
++        "@noble/hashes": "^1.8.0",
++        "@scure/bip32": "^1.7.0",
++        "@scure/bip39": "^1.6.0",
++        "abitype": "^1.2.3",
++        "eventemitter3": "5.0.1"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.4.0"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/viem": {
++      "version": "2.53.1",
++      "resolved": "https://registry.npmjs.org/viem/-/viem-2.53.1.tgz",
++      "integrity": "sha512-FhfJ/SW73CVosiyVLmIMVgKDRKYV1AGCLzZoHYvmNayyVff63Qi1ocPCk59LqC/cNw244RbBJjHnmxqXkE7NpA==",
++      "funding": [
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/wevm"
++        }
++      ],
++      "license": "MIT",
++      "dependencies": {
++        "@noble/curves": "1.9.1",
++        "@noble/hashes": "1.8.0",
++        "@scure/bip32": "1.7.0",
++        "@scure/bip39": "1.6.0",
++        "abitype": "1.2.3",
++        "isows": "1.0.7",
++        "ox": "0.14.29",
++        "ws": "8.20.1"
++      },
++      "peerDependencies": {
++        "typescript": ">=5.0.4"
++      },
++      "peerDependenciesMeta": {
++        "typescript": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/ws": {
++      "version": "8.20.1",
++      "resolved": "https://registry.npmjs.org/ws/-/ws-8.20.1.tgz",
++      "integrity": "sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=10.0.0"
++      },
++      "peerDependencies": {
++        "bufferutil": "^4.0.1",
++        "utf-8-validate": ">=5.0.2"
++      },
++      "peerDependenciesMeta": {
++        "bufferutil": {
++          "optional": true
++        },
++        "utf-8-validate": {
++          "optional": true
++        }
++      }
++    }
++  }
++}
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..285f8478a8d08a81ea61b492709660073c2efd46
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,8 @@
++{
++  "name": "custody-operator-proposal",
++  "private": true,
++  "type": "module",
++  "description": "metal0 operator proposeOwner(hostId, Enclave wallet): prepare (default) and explicit, journaled send for root",
++  "scripts": { "test": "node --test --test-concurrency=1 test/proposer.test.mjs" },
++  "dependencies": { "viem": "2.53.1" }
++}
+diff --git a/qrun.sh b/qrun.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..3bb88b436186b3fb43b4da44c57c051beaa9033d
+--- /dev/null
++++ b/qrun.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# qrun.sh <label> <mib> <command...>: ONE queue job, retried only while NOT STARTED (98). logs/<label>.out, logs/<label>.rc
++here=$(cd "$(dirname "$0")" && pwd); label=$1 mib=$2; shift 2
++Q=/home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py
++rm -f "$here/logs/$label.rc"
++for n in $(seq 1 300); do
++  python3 -u "$Q" --mib "$mib" --log "$here/logs/$label.guard.log" -- "$@" > "$here/logs/$label.out" 2>&1; c=$?
++  [ $c != 98 ] && break; sleep 20
++done
++echo "exit $c" > "$here/logs/$label.rc"
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..cb1fa305cad0e9ab02b6099daedbd5a1c470f4e4
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,5 @@
++#!/bin/bash
++# run-tests.sh <label>: the suite, TAP to logs/<label>.tap
++cd "$(dirname "$0")" && mkdir -p logs
++node --test --test-concurrency=1 --test-reporter=tap test/proposer.test.mjs > "logs/$1.tap" 2>&1; rc=$?
++grep -E "^(not )?ok |^# (tests|pass|fail)" "logs/$1.tap"; echo "node exit=$rc"; exit $rc
+diff --git a/test/fixtures/metal0-enrollment-unsigned-20261023.json b/test/fixtures/metal0-enrollment-unsigned-20261023.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4b0e57fa5e4c8d1d322ea40f8f9214cb98ab62d
+--- /dev/null
++++ b/test/fixtures/metal0-enrollment-unsigned-20261023.json
+@@ -0,0 +1,101 @@
++{
++ "purpose": "pre-handover requirement: enroll accepted host-wallet ownership of the live custody seat's host (metal0) by the Enclave wallet; UNSIGNED, simulated only",
++ "block": "52997498",
++ "blockHash": "0x08af09c088faa85f94f4eef83a3a93fda6dfcf8e2c65e59b752384a5599c94aa",
++ "preconditions": {
++  "ownershipContract": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++  "ownershipCodeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
++  "ownershipRegistry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
++  "hostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  "hostEndpoint": "https://api.enclave.host/t/metal0",
++  "hostActive": true,
++  "hostOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++  "payoutIsEnclave": true,
++  "authorityNow": {
++   "owner": "0x0000000000000000000000000000000000000000",
++   "pendingOwner": "0x0000000000000000000000000000000000000000",
++   "revision": "0",
++   "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "pendingSlot": {
++   "slot": "0xa7a71f9446fc945d69f15a1c364bfae2b416217424c03364ed76cccc303285bd",
++   "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
++  },
++  "liveCommittee": {
++   "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
++   "epoch": 1,
++   "t": 1,
++   "W": 1
++  }
++ },
++ "unsigned": [
++  {
++   "chainId": 8453,
++   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "value": "0x0",
++   "data": "0x03ba33a44dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++   "signer": "the metal0 registry operator (the host operator key; it is not the Enclave admin wallet)",
++   "function": "proposeOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, 0x0b2d009c0c9af05b12100d77f3c815fea822ee61)"
++  },
++  {
++   "chainId": 8453,
++   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
++   "value": "0x0",
++   "data": "0x0d85eb494dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++   "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
++   "signer": "the Enclave admin wallet 0x0b2d… (the vault enclaveOwner and address-book owner)",
++   "function": "acceptOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be)",
++   "after": "tx1 is mined"
++  }
++ ],
++ "simulations": {
++  "tx1_from_operator": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "success",
++    "success"
++   ],
++   "agree": "success"
++  },
++  "tx1_from_enclave_wallet_must_revert": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "revert: not active operator",
++    "revert: not active operator"
++   ],
++   "agree": "revert: not active operator"
++  },
++  "tx2_before_tx1_must_revert": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "revert: not proposed owner",
++    "revert: not proposed owner"
++   ],
++   "agree": "revert: not proposed owner"
++  },
++  "tx2_after_tx1_state_override": {
++   "endpoints": [
++    "mainnet.base.org",
++    "base.public.blockpi.network"
++   ],
++   "results": [
++    "success",
++    "success"
++   ],
++   "agree": "success"
++  }
++ },
++ "effect": "after both: authority(hostId).owner = Enclave wallet, revision 1, policyHash 0 (no local host policy). The vault is untouched: its seat flag stays payout-based (payout == Enclave wallet), so owner and seat flag AGREE and the candidate runtime admits the seat into a future epoch. The live epoch, its share, bundle and policy are unaffected by these two transactions.",
++ "notSent": true
++}
+diff --git a/test/helpers/fake-base.mjs b/test/helpers/fake-base.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c7cca222ea8addaee2ee9fe325f82b452924dfe
+--- /dev/null
++++ b/test/helpers/fake-base.mjs
+@@ -0,0 +1,101 @@
++// A two-RPC fake of Base for the proposer: the ownership extension, the schema-4 registry entry, the GasPriceOracle and
++// one operator account. Signed transactions are decoded, their signer recovered, and proposeOwner applied as the
++// contract does (owner zero + active operator -> pendingOwner). Hooks let a test make one RPC lie, fail, race or drop.
++import { encodeFunctionResult, encodeAbiParameters, decodeFunctionData, keccak256, parseTransaction, recoverTransactionAddress, toHex } from "viem";
++import { PRODUCTION, abi } from "../../lib/proposer.mjs";
++
++const lc = (a) => String(a).toLowerCase();
++export const OWNERSHIP_CODE = "0xfeedbeef";   // the fake's code; tests set cfg-compatible hash through codeHashOverride
++export const RPC_A = "https://rpc-a.test", RPC_B = "https://rpc-b.test";
++const ZERO = "0x0000000000000000000000000000000000000000";
++
++export function fakeBase({ operator }) {
++  const s = {
++    head: 1000, baseFee: 5_000_000n, tip: 1_000_000n, blocks: new Map(),
++    ownershipCode: "0x6080", registry: PRODUCTION.registry, registryCode: "0x6060",
++    host: { endpoint: PRODUCTION.hostEndpoint, operator, active: true, payout: PRODUCTION.proposed },
++    authority: { owner: ZERO, pendingOwner: ZERO, revision: 0n, policyHash: "0x" + "00".repeat(32) },
++    nonce: 7, balance: 10n ** 15n, l1Fee: 30_000_000_000n, estimate: 45_000n, operatorCode: PRODUCTION.operatorDelegation, executorCode: "0x5fe1",
++    pool: [], mined: new Map(), sent: [],
++    hooks: {},                        // hooks[method] = (url, params, answer) => answer | throw
++    onBroadcast: null,
++  };
++  const hashOf = (n) => keccak256(toHex(`block-${n}`));
++  const block = (n) => ({ number: toHex(n), hash: hashOf(n), baseFeePerGas: toHex(s.baseFee), timestamp: toHex(1_700_000_000 + n) });
++  function mine(k = 1) {
++    for (let i = 0; i < k; i++) {
++      s.head++;
++      for (const tx of s.pool.splice(0)) {
++        if (tx.nonce !== s.nonce) continue;
++        s.nonce++;
++        const fee = BigInt(tx.gas) * (s.baseFee + s.tip);
++        s.balance -= fee;
++        let ok = false;
++        if (lc(tx.to) === PRODUCTION.ownership && tx.data === PRODUCTION.data && s.authority.owner === ZERO && s.host.active && lc(s.host.operator) === lc(tx.from)) {
++          s.authority = { ...s.authority, pendingOwner: PRODUCTION.proposed }; ok = true;
++        }
++        s.mined.set(tx.hash, { ...tx, blockNumber: s.head, blockHash: hashOf(s.head), status: ok ? 1 : 0, gasUsed: 40_000n });
++      }
++    }
++  }
++  function registryEntry() {
++    return encodeAbiParameters([{ type: "tuple", components: [
++      { type: "string" }, { type: "string" }, { type: "bytes32" }, { type: "address" }, { type: "uint64" }, { type: "uint64" }, { type: "bool" },
++      { type: "uint64" }, { type: "uint64" }, { type: "address" }, { type: "address" }, { type: "uint256" } ] }],     // + one appended field
++      [[s.host.endpoint, "EnclaveHost/enclave", "0x" + "11".repeat(32), s.host.operator, 1n, 2n, s.host.active, 3n, 0n, ZERO, s.host.payout, 9n]]);
++  }
++  function call({ to, data, from }) {
++    const t = lc(to);
++    if (t === PRODUCTION.ownership) {
++      const { functionName, args } = decodeFunctionData({ abi: abi.OWNERSHIP_ABI, data });
++      if (functionName === "registry") return encodeFunctionResult({ abi: abi.OWNERSHIP_ABI, functionName, result: s.registry });
++      if (functionName === "authority") return encodeFunctionResult({ abi: abi.OWNERSHIP_ABI, functionName,
++        result: [s.authority.owner, s.authority.pendingOwner, s.authority.revision, s.authority.policyHash] });
++      if (functionName === "proposeOwner") {
++        if (s.authority.owner === ZERO && !(s.host.active && lc(s.host.operator) === lc(from))) throw Object.assign(new Error("execution reverted: not active operator"), { rpcError: { code: 3 } });
++        if (args[1] === ZERO) throw new Error("execution reverted: owner required");
++        return "0x";
++      }
++    }
++    if (t === PRODUCTION.registry && data.startsWith("0x8eaa6ac0")) return registryEntry();
++    if (t === PRODUCTION.oracle && data.startsWith("0xf1c7a58b")) return encodeAbiParameters([{ type: "uint256" }], [s.l1Fee]);
++    throw new Error(`fake: no contract at ${to}`);
++  }
++  const atKnown = (p) => { if (p && typeof p === "object" && p.blockHash && ![...Array(40)].some((_, i) => hashOf(s.head - i) === p.blockHash)) throw new Error("fake: unknown block hash"); };
++  function answer(url, method, params) {
++    switch (method) {
++      case "eth_chainId": return toHex(8453);
++      case "eth_blockNumber": return toHex(s.head);
++      case "eth_getBlockByNumber": return block(params[0] === "latest" ? s.head : Number(params[0]));
++      case "eth_getCode": atKnown(params[1]);
++        return lc(params[0]) === PRODUCTION.ownership ? s.ownershipCode : lc(params[0]) === PRODUCTION.registry ? s.registryCode : lc(params[0]) === lc(operator) ? s.operatorCode : lc(params[0]) === PRODUCTION.delegationTarget ? s.executorCode : "0x";
++      case "eth_call": atKnown(params[1]); return call(params[0]);
++      case "eth_getTransactionCount": atKnown(params[1]);
++        return toHex(params[1] === "pending" ? s.nonce + s.pool.filter((x) => lc(x.from) === lc(operator)).length : s.nonce);
++      case "eth_getBalance": atKnown(params[1]); return toHex(s.balance);
++      case "eth_estimateGas": call(params[0]); return toHex(s.estimate);
++      case "eth_maxPriorityFeePerGas": return toHex(s.tip);
++      case "eth_sendRawTransaction": return null;     // handled async below
++      case "eth_getTransactionReceipt": { const m = s.mined.get(params[0]); return m ? { blockNumber: toHex(m.blockNumber), blockHash: m.blockHash, status: toHex(m.status), gasUsed: toHex(m.gasUsed) } : null; }
++      case "eth_getTransactionByHash": { const m = s.mined.get(params[0]) || s.pool.find((x) => x.hash === params[0]);
++        return m ? { from: m.from, to: m.to, value: "0x0", input: m.data, nonce: toHex(m.nonce), blockHash: m.blockHash || null } : null; }
++      default: throw new Error(`fake: ${method}`);
++    }
++  }
++  async function rpc(url, method, params) {
++    if (method === "eth_sendRawTransaction") {
++      if (s.onBroadcast) await s.onBroadcast(url, params[0]);
++      const raw = params[0], tx = parseTransaction(raw), from = await recoverTransactionAddress({ serializedTransaction: raw }), hash = keccak256(raw);
++      s.sent.push({ url, raw, hash });
++      if (Number(tx.chainId) !== 8453) throw new Error("wrong chain");
++      if (s.mined.has(hash) || s.pool.some((x) => x.hash === hash)) { if (s.hooks.eth_sendRawTransaction) return s.hooks.eth_sendRawTransaction(url, params, hash); return hash; }
++      if (tx.nonce !== s.nonce) throw new Error("nonce too low");
++      s.pool.push({ hash, from: lc(from), to: tx.to, data: tx.data, nonce: tx.nonce, gas: tx.gas });
++      return s.hooks.eth_sendRawTransaction ? s.hooks.eth_sendRawTransaction(url, params, hash) : hash;
++    }
++    let a = answer(url, method, params);
++    if (s.hooks[method]) a = s.hooks[method](url, params, a);
++    return JSON.parse(JSON.stringify(a ?? null, (k, v) => (typeof v === "bigint" ? toHex(v) : v)));
++  }
++  return { s, rpc, mine, RPCS: [RPC_A, RPC_B] };
++}
+diff --git a/test/proposer.test.mjs b/test/proposer.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6fed7e6aa034ee6c67667b976dace9ed68d9ced4
+--- /dev/null
++++ b/test/proposer.test.mjs
+@@ -0,0 +1,259 @@
++// lib/proposer.mjs against a two-RPC fake of Base (test/helpers/fake-base.mjs) with a TEST key: authority, code, fees,
++// caps, nonce races, the journal-before-broadcast barrier, crash/unknown outcomes, rejection, restart with the same
++// bytes, and receipt verification. No network, no real key: the production key file is never read here.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawnSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { keccak256 } from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import { createProposer, checkPublicPlan, PRODUCTION } from "../lib/proposer.mjs";
++import { fakeBase, RPC_B } from "./helpers/fake-base.mjs";
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const PLAN = fs.readFileSync(path.join(HERE, "fixtures/metal0-enrollment-unsigned-20261023.json"), "utf8");
++
++function world({ polls = 6, mineOnPoll = true } = {}) {
++  const key = generatePrivateKey(), acct = privateKeyToAccount(key);
++  const f = fakeBase({ operator: acct.address.toLowerCase() });
++  const deployed = f.s.ownershipCode, executor = f.s.executorCode;   // the fake's "deployed" bytecode stands for the reviewed hashes
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "op-propose-"));
++  let keyReads = 0, clock = Date.now();
++  const cfg = { ...PRODUCTION, operator: acct.address.toLowerCase(), rpcs: f.RPCS, receiptPolls: polls, pollMs: 0 };
++  const mk = (over = {}) => createProposer({ cfg, rpc: f.rpc, dir, now: () => clock, sleep: async () => { if (mineOnPoll) f.mine(1); },
++    readKey: async () => { keyReads++; return key; }, codeHashOf: (c) => (c === deployed ? PRODUCTION.ownershipCodeHash : c === executor ? PRODUCTION.delegationTargetCodeHash : keccak256(c)), ...over });
++  return { f, dir, mk, key, acct, keyReads: () => keyReads, advance: (ms) => { clock += ms; }, journal: () => path.join(dir, "journal") };
++}
++const prepared = async (w, p = w.mk()) => { const r = await p.prepare({ planText: PLAN }); assert.equal(r.status, "prepared", JSON.stringify(r)); return r; };
++const code = (re) => (e) => { assert.equal(e.code, re, e.message); return true; };
++
++test("the public plan and the production constants agree; no other target can be configured", () => {
++  assert.equal(keccak256(PRODUCTION.operatorDelegation), PRODUCTION.operatorDelegationCodeHash, "the pinned 7702 designator hashes to root's delegationCodeHash");
++  assert.equal(PRODUCTION.operatorDelegation, "0xef0100" + PRODUCTION.delegationTarget.slice(2), "the designator names the pinned executor");
++  assert.ok(checkPublicPlan(PLAN));
++  assert.throws(() => checkPublicPlan(PLAN.replace("0x0b2d009c", "0x0b2d009d")), code("plan_file"));
++  const w = world();
++  for (const [k, v] of [["ownership", "0x" + "11".repeat(20)], ["proposed", "0x" + "22".repeat(20)], ["hostId", "0x" + "33".repeat(32)],
++    ["data", PRODUCTION.data.slice(0, -2) + "00"], ["oracle", "0x" + "44".repeat(20)], ["delegationTarget", "0x" + "55".repeat(20)], ["delegationTargetCodeHash", "0x" + "66".repeat(32)]])
++    assert.throws(() => w.mk({ cfg: { ...PRODUCTION, [k]: v, rpcs: w.f.RPCS } }), /production value/, k);
++  assert.throws(() => w.mk({ cfg: { ...PRODUCTION, rpcs: w.f.RPCS, caps: { ...PRODUCTION.caps, totalWei: 10n ** 18n } } }), /production value/);
++  assert.throws(() => w.mk({ cfg: { ...PRODUCTION, rpcs: [w.f.RPCS[0], w.f.RPCS[0]] } }), /two distinct/);
++});
++
++test("prepare: exact proposeOwner fields under the caps, public plan, no key read", async () => {
++  const w = world();
++  const { planHash, plan } = await prepared(w);
++  assert.deepEqual([plan.tx.to, plan.tx.data, plan.tx.value, plan.tx.nonce, plan.tx.chainId, plan.tx.from],
++                   [PRODUCTION.ownership, PRODUCTION.data, "0", "7", 8453, w.acct.address.toLowerCase()]);
++  assert.ok(BigInt(plan.tx.gas) <= 150_000n && BigInt(plan.tx.maxFeePerGas) <= 100_000_000n);
++  assert.ok(BigInt(plan.observed.totalMaxWei) <= 5_000_000_000_000n);
++  assert.equal(plan.observed.balanceSufficient, true);
++  assert.equal(fs.readFileSync(path.join(w.dir, "prepared/current"), "utf8").trim(), planHash);
++  assert.equal(w.keyReads(), 0);
++  assert.equal(w.f.s.sent.length, 0);
++  // an unfunded operator still gets a plan, with the exact funding gap
++  const w2 = world(); w2.f.s.balance = 0n;
++  const r2 = await prepared(w2);
++  assert.equal(r2.plan.observed.balanceSufficient, false);
++  assert.equal(r2.plan.observed.fundingNeededWei, r2.plan.observed.totalMaxWei);
++});
++
++test("prepare refuses wrong code, authority, host entry or operator state", async () => {
++  const cases = [
++    ["ownership_code", (s) => { s.ownershipCode = "0xbad0"; }],
++    ["ownership_registry", (s) => { s.registry = "0x" + "77".repeat(20); }],
++    ["host_entry", (s) => { s.host.active = false; }],
++    ["host_entry", (s) => { s.host.operator = "0x" + "88".repeat(20); }],
++    ["host_entry", (s) => { s.host.payout = "0x" + "99".repeat(20); }],
++    ["host_entry", (s) => { s.host.endpoint = "https://api.enclave.host/t/metal1"; }],
++    ["host_entry", (s) => { s.registryCode = "0x"; }],
++    ["authority", (s) => { s.authority.owner = "0x" + "aa".repeat(20); }],
++    ["authority", (s) => { s.authority.pendingOwner = "0x" + "bb".repeat(20); }],
++    ["authority", (s) => { s.authority.pendingOwner = PRODUCTION.proposed; }],      // pending, but not from a verified journal
++    ["operator", (s) => { s.operatorCode = "0x"; }],                                          // delegation removed
++    ["operator", (s) => { s.operatorCode = "0xef0100" + "77".repeat(20); }],                  // re-delegated elsewhere
++    ["operator", (s) => { s.operatorCode = "0x6000"; }],                                      // other code
++    ["operator", (s) => { s.executorCode = "0x5fe2"; }],                                      // executor runtime changed
++  ];
++  for (const [c, mutate] of cases) {
++    const w = world(); mutate(w.f.s);
++    await assert.rejects(w.mk().prepare({ planText: PLAN }), code(c), c);
++    assert.equal(w.f.s.sent.length, 0);
++  }
++  const w = world(); w.f.s.authority.owner = PRODUCTION.proposed;
++  assert.equal((await w.mk().prepare({ planText: PLAN })).status, "accepted", "already accepted: nothing to do");
++});
++
++test("two RPCs must agree; an RPC error is never read as absence", async () => {
++  const w1 = world();
++  w1.f.s.hooks.eth_call = (url, params, a) => (url === RPC_B && params[0].data.startsWith("0x8bcbb4c8") ? a.slice(0, -1) + "1" : a);
++  await assert.rejects(w1.mk().prepare({ planText: PLAN }), code("rpc_disagree"));
++  const w2 = world();
++  w2.f.s.hooks.eth_getBlockByNumber = (url, params, a) => (url === RPC_B && params[0] !== "latest" ? { ...a, hash: "0x" + "ee".repeat(32) } : a);
++  await assert.rejects(w2.mk().prepare({ planText: PLAN }), code("rpc_disagree"));
++  const w4 = world();
++  w4.f.s.hooks.eth_getCode = (url, params, a) => (url === RPC_B && params[0] === PRODUCTION.delegationTarget ? "0x5fe3" : a);
++  await assert.rejects(w4.mk().prepare({ planText: PLAN }), code("rpc_disagree"), "the RPCs must agree on the executor code");
++  const w3 = world();
++  w3.f.s.hooks.eth_call = (url, params, a) => { if (url === RPC_B) throw new Error("rpc-b: 503"); return a; };
++  await assert.rejects(w3.mk().prepare({ planText: PLAN }), /503/);
++});
++
++test("fees, gas, the Base L1 fee and the total stay under the caps; an unsettled nonce refuses", async () => {
++  for (const [c, mutate] of [["fees", (s) => { s.baseFee = 60_000_000n; }], ["gas", (s) => { s.estimate = 130_000n; }],
++    ["cap", (s) => { s.l1Fee = 5_000_000_000_000n; }], ["cap", (s) => { s.baseFee = 40_000_000n; s.estimate = 110_000n; }],
++    ["nonce", (s) => { s.pool.push({ hash: "0x01", from: "", to: "", data: "0x", nonce: 7, gas: 1 }); }]]) {
++    const w = world(); mutate(w.f.s);
++    if (c === "nonce") w.f.s.pool[0].from = w.acct.address.toLowerCase();
++    await assert.rejects(w.mk().prepare({ planText: PLAN }), code(c), c);
++  }
++});
++
++test("send refuses before reading the key: flag, plan hash, stale plan, moved nonce, fees, balance", async () => {
++  const cases = [
++    ["confirm", async (w, h) => ({ planHash: h, confirm: false })],
++    ["plan_hash", async (w, h) => ({ planHash: "0x" + "00".repeat(32), confirm: true })],
++    ["plan_hash", async (w, h) => { w.advance(1); await prepared(w); return { planHash: h, confirm: true }; }],   // no longer current
++    ["stale_plan", async (w, h) => { w.advance(2 * 3600_000); return { planHash: h, confirm: true }; }],
++    ["nonce", async (w, h) => { w.f.s.nonce++; return { planHash: h, confirm: true }; }],
++    ["fees", async (w, h) => { w.f.s.baseFee = 30_000_000n; return { planHash: h, confirm: true }; }],
++    ["balance", async (w, h) => { w.f.s.balance = 1000n; return { planHash: h, confirm: true }; }],
++    ["authority", async (w, h) => { w.f.s.authority.pendingOwner = "0x" + "bb".repeat(20); return { planHash: h, confirm: true }; }],
++    ["plan_hash", async (w, h) => { const f = path.join(w.dir, "prepared", `${h}.json`); fs.writeFileSync(f, fs.readFileSync(f, "utf8").replace('"gas": "', '"gas": "1')); return { planHash: h, confirm: true }; }],
++  ];
++  for (const [c, setup] of cases) {
++    const w = world(); const p = w.mk(); const { planHash } = await prepared(w, p);
++    const args = await setup(w, planHash);
++    await assert.rejects(p.send({ ...args, planText: PLAN }), code(c), c);
++    assert.equal(w.keyReads(), 0, `${c}: the key was read`);
++    assert.equal(w.f.s.sent.length, 0);
++    assert.equal(fs.existsSync(w.journal()) ? fs.readdirSync(w.journal()).length : 0, 0, `${c}: nothing journaled`);
++  }
++});
++
++test("a key of another address signs nothing", async () => {
++  const w = world(); const p = w.mk({ readKey: async () => generatePrivateKey() });
++  const { planHash } = await prepared(w, p);
++  await assert.rejects(p.send({ planHash, confirm: true, planText: PLAN }), code("key"));
++  assert.equal(w.f.s.sent.length, 0);
++  assert.equal(fs.existsSync(w.journal()) ? fs.readdirSync(w.journal()).length : 0, 0);
++});
++
++test("send: the signed bytes are journaled (0600, fsynced) BEFORE broadcast; verified receipt; nothing secret in the output; never twice", async () => {
++  const w = world(); const p = w.mk(); const { planHash } = await prepared(w, p);
++  const seen = [];
++  w.f.s.onBroadcast = async (url, raw) => {
++    const file = path.join(w.journal(), `${planHash}.json`);
++    assert.ok(fs.existsSync(file), "journal exists at broadcast");
++    const rec = JSON.parse(fs.readFileSync(file, "utf8"));
++    assert.equal(rec.raw, raw, "the journaled bytes are the broadcast bytes");
++    assert.equal(fs.statSync(file).mode & 0o777, 0o600); assert.equal(fs.statSync(w.journal()).mode & 0o777, 0o700);
++    seen.push(url);
++  };
++  const out = await p.send({ planHash, confirm: true, planText: PLAN });
++  assert.equal(out.status, "verified", JSON.stringify(out));
++  assert.deepEqual(seen, w.f.RPCS, "the same bytes to both RPCs");
++  assert.equal(new Set(w.f.s.sent.map((x) => x.hash)).size, 1);
++  assert.equal(out.txHash, w.f.s.sent[0].hash);
++  assert.ok(BigInt(out.receipt.confirmationsAtCheck) >= 2n);
++  assert.equal(out.receipt.authorityAfter.pendingOwner, PRODUCTION.proposed);
++  const text = JSON.stringify(out);
++  assert.ok(!text.includes(w.f.s.sent[0].raw.slice(2, 60)) && !text.includes(w.key.slice(2)), "neither the raw transaction nor the key is in the output");
++  assert.equal(w.keyReads(), 1);
++  await assert.rejects(p.send({ planHash, confirm: true, planText: PLAN }), code("journal"), "never signs twice");
++  assert.equal((await w.mk().prepare({ planText: PLAN })).status, "proposed", "the verified journal explains the pending owner");
++});
++
++test("a journal write failure broadcasts nothing", async () => {
++  const w = world();
++  const failing = { ...fs, linkSync: () => { throw new Error("EIO: disk"); } };
++  const p = w.mk({ fsImpl: failing }); const { planHash } = await prepared(w, p);
++  await assert.rejects(p.send({ planHash, confirm: true, planText: PLAN }), /EIO/);
++  assert.equal(w.f.s.sent.length, 0);
++  assert.equal(fs.readdirSync(w.journal()).filter((f) => f.endsWith(".json")).length, 0);
++});
++
++test("crash after the journal, before any broadcast landed: restart never re-signs; --rebroadcast sends the SAME bytes", async () => {
++  const w = world({ polls: 6, mineOnPoll: false }); const p = w.mk(); const { planHash } = await prepared(w, p);
++  w.f.s.onBroadcast = async () => { throw new Error("connection reset"); };            // nothing reached the chain
++  const out = await p.send({ planHash, confirm: true, planText: PLAN });
++  assert.equal(out.status, "unknown");
++  const journaled = JSON.parse(fs.readFileSync(path.join(w.journal(), `${planHash}.json`), "utf8"));
++  // restart: a new process
++  w.f.s.onBroadcast = null;
++  const q = w.mk();
++  await assert.rejects(q.send({ planHash, confirm: true, planText: PLAN }), code("journal"));
++  const r1 = await q.resume({ planHash });
++  assert.equal(r1.status, "pending"); assert.equal(w.f.s.sent.length, 0, "resume without --rebroadcast sends nothing");
++  const q2 = w.mk({ sleep: async () => w.f.mine(1) });
++  const r2 = await q2.resume({ planHash, rebroadcast: true });
++  assert.equal(r2.status, "verified", JSON.stringify(r2));
++  assert.ok(w.f.s.sent.every((x) => x.raw === journaled.raw && x.hash === journaled.txHash), "only the journaled bytes");
++  assert.equal(w.keyReads(), 1, "the key was read once, by the first send");
++});
++
++test("unknown outcome: the RPC times out but the transaction landed; resume verifies it without sending", async () => {
++  const w = world({ polls: 1, mineOnPoll: false }); const p = w.mk(); const { planHash } = await prepared(w, p);
++  w.f.s.hooks.eth_sendRawTransaction = () => { throw new Error("timeout"); };            // delivered, answer lost
++  assert.equal((await p.send({ planHash, confirm: true, planText: PLAN })).status, "unknown");
++  const sends = w.f.s.sent.length;
++  w.f.mine(3);
++  const r = await w.mk().resume({ planHash });
++  assert.equal(r.status, "verified", JSON.stringify(r));
++  assert.equal(w.f.s.sent.length, sends); assert.equal(w.keyReads(), 1);
++});
++
++test("a rejected broadcast, then the nonce used elsewhere: conflict, nothing re-signed or re-sent", async () => {
++  const w = world({ polls: 1, mineOnPoll: false }); const p = w.mk(); const { planHash } = await prepared(w, p);
++  w.f.s.onBroadcast = async () => { throw new Error("insufficient funds for gas * price + value"); };
++  assert.equal((await p.send({ planHash, confirm: true, planText: PLAN })).status, "unknown");
++  w.f.s.onBroadcast = null;
++  w.f.s.nonce++; w.f.mine(1);                                                           // another transaction took nonce 7
++  const r = await w.mk().resume({ planHash, rebroadcast: true });
++  assert.equal(r.status, "conflict", JSON.stringify(r));
++  assert.equal(w.f.s.sent.length, 0); assert.equal(w.keyReads(), 1);
++  assert.equal((await w.mk().resume({ planHash, rebroadcast: true })).status, "conflict", "conflict is final");
++});
++
++test("--rebroadcast refuses while the RPCs disagree on whether the journaled nonce is still unused", async () => {
++  const w = world({ polls: 1, mineOnPoll: false }); const p = w.mk(); const { planHash } = await prepared(w, p);
++  w.f.s.onBroadcast = async () => { throw new Error("connection reset"); };
++  assert.equal((await p.send({ planHash, confirm: true, planText: PLAN })).status, "unknown");
++  w.f.s.onBroadcast = null;
++  w.f.s.hooks.eth_getTransactionCount = (url, params, a) => (url === RPC_B && params[1] === "latest" ? "0x" + (BigInt(a) + 1n).toString(16) : a);
++  await assert.rejects(w.mk().resume({ planHash, rebroadcast: true }), code("nonce"));
++  assert.equal(w.f.s.sent.length, 0, "nothing re-sent");
++});
++
++test("receipt verification: disagreeing RPCs, too few confirmations and a revert are not success", async () => {
++  // RPC B reports another block for the receipt until it agrees
++  const w = world({ polls: 3 }); const p = w.mk(); const { planHash } = await prepared(w, p);
++  let lie = true;
++  w.f.s.hooks.eth_getTransactionReceipt = (url, params, a) => (url === RPC_B && a && lie ? { ...a, blockHash: "0x" + "dd".repeat(32) } : a);
++  assert.equal((await p.send({ planHash, confirm: true, planText: PLAN })).status, "unknown", "never verified while the RPCs disagree");
++  lie = false;
++  assert.equal((await w.mk().resume({ planHash })).status, "verified");
++  // a revert (the host went inactive before it was mined)
++  const v = world({ polls: 4, mineOnPoll: false }); const pv = v.mk(); const pr = await prepared(v, pv);
++  v.f.s.onBroadcast = async () => { v.f.s.host.active = false; };
++  const sending = pv.send({ planHash: pr.planHash, confirm: true, planText: PLAN });
++  const out = await sending.then((x) => x);
++  assert.equal(out.status, "unknown");
++  v.f.mine(1);
++  const r1 = await v.mk().resume({ planHash: pr.planHash });
++  assert.equal(r1.status, "pending", "one confirmation is not enough");
++  v.f.mine(2);
++  const r2 = await v.mk().resume({ planHash: pr.planHash });
++  assert.equal(r2.status, "failed"); assert.match(r2.note, /reverted/);
++});
++
++test("the CLI accepts only its own flags and one mode (no chain, no key)", () => {
++  const bin = path.join(HERE, "../bin/operator-propose.mjs");
++  for (const args of [["--to", "0x00"], ["--send", "--resume"], ["--value", "1"]]) {
++    const r = spawnSync(process.execPath, [bin, ...args, "--dir", fs.mkdtempSync(path.join(os.tmpdir(), "op-cli-"))], { encoding: "utf8", env: { PATH: process.env.PATH } });
++    assert.equal(r.status, 64, `${args}: ${r.stderr}`);
++  }
++});

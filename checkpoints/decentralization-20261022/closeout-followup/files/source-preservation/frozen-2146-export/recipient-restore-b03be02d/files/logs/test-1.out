@@ -1,0 +1,38 @@
+[queue] START available=24074MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
+ok 1 - gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
+  ---
+  duration_ms: 60.017241
+  type: 'test'
+  ...
+# Subtest: no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
+ok 2 - no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
+  ---
+  duration_ms: 59.173747
+  type: 'test'
+  ...
+# Subtest: control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
+ok 3 - control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
+  ---
+  duration_ms: 59.081787
+  type: 'test'
+  ...
+# Subtest: the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
+ok 4 - the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
+  ---
+  duration_ms: 2188.254534
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2574.129988
+[memory-guard] exit=0 peakTreeRssMiB=240 minHostAvailableMiB=23888
+[memory-guard] at peak: node:106 node:81 node:53
+[queue] EXIT 0

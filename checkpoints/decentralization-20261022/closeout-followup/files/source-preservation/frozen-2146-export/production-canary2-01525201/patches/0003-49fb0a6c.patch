@@ -1,0 +1,261 @@
+From 49fb0a6c374ffcff237e1bdc7e27ca39d15e5eb3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:26:20 -0700
+Subject: [PATCH] CLI preflight: fee-cap budget matrix (12 mwei does not fit
+ the full matrix) and the exact CLI transactions, caps and manual review path
+
+---
+ PREFLIGHT-CLI.md        | 149 ++++++++++++++++++++++++++++++++++++++++
+ README.md               |  10 +++
+ test/run-tests.sh       |   3 +-
+ tools/budget-matrix.mjs |  43 ++++++++++++
+ 4 files changed, 204 insertions(+), 1 deletion(-)
+ create mode 100644 PREFLIGHT-CLI.md
+ create mode 100644 tools/budget-matrix.mjs
+
+diff --git a/PREFLIGHT-CLI.md b/PREFLIGHT-CLI.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..bfab257e8d0e59ee190697da3758105b05021db1
+--- /dev/null
++++ b/PREFLIGHT-CLI.md
+@@ -0,0 +1,149 @@
++# ROOT-CLI-PREFLIGHT: fee-cap budget and CLI transaction support (source review only)
++
++Nothing here was signed, sent, simulated against Base, or run against production. The numbers come from
++`tools/budget-matrix.mjs`, the driver's own `buildPlan`/`planBudget` with only the pins varied, in queue job c13. They are
++WORST CASES at pinned caps. They are not live affordability: a snapshot from one block (base fee 5 mwei, tip 1 mwei) says
++nothing about the block a step would land in.
++
++## 1. A lower fee cap does NOT fit the full matrix into 5.5e13 wei
++
++**Note on the starting point.** The current example pins already use maxFee **10 mwei**. 20 mwei was the FIRST
++handoff's cap (7bcd501f). All three caps are shown below.
++
++**What is held constant.** Gas caps (create 900k, rotate 300k, rules 250k), the L1 allowance (3e11 per tx), the operator
++allowance (1e11 per tx), the lease deposit (8e12 per deployment), the cleanup steps and USDC (90000 units per
++deployment) are unchanged.
++
++**Two ways to count the CLI operations:**
++- **"literal":** the pinned wei constants in `budget.cliWei`.
++- **"derived":** the same CLI operations re-derived from GAS assumptions at the fee cap (see §2), with L1 and operator
++  allowances per transaction.
++
++The literal constants were set at 10 mwei and do not scale. The derived row is the honest one at any other cap.
++
++| maxFee cap | profile | CLI | custody updates | CLI + deposits | worst case | fits 5.5e13 |
++|---|---|---|---|---|---|---|
++| 10 mwei (example) | full matrix | literal | 4.01e13 | 4.00e13 | 8.01e13 | NO |
++| 10 mwei | full matrix | derived | 4.01e13 | 4.50e13 | 8.51e13 | NO |
++| 10 mwei | A (no migration) | literal | 2.73e13 | 2.00e13 | 4.73e13 | yes |
++| 10 mwei | A | derived | 2.73e13 | 2.25e13 | 4.98e13 | yes |
++| **12 mwei (root)** | **full matrix** | literal | 4.74e13 | 4.00e13 | **8.74e13** | **NO** |
++| **12 mwei** | **full matrix** | derived | 4.74e13 | 5.00e13 | **9.74e13** | **NO** |
++| 12 mwei | A | literal | 3.22e13 | 2.00e13 | 5.22e13 | yes |
++| 12 mwei | A | derived | 3.22e13 | 2.50e13 | 5.72e13 | NO |
++| 20 mwei (first handoff) | full matrix | literal / derived | 7.66e13 | 4.00e13 / 7.00e13 | 1.17e14 / 1.47e14 | NO |
++| 20 mwei | A | literal / derived | 5.18e13 | 2.00e13 / 3.50e13 | 7.18e13 / 8.68e13 | NO |
++
++**What it would take to fit.**
++- With these gas caps and allowances, the full matrix (derived) fits 5.5e13 only at maxFee ≤ **5.1 mwei** (5105691 wei,
++  by bisection).
++- Each send requires maxFee = 2 × base + tip, which was 2 × 5 + 1 = **11 mwei** at root's observed block. So at ≤ 5.1
++  mwei every send would refuse.
++- **The full matrix therefore does NOT fit the existing budget at any workable cap, and the shortfall stands.**
++- At a 12 mwei cap, any block whose base fee is above (12 − tip) / 2 ≈ 5.5 mwei refuses or waits. That is by design:
++  there is no fee bump.
++
++**Where the worst case comes from (full matrix, 12 mwei, derived).**
++- Custody updates: 4.74e13.
++- The two lease deposits: 1.6e13 of value.
++- Two create operations: about 2.1e13.
++- Per-transaction L1 + operator allowances: 19 transactions × 4e11 = 7.6e12.
++
++  Root's evidence shows an operator fee of 0 at that block, but the allowance stays, as instructed.
++
++Changing any of these is root's budget decision; this review does not change them.
++
++**New canary proof app: publishing cost, separate and admin-funded, NOT in the canary budget.**
++- **Call:** `EnclaveAppCatalog` (`0x18419CA2b502D423A8de6269AEeE171a378626e3`, address-book value; the CLI refuses a
++  catalog write unless the book was read) `.publishVersion` (or `publishVersionCfg`):
++  `(slug, name, description, version, cid, res, ports, config[, configCid], feePerSec6)`, from the publisher.
++  - On rev 9, the catalog owner's own publish is approved in the same transaction.
++  - A different publisher needs a separate approval transaction by the catalog owner.
++- **No receipt for a publish exists in these records.** As an ASSUMPTION for root to replace with a fresh two-RPC
++  simulation: ≤ 1.5M gas per publish (string-heavy storage) → at 12 mwei ≈ 1.8e13 + 4e11 per transaction (worst case),
++  plus an approval transaction if needed.
++- **Off-chain costs on top:** the component upload and pin (IPFS), and the image measurement work.
++- The app is built separately (M), and `CANARY-APP-PLAN.md` stays frozen.
++
++## 2. CLI support for the canary's own transactions (create, lease-gas configure/deposit, stop)
++
++**Source reviewed:** `work/enclave` working tree at `e762a9c5`.
++
++| file | sha256 | state |
++|---|---|---|
++| `cli/enclave.mjs` | `f83cab274f9cd0fcac16182363ed4927c2495f5b82bafacbed70e896b8f0ca8e` | **uncommitted changes** vs HEAD: pin this file or re-derive |
++| `cli/independent.mjs` | `a04d74768b2415ce84f505c2f925cfd58cd1efd4e25660531f3b39663cc7d9dd` | clean at HEAD |
++| `cli/independent-signer.mjs` | `d6eb8771f0153a33557935df39696a0d211995bde9a5b84b4a2f9c9d14559303` | clean at HEAD |
++| `cli/lease-gas.mjs` | `9f34e04ec59614f5be4bdefdc3f991833d8903051ef5bdedaa14f2877391bbdd` | clean at HEAD |
++| `network/lease-gas-owner.mjs` | `92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988` | clean at HEAD |
++
++**Pinned addresses (from source):**
++- EnclaveDeployments ledger `0xF9e71385C5cB49844F2457ba6567De0742f8B89a`.
++- USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`.
++- Lease-gas reserve `0x12a3f873041dec436daa0085b766a399a6fa3639` (runtime `0xcc00efe9…`) and executor
++  `0x8900baca2167873ba2f8a8bae8b4876e6396d343` (`work/lease-enrollment-signing/trust.mjs`).
++- Owner `0x29479bf04ed889d46a7afb7f292b9bb26e12647c`.
++- Old deployments, 0x4e62 and its canary siblings are never targets. Every call below takes the NEW canary id.
++
++### What the current CLI can and cannot cap before signing
++
++**Independent mode** (`enclave --independent --rpc A,B[,…] --contract-pins <pins> …`). Every write goes through
++`cli/independent.mjs` `sendQuorumTx`:
++- an agreed-block simulation;
++- a pending-nonce agreement;
++- gas = max estimate × 1.2, refused only above **15,000,000**: a fixed default with no CLI flag;
++- maxFeePerGas refused above **`--max-fee-gwei`**. The default is **5 gwei**; root must pass `--max-fee-gwei 0.012`.
++- It does NOT bound the Base L1 data fee or the operator fee, and has NO total-cost or aggregate cap.
++- **So the CLI caps the fee per gas only, not gas tightly, not L1 or operator fees, and not total cost.**
++
++**`--signer-mode handoff --from 0x29479…`** (independent mode, `cli/independent-signer.mjs`):
++- It runs the same preflight with the same caps.
++- It journals an intent and PRINTS the exact transaction (to, data, value, nonce, gas, maxFeePerGas,
++  maxPriorityFeePerGas), then stops. Nothing is signed.
++- Root signs with their own wallet. `signer attach <intent> <hash>` then checks the mined transaction against the intent
++  (gas cap and fee cap).
++- **Limitation:** handoff without a signer URL cannot sign typed data (`probe()` refuses). So `deploy --fund <usd>`, whose
++  USDC funding needs an EIP-712 authorization, cannot complete in pure handoff. Fund it with a signer URL (a wallet
++  endpoint), or use `--fund-eth` (a plain payable `fundEth`, which spends the scarce ETH).
++
++**`--unsigned --from`:**
++- It prints only `{chainId, from, to, data, value}`: no gas, nonce or fees.
++- It exits after the FIRST transaction of a multi-transaction command.
++- It cannot produce the USDC authorization.
++
++### Operation by operation (exact calls from the source)
++
++| operation | command (independent) | transactions | approval boundary |
++|---|---|---|---|
++| create C1/C2 | `deploy <hello-world ref> --cpu 0.1 --gpu 0 --max-rate <usd/h> --isolation snp-guest-per-app --public --fund <usd> --max-fee-gwei 0.012 [--signer-mode handoff --from 0x29479…]` | ① Deployments`.create(string appRef, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, string ports, bool isPublic, string configCid=envelope {"isolation":{"require":"snp-guest-per-app"}}, address feeRecipient, uint256 feePerSec6, uint256 maxRate6)`, value 0; the id comes from the `Created` event. ② Deployments`.fundWithAuthorization(bytes32 id, address from, uint256 value, 0, uint256 validBefore=now+3600, bytes32 nonce=id[0:16]‖random16, bytes sig)`, value 0 | the EIP-712 USDC `ReceiveWithAuthorization` (domain "USD Coin"/"2"/8453/USDC; `to` = Deployments; `value` = fund in 6 dp ≤ `budget.usdcFundUnits`; validBefore ≤ 1 h). It authorizes exactly that amount to the ledger, once; it is not an `approve`. ② cannot be prepared before ① is mined |
++| lease-gas configure | `lease-gas configure <id> [policy flags] --lease-gas RECORD.json --lease-gas-digest sha256:… [--signer-mode handoff --from 0x29479…]` (without signer flags it only prints unsigned requests: `--format tx\|metamask\|safe`) | reserve`.configure(bytes32 id, policy tuple)`, value 0 | the policy (maxGasPrice, maxPerOp, epochCap, claimPolicy …) caps what the RESERVE pays for runner operations, not the owner's transaction |
++| lease-gas deposit | `lease-gas deposit <id> --wei <budget.leaseDepositWei>` (same signer options) | reserve`.deposit(bytes32 id)`, **value = the deposit** | the only call with non-zero value: check value == `budget.leaseDepositWei` exactly |
++| stop | `stop <id>` (same signer options) | Deployments`.setActive(bytes32 id, false)`, value 0 | none |
++
++### Manual review path (NOT ready; the driver marks none of these steps ready)
++
++1. Run `node driver/cli.mjs gate --pins … --step <D1.create|D1.leasegas|D1.stop|…>`. This is the aggregate pre-check
++   with the cleanup reserve.
++2. Run the CLI in independent handoff mode with `--max-fee-gwei 0.012`. Nothing is signed, and the exact transaction is
++   printed and journaled.
++3. Root reviews each printed transaction against this table:
++   - `to` ∈ {Deployments `0xF9e7…`, reserve `0x12a3…`};
++   - the selector and decoded arguments, including the NEW canary id (never 0x4e62 or another old id);
++   - `value` (non-zero only for the deposit, exactly the pinned amount);
++   - `gas` ≤ the step's assumption (create 600k, fund 200k, configure 250k, deposit 100k, stop 100k);
++   - `maxFeePerGas` ≤ 12 mwei.
++4. Root computes the L1 data-fee and operator-fee bounds for THAT exact transaction at a fresh agreed block on two RPCs:
++   - `GasPriceOracle.getL1FeeUpperBound(max(unsigned, signedMax − 68))`, with sizes from the printed nonce, gas, fees
++     and data, as `driver/sender.mjs` `txSizes` does;
++   - `isIsthmus()` must be true, and `getOperatorFee(gas)`;
++   - check that gas × maxFee + L1 + operator fee ≤ that step's allowance and the remaining aggregate from `gate`.
++
++   The driver has these functions, but no command prices an EXTERNAL transaction. A narrow "price this handoff tx"
++   command would be a separate, reviewed addition; it is not built here, as instructed.
++5. Sign exactly those fields with the owner's wallet, then run `signer attach`.
++6. Run `node driver/cli.mjs record --step … --obs {txHashes, deploymentId?, usdcUnits?}`. This costs the receipts from
++   both RPCs, and a step over its allowance or the aggregate FAILS and stops the run.
++
++**Readiness.** Until each step has passed this review with real printed transactions, the CLI steps have only a
++reviewed PATH, not bounded executable commands. Every C1/C2 step is also still blocked by the recipient
++(`recipient.runner`: the metal0 control image lacks a measured `CUSTODY_VAULT_V2`).
+diff --git a/README.md b/README.md
+index fa58d94a9d704184059359daa7b67907011fbfeb..eb30379e3ea34564720315d6eabb0e707333ce57 100644
+--- a/README.md
++++ b/README.md
+@@ -114,6 +114,16 @@
+      this revision and was re-adjudicated).
+    - `gitleaks git` fingerprints carry the commit and are NOT covered by this entry.
+ 
++**ROOT-CLI-PREFLIGHT (see `PREFLIGHT-CLI.md`, computed by `tools/budget-matrix.mjs` in queue job c13).**
++- **A 12 mwei fee cap does NOT fit the full matrix** into 5.5e13: 8.74e13 with the literal CLI constants, 9.74e13 with
++  the CLI re-derived from gas. A fit needs maxFee ≤ 5.1 mwei, below 2 × base + tip at root's block (11 mwei). The
++  shortfall stands.
++- **The current CLI does not bound the canary's own transactions** (create/fund, lease-gas configure/deposit, stop). It
++  caps maxFeePerGas only (`--max-fee-gwei`, default 5 gwei), allows gas up to 15M, and bounds no L1 or operator fee and
++  no total.
++- **Manual review path.** `PREFLIGHT-CLI.md` gives the exact calls, approval boundaries and the review path (handoff
++  output + oracle bounds). None of these steps is marked ready.
++
+ ## 1. Answers to root's questions
+ 
+ **Can a baseline full lifecycle run safely against the existing committee?** Yes, for create, release, rotate,
+diff --git a/test/run-tests.sh b/test/run-tests.sh
+index 3a36691da006cf909b7cd04dfdcdfa23c11c45b4..f01cb2b523b79fbe60d95170ace7c26b90a879d0 100755
+--- a/test/run-tests.sh
++++ b/test/run-tests.sh
+@@ -4,7 +4,7 @@
+ cd "$(dirname "$0")/.."
+ rc=0
+ step() { local name=$1; shift; echo "== $name"; "$@"; local c=$?; [ $c = 0 ] || { echo "!! FAIL $name ($c)"; rc=1; }; }
+-for f in driver/*.mjs test/*.mjs; do step "node --check $f" timeout -k 5 30 node --check "$f"; done
++for f in driver/*.mjs test/*.mjs tools/*.mjs; do step "node --check $f" timeout -k 5 30 node --check "$f"; done
+ step "bash -n" bash -n test/run-tests.sh test/mutants.sh
+ step "pinned update selector + example plan budget" timeout -k 5 30 node --input-type=module -e '
+ import { loadClient } from "./driver/prepare.mjs"; import { buildPlan } from "./driver/plan.mjs"; import fs from "node:fs";
+@@ -13,6 +13,7 @@
+ console.log("update selector", c.viem.toFunctionSelector(u), "update(bytes32,(" + u.inputs[1].components.map((x) => x.type).join(",") + "))");
+ const p = JSON.parse(fs.readFileSync("pins.example.json", "utf8"));
+ console.log("example budget", JSON.stringify(buildPlan(p).budget));'
++step "budget matrix (ROOT-CLI-PREFLIGHT)" timeout -k 5 60 node tools/budget-matrix.mjs
+ step "unit tests" timeout -k 5 300 node --test --test-force-exit --test-concurrency=1 --test-timeout=60000 test/*.test.mjs
+ step "mutation controls" timeout -k 5 300 bash test/mutants.sh
+ if [ "${SCANS:-1}" = 1 ]; then
+diff --git a/tools/budget-matrix.mjs b/tools/budget-matrix.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c2685f92d003b2965bcd7c6ecff51b97b8125f0
+--- /dev/null
++++ b/tools/budget-matrix.mjs
+@@ -0,0 +1,43 @@
++// Read-only budget arithmetic for ROOT-CLI-PREFLIGHT: the plan's aggregate worst case under fee-cap variants.
++// No network, no keys. Uses the driver's own buildPlan/planBudget; only pins are varied.
++//   node tools/budget-matrix.mjs
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { buildPlan } from "../driver/plan.mjs";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "pins.example.json"), "utf8"));
++const { source, ...image } = ex.imageCandidateFromChain;
++const C1 = "0x" + "c1".repeat(32), C2 = "0x" + "c2".repeat(32);
++const obs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
++  "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "calc" }]));
++
++// CLI operations re-derived from GAS assumptions at the fee cap (assumptions, not receipts, except create 411747 on Sep-24):
++//   create operation = Deployments.create (cap 600k; Sep-24 gasUsed 411747) + fundWithAuthorization (cap 200k): 2 txs
++//   lease configure (cap 250k), lease deposit tx (cap 100k; the deposit VALUE is budget.leaseDepositWei), stop setActive (cap 100k)
++const CLI_GAS = { create: [600_000n, 200_000n], leaseConfigure: [250_000n], leaseDeposit: [100_000n], stop: [100_000n] };
++const derivedCli = (fee, perTxFixed) => Object.fromEntries(Object.entries(CLI_GAS).map(([k, txs]) =>
++  [k, String(txs.reduce((a, g) => a + g * fee + perTxFixed, 0n))]));
++
++function row(label, feeWei, profile, cliMode) {
++  const p = { ...structuredClone(ex), image, owner: { ...ex.owner, reuseScope: { statedBy: "calc", at: "calc", onlyPlanCreatedDeployments: true } } };
++  p.fees.maxFeePerGasWei = String(feeWei);
++  p.cases = { disabled: profile === "A" ? ["migration"] : [] };
++  const perTx = BigInt(p.fees.l1FeeWei) + BigInt(p.fees.operatorFeeWei);
++  if (cliMode === "derived") p.budget.cliWei = derivedCli(BigInt(feeWei), perTx);
++  const b = buildPlan(p, obs, { C1, C2 }).budget;
++  const custody = Object.entries(b.byStep).filter(([id]) => !/^D[12]\./.test(id)).reduce((a, [, v]) => a + BigInt(v), 0n);
++  return { label, maxFeePerGasWei: String(feeWei), profile: profile === "A" ? "A (no migration)" : "full matrix", cli: cliMode,
++    custodyWei: String(custody), cliAndDepositsWei: String(BigInt(b.worstCaseWei) - custody), worstCaseWei: b.worstCaseWei,
++    fits55e12: b.fits, cleanupReserveWei: b.cleanupReserveWei, usdcUnits: b.usdcUnits };
++}
++
++const rows = [];
++for (const [label, fee] of [["example 10 mwei", 10_000_000n], ["root 12 mwei", 12_000_000n], ["first handoff 20 mwei", 20_000_000n]])
++  for (const profile of ["full", "A"]) for (const cli of ["literal", "derived"]) rows.push(row(label, fee, profile, cli));
++// the highest fee cap at which the FULL matrix (derived CLI) still fits 5.5e13, by bisection on the same arithmetic
++let lo = 1n, hi = 100_000_000n;
++while (lo < hi) { const mid = (lo + hi + 1n) / 2n; if (row("", mid, "full", "derived").fits55e12) lo = mid; else hi = mid - 1n; }
++console.log(JSON.stringify({ rows, fullMatrixDerivedMaxFeeThatFitsWei: String(lo),
++  note: "worst cases at the pinned caps; NOT live affordability. maxFee = 2 x base + tip at send; a lower cap refuses (wait) when fees rise." }, null, 1));

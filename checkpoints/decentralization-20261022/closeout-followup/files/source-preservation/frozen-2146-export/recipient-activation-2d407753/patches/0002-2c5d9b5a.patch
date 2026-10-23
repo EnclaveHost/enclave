@@ -1,0 +1,54 @@
+From 2c5d9b5a0e0a6ab50ec837255a32740aee006a5d Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:24:37 -0700
+Subject: [PATCH] activation adaptation: commit-1 queue logs (its clean-tree
+ check saw only its own logs)
+
+---
+ commit-logs.sh          | 7 +++++++
+ logs/commit-1.guard.log | 1 +
+ logs/commit-1.out       | 5 +++++
+ logs/commit-1.rc        | 1 +
+ 4 files changed, 14 insertions(+)
+ create mode 100755 commit-logs.sh
+ create mode 100644 logs/commit-1.guard.log
+ create mode 100644 logs/commit-1.rc
+
+diff --git a/commit-logs.sh b/commit-logs.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b2d15101f5464defeb7f09054ef21189b36acf78
+--- /dev/null
++++ b/commit-logs.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++# Follow-up: commit commit-1's own queue logs (its final clean-tree check failed only because they were being written).
++set -euo pipefail
++cd "$(dirname "$0")"
++git add logs/commit-1.out logs/commit-1.guard.log logs/commit-1.rc commit-logs.sh
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "activation adaptation: commit-1 queue logs (its clean-tree check saw only its own logs)"
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/commit-1.guard.log b/logs/commit-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d66a239c7c881d3a9f39e8a35a2403360d00af30
+--- /dev/null
++++ b/logs/commit-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/logs/commit-1.out b/logs/commit-1.out
+index 8959db2c0d3d7b3f270bbe0ae860edd9a215e772..f38f9b858fba1a019eb0845e426a842b58cebec1 100644
+--- a/logs/commit-1.out
++++ b/logs/commit-1.out
+@@ -1 +1,6 @@
+ [queue] START available=23799MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++7426b29984c540c7e284a88fbbcd4d41641d1222 8cb3a0c7330f20be9a6b970a143195ae79c29f39 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> 2026-10-23T14:24:23-07:00
++ 41 files changed, 1440 insertions(+)
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 1
+diff --git a/logs/commit-1.rc b/logs/commit-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/commit-1.rc
+@@ -0,0 +1 @@
++1

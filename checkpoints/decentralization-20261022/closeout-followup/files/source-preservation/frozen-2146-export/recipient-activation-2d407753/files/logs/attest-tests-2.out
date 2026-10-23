@@ -1,0 +1,55 @@
+[queue] START available=24054MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: the verifier pins hold for the restore repo at a6b1378c
+ok 1 - the verifier pins hold for the restore repo at a6b1378c
+  ---
+  duration_ms: 5.08284
+  type: 'test'
+  ...
+# Subtest: genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
+ok 2 - genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
+  ---
+  duration_ms: 12.64692
+  type: 'test'
+  ...
+# Subtest: a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
+ok 3 - a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
+  ---
+  duration_ms: 2.330711
+  type: 'test'
+  ...
+# Subtest: relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
+ok 4 - relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
+  ---
+  duration_ms: 1.557528
+  type: 'test'
+  ...
+# Subtest: persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
+ok 5 - persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
+  ---
+  duration_ms: 3.210835
+  type: 'test'
+  ...
+# Subtest: checkImage ties each pin to the reviewed image files and refuses another file
+ok 6 - checkImage ties each pin to the reviewed image files and refuses another file
+  ---
+  duration_ms: 0.444857
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 72.808269
+.....................
+----------------------------------------------------------------------
+Ran 21 tests in 0.280s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=52 minHostAvailableMiB=23976
+[memory-guard] at peak: python3:28 python3:18 bash:6
+[queue] EXIT 0

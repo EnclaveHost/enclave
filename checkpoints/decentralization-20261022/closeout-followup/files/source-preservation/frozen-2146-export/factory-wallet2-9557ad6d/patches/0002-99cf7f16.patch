@@ -1,0 +1,22 @@
+From 99cf7f164ac299602815055063c361d08d751d60 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:05:34 -0700
+Subject: [PATCH] README: browser peak from the book-ABI rerun
+
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index b49d12bd785ee186e95a7d125c1c058ff348524b..0d0fd3370cc9df5794e7f4e7ffa74a9aca16f3f7 100644
+--- a/README.md
++++ b/README.md
+@@ -161,7 +161,7 @@
+     size, unsigned-only accounting refused, a signature overhead above 68 raising the argument, a wallet-added access list
+     refused, and no all-fee claim. Two fee mutants (unsigned-only argument, unsigned-only size accounting) fail the suite.
+ - **`./q.sh 512 browser-N ./run-tests.sh browser`:** `test/browser.test.mjs` 3/3, headless single-process Chromium with a
+-  fake EIP-6963 MetaMask, peak 370 MiB. It covers:
++  fake EIP-6963 MetaMask, peak 448 MiB (book-ABI rerun). It covers:
+   - no wallet call before clicks, the exact journaled transaction, pending → confirmed;
+   - new stranding refused with no send;
+   - 4001, and lost-response reload with the wrong hash refused, the real hash confirming, and nothing re-sent.

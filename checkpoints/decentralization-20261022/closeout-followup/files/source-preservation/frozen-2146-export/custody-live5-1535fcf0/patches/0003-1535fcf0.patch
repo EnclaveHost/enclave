@@ -1,0 +1,294 @@
+From 1535fcf0a3845c4ed625a0cd1095595963352f6f Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:45:41 -0700
+Subject: [PATCH] Preserve control restart incident estimates and app-funded
+ protected lease renewal
+
+---
+ evidence/proofkey-affordability.json          | 40 +++++++++++++++++++
+ evidence/protected-guest-health.json          | 26 ++++++++++++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json | 21 ++++++++++
+ ...faaeb9a3d5bab0fddfb5bc44ba68d9.result.json |  9 +++++
+ evidence/registration-affordability.json      | 40 +++++++++++++++++++
+ probes/proofkey-affordability.mjs             | 20 ++++++++++
+ probes/protected-guest-health.mjs             |  8 ++++
+ probes/registration-affordability.mjs         | 20 ++++++++++
+ probes/renew-protected.mjs                    | 29 ++++++++++++++
+ 9 files changed, 213 insertions(+)
+ create mode 100644 evidence/proofkey-affordability.json
+ create mode 100644 evidence/protected-guest-health.json
+ create mode 100644 evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+ create mode 100644 evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+ create mode 100644 evidence/registration-affordability.json
+ create mode 100644 probes/proofkey-affordability.mjs
+ create mode 100644 probes/protected-guest-health.mjs
+ create mode 100644 probes/registration-affordability.mjs
+ create mode 100644 probes/renew-protected.mjs
+
+diff --git a/evidence/proofkey-affordability.json b/evidence/proofkey-affordability.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff6c028c42109cdc1962472131cbe255a0e86096
+--- /dev/null
++++ b/evidence/proofkey-affordability.json
+@@ -0,0 +1,40 @@
++{
++  "at": "2026-10-23T21:38:43.180Z",
++  "readOnly": true,
++  "rows": [
++    {
++      "endpoint": "https://mainnet.base.org",
++      "block": "53001087",
++      "baseFee": "5000000",
++      "gas": "38772",
++      "balance": "376132087579",
++      "baseFeeOnlyCost": "193860000000",
++      "fields": {
++        "repo": "EnclaveHost/enclave",
++        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++        "cpuPrice": "834",
++        "gpuPrice": "1667"
++      },
++      "limits": [
++        "Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin."
++      ]
++    },
++    {
++      "endpoint": "https://base-rpc.publicnode.com",
++      "block": "53001087",
++      "baseFee": "5000000",
++      "gas": "38772",
++      "balance": "376132087579",
++      "baseFeeOnlyCost": "193860000000",
++      "fields": {
++        "repo": "EnclaveHost/enclave",
++        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++        "cpuPrice": "834",
++        "gpuPrice": "1667"
++      },
++      "limits": [
++        "Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin."
++      ]
++    }
++  ]
++}
+diff --git a/evidence/protected-guest-health.json b/evidence/protected-guest-health.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..db3928b52ccfc37264dc2cb3a51a3cb9a207ea97
+--- /dev/null
++++ b/evidence/protected-guest-health.json
+@@ -0,0 +1,26 @@
++{
++  "at": "2026-10-23T21:41:37.618Z",
++  "readOnly": true,
++  "rows": [
++    {
++      "id": "gd9d4a391d",
++      "status": 200,
++      "guest": {
++        "id": "gd9d4a391d",
++        "name": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
++        "status": "running"
++      }
++    },
++    {
++      "id": "gdd0646f2c",
++      "status": 200,
++      "guest": {
++        "id": "gdd0646f2c",
++        "name": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
++        "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
++        "status": "running"
++      }
++    }
++  ]
++}
+diff --git a/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json b/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..26112bc9135aa9080aff46ecbf7ca5c7e0b78af8
+--- /dev/null
++++ b/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.intent.json
+@@ -0,0 +1,21 @@
++{
++  "nonce": "129",
++  "deadline": "1792792087",
++  "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++  "kind": "renew",
++  "lease": {
++    "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++    "kind": 2,
++    "enclaveId": "0x0000000000000000000000000000000000000000000000000000000000000000",
++    "nonce": "129",
++    "deadline": "1792792087",
++    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
++    "maxChargeWei": "2761683630137"
++  },
++  "fromBlock": "53001220",
++  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
++  "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
++  "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
++  "chainId": 8453,
++  "ledger": "0xB1783B61E1FDee6a6163DC3CdaC27bF32E7d117B"
++}
+diff --git a/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json b/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..228ea0248a1d83398c8e47633a0ae4117c28d807
+--- /dev/null
++++ b/evidence/protected-renewals/0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9.result.json
+@@ -0,0 +1,9 @@
++{
++  "at": "2026-10-23T21:43:18.293Z",
++  "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
++  "guest": "gd9d4a391d",
++  "hash": "0xe543aad965aed285302fded3c1d8b91da7154ec9827d6ec1fea021b29fdba6aa",
++  "chargedWei": "1262589630137",
++  "operatorEthSpent": false,
++  "receiptVerified": true
++}
+diff --git a/evidence/registration-affordability.json b/evidence/registration-affordability.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c63cf8bb9ebfa34ca7c40a3decebd26fe4e88ae
+--- /dev/null
++++ b/evidence/registration-affordability.json
+@@ -0,0 +1,40 @@
++{
++  "at": "2026-10-23T21:37:05.541Z",
++  "readOnly": true,
++  "rows": [
++    {
++      "endpoint": "https://mainnet.base.org",
++      "block": "53001038",
++      "baseFee": "5000000",
++      "gas": "50354",
++      "balance": "376132087579",
++      "baseFeeOnlyCost": "251770000000",
++      "fields": {
++        "repo": "EnclaveHost/enclave",
++        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++        "cpuPrice": "834",
++        "gpuPrice": "1667"
++      },
++      "limits": [
++        "Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin."
++      ]
++    },
++    {
++      "endpoint": "https://base-rpc.publicnode.com",
++      "block": "53001039",
++      "baseFee": "5000000",
++      "gas": "50354",
++      "balance": "376132087579",
++      "baseFeeOnlyCost": "251770000000",
++      "fields": {
++        "repo": "EnclaveHost/enclave",
++        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
++        "cpuPrice": "834",
++        "gpuPrice": "1667"
++      },
++      "limits": [
++        "Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin."
++      ]
++    }
++  ]
++}
+diff --git a/probes/proofkey-affordability.mjs b/probes/proofkey-affordability.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..0fc59ca6d49c62511cf34403c0c1acec9fb20d45
+--- /dev/null
++++ b/probes/proofkey-affordability.mjs
+@@ -0,0 +1,20 @@
++// Read-only incident estimate. No keys/signing/submission.
++import fs from 'node:fs';
++import {createPublicClient,http,parseAbi,encodeFunctionData,keccak256,toHex} from 'viem';
++const urls=['https://mainnet.base.org','https://base-rpc.publicnode.com'];
++const operator='0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB',registry='0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC',endpoint='https://api.enclave.host/t/metal0';
++const abi=parseAbi(['function get(bytes32) view returns ((string endpoint,string repo,bytes32 measurement,address operator,uint64 registeredAt,uint64 lastSeen,bool active,uint64 cpuPricePerSec6,uint64 gpuPricePerSec6,address proofKey,address payoutWallet))','function setProofKey(bytes32,address)']);
++const clients=urls.map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const rows=[];
++for(const c of clients){
++ if(await c.getChainId()!==8453)throw Error('chain');
++ const block=await c.getBlock(),row=await c.readContract({address:registry,abi,functionName:'get',args:[keccak256(toHex(endpoint))],blockNumber:block.number});
++ if(row.operator.toLowerCase()!==operator.toLowerCase())throw Error('operator');
++ const data=encodeFunctionData({abi,functionName:'setProofKey',args:[keccak256(toHex(endpoint)),'0x8853f452533E2f05EB4c9289f77dBEAcc316D1Ed']});
++ const gas=await c.estimateGas({account:operator,to:registry,data,gasPrice:0n});
++ const balance=await c.getBalance({address:operator});
++ rows.push({endpoint:c.transport.url,block:block.number,baseFee:block.baseFeePerGas,gas,balance,baseFeeOnlyCost:gas*block.baseFeePerGas,fields:{repo:row.repo,measurement:row.measurement,cpuPrice:row.cpuPricePerSec6,gpuPrice:row.gpuPricePerSec6},limits:['Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin.']});
++}
++const out={at:new Date().toISOString(),readOnly:true,rows};
++const txt=JSON.stringify(out,(_,v)=>typeof v==='bigint'?String(v):v,2);
++fs.writeFileSync(new URL('../evidence/proofkey-affordability.json',import.meta.url),txt+'\n');console.log(txt);
+diff --git a/probes/protected-guest-health.mjs b/probes/protected-guest-health.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..b420c7e22394630448909ebfc2b267a6b26682b7
+--- /dev/null
++++ b/probes/protected-guest-health.mjs
+@@ -0,0 +1,8 @@
++import fs from 'node:fs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const key=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8')),rows=[];
++try{
++ const client=new GuestdControl('http://127.0.0.1:8095',key,{requestTimeoutMs:12000,maxResponseBytes:131072});
++ for(const id of ['gd9d4a391d','gdd0646f2c']){const {status,body}=await client.request('GET','/vms/'+id);rows.push({id,status,guest:body&&Object.fromEntries(Object.entries(body).filter(([k])=>['id','status','name','runtimeId'].includes(k)))});}
++ const out={at:new Date().toISOString(),readOnly:true,rows}; const text=JSON.stringify(out,null,2);fs.writeFileSync(new URL('../evidence/protected-guest-health.json',import.meta.url),text+'\n');console.log(text);
++}finally{key.fill(0)}
+diff --git a/probes/registration-affordability.mjs b/probes/registration-affordability.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7782b0e641c6ee7e855df48ad78cda67074963e
+--- /dev/null
++++ b/probes/registration-affordability.mjs
+@@ -0,0 +1,20 @@
++// Read-only incident estimate. No keys/signing/submission.
++import fs from 'node:fs';
++import {createPublicClient,http,parseAbi,encodeFunctionData,keccak256,toHex} from 'viem';
++const urls=['https://mainnet.base.org','https://base-rpc.publicnode.com'];
++const operator='0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB',registry='0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC',endpoint='https://api.enclave.host/t/metal0';
++const abi=parseAbi(['function get(bytes32) view returns ((string endpoint,string repo,bytes32 measurement,address operator,uint64 registeredAt,uint64 lastSeen,bool active,uint64 cpuPricePerSec6,uint64 gpuPricePerSec6,address proofKey,address payoutWallet))','function register(string,string,bytes32,uint64,uint64,address) returns(bytes32)']);
++const clients=urls.map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const rows=[];
++for(const c of clients){
++ if(await c.getChainId()!==8453)throw Error('chain');
++ const block=await c.getBlock(),row=await c.readContract({address:registry,abi,functionName:'get',args:[keccak256(toHex(endpoint))],blockNumber:block.number});
++ if(row.operator.toLowerCase()!==operator.toLowerCase())throw Error('operator');
++ const data=encodeFunctionData({abi,functionName:'register',args:[endpoint,row.repo,row.measurement,row.cpuPricePerSec6,row.gpuPricePerSec6,'0x8853f452533E2f05EB4c9289f77dBEAcc316D1Ed']});
++ const gas=await c.estimateGas({account:operator,to:registry,data,gasPrice:0n});
++ const balance=await c.getBalance({address:operator});
++ rows.push({endpoint:c.transport.url,block:block.number,baseFee:block.baseFeePerGas,gas,balance,baseFeeOnlyCost:gas*block.baseFeePerGas,fields:{repo:row.repo,measurement:row.measurement,cpuPrice:row.cpuPricePerSec6,gpuPrice:row.gpuPricePerSec6},limits:['Existing row fields, new boot proof key; estimate only, not a send authorization. GasPrice0 is eth_estimateGas simulation only. Excludes L1/operator fees and gas margin.']});
++}
++const out={at:new Date().toISOString(),readOnly:true,rows};
++const txt=JSON.stringify(out,(_,v)=>typeof v==='bigint'?String(v):v,2);
++fs.writeFileSync(new URL('../evidence/registration-affordability.json',import.meta.url),txt+'\n');console.log(txt);
+diff --git a/probes/renew-protected.mjs b/probes/renew-protected.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c612f04612aecc5f284180211f13b1ca82fcac4
+--- /dev/null
++++ b/probes/renew-protected.mjs
+@@ -0,0 +1,29 @@
++// Root incident operation: one app-funded renewal for an existing running protected guest.
++// Uses unchanged production client, delegation and policy; never spends operator ETH or claims another deployment.
++import fs from 'node:fs';
++import {createPublicClient,http} from 'viem';
++import {privateKeyToAccount} from 'viem/accounts';
++import {parseDeploymentRecord,LEDGER_ABI} from '../../custody-recipient-restore-20261023/repo/network/lease-gas-owner.mjs';
++import {createLeaseClient} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-client.mjs';
++import {verifiedLeaseAuthority} from '../../custody-recipient-restore-20261023/repo/client/lease-executor-authority.mjs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const allowed={'0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9':'gd9d4a391d','0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c':'gdd0646f2c'};
++const id=process.argv[2];if(!allowed[id])throw Error('not a protected ID');
++const dir=new URL('../evidence/protected-renewals/',import.meta.url);fs.mkdirSync(dir,{recursive:true,mode:0o700});
++const intent=new URL(id+'.intent.json',dir);if(fs.existsSync(intent))throw Error('Existing attempt: reconcile, never resend blindly');
++const cfg=JSON.parse(fs.readFileSync('/home/steven/Projects/enclave/metal/config.json','utf8'));
++const account=privateKeyToAccount(cfg.registryKey);if(account.address.toLowerCase()!=='0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab')throw Error('operator');
++const dep=parseDeploymentRecord(fs.readFileSync('/home/steven/enclave-prod/lease-gas/deployment.json'),{expectedDigest:'sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089'});
++const clients=['https://base-rpc.publicnode.com','https://mainnet.base.org','https://base-mainnet.public.blastapi.io'].map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
++const a=await verifiedLeaseAuthority({clients,deployment:dep,quorum:2});
++const row=await a.client.readContract({address:a.pins.ledger,abi:LEDGER_ABI,functionName:'get',args:[id]});
++if(!row.active||row.runner.toLowerCase()!=='0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be'||row.runnerOperator.toLowerCase()!==account.address.toLowerCase())throw Error('not this operator active lease');
++const pair=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8'));
++try{const c=new GuestdControl('http://127.0.0.1:8095',pair,{requestTimeoutMs:12000,maxResponseBytes:131072});const v=await c.request('GET','/vms/'+allowed[id]);if(v.status!==200||v.body.status!=='running'||v.body.name!==id)throw Error('protected guest not running');}finally{pair.fill(0)}
++const stringify=x=>JSON.stringify(x,(_,v)=>typeof v==='bigint'?String(v):v,2)+'\n';
++const lc=createLeaseClient({clients,account,reserve:dep.reserve,deployment:dep,relays:cfg.leaseGas.relays,quorum:2,
++ onSigned:async r=>{if(r.kind!=='renew'||r.lease.id!==id||r.lease.maxChargeWei>31092172031561n)throw Error('intent exceeds existing policy ceiling');
++ const fd=fs.openSync(intent,'wx',0o600);try{fs.writeSync(fd,stringify(r));fs.fsyncSync(fd)}finally{fs.closeSync(fd)}},
++ log:()=>{}});
++if(!process.argv.includes('--execute')){console.log(stringify({readOnly:true,id,guest:allowed[id],leaseUntil:row.leaseUntil,at:new Date().toISOString(),readyForClientPolicyCheck:true}));process.exit(0);}
++try{const r=await lc.renew(id);const out={at:new Date().toISOString(),id,guest:allowed[id],hash:r.hash,chargedWei:r.verified.chargedWei,operatorEthSpent:false,receiptVerified:true};fs.writeFileSync(new URL(id+'.result.json',dir),stringify(out),{mode:0o600,flag:'wx'});console.log(stringify(out));}catch(e){console.error(JSON.stringify({code:e.code||'error',message:String(e.shortMessage||e.message).slice(0,450),intentExists:fs.existsSync(intent)}));process.exitCode=1}

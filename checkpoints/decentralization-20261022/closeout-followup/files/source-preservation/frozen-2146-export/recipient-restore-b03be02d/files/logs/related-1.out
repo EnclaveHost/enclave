@@ -1,0 +1,368 @@
+[queue] START available=24032MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: actual launchSpec and spawn use owner package when Enclave services refuse
+ok 1 - actual launchSpec and spawn use owner package when Enclave services refuse
+  ---
+  duration_ms: 375.398578
+  type: 'test'
+  ...
+# Subtest: owner transfer or missing manager support prevents launch before posting a guest
+ok 2 - owner transfer or missing manager support prevents launch before posting a guest
+  ---
+  duration_ms: 754.221752
+  type: 'test'
+  ...
+# Subtest: restart adopts only the same package; stale owner config forces replacement
+ok 3 - restart adopts only the same package; stale owner config forces replacement
+  ---
+  duration_ms: 760.410799
+  type: 'test'
+  ...
+# Subtest: reservation credit requires the same direct package, app and runtime
+ok 4 - reservation credit requires the same direct package, app and runtime
+  ---
+  duration_ms: 647.083247
+  type: 'test'
+  ...
+# Subtest: claim gate and envelope audit understand explicit bootstrap without a relay list
+ok 5 - claim gate and envelope audit understand explicit bootstrap without a relay list
+  ---
+  duration_ms: 344.255175
+  type: 'test'
+  ...
+# Subtest: direct custody pump signs only the committed vault and never requests a ticket
+ok 6 - direct custody pump signs only the committed vault and never requests a ticket
+  ---
+  duration_ms: 768.149485
+  type: 'test'
+  ...
+# Subtest: a fresh supervisor reads operator-selected storage replicas without a central discovery service
+ok 7 - a fresh supervisor reads operator-selected storage replicas without a central discovery service
+  ---
+  duration_ms: 761.516919
+  type: 'test'
+  ...
+# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
+ok 8 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
+  ---
+  duration_ms: 7327.024207
+  type: 'test'
+  ...
+# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
+ok 9 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
+  ---
+  duration_ms: 7333.223408
+  type: 'test'
+  ...
+# Subtest: a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
+ok 10 - a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
+  ---
+  duration_ms: 9333.309215
+  type: 'test'
+  ...
+# Subtest: an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
+ok 11 - an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
+  ---
+  duration_ms: 6844.078932
+  type: 'test'
+  ...
+# Subtest: a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 12 - a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7333.867757
+  type: 'test'
+  ...
+# Subtest: a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 13 - a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7339.041849
+  type: 'test'
+  ...
+# Subtest: a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+ok 14 - a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
+  ---
+  duration_ms: 7326.377672
+  type: 'test'
+  ...
+# Subtest: a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives
+ok 15 - a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives
+  ---
+  duration_ms: 7336.049815
+  type: 'test'
+  ...
+# Subtest: transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after
+ok 16 - transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after
+  ---
+  duration_ms: 7833.068203
+  type: 'test'
+  ...
+# Subtest: config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list
+ok 17 - config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list
+  ---
+  duration_ms: 1269.13411
+  type: 'test'
+  ...
+# Subtest: a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image
+ok 18 - a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image
+  ---
+  duration_ms: 628.443711
+  type: 'test'
+  ...
+# Subtest: the relay's list has THREE answers, and only a clear one is listed or unlisted
+ok 19 - the relay's list has THREE answers, and only a clear one is listed or unlisted
+  ---
+  duration_ms: 761.618664
+  type: 'test'
+  ...
+# Subtest: the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image
+ok 20 - the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image
+  ---
+  duration_ms: 792.414234
+  type: 'test'
+  ...
+# Subtest: the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd
+ok 21 - the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd
+  ---
+  duration_ms: 414.426117
+  type: 'test'
+  ...
+# Subtest: a relay refusal is retried while the guest waits, and logged by status and code only
+ok 22 - a relay refusal is retried while the guest waits, and logged by status and code only
+  ---
+  duration_ms: 438.251385
+  type: 'test'
+  ...
+# Subtest: a guest that is no longer starting ends the pump, and no ticket is fetched for it
+ok 23 - a guest that is no longer starting ends the pump, and no ticket is fetched for it
+  ---
+  duration_ms: 1179.394595
+  type: 'test'
+  ...
+# Subtest: a malformed ticket is never handed on, and without an operator key nothing is asked
+ok 24 - a malformed ticket is never handed on, and without an operator key nothing is asked
+  ---
+  duration_ms: 1343.99502
+  type: 'test'
+  ...
+# Subtest: guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry
+ok 25 - guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry
+  ---
+  duration_ms: 411.373536
+  type: 'test'
+  ...
+# Subtest: depHasSecrets: only a clean answer is yes or no
+ok 26 - depHasSecrets: only a clean answer is yes or no
+  ---
+  duration_ms: 432.61771
+  type: 'test'
+  ...
+# Subtest: the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing
+ok 27 - the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing
+  ---
+  duration_ms: 1184.95261
+  type: 'test'
+  ...
+# Subtest: CID config claim uses attested delivery only for a listed isolated release guest
+ok 28 - CID config claim uses attested delivery only for a listed isolated release guest
+  ---
+  duration_ms: 1137.189284
+  type: 'test'
+  ...
+# Subtest: custody: the binding guestd reports is signed by this endpoint's operator over custody/protocol.mjs's exact message
+ok 29 - custody: the binding guestd reports is signed by this endpoint's operator over custody/protocol.mjs's exact message
+  ---
+  duration_ms: 419.017872
+  type: 'test'
+  ...
+# Subtest: custody: without CUSTODY_VAULT, or for a malformed binding, nothing is signed
+ok 30 - custody: without CUSTODY_VAULT, or for a malformed binding, nothing is signed
+  ---
+  duration_ms: 780.436336
+  type: 'test'
+  ...
+# Subtest: custody v2: guestd's {v:2, vault, binding} is signed over the v2 message for THIS box's measured v2 vault only
+ok 31 - custody v2: guestd's {v:2, vault, binding} is signed over the v2 message for THIS box's measured v2 vault only
+  ---
+  duration_ms: 1192.824651
+  type: 'test'
+  ...
+# Subtest: a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands
+ok 32 - a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands
+  ---
+  duration_ms: 3007.162251
+  type: 'test'
+  ...
+# Subtest: a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why
+ok 33 - a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why
+  ---
+  duration_ms: 3278.118217
+  type: 'test'
+  ...
+# Subtest: gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
+ok 34 - gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
+  ---
+  duration_ms: 63.025719
+  type: 'test'
+  ...
+# Subtest: no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
+ok 35 - no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
+  ---
+  duration_ms: 52.233383
+  type: 'test'
+  ...
+# Subtest: control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
+ok 36 - control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
+  ---
+  duration_ms: 61.145812
+  type: 'test'
+  ...
+# Subtest: the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
+ok 37 - the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
+  ---
+  duration_ms: 1979.227892
+  type: 'test'
+  ...
+# Subtest: release: true is forwarded, with the endpoints and the key, and nothing else
+ok 38 - release: true is forwarded, with the endpoints and the key, and nothing else
+  ---
+  duration_ms: 1.252811
+  type: 'test'
+  ...
+# Subtest: absent or false forwards NO release key; any other value refuses (a typo must not pass for an opt-in)
+ok 39 - absent or false forwards NO release key; any other value refuses (a typo must not pass for an opt-in)
+  ---
+  duration_ms: 0.584156
+  type: 'test'
+  ...
+# Subtest: no other isolation key crosses to the guest (backend, the key FILE path, anything added later)
+ok 40 - no other isolation key crosses to the guest (backend, the key FILE path, anything added later)
+  ---
+  duration_ms: 0.138629
+  type: 'test'
+  ...
+# Subtest: the endpoints default as before and must be IPv4 literals
+ok 41 - the endpoints default as before and must be IPv4 literals
+  ---
+  duration_ms: 0.264258
+  type: 'test'
+  ...
+# Subtest: the real launcher hands the guest isolation.release === true for release: true
+ok 42 - the real launcher hands the guest isolation.release === true for release: true
+  ---
+  duration_ms: 3928.510141
+  type: 'test'
+  ...
+# Subtest: the real launcher hands the guest NO release key when it is absent or false
+ok 43 - the real launcher hands the guest NO release key when it is absent or false
+  ---
+  duration_ms: 8101.220084
+  type: 'test'
+  ...
+# Subtest: the real launcher REFUSES release: "true" (a string) and never starts QEMU
+ok 44 - the real launcher REFUSES release: "true" (a string) and never starts QEMU
+  ---
+  duration_ms: 56.615662
+  type: 'test'
+  ...
+# Subtest: the host half and the guest half name the same thing
+ok 45 - the host half and the guest half name the same thing
+  ---
+  duration_ms: 0.241658
+  type: 'test'
+  ...
+# Subtest: wallet policy crosses real fw_cfg and installs from the standalone guest bundle
+ok 46 - wallet policy crosses real fw_cfg and installs from the standalone guest bundle
+  ---
+  duration_ms: 4379.242743
+  type: 'test'
+  ...
+# Subtest: measured image and supervisor overlay include wallet policy and its local import closure
+ok 47 - measured image and supervisor overlay include wallet policy and its local import closure
+  ---
+  duration_ms: 4.813557
+  type: 'test'
+  ...
+# Subtest: a complete reviewed configuration becomes a public transit; absent is off
+ok 48 - a complete reviewed configuration becomes a public transit; absent is off
+  ---
+  duration_ms: 3.503456
+  type: 'test'
+  ...
+# Subtest: partial or invalid configuration REFUSES (no fallback to the operator's wallet)
+ok 49 - partial or invalid configuration REFUSES (no fallback to the operator's wallet)
+  ---
+  duration_ms: 2.552893
+  type: 'test'
+  ...
+# Subtest: the guest installs exactly the six names and the record; the supervisor's real loader accepts them
+ok 50 - the guest installs exactly the six names and the record; the supervisor's real loader accepts them
+  ---
+  duration_ms: 2.182746
+  type: 'test'
+  ...
+# Subtest: a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH
+ok 51 - a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH
+  ---
+  duration_ms: 0.971653
+  type: 'test'
+  ...
+# Subtest: the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)
+ok 52 - the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)
+  ---
+  duration_ms: 1.882187
+  type: 'test'
+  ...
+# Subtest: the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over
+ok 53 - the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over
+  ---
+  duration_ms: 4224.411466
+  type: 'test'
+  ...
+# Subtest: the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU
+ok 54 - the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU
+  ---
+  duration_ms: 462.319042
+  type: 'test'
+  ...
+# Subtest: direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names
+ok 55 - direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names
+  ---
+  duration_ms: 6.290587
+  type: 'test'
+  ...
+# Subtest: direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453
+ok 56 - direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453
+  ---
+  duration_ms: 1.189392
+  type: 'test'
+  ...
+# Subtest: the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's
+ok 57 - the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's
+  ---
+  duration_ms: 2212.2565
+  type: 'test'
+  ...
+# Subtest: gsup and the launcher wire the conduit, and only the conduit
+ok 58 - gsup and the launcher wire the conduit, and only the conduit
+  ---
+  duration_ms: 4.977756
+  type: 'test'
+  ...
+# Subtest: the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted
+ok 59 - the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted
+  ---
+  duration_ms: 102.742344
+  type: 'test'
+  ...
+1..59
+# tests 59
+# suites 0
+# pass 59
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 124286.678886
+[memory-guard] exit=0 peakTreeRssMiB=644 minHostAvailableMiB=23466
+[memory-guard] at peak: node:68 node:59 node:59 wasmtime:15 wasmtime:15 wasmtime:15 wasmtime:14 wasmtime:14
+[queue] EXIT 0

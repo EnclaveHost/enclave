@@ -1,0 +1,1996 @@
+From c4d96a11b85edabca87f1b91fa16d33a0ad88229 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:13:13 -0700
+Subject: [PATCH] Canary driver review fixes: L1/operator fee + aggregate
+ budget, durable pre-broadcast intent, recipient blocker, value-consumption
+ gap plan
+
+---
+ .gitleaksignore       |   9 +-
+ CANARY-APP-PLAN.md    |  64 +++++++++++
+ README.md             | 259 +++++++++++++++++++++++++++---------------
+ driver/assert.mjs     |   9 +-
+ driver/budget.mjs     |  57 ++++++++++
+ driver/cli.mjs        | 164 +++++++++++++++++---------
+ driver/plan.mjs       |  99 ++++++++++------
+ driver/prepare.mjs    |   6 +-
+ driver/sender.mjs     | 253 +++++++++++++++++++++++++++++++++++++++++
+ driver/tx.mjs         |  48 +-------
+ pins.example.json     |  37 +++++-
+ test/assert.test.mjs  |  16 ++-
+ test/cli.test.mjs     |  22 +++-
+ test/core.test.mjs    |  29 +----
+ test/mutants.sh       |   7 +-
+ test/plan.test.mjs    | 103 +++++++++++------
+ test/prepare.test.mjs |   4 +-
+ test/sender.test.mjs  | 226 ++++++++++++++++++++++++++++++++++++
+ 18 files changed, 1106 insertions(+), 306 deletions(-)
+ create mode 100644 CANARY-APP-PLAN.md
+ create mode 100644 driver/budget.mjs
+ create mode 100644 driver/sender.mjs
+ create mode 100644 test/sender.test.mjs
+
+diff --git a/.gitleaksignore b/.gitleaksignore
+index 7a91979c9d5097ddd413a1dbb3eafc1bbec6a5a4..165fb7fd19da8254203f8d59f3f06ddccb4c7f9d 100644
+--- a/.gitleaksignore
++++ b/.gitleaksignore
+@@ -1,3 +1,6 @@
+-# Adjudicated false positive (2026-10-23): the PUBLIC sha256 pin of the public source file relay/secrets.js in the
+-# client-repo file list; a file hash, not a credential.
+-pins.example.json:generic-api-key:46
++# Adjudicated false positive (2026-10-23), exact scope: ONE finding = file pins.example.json + rule generic-api-key + line 45.
++# That line is `"relay/secrets.js": "<sha256>"`, the PUBLIC sha256 of the public source file relay/secrets.js at repo-r2
++# ab589bf8 (test/plan.test.mjs re-hashes every pinned file). `gitleaks dir` fingerprints are file:rule:line, so any other
++# file, rule or line is still reported; if this line moves the finding reappears (fail closed). `gitleaks git` fingerprints
++# carry the commit and are NOT covered by this entry.
++pins.example.json:generic-api-key:45
+diff --git a/CANARY-APP-PLAN.md b/CANARY-APP-PLAN.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..9d5f408423269fb49c418ff276de2e31414b37e0
+--- /dev/null
++++ b/CANARY-APP-PLAN.md
+@@ -0,0 +1,64 @@
++# Plan: a hash-only canary app that proves value consumption (NOT built, deployed or published)
++
++## The gap
++
++- **hello-world reads no env.** Catalog v4 is the deployed per-app canary. The current source
++  (enclave-apps `hello-world/src/lib.rs`) answers a fixed `Hello World!` and never reads its environment.
++- **What a hello-world release proves.** It is the guest front's log: `secrets revision N from a v2 threshold of 1 over 1
++  custodian machines, K name(s)`. The front also refuses a config whose sha256 differs from the bundle's commitment.
++  - That shows the custody release reached the attested FRONT, at the right revision, with K names.
++  - It does not show that the APP received or used the values.
++- **No existing app closes it.** I did not find an approved per-app-tier app that exposes any value-derived output, but
++  I did not audit the whole catalog: on Sep-24 hello-world was the only approved wasi:http app for the tier.
++
++## Smallest closing step: `custody-canary-proof`, one wasi:http component
++
++**Interface.**
++- **Request:** exactly `GET /canary/proof?c=<64 lowercase hex>`.
++- **Response:** `200 {"v":1,"names":[…sorted],"proofs":{"<NAME>":"<64 hex>"}}`, where
++  `proof = HMAC-SHA256(key = UTF-8 value, msg = "enclave-custody-canary-proof-v1\n" ‖ NAME ‖ "\n" ‖ c)`.
++- **Everything else answers a fixed body:**
++  - `400` for a malformed `c`;
++  - `404` for any other path or method;
++  - `409` when no name matches.
++
++**Which variables it reads.**
++- ONLY names matching `^CANARY_[A-Z0-9_]{1,40}$`, at most 8. Any other env name is ignored, never listed and never
++  hashed.
++
++**What it never does.**
++- It never returns a value, length, prefix or encoding of one.
++- It never logs.
++- It has no echo or reflection route, no other env access, and no outbound network. It holds no state.
++
++**Why it is safe for the canary.**
++- The markers are 32 random bytes (`CANARY_<run>_<set>_<64 hex>`). An HMAC under a uniformly random 256-bit key, on
++  challenges an observer chooses, reveals nothing usable about the key.
++- Only the canary owner, who already holds the value, can check a proof.
++
++**Why it must never hold real secrets.**
++- A proof is an offline guessing oracle for a LOW-entropy value. That is why only the `CANARY_` names are hashed.
++- The app's catalog description must say: canary use only, high-entropy test markers only.
++
++## Driver side (a later, separately reviewed addition)
++
++Not implemented here, to keep the driver's scope fixed.
++
++- **The check.**
++  1. Fetch `/canary/proof?c=<fresh random>` through the app's attested front, verifying with the existing
++     `isolation/m2/client.mjs` (TRUSTED mode).
++  2. Recompute each HMAC locally from the private marker file.
++  3. Record names plus match booleans only.
++- **What a pass means.** It would then prove that THIS attested app consumed THIS revision's values: rev1 before
++  rotation, rev2 after it, and the c2-legacy values after migration.
++
++## Build, admission and what it needs from root
++
++- **Build.** A Rust component with `hmac` + `sha2` (RustCrypto), built in the same blessed container as hello-world.
++  - Pick the WASI version the runner's tier serves: catalog v4 hello-world is wasi:http 0.2, and current main is p3.
++  - Known-answer vectors and refusal tests are in the crate. It should be about 100 lines and reviewable in one sitting.
++- **Admission.** Catalog publish and approval (admin), then `expected-measurement.sh --pin` for the new bundle. That
++  gives a NEW appId and measurement, which the canary rules must admit instead of hello-world's. None of this is done or
++  requested here.
++- **Open question to confirm first.** Does the per-app front pass the custody env into the wasi:http component's
++  environment? The front substitutes values into the env, but tier apps so far never read it.
+diff --git a/README.md b/README.md
+index c0bd9a8f857ce63ac5346a135b33843b37044ff1..032315ea0ccd7c1203ff3f7bca362afdd7821d0a 100644
+--- a/README.md
++++ b/README.md
+@@ -15,6 +15,80 @@
+ - It certifies nothing about the corrected r2 candidate.
+ - Policy `0x4e62…` (the historical canary) is never touched: the plan refuses it as a target, and `Z.final` re-reads it.
+ 
++## 0. Transaction review fixes (ROOT-TRANSACTION-REVIEW, 2026-10-23)
++
++Every fix below is source only. No production, chain, wallet or hardware action was taken.
++
++1. **Cost accounting and the aggregate budget** (`driver/sender.mjs`, `driver/budget.mjs`).
++   - **Per-update worst case** = gas × maxFee + **Base L1 data fee** + **operator fee**.
++     - Gas = max estimate of both RPCs × 1.25, at most the step cap.
++     - maxFee = 2 × base + max tip, at most the fee cap.
++     - L1 data fee = `GasPriceOracle.getL1FeeUpperBound(unsigned size)`, the same reviewed accounting as
++       `custody-operator-proposal` `proposer.mjs`. The oracle adds the signature bytes.
++     - Operator fee = `GasPriceOracle.getOperatorFee(gas)` when `isIsthmus()` is true, and 0 only when the chain says it
++       is pre-Isthmus.
++   - **Refusals.** If either oracle read fails, or either bound exceeds its pinned allowance (`fees.l1FeeWei`,
++     `fees.operatorFeeWei`), the step REFUSES (`fee_unbounded`). Unaccounted cost is never allowed.
++   - **Aggregate budget, plan level.** It covers every enabled spending step:
++     - the custody updates;
++     - the CLI deployment creates, lease-gas configure + deposit (deposit value included) and stops;
++     - the USDC lease funding.
++
++     If the whole plan's worst case exceeds `budget.totalWei` (or `budget.usdcUnits`), EVERY spending step is blocked.
++   - **Aggregate budget, run level.** A spend is allowed only while spent (from receipts, conservative) + this worst case
++     + the cleanup stops still owed ≤ `budget.totalWei`, AND the agreed balance covers this worst case plus that reserve.
++     `S0.chain` requires the owner's balance to back the whole `budget.totalWei`.
++   - **CLI steps.** They are gated before running (`gate`) and costed afterwards from both RPCs' receipts (`record`):
++     gasUsed × effectiveGasPrice + l1Fee + value + the operator-fee allowance.
++   - **Numbers.** The owner holds 61654449641751 wei (19:59Z) and 189740 USDC units. With the example caps:
++
++     | | worst case | fits `budget.totalWei` 5.5e13? |
++     |---|---|---|
++     | full matrix | 8.01e13 wei | NO |
++     | profile A: everything except migration (the example's `cases.disabled: ["migration"]`) | 4.73e13 wei | yes (cleanup reserve 1.5e12 included) |
++     | migration alone, run separately later with its own pins | ~3.3e13 + its share of fees | — |
++
++     No recharge is requested. If root wants both in one run, that is a budget decision, not a driver change.
++2. **Durable intent before broadcast; ambiguous outcomes never re-signed.** `sender.mjs` is the reviewed operator-helper
++   pattern narrowed to one custody update. It is not a general engine.
++   - It uses exactly two RPCs (`sendRpcs`), one agreed block, the vault code hash, and a settled nonce (agreed =
++     latest = pending on both).
++   - `send` re-runs every check, signs the prepared fields, and writes the signed bytes, hash and nonce to a private
++     0600 intent file (temp, fsync, exclusive link, dir fsync) BEFORE any broadcast. A failed write broadcasts nothing.
++   - An intent file blocks any second signing or preparing of that step.
++   - `resume` never signs:
++     - it reconciles through both RPCs (agreeing receipt, 2 confirmations, the mined tx matches the intent);
++     - `--rebroadcast` re-sends the SAME bytes only while the nonce is unused on both RPCs;
++     - a nonce consumed by another transaction is a final `conflict`;
++     - only final outcomes are journaled.
++   - The step journal entry therefore follows a durable pre-broadcast intent, instead of being the only record written
++     after the receipt.
++3. **Recipient readiness is BLOCKED.**
++   - Root's provenance: the measured metal0 control image (`dist-leasegas-deabf8f90`, manifest `c7cb436d…`, measurement
++     `ed918e4b…`) has NO `CUSTODY_VAULT_V2`, so its supervisor cannot sign v2 custody auth.
++   - `recipient.runner` resolves only from an `S0.root` record that names the activated control manifest sha (not in
++     `KNOWN_LACKING_CONTROL_MANIFESTS`), `CUSTODY_VAULT_V2 = 0xE486`, and an evidence reference. Until D's restore is
++     activated, every C1/C2 step stays blocked.
++   - The public reads (`/availability` snp-guest-per-app, `claimEnabled`) show only that the runner is advertised.
++   - **Lease gas.** It uses the EXISTING app-funded reserve path (`enclave --independent lease-gas configure/deposit`,
++     reserve `0x12a3f873…`). This involves no operator gas and no new contract, and the metal0 7702 delegation is
++     untouched.
++4. **Value consumption: a GAP, plus a plan.**
++   - hello-world (catalog v4; the current source is a WASIp3 fixed "Hello World!") reads no env. The release evidence
++     here is the guest FRONT's lines: revision, name count, and the configSha256 gate. It does NOT show that an app
++     consumed a value.
++   - I did not find an approved per-app-tier app that exposes a value-derived output. I did not audit the whole catalog:
++     on Sep-24 hello-world was the only approved wasi:http app for the tier.
++   - `CANARY-APP-PLAN.md` specifies a narrowly scoped HASH-ONLY canary app (an HMAC over a client challenge, never the
++     value or a reflection endpoint). It is a plan only: not built, deployed or published.
++5. **gitleaks ignore scope.**
++   - `.gitleaksignore` holds ONE fingerprint, `pins.example.json:generic-api-key:45`: that file, that rule, that line.
++     The line is the PUBLIC sha256 of `relay/secrets.js` at repo-r2 `ab589bf8`, and `test/plan.test.mjs` re-hashes every
++     pinned file and asserts that line 45 is exactly that entry.
++   - Any other file, rule or line is still reported. If the line moves, the finding reappears (it moved from 46 to 45 in
++     this revision and was re-adjudicated).
++   - `gitleaks git` fingerprints carry the commit and are NOT covered by this entry.
++
+ ## 1. Answers to root's questions
+ 
+ **Can a baseline full lifecycle run safely against the existing committee?** Yes, for create, release, rotate,
+@@ -107,140 +181,137 @@
+ - It is built only by the pinned `custody/v2/owner.mjs` `makeUpdateV2` / `buildBundleV2` and `custody/rules.mjs`
+   `validateRules` (repo-r2 `ab589bf8`, file hashes in `pins.example.json`).
+ - Its selector is `0xe4373411`, printed by the test job from the pinned ABI.
+-- There are 9 mutations, and their planned `expectPolicyRev` values are C1 0..6 and C2 0..1. A mismatch refuses to
+-  prepare.
++- With every case enabled there are 9 updates (C1 revisions 0..6, C2 0..1). Disabling optional cases renumbers the
++  expected revisions of the kept updates; a chain revision that differs refuses to prepare.
+ - No other function, contract, admin, book-owner or payout call exists in the driver.
+ 
+-**Gas and budget.**
+-- Caps:
+-  - create 1,200,000 gas;
+-  - rotate 600,000;
+-  - rules/pause 500,000;
+-  - pinned fee ceiling 0.02 gwei;
+-  - per-transaction cost cap = gas cap × ceiling (create 2.4e13 wei).
+-- Global ceilings: 3M gas, 0.1 gwei, 3e14 wei.
+-- Worst case for all 9 at the ceiling is 1.22e14 wei, which is ABOVE the owner's last public balance of 6.165e13 wei
+-  (19:59Z, block 52998091). The two CLI deployment creates (~411,747 gas each) and stops come on top.
+-- **Expected spend** at a realistic Base price (~0.005–0.01 gwei) is ~2–4e13 wei, so it should fit. No funding is
+-  requested.
+-- **Balance gate.** Every execute refuses unless the live balance ≥ that step's cost cap, and the plan says where it
+-  would stop. If a step is refused for balance, the run stops there and root decides.
++**Gas, fees and budget** (pins; root re-reads the live numbers in `S0.chain` before anything is spent).
++- **Gas caps:** create 900,000; rotate 300,000; rules/pause 250,000. Each prepare takes estimate × 1.25 within the cap.
++- **Fee cap:** 0.01 gwei.
++- **Allowances:** L1 data fee 3e11 wei and operator fee 1e11 wei per transaction. The oracle values must be within them
++  (`fees.bounded`, then rechecked at every prepare and send).
++- **CLI allowances per operation** (`budget.cliWei`): create 7e12, lease configure 2e12, lease deposit 1.5e12 plus the
++  deposit value `leaseDepositWei` 8e12, and stop 1.5e12. USDC lease funding is 90000 units per deployment.
++- **Global ceilings** (tx.mjs): 3M gas, 0.1 gwei.
++- **Aggregate:** see §0.1.
+ 
+ ## 3. How the driver bounds production actions
+ 
+-- **One command, at most one step.** Steps are ordered by `after` and gated by prerequisites. A blocked or out-of-order
+-  step refuses. A step is journaled once and never re-run.
++- **One command, at most one step.** Steps are ordered by `after` and gated by prerequisites and the aggregate budget. A
++  blocked or out-of-order step refuses. A step is journaled once and never re-run.
+ - **Journal.** `runs/<label>/journal.jsonl` is append-only and hash-chained. It is bound to the pins hash and to each
+-  step's hash, and each step hash covers the learned deployment id. Deployment ids and live facts come ONLY from
+-  verified journal entries.
+-- **Mutation:** `prepare` → `execute --confirm <prepared hash>`.
+-  - `prepare` reads the chain at an agreed block and builds the calldata with the pinned code. It writes
+-    `private/<label>/prepared-<step>.json` (O_EXCL, 0600) and prints the prepared hash.
+-  - `execute` re-checks:
+-    - target and selector;
+-    - the deployment id inside the calldata;
+-    - the calldata hash, chain, zero value and sender;
+-    - gas, fee and cost caps;
+-    - balance and nonce.
+-  - It simulates first, refuses when the estimate exceeds the cap, and sends with gas = cap.
+-  - It waits at most 120 s and never retries. A missing receipt is recorded as `aborted` (UNKNOWN).
++  step's hash, and each step hash covers the learned deployment id. Deployment ids, live facts and spent costs come ONLY
++  from verified journal entries.
++- **Update:** `prepare` → `execute --confirm <prepared hash>` → (if unknown) `resume [--rebroadcast]`.
++  - `prepare` builds the calldata with the pinned client code (no key, except to read the relay's values in the
++    migration). It checks the pins (target, selector, the id inside the calldata, the calldata hash, caps), the
++    aggregate gate, and the sender's priced plan. It writes `private/<label>/prepared-<step>.json` (0600) and prints the
++    prepared hash.
++  - `execute` re-checks all of it and sends through `sender.mjs` (§0.2).
++- **CLI spending steps.** Run `gate --step` before running the CLI. Afterwards, `record --obs {txHashes, [deploymentId],
++  [usdcUnits]}` costs the receipts from both RPCs. Over the allowance or the aggregate is a `fail`, which stops the run.
+ - **Relay and record steps** need `--confirm <step hash>`. Hardware and operator observations are judged only from the
+   real front and custodian log lines, filtered to the canary id.
+ - **Secrets.**
+   - Markers are `CANARY_<run>_<set>_<64 hex>`, in a 0600 O_EXCL file in 0700 `private/`.
+   - The journal holds sha256 commitments only.
+-  - The owner key comes only from the env var NAMED in the pins.
+-  - Every marker, the key and the throwaway key are registered with an output guard. It refuses stdout or journal
+-    content holding any of their encodings, or fields named like keys, plaintext, env, report or auxblob.
++  - The owner key comes only from the env var NAMED in the pins, read at signing time.
++  - Every marker, the key and the throwaway key are registered with an output guard.
+   - Relay reads return names, rev and an equality verdict, never values.
+ - **Repo pin.** `checkRepo` requires the pinned HEAD, a clean tracked tree and every listed file hash before any
+   networked command.
+-- **Public RPCs.** Reads use the pinned reader (`createChainReaderV2`, 2 confirmations, majority of ≥ 3 public RPCs) and
+-  are described as agreement of public endpoints, **not trustless**.
++- **Public RPCs.** Reads use the pinned reader (majority of ≥ 3 public RPCs) and sends use 2 agreeing RPCs. Both are
++  described as agreement of public endpoints, **not trustless**.
+ 
+ ## 4. Root's run order (after review; every value public)
+ 
+-1. Copy `pins.example.json` to `private/pins.json` and set:
++1. Copy `pins.example.json` to `private/pins.json`. Set:
+    - `runLabel`;
+-   - `owner.reuseScope` (statedBy, at, `onlyPlanCreatedDeployments: true`);
+-   - `image` from `isolation/m4/expected-measurement.sh --pin` for the runner's CURRENT domain release (the
+-     chain-derived candidate is in `imageCandidateFromChain` and is NOT used until copied);
++   - `owner.reuseScope`;
++   - `image` from `isolation/m4/expected-measurement.sh --pin` (`imageCandidateFromChain` is NOT used until copied);
+    - `recipient.endpoint`;
+-   - `rpcs`/`sendRpc`;
+-   - `fees`.
+-2. `node driver/cli.mjs plan --pins private/pins.json` and review the blockers and budget.
+-3. `read --step S0.chain`; `probe --step S0.custodian`; `record --step S0.root --obs <public facts> --confirm <hash>`;
+-   `markers --step S1.markers`.
+-4. Run `D1.create` with the existing CLI (`ENCLAVE_KEY` from the owner wallet), then
+-   `record --step D1.create --obs {deploymentId, createTx, gasUsed} --confirm <hash>`, then `read --step D1.check`.
+-5. For each mutation: `prepare` → review the summary → `execute --confirm`. For each check: `read`. For each boot: root
+-   (re)starts the guest, saves the guest-front and custodian logs for the window, and runs
+-   `record --obs {frontLog, custodianLog, appAnswered}`.
++   - `rpcs`/`sendRpcs`;
++   - `fees`;
++   - `budget` (`totalWei` ≤ the live balance; deposit and USDC from `lease-gas plan` and the runner's rate);
++   - `cases.disabled`.
++2. Run `plan` and review the blockers, the aggregate budget (`budget.fits`) and the disabled cases.
++3. Run `read --step S0.chain` (including the fee bounds), `probe --step S0.custodian`, and `record --step S0.root`. The
++   S0.root record must include the ACTIVATED control manifest sha + `CUSTODY_VAULT_V2` + an evidence reference.
++   Then run `markers`.
++4. For each CLI step (`D1.create`, `D1.leasegas`, `D1.stop`, …): `gate`, then run the existing CLI, then
++   `record --obs {txHashes, deploymentId?, usdcUnits?}`. Then `read --step D1.check`.
++5. For each update: `prepare` → review → `execute --confirm` → (`resume` while unknown). For each check: `read`. For
++   each boot: `record --obs {frontLog, custodianLog, appAnswered}`.
+ 6. Marker searches:
+-   - `needles --set <set>` writes `private/<label>/needles-*.txt`;
+-   - root pipes it over SSH stdin to `grep -rcFf /dev/stdin <paths>` on the relay and custodian hosts (counts only);
+-   - root also searches for the id as the control;
++   - `needles --set <set>`;
++   - counts only, over SSH stdin, on the relay and custodian hosts;
++   - the id as the control;
+    - `record --obs {counts, control, locations}`.
+ 7. `read --step Z.final`.
+ 
+ ## 5. Known current-image defects to report (gates stay ON; never disabled)
+ 
++- **The recipient control image cannot sign v2 custody releases.** metal0's measured control image
++  `dist-leasegas-deabf8f90` lacks `CUSTODY_VAULT_V2` (root provenance; the previous 2857356cd gsup had it). This is a
++  regression that blocks every v2 release to apps on metal0.
+ - **Banned hosts.** The running 9d43e63 custodian has no platform host-ban check, so a banned host with a live lease can
+-  get a release (audit F7). No canary step depends on it.
+-- **High-water marks and nonces are memory-only.** Restart protection restarts from the next read (audit F4).
+-- **CLI migrate.** It clears the relay copy only if one `/exists` call answers custody:true, and never verifies the clear
+-  (no `/get` names-[] check). The driver adds that proof (`M.clear.proof`). The CLI path still has the race (audit F6).
+-- **The clear proof covers the live relay store only.** Backups, snapshots, earlier hosts and process memory are listed
+-  (R6), not cleared.
+-- **No owner-read on the running image.** Owner-read routes are not tunnelled (F5).
+-- **Delivery evidence is indirect.** It is the revision, name count and configSha256 binding. No canary app proves value
+-  equality (audit §5); an HMAC canary app would be new code and is not built here.
++  get a release (audit F7).
++- **High-water marks and nonces are memory-only** (audit F4).
++- **CLI migrate** clears the relay copy on one `/exists` call and never verifies the clear (audit F6). The driver adds the
++  proof (`M.clear.proof`).
++- **The clear proof covers the live relay store only.** Backups, snapshots, earlier hosts and process memory are listed,
++  not cleared.
++- **No owner-read on the running image** (F5).
++- **Delivery evidence is indirect** (§0.4).
+ 
+ ## 6. Limitations
+ 
+-- **Rollback (expected FAIL, `test/limitations.test.mjs`, run against repo-r2 `startup-state.mjs`).** An OLDER valid
+-  sealed blob opens under the same identity: there is no monotonic anchor (spec 176-181; the host keeps 20 blobs).
+-  - The `todo` test is the missing property, and fails as expected.
+-  - `evalRollback` returns `expected-fail` and can never return pass.
+-  - A refusal of an old SECRET revision is labelled "chain revision check only; NOT sealed-state anti-replay".
+-- **Log formats.** The front build that serves production (`d84fb52b`, branch custody/front-prod) is not in this tree. The
+-  regexes follow repo-r2 `front/custody.go` 290 and the 9d43e63 custodian log lines, and root confirms them on the first
+-  real line. A mismatch FAILS the step; it is never assumed.
+-- **Untested network paths.** The live adapters in `cli.mjs` (reader, viem clients, relay and custodian fetch) are thin
+-  and are not tested against live endpoints. The modules they call are unit-tested with fakes. The `prepare` test uses
+-  the real pinned client code with the secp256k1 generator as Y: an encoding check, not a release.
+-- **Deployment create/stop gas is not bounded by the driver.** Those steps use the existing CLI (operator steps) and
+-  record their transactions.
+-- **This is no evidence of decentralized custody.** The custody here is n = 1, t = 1, one chip and one operator. Its
+-  protection is subject to the SEV-SNP, attestation and software assumptions.
++- **Rollback (expected FAIL, `test/limitations.test.mjs`, against repo-r2 `startup-state.mjs`).** An OLDER valid sealed
++  blob opens under the same identity: there is no monotonic anchor.
++  - `evalRollback` returns `expected-fail`, never pass.
++  - An old-secret refusal is labelled "chain revision check only; NOT sealed-state anti-replay".
++- **Log formats.** The production front build (`d84fb52b` adopt list / CPU release 16c2999d) is not in this tree. The
++  regexes follow repo-r2. A mismatch FAILS the step.
++- **Untested against live endpoints.**
++  - The live adapters in `cli.mjs` are thin and are not tested against live endpoints.
++  - `sender.mjs` and `receiptCosts` are tested against a two-RPC fake Base. Only the oracle selectors/ABI
++    (`getL1FeeUpperBound`, `isIsthmus`, `getOperatorFee`) are taken from the OP-stack GasPriceOracle interface. If the
++    live oracle lacks one of them, the read fails and the step refuses: it never proceeds unbounded.
++  - The receipt cost adds the operator-fee ALLOWANCE (not the receipt's own operator fee fields), so the ledger can
++    over-count but never under-count.
++- **The CLI's own transactions are not bounded by the driver.** They are gated before, costed after, and stop the run
++  when over.
++- **This is no evidence of decentralized custody.** The custody here is n = 1, t = 1, one chip and one operator.
+ 
+ ## 7. Tests (queued, `q.sh`, 256 MiB lane; no network, chain, keys or VMs)
+ 
+ `test/run-tests.sh` runs:
+-- syntax (`node --check`, `bash -n`);
++- syntax checks;
+ - the pinned `update` selector and the example budget;
+-- all suites (`core`, `plan`, `prepare`, `net`, `assert`, `limitations`, `cli`);
+-- 6 mutation controls (`test/mutants.sh`). Each disables one guard in a temp copy and the suite must fail:
++- all suites (`core`, `plan`, `prepare`, `net`, `assert`, `sender`, `limitations`, `cli`);
++- 12 mutation controls (`test/mutants.sh`). Each disables one guard in a temp copy and the suite must fail:
+   - the calldata id check;
+   - SYNTHETIC acceptance;
+-  - the 0x4e62 refusal;
++  - the protected-policy constant;
+   - the rollback pass;
+-  - the balance gate;
++  - the sender's balance + reserve gate;
++  - the operator fee omitted;
++  - broadcast before the durable intent;
++  - the cleanup reserve forgotten;
++  - the aggregate budget ignored;
++  - S0.root accepting the known-lacking control image;
+   - relay value leakage.
+ - gitleaks;
+ - the source repo's crypto-key scanner on the staged tree.
+ 
+-**gitleaks.** The only finding is adjudicated in `.gitleaksignore`: `pins.example.json` line 46 is the PUBLIC sha256 pin of
+-the public file `relay/secrets.js`, flagged as `generic-api-key` because the key name contains "secrets".
++**Result.** Queue job c9 (final staged tree, docs included), 256 MiB lane: EXIT 0, peak 189 MiB. c8 matched it.
++- Tests: 44 pass, 0 fail, 1 TODO. The TODO is the rollback property, which fails as expected.
++- Mutation controls: 12/12 killed.
++- gitleaks: no leaks. Crypto-key scan: clean.
++- Example budget: profile A worst case 4.73e13 wei, which fits 5.5e13. Update selector: `0xe4373411`.
+ 
+ **Earlier runs.**
+-- c4 found that a mutant removing only the first of two redundant 0x4e62 guards survived. The mutant now changes the
+-  constant itself, and the test uses the literal id.
+-- c4/c5 found the gitleaks false positive above.
+-
+-**Result.** Queue job c6, 256 MiB lane: EXIT 0, peak 143 MiB.
+-- Tests: 35 pass, 0 fail, 1 TODO. The TODO is the rollback property, which fails as expected: "Missing expected
+-  rejection".
+-- Mutation controls: 6/6 killed.
+-- gitleaks: no leaks. Crypto-key scan: clean.
+-- Update selector: `0xe4373411`. Example budget: worstCase 1.22e14 wei, largest step 2.4e13 wei.
++- c7 had 7 failures: `fees.bounded` was not yet observable, and a step count assumed every case was enabled. Both were
++  fixed in c8.
++- The first handoff (7bcd501f) used a gas × fee-only cost cap, a post-receipt-only journal and a line-46 gitleaks
++  fingerprint. All three are superseded by §0.
+diff --git a/driver/assert.mjs b/driver/assert.mjs
+index 0d1fd133806e0052a92278bcdfc3bc58897756e1..24a0068769060ed44ab06fa9693fb30af3047d91 100644
+--- a/driver/assert.mjs
++++ b/driver/assert.mjs
+@@ -88,8 +88,13 @@
+   set("read.committee", !!c && c.epoch === 1 && c.t === 1 && c.W === 1 && c.machines?.length === 1 && c.machines[0].endpoint === CUSTODIAN_ENDPOINT
+     && c.machines[0].measurement === pins.custodian.measurementSha256, "epoch 1, t 1, W 1, one machine at custody-metal0 with the live measurement");
+   set("read.protected4e62", facts.protected?.id === PROTECTED_POLICY_4E62 && /^0x[0-9a-f]{64}$/.test(String(facts.protected?.bundleKeccak)), "0x4e62 snapshot recorded");
+-  set("read.owner", BigInt(facts.ownerBalanceWei) >= BigInt(budget.largestStepWei) && Number.isInteger(facts.ownerNonce),
+-    `balance ${facts.ownerBalanceWei} vs largest step cap ${budget.largestStepWei}; plan worst case ${budget.worstCaseWei}`);
++  set("read.owner", BigInt(facts.ownerBalanceWei) >= BigInt(pins.budget.totalWei) && Number.isInteger(facts.ownerNonce),
++    `balance ${facts.ownerBalanceWei} must back the whole aggregate budget ${pins.budget.totalWei} (plan worst case ${budget.worstCaseWei})`);
++  const f = facts.fees || {};
++  const feeOk = /^[0-9]+$/.test(String(f.l1UpperBoundWei)) && BigInt(f.l1UpperBoundWei) <= BigInt(pins.fees.l1FeeWei)
++    && typeof f.isthmus === "boolean" && /^[0-9]+$/.test(String(f.operatorFeeWei)) && BigInt(f.operatorFeeWei) <= BigInt(pins.fees.operatorFeeWei)
++    && /^[0-9]+$/.test(String(f.baseFeeWei)) && /^[0-9]+$/.test(String(f.tipWei)) && 2n * BigInt(f.baseFeeWei) + BigInt(f.tipWei) <= BigInt(pins.fees.maxFeePerGasWei);
++  set("fees.bounded", feeOk, `L1 bound ${f.l1UpperBoundWei} (size ${f.referenceSize}) <= ${pins.fees.l1FeeWei}; operator fee ${f.operatorFeeWei} (isthmus ${f.isthmus}) <= ${pins.fees.operatorFeeWei}; 2*base ${f.baseFeeWei} + tip ${f.tipWei} <= ${pins.fees.maxFeePerGasWei}`);
+   return obs;
+ }
+ 
+diff --git a/driver/budget.mjs b/driver/budget.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c0303af2019ecec92fa9ffda67e440554e9e6a5
+--- /dev/null
++++ b/driver/budget.mjs
+@@ -0,0 +1,57 @@
++// The AGGREGATE canary budget (pure). Every spending step has a worst-case ETH allowance; the plan's total
++// (all enabled spending steps, the cleanup stops included) must fit pins.budget.totalWei and its USDC must fit
++// pins.budget.usdcUnits, or every spending step is BLOCKED. At run time a step may spend only while
++//   spent (journal, from receipts) + this step's worst case + the cleanup steps still owed <= totalWei,
++// and the live balance covers this step plus that reserve. Allowances:
++//   custody update  gasCap x maxFeePerGas + l1FeeWei + operatorFeeWei   (the sender also enforces the live bounds)
++//   CLI operation   pins.budget.cliWei[kind] per operation (all its transactions: gas, L1 data fee, operator fee)
++//   lease deposit   pins.budget.leaseDepositWei (the value) on top of its CLI transactions
++export function allowanceOf(step, pins) {
++  const b = pins.budget, f = pins.fees;
++  if (step.mutation) return BigInt(step.mutation.gasCap) * BigInt(f.maxFeePerGasWei) + BigInt(f.l1FeeWei) + BigInt(f.operatorFeeWei);
++  if (!step.spend) return 0n;
++  const cli = (k) => { const v = b.cliWei?.[k]; if (v === undefined) throw new Error(`budget.cliWei.${k} is not pinned`); return BigInt(v); };
++  return step.spend.txs.reduce((a, k) => a + cli(k), 0n) + (step.spend.depositWei ? BigInt(b.leaseDepositWei) : 0n);
++}
++export const usdcOf = (step, pins) => (step.spend?.usdc ? BigInt(pins.budget.usdcFundUnits) : 0n);
++export const spends = (step) => !!(step.mutation || step.spend);
++
++export function planBudget(steps, pins) {
++  const live = steps.filter((s) => s.status !== "skipped" && spends(s));
++  const worstCaseWei = live.reduce((a, s) => a + allowanceOf(s, pins), 0n);
++  const cleanupWei = live.filter((s) => s.spend?.cleanup).reduce((a, s) => a + allowanceOf(s, pins), 0n);
++  const usdcUnits = live.reduce((a, s) => a + usdcOf(s, pins), 0n);
++  const totalWei = BigInt(pins.budget.totalWei), usdcCap = BigInt(pins.budget.usdcUnits);
++  const reasons = [];
++  if (worstCaseWei > totalWei) reasons.push(`aggregate worst case ${worstCaseWei} wei > budget ${totalWei} wei: disable optional cases or lower caps`);
++  if (usdcUnits > usdcCap) reasons.push(`USDC ${usdcUnits} units > budget ${usdcCap}`);
++  return { fits: reasons.length === 0, reasons, worstCaseWei: String(worstCaseWei), cleanupReserveWei: String(cleanupWei), usdcUnits: String(usdcUnits),
++    totalWei: String(totalWei), usdcCap: String(usdcCap), spendingSteps: live.length,
++    byStep: Object.fromEntries(live.map((s) => [s.id, String(allowanceOf(s, pins))])) };
++}
++
++// spent so far: the journal's recorded costWei for every spending entry (pass, fail or aborted: a reverted or unknown
++// transaction may still have cost); an entry of a spending step without a costWei counts its FULL allowance.
++export function spentOf(entries, steps, pins) {
++  let spent = 0n;
++  for (const e of entries) {
++    const s = steps.find((x) => x.id === e.stepId);
++    if (!s || !spends(s)) continue;
++    spent += /^[0-9]+$/.test(String(e.evidence?.costWei ?? "")) ? BigInt(e.evidence.costWei) : allowanceOf(s, pins);
++  }
++  return spent;
++}
++
++// the gate before ANY spending step (the driver's own update, or root's CLI transaction)
++export function gate({ steps, pins, entries, done, step, balanceWei = null }) {
++  if (!spends(step)) return { ok: true, allowanceWei: "0" };
++  const spent = spentOf(entries, steps, pins);
++  const owed = steps.filter((s) => s.spend?.cleanup && s.status !== "skipped" && !done.has(s.id) && s.id !== step.id).reduce((a, s) => a + allowanceOf(s, pins), 0n);
++  const allowance = allowanceOf(step, pins);
++  const total = BigInt(pins.budget.totalWei);
++  const remainingWei = total - spent - owed;
++  const reasons = [];
++  if (allowance > remainingWei) reasons.push(`step worst case ${allowance} > remaining ${remainingWei} (budget ${total} - spent ${spent} - cleanup owed ${owed})`);
++  if (balanceWei !== null && BigInt(balanceWei) < allowance + owed) reasons.push(`balance ${balanceWei} < step ${allowance} + cleanup owed ${owed}`);
++  return { ok: reasons.length === 0, reasons, allowanceWei: String(allowance), spentWei: String(spent), cleanupOwedWei: String(owed), remainingWei: String(remainingWei) };
++}
+diff --git a/driver/cli.mjs b/driver/cli.mjs
+index 6ec957ab06f815d902b9466688dc7c97d2c814a0..241b81ddb00541f8ed051d56692a0a2c23cb9332 100644
+--- a/driver/cli.mjs
++++ b/driver/cli.mjs
+@@ -6,12 +6,14 @@
+ //   node driver/cli.mjs probe    --pins pins.json --step <probe step>   public custodian HTTP (pre-attestation only)
+ //   node driver/cli.mjs markers  --pins pins.json --step S1.markers     create the marker sets (private/, 0600)
+ //   node driver/cli.mjs needles  --pins pins.json --set <set>           private/needles-<set>.txt for root's remote search (stdin)
+-//   node driver/cli.mjs prepare  --pins pins.json --step <mutation>     exact calldata -> private/, prints the prepared hash
+-//   node driver/cli.mjs execute  --pins pins.json --step <mutation> --confirm <prepared hash>   ONE owner transaction
++//   node driver/cli.mjs prepare  --pins pins.json --step <mutation>     calldata + priced send plan -> private/, prints the prepared hash
++//   node driver/cli.mjs execute  --pins pins.json --step <mutation> --confirm <prepared hash>   ONE owner transaction (sender.mjs)
++//   node driver/cli.mjs resume   --pins pins.json --step <mutation> [--rebroadcast]   an unknown outcome; NEVER signs
++//   node driver/cli.mjs gate     --pins pins.json --step <spending CLI step>   the aggregate-budget gate before root runs that CLI
+ //   node driver/cli.mjs simulate --pins pins.json --step <N.sim.*>      eth_call only
+ //   node driver/cli.mjs relay    --pins pins.json --step <relay step> --confirm <step hash>      owner-signed relay call(s)
+ //   node driver/cli.mjs record   --pins pins.json --step <operator|hardware step> --obs obs.json --confirm <step hash>
+-// The owner key is read ONLY from the env var named by pins.owner.keyEnv, ONLY by prepare/execute/relay, and is
++// The owner key is read ONLY from the env var named by pins.owner.keyEnv, ONLY by execute, relay and the migration prepare, and is
+ // registered with the output guard. Nothing prints marker values, keys, raw sealed state or wallet data.
+ import fs from "node:fs";
+ import path from "node:path";
+@@ -19,11 +21,13 @@
+ import { execFileSync } from "node:child_process";
+ import { sha256hex } from "./canonical.mjs";
+ import { createGuard, encodingsOf } from "./guard.mjs";
+-import { buildPlan, ORIGINAL_VAULT_V2, COMMITTEE_4774, PROTECTED_POLICY_4E62, CUSTODIAN_ENDPOINT } from "./plan.mjs";
++import { buildPlan, ORIGINAL_VAULT_V2, COMMITTEE_4774, PROTECTED_POLICY_4E62, CUSTODIAN_ENDPOINT, KNOWN_LACKING_CONTROL_MANIFESTS } from "./plan.mjs";
+ import { readJournal, readyToRun, makeEntry, appendEntry } from "./journal.mjs";
+ import { createMarkerSet, loadMarkerSet, guardPrivateDir, commitmentOf } from "./markers.mjs";
+ import { loadClient, prepareMutation, prepareSimulation, writePrivate } from "./prepare.mjs";
+-import { executeTx, simulateRefusal } from "./tx.mjs";
++import { checkTxAgainstStep, simulateRefusal } from "./tx.mjs";
++import { createSender, receiptCosts, ORACLE } from "./sender.mjs";
++import { gate as budgetGate, allowanceOf, spentOf } from "./budget.mjs";
+ import { createRelay, evalLegacyCheck, evalRelayRefusals, evalClearProof } from "./relay.mjs";
+ import { probeNonce, probeStale } from "./probe.mjs";
+ import * as A from "./assert.mjs";
+@@ -95,6 +99,11 @@
+   return account;
+ }
+ 
++async function senderOf(pins, client, dir) {
++  const accounts = await import(pathToFileURL(path.join(pins.repo.path, "node_modules/viem/_esm/accounts/index.js")).href);
++  return { accounts, sender: createSender({ viem: client.viem, accounts, rpcs: pins.sendRpcs, dir, vault: ORIGINAL_VAULT_V2, vaultCodeHash: pins.vaultCodeHash }) };
++}
++
+ async function chainOf(pins, client) {
+   const { createChainReaderV2 } = await import(pathToFileURL(path.join(pins.repo.path, "custody/v2/chain.mjs")).href);
+   const { custodyVaultKind } = await import(pathToFileURL(path.join(pins.repo.path, "network/custody-vaults.mjs")).href);
+@@ -111,6 +120,23 @@
+   return { reader, pub, agreedScalar };
+ }
+ 
++// the GasPriceOracle bounds at an agreed block (every RPC must answer the same), and the worst current base fee / tip
++async function feeFacts(pins, client, plan) {
++  const { pub, agreedScalar } = await chainOf(pins, client);
++  const ORACLE_ABI = [{ type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++    { type: "function", name: "isIsthmus", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
++    { type: "function", name: "getOperatorFee", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] }];
++  const rd = (functionName, args = []) => agreedScalar((c, blockNumber) => c.readContract({ address: ORACLE, abi: ORACLE_ABI, functionName, args, blockNumber }));
++  const maxGas = plan.steps.filter((s) => s.mutation).reduce((m, s) => (BigInt(s.mutation.gasCap) > m ? BigInt(s.mutation.gasCap) : m), 0n);
++  const referenceSize = BigInt(pins.fees.referenceUnsignedSize);
++  const isthmus = await rd("isIsthmus");
++  const blocks = await Promise.all(pub.map((c) => c.getBlock({ blockTag: "latest" })));
++  const tips = await Promise.all(pub.map((c) => c.request({ method: "eth_maxPriorityFeePerGas" }).then(BigInt)));
++  return { referenceSize: String(referenceSize), l1UpperBoundWei: String(await rd("getL1FeeUpperBound", [referenceSize])), isthmus,
++    operatorFeeWei: String(isthmus ? await rd("getOperatorFee", [maxGas]) : 0n), operatorFeeAtGas: String(maxGas),
++    baseFeeWei: String(blocks.map((b) => b.baseFeePerGas).reduce((a, x) => (x > a ? x : a), 0n)), tipWei: String(tips.reduce((a, x) => (x > a ? x : a), 0n)) };
++}
++
+ const policyFacts = (client, st) => ({ block: String(st.blockNumber ?? ""), owner: st.policy.owner, policyRev: String(st.policy.policyRev), secretRev: String(st.policy.secretRev),
+   committeeId: st.policy.committeeId, paused: st.policy.paused, rulesKeccak: client.viem.keccak256(st.policy.rules),
+   bundleKeccak: st.bundle.data.length ? client.viem.keccak256(st.bundle.data) : null, bundleBytes: st.bundle.data.length });
+@@ -121,7 +147,7 @@
+   if (cmd !== "plan" && cmd !== "status") checkRepo(pins);
+   const st = state(pins);
+   if (cmd === "plan" || cmd === "status") {
+-    return out({ pinsHash: st.plan.pinsHash, statement: st.plan.statement, budget: st.plan.budget, ids: st.ids, journalHead: st.head,
++    return out({ pinsHash: st.plan.pinsHash, statement: st.plan.statement, budget: st.plan.budget, disabledCases: st.plan.disabledCases, ids: st.ids, journalHead: st.head,
+       steps: st.plan.steps.map((s) => ({ id: s.id, kind: s.kind, status: st.done.has(s.id) ? `recorded:${st.done.get(s.id).outcome}` : s.status === "blocked" ? "blocked" : readyToRun(st.plan, st.done, s.id).ok ? "ready" : "waiting", stepHash: s.stepHash, title: s.title, blockedBy: s.blockedBy })) });
+   }
+   const id = arg("step");
+@@ -156,7 +182,7 @@
+       const ownerNonce = await agreedScalar((c, blockNumber) => c.getTransactionCount({ address: pins.owner.address, blockNumber }));
+       const facts = { vaultCodeHash: vid.codeHash, committee: com.committee && { epoch: com.committee.epoch, t: com.committee.t, W: com.committee.W,
+         machines: com.committee.machines.map((m) => ({ endpoint: m.endpoint, encKey: m.encKey, measurement: m.measurement })) }, pending: !!com.pending,
+-        protected: { id: PROTECTED_POLICY_4E62, ...policyFacts(client, prot) }, ownerBalanceWei, ownerNonce };
++        protected: { id: PROTECTED_POLICY_4E62, ...policyFacts(client, prot) }, ownerBalanceWei, ownerNonce, fees: await feeFacts(pins, client, st.plan) };
+       if (id === "S0.chain") {
+         const resolves = A.evalInventory({ facts, pins, budget: st.plan.budget });
+         const ok = Object.values(resolves).every((r) => r.ok);
+@@ -210,45 +236,63 @@
+     const res = await simulateRefusal({ client: { call: (a) => pub[0].call({ account: a.from, to: a.to, data: a.data }) }, ...sim });
+     return journalIt(st, step, res);
+   }
+-  if (cmd === "prepare") {
+-    const step = stepOrDie(st, id, ["mutation"]);
+-    const account = await signer(pins, client);
+-    const { reader, agreedScalar } = await chainOf(pins, client);
+-    const dep = step.mutation.ids[0];
+-    const r = await reader.readRelease({ id: dep, endpoint: pins.recipient.endpoint });
+-    const { committee } = await reader.readCommittee({ committeeId: COMMITTEE_4774 });
+-    const configText = client.protocol.configTextFromEnvelope(r.lease ? r.lease.envelope : "");
+-    const ownerNonce = await agreedScalar((c, blockNumber) => c.getTransactionCount({ address: account.address, blockNumber }));
+-    let env = null;
+-    if (step.mutation.bundle?.startsWith("relay:")) {     // migration: the relay's values, proven equal to the local markers first
+-      const set = step.mutation.bundle.slice(6), m = loadMarkerSet({ dir: st.priv, set });
+-      const got = await relay.getValuesForMigration(dep, account);
+-      const same = Object.keys(got.env).length === Object.keys(m.values).length && Object.entries(got.env).every(([k, v]) => m.values[k] !== undefined
+-        && commitmentOf({ run: pins.runLabel, set, name: k, value: v }) === m.commitments[k]);
+-      if (!same) throw new Error("the relay's values are not the c2-legacy markers: nothing prepared");
+-      env = got.env;
+-    } else if (step.mutation.bundle) env = loadMarkerSet({ dir: st.priv, set: step.mutation.bundle }).values;
+-    const { prepared, tx } = prepareMutation({ client, pins, step, chain: { block: { number: String(r.blockNumber ?? "") }, policy: r.policy, committee, configText, ownerNonce }, env });
+-    writePrivate(st.priv, `prepared-${step.id}.json`, { ...prepared, tx });
+-    return out({ step: step.id, preparedHash: prepared.preparedHash, summary: prepared.summary, gasCap: step.mutation.gasCap, maxCostWei: step.mutation.maxCostWei,
+-      next: `node driver/cli.mjs execute --pins <pins> --step ${step.id} --confirm ${prepared.preparedHash}` });
+-  }
+-  if (cmd === "execute") {
+-    const step = stepOrDie(st, id, ["mutation"]);
+-    const rec = JSON.parse(fs.readFileSync(path.join(st.priv, `prepared-${step.id}.json`), "utf8"), (k, v) => typeof v === "string" && v.startsWith("n:") ? BigInt(v.slice(2)) : v);
+-    const { tx, ...prepared } = rec;
+-    const account = await signer(pins, client);
+-    const pub = client.viem.createPublicClient({ transport: client.viem.http(pins.sendRpc, { timeout: 15_000, retryCount: 0 }) });
+-    const wallet = client.viem.createWalletClient({ account, transport: client.viem.http(pins.sendRpc, { timeout: 15_000, retryCount: 0 }) });
+-    const adapter = {
+-      getBalance: (a) => pub.getBalance(a), call: (a) => pub.call({ account: a.from, to: a.to, data: a.data }),
+-      estimateGas: (a) => pub.estimateGas({ account: a.from, to: a.to, data: a.data }), getGasPrice: () => pub.getGasPrice(),
+-      getTransactionCount: (a) => pub.getTransactionCount(a),
+-      sendTransaction: (t) => wallet.sendTransaction({ to: t.to, data: t.data, value: 0n, gas: t.gas, maxFeePerGas: t.maxFeePerGas, maxPriorityFeePerGas: t.maxPriorityFeePerGas, nonce: t.nonce, chain: null }),
+-      waitForReceipt: (hash, timeout) => pub.waitForTransactionReceipt({ hash, timeout }),
++  if (cmd === "prepare" || cmd === "execute" || cmd === "resume") {
++    const step = cmd === "resume" ? st.plan.steps.find((s) => s.id === id && s.mutation) : stepOrDie(st, id, ["mutation"]);
++    if (!step) throw new Error(`${id}: not a mutation step`);
++    if (cmd === "resume" && st.done.has(id)) throw new Error(`${id} is already journaled`);
++    const { accounts, sender } = await senderOf(pins, client, st.priv);
++    const caps = { gas: step.mutation.gasCap, maxFeePerGas: step.mutation.maxFeePerGasWei, l1FeeWei: pins.fees.l1FeeWei, operatorFeeWei: pins.fees.operatorFeeWei };
++    const budgetNow = () => {
++      const g = budgetGate({ steps: st.plan.steps, pins, entries: st.entries, done: st.done, step });
++      if (!g.ok) throw new Error(`aggregate budget: ${g.reasons.join("; ")}`);
++      return { remainingWei: g.remainingWei, reserveWei: g.cleanupOwedWei, gate: g };
+     };
+-    const res = await executeTx({ step, prepared, selector: prepared.selector, tx, confirm: arg("confirm"), client: adapter });
+-    return journalIt(st, step, { ...res, evidence: { ...res.evidence, preparedHash: prepared.preparedHash, summary: prepared.summary } });
++    const file = path.join(st.priv, `prepared-${step.id}.json`);
++    if (cmd === "prepare") {
++      const { reader } = await chainOf(pins, client);
++      const dep = step.mutation.ids[0];
++      const r = await reader.readRelease({ id: dep, endpoint: pins.recipient.endpoint });
++      const { committee } = await reader.readCommittee({ committeeId: COMMITTEE_4774 });
++      const configText = client.protocol.configTextFromEnvelope(r.lease ? r.lease.envelope : "");
++      let env = null;
++      if (step.mutation.bundle?.startsWith("relay:")) {     // migration: the relay's values, proven equal to the local markers first
++        const account = await signer(pins, client);
++        const set = step.mutation.bundle.slice(6), m = loadMarkerSet({ dir: st.priv, set });
++        const got = await relay.getValuesForMigration(dep, account);
++        const same = Object.keys(got.env).length === Object.keys(m.values).length && Object.entries(got.env).every(([k, v]) => m.values[k] !== undefined
++          && commitmentOf({ run: pins.runLabel, set, name: k, value: v }) === m.commitments[k]);
++        if (!same) throw new Error("the relay's values are not the c2-legacy markers: nothing prepared");
++        env = got.env;
++      } else if (step.mutation.bundle) env = loadMarkerSet({ dir: st.priv, set: step.mutation.bundle }).values;
++      const { prepared, tx } = prepareMutation({ client, pins, step, chain: { block: { number: String(r.blockNumber ?? "") }, policy: r.policy, committee, configText }, env });
++      checkTxAgainstStep(tx, step, prepared, prepared.selector);
++      const b = budgetNow();
++      const sendPlan = await sender.prepare({ stepId: step.id, stepHash: step.stepHash, from: tx.from, data: tx.data, caps, budget: b });
++      if (fs.existsSync(file)) fs.renameSync(file, `${file}.superseded-${Date.now()}`);   // only unsigned plans are ever superseded
++      writePrivate(st.priv, path.basename(file), { calldata: prepared, data: tx.data, sendPlan });
++      return out({ step: step.id, preparedHash: sendPlan.preparedHash, summary: prepared.summary, tx: sendPlan.tx, worstCaseWei: sendPlan.observed.totalMaxWei,
++        l1FeeUpperBoundWei: sendPlan.observed.l1FeeUpperBoundWei, operatorFeeBoundWei: sendPlan.observed.operatorFeeBoundWei, budget: b.gate,
++        next: `node driver/cli.mjs execute --pins <pins> --step ${step.id} --confirm ${sendPlan.preparedHash}` });
++    }
++    const rec = JSON.parse(fs.readFileSync(file, "utf8"));
++    checkTxAgainstStep({ chainId: 8453, from: rec.sendPlan.tx.from, to: rec.sendPlan.tx.to, data: rec.data, value: 0n }, step, rec.calldata, rec.calldata.selector);
++    let res;
++    if (cmd === "execute") {
++      const readKey = async () => { const k = process.env[pins.owner.keyEnv]; if (!/^0x[0-9a-fA-F]{64}$/.test(String(k))) throw new Error("no key"); guard.register(k); return k; };
++      res = await sender.send({ prepared: rec.sendPlan, data: rec.data, confirm: arg("confirm"), readKey, caps, budget: budgetNow() });
++    } else res = await sender.resume({ stepId: step.id, data: rec.data, rebroadcast: process.argv.includes("--rebroadcast") });
++    const outcome = { verified: "pass", failed: "fail", conflict: "aborted" }[res.status];
++    if (!outcome) return out({ step: step.id, status: res.status, txHash: res.txHash, note: res.note, next: `node driver/cli.mjs resume --pins <pins> --step ${step.id} [--rebroadcast]` });
++    return journalIt(st, step, { outcome, evidence: { txHash: res.txHash, nonce: res.nonce, receipt: res.receipt, costWei: res.status === "conflict" ? "0" : res.costWei,
++      preparedHash: rec.sendPlan.preparedHash, summary: rec.calldata.summary, broadcasts: res.broadcasts, note: res.note } });
++  }
++  if (cmd === "gate") {
++    const step = stepOrDie(st, id, ["operator"]);
++    if (!step.spend) throw new Error(`${id} spends nothing`);
++    const { agreedScalar } = await chainOf(pins, client);
++    const balanceWei = await agreedScalar((c, blockNumber) => c.getBalance({ address: pins.owner.address, blockNumber }));
++    const g = budgetGate({ steps: st.plan.steps, pins, entries: st.entries, done: st.done, step, balanceWei });
++    return out({ step: id, ...g, note: g.ok ? "within budget: root may run this step's CLI transactions; record checks the receipts against the allowance" : "REFUSED: do not run this step's CLI" });
+   }
+   if (cmd === "relay") {
+     const step = stepOrDie(st, id, ["relay"]);
+@@ -286,12 +330,32 @@
+     const obs = JSON.parse(fs.readFileSync(arg("obs"), "utf8"));
+     guard.check(obs, "observation");
+     let res;
+-    if (step.learns) {
+-      const ok = /^0x[0-9a-f]{64}$/.test(String(obs.deploymentId)) && obs.deploymentId !== PROTECTED_POLICY_4E62 && !Object.values(C).includes(obs.deploymentId);
+-      res = { outcome: ok ? "pass" : "fail", evidence: { deploymentId: obs.deploymentId, createTx: obs.createTx, gasUsed: obs.gasUsed, command: obs.command } };
++    if (step.spend) {   // root ran the EXISTING CLI: its receipts decide the cost; over the allowance or the aggregate = fail
++      const costs = await receiptCosts({ rpcs: pins.sendRpcs, txHashes: obs.txHashes, from: pins.owner.address, operatorFeeWei: pins.fees.operatorFeeWei });
++      const allowance = allowanceOf(step, pins);
++      const usdc = BigInt(obs.usdcUnits ?? 0);
++      const reasons = [];
++      if (BigInt(costs.costWei) > allowance) reasons.push(`cost ${costs.costWei} > allowance ${allowance}`);
++      if (costs.txs.length > 4) reasons.push(`${costs.txs.length} transactions for one CLI operation: more than this step allows`);
++      if (costs.txs.some((t) => t.status !== "success")) reasons.push("a CLI transaction reverted");
++      if (usdc > (step.spend.usdc ? BigInt(pins.budget.usdcFundUnits) : 0n)) reasons.push(`USDC ${usdc} over the per-deployment allowance`);
++      const spentAfter = spentOf(st.entries, st.plan.steps, pins) + BigInt(costs.costWei);
++      if (spentAfter > BigInt(pins.budget.totalWei)) reasons.push(`aggregate spent ${spentAfter} > budget ${pins.budget.totalWei}`);
++      let extra = {};
++      if (step.learns) {
++        const okId = /^0x[0-9a-f]{64}$/.test(String(obs.deploymentId)) && obs.deploymentId !== PROTECTED_POLICY_4E62 && !Object.values(C).includes(obs.deploymentId);
++        if (!okId) reasons.push("deploymentId missing, protected or reused");
++        extra = { deploymentId: obs.deploymentId };
++      }
++      res = { outcome: reasons.length ? "fail" : "pass", reasons, evidence: { ...extra, costWei: costs.costWei, txs: costs.txs, usdcUnits: String(usdc), allowanceWei: String(allowance), command: step.command } };
+     } else if (id === "S0.root") {
+       const ok = (k) => ({ ok: obs[k]?.ok === true, note: String(obs[k]?.note || "").slice(0, 300) });
+-      res = { outcome: "pass", evidence: { resolves: { "recipient.runner": ok("recipientRunner"), "recipient.billing": ok("billing"), "relay.v2aware": ok("relay"), "hw.oneGuest": ok("oneGuest") } } };
++      const rr = obs.recipientRunner || {};
++      // the measured control image must sign v2 custody auth for 0xE486: a known-lacking image never resolves it
++      const runnerOk = rr.ok === true && rr.endpoint === pins.recipient.endpoint && String(rr.custodyVaultV2).toLowerCase() === ORIGINAL_VAULT_V2
++        && /^[0-9a-f]{64}$/.test(String(rr.controlManifestSha256)) && !KNOWN_LACKING_CONTROL_MANIFESTS.includes(rr.controlManifestSha256) && typeof rr.evidenceRef === "string" && rr.evidenceRef.length > 0;
++      res = { outcome: "pass", evidence: { resolves: { "recipient.runner": { ok: runnerOk, note: `control manifest ${rr.controlManifestSha256}; CUSTODY_VAULT_V2 ${rr.custodyVaultV2}; ${String(rr.evidenceRef || "").slice(0, 200)}` },
++        "recipient.billing": ok("billing"), "relay.v2aware": ok("relay"), "hw.oneGuest": ok("oneGuest") } } };
+       if (!Object.values(res.evidence.resolves).every((r) => r.ok)) res.outcome = "fail";
+     } else if (step.expectRelease || step.expectRefusal) {
+       const dep = C[id.startsWith("M.") ? "C2" : "C1"];
+@@ -303,8 +367,6 @@
+     } else if (id === "M.clear.proof") {
+       const markerSearch = A.evalMarkerSearch({ sets: step.markerSets, counts: obs.counts, control: obs.control, locations: obs.locations });
+       res = evalClearProof({ ownerGet: st.done.get("M.clear").evidence.ownerGetAfter, hasIdOnRelayHost: obs.hasIdOnRelayHost, markerSearch, retentionListed: obs.retentionListed });
+-    } else if (step.command) {
+-      res = { outcome: obs.ok === true ? "pass" : "fail", evidence: { command: step.command, tx: obs.tx ?? null, note: String(obs.note || "").slice(0, 300) } };
+     } else throw new Error(`${id}: no recorder (blocked or not an operator step)`);
+     return journalIt(st, step, res);
+   }
+diff --git a/driver/plan.mjs b/driver/plan.mjs
+index ea8afdc3ada7f11b97c8b45ac7602b79fbb1d6ec..da6c7f920d33addcaf97d7aa5ce4fddb5966161d 100644
+--- a/driver/plan.mjs
++++ b/driver/plan.mjs
+@@ -10,6 +10,7 @@
+ // are learned during the run from journaled observations, which change only the steps that use them. A step with an
+ // unresolved prerequisite is BLOCKED and can never execute (fail closed).
+ import { hashOf } from "./canonical.mjs";
++import { planBudget, spends } from "./budget.mjs";
+ 
+ export const PROTECTED_POLICY_4E62 = "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e";
+ export const ORIGINAL_VAULT_V2 = "0xe48699b8401564aace7a814ae4569b67a3f7eef5";
+@@ -18,6 +19,11 @@
+ export const CUSTODIAN_ENDPOINT = "https://api.enclave.host/t/custody-metal0";
+ export const METAL0_ENDPOINT = "https://api.enclave.host/t/metal0";
+ export const MAX_FEE_PER_GAS_CAP = 100_000_000n;   // 0.1 gwei: no step may pin a higher fee ceiling
++// Control images known NOT to sign v2 custody auth for 0xE486 (root provenance 2026-10-23, work/custody-recipient-
++// provenance-20261023): metal0 dist-leasegas-deabf8f90 (measurement ed918e4b…) has no measured CUSTODY_VAULT_V2.
++export const KNOWN_LACKING_CONTROL_MANIFESTS = Object.freeze(["c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4"]);
++// Optional cases root may disable to fit the aggregate budget (the core create/release/rotate path is not optional).
++export const OPTIONAL_CASES = Object.freeze(["wrong-owner", "stale-policy", "nonce-replay", "wrong-image", "wrong-runtime", "wrong-app", "paused", "relay-refusals", "migration"]);
+ const H32 = /^0x[0-9a-f]{64}$/, A20 = /^0x[0-9a-f]{40}$/, M96 = /^[0-9a-f]{96}$/, R64 = /^[0-9a-f]{64}$/;
+ const lc = (x) => String(x ?? "").toLowerCase();
+ 
+@@ -29,10 +35,11 @@
+   "read.vault": "vault 0xE486 runtime code hash at an agreed block equals the pinned original runtime hash",
+   "read.committee": "committee 0x4774 at an agreed block: epoch 1, t 1, W 1, one machine at the custody-metal0 endpoint (as pinned)",
+   "read.protected4e62": "policy 0x4e62 snapshot (owner, policyRev, secretRev, bundle keccak, paused) recorded for the end comparison",
+-  "read.owner": "owner nonce recorded; balance >= the largest single step cost cap (each step re-checks its own cap)",
++  "read.owner": "owner nonce + balance agreed; balance >= the plan's aggregate worst case (each spending step re-checks the aggregate and its own bound)",
++  "fees.bounded": "S0.chain read the GasPriceOracle: the L1 fee upper bound for a pinned-size update and the operator fee (isIsthmus/getOperatorFee) are within their pinned allowances, and the base fee fits the fee cap",
+   "custodian.info": "public GET <custodian>/v2/custody/info answers the chain machine's encKey and measurement c8663742 (the live production image)",
+-  "recipient.runner": "a live runner endpoint that advertises snp-guest-per-app, holds an active registry entry, and whose measured supervisor signs v2 custody auth for 0xE486 (CUSTODY_VAULT_V2): root inventory, public facts only",
+-  "recipient.billing": "the canary lease is paid within the owner's USDC, or rate 0 because the owner is ALREADY that runner's declared payout wallet. Never a payout declaration on metal0 (its payout wallet decides the Enclave custody seat)",
++  "recipient.runner": "a live runner endpoint that advertises snp-guest-per-app, holds an active registry entry, and whose MEASURED supervisor signs v2 custody auth for 0xE486 (CUSTODY_VAULT_V2 in the activated control image, evidence by manifest sha + source overlay). BLOCKED today: metal0 runs dist-leasegas-deabf8f90 (manifest c7cb436d…) which has no measured CUSTODY_VAULT_V2 until root D's restore is activated",
++  "recipient.billing": "the canary lease is paid within the owner's USDC, or rate 0 because the owner is ALREADY that runner's declared payout wallet. Never a payout declaration on metal0 (its payout wallet decides the Enclave custody seat). Lease gas: the EXISTING app-funded lease-gas reserve (0x12a3f873…, executor 0x8900baca…, metal0 operator's 7702 delegation unchanged) configured + deposited by the canary owner with the existing `enclave --independent lease-gas` CLI; no direct operator gas, no new contract",
+   "image.recipient": "hello-world catalog version pinned with appId, measurement and runtimeId from isolation/m4/expected-measurement.sh --pin for the runner's domain release; minTcb from the real chip",
+   "relay.v2aware": "relay CUSTODY_VAULT_V2 = 0xE486 (root R5, public env keys only)",
+   "hw.oneGuest": "root confirms (S0.root) each recipient boot is ONE new SNP guest (hello-world 1024 MiB, unit cap +768) beside the protected production QEMUs, and the previous canary guest is stopped first",
+@@ -59,7 +66,13 @@
+   need(/^0x[0-9a-f]{64}$/.test(String(p.custodian?.measurementSha256)), "custodian.measurementSha256: the live custodian's chain measurement");
+   need(/^https:\/\/[a-z0-9.-]+$/.test(String(p.relay?.api)), "relay.api: https origin");
+   need(/^https:\/\/[^\s]{1,190}$/.test(String(p.recipient?.endpoint)) && p.recipient.endpoint !== CUSTODIAN_ENDPOINT, "recipient.endpoint: the runner endpoint that holds the canary lease");
+-  need((p.rpcs || []).includes(p.sendRpc), "sendRpc must be one of rpcs");
++  need(Array.isArray(p.sendRpcs) && p.sendRpcs.length === 2 && p.sendRpcs[0] !== p.sendRpcs[1] && p.sendRpcs.every((u) => (p.rpcs || []).includes(u)), "sendRpcs: exactly two distinct URLs from rpcs (the reviewed sender pattern)");
++  const W = /^[0-9]{1,24}$/;
++  need(W.test(String(p.fees?.l1FeeWei)) && W.test(String(p.fees?.operatorFeeWei)), "fees.l1FeeWei and fees.operatorFeeWei: pinned per-transaction allowances (wei)");
++  const b = p.budget || {};
++  need(W.test(String(b.totalWei)) && W.test(String(b.usdcUnits)) && W.test(String(b.usdcFundUnits)) && W.test(String(b.leaseDepositWei)), "budget: totalWei, usdcUnits, usdcFundUnits, leaseDepositWei");
++  for (const k of ["create", "stop", "leaseConfigure", "leaseDeposit"]) need(W.test(String(b.cliWei?.[k])), `budget.cliWei.${k}: per-CLI-transaction allowance (wei)`);
++  need((p.cases?.disabled || []).every((c) => OPTIONAL_CASES.includes(c)), `cases.disabled: only ${OPTIONAL_CASES.join(", ")}`);
+   if (p.image) {
+     need(R64.test(p.image.appId || ""), "image.appId: 64 hex");
+     need(M96.test(p.image.measurement || ""), "image.measurement: 96 hex");
+@@ -83,29 +96,27 @@
+   // track N and a shared outage need a NEW reviewed plan (new pins), never an observation of this run
+   for (const k of ["trackN.committee", "trackN.memory", "outage.sharedConsent"])
+     if (pins.approvals?.[k]?.by && pins.approvals[k].at && pins.approvals[k].reviewedPlan === true) ok(k, `approval:${pins.approvals[k].by}`);
+-  const fromObservation = new Set(["read.vault", "read.committee", "read.protected4e62", "read.owner", "custodian.info", "recipient.runner",
++  const fromObservation = new Set(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+     "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"]);
+   for (const [k, v] of Object.entries(observations)) if (fromObservation.has(k) && v?.ok === true && v.stepId) ok(k, `observation:${v.stepId}`);
+   return r;
+ }
+ 
+-export function costCapWei(pins, gasCap) { return BigInt(gasCap) * BigInt(pins.fees.maxFeePerGasWei); }
+-
+ function cases(p, ids) {
+   const C1 = ids.C1 ?? null, C2 = ids.C2 ?? null;
+-  const g = { create: "1200000", rotate: "600000", rules: "500000", ...(p.gas || {}) };
++  const g = { create: "900000", rotate: "300000", rules: "250000", ...(p.gas || {}) };
+   const mut = (id, gasKey, extra) => ({ chainId: 8453, target: ORIGINAL_VAULT_V2, from: lc(p.owner.address), fn: "update", ids: [id],
+-    gasCap: g[gasKey], maxFeePerGasWei: String(p.fees.maxFeePerGasWei), maxCostWei: String(costCapWei(p, g[gasKey])), ...extra });
++    gasCap: g[gasKey], maxFeePerGasWei: String(p.fees.maxFeePerGasWei), ...extra });
+   const base = ["pins.repo", "pins.rpcs", "owner.scope"];
+-  const reads = [...base, "read.vault", "read.committee", "read.protected4e62", "read.owner", "custodian.info"];
++  const reads = [...base, "read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info"];
+   const pre = [...reads, "recipient.runner", "recipient.billing", "image.recipient", "relay.v2aware"];
+   const c1 = [...pre, "deploy.C1"], c2 = [...pre, "deploy.C2"];
+   const hw = ["hw.oneGuest"];
+   return [
+     // ---- S0: read-only inventory ----
+     { id: "S0.chain", case: "inventory", kind: "read", after: [], requires: base,
+-      resolves: ["read.vault", "read.committee", "read.protected4e62", "read.owner"],
+-      title: "agreed-block reads: vault code hash, committee 0x4774, policy 0x4e62 snapshot, owner balance + nonce" },
++      resolves: ["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded"],
++      title: "agreed-block reads: vault code hash, committee 0x4774, policy 0x4e62 snapshot, owner balance + nonce, GasPriceOracle L1/operator fee bounds" },
+     { id: "S0.custodian", case: "inventory", kind: "probe", after: [], requires: base, resolves: ["custodian.info"],
+       title: "GET custody-metal0 /v2/custody/info: encKey = chain machine encKey; measurement sha = 0x2530eda0 (c8663742, the live image)" },
+     { id: "S0.root", case: "inventory", kind: "operator", after: [], requires: base, resolves: ["recipient.runner", "recipient.billing", "relay.v2aware", "hw.oneGuest"],
+@@ -115,13 +126,16 @@
+     // ---- C1: brand-new dedicated deployment (existing CLI; ledger owner = canary owner) ----
+     { id: "D1.create", case: "create", kind: "operator", after: ["S0.chain", "S0.custodian", "S0.root"], requires: pre,
+       command: "enclave deploy <hello-world version> --chain-only --contract-pins <pins> --cpu 0.1 --gpu 0 --max-rate <runner rate> --isolation snp-guest-per-app --public [--fund <usd>]",
+-      title: "root creates C1 with the existing CLI from the canary owner (Sep-24 recipe: public, cpuMilli 100, envelope {isolation:{require:snp-guest-per-app}}; create gasUsed was 411747); records the id",
+-      learns: "C1" },
+-    { id: "D1.check", case: "create", kind: "read", after: ["D1.create"], requires: pre, resolves: ["deploy.C1"], deployment: "C1",
++      title: "root creates C1 with the existing CLI from the canary owner (Sep-24 recipe: public, cpuMilli 100, envelope {isolation:{require:snp-guest-per-app}}; create gasUsed was 411747); records the id and tx hashes",
++      learns: "C1", spend: { txs: ["create"], usdc: true } },
++    { id: "D1.leasegas", case: "create", kind: "operator", after: ["D1.create"], requires: pre, spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true },
++      command: "enclave --independent … lease-gas configure <C1> [policy flags] --signer … ; lease-gas deposit <C1> --wei <budget.leaseDepositWei> --signer …",
++      title: "the canary owner configures + funds C1's app-funded lease-gas reserve with the existing CLI (journaled independent signer); records the tx hashes" },
++    { id: "D1.check", case: "create", kind: "read", after: ["D1.leasegas"], requires: pre, resolves: ["deploy.C1"], deployment: "C1",
+       title: "C1: ledger owner = canary owner, v2 policyRev 0, relay /exists false, live lease held by the recipient runner" },
+     // ---- C1 create + attestation-gated release ----
+     { id: "C1.create", case: "create", kind: "mutation", after: ["D1.check", "S1.markers"], requires: c1,
+-      mutation: mut(C1, "create", { expectPolicyRev: 0, policy: { rules: "image", paused: false }, bundle: "c1-rev1" }),
++      mutation: mut(C1, "create", { policy: { rules: "image", paused: false }, bundle: "c1-rev1" }),
+       title: "update(C1, policy{0x4774, paused:false, rules(image)}, bundle(c1-rev1)), expectPolicyRev 0: pins the owner" },
+     { id: "C1.create.check", case: "create", kind: "read", after: ["C1.create"], requires: c1,
+       title: "policyRev 1, secretRev 1, owner = canary owner, bundle keccak = prepared; relay /exists custody:true" },
+@@ -131,7 +145,7 @@
+       title: "root marker search (counts only) on relay + custodian host; control (the id) found" },
+     // ---- rotation ----
+     { id: "C1.rotate", case: "rotate", kind: "mutation", after: ["C1.markers.1"], requires: c1,
+-      mutation: mut(C1, "rotate", { expectPolicyRev: 1, policy: { rules: "image", paused: false }, bundle: "c1-rev2" }),
++      mutation: mut(C1, "rotate", { policy: { rules: "image", paused: false }, bundle: "c1-rev2" }),
+       title: "update(C1, same policy, bundle(c1-rev2)), expectPolicyRev 1" },
+     { id: "C1.rotate.check", case: "rotate", kind: "read", after: ["C1.rotate"], requires: c1, title: "policyRev 2, secretRev 2, bundle keccak = prepared" },
+     { id: "C1.release.2", case: "rotate", kind: "hardware", after: ["C1.rotate.check"], requires: [...c1, ...hw], expectRelease: { secretRev: 2 },
+@@ -150,41 +164,43 @@
+       title: "fresh nonces: request naming policyRev-1/secretRev-1: stale_revision; another committee: wrong_committee; epoch 2: stale_epoch; no partial in any answer" },
+     // ---- attestation-gated refusals on REAL SNP: policy-only update, then one real boot ----
+     { id: "N.image.rules", case: "wrong-image", kind: "mutation", after: ["C1.markers.2", "N.sim.notOwner", "N.sim.staleRev", "N.probe.stale"], requires: c1,
+-      mutation: mut(C1, "rules", { expectPolicyRev: 2, policy: { rules: "decoy-measurement", paused: false } }), title: "rules admit ONLY a decoy measurement (real runtimeId and appId)" },
++      mutation: mut(C1, "rules", { policy: { rules: "decoy-measurement", paused: false } }), title: "rules admit ONLY a decoy measurement (real runtimeId and appId)" },
+     { id: "N.image.boot", case: "wrong-image", kind: "hardware", after: ["N.image.rules"], requires: [...c1, ...hw],
+       expectRefusal: { codes: ["evidence_refused"], message: "measurement" }, title: "restart C1: REFUSED evidence_refused (measurement not admitted); front custody error; app not started" },
+     { id: "N.runtime.rules", case: "wrong-runtime", kind: "mutation", after: ["N.image.boot"], requires: c1,
+-      mutation: mut(C1, "rules", { expectPolicyRev: 3, policy: { rules: "decoy-runtime", paused: false } }), title: "rules admit the real measurement with a decoy runtimeId" },
++      mutation: mut(C1, "rules", { policy: { rules: "decoy-runtime", paused: false } }), title: "rules admit the real measurement with a decoy runtimeId" },
+     { id: "N.runtime.boot", case: "wrong-runtime", kind: "hardware", after: ["N.runtime.rules"], requires: [...c1, ...hw],
+       expectRefusal: { codes: ["runtime_not_admitted"] }, title: "restart C1: REFUSED runtime_not_admitted; app not started" },
+     { id: "N.app.rules", case: "wrong-app", kind: "mutation", after: ["N.runtime.boot"], requires: c1,
+-      mutation: mut(C1, "rules", { expectPolicyRev: 4, policy: { rules: "decoy-app", paused: false } }), title: "rules with a decoy appId (real image and runtime)" },
++      mutation: mut(C1, "rules", { policy: { rules: "decoy-app", paused: false } }), title: "rules with a decoy appId (real image and runtime)" },
+     { id: "N.app.boot", case: "wrong-app", kind: "hardware", after: ["N.app.rules"], requires: [...c1, ...hw],
+       expectRefusal: { codes: ["evidence_refused"] }, title: "restart C1: REFUSED evidence_refused (app id); app not started" },
+     { id: "N.pause", case: "paused", kind: "mutation", after: ["N.app.boot"], requires: c1,
+-      mutation: mut(C1, "rules", { expectPolicyRev: 5, policy: { rules: "image", paused: true } }), title: "real rules, paused:true" },
++      mutation: mut(C1, "rules", { policy: { rules: "image", paused: true } }), title: "real rules, paused:true" },
+     { id: "N.pause.boot", case: "paused", kind: "hardware", after: ["N.pause"], requires: [...c1, ...hw],
+       expectRefusal: { codes: ["paused"] }, title: "restart C1: REFUSED paused; app not started" },
+     { id: "C1.restore", case: "paused", kind: "mutation", after: ["N.pause.boot"], requires: c1,
+-      mutation: mut(C1, "rules", { expectPolicyRev: 6, policy: { rules: "image", paused: false } }), title: "real rules, paused:false; the bundle is untouched (secretRev stays 2)" },
++      mutation: mut(C1, "rules", { policy: { rules: "image", paused: false } }), title: "real rules, paused:false; the bundle is untouched (secretRev stays 2)" },
+     { id: "C1.release.3", case: "paused", kind: "hardware", after: ["C1.restore"], requires: [...c1, ...hw], expectRelease: { secretRev: 2 },
+       title: "restart C1: secrets revision 2 released again" },
+     // ---- relay refusals for a custody-held id (owner signature only; no gas) ----
+     { id: "N.relay", case: "relay-refusals", kind: "relay", after: ["C1.release.3"], requires: c1,
+       title: "owner-signed legacy set for C1: 409 custody_held; /get signed by a throwaway in-memory key: refused; /exists: custody:true" },
+-    { id: "D1.stop", case: "inventory", kind: "operator", after: ["N.relay"], requires: c1,
++    { id: "D1.stop", case: "inventory", kind: "operator", after: ["N.relay"], requires: c1, spend: { txs: ["stop"], cleanup: true },
+       command: "enclave stop <C1>", title: "root stops C1 with the existing CLI (setActive false) so the next canary guest is the only one" },
+     // ---- migration: dedicated legacy relay-held canary C2 -> v2 ----
+-    { id: "D2.create", case: "migration", kind: "operator", after: ["D1.stop"], requires: pre, learns: "C2",
+-      command: "enclave deploy <same version> --chain-only ... (as D1.create)", title: "root creates C2 exactly like C1; records the id" },
+-    { id: "D2.check", case: "migration", kind: "read", after: ["D2.create"], requires: pre, resolves: ["deploy.C2"], deployment: "C2",
++    { id: "D2.create", case: "migration", kind: "operator", after: ["D1.stop"], requires: pre, learns: "C2", spend: { txs: ["create"], usdc: true },
++      command: "enclave deploy <same version> --chain-only ... (as D1.create)", title: "root creates C2 exactly like C1; records the id and tx hashes" },
++    { id: "D2.leasegas", case: "migration", kind: "operator", after: ["D2.create"], requires: pre, spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true },
++      command: "as D1.leasegas, for C2", title: "configure + fund C2's lease-gas reserve (existing CLI)" },
++    { id: "D2.check", case: "migration", kind: "read", after: ["D2.leasegas"], requires: pre, resolves: ["deploy.C2"], deployment: "C2",
+       title: "C2: as D1.check, and the relay holds no record yet" },
+     { id: "M.legacy.set", case: "migration", kind: "relay", after: ["D2.check"], requires: c2, markerSets: ["c2-legacy"],
+       title: "owner-signed relay put {set: c2-legacy} for C2 (the legacy relay-held path, canary markers only)" },
+     { id: "M.legacy.check", case: "migration", kind: "relay", after: ["M.legacy.set"], requires: c2,
+       title: "owner /get: names = c2-legacy names and value commitments equal (compared in memory); /exists: exists, no custody" },
+     { id: "M.migrate", case: "migration", kind: "mutation", after: ["M.legacy.check"], requires: c2,
+-      mutation: mut(C2, "create", { expectPolicyRev: 0, policy: { rules: "image", paused: false }, bundle: "relay:c2-legacy" }),
++      mutation: mut(C2, "create", { policy: { rules: "image", paused: false }, bundle: "relay:c2-legacy" }),
+       title: "update(C2, policy{0x4774, rules(image)}, bundle(the values the relay returned, proven equal to c2-legacy))" },
+     { id: "M.clear", case: "migration", kind: "relay", after: ["M.migrate"], requires: c2,
+       title: "only once /exists answers custody:true: owner-signed put {\"clear\":true}" },
+@@ -193,13 +209,13 @@
+     { id: "M.release", case: "migration", kind: "hardware", after: ["M.clear.proof"], requires: [...c2, ...hw], expectRelease: { secretRev: 1 },
+       title: "start C2's guest: v2 secrets revision 1" },
+     { id: "M.rotate", case: "migration", kind: "mutation", after: ["M.release"], requires: c2,
+-      mutation: mut(C2, "rotate", { expectPolicyRev: 1, policy: { rules: "image", paused: false }, bundle: "c2-rev2" }),
++      mutation: mut(C2, "rotate", { policy: { rules: "image", paused: false }, bundle: "c2-rev2" }),
+       title: "rotate C2: its old values were relay plaintext" },
+     { id: "M.release.2", case: "migration", kind: "hardware", after: ["M.rotate"], requires: [...c2, ...hw], expectRelease: { secretRev: 2 },
+       title: "restart C2: revision 2" },
+     { id: "M.markers", case: "migration", kind: "operator", after: ["M.release.2"], requires: c2, markerSets: ["c2-legacy", "c2-rev2"],
+       title: "marker search: c2-legacy and c2-rev2 absent from every searched location; control found" },
+-    { id: "D2.stop", case: "inventory", kind: "operator", after: ["M.markers"], requires: c2, command: "enclave stop <C2>", title: "root stops C2" },
++    { id: "D2.stop", case: "migration", kind: "operator", after: ["M.markers"], requires: c2, spend: { txs: ["stop"], cleanup: true }, command: "enclave stop <C2>", title: "root stops C2" },
+     // ---- track N: dedicated r2 committee (blocked until root routes it) ----
+     { id: "O.stopped", case: "outage", kind: "hardware", after: ["D2.stop"], requires: ["trackN.committee", "trackN.memory"],
+       title: "canary custodian stopped; boot C3: front 'insufficient custodian quorum ... (need 1)'; app not started" },
+@@ -228,8 +244,19 @@
+   if (ids.C1 && ids.C1 === ids.C2) throw new Error("C1 and C2 must be different deployments");
+   const resolved = resolvedSet(pins, observations);
+   const pinsHash = hashOf("custody-canary-pins-v1", pins);
++  const disabled = new Set(pins.cases?.disabled || []);
++  const all = cases(pins, ids);
++  const kept = new Map(all.filter((s) => !disabled.has(s.case)).map((s) => [s.id, s]));
++  const byIdAll = new Map(all.map((s) => [s.id, s]));
++  // a disabled step's successors inherit its predecessors (transitively), so the order of the kept steps is unchanged
++  const afterOf = (id) => (kept.has(id) ? [id] : byIdAll.get(id).after.flatMap(afterOf));
++  // each deployment's policy revision advances by one per kept update, in plan order
++  const rev = {};
+   const steps = [], byId = new Map();
+-  for (const s of cases(pins, ids)) {
++  for (const s0 of all) {
++    if (!kept.has(s0.id)) continue;
++    const s = { ...s0, after: [...new Set(s0.after.flatMap(afterOf))] };
++    if (s.mutation) { const key = s.id.startsWith("M.") ? "C2" : "C1"; rev[key] = rev[key] ?? 0; s.mutation = { ...s.mutation, expectPolicyRev: rev[key]++ }; }
+     const blockedBy = s.requires.filter((r) => !resolved[r]?.ok).map((r) => `${r}: ${PREREQS[r]}`);
+     for (const a of s.after) if (byId.get(a).status === "blocked") blockedBy.push(`after ${a} (blocked)`);
+     if (s.mutation) {
+@@ -237,16 +264,16 @@
+       if (s.mutation.ids.some((i) => lc(i) === PROTECTED_POLICY_4E62)) throw new Error(`${s.id}: would touch the protected policy 0x4e62`);
+     }
+     if (s.simulate && !H32.test(String(s.simulate.id))) blockedBy.push("target deployment not created yet");
+-    // the hash covers the definition only (ids included), never the run-time status
+     const stepHash = hashOf("custody-canary-step-v1", { pinsHash, step: s });
+     const step = { ...s, stepHash, status: blockedBy.length ? "blocked" : "ready", blockedBy };
+     byId.set(s.id, step);
+     steps.push(step);
+   }
+-  const mutations = steps.filter((s) => s.mutation);
+-  const worstCaseWei = mutations.reduce((a, s) => a + BigInt(s.mutation.maxCostWei), 0n);
+-  return { v: 1, pinsHash, resolved, steps, budget: { mutations: mutations.length, worstCaseWei: String(worstCaseWei),
+-      largestStepWei: String(mutations.reduce((m, s) => (BigInt(s.mutation.maxCostWei) > m ? BigInt(s.mutation.maxCostWei) : m), 0n)) },
++  // the AGGREGATE budget: if the enabled plan's worst case does not fit, every spending step is blocked
++  const budget = planBudget(steps, pins);
++  if (!budget.fits) for (const st of steps) if (spends(st)) { st.status = "blocked"; st.blockedBy = [...st.blockedBy, ...budget.reasons.map((r) => `budget: ${r}`)]; }
++  return { v: 1, pinsHash, resolved, steps, budget, disabledCases: [...disabled],
+     statement: "Baseline of the CURRENT production custody state (vault 0xE486, committee 0x4774, custodian c8663742); not the corrected r2 candidate. "
+-      + "Public-RPC reads are agreement of public endpoints, not trustless. No admin or book-owner function is used. Synthetic attestation is never hardware evidence." };
++      + "Public-RPC reads are agreement of public endpoints, not trustless. No admin or book-owner function is used. Synthetic attestation is never hardware evidence. "
++      + "hello-world does not read its env: release evidence is the guest front's revision/name-count/config-hash lines, NOT proof the app consumed a value." };
+ }
+diff --git a/driver/prepare.mjs b/driver/prepare.mjs
+index 47007ce5a2bd3da78d58ae989b5fa2fa0ad408b8..2d48d9ef3d171957e97da538817856423e21882a 100644
+--- a/driver/prepare.mjs
++++ b/driver/prepare.mjs
+@@ -35,7 +35,7 @@
+ }
+ 
+ // chain: { block:{number,hash}, policy:{owner, policyRev, secretRev, committeeId, paused}, committee:{Y, epoch, t, W},
+-//          configText, ownerNonce } — read through the agreed reader by the caller.
++//          configText } — read through the agreed reader by the caller. Pricing, nonce and sending: sender.mjs.
+ // env: the marker values (in memory) when the step writes a bundle; never returned.
+ export function prepareMutation({ client, pins, step, chain, env = null }) {
+   const m = step.mutation;
+@@ -64,8 +64,8 @@
+     rulesKeccak: client.viem.keccak256(update.rules), rulesVariant: m.policy.rules, setBundle: update.setBundle,
+     bundleKeccak: update.setBundle ? client.viem.keccak256(update.bundle) : null, bundleBytes: bundle ? bundle.length : 0, nextSecretRev: String(secretRev),
+     configSha256: bundle ? client.protocol.configSha256(chain.configText) : null, clear: update.clear };
+-  const prepared = { stepId: step.id, stepHash: step.stepHash, block: chain.block, expectNonce: chain.ownerNonce, calldataSha256, selector, summary };
+-  prepared.preparedHash = hashOf("custody-canary-prepared-v1", prepared);
++  const prepared = { stepId: step.id, stepHash: step.stepHash, block: chain.block, calldataSha256, selector, summary };
++  prepared.calldataRecordHash = hashOf("custody-canary-calldata-v1", prepared);
+   return { prepared, tx: { chainId: 8453, from: m.from, to: m.target, data, value: 0n } };
+ }
+ 
+diff --git a/driver/sender.mjs b/driver/sender.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca42b24878bb2522d24dea52aae0563a457c1a5e
+--- /dev/null
++++ b/driver/sender.mjs
+@@ -0,0 +1,253 @@
++// ONE custody vault `update` per canary step, sent the way the reviewed metal0 operator helper sends its single
++// transaction (work/custody-operator-proposal-20261023 lib/proposer.mjs f2a7b81): the same pattern, narrowed to
++// this driver's prepared calldata. Not a general engine:
++//   - exactly two distinct RPCs; every chain fact must agree at ONE block both serve; an RPC error is an error;
++//   - the target's runtime code hash must be the pinned vault's; nonce latest == pending == agreed on both RPCs;
++//   - gas = max estimate x 1.25 <= the step's gas cap; maxFee = 2 x base + max tip <= the fee cap;
++//   - Base L1 data fee = GasPriceOracle.getL1FeeUpperBound(unsigned size) (the oracle adds the signature bytes);
++//   - Base operator fee = GasPriceOracle.getOperatorFee(gas) when isIsthmus() is true. If either read fails, or a
++//     bound exceeds its pinned allowance, the step REFUSES: no unaccounted cost is ever allowed;
++//   - worst case = gas x maxFee + L1 bound + operator-fee bound, checked against the step cap, the AGGREGATE canary
++//     budget (spent so far + this + the cleanup reserve) and the live balance;
++//   - send re-runs every check, signs the prepared fields, and writes the signed bytes + hash to a private 0600
++//     intent file (temp, fsync, exclusive link, dir fsync) BEFORE any broadcast; a failed write broadcasts nothing;
++//   - an intent file blocks any second signing for that step. Unknown outcomes go through resume, which never
++//     signs: it reads both RPCs, and only with --rebroadcast re-sends the SAME bytes while the nonce is unused on
++//     both. A nonce consumed by another transaction is a final `conflict`.
++import fs from "node:fs";
++import path from "node:path";
++import { createHash } from "node:crypto";
++
++const lc = (a) => String(a).toLowerCase();
++const sha256 = (b) => createHash("sha256").update(b).digest("hex");
++const hexN = (n) => "0x" + BigInt(n).toString(16);
++export const ORACLE = "0x420000000000000000000000000000000000000f";   // Base GasPriceOracle predeploy
++
++export class Refusal extends Error { constructor(code, message) { super(message); this.code = code; } }
++const refuse = (code, message) => { throw new Refusal(code, message); };
++
++export const httpRpc = (timeoutMs = 15_000) => async (url, method, params) => {
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
++    signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
++  if (!r.ok) throw new Error(`${new URL(url).host} ${method}: HTTP ${r.status}`);
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(`${new URL(url).host} ${method}: ${String(j.error.message || j.error.code).slice(0, 200)}`), { rpcError: j.error });
++  return j.result;
++};
++
++// viem: the pinned repo's viem module (encode/decode, serialize/parse, keccak256, privateKeyToAccount via accounts)
++export function createSender({ viem, accounts, rpcs, rpc = httpRpc(), dir, vault, vaultCodeHash, now = () => Date.now(),
++                               sleep = (ms) => new Promise((r) => setTimeout(r, ms)), fsImpl = fs, cfg = {} }) {
++  const C = { confirmations: 2, readDepth: 2, maxPrepAgeSec: 1800, receiptPolls: 60, pollMs: 4000, ...cfg };
++  if (!Array.isArray(rpcs) || rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
++  if (!dir) throw new Error("a private directory is required");
++  const ORACLE_ABI = [
++    { type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++    { type: "function", name: "isIsthmus", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
++    { type: "function", name: "getOperatorFee", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++  ];
++  const both = (method, params) => Promise.all(rpcs.map((u) => rpc(u, method, params)));
++  const agree = async (what, method, params) => {
++    const r = await both(method, params);
++    if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) refuse("rpc_disagree", `the RPCs disagree on ${what}`);
++    return r[0];
++  };
++  const unsignedTx = (t) => ({ type: "eip1559", chainId: 8453, nonce: Number(t.nonce), to: vault, value: 0n, data: t.data,
++    gas: BigInt(t.gas), maxFeePerGas: BigInt(t.maxFeePerGas), maxPriorityFeePerGas: BigInt(t.maxPriorityFeePerGas) });
++
++  async function agreedBlock() {
++    const ids = await both("eth_chainId", []);
++    if (ids.some((x) => Number(x) !== 8453)) refuse("chain", "an RPC is not on Base");
++    const heads = (await both("eth_blockNumber", [])).map((x) => BigInt(x));
++    const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - BigInt(C.readDepth);
++    const blocks = await both("eth_getBlockByNumber", [hexN(n), false]);
++    if (!blocks[0] || !blocks[1] || lc(blocks[0].hash) !== lc(blocks[1].hash)) refuse("rpc_disagree", `the RPCs disagree on block ${n}`);
++    const latest = await both("eth_getBlockByNumber", ["latest", false]);
++    const base = latest.map((b) => BigInt(b.baseFeePerGas)).reduce((a, x) => (x > a ? x : a), BigInt(blocks[0].baseFeePerGas));
++    return { number: n, hash: lc(blocks[0].hash), baseFee: base };
++  }
++  async function observe(from) {
++    const blk = await agreedBlock();
++    const at = { blockHash: blk.hash, requireCanonical: true };
++    const code = await agree("vault code", "eth_getCode", [vault, at]);
++    if (viem.keccak256(code) !== vaultCodeHash) refuse("vault_code", "the vault's runtime code hash is not the pinned original");
++    const nonceAt = BigInt(await agree("nonce at block", "eth_getTransactionCount", [from, at]));
++    const nl = (await both("eth_getTransactionCount", [from, "latest"])).map(BigInt), np = (await both("eth_getTransactionCount", [from, "pending"])).map(BigInt);
++    const all = [nonceAt, ...nl, ...np];
++    if (all.some((x) => x !== all[0])) refuse("nonce", "the owner's nonce is not settled (agreed/latest/pending differ): a transaction may be in flight");
++    const balance = BigInt(await agree("balance", "eth_getBalance", [from, at]));
++    const call = (to, data, f) => agree(`eth_call ${to} ${data.slice(0, 10)}`, "eth_call", [{ to, data, ...(f ? { from: f } : {}) }, at]);
++    return { blk, at, call, nonce: all[0], balance };
++  }
++  // worst-case pricing; caps: { gas, maxFeePerGas, l1FeeWei, operatorFeeWei }
++  async function pricing(o, { from, data, caps, gasFixed = null, fees = null }) {
++    const P = { from, to: vault, data, value: "0x0" };
++    await o.call(vault, data, from);                                                       // the exact update simulates (reverts throw)
++    const est = (await both("eth_estimateGas", [P, hexN(o.blk.number)])).map(BigInt);
++    const estMax = est[0] > est[1] ? est[0] : est[1];
++    const gas = gasFixed ?? (estMax * 5n + 3n) / 4n;
++    if (estMax > gas) refuse("gas", `the estimate ${estMax} exceeds the prepared gas ${gas}`);
++    if (gas > BigInt(caps.gas)) refuse("gas", `gas ${gas} exceeds the step cap ${caps.gas}`);
++    let prio, maxFee;
++    if (fees) { prio = BigInt(fees.maxPriorityFeePerGas); maxFee = BigInt(fees.maxFeePerGas); }
++    else { const tips = (await both("eth_maxPriorityFeePerGas", [])).map(BigInt); prio = tips[0] > tips[1] ? tips[0] : tips[1]; maxFee = 2n * o.blk.baseFee + prio; }
++    if (maxFee > BigInt(caps.maxFeePerGas)) refuse("fees", `maxFeePerGas ${maxFee} exceeds the cap ${caps.maxFeePerGas}`);
++    if (prio > maxFee) refuse("fees", "priority fee above max fee");
++    if (maxFee < o.blk.baseFee + prio) refuse("fees", `the base fee ${o.blk.baseFee} no longer fits the prepared max fee: prepare again`);
++    const size = (viem.serializeTransaction(unsignedTx({ nonce: 0, gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, data })).length - 2) / 2;
++    let l1, isthmus, opFee;
++    try {
++      l1 = viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound",
++        data: await o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName: "getL1FeeUpperBound", args: [BigInt(size)] })) });
++      isthmus = viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName: "isIsthmus", data: await o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName: "isIsthmus" })) });
++      opFee = isthmus ? viem.decodeFunctionResult({ abi: ORACLE_ABI, functionName: "getOperatorFee",
++        data: await o.call(ORACLE, viem.encodeFunctionData({ abi: ORACLE_ABI, functionName: "getOperatorFee", args: [gas] })) }) : 0n;
++    } catch (e) { if (e instanceof Refusal) throw e; refuse("fee_unbounded", `the L1/operator fee bound could not be read (${String(e.message).slice(0, 120)}): no unaccounted cost is allowed`); }
++    if (l1 > BigInt(caps.l1FeeWei)) refuse("fee_unbounded", `L1 fee upper bound ${l1} exceeds its pinned allowance ${caps.l1FeeWei}`);
++    if (opFee > BigInt(caps.operatorFeeWei)) refuse("fee_unbounded", `operator fee bound ${opFee} exceeds its pinned allowance ${caps.operatorFeeWei}`);
++    const total = gas * maxFee + l1 + opFee;
++    return { gas, maxFeePerGas: maxFee, maxPriorityFeePerGas: prio, estimates: est.map(String), unsignedSize: size, l1FeeUpperBound: l1, isthmus, operatorFeeBound: opFee, totalMaxWei: total };
++  }
++
++  // ---- the intent file: one private, exclusive, fsynced record per step, written BEFORE broadcast ----
++  const fsyncDir = (d) => { const fd = fsImpl.openSync(d, "r"); try { fsImpl.fsyncSync(fd); } finally { fsImpl.closeSync(fd); } };
++  const intentPath = (stepId) => path.join(dir, `tx-${stepId}.json`);
++  const readIntent = (stepId) => JSON.parse(fsImpl.readFileSync(intentPath(stepId), "utf8"));
++  function writeIntent(rec, { create = false } = {}) {
++    const final = intentPath(rec.stepId), tmp = path.join(dir, `.tx-${rec.stepId}.${process.pid}.${now()}.tmp`);
++    const fd = fsImpl.openSync(tmp, "wx", 0o600);
++    try { fsImpl.writeFileSync(fd, JSON.stringify(rec, null, 1) + "\n"); fsImpl.fsyncSync(fd); } finally { fsImpl.closeSync(fd); }
++    if (create) { try { fsImpl.linkSync(tmp, final); } finally { fsImpl.unlinkSync(tmp); } }
++    else fsImpl.renameSync(tmp, final);
++    fsyncDir(dir);
++  }
++  const publicOf = (rec) => ({ stepId: rec.stepId, txHash: rec.txHash, nonce: rec.nonce, status: rec.status, broadcasts: rec.broadcasts, receipt: rec.receipt || null,
++    costWei: rec.costWei || null, note: rec.note || null });
++
++  // ---- prepare: chain reads only, no key ----
++  // budget: { remainingWei (aggregate budget - spent - cleanup reserve still owed), reserveWei (cleanup reserve) }
++  async function prepare({ stepId, stepHash, from, data, caps, budget }) {
++    if (fsImpl.existsSync(intentPath(stepId))) refuse("intent", "this step already has a signed intent: use resume");
++    const o = await observe(from);
++    const pr = await pricing(o, { from, data, caps });
++    if (pr.totalMaxWei > BigInt(budget.remainingWei)) refuse("aggregate_budget", `worst case ${pr.totalMaxWei} wei exceeds the remaining aggregate canary budget ${budget.remainingWei} wei`);
++    if (o.balance < pr.totalMaxWei + BigInt(budget.reserveWei)) refuse("balance", `balance ${o.balance} < worst case ${pr.totalMaxWei} + cleanup reserve ${budget.reserveWei}`);
++    const prepared = { v: 1, stepId, stepHash, preparedAt: new Date(now()).toISOString(), dataSha256: sha256(Buffer.from(data.slice(2), "hex")),
++      tx: { type: "eip1559", chainId: 8453, from: lc(from), to: vault, value: "0", nonce: o.nonce.toString(), gas: pr.gas.toString(),
++            maxFeePerGas: pr.maxFeePerGas.toString(), maxPriorityFeePerGas: pr.maxPriorityFeePerGas.toString() },
++      observed: { block: o.blk.number.toString(), blockHash: o.blk.hash, rpcs: rpcs.map((u) => new URL(u).host), balanceWei: o.balance.toString(), baseFeePerGas: o.blk.baseFee.toString(),
++        estimates: pr.estimates, unsignedSize: pr.unsignedSize, l1FeeUpperBoundWei: pr.l1FeeUpperBound.toString(), isthmus: pr.isthmus, operatorFeeBoundWei: pr.operatorFeeBound.toString(),
++        totalMaxWei: pr.totalMaxWei.toString(), remainingBudgetWei: String(budget.remainingWei), cleanupReserveWei: String(budget.reserveWei) } };
++    prepared.preparedHash = "0x" + sha256(JSON.stringify(prepared));
++    return prepared;
++  }
++
++  // ---- send: fresh checks, key (callback), sign, intent, broadcast, verify ----
++  async function send({ prepared, data, confirm, readKey, caps, budget }) {
++    if (confirm !== prepared.preparedHash) refuse("confirm", "--confirm must equal the prepared hash");
++    const { preparedHash, ...rest } = prepared;
++    if ("0x" + sha256(JSON.stringify(rest)) !== preparedHash) refuse("prepared", "the prepared record does not hash to its preparedHash");
++    if (sha256(Buffer.from(data.slice(2), "hex")) !== prepared.dataSha256) refuse("prepared", "the calldata is not the prepared calldata");
++    if (fsImpl.existsSync(intentPath(prepared.stepId))) refuse("intent", "a signed intent already exists for this step: use resume (never signs twice)");
++    if (now() - Date.parse(prepared.preparedAt) > C.maxPrepAgeSec * 1000) refuse("stale_prepare", "the prepared record is too old: prepare again");
++    const o = await observe(prepared.tx.from);
++    if (o.nonce.toString() !== prepared.tx.nonce) refuse("nonce", `the owner nonce moved since prepare (${prepared.tx.nonce} -> ${o.nonce})`);
++    const pr = await pricing(o, { from: prepared.tx.from, data, caps, gasFixed: BigInt(prepared.tx.gas), fees: prepared.tx });
++    if (pr.totalMaxWei > BigInt(budget.remainingWei)) refuse("aggregate_budget", "the worst case no longer fits the remaining aggregate budget");
++    if (o.balance < pr.totalMaxWei + BigInt(budget.reserveWei)) refuse("balance", "the balance no longer covers the worst case plus the cleanup reserve");
++    let account;
++    try { account = accounts.privateKeyToAccount(await readKey()); } catch { refuse("key", "the owner key could not be read or is malformed"); }
++    if (lc(account.address) !== prepared.tx.from) refuse("key", "the key does not belong to the pinned canary owner");
++    let raw;
++    try { raw = await account.signTransaction(unsignedTx({ ...prepared.tx, data })); } catch { refuse("sign", "signing failed"); }
++    account = null;
++    const txHash = viem.keccak256(raw);
++    const p = viem.parseTransaction(raw);
++    if (lc(p.to) !== vault || lc(p.data) !== lc(data) || (p.value || 0n) !== 0n || String(p.nonce) !== prepared.tx.nonce || p.chainId !== 8453) refuse("sign", "the signed transaction differs from the prepared one");
++    const rec = { stepId: prepared.stepId, stepHash: prepared.stepHash, preparedHash, from: prepared.tx.from, nonce: prepared.tx.nonce, txHash, raw,
++      worstCaseWei: pr.totalMaxWei.toString(), operatorFeeBoundWei: pr.operatorFeeBound.toString(), signedAt: new Date(now()).toISOString(), status: "signed", broadcasts: [] };
++    writeIntent(rec, { create: true });                                                      // durable BEFORE any broadcast
++    return broadcastAndVerify(rec, data);
++  }
++
++  async function broadcastAndVerify(rec, data) {
++    for (const u of rpcs) {
++      let r;
++      try { r = { rpc: new URL(u).host, at: new Date(now()).toISOString(), result: lc(await rpc(u, "eth_sendRawTransaction", [rec.raw])) }; }
++      catch (e) { r = { rpc: new URL(u).host, at: new Date(now()).toISOString(), error: String(e.message).slice(0, 200) }; }
++      if (r.result && r.result !== rec.txHash) r.error = `answered another hash ${r.result}`;
++      rec.broadcasts.push(r);
++    }
++    rec.status = "broadcast"; writeIntent(rec);
++    for (let i = 0; i < C.receiptPolls; i++) {
++      const v = await checkOutcome(rec, data).catch((e) => ({ status: "unknown", note: e.message }));
++      if (["verified", "failed", "conflict"].includes(v.status)) { Object.assign(rec, v); writeIntent(rec); return publicOf(rec); }
++      rec.note = v.note; await sleep(C.pollMs);
++    }
++    rec.status = "unknown"; writeIntent(rec);
++    return publicOf(rec);
++  }
++
++  // the journaled transaction's outcome from both RPCs; never signs. Cost = gasUsed x effectiveGasPrice + receipt l1Fee
++  // + the prepared operator-fee BOUND (conservative: the ledger never under-counts).
++  async function checkOutcome(rec, data) {
++    const rcpts = await both("eth_getTransactionReceipt", [rec.txHash]);
++    if (rcpts.every((r) => !r)) {
++      const latest = (await both("eth_getTransactionCount", [rec.from, "latest"])).map(BigInt);
++      if (latest.every((n) => n > BigInt(rec.nonce))) {
++        const txs = await both("eth_getTransactionByHash", [rec.txHash]);
++        if (txs.every((t) => !t)) return { status: "conflict", note: `nonce ${rec.nonce} was used by another transaction; this one never landed. Stop: nothing is re-signed` };
++      }
++      return { status: "pending", note: "no receipt yet" };
++    }
++    if (!rcpts[0] || !rcpts[1] || lc(rcpts[0].blockHash) !== lc(rcpts[1].blockHash)) return { status: "pending", note: "the RPCs do not yet agree on the receipt" };
++    const r = rcpts[0], bn = BigInt(r.blockNumber);
++    const heads = (await both("eth_blockNumber", [])).map(BigInt);
++    if (heads.some((h) => h - bn < BigInt(C.confirmations))) return { status: "pending", note: "awaiting confirmations" };
++    const txs = await both("eth_getTransactionByHash", [rec.txHash]);
++    for (const t of txs) if (!t || lc(t.from) !== rec.from || lc(t.to) !== vault || BigInt(t.value) !== 0n || (data && lc(t.input) !== lc(data)) || BigInt(t.nonce) !== BigInt(rec.nonce) || lc(t.blockHash) !== lc(r.blockHash))
++      return { status: "failed", note: "the mined transaction does not match the intent (from/to/value/data/nonce/block)" };
++    if (r.l1Fee === undefined || r.l1Fee === null) return { status: "failed", note: "the receipt carries no l1Fee: the cost cannot be accounted" };
++    const costWei = (BigInt(r.gasUsed) * BigInt(r.effectiveGasPrice) + BigInt(r.l1Fee) + BigInt(rec.operatorFeeBoundWei)).toString();
++    const receipt = { blockNumber: bn.toString(), blockHash: lc(r.blockHash), status: BigInt(r.status) === 1n ? "success" : "reverted", gasUsed: BigInt(r.gasUsed).toString(),
++      effectiveGasPrice: BigInt(r.effectiveGasPrice).toString(), l1Fee: BigInt(r.l1Fee).toString() };
++    return { status: BigInt(r.status) === 1n ? "verified" : "failed", note: BigInt(r.status) === 1n ? "mined and confirmed" : "the transaction reverted (its cost is still spent)", receipt, costWei };
++  }
++
++  async function resume({ stepId, data = null, rebroadcast = false }) {
++    let rec; try { rec = readIntent(stepId); } catch { refuse("intent", "no signed intent for this step"); }
++    if (viem.keccak256(rec.raw) !== rec.txHash || rec.stepId !== stepId) refuse("intent", "the intent record is inconsistent");
++    if (["verified", "failed", "conflict"].includes(rec.status)) return publicOf(rec);
++    const v = await checkOutcome(rec, data).catch((e) => ({ status: "unknown", note: e.message }));
++    if (["verified", "failed", "conflict"].includes(v.status)) { Object.assign(rec, v); writeIntent(rec); return publicOf(rec); }
++    if (!rebroadcast) { rec.note = v.note; writeIntent(rec); return { ...publicOf(rec), status: v.status, hint: "not landed yet: resume --rebroadcast re-sends the SAME bytes" }; }
++    const latest = (await both("eth_getTransactionCount", [rec.from, "latest"])).map(BigInt);
++    if (latest.some((n) => n !== BigInt(rec.nonce))) refuse("nonce", "the nonce is no longer the intent's on both RPCs: not re-sending");
++    return broadcastAndVerify(rec, data);
++  }
++
++  return { prepare, send, resume, observe, status: (stepId) => publicOf(readIntent(stepId)) };
++}
++
++// The cost of transactions root sent with the EXISTING CLI (deployment create/stop, lease-gas configure/deposit), read
++// from both RPCs (they must agree). Per tx: gasUsed x effectiveGasPrice + receipt l1Fee + value + the pinned
++// operator-fee allowance (conservative). Refuses a missing, unconfirmed, reverted-but-unexplained or foreign transaction.
++export async function receiptCosts({ rpc = httpRpc(), rpcs, txHashes, from, operatorFeeWei, confirmations = 2 }) {
++  if (!Array.isArray(rpcs) || rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
++  if (!Array.isArray(txHashes) || !txHashes.length || txHashes.some((h) => !/^0x[0-9a-f]{64}$/.test(String(h)))) refuse("txs", "txHashes: one or more lowercase 0x hashes");
++  const both = (m, p) => Promise.all(rpcs.map((u) => rpc(u, m, p)));
++  const heads = (await both("eth_blockNumber", [])).map(BigInt);
++  const rows = [];
++  let total = 0n;
++  for (const h of txHashes) {
++    const [r, t] = await Promise.all([both("eth_getTransactionReceipt", [h]), both("eth_getTransactionByHash", [h])]);
++    if (!r[0] || !r[1] || lc(r[0].blockHash) !== lc(r[1].blockHash) || !t[0] || !t[1]) refuse("txs", `${h}: not mined, or the RPCs disagree`);
++    if (lc(t[0].from) !== lc(from)) refuse("txs", `${h}: not sent by the canary owner`);
++    if (heads.some((x) => x - BigInt(r[0].blockNumber) < BigInt(confirmations))) refuse("txs", `${h}: not yet confirmed`);
++    if (r[0].l1Fee === undefined || r[0].l1Fee === null) refuse("txs", `${h}: the receipt carries no l1Fee`);
++    const cost = BigInt(r[0].gasUsed) * BigInt(r[0].effectiveGasPrice) + BigInt(r[0].l1Fee) + BigInt(t[0].value) + BigInt(operatorFeeWei);
++    total += cost;
++    rows.push({ txHash: h, status: BigInt(r[0].status) === 1n ? "success" : "reverted", to: lc(t[0].to), valueWei: BigInt(t[0].value).toString(), gasUsed: BigInt(r[0].gasUsed).toString(), costWei: cost.toString() });
++  }
++  return { costWei: total.toString(), txs: rows };
++}
+diff --git a/driver/tx.mjs b/driver/tx.mjs
+index c1ee1ef3fb77d6740bbc38c5c694d73c56ea3053..1faa347839c39c21dbf78e5b1d81c7c900e23684 100644
+--- a/driver/tx.mjs
++++ b/driver/tx.mjs
+@@ -1,16 +1,12 @@
+-// ONE bounded owner transaction per execute call. Everything is pinned by the plan step and the prepared record and is
+-// re-checked here: target contract, function selector, the deployment id inside the calldata, the exact calldata hash,
+-// chain id, zero value, sender = the pinned canary owner, gas cap, fee ceiling and total-cost cap, the owner's
+-// balance, and the operator's typed confirmation of the PREPARED hash.
+-// It simulates first (eth_call from the owner), refuses when the estimate exceeds the cap, sends with gas = cap, and
+-// waits a bounded time for the receipt. It never retries a send: a missing receipt is recorded as UNKNOWN and the
+-// step is closed; the next read decides what happened.
++// The pin checks every custody update must pass before the sender (sender.mjs, the reviewed operator-helper pattern)
++// prices, signs or broadcasts it: target contract, function selector, the deployment id inside the calldata, the
++// exact calldata hash, chain id, zero value, sender = the pinned canary owner, and the step's gas and fee caps.
++// Plus the eth_call-only refusal check. Sending lives in sender.mjs; budgets in budget.mjs.
+ import { createHash } from "node:crypto";
+ 
+ export const BASE_CHAIN_ID = 8453;
+ export const GLOBAL_GAS_CAP = 3_000_000n;
+ export const GLOBAL_FEE_CAP = 100_000_000n;              // 0.1 gwei per gas
+-export const GLOBAL_COST_CAP_WEI = 300_000_000_000_000n; // 0.0003 ETH per transaction, whatever the step says
+ 
+ const sha = (hex) => createHash("sha256").update(Buffer.from(hex.replace(/^0x/, ""), "hex")).digest("hex");
+ const lc = (a) => String(a).toLowerCase();
+@@ -31,42 +27,10 @@
+   const id = "0x" + data.slice(10, 74);
+   if (!m.ids.map(lc).includes(id)) throw new Error(`tx: calldata names deployment ${id}, not this step's canary`);
+   if (sha(data) !== prepared.calldataSha256) throw new Error("tx: calldata differs from the prepared calldata");
+-  const gasCap = BigInt(m.gasCap), fee = BigInt(m.maxFeePerGasWei), costCap = BigInt(m.maxCostWei);
++  const gasCap = BigInt(m.gasCap), fee = BigInt(m.maxFeePerGasWei);
+   if (gasCap <= 0n || gasCap > GLOBAL_GAS_CAP) throw new Error("tx: gas cap out of bounds");
+   if (fee <= 0n || fee > GLOBAL_FEE_CAP) throw new Error("tx: fee ceiling out of bounds");
+-  if (costCap !== gasCap * fee || costCap > GLOBAL_COST_CAP_WEI) throw new Error("tx: cost cap must be gasCap x fee ceiling and within the global cap");
+-  return { gasCap, fee, costCap };
+-}
+-
+-// client: { getBalance, call, estimateGas, getGasPrice, getTransactionCount, sendTransaction, waitForReceipt } — a thin
+-// adapter over viem (cli.mjs), injected so tests never touch a chain.
+-export async function executeTx({ step, prepared, selector, tx, confirm, client, timeoutMs = 120_000 }) {
+-  if (confirm !== prepared?.preparedHash) throw new Error(`${step.id}: --confirm must equal the prepared hash`);
+-  const { gasCap, fee, costCap } = checkTxAgainstStep(tx, step, prepared, selector);
+-  const ev = { simulated: false, estimate: null, gasCap: String(gasCap), maxFeePerGas: String(fee), nonce: null };
+-  const balance = await client.getBalance({ address: tx.from });
+-  if (balance < costCap) return { outcome: "fail", evidence: { ...ev, refusedBy: "balance below this step's cost cap", balance: String(balance) } };
+-  try { await client.call({ from: tx.from, to: tx.to, data: tx.data }); }
+-  catch (e) { return { outcome: "fail", evidence: { ...ev, refusedBy: "simulation", reason: String(e.shortMessage || e.message).slice(0, 200) } }; }
+-  ev.simulated = true;
+-  const estimate = await client.estimateGas({ from: tx.from, to: tx.to, data: tx.data });
+-  ev.estimate = String(estimate);
+-  if (estimate > gasCap) return { outcome: "fail", evidence: { ...ev, refusedBy: "gas cap" } };
+-  const price = await client.getGasPrice();
+-  ev.gasPrice = String(price);
+-  if (price * 2n > fee) return { outcome: "fail", evidence: { ...ev, refusedBy: "fee ceiling (gas price above half the pinned ceiling)" } };
+-  const nonce = await client.getTransactionCount({ address: tx.from, blockTag: "pending" });
+-  if (prepared.expectNonce !== undefined && nonce !== prepared.expectNonce) return { outcome: "fail", evidence: { ...ev, refusedBy: "nonce moved since prepare", nonce } };
+-  ev.nonce = nonce;
+-  const hash = await client.sendTransaction({ from: tx.from, to: tx.to, data: tx.data, value: 0n, gas: gasCap,
+-    maxFeePerGas: fee, maxPriorityFeePerGas: price < fee ? price : fee, nonce, chainId: tx.chainId });
+-  ev.txHash = hash;
+-  let receipt;
+-  try { receipt = await client.waitForReceipt(hash, timeoutMs); }
+-  catch { return { outcome: "aborted", evidence: { ...ev, receipt: "UNKNOWN: not seen within the bound; read the chain before any next step" } }; }
+-  Object.assign(ev, { blockNumber: String(receipt.blockNumber), gasUsed: String(receipt.gasUsed), status: receipt.status,
+-    effectiveGasPrice: String(receipt.effectiveGasPrice ?? "") });
+-  return { outcome: receipt.status === "success" ? "pass" : "fail", evidence: ev };
++  return { gasCap, fee };
+ }
+ 
+ // A chain-side refusal check: eth_call ONLY. Passes when the call reverts with the expected custom error name.
+diff --git a/pins.example.json b/pins.example.json
+index c30ddeeb001e27540b11719fba0c1921125e3f1f..243715a3f42380035003fa8d669f61529e38ec9e 100644
+--- a/pins.example.json
++++ b/pins.example.json
+@@ -21,10 +21,9 @@
+   },
+   "rpcs": [
+     "https://mainnet.base.org",
+-    "https://base.llamarpc.com",
++    "https://base.public.blockpi.network/v1/rpc/public",
+     "https://base-rpc.publicnode.com"
+   ],
+-  "sendRpc": "https://mainnet.base.org",
+   "relay": {
+     "api": "https://api.enclave.host"
+   },
+@@ -50,12 +49,15 @@
+     }
+   },
+   "fees": {
+-    "maxFeePerGasWei": "20000000"
++    "maxFeePerGasWei": "10000000",
++    "l1FeeWei": "300000000000",
++    "operatorFeeWei": "100000000000",
++    "referenceUnsignedSize": "1700"
+   },
+   "gas": {
+-    "create": "1200000",
+-    "rotate": "600000",
+-    "rules": "500000"
++    "create": "900000",
++    "rotate": "300000",
++    "rules": "250000"
+   },
+   "imageCandidateFromChain": {
+     "source": "policy 0x4e62 rules at block 52869788 (custody-owner-migration/canary/canary-plan-final-candidate.json); ROOT must re-derive with isolation/m4/expected-measurement.sh --pin for the runner's CURRENT domain release before copying into `image`",
+@@ -77,5 +79,28 @@
+         "tee": 2
+       }
+     }
++  },
++  "sendRpcs": [
++    "https://mainnet.base.org",
++    "https://base.public.blockpi.network/v1/rpc/public"
++  ],
++  "budget": {
++    "totalWei": "55000000000000",
++    "usdcUnits": "189740",
++    "usdcFundUnits": "90000",
++    "leaseDepositWei": "8000000000000",
++    "cliWei": {
++      "create": "7000000000000",
++      "stop": "1500000000000",
++      "leaseConfigure": "2000000000000",
++      "leaseDeposit": "1500000000000"
++    },
++    "note": "ROOT-FILLS from live reads: totalWei must be <= the owner's agreed balance (61654449641751 wei at 2026-10-23T19:59Z); usdcFundUnits per deployment from the runner's rate; leaseDepositWei from `lease-gas plan --days` quotes"
++  },
++  "cases": {
++    "disabled": [
++      "migration"
++    ],
++    "note": "profile A (fits the aggregate worst case); migration alone needs a second run with its own budget"
+   }
+ }
+diff --git a/test/assert.test.mjs b/test/assert.test.mjs
+index cdb1ca23de22d32849e95a304368102aa7de713e..4661e0b95a18b5cfd08432171f487619f2044f5d 100644
+--- a/test/assert.test.mjs
++++ b/test/assert.test.mjs
+@@ -76,16 +76,20 @@
+   assert.equal(A.evalPolicyCheck({ facts, expect, ownerAddress: facts.owner, prepared }).outcome, "pass");
+   assert.equal(A.evalPolicyCheck({ facts: { ...facts, bundleKeccak: "0xcc" }, expect, ownerAddress: facts.owner, prepared }).outcome, "fail");
+   assert.equal(A.evalPolicyCheck({ facts: { ...facts, relayCustody: false }, expect, ownerAddress: facts.owner, prepared }).outcome, "fail");
+-  const pins = { vaultCodeHash: "0x4b", custodian: { measurementSha256: "0x25" } };
++  const pins = { vaultCodeHash: "0x4b", custodian: { measurementSha256: "0x25" }, budget: { totalWei: "55000000000000" },
++    fees: { l1FeeWei: "300000000000", operatorFeeWei: "100000000000", maxFeePerGasWei: "10000000" } };
++  const fees = { referenceSize: "1700", l1UpperBoundWei: "60000000000", isthmus: true, operatorFeeWei: "0", baseFeeWei: "3000000", tipWei: "1000000" };
+   const inv = { vaultCodeHash: "0x4b", committee: { epoch: 1, t: 1, W: 1, machines: [{ endpoint: "https://api.enclave.host/t/custody-metal0", measurement: "0x25" }] },
+-    protected: { id: "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e", bundleKeccak: "0x" + "e4".repeat(32) }, ownerBalanceWei: "61654449641751", ownerNonce: 10 };
+-  const budget = { largestStepWei: "24000000000000", worstCaseWei: "122000000000000" };
++    protected: { id: "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e", bundleKeccak: "0x" + "e4".repeat(32) }, ownerBalanceWei: "61654449641751", ownerNonce: 10, fees };
++  const budget = { worstCaseWei: "47300000000000" };
+   let o = A.evalInventory({ facts: inv, pins, budget });
+-  assert.ok(Object.values(o).every((x) => x.ok));
++  assert.ok(Object.values(o).every((x) => x.ok), JSON.stringify(o));
+   o = A.evalInventory({ facts: { ...inv, committee: { ...inv.committee, t: 2 } }, pins, budget });
+   assert.equal(o["read.committee"].ok, false);
+-  o = A.evalInventory({ facts: { ...inv, ownerBalanceWei: "1" }, pins, budget });
+-  assert.equal(o["read.owner"].ok, false);
++  o = A.evalInventory({ facts: { ...inv, ownerBalanceWei: "54999999999999" }, pins, budget });
++  assert.equal(o["read.owner"].ok, false, "the balance must back the whole aggregate budget");
++  for (const f of [{ l1UpperBoundWei: "300000000001" }, { operatorFeeWei: "100000000001" }, { isthmus: undefined }, { baseFeeWei: "5000000" }, { l1UpperBoundWei: undefined }])
++    assert.equal(A.evalInventory({ facts: { ...inv, fees: { ...fees, ...f } }, pins, budget })["fees.bounded"].ok, false, JSON.stringify(f));
+   assert.equal(A.evalProtectedUnchanged({ before: { policyRev: "2", secretRev: "2" }, after: { policyRev: "2", secretRev: "2" } }).outcome, "pass");
+   assert.equal(A.evalProtectedUnchanged({ before: { policyRev: "2" }, after: { policyRev: "3" } }).outcome, "fail");
+   assert.equal(A.evalCustodianInfo({ info: { encKey: "0xAB", vault: "0xe48699b8401564aace7a814ae4569b67a3f7eef5" }, committee: { machines: [{ encKey: "0xab" }] } })["custodian.info"].ok, true);
+diff --git a/test/cli.test.mjs b/test/cli.test.mjs
+index 400641ed56210d4534deece5e24c65c34bef1c13..810584abbb9575b8be351773e6fece8499713513 100644
+--- a/test/cli.test.mjs
++++ b/test/cli.test.mjs
+@@ -29,7 +29,9 @@
+     assert.equal(r.status, 0, r.stderr);
+     const out = JSON.parse(r.stdout);
+     assert.match(out.pinsHash, /^[0-9a-f]{64}$/);
+-    assert.ok(out.steps.length >= 40);
++    assert.ok(out.steps.length >= 30, String(out.steps.length));
++    assert.deepEqual(out.disabledCases, ["migration"]);
++    assert.ok(!out.steps.some((s) => s.id.startsWith("M.")), "the example's profile A leaves migration for a separate run");
+     assert.ok(out.steps.every((s) => s.status === "blocked" && /^[0-9a-f]{64}$/.test(s.stepHash)));
+     assert.equal(fs.statSync(path.join(ROOT, "private", f.label)).mode & 0o777, 0o700);
+     assert.equal(fs.statSync(path.join(ROOT, "runs", f.label)).mode & 0o777, 0o700);
+@@ -65,3 +67,21 @@
+     assert.notEqual(r.status, 0); assert.match(r.stderr, /^REFUSED: pins: deployment ids are learned/);
+   } finally { cleanup(f); }
+ });
++
++test("record S0.root: a recipient runner on a known-lacking control image (no measured CUSTODY_VAULT_V2) can never resolve", () => {
++  const f = pinsFile((p) => { p.owner.reuseScope = { statedBy: "root", at: "2026-10-23T20:30:00Z", onlyPlanCreatedDeployments: true }; });
++  try {
++    const hash = JSON.parse(run(["status", "--pins", f.file]).stdout).steps.find((s) => s.id === "S0.root").stepHash;
++    const obs = path.join(f.dir, "obs.json");
++    const write = (manifest, vault = "0xe48699b8401564aace7a814ae4569b67a3f7eef5") => fs.writeFileSync(obs, JSON.stringify({
++      recipientRunner: { ok: true, endpoint: "https://api.enclave.host/t/metal0", custodyVaultV2: vault, controlManifestSha256: manifest, evidenceRef: "custody-recipient-provenance-20261023" },
++      billing: { ok: true, note: "paid" }, relay: { ok: true }, oneGuest: { ok: true } }));
++    write("c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4");
++    const r = run(["record", "--pins", f.file, "--step", "S0.root", "--obs", obs, "--confirm", hash]);
++    assert.equal(r.status, 0, r.stderr);
++    assert.equal(JSON.parse(r.stdout).outcome, "fail");
++    const st = JSON.parse(run(["status", "--pins", f.file]).stdout);
++    assert.equal(st.steps.find((s) => s.id === "S0.root").status, "recorded:fail");
++    assert.equal(st.steps.find((s) => s.id === "D1.create").status, "blocked");
++  } finally { cleanup(f); }
++});
+diff --git a/test/core.test.mjs b/test/core.test.mjs
+index 9e8402f1b7296732c584fbce91a0f0bab1a5d30d..704a7cbfa61176b9b6a852a846009c52ed1f6251 100644
+--- a/test/core.test.mjs
++++ b/test/core.test.mjs
+@@ -10,7 +10,7 @@
+ import { createGuard, encodingsOf } from "../driver/guard.mjs";
+ import { createMarkerSet, loadMarkerSet, commitmentOf } from "../driver/markers.mjs";
+ import { verifyJournal, makeEntry, appendEntry, readJournal, readyToRun, GENESIS } from "../driver/journal.mjs";
+-import { checkTxAgainstStep, executeTx, simulateRefusal, GLOBAL_GAS_CAP } from "../driver/tx.mjs";
++import { checkTxAgainstStep, simulateRefusal, GLOBAL_GAS_CAP } from "../driver/tx.mjs";
+ 
+ const tmp = () => { const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "canary-core-"))); fs.chmodSync(d, 0o700); return d; };
+ 
+@@ -106,8 +106,8 @@
+ const VAULT = "0xe48699b8401564aace7a814ae4569b67a3f7eef5", OWNER = "0x" + "11".repeat(20), SEL = "0x12345678";
+ const DATA = SEL + C1.slice(2) + "00".repeat(32);
+ const dataSha = createHash("sha256").update(Buffer.from(DATA.slice(2), "hex")).digest("hex");
+-const mstep = { id: "M1", stepHash: "m".repeat(64), mutation: { chainId: 8453, target: VAULT, from: OWNER, fn: "update", ids: [C1], gasCap: "400000", maxFeePerGasWei: "20000000", maxCostWei: "8000000000000" } };
+-const prepared = { stepId: "M1", stepHash: mstep.stepHash, calldataSha256: dataSha, preparedHash: "h".repeat(64), selector: SEL, expectNonce: 7 };
++const mstep = { id: "M1", stepHash: "m".repeat(64), mutation: { chainId: 8453, target: VAULT, from: OWNER, fn: "update", ids: [C1], gasCap: "400000", maxFeePerGasWei: "20000000" } };
++const prepared = { stepId: "M1", stepHash: mstep.stepHash, calldataSha256: dataSha, selector: SEL };
+ const tx = { chainId: 8453, to: VAULT, from: OWNER, data: DATA, value: 0n };
+ 
+ function fakeClient({ revert = false, estimate = 200000n, price = 5_000_000n, balance = 10n ** 15n, nonce = 7, receipt = { status: "success", blockNumber: 9n, gasUsed: 150000n, effectiveGasPrice: 5_000_000n }, hang = false } = {}) {
+@@ -121,7 +121,6 @@
+     sendTransaction: async (t) => { calls.push(["send", t]); return "0x" + "ee".repeat(32); },
+     waitForReceipt: async () => { if (hang) throw new Error("timeout"); return receipt; } };
+ }
+-const sends = (c) => c.calls.filter((x) => x[0] === "send").length;
+ 
+ test("tx: every pin is enforced before anything is sent", () => {
+   assert.equal(checkTxAgainstStep(tx, mstep, prepared, SEL).gasCap, 400000n);
+@@ -134,31 +133,11 @@
+   for (const [t, re] of bad) assert.throws(() => checkTxAgainstStep(t, mstep, prepared, SEL), re);
+   const m = (x) => ({ ...mstep, mutation: { ...mstep.mutation, ...x } });
+   assert.throws(() => checkTxAgainstStep(tx, m({ gasCap: String(GLOBAL_GAS_CAP + 1n) }), prepared, SEL), /gas cap/);
+-  assert.throws(() => checkTxAgainstStep(tx, m({ maxCostWei: "1" }), prepared, SEL), /cost cap/);
+-  assert.throws(() => checkTxAgainstStep(tx, m({ maxFeePerGasWei: "200000000", maxCostWei: "80000000000000" }), prepared, SEL), /fee ceiling/);
++  assert.throws(() => checkTxAgainstStep(tx, m({ maxFeePerGasWei: "200000000" }), prepared, SEL), /fee ceiling/);
+   assert.throws(() => checkTxAgainstStep(tx, mstep, { ...prepared, stepHash: "x" }, SEL), /prepared record/);
+   assert.throws(() => checkTxAgainstStep(tx, { id: "R", stepHash: "r" }, prepared, SEL), /not a mutation/);
+ });
+ 
+-test("tx: confirmation, balance, simulation, gas, fee and nonce gates; gas = cap; no retry on an unknown receipt", async () => {
+-  const run = (c, extra = {}) => executeTx({ step: mstep, prepared, selector: SEL, tx, confirm: prepared.preparedHash, client: c, ...extra });
+-  await assert.rejects(executeTx({ step: mstep, prepared, selector: SEL, tx, confirm: mstep.stepHash, client: fakeClient() }), /prepared hash/);
+-  for (const [opts, by] of [[{ balance: 1n }, /balance/], [{ revert: true }, /simulation/], [{ estimate: 500000n }, /gas cap/], [{ price: 11_000_000n }, /fee ceiling/], [{ nonce: 8 }, /nonce moved/]]) {
+-    const c = fakeClient(opts);
+-    const r = await run(c);
+-    assert.equal(r.outcome, "fail"); assert.match(r.evidence.refusedBy, by); assert.equal(sends(c), 0);
+-  }
+-  let c = fakeClient();
+-  let r = await run(c);
+-  assert.equal(r.outcome, "pass");
+-  const sent = c.calls.find((x) => x[0] === "send")[1];
+-  assert.equal(sent.gas, 400000n); assert.equal(sent.maxFeePerGas, 20_000_000n); assert.equal(sent.value, 0n); assert.equal(sent.nonce, 7);
+-  c = fakeClient({ hang: true });
+-  r = await run(c);
+-  assert.equal(r.outcome, "aborted"); assert.match(r.evidence.receipt, /UNKNOWN/); assert.equal(sends(c), 1);
+-  assert.equal((await run(fakeClient({ receipt: { status: "reverted", blockNumber: 9n, gasUsed: 400000n } }))).outcome, "fail");
+-});
+-
+ test("simulateRefusal: pass only on the expected revert; a succeeding call fails the step", async () => {
+   assert.equal((await simulateRefusal({ client: fakeClient({ revert: true }), from: OWNER, to: VAULT, data: DATA, expectRevert: "NotOwner" })).outcome, "pass");
+   assert.equal((await simulateRefusal({ client: fakeClient({ revert: true }), from: OWNER, to: VAULT, data: DATA, expectRevert: "StaleRevision" })).outcome, "fail");
+diff --git a/test/mutants.sh b/test/mutants.sh
+index bdad5393d0e70958cc809f747ae5fdfa360c80f3..2f1c6f87fbb447666016006f0af997dd42ab2309 100755
+--- a/test/mutants.sh
++++ b/test/mutants.sh
+@@ -15,6 +15,11 @@
+ mutant "release accepts SYNTHETIC roots" driver/assert.mjs 'if (oks.some((m) => m[6]))' 'if (false)' test/assert.test.mjs
+ mutant "plan forgets which policy is protected" driver/plan.mjs 'export const PROTECTED_POLICY_4E62 = "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e";' 'export const PROTECTED_POLICY_4E62 = "0x' "$(printf '%064d' 0)"'";' test/plan.test.mjs
+ mutant "rollback reported as pass" driver/assert.mjs 'return { outcome: "expected-fail"' 'return { outcome: "pass"' test/assert.test.mjs
+-mutant "tx skips the balance gate" driver/tx.mjs 'if (balance < costCap)' 'if (false)' test/core.test.mjs
++mutant "sender skips the balance + reserve gate" driver/sender.mjs 'if (o.balance < pr.totalMaxWei + BigInt(budget.reserveWei)) refuse("balance", `balance' 'if (false) refuse("balance", `balance' test/sender.test.mjs
++mutant "sender omits the operator fee" driver/sender.mjs 'const total = gas * maxFee + l1 + opFee;' 'const total = gas * maxFee + l1;' test/sender.test.mjs
++mutant "sender broadcasts before the intent is durable" driver/sender.mjs '    writeIntent(rec, { create: true });                                                      // durable BEFORE any broadcast' '    setTimeout(() => writeIntent(rec, { create: true }), 0);' test/sender.test.mjs
++mutant "budget forgets the cleanup reserve" driver/budget.mjs 'const owed = steps.filter((s) => s.spend?.cleanup' 'const owed = steps.filter((s) => false' test/sender.test.mjs
++mutant "plan ignores the aggregate budget" driver/plan.mjs 'if (!budget.fits) for' 'if (false) for' test/plan.test.mjs
++mutant "S0.root accepts a known-lacking control image" driver/cli.mjs '!KNOWN_LACKING_CONTROL_MANIFESTS.includes(rr.controlManifestSha256)' 'true' test/cli.test.mjs
+ mutant "relay getMeta leaks values" driver/relay.mjs 'const out = { status: r.status, error: r.body?.error ?? null, rev: r.body?.rev ?? null, names };' 'const out = { status: r.status, error: r.body?.error ?? null, rev: r.body?.rev ?? null, names, env };' test/net.test.mjs
+ echo "== MUTANTS rc=$rc"; exit $rc
+diff --git a/test/plan.test.mjs b/test/plan.test.mjs
+index c72795e723db010101c12184993257a7371a36bc..082f22d7d7552cb5e7d57e8e4cef1239fd39fd56 100644
+--- a/test/plan.test.mjs
++++ b/test/plan.test.mjs
+@@ -1,18 +1,21 @@
+-// The plan: pins validation, fail-closed blocking, hash stability, the protected policy, budgets, and the steps that
+-// must stay blocked in this plan (track N, shared outage).
++// The plan: pins validation, fail-closed blocking, hash stability, the protected policy, optional cases, the AGGREGATE
++// budget, and the steps that must stay blocked in this plan (track N, shared outage).
+ import test from "node:test";
+ import assert from "node:assert/strict";
+ import fs from "node:fs";
+ import path from "node:path";
++import { createHash } from "node:crypto";
+ import { fileURLToPath } from "node:url";
+-import { buildPlan, validatePins, PROTECTED_POLICY_4E62, COMMITTEE_4774, ORIGINAL_VAULT_V2 } from "../driver/plan.mjs";
++import { buildPlan, validatePins, PROTECTED_POLICY_4E62, COMMITTEE_4774, ORIGINAL_VAULT_V2, KNOWN_LACKING_CONTROL_MANIFESTS } from "../driver/plan.mjs";
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const REPO = process.env.CANARY_CLIENT_REPO || "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2";
+ const example = JSON.parse(fs.readFileSync(path.join(ROOT, "pins.example.json"), "utf8"));
+-const full = () => ({ ...structuredClone(example), image: { ...example.imageCandidateFromChain, source: undefined },
+-  owner: { ...example.owner, reuseScope: { statedBy: "root", at: "2026-10-23T20:30:00Z", onlyPlanCreatedDeployments: true } } });
+-const fixImage = (p) => { delete p.image.source; return p; };
+-const allObs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "custodian.info", "recipient.runner",
++const full = (mut = (p) => p) => { const { source, ...image } = example.imageCandidateFromChain;
++  const p = { ...structuredClone(example), image, owner: { ...example.owner, reuseScope: { statedBy: "root", at: "2026-10-23T20:30:00Z", onlyPlanCreatedDeployments: true } } };
++  mut(p); return p; };
++const everything = (p) => { p.cases = { disabled: [] }; p.budget.totalWei = "1000000000000000"; };
++const allObs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+   "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "x" }]));
+ const C1 = "0x" + "c1".repeat(32), C2 = "0x" + "c2".repeat(32);
+ const st = (plan, id) => plan.steps.find((s) => s.id === id);
+@@ -25,14 +28,27 @@
+   assert.match(st(plan, "C1.create").blockedBy.join(), /image.recipient/);
+ });
+ 
+-test("validatePins refuses another vault, committee, pinned deployment ids, fee ceilings and bad shapes", () => {
++test("every pinned client file hash in the example is the public file's real sha256 (the gitleaks-ignored line included)", () => {
++  for (const [rel, want] of Object.entries(example.repo.files)) assert.equal(createHash("sha256").update(fs.readFileSync(path.join(REPO, rel))).digest("hex"), want, rel);
++  const lines = fs.readFileSync(path.join(ROOT, "pins.example.json"), "utf8").split("\n");
++  assert.match(lines[44], /^ +"relay\/secrets\.js": "[0-9a-f]{64}",$/, "the .gitleaksignore fingerprint names exactly this line (45)");
++  assert.match(fs.readFileSync(path.join(ROOT, ".gitleaksignore"), "utf8"), /^pins\.example\.json:generic-api-key:45$/m);
++});
++
++test("validatePins refuses another vault, committee, pinned ids, fee/budget gaps, unknown optional cases and bad shapes", () => {
+   const bad = [
+     [(p) => { p.vaultV2 = "0x56b81b39" + "0".repeat(32); }, /original 0xE486/],
+     [(p) => { p.committee.id = "0x" + "11".repeat(32); }, /0x4774 only/],
+     [(p) => { p.deployments = { C1: { id: C1 } }; }, /learned from the journal/],
+     [(p) => { p.fees.maxFeePerGasWei = "200000000"; }, /maxFeePerGasWei/],
++    [(p) => { delete p.fees.l1FeeWei; }, /l1FeeWei/],
++    [(p) => { delete p.fees.operatorFeeWei; }, /operatorFeeWei/],
++    [(p) => { delete p.budget.cliWei.stop; }, /cliWei.stop/],
++    [(p) => { delete p.budget.totalWei; }, /budget: totalWei/],
++    [(p) => { p.cases.disabled = ["create"]; }, /cases.disabled/],
+     [(p) => { p.owner.keyEnv = "0xabc"; }, /env var NAME/],
+-    [(p) => { p.sendRpc = "https://other.example"; }, /sendRpc/],
++    [(p) => { p.sendRpcs = [p.rpcs[0]]; }, /sendRpcs/],
++    [(p) => { p.sendRpcs = [p.rpcs[0], "https://other.example"]; }, /sendRpcs/],
+     [(p) => { p.recipient.endpoint = "https://api.enclave.host/t/custody-metal0"; }, /recipient.endpoint/],
+     [(p) => { p.chainId = 1; }, /8453/],
+     [(p) => { p.gas.create = "99999999"; }, /gas.create/],
+@@ -41,39 +57,39 @@
+ });
+ 
+ test("prerequisites resolve only from pins, declared observations and learned ids; the order is fail-closed", () => {
+-  const p = fixImage(full());
++  const p = full(everything);
+   let plan = buildPlan(p);
+   assert.equal(st(plan, "S0.chain").status, "ready");
+-  assert.equal(st(plan, "S0.custodian").status, "ready");
+   assert.equal(st(plan, "D1.create").status, "blocked");
++  plan = buildPlan(p, { ...allObs, "fees.bounded": undefined });
++  assert.match(st(plan, "C1.create").blockedBy.join(), /fees.bounded/);
+   plan = buildPlan(p, { ...allObs, "deploy.C1": undefined, "deploy.C2": undefined });
+   assert.equal(st(plan, "D1.create").status, "ready");
++  assert.equal(st(plan, "D1.leasegas").status, "ready");
+   assert.equal(st(plan, "C1.create").status, "blocked");
+-  assert.match(st(plan, "C1.create").blockedBy.join(), /deploy.C1|not created/);
+   plan = buildPlan(p, allObs, { C1 });
+   assert.equal(st(plan, "C1.create").status, "ready");
+   assert.deepEqual(st(plan, "C1.create").mutation.ids, [C1]);
+-  assert.equal(st(plan, "M.migrate").status, "blocked");                   // C2 not learned yet
++  assert.equal(st(plan, "M.migrate").status, "blocked");
+   plan = buildPlan(p, allObs, { C1, C2 });
+   assert.equal(st(plan, "M.migrate").status, "ready");
+-  // unknown observation keys and approvals for track N do not resolve anything
+   plan = buildPlan({ ...p, approvals: { "trackN.memory": { by: "x", at: "y" } } }, { ...allObs, "trackN.committee": { ok: true, stepId: "z" } }, { C1, C2 });
+   for (const id of ["O.stopped", "O.timeout", "O.restart", "O.rollback", "O.shared"]) assert.equal(st(plan, id).status, "blocked", id);
+   assert.equal(st(plan, "O.rollback").limitation, "rollback");
++  assert.match(String(KNOWN_LACKING_CONTROL_MANIFESTS), /^c7cb436d/);
+ });
+ 
+ test("step hashes: stable across run-time status, bound to the learned ids and the pins", () => {
+-  const p = fixImage(full());
++  const p = full();
+   const a = buildPlan(p, {}, { C1 }), b = buildPlan(p, allObs, { C1 });
+   assert.notEqual(st(a, "C1.create").status, st(b, "C1.create").status);
+   assert.equal(st(a, "C1.create").stepHash, st(b, "C1.create").stepHash);
+   assert.notEqual(st(buildPlan(p, allObs, { C1: C2 }), "C1.create").stepHash, st(b, "C1.create").stepHash);
+-  assert.equal(st(buildPlan(p, allObs, { C1, C2 }), "S0.chain").stepHash, st(b, "S0.chain").stepHash);
+-  assert.notEqual(buildPlan({ ...p, gas: { ...p.gas, rules: "400000" } }).pinsHash, b.pinsHash);
++  assert.notEqual(buildPlan({ ...p, gas: { ...p.gas, rules: "200000" } }).pinsHash, b.pinsHash);
+ });
+ 
+ test("the protected policy 0x4e62 can never be a target; C1 and C2 must differ", () => {
+-  const p = fixImage(full());
++  const p = full();
+   const literal = "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e";   // literal: a changed constant must not hide it
+   assert.equal(PROTECTED_POLICY_4E62, literal);
+   assert.throws(() => buildPlan(p, allObs, { C1: literal }), /protected policy/);
+@@ -82,36 +98,55 @@
+   assert.throws(() => buildPlan(p, allObs, { C1: "0xABC" }), /bytes32/);
+ });
+ 
+-test("mutations: only update on the original vault, from the owner, one canary id, bounded gas x fee; budget reported", () => {
+-  const p = fixImage(full());
+-  const plan = buildPlan(p, allObs, { C1, C2 });
+-  const muts = plan.steps.filter((s) => s.mutation);
++test("mutations: only update on the original vault, from the owner, one canary id; revisions follow the KEPT steps", () => {
++  let plan = buildPlan(full(everything), allObs, { C1, C2 });
++  let muts = plan.steps.filter((s) => s.mutation);
+   assert.equal(muts.length, 9);
+   for (const s of muts) {
+     assert.equal(s.mutation.target, ORIGINAL_VAULT_V2); assert.equal(s.mutation.fn, "update"); assert.equal(s.mutation.ids.length, 1);
+-    assert.equal(s.mutation.from, p.owner.address);
+-    assert.equal(BigInt(s.mutation.maxCostWei), BigInt(s.mutation.gasCap) * 20_000_000n);
++    assert.equal(s.mutation.from, example.owner.address); assert.equal(s.mutation.maxFeePerGasWei, "10000000");
+   }
+-  assert.equal(plan.budget.largestStepWei, String(1_200_000n * 20_000_000n));
+-  assert.equal(plan.budget.worstCaseWei, String((2n * 1_200_000n + 2n * 600_000n + 5n * 500_000n) * 20_000_000n));
+-  // the expected policy revisions follow the case order exactly
+   assert.deepEqual(muts.filter((s) => s.mutation.ids[0] === C1).map((s) => s.mutation.expectPolicyRev), [0, 1, 2, 3, 4, 5, 6]);
+   assert.deepEqual(muts.filter((s) => s.mutation.ids[0] === C2).map((s) => s.mutation.expectPolicyRev), [0, 1]);
+-  assert.ok(plan.steps.every((s) => !s.mutation || s.mutation.ids[0] !== PROTECTED_POLICY_4E62));
+-  assert.match(plan.statement, /not trustless/);
+-  assert.match(plan.statement, /not the corrected r2 candidate/);
++  // disabling optional cases removes their steps, re-wires the order, and renumbers the expected revisions
++  plan = buildPlan(full((p) => { everything(p); p.cases.disabled = ["wrong-runtime", "wrong-app", "migration"]; }), allObs, { C1, C2 });
++  muts = plan.steps.filter((s) => s.mutation);
++  assert.deepEqual(muts.map((s) => [s.id, s.mutation.expectPolicyRev]), [["C1.create", 0], ["C1.rotate", 1], ["N.image.rules", 2], ["N.pause", 3], ["C1.restore", 4]]);
++  assert.deepEqual(st(plan, "N.pause").after, ["N.image.boot"]);
++  assert.ok(!plan.steps.some((s) => s.id.startsWith("M.") || s.id.startsWith("D2.")));
++  assert.deepEqual(st(plan, "Z.final").after, ["D1.stop"]);
++  assert.match(plan.statement, /not trustless/); assert.match(plan.statement, /not the corrected r2 candidate/); assert.match(plan.statement, /NOT proof the app consumed a value/);
++});
++
++test("aggregate budget: the whole enabled plan (CLI create/lease/stop included) must fit, else every spending step is blocked", () => {
++  // the example: migration disabled (profile A) fits 5.5e13; everything enabled does not
++  let plan = buildPlan(full(), allObs, { C1 });
++  assert.equal(plan.budget.fits, true, JSON.stringify(plan.budget));
++  assert.equal(plan.budget.worstCaseWei, String(47_300_000_000_000n));
++  assert.equal(plan.budget.cleanupReserveWei, "1500000000000");
++  assert.equal(st(plan, "C1.create").status, "ready");
++  plan = buildPlan(full((p) => { p.cases = { disabled: [] }; }), allObs, { C1, C2 });
++  assert.equal(plan.budget.fits, false);
++  assert.equal(plan.budget.worstCaseWei, String(80_100_000_000_000n));
++  for (const s of plan.steps.filter((x) => x.mutation || x.spend)) { assert.equal(s.status, "blocked", s.id); assert.match(s.blockedBy.join(), /budget: aggregate worst case/); }
++  assert.equal(st(plan, "S0.chain").status, "ready", "reads and probes are not spending");
++  plan = buildPlan(full((p) => { p.budget.usdcUnits = "1000"; }), allObs, { C1 });
++  assert.match(plan.budget.reasons.join(), /USDC/);
++  // lease gas uses the existing reserve path: configure + deposit by the owner, and both stops are cleanup
++  const p = buildPlan(full(everything), allObs, { C1, C2 });
++  assert.deepEqual(st(p, "D1.leasegas").spend, { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true });
++  assert.ok(st(p, "D1.stop").spend.cleanup && st(p, "D2.stop").spend.cleanup);
++  assert.deepEqual(st(p, "D1.check").after, ["D1.leasegas"]);
+ });
+ 
+-test("case matrix coverage: every requested case has steps", () => {
+-  const plan = buildPlan(fixImage(full()), allObs, { C1, C2 });
++test("case matrix coverage: every requested case has steps; one recipient guest at a time", () => {
++  const plan = buildPlan(full(everything), allObs, { C1, C2 });
+   const cases = new Set(plan.steps.map((s) => s.case));
+   for (const c of ["create", "release", "rotate", "wrong-owner", "stale-policy", "nonce-replay", "wrong-image", "wrong-runtime", "wrong-app", "paused",
+     "relay-refusals", "migration", "outage", "timeout", "restart", "rollback", "outage-shared"]) assert.ok(cases.has(c), c);
+-  // one recipient guest at a time: C1 is stopped before C2 is created
+   const order = plan.steps.map((s) => s.id);
+   assert.ok(order.indexOf("D1.stop") < order.indexOf("D2.create"));
+   assert.deepEqual(st(plan, "D2.create").after, ["D1.stop"]);
+   assert.ok(plan.steps.filter((s) => s.kind === "hardware" && !s.id.startsWith("O.")).every((s) => s.requires.includes("hw.oneGuest")));
+-  assert.equal(st(plan, "C1.create").mutation.policy.paused, false);
+   assert.equal(COMMITTEE_4774.length, 66);
+ });
+diff --git a/test/prepare.test.mjs b/test/prepare.test.mjs
+index 090e11863174afb5ef2eaa4f8e7b32a4af308c40..0079bf57dac3872268fc122dc3cf973c9db1010f 100644
+--- a/test/prepare.test.mjs
++++ b/test/prepare.test.mjs
+@@ -16,7 +16,7 @@
+ const ex = JSON.parse(fs.readFileSync(path.join(ROOT, "pins.example.json"), "utf8"));
+ const { source, ...image } = ex.imageCandidateFromChain;
+ const pins = { ...ex, image, owner: { ...ex.owner, reuseScope: { statedBy: "root", at: "t", onlyPlanCreatedDeployments: true } } };
+-const obs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "custodian.info", "recipient.runner",
++const obs = Object.fromEntries(["read.vault", "read.committee", "read.protected4e62", "read.owner", "fees.bounded", "custodian.info", "recipient.runner",
+   "recipient.billing", "relay.v2aware", "hw.oneGuest", "deploy.C1", "deploy.C2"].map((k) => [k, { ok: true, stepId: "x" }]));
+ const C1 = "0x" + "c1".repeat(32);
+ const plan = buildPlan(pins, obs, { C1, C2: "0x" + "c2".repeat(32) });
+@@ -47,7 +47,7 @@
+   assert.equal(prepared.summary.nextSecretRev, "1");
+   assert.ok(!JSON.stringify(prepared).includes(env.CANARY_A) && !tx.data.includes(Buffer.from(env.CANARY_A).toString("hex")), "values only inside the ciphertext");
+   assert.ok(checkTxAgainstStep(tx, s, prepared, prepared.selector));
+-  assert.equal(prepared.expectNonce, 10);
++  assert.match(prepared.calldataRecordHash, /^[0-9a-f]{64}$/);
+ });
+ 
+ test("prepare refuses: policyRev out of step, a foreign policy owner, no Y, no values, no config text, a blocked step", async () => {
+diff --git a/test/sender.test.mjs b/test/sender.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..076998e47c943341518bcca4c90b652ee6d4f132
+--- /dev/null
++++ b/test/sender.test.mjs
+@@ -0,0 +1,226 @@
++// sender.mjs (the reviewed operator-helper pattern for ONE custody update) and budget.mjs against a two-RPC fake Base:
++// fees incl. L1 + operator fee, intent before broadcast, never signing twice, resume/rebroadcast/conflict, receipts.
++import test from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { pathToFileURL } from "node:url";
++import { createSender, receiptCosts, ORACLE } from "../driver/sender.mjs";
++import { allowanceOf, planBudget, spentOf, gate } from "../driver/budget.mjs";
++
++const REPO = process.env.CANARY_CLIENT_REPO || "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2";
++const viem = await import(pathToFileURL(path.join(REPO, "node_modules/viem/_esm/index.js")).href);
++const accounts = await import(pathToFileURL(path.join(REPO, "node_modules/viem/_esm/accounts/index.js")).href);
++const KEY = accounts.generatePrivateKey();
++const OWNER = accounts.privateKeyToAccount(KEY).address.toLowerCase();
++const VAULT = "0xe48699b8401564aace7a814ae4569b67a3f7eef5";
++const VAULT_CODE = "0x6080604052";
++const RPCS = ["https://rpc-a.test", "https://rpc-b.test"];
++const DATA = "0xe4373411" + "c1".repeat(32) + "00".repeat(64);
++const lc = (a) => String(a).toLowerCase();
++const tmp = () => { const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "canary-send-"))); fs.chmodSync(d, 0o700); return d; };
++
++function fakeBase() {
++  const s = { head: 1000, baseFee: 2_000_000n, tip: 1_000_000n, nonce: 5, balance: 6n * 10n ** 13n, estimate: 120_000n, l1: 50_000_000_000n, isthmus: true, opFee: 0n,
++    revert: false, oracleFails: false, pool: [], mined: new Map(), hooks: {}, sent: [] };
++  const hashOf = (n) => viem.keccak256(viem.toHex(`block-${n}`));
++  const block = (n) => ({ number: viem.toHex(n), hash: hashOf(n), baseFeePerGas: viem.toHex(s.baseFee) });
++  const enc = (t, v) => viem.encodeAbiParameters([{ type: t }], [v]);
++  function call({ to, data }) {
++    if (lc(to) === VAULT) { if (s.revert) throw new Error("execution reverted: StaleRevision()"); return "0x"; }
++    if (lc(to) === ORACLE) {
++      if (s.oracleFails) throw new Error("execution reverted");
++      if (data.startsWith(viem.toFunctionSelector("getL1FeeUpperBound(uint256)"))) return enc("uint256", s.l1);
++      if (data.startsWith(viem.toFunctionSelector("isIsthmus()"))) return enc("bool", s.isthmus);
++      if (data.startsWith(viem.toFunctionSelector("getOperatorFee(uint256)"))) return enc("uint256", s.opFee);
++    }
++    throw new Error(`fake: no contract ${to}`);
++  }
++  function mine() {
++    s.head++;
++    for (const tx of s.pool.splice(0)) {
++      if (tx.nonce !== s.nonce) continue;
++      s.nonce++;
++      const price = s.baseFee + s.tip;
++      s.balance -= 100_000n * price + 1_000_000_000n;
++      s.mined.set(tx.hash, { ...tx, blockNumber: s.head, blockHash: hashOf(s.head), price });
++    }
++  }
++  function answer(url, method, params) {
++    switch (method) {
++      case "eth_chainId": return viem.toHex(8453);
++      case "eth_blockNumber": return viem.toHex(s.head);
++      case "eth_getBlockByNumber": return block(params[0] === "latest" ? s.head : Number(params[0]));
++      case "eth_getCode": return lc(params[0]) === VAULT ? VAULT_CODE : "0x";
++      case "eth_call": return call(params[0]);
++      case "eth_getTransactionCount": return viem.toHex(params[1] === "pending" ? s.nonce + s.pool.length : s.nonce);
++      case "eth_getBalance": return viem.toHex(s.balance);
++      case "eth_estimateGas": call(params[0]); return viem.toHex(s.estimate);
++      case "eth_maxPriorityFeePerGas": return viem.toHex(s.tip);
++      case "eth_sendRawTransaction": {
++        const t = viem.parseTransaction(params[0]);
++        const hash = viem.keccak256(params[0]);
++        s.sent.push(hash);
++        if (!s.pool.some((x) => x.hash === hash) && !s.mined.has(hash)) s.pool.push({ hash, nonce: t.nonce, to: t.to, data: t.data, value: t.value ?? 0n, from: OWNER });
++        return hash;
++      }
++      case "eth_getTransactionReceipt": { const m = s.mined.get(params[0]); return m ? { blockNumber: viem.toHex(m.blockNumber), blockHash: m.blockHash, status: "0x1", gasUsed: viem.toHex(100_000n),
++        effectiveGasPrice: viem.toHex(m.price), l1Fee: viem.toHex(1_000_000_000n) } : null; }
++      case "eth_getTransactionByHash": { const m = s.mined.get(params[0]); return m ? { from: m.from, to: m.to, value: viem.toHex(m.value), input: m.data, nonce: viem.toHex(m.nonce), blockHash: m.blockHash } : null; }
++      default: throw new Error(`fake: ${method}`);
++    }
++  }
++  // hooks get the honest answer as a thunk, so a hook that throws prevents any side effect (e.g. a broadcast)
++  const rpc = async (url, method, params) => (s.hooks[method] ? s.hooks[method](url, params, () => answer(url, method, params)) : answer(url, method, params));
++  return { s, rpc, mine };
++}
++
++const CAPS = { gas: "250000", maxFeePerGas: "10000000", l1FeeWei: "300000000000", operatorFeeWei: "100000000000" };
++const BUDGET = { remainingWei: "40000000000000", reserveWei: "3000000000000" };
++function rig({ pollsMine = true } = {}) {
++  const dir = tmp(), f = fakeBase();
++  const sender = createSender({ viem, accounts, rpcs: RPCS, rpc: f.rpc, dir, vault: VAULT, vaultCodeHash: viem.keccak256(VAULT_CODE),
++    sleep: async () => { if (pollsMine) f.mine(); }, cfg: { receiptPolls: 6, confirmations: 2 } });
++  return { dir, f, sender, done: () => fs.rmSync(dir, { recursive: true }) };
++}
++const prep = (r, extra = {}) => r.sender.prepare({ stepId: "C1.create", stepHash: "s".repeat(64), from: OWNER, data: DATA, caps: CAPS, budget: BUDGET, ...extra });
++
++test("prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked", async () => {
++  const r = rig();
++  try {
++    const p = await prep(r);
++    assert.equal(p.tx.gas, String(150_000n));                              // 120k x 1.25
++    assert.equal(p.tx.maxFeePerGas, String(2n * 2_000_000n + 1_000_000n));
++    assert.equal(p.observed.totalMaxWei, String(150_000n * 5_000_000n + 50_000_000_000n + 0n));
++    assert.equal(p.observed.isthmus, true);
++    r.f.s.opFee = 7_000_000_000n;
++    assert.equal((await prep(r)).observed.totalMaxWei, String(150_000n * 5_000_000n + 50_000_000_000n + 7_000_000_000n));
++    for (const [mut, code] of [
++      [(s) => { s.oracleFails = true; }, "fee_unbounded"], [(s) => { s.opFee = 200_000_000_000n; }, "fee_unbounded"], [(s) => { s.l1 = 400_000_000_000n; }, "fee_unbounded"],
++      [(s) => { s.estimate = 300_000n; }, "gas"], [(s) => { s.baseFee = 6_000_000n; }, "fees"], [(s) => { s.revert = true; }, undefined],
++      [(s) => { s.balance = 1_000_000_000_000n; }, "balance"],
++    ]) {
++      const q = rig(); mut(q.f.s);
++      await assert.rejects(prep(q), (e) => (code ? e.code === code : /StaleRevision/.test(e.message)), String(mut)); q.done();
++    }
++    await assert.rejects(prep(r, { budget: { remainingWei: "1000", reserveWei: "0" } }), (e) => e.code === "aggregate_budget");
++    r.f.s.hooks.eth_getBalance = (url, p, a) => (url === RPCS[1] ? viem.toHex(1n) : a());
++    await assert.rejects(prep(r), (e) => e.code === "rpc_disagree");
++  } finally { r.done(); }
++});
++
++test("prepare refuses another vault code, an unsettled nonce, or non-Base", async () => {
++  for (const [hook, code] of [["eth_getCode", "vault_code"], ["eth_getTransactionCount", "nonce"], ["eth_chainId", "chain"]]) {
++    const r = rig();
++    r.f.s.hooks[hook] = (url, p, a) => (hook === "eth_getCode" ? "0x60806040" : hook === "eth_chainId" ? viem.toHex(1) : (p[1] === "pending" ? viem.toHex(99) : a()));
++    await assert.rejects(prep(r), (e) => e.code === code, hook); r.done();
++  }
++});
++
++test("send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice", async () => {
++  const r = rig();
++  try {
++    const p = await prep(r);
++    let intentAtBroadcast = null;
++    r.f.s.hooks.eth_sendRawTransaction = (url, params, a) => { intentAtBroadcast ??= fs.existsSync(path.join(r.dir, "tx-C1.create.json")); return a(); };
++    await assert.rejects(r.sender.send({ prepared: p, data: DATA, confirm: "0xwrong", readKey: async () => KEY, caps: CAPS, budget: BUDGET }), (e) => e.code === "confirm");
++    await assert.rejects(r.sender.send({ prepared: p, data: DATA.slice(0, -2) + "01", confirm: p.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET }), (e) => e.code === "prepared");
++    await assert.rejects(r.sender.send({ prepared: { ...p, tx: { ...p.tx, gas: "1" } }, data: DATA, confirm: p.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET }), (e) => e.code === "prepared");
++    await assert.rejects(r.sender.send({ prepared: p, data: DATA, confirm: p.preparedHash, readKey: async () => accounts.generatePrivateKey(), caps: CAPS, budget: BUDGET }), (e) => e.code === "key");
++    assert.equal(fs.existsSync(path.join(r.dir, "tx-C1.create.json")), false, "a refused send leaves no intent");
++    const res = await r.sender.send({ prepared: p, data: DATA, confirm: p.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET });
++    assert.equal(intentAtBroadcast, true);
++    assert.equal(res.status, "verified");
++    assert.equal(fs.statSync(path.join(r.dir, "tx-C1.create.json")).mode & 0o777, 0o600);
++    assert.equal(res.costWei, String(100_000n * 3_000_000n + 1_000_000_000n + 0n));
++    assert.equal(r.f.s.sent.length, 2);                                       // one broadcast per RPC
++    await assert.rejects(r.sender.send({ prepared: p, data: DATA, confirm: p.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET }), (e) => e.code === "intent");
++    await assert.rejects(prep(r), (e) => e.code === "intent");
++    assert.equal((await r.sender.resume({ stepId: "C1.create", data: DATA })).status, "verified");
++  } finally { r.done(); }
++});
++
++test("a failed intent write broadcasts nothing", async () => {
++  const r = rig();
++  try {
++    const p = await prep(r);
++    const sender = createSender({ viem, accounts, rpcs: RPCS, rpc: r.f.rpc, dir: path.join(r.dir, "missing-dir"), vault: VAULT, vaultCodeHash: viem.keccak256(VAULT_CODE) });
++    await assert.rejects(sender.send({ prepared: p, data: DATA, confirm: p.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET }), /ENOENT/);
++    assert.equal(r.f.s.sent.length, 0);
++  } finally { r.done(); }
++});
++
++test("unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict", async () => {
++  const r = rig({ pollsMine: false });
++  try {
++    r.f.s.hooks.eth_sendRawTransaction = () => { throw new Error("rpc down"); };        // nothing reaches the pool
++    const p = await prep(r);
++    const res = await r.sender.send({ prepared: p, data: DATA, confirm: p.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET });
++    assert.equal(res.status, "unknown");
++    const intent = JSON.parse(fs.readFileSync(path.join(r.dir, "tx-C1.create.json"), "utf8"));
++    delete r.f.s.hooks.eth_sendRawTransaction;
++    assert.equal((await r.sender.resume({ stepId: "C1.create", data: DATA })).status, "pending");
++    assert.equal(r.f.s.sent.length, 0, "resume without --rebroadcast sends nothing");
++    const again = await r.sender.resume({ stepId: "C1.create", data: DATA, rebroadcast: true });
++    assert.deepEqual(r.f.s.sent, [intent.txHash, intent.txHash], "the same bytes, to both RPCs");
++    assert.equal(again.status, "unknown");
++    r.f.mine(); r.f.mine(); r.f.mine();
++    assert.equal((await r.sender.resume({ stepId: "C1.create", data: DATA })).status, "verified");
++    // conflict: another transaction consumed the nonce
++    const q = rig({ pollsMine: false });
++    q.f.s.hooks.eth_sendRawTransaction = () => { throw new Error("rpc down"); };
++    const p2 = await prep(q);
++    await q.sender.send({ prepared: p2, data: DATA, confirm: p2.preparedHash, readKey: async () => KEY, caps: CAPS, budget: BUDGET });
++    q.f.s.nonce++; q.f.s.head += 3;
++    assert.equal((await q.sender.resume({ stepId: "C1.create", data: DATA })).status, "conflict");
++    await assert.rejects(q.sender.resume({ stepId: "C1.create", data: DATA, rebroadcast: true }).then((x) => { if (x.status === "conflict") throw new Error("final conflict"); }), /final conflict/);
++    assert.equal(q.f.s.sent.length, 0, "a conflict is final: nothing is re-sent or re-signed");
++    q.done();
++  } finally { r.done(); }
++});
++
++test("receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse", async () => {
++  const f = fakeBase();
++  const sign = async (nonce, value = 0n) => { const raw = await accounts.privateKeyToAccount(KEY).signTransaction({ type: "eip1559", chainId: 8453, nonce, to: VAULT, value, data: "0x", gas: 21000n, maxFeePerGas: 10n ** 7n, maxPriorityFeePerGas: 1n }); return f.rpc(RPCS[0], "eth_sendRawTransaction", [raw]); };
++  const h1 = await sign(5, 7n), h2 = await sign(6);
++  f.mine(); f.mine(); f.mine();
++  const c = await receiptCosts({ rpc: f.rpc, rpcs: RPCS, txHashes: [h1], from: OWNER, operatorFeeWei: "5" });
++  assert.equal(c.costWei, String(100_000n * 3_000_000n + 1_000_000_000n + 7n + 5n));
++  await assert.rejects(receiptCosts({ rpc: f.rpc, rpcs: RPCS, txHashes: [h1], from: "0x" + "99".repeat(20), operatorFeeWei: "0" }), /not sent by the canary owner/);
++  await assert.rejects(receiptCosts({ rpc: f.rpc, rpcs: RPCS, txHashes: ["0x" + "ab".repeat(32)], from: OWNER, operatorFeeWei: "0" }), /not mined/);
++  assert.ok(h2);
++});
++
++const pinsB = { fees: { maxFeePerGasWei: "10000000", l1FeeWei: "300000000000", operatorFeeWei: "100000000000" },
++  budget: { totalWei: "20000000000000", usdcUnits: "189740", usdcFundUnits: "90000", leaseDepositWei: "8000000000000", cliWei: { create: "7000000000000", stop: "1500000000000", leaseConfigure: "2000000000000", leaseDeposit: "1500000000000" } } };
++const steps = [
++  { id: "M1", status: "ready", mutation: { gasCap: "250000" } },
++  { id: "D1", status: "ready", spend: { txs: ["create"], usdc: true } },
++  { id: "L1", status: "ready", spend: { txs: ["leaseConfigure", "leaseDeposit"], depositWei: true } },
++  { id: "S1", status: "ready", spend: { txs: ["stop"], cleanup: true } },
++  { id: "X", status: "skipped", mutation: { gasCap: "900000" } },
++  { id: "R", status: "ready" },
++];
++
++test("budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)", () => {
++  assert.equal(allowanceOf(steps[0], pinsB), 250_000n * 10_000_000n + 300_000_000_000n + 100_000_000_000n);
++  assert.equal(allowanceOf(steps[2], pinsB), 2_000_000_000_000n + 1_500_000_000_000n + 8_000_000_000_000n);
++  const pb = planBudget(steps, pinsB);
++  assert.equal(pb.worstCaseWei, String(2_900_000_000_000n + 7_000_000_000_000n + 11_500_000_000_000n + 1_500_000_000_000n));
++  assert.equal(pb.cleanupReserveWei, "1500000000000"); assert.equal(pb.usdcUnits, "90000");
++  assert.equal(pb.fits, false); assert.match(pb.reasons[0], /aggregate worst case/);
++  assert.equal(planBudget(steps, { ...pinsB, budget: { ...pinsB.budget, totalWei: "30000000000000" } }).fits, true);
++  const done = new Map();
++  // nothing spent: D1 fits only while the cleanup stop stays reserved
++  let g = gate({ steps, pins: pinsB, entries: [], done, step: steps[1] });
++  assert.equal(g.ok, true); assert.equal(g.cleanupOwedWei, "1500000000000");
++  const entries = [{ stepId: "M1", evidence: { costWei: "12000000000000" } }, { stepId: "D1", evidence: {} }];   // D1 without a cost counts its full allowance
++  assert.equal(spentOf(entries, steps, pinsB), 12_000_000_000_000n + 7_000_000_000_000n);
++  g = gate({ steps, pins: pinsB, entries, done, step: steps[2] });
++  assert.equal(g.ok, false); assert.match(g.reasons[0], /remaining/);
++  g = gate({ steps, pins: pinsB, entries: entries.slice(0, 1), done, step: steps[3] });              // the cleanup step itself owes no reserve
++  assert.equal(g.ok, true); assert.equal(g.cleanupOwedWei, "0");
++  assert.equal(gate({ steps, pins: pinsB, entries: [], done, step: steps[1], balanceWei: 1n }).ok, false);
++  assert.equal(gate({ steps, pins: pinsB, entries: [], done, step: steps[5] }).ok, true);
++});

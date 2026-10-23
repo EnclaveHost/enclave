@@ -1,0 +1,36 @@
+[queue] START available=24055MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
+== deabf8f90 (unmodified)
+ok 1 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+ok 2 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+ok 3 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+not ok 4 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+ok 5 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+ok 6 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+ok 7 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+ok 8 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+ok 9 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+ok 10 - the front: nonce is required and fresh, only path and query reach the supervisor
+ok 11 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+ok 12 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+ok 13 - builder and overlay carry the helper and the measured token
+# pass 12
+# fail 1
+== restore commit a6b1378
+ok 1 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+ok 2 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+ok 3 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+not ok 4 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+ok 5 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+ok 6 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+ok 7 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+ok 8 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+ok 9 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+ok 10 - the front: nonce is required and fresh, only path and query reach the supervisor
+ok 11 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+ok 12 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+ok 13 - builder and overlay carry the helper and the measured token
+# pass 12
+# fail 1
+[memory-guard] exit=0 peakTreeRssMiB=370 minHostAvailableMiB=23814
+[memory-guard] at peak: node:112 node:106 node:81 node:59 bash:6 grep:5 bash:2
+[queue] EXIT 0

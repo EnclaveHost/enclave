@@ -1,0 +1,16 @@
+[queue] START available=22703MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+KILLED   config-before-stop
+KILLED   no-deadline-wait
+KILLED   no-concurrent-config-cas
+KILLED   no-dropin-check
+KILLED   non-additive-admission
+KILLED   admission-ignores-public
+KILLED   reserialize-config
+KILLED   ignore-workingdir
+KILLED   ignore-dropins
+KILLED   cas-no-restore
+KILLED   small-margin-ok
+mutants 11 survived 0
+[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=22431
+[memory-guard] at peak: python3:28 python3:22 python3:17
+[queue] EXIT 0

@@ -1,0 +1,86 @@
+From 1c8403e8549b91a10f908d6f57c1f5ed9392bcca Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:12:03 -0700
+Subject: [PATCH] Confirm live guestd release capability over authenticated
+ control channel
+
+---
+ README.md                             |  2 ++
+ evidence/recipient-guestd-health.json | 39 +++++++++++++++++++++++++++
+ probes/recipient-guestd-health.mjs    | 11 ++++++++
+ 3 files changed, 52 insertions(+)
+ create mode 100644 evidence/recipient-guestd-health.json
+ create mode 100644 probes/recipient-guestd-health.mjs
+
+diff --git a/README.md b/README.md
+index 0915306bd0340db112e12a0280b12053fc523f05..a89db9fea0181263221083ff7abd52427ad907b4 100644
+--- a/README.md
++++ b/README.md
+@@ -74,3 +74,5 @@
+ The exact production image inventory in `../custody-recipient-provenance-20261023/RESULT.md` found that the `deabf8f90` overlay dropped the measured v1/v2 custody constants present in the October 14 `295650320` lineage. A fresh relay observation confirms the running supervisor was admitted as measurement `ed918e4b…d2ac2`; this is an admission observation, not an independent fresh quote verification. The local guestd health endpoint requires authentication (401); this does not establish a guestd outage. No release canary has yet been attempted through this misconfigured recipient. A minimal source restoration is being prepared, without changing existing guests.
+ 
+ Publisher metadata shows its current partition console file is empty. The independent publisher assessment (`../custody-publisher-assessment-20261023/RESULT.md`) verifies the public IPNS record's signatures, sequence 1026 and expiry October 30. Local publisher sequence zero does not mean the public record is gone. Do not publish a new site until recovery of the existing sequence is established.
++
++At 21:03 UTC the existing authenticated guestd control client returned HTTP 200: `supports.release=true`, no `directBootstrap`, catalog runtime `297b6c2c…ef02f8`. The earlier unauthenticated 401 was expected. The pairing credential was used only in memory and was not emitted. This is host capability evidence, not guest attestation.
+diff --git a/evidence/recipient-guestd-health.json b/evidence/recipient-guestd-health.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9089523e017c4115f2671673715017a410576a0d
+--- /dev/null
++++ b/evidence/recipient-guestd-health.json
+@@ -0,0 +1,39 @@
++{
++  "at": "2026-10-23T21:03:09.777Z",
++  "readOnly": true,
++  "authenticatedResponse": true,
++  "status": 200,
++  "fields": [
++    "backend",
++    "catalog",
++    "firmware",
++    "guests",
++    "inference",
++    "mem64",
++    "mem64RequiresRelease",
++    "ok",
++    "pool",
++    "set",
++    "setRequiresRelease",
++    "shieldedPool",
++    "supports",
++    "volumes"
++  ],
++  "supports": {
++    "config": false,
++    "configCid": false,
++    "egress": false,
++    "gpu": true,
++    "legacyImage": true,
++    "ports": false,
++    "protectedPorts": true,
++    "release": true,
++    "secrets": false
++  },
++  "catalog": {
++    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
++  },
++  "limits": [
++    "Authenticated host-side capability observation, not guest attestation or a custody release. No key/session material or full response emitted."
++  ]
++}
+diff --git a/probes/recipient-guestd-health.mjs b/probes/recipient-guestd-health.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..079f2bd983b99c06e1a3e4a990c8497fa65777c5
+--- /dev/null
++++ b/probes/recipient-guestd-health.mjs
+@@ -0,0 +1,11 @@
++// Authenticated GET only through the existing production control client. Pairing key stays in memory, never output.
++import fs from 'node:fs';
++import {GuestdControl,parseKey} from '../../linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs';
++const key=parseKey(fs.readFileSync('/home/steven/enclave-prod/guestd-pair.key','utf8'));
++try {
++ const client=new GuestdControl('http://127.0.0.1:8095',key,{requestTimeoutMs:12000,maxResponseBytes:131072});
++ const {status,body}=await client.request('GET','/health');
++ if(status!==200)throw Error('guestd health HTTP '+status);
++ const out={at:new Date().toISOString(),readOnly:true,authenticatedResponse:true,status,fields:Object.keys(body),supports:body.supports,catalog:body.catalog&&Object.fromEntries(Object.entries(body.catalog).filter(([k])=>['runtimeId','runtime','release'].includes(k))),limits:['Authenticated host-side capability observation, not guest attestation or a custody release. No key/session material or full response emitted.']};
++ fs.writeFileSync(new URL('../evidence/recipient-guestd-health.json',import.meta.url),JSON.stringify(out,null,2)+'\n');console.log(JSON.stringify(out));
++} finally {key.fill(0);}

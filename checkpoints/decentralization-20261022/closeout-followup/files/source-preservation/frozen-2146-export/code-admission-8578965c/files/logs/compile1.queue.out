@@ -1,0 +1,5 @@
+[queue] START available=23938MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+compiled 0.8.35+commit.47b9dedd.Emscripten.clang
+[memory-guard] exit=0 peakTreeRssMiB=295 minHostAvailableMiB=23702
+[memory-guard] at peak: node:295
+[queue] EXIT 0

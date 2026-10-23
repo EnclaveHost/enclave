@@ -1,0 +1,102 @@
+[queue] START available=24064MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
+not ok 1 - gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
+  ---
+  duration_ms: 60.443926
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:47:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:50:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
+not ok 2 - no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
+  ---
+  duration_ms: 56.82876
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:60:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '0x9999999999999999999999999999999999999999'
+    - '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
+  actual: '0x9999999999999999999999999999999999999999'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:62:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
+ok 3 - control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
+  ---
+  duration_ms: 59.100835
+  type: 'test'
+  ...
+# Subtest: the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
+not ok 4 - the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
+  ---
+  duration_ms: 67.741347
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:101:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + {}
+    - {
+    -   CUSTODY_CHAIN_ID: '8453',
+    -   CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6',
+    -   CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6'
+    CUSTODY_CHAIN_ID: '8453'
+    CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:104:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 410.432135
+control exit 1 (expected non-zero)
+[memory-guard] exit=0 peakTreeRssMiB=193 minHostAvailableMiB=24031
+[memory-guard] at peak: node:77 node:58 node:52 bash:6
+[queue] EXIT 0

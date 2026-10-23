@@ -1,0 +1,1324 @@
+From b03be02d7d050dd4883e29e011c454942aa790ee Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 14:12:49 -0700
+Subject: [PATCH] metal0 custody vault restore: evidence + activation plan for
+ repo commit a6b1378c (measurement ee5df6b8, staged only; no production
+ change)
+
+---
+ .gitignore                        |   7 +
+ ACTIVATION-PLAN.md                | 105 +++++++++
+ RESULT.md                         |  82 +++++++
+ build-1.sh                        |  74 ++++++
+ control-old-gsup.sh               |  10 +
+ entries.py                        |  27 +++
+ logs/build-1.guard.log            |   1 +
+ logs/build-1.out                  |  27 +++
+ logs/build-1.rc                   |   1 +
+ logs/control-1.guard.log          |   1 +
+ logs/control-1.out                | 102 +++++++++
+ logs/control-1.rc                 |   1 +
+ logs/measured-control-1.guard.log |   1 +
+ logs/measured-control-1.out       |  36 +++
+ logs/measured-control-1.rc        |   1 +
+ logs/related-1.guard.log          |   1 +
+ logs/related-1.out                | 368 ++++++++++++++++++++++++++++++
+ logs/related-1.rc                 |   1 +
+ logs/repro-1.guard.log            |   1 +
+ logs/repro-1.out                  |  18 ++
+ logs/repro-1.rc                   |   1 +
+ logs/scan-1.guard.log             |   1 +
+ logs/scan-1.out                   |   8 +
+ logs/scan-1.rc                    |   1 +
+ logs/scan-1.try2.out              |   1 +
+ logs/scan-1.try3.out              |   1 +
+ logs/scan-1.try4.out              |   1 +
+ logs/scan-1.try5.out              |   1 +
+ logs/scan-1.try6.out              |   1 +
+ logs/test-1.guard.log             |   1 +
+ logs/test-1.out                   |  38 +++
+ logs/test-1.rc                    |   1 +
+ measured-control-both.sh          |   9 +
+ q.sh                              |  11 +
+ repro-1.sh                        |  19 ++
+ scan.sh                           |  19 ++
+ stage/INVENTORY.sha256            |   6 +
+ stage/entries-vs-production.jsonl |   3 +
+ stage/release-delta.expected      |   3 +
+ stage/release-delta.txt           |   3 +
+ 40 files changed, 994 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 ACTIVATION-PLAN.md
+ create mode 100644 RESULT.md
+ create mode 100755 build-1.sh
+ create mode 100755 control-old-gsup.sh
+ create mode 100644 entries.py
+ create mode 100644 logs/build-1.guard.log
+ create mode 100644 logs/build-1.out
+ create mode 100644 logs/build-1.rc
+ create mode 100644 logs/control-1.guard.log
+ create mode 100644 logs/control-1.out
+ create mode 100644 logs/control-1.rc
+ create mode 100644 logs/measured-control-1.guard.log
+ create mode 100644 logs/measured-control-1.out
+ create mode 100644 logs/measured-control-1.rc
+ create mode 100644 logs/related-1.guard.log
+ create mode 100644 logs/related-1.out
+ create mode 100644 logs/related-1.rc
+ create mode 100644 logs/repro-1.guard.log
+ create mode 100644 logs/repro-1.out
+ create mode 100644 logs/repro-1.rc
+ create mode 100644 logs/scan-1.guard.log
+ create mode 100644 logs/scan-1.out
+ create mode 100644 logs/scan-1.rc
+ create mode 100644 logs/scan-1.try2.out
+ create mode 100644 logs/scan-1.try3.out
+ create mode 100644 logs/scan-1.try4.out
+ create mode 100644 logs/scan-1.try5.out
+ create mode 100644 logs/scan-1.try6.out
+ create mode 100644 logs/test-1.guard.log
+ create mode 100644 logs/test-1.out
+ create mode 100644 logs/test-1.rc
+ create mode 100755 measured-control-both.sh
+ create mode 100755 q.sh
+ create mode 100755 repro-1.sh
+ create mode 100755 scan.sh
+ create mode 100644 stage/INVENTORY.sha256
+ create mode 100644 stage/entries-vs-production.jsonl
+ create mode 100644 stage/release-delta.expected
+ create mode 100644 stage/release-delta.txt
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..93fcafc17e0521fca07b40de7e2c1a9dd2534da4
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,7 @@
++repo/
++control-wt/
++stage/dist-*/
++stage/metal-*/
++stage/control-*/
++stage/repro-*/
++logs/scan-gitleaks.json
+diff --git a/ACTIVATION-PLAN.md b/ACTIVATION-PLAN.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..47e09a6005b76f538066e0efaf069826650b228c
+--- /dev/null
++++ b/ACTIVATION-PLAN.md
+@@ -0,0 +1,105 @@
++# metal0 control: activate the restored-custody image (ROOT EXECUTES; prepared 2026-10-23, nothing here was run)
++
++| | Production now | Candidate |
++|---|---|---|
++| Release source | deabf8f90 | **a6b1378c** (child of deabf8f90; `repo/` branch `restore/measured-custody-vaults`) |
++| Image | `~/enclave-prod/dist-leasegas-deabf8f90` | `stage/dist-leasegas-a6b1378cd` |
++| initramfs | c190c040… | **5ce61b6f590ed6b8…** (279,389,920 B) |
++| Measurement | ed918e4b…a2ac2 | **ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec** |
++
++- **Unchanged:** kernel `1a3a02d5…`, cmdline `d9e04c2c…`, base image `dist-sdshield-2857356cd`.
++- **The only image change:** `opt/metal/gsup.mjs` and the in-image manifest.
++  - That is 29,063 entries compared, entry by entry (`stage/entries-vs-production.jsonl`).
++  - The candidate rebuilt byte-identically twice. The control rebuild of deabf8f90 from the same repo equals production byte for
++    byte.
++- **Effect:** the supervisor gets `CUSTODY_VAULT=0x08074300…11a6`, `CUSTODY_CHAIN_ID=8453` and
++  `CUSTODY_VAULT_V2=0xe48699b8401564aace7a814ae4569b67a3f7eef5`. These are measured, not read from fw_cfg. Everything else in
++  the legacy path is the deabf8f90 behaviour, including lease gas, isolation, release opt-in and post-adoption repairs.
++
++## Signatures and authority (reported early)
++
++- **Admitting the measurement needs NO on-chain, admin or host-operator signature.**
++  - It is root's compare-and-swap of `METAL_ALLOWED_MEASUREMENTS` in `/etc/nan-relay/linux-leasegas-measurements.env` on the
++    API relay (the `admit.py` pattern, over root's existing SSH).
++  - The relay's attestation `operatorAllowlist` then lists it.
++- **No registry re-registration:** the endpoint stays `https://api.enclave.host/t/metal0` and the registry key is unchanged.
++- **Custody releases still need, at release time:**
++  - the endpoint's registry operator key (already in the VM via fw_cfg `registryKey`, unchanged);
++  - a live lease for the deployment;
++  - the custodians' own checks.
++- **Still blocking the custody production canary, unchanged by this fix (retained):**
++  - the owner-gas / operator-proposal funding gap: "INSUFFICIENT BALANCE", and metal0's payout = Enclave, so there is no rate-0
++    path for 0x29479…;
++  - the r2 release needs two guests;
++  - the address-book `secretVaultV2` is unset, and book/admin signatures are root's separate decision.
++
++## Effect on existing apps and protections
++
++- **Guests stay up.** guestd (`guestd.sdshield-9d1562738cde`) and every app guest are host-side and never touched.
++  - Only the control VM restarts. During restart (~1–2 min) the supervisor is offline: no new claims and no control API, and
++    public app data keeps flowing through guestd's data plane.
++  - On boot, the supervisor ADOPTS each running guest by name and record digest (`supervisor.js` adoption, as in the deabf8f90
++    activation). A guest is never relaunched unless its record differs, and this change does not touch records.
++- **Lease gas is unchanged.** The conduit (`withLeaseGasEnv`, `lease-gas-conduit.bundle.mjs`) and the relay topology in
++  config.json `leaseGas` stay as root left them. App-paid renewals must continue (gate phase 4).
++- **New, intended:** a deployment whose guest asks for a v2 release for 0xE486 (or v1 for 0x0807…) can now be authorized.
++  - The owner-committed rule (direct guests sign only their committed vault) and the refusal of any other vault are unchanged,
++    and tested on the captured gsup environment.
++  - The direct path stays unavailable with this guestd (no `directBootstrap`).
++- **Platform host policy, admission bundle, guest protections, isolation min-TCB and egress:** unchanged (same files, entry-by-entry).
++
++## Steps (adapt the reviewed `work/linux-post-adoption-release/activation/` scripts; do NOT edit those in place)
++
++Copy that directory to a new `activation-a6b1378cd/`. Change only these constants:
++- the commit, image and measurement above;
++- `release` = the existing `~/enclave-prod/metal-deabf8f90`;
++- the previous admission record = deabf8f90's `admission.json` (`environmentSha256 f33a6c91…`, installed 2026-10-21T08:04Z),
++  unless root has changed the env since; `prepare-admission` must re-read the public allowlist and assert;
++- the previous control = deabf8f90.
++
++The steps:
++0. **Preconditions** (root checks):
++   - production is attached at ed918e4b, and both apps are actually healthy (`apphealth.py`);
++   - `/availability` shows exactly one running owned guest per app (`guestrows.py` baseline); record the actual current guest
++     ids;
++   - the admission env still has `f33a6c91…`, or root's newer recorded sha;
++   - `stage/INVENTORY.sha256` re-verifies.
++1. **Stage:** copy `stage/dist-leasegas-a6b1378cd` to `~/enclave-prod/dist-leasegas-a6b1378cd`, inventory-compared.
++   - Leave `dist-leasegas-deabf8f90` and `metal-deabf8f90` in place: they are the rollback.
++   - `stage/metal-a6b1378cd` (git archive) is optional provenance. The launcher does not load `metal/guest/gsup.mjs`
++     (`enclave-metal.mjs` references it only in comments), so WorkingDirectory can stay `metal-deabf8f90`.
++2. **Admit (additive):** `METAL_ALLOWED_MEASUREMENTS` = the current list plus `ee5df6b8…`, by compare-and-swap with a fresh
++   backup. Then recheck that the public attestation `operatorAllowlist` lists it. Undo: `unadmit` by compare-and-swap.
++3. **Fresh preflight:** funding and lease, under 6 min old, both apps covered.
++4. **Activate** (the `activate.py` phases, unchanged):
++   - mandatory baseline;
++   - fresh private backup;
++   - config.json `dist` set to the new image. **This is the only config field that changes.**
++   - restart `enclave-metal.service`;
++   - attach within 120 s, with `admittedAtAttach == ee5df6b8…`;
++   - adoption of both apps' baseline guests within 300 s;
++   - gate v4 (≤ 300 s warm-up, 420 s continuous actual health, guests owned and running, vouch, no death/reap/relaunch);
++   - both app-paid renewals within the limit.
++
++   This ends PROVISIONAL.
++5. **Root verifies:**
++   - a fresh attestation (measurement ee5df6b8);
++   - the capabilities (`/availability`, `/v1/health`);
++   - the renewal audit on chain.
++   - **Optional, without a release:** the supervisor journal shows no `CUSTODY_VAULT_V2 is not set` on any custody-auth request.
++
++   Then `keep`.
++6. **Rollback** (any phase failing, or root's choice):
++   - stop the new control, then wait past every sponsored deadline it logged, on a block two public RPCs agree on;
++   - restore config.json from the private backup by compare-and-swap (`dist` back to `dist-leasegas-deabf8f90`);
++   - start the control. ed918e4b is still admitted.
++   - The rollback restores the custody regression, but nothing else changes.
++
++## Limits (retained)
++
++- **guestd provenance:** guestd's binary-to-source link (9d1562738cde to `enclave-sdshield-guestd` 174edbb7) is by commit time
++  and strings, not a rebuild.
++- **No release run:** no live custody release was run, and none is part of this activation. A custody canary comes after `keep`
++  and after the owner-gas blocker is resolved.
++- **Pre-existing failure:** `test/metal-measured-control.test.mjs` test 4 fails identically on deabf8f90 and on a6b1378c. It
++  compares the working tree with HEAD, which is meaningless in a committed release tree. It is not called green.
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..43c4af5345713d1b033e875075fd6a285015d545
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,82 @@
++# Restore metal0's measured custody vaults: source, tests, bounded build (2026-10-23; ROOT-RESTORE-PLAN.txt)
++
++- **Scope:** source, tests and a bounded build only.
++- **Not done:** no hardware run, no production, chain or key action, and nothing deployed or admitted. The original dist is
++  untouched (its hashes were re-asserted before the build).
++- **How:** every test, build and scan ran through the unchanged queue (256/512/1024 lanes); logs are in `logs/`.
++
++## Answer to the early question
++
++**Admitting the new measurement needs no on-chain, admin or host signature.** It is root's compare-and-swap of the relay's
++`METAL_ALLOWED_MEASUREMENTS` (`admit.py` pattern). The custody releases themselves still depend on the existing registry operator
++key, live leases, and the **owner-gas blocker, which is unchanged** (details in `ACTIVATION-PLAN.md`).
++
++## Source (`repo/`, branch `restore/measured-custody-vaults`)
++
++**Commit:** `a6b1378cdf430217025987d90c040d0e25a9993d` (SteveDeFacto), child of exact `deabf8f90`. The clone of
++`linux-post-adoption-release/stage/scratch.git` checks out byte-identical to the staged `metal-deabf8f90`.
++
++**The change:**
++- `metal/guest/gsup.mjs` +6 lines, after `SECRETS_CAPABLE` in the legacy `supEnv`:
++  `CUSTODY_VAULT 0x08074300…11a6`, `CUSTODY_CHAIN_ID 8453`, `CUSTODY_VAULT_V2 0xe48699b8401564aace7a814ae4569b67a3f7eef5`, with
++  their comments.
++- These lines are **byte-identical to the Oct-16 production gsup** (`2857356cd:metal/guest/gsup.mjs` L467–472; the constants come
++  from 295650320 and its predecessor).
++- They sit at the same place. Nothing else was taken from that ancestry, and all post-adoption and lease-gas code is untouched.
++
++**Tests:** `test/helpers/gsup-env-harness.mjs` and `test/metal-gsup-custody-env.test.mjs`.
++- The harness **runs the real gsup.mjs**. Only its `child_process` import is faked (a recorder that writes the supervisor's argv
++  and env), plus guest-only file paths (`/proc/cmdline` = production's, fw_cfg and `/opt/metal`).
++- The test covers:
++  1. gsup hands the supervisor the three constants, and the deabf8f90 legacy behaviour holds: selling, per-app isolation,
++     release opt-in, publicUrl.
++  2. fw_cfg look-alikes (`CUSTODY_VAULT_V2`, `custodyVaultV2`, `env.*`) are ignored, and a baked flavor value is overridden.
++  3. Control: the unmodified deabf8f90 gsup yields **no** vaults.
++  4. The real supervisor `releaseTicketPump`, given **exactly the captured env**:
++     - signs the v2 request for 0xE486, and the v2 operator message recovers to the operator;
++     - refuses another vault;
++     - for direct guests, signs only the owner-committed vault and refuses a mismatch;
++     - and the regression env refuses ("CUSTODY_VAULT_V2 is not set").
++
++**Results:**
++- **`logs/test-1.out`:** 4/4, peak 240 MiB.
++- **`logs/control-1.out`:** the same test file on the unmodified deabf8f90 tree fails tests 1, 2 and 4 on the vault assertions,
++  and passes the control. That proves the test detects the regression.
++- **`logs/related-1.out`:** 59/59, 1024 lane, peak 644 MiB. The files run were the new test,
++  `isolation-release-ticket` (v2 wrong-vault and unset-vault), `bootstrap-supervisor` (committed vault),
++  `metal-lease-gas-conduit`, `isolation-post-adoption-lease`, `lease-authorization-nonce` and `metal-launcher-isolation`.
++- **`logs/measured-control-1.out`:** `metal-measured-control` gives 12/13 on BOTH deabf8f90 and a6b1378c, with the same test 4
++  failing. That test compares the working tree with HEAD, which is meaningless in a committed release tree; it is pre-existing
++  and **not called green**.
++
++## Bounded build (`build-1.sh`, `repro-1.sh`; the reviewed builder `metal/overlay-control-image.py`, unchanged)
++
++The base is the read-only `~/enclave-prod/dist-sdshield-2857356cd`. Its hashes and production's were asserted first. The build ran
++in the 1024 lane; peak 301 MiB was sev-snp-measure.
++
++- **Control:** deabf8f90 rebuilt from this repo is **byte-identical to production**: initramfs `c190c040…`, vmlinuz, cmdline and
++  manifest `c7cb436d…`.
++- **Candidate a6b1378c:**
++  - initramfs `5ce61b6f…`, manifest `3874066d…`;
++  - **measurement `ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec`**.
++- **The measurement recipe** first reproduced production's `ed918e4b…`.
++- **Delta vs production:**
++  - **Image entries:** 29,063 entries compared; only `opt/metal/gsup.mjs` and `opt/metal/manifest.json` differ. The image gsup
++    equals the source.
++  - **Dist manifest:** only `controlOverlay.commit`, the gsup record and the initramfs record differ.
++  - **Release directory:** the git archive differs from production's `metal-deabf8f90` in only gsup plus the two test files.
++- **Reproducible:** a second candidate build is byte-identical.
++- **Staged artifacts:** in `stage/`, not committed, binaries never committed; hashes in `stage/INVENTORY.sha256`.
++
++## Activation / admission / rollback
++
++`ACTIVATION-PLAN.md` covers the steps, their effect on existing app guests (adopted, not relaunched; guestd untouched), the
++protections and the rollback. **The minimal production change is config.json `dist` only.**
++
++## Limits (explicit)
++
++- **Not proven on hardware:** no new attestation, capability probe or custody release has been made. Root verifies the fresh
++  attestation and capabilities.
++- **Not proven by rebuild:** the guestd provenance (9d1562738cde ↔ 174edbb7) is still not rebuild-proven.
++- **The owner-gas blocker, two-guest r2 requirement and unset address book remain.** This fix only removes the supervisor-side
++  refusal.
+diff --git a/build-1.sh b/build-1.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..2e676e9ab168430ae7a281210a7180d704d66871
+--- /dev/null
++++ b/build-1.sh
+@@ -0,0 +1,74 @@
++#!/bin/bash
++# Bounded, reproducible control-overlay build (no VM, no production change). Reviewed recipe of
++# linux-post-adoption-release/job-stage-release.sh steps 2-4, adapted: base = the read-only production base image,
++# control = deabf8f90 rebuilt from this repo (must equal production byte for byte), candidate = the restore commit.
++set -euo pipefail
++cd "$(dirname "$0")"
++R=$PWD/repo; S=$PWD/stage; P=/home/steven/enclave-prod
++BASE=$P/dist-sdshield-2857356cd; PROD=$P/dist-leasegas-deabf8f90
++OVMF=/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd
++APPEND="console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app"
++MEASURE="$HOME/.local/bin/sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf $OVMF --append"
++OLD=deabf8f90f64902d20d48620fd911d34c445859d
++NEW=$(git -C $R rev-parse HEAD); SHORT=${NEW:0:9}
++[ ! -e $S ] || { echo "stage exists: inspect before retry"; exit 2; }
++[ -z "$(git -C $R status --porcelain --untracked-files=no)" ] || { echo "repo not clean"; exit 2; }
++[ "$(git -C $R rev-parse HEAD~1)" = $OLD ] || { echo "HEAD~1 is not deabf8f90"; exit 2; }
++[ "$(git -C $R diff --name-only $OLD HEAD -- metal/ supervisor.js | tr '\n' ' ')" = "metal/guest/gsup.mjs " ] || { echo "image-relevant delta is not exactly gsup.mjs"; exit 2; }
++[ "$(sha256sum < $BASE/initramfs.cpio.gz | cut -c1-64)" = 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc ] || { echo "base initramfs changed"; exit 2; }
++[ "$(sha256sum < $PROD/initramfs.cpio.gz | cut -c1-64)" = c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3 ] || { echo "production initramfs changed"; exit 2; }
++[ "$(sha256sum < $PROD/manifest.json | cut -c1-64)" = c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4 ] || { echo "production manifest changed"; exit 2; }
++mkdir -p $S
++date -u +%FT%TZ
++echo "== 1. control: deabf8f90 rebuilt from this repo"
++(cd $R && python3 metal/overlay-control-image.py $BASE $S/control-deabf8f90 $OLD)
++for f in initramfs.cpio.gz vmlinuz cmdline manifest.json; do
++  cmp -s $S/control-deabf8f90/$f $PROD/$f && echo "CONTROL-IDENTICAL $f" || { echo "CONTROL-DIFFERS $f"; exit 1; }
++done
++echo "== 2. candidate: $NEW"
++(cd $R && python3 metal/overlay-control-image.py $BASE $S/dist-leasegas-$SHORT $NEW)
++OUT=$S/dist-leasegas-$SHORT
++echo "== 3. entry-by-entry vs production"
++python3 -I entries.py $PROD/initramfs.cpio.gz $OUT/initramfs.cpio.gz | tee $S/entries-vs-production.jsonl | tail -1
++python3 -I - $S/entries-vs-production.jsonl <<'PY'
++import json, sys
++last = json.loads(open(sys.argv[1]).read().splitlines()[-1])
++assert last['differing'] == ['opt/metal/gsup.mjs', 'opt/metal/manifest.json'], last['differing']
++print('ENTRY-DELTA-EXACT: only opt/metal/gsup.mjs and opt/metal/manifest.json differ')
++PY
++git -C $R show $NEW:metal/guest/gsup.mjs | cmp -s - <(python3 -I - $OUT/initramfs.cpio.gz <<'PY'
++import gzip, sys
++with gzip.open(sys.argv[1], 'rb') as f:
++    buf = bytearray()
++    def read(n):
++        while len(buf) < n:
++            c = f.read(65536)
++            if not c: raise EOFError
++            buf.extend(c)
++        d = bytes(buf[:n]); del buf[:n]; return d
++    while True:
++        h = read(110); fld = [int(h[6+8*i:14+8*i], 16) for i in range(13)]
++        name = read(fld[11])[:-1].decode(); read((-(110+fld[11])) % 4)
++        data = read(fld[6]); read((-fld[6]) % 4)
++        if name == 'opt/metal/gsup.mjs': sys.stdout.buffer.write(data); break
++        if name == 'TRAILER!!!': raise SystemExit('no gsup')
++PY
++) && echo "IMAGE-GSUP-IS-SOURCE" || { echo "IMAGE-GSUP-DIFFERS"; exit 1; }
++python3 -I - $PROD/manifest.json $OUT/manifest.json $NEW <<'PY'
++import json, sys
++a, b = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
++assert {k for k in a if a[k] != b[k]} == {'controlOverlay', 'initramfs'}, {k for k in a if a[k] != b[k]}
++ca, cb = a['controlOverlay'], b['controlOverlay']
++assert {k for k in ca if ca[k] != cb[k]} == {'commit', 'files'} and cb['commit'] == sys.argv[3]
++fa, fb = {f['path']: f for f in ca['files']}, {f['path']: f for f in cb['files']}
++assert set(fa) == set(fb) and [p for p in fa if fa[p] != fb[p]] == ['/opt/metal/gsup.mjs']
++print('MANIFEST-DELTA-EXACT: controlOverlay.commit, the gsup record and the initramfs record')
++PY
++echo "== 4. measurement"
++CUR=$($MEASURE "$APPEND" --kernel $PROD/vmlinuz --initrd $PROD/initramfs.cpio.gz --output-format hex)
++[ "$CUR" = "$(cat $PROD/MEASUREMENT)" ] && echo "MEASURE-RECIPE-REPRODUCES-PRODUCTION $CUR" || { echo "MEASURE-RECIPE-MISMATCH $CUR"; exit 1; }
++M=$($MEASURE "$APPEND" --kernel $OUT/vmlinuz --initrd $OUT/initramfs.cpio.gz --output-format hex)
++echo "$M" > $OUT/MEASUREMENT
++echo "MEASURE-CANDIDATE $M"
++sha256sum $OUT/initramfs.cpio.gz $OUT/vmlinuz $OUT/cmdline $OUT/manifest.json $OUT/MEASUREMENT
++date -u +%FT%TZ
+diff --git a/control-old-gsup.sh b/control-old-gsup.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..0eecb4ad050ea086c8b62904473f43fd3b354b64
+--- /dev/null
++++ b/control-old-gsup.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++# Control: the NEW test file run against the UNMODIFIED deabf8f90 tree must FAIL on the vault assertions (exit != 0 expected).
++set -u
++cd "$(dirname "$0")"
++rm -rf control-wt; git -C repo worktree add -q --detach ../control-wt deabf8f90f64902d20d48620fd911d34c445859d
++for d in . relay network; do ln -s "$(cd repo/$d && readlink -f node_modules)" control-wt/$d/node_modules; done
++mkdir -p control-wt/test/helpers; cp repo/test/helpers/gsup-env-harness.mjs control-wt/test/helpers/; cp repo/test/metal-gsup-custody-env.test.mjs control-wt/test/
++(cd control-wt && node --test --test-concurrency=1 test/metal-gsup-custody-env.test.mjs); rc=$?
++git -C repo worktree remove --force ../control-wt
++echo "control exit $rc (expected non-zero)"; [ $rc -ne 0 ]
+diff --git a/entries.py b/entries.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7714ea474ed9d62d3cc40f742c3a9d9e9a6821e9
+--- /dev/null
++++ b/entries.py
+@@ -0,0 +1,27 @@
++"""entries.py A.cpio.gz B.cpio.gz : stream BOTH newc archives (64 KiB chunks) and print every entry that differs
++(name, mode, size, sha256) as JSON lines, then a summary. Read-only."""
++import gzip, hashlib, json, sys
++def entries(path):
++    out = {}
++    with gzip.open(path, 'rb') as f:
++        buf = bytearray()
++        def read(n):
++            while len(buf) < n:
++                c = f.read(65536)
++                if not c: raise EOFError(path)
++                buf.extend(c)
++            d = bytes(buf[:n]); del buf[:n]; return d
++        while True:
++            h = read(110); fld = [int(h[6+8*i:14+8*i], 16) for i in range(13)]
++            mode, size, ns = fld[1], fld[6], fld[11]
++            name = read(ns)[:-1].decode('utf-8', 'surrogateescape'); read((-(110+ns)) % 4)
++            if name == 'TRAILER!!!': break
++            hs = hashlib.sha256(); left = size
++            while left: k = min(65536, left); hs.update(read(k)); left -= k
++            read((-size) % 4)
++            out[name] = (oct(mode), size, hs.hexdigest())
++    return out
++a, b = entries(sys.argv[1]), entries(sys.argv[2])
++diff = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
++for k in diff: print(json.dumps({'entry': k, 'a': a.get(k), 'b': b.get(k)}))
++print(json.dumps({'entriesA': len(a), 'entriesB': len(b), 'differing': diff}))
+diff --git a/logs/build-1.guard.log b/logs/build-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d191592fc4da0a56c08a2c452be4ed7915a3fd8e
+--- /dev/null
++++ b/logs/build-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=22059
+diff --git a/logs/build-1.out b/logs/build-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b3124a0a4714197b06b7c44de6391af11388d4fc
+--- /dev/null
++++ b/logs/build-1.out
+@@ -0,0 +1,27 @@
++[queue] START available=24195MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++2026-10-23T21:05:38Z
++== 1. control: deabf8f90 rebuilt from this repo
++{"sha256": "c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3", "bytes": 279389821}
++CONTROL-IDENTICAL initramfs.cpio.gz
++CONTROL-IDENTICAL vmlinuz
++CONTROL-IDENTICAL cmdline
++CONTROL-IDENTICAL manifest.json
++== 2. candidate: a6b1378cdf430217025987d90c040d0e25a9993d
++{"sha256": "5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de", "bytes": 279389920}
++== 3. entry-by-entry vs production
++{"entriesA": 29063, "entriesB": 29063, "differing": ["opt/metal/gsup.mjs", "opt/metal/manifest.json"]}
++ENTRY-DELTA-EXACT: only opt/metal/gsup.mjs and opt/metal/manifest.json differ
++IMAGE-GSUP-IS-SOURCE
++MANIFEST-DELTA-EXACT: controlOverlay.commit, the gsup record and the initramfs record
++== 4. measurement
++MEASURE-RECIPE-REPRODUCES-PRODUCTION ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2
++MEASURE-CANDIDATE ee5df6b83948f5bacebee414574adb87be9d58412b09ae9183fc4deed5aed3d96bc1cbead096372e7ee755febbbc22ec
++5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/initramfs.cpio.gz
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/vmlinuz
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/cmdline
++3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/manifest.json
++d99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9  /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/dist-leasegas-a6b1378cd/MEASUREMENT
++2026-10-23T21:08:28Z
++[memory-guard] exit=0 peakTreeRssMiB=301 minHostAvailableMiB=22059
++[memory-guard] at peak: sev-snp-measure:295 bash:6
++[queue] EXIT 0
+diff --git a/logs/build-1.rc b/logs/build-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/build-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/control-1.guard.log b/logs/control-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4fb6593127554872cf35430f8b3053600b96c74c
+--- /dev/null
++++ b/logs/control-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=193 minHostAvailableMiB=24031
+diff --git a/logs/control-1.out b/logs/control-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7884cbbe7f4a50aed6b0b98a410be7b062af7a5
+--- /dev/null
++++ b/logs/control-1.out
+@@ -0,0 +1,102 @@
++[queue] START available=24064MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
++not ok 1 - gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
++  ---
++  duration_ms: 60.443926
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:47:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    + actual - expected
++    
++    + undefined
++    - '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:50:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
++  ...
++# Subtest: no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
++not ok 2 - no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
++  ---
++  duration_ms: 56.82876
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:60:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly equal:
++    + actual - expected
++    
++    + '0x9999999999999999999999999999999999999999'
++    - '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
++  actual: '0x9999999999999999999999999999999999999999'
++  operator: 'strictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:62:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++# Subtest: control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
++ok 3 - control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
++  ---
++  duration_ms: 59.100835
++  type: 'test'
++  ...
++# Subtest: the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
++not ok 4 - the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
++  ---
++  duration_ms: 67.741347
++  type: 'test'
++  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:101:1'
++  failureType: 'testCodeFailure'
++  error: |-
++    Expected values to be strictly deep-equal:
++    + actual - expected
++    
++    + {}
++    - {
++    -   CUSTODY_CHAIN_ID: '8453',
++    -   CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6',
++    -   CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
++    - }
++    
++  code: 'ERR_ASSERTION'
++  name: 'AssertionError'
++  expected:
++    CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6'
++    CUSTODY_CHAIN_ID: '8453'
++    CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5'
++  actual:
++  operator: 'deepStrictEqual'
++  stack: |-
++    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/control-wt/test/metal-gsup-custody-env.test.mjs:104:10)
++    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++    async Test.run (node:internal/test_runner/test:1054:7)
++    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 1
++# fail 3
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 410.432135
++control exit 1 (expected non-zero)
++[memory-guard] exit=0 peakTreeRssMiB=193 minHostAvailableMiB=24031
++[memory-guard] at peak: node:77 node:58 node:52 bash:6
++[queue] EXIT 0
+diff --git a/logs/control-1.rc b/logs/control-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/control-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/measured-control-1.guard.log b/logs/measured-control-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8ac78faa0bff73f574360b982ea284f36d05be34
+--- /dev/null
++++ b/logs/measured-control-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=370 minHostAvailableMiB=23814
+diff --git a/logs/measured-control-1.out b/logs/measured-control-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca516d2131f692dddead07366b38efc47ddc572f
+--- /dev/null
++++ b/logs/measured-control-1.out
+@@ -0,0 +1,36 @@
++[queue] START available=24055MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
++== deabf8f90 (unmodified)
++ok 1 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
++ok 2 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
++ok 3 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
++not ok 4 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
++ok 5 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
++ok 6 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
++ok 7 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
++ok 8 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
++ok 9 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
++ok 10 - the front: nonce is required and fresh, only path and query reach the supervisor
++ok 11 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
++ok 12 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
++ok 13 - builder and overlay carry the helper and the measured token
++# pass 12
++# fail 1
++== restore commit a6b1378
++ok 1 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
++ok 2 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
++ok 3 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
++not ok 4 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
++ok 5 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
++ok 6 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
++ok 7 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
++ok 8 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
++ok 9 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
++ok 10 - the front: nonce is required and fresh, only path and query reach the supervisor
++ok 11 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
++ok 12 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
++ok 13 - builder and overlay carry the helper and the measured token
++# pass 12
++# fail 1
++[memory-guard] exit=0 peakTreeRssMiB=370 minHostAvailableMiB=23814
++[memory-guard] at peak: node:112 node:106 node:81 node:59 bash:6 grep:5 bash:2
++[queue] EXIT 0
+diff --git a/logs/measured-control-1.rc b/logs/measured-control-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/measured-control-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/related-1.guard.log b/logs/related-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ed20d2adc8462e4688ac61bdf6b6f27c4623bce
+--- /dev/null
++++ b/logs/related-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=644 minHostAvailableMiB=23466
+diff --git a/logs/related-1.out b/logs/related-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..af66e405611ca47465403a9b9093bd755c40b4a5
+--- /dev/null
++++ b/logs/related-1.out
+@@ -0,0 +1,368 @@
++[queue] START available=24032MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: actual launchSpec and spawn use owner package when Enclave services refuse
++ok 1 - actual launchSpec and spawn use owner package when Enclave services refuse
++  ---
++  duration_ms: 375.398578
++  type: 'test'
++  ...
++# Subtest: owner transfer or missing manager support prevents launch before posting a guest
++ok 2 - owner transfer or missing manager support prevents launch before posting a guest
++  ---
++  duration_ms: 754.221752
++  type: 'test'
++  ...
++# Subtest: restart adopts only the same package; stale owner config forces replacement
++ok 3 - restart adopts only the same package; stale owner config forces replacement
++  ---
++  duration_ms: 760.410799
++  type: 'test'
++  ...
++# Subtest: reservation credit requires the same direct package, app and runtime
++ok 4 - reservation credit requires the same direct package, app and runtime
++  ---
++  duration_ms: 647.083247
++  type: 'test'
++  ...
++# Subtest: claim gate and envelope audit understand explicit bootstrap without a relay list
++ok 5 - claim gate and envelope audit understand explicit bootstrap without a relay list
++  ---
++  duration_ms: 344.255175
++  type: 'test'
++  ...
++# Subtest: direct custody pump signs only the committed vault and never requests a ticket
++ok 6 - direct custody pump signs only the committed vault and never requests a ticket
++  ---
++  duration_ms: 768.149485
++  type: 'test'
++  ...
++# Subtest: a fresh supervisor reads operator-selected storage replicas without a central discovery service
++ok 7 - a fresh supervisor reads operator-selected storage replicas without a central discovery service
++  ---
++  duration_ms: 761.516919
++  type: 'test'
++  ...
++# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
++ok 8 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed first)
++  ---
++  duration_ms: 7327.024207
++  type: 'test'
++  ...
++# Subtest: an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
++ok 9 - an unreadable policy at boot, then admitted: the paid guest is adopted ALIVE and kept; the orphan is reaped (own guest listed after the orphan)
++  ---
++  duration_ms: 7333.223408
++  type: 'test'
++  ...
++# Subtest: a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
++ok 10 - a cold boot whose ledger read fails for ~4 minutes, then an unreadable policy past a whole lease TTL: the paid guest survives and is adopted
++  ---
++  duration_ms: 9333.309215
++  type: 'test'
++  ...
++# Subtest: an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
++ok 11 - an explicit platform refusal: the host stops vouching, its guests end and nothing is resumed
++  ---
++  duration_ms: 6844.078932
++  type: 'test'
++  ...
++# Subtest: a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
++ok 12 - a fresh explicit ban at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
++  ---
++  duration_ms: 7333.867757
++  type: 'test'
++  ...
++# Subtest: a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
++ok 13 - a persisted ban while the policy is unreadable at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
++  ---
++  duration_ms: 7339.041849
++  type: 'test'
++  ...
++# Subtest: a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
++ok 14 - a deregistration at a cold boot whose ledger never answers: the guests still end, nothing is resumed or released
++  ---
++  duration_ms: 7326.377672
++  type: 'test'
++  ...
++# Subtest: a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives
++ok 15 - a transient unreadable policy at a cold boot whose ledger never answers: guestd stays silent and every guest survives
++  ---
++  duration_ms: 7336.049815
++  type: 'test'
++  ...
++# Subtest: transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after
++ok 16 - transient first, then the refusal becomes known while the ledger still never answers: silent until then, the guests end after
++  ---
++  duration_ms: 7833.068203
++  type: 'test'
++  ...
++# Subtest: config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list
++ok 17 - config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list
++  ---
++  duration_ms: 1269.13411
++  type: 'test'
++  ...
++# Subtest: a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image
++ok 18 - a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image
++  ---
++  duration_ms: 628.443711
++  type: 'test'
++  ...
++# Subtest: the relay's list has THREE answers, and only a clear one is listed or unlisted
++ok 19 - the relay's list has THREE answers, and only a clear one is listed or unlisted
++  ---
++  duration_ms: 761.618664
++  type: 'test'
++  ...
++# Subtest: the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image
++ok 20 - the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image
++  ---
++  duration_ms: 792.414234
++  type: 'test'
++  ...
++# Subtest: the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd
++ok 21 - the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd
++  ---
++  duration_ms: 414.426117
++  type: 'test'
++  ...
++# Subtest: a relay refusal is retried while the guest waits, and logged by status and code only
++ok 22 - a relay refusal is retried while the guest waits, and logged by status and code only
++  ---
++  duration_ms: 438.251385
++  type: 'test'
++  ...
++# Subtest: a guest that is no longer starting ends the pump, and no ticket is fetched for it
++ok 23 - a guest that is no longer starting ends the pump, and no ticket is fetched for it
++  ---
++  duration_ms: 1179.394595
++  type: 'test'
++  ...
++# Subtest: a malformed ticket is never handed on, and without an operator key nothing is asked
++ok 24 - a malformed ticket is never handed on, and without an operator key nothing is asked
++  ---
++  duration_ms: 1343.99502
++  type: 'test'
++  ...
++# Subtest: guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry
++ok 25 - guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry
++  ---
++  duration_ms: 411.373536
++  type: 'test'
++  ...
++# Subtest: depHasSecrets: only a clean answer is yes or no
++ok 26 - depHasSecrets: only a clean answer is yes or no
++  ---
++  duration_ms: 432.61771
++  type: 'test'
++  ...
++# Subtest: the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing
++ok 27 - the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing
++  ---
++  duration_ms: 1184.95261
++  type: 'test'
++  ...
++# Subtest: CID config claim uses attested delivery only for a listed isolated release guest
++ok 28 - CID config claim uses attested delivery only for a listed isolated release guest
++  ---
++  duration_ms: 1137.189284
++  type: 'test'
++  ...
++# Subtest: custody: the binding guestd reports is signed by this endpoint's operator over custody/protocol.mjs's exact message
++ok 29 - custody: the binding guestd reports is signed by this endpoint's operator over custody/protocol.mjs's exact message
++  ---
++  duration_ms: 419.017872
++  type: 'test'
++  ...
++# Subtest: custody: without CUSTODY_VAULT, or for a malformed binding, nothing is signed
++ok 30 - custody: without CUSTODY_VAULT, or for a malformed binding, nothing is signed
++  ---
++  duration_ms: 780.436336
++  type: 'test'
++  ...
++# Subtest: custody v2: guestd's {v:2, vault, binding} is signed over the v2 message for THIS box's measured v2 vault only
++ok 31 - custody v2: guestd's {v:2, vault, binding} is signed over the v2 message for THIS box's measured v2 vault only
++  ---
++  duration_ms: 1192.824651
++  type: 'test'
++  ...
++# Subtest: a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands
++ok 32 - a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands
++  ---
++  duration_ms: 3007.162251
++  type: 'test'
++  ...
++# Subtest: a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why
++ok 33 - a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why
++  ---
++  duration_ms: 3278.118217
++  type: 'test'
++  ...
++# Subtest: gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
++ok 34 - gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
++  ---
++  duration_ms: 63.025719
++  type: 'test'
++  ...
++# Subtest: no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
++ok 35 - no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
++  ---
++  duration_ms: 52.233383
++  type: 'test'
++  ...
++# Subtest: control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
++ok 36 - control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
++  ---
++  duration_ms: 61.145812
++  type: 'test'
++  ...
++# Subtest: the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
++ok 37 - the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
++  ---
++  duration_ms: 1979.227892
++  type: 'test'
++  ...
++# Subtest: release: true is forwarded, with the endpoints and the key, and nothing else
++ok 38 - release: true is forwarded, with the endpoints and the key, and nothing else
++  ---
++  duration_ms: 1.252811
++  type: 'test'
++  ...
++# Subtest: absent or false forwards NO release key; any other value refuses (a typo must not pass for an opt-in)
++ok 39 - absent or false forwards NO release key; any other value refuses (a typo must not pass for an opt-in)
++  ---
++  duration_ms: 0.584156
++  type: 'test'
++  ...
++# Subtest: no other isolation key crosses to the guest (backend, the key FILE path, anything added later)
++ok 40 - no other isolation key crosses to the guest (backend, the key FILE path, anything added later)
++  ---
++  duration_ms: 0.138629
++  type: 'test'
++  ...
++# Subtest: the endpoints default as before and must be IPv4 literals
++ok 41 - the endpoints default as before and must be IPv4 literals
++  ---
++  duration_ms: 0.264258
++  type: 'test'
++  ...
++# Subtest: the real launcher hands the guest isolation.release === true for release: true
++ok 42 - the real launcher hands the guest isolation.release === true for release: true
++  ---
++  duration_ms: 3928.510141
++  type: 'test'
++  ...
++# Subtest: the real launcher hands the guest NO release key when it is absent or false
++ok 43 - the real launcher hands the guest NO release key when it is absent or false
++  ---
++  duration_ms: 8101.220084
++  type: 'test'
++  ...
++# Subtest: the real launcher REFUSES release: "true" (a string) and never starts QEMU
++ok 44 - the real launcher REFUSES release: "true" (a string) and never starts QEMU
++  ---
++  duration_ms: 56.615662
++  type: 'test'
++  ...
++# Subtest: the host half and the guest half name the same thing
++ok 45 - the host half and the guest half name the same thing
++  ---
++  duration_ms: 0.241658
++  type: 'test'
++  ...
++# Subtest: wallet policy crosses real fw_cfg and installs from the standalone guest bundle
++ok 46 - wallet policy crosses real fw_cfg and installs from the standalone guest bundle
++  ---
++  duration_ms: 4379.242743
++  type: 'test'
++  ...
++# Subtest: measured image and supervisor overlay include wallet policy and its local import closure
++ok 47 - measured image and supervisor overlay include wallet policy and its local import closure
++  ---
++  duration_ms: 4.813557
++  type: 'test'
++  ...
++# Subtest: a complete reviewed configuration becomes a public transit; absent is off
++ok 48 - a complete reviewed configuration becomes a public transit; absent is off
++  ---
++  duration_ms: 3.503456
++  type: 'test'
++  ...
++# Subtest: partial or invalid configuration REFUSES (no fallback to the operator's wallet)
++ok 49 - partial or invalid configuration REFUSES (no fallback to the operator's wallet)
++  ---
++  duration_ms: 2.552893
++  type: 'test'
++  ...
++# Subtest: the guest installs exactly the six names and the record; the supervisor's real loader accepts them
++ok 50 - the guest installs exactly the six names and the record; the supervisor's real loader accepts them
++  ---
++  duration_ms: 2.182746
++  type: 'test'
++  ...
++# Subtest: a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH
++ok 51 - a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH
++  ---
++  duration_ms: 0.971653
++  type: 'test'
++  ...
++# Subtest: the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)
++ok 52 - the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)
++  ---
++  duration_ms: 1.882187
++  type: 'test'
++  ...
++# Subtest: the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over
++ok 53 - the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over
++  ---
++  duration_ms: 4224.411466
++  type: 'test'
++  ...
++# Subtest: the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU
++ok 54 - the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU
++  ---
++  duration_ms: 462.319042
++  type: 'test'
++  ...
++# Subtest: direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names
++ok 55 - direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names
++  ---
++  duration_ms: 6.290587
++  type: 'test'
++  ...
++# Subtest: direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453
++ok 56 - direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453
++  ---
++  duration_ms: 1.189392
++  type: 'test'
++  ...
++# Subtest: the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's
++ok 57 - the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's
++  ---
++  duration_ms: 2212.2565
++  type: 'test'
++  ...
++# Subtest: gsup and the launcher wire the conduit, and only the conduit
++ok 58 - gsup and the launcher wire the conduit, and only the conduit
++  ---
++  duration_ms: 4.977756
++  type: 'test'
++  ...
++# Subtest: the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted
++ok 59 - the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted
++  ---
++  duration_ms: 102.742344
++  type: 'test'
++  ...
++1..59
++# tests 59
++# suites 0
++# pass 59
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 124286.678886
++[memory-guard] exit=0 peakTreeRssMiB=644 minHostAvailableMiB=23466
++[memory-guard] at peak: node:68 node:59 node:59 wasmtime:15 wasmtime:15 wasmtime:15 wasmtime:14 wasmtime:14
++[queue] EXIT 0
+diff --git a/logs/related-1.rc b/logs/related-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/related-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/repro-1.guard.log b/logs/repro-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..777b0c7c887fae394e625f67f5f440aee07ec61b
+--- /dev/null
++++ b/logs/repro-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23772
+diff --git a/logs/repro-1.out b/logs/repro-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..44c9dd78d243e00f067bbaad1bfe1c805d1b6249
+--- /dev/null
++++ b/logs/repro-1.out
+@@ -0,0 +1,18 @@
++[queue] START available=24008MiB required=17920MiB cap=1024MiB floor=16384MiB concurrentSmall=256MiB
++REPRODUCIBLE initramfs.cpio.gz
++REPRODUCIBLE vmlinuz
++REPRODUCIBLE cmdline
++REPRODUCIBLE manifest.json
++Files /home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs and /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/metal/guest/gsup.mjs differ
++Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test/helpers: gsup-env-harness.mjs
++Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test: metal-gsup-custody-env.test.mjs
++RELEASE-DELTA-EXACT
++d99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9  dist-leasegas-a6b1378cd/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-a6b1378cd/cmdline
++5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de  dist-leasegas-a6b1378cd/initramfs.cpio.gz
++3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b  dist-leasegas-a6b1378cd/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-a6b1378cd/vmlinuz
++1f2a54b3cabcd16e9a9686a628cff763358a9745bc0e4ec76dbd4564c6765b68  metal-a6b1378cd/(tree digest: sha256 of the sorted per-file sha256 list)
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=23772
++[memory-guard] at peak: python3:52 bash:6
++[queue] EXIT 0
+diff --git a/logs/repro-1.rc b/logs/repro-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/repro-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-1.guard.log b/logs/scan-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..a91b3f1575453c57ff14b34692edc6c7b7daff53
+--- /dev/null
++++ b/logs/scan-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=23731
+diff --git a/logs/scan-1.out b/logs/scan-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e017814c1739d48f31db1689a33514b7457cf22
+--- /dev/null
++++ b/logs/scan-1.out
+@@ -0,0 +1,8 @@
++[queue] START available=23707MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++2:12PM INF scanned ~120852 bytes (120.85 KB) in 22ms
++2:12PM INF no leaks found
++literal files []
++[scan] files 34 gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=23731
++[memory-guard] at peak: gitleaks:39 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-1.rc b/logs/scan-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-1.try2.out b/logs/scan-1.try2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/scan-1.try2.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/scan-1.try3.out b/logs/scan-1.try3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/scan-1.try3.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/scan-1.try4.out b/logs/scan-1.try4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/scan-1.try4.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/scan-1.try5.out b/logs/scan-1.try5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/scan-1.try5.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/scan-1.try6.out b/logs/scan-1.try6.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0585c28d141b45e7a9cfee66355eb3b9d46b49b
+--- /dev/null
++++ b/logs/scan-1.try6.out
+@@ -0,0 +1 @@
++[queue] NOT STARTED: small allocation held
+diff --git a/logs/test-1.guard.log b/logs/test-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..419a99298641a292613b2ee5f30020c49e01c20d
+--- /dev/null
++++ b/logs/test-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=240 minHostAvailableMiB=23888
+diff --git a/logs/test-1.out b/logs/test-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..207ac0319d4844f2590dc12bfedc36c9a9c3c71c
+--- /dev/null
++++ b/logs/test-1.out
+@@ -0,0 +1,38 @@
++[queue] START available=24074MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
++ok 1 - gsup, actually run, hands the supervisor the measured v1/v2 custody vaults and chain
++  ---
++  duration_ms: 60.017241
++  type: 'test'
++  ...
++# Subtest: no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
++ok 2 - no host input moves the vaults: fw_cfg look-alikes are ignored and a baked flavor value is overridden
++  ---
++  duration_ms: 59.173747
++  type: 'test'
++  ...
++# Subtest: control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
++ok 3 - control: the unmodified deabf8f90 gsup hands the supervisor NO custody vaults (the regression this restores)
++  ---
++  duration_ms: 59.081787
++  type: 'test'
++  ...
++# Subtest: the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
++ok 4 - the supervisor, given the captured gsup environment, signs v2 for 0xe486 only and keeps the committed-vault rule
++  ---
++  duration_ms: 2188.254534
++  type: 'test'
++  ...
++1..4
++# tests 4
++# suites 0
++# pass 4
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 2574.129988
++[memory-guard] exit=0 peakTreeRssMiB=240 minHostAvailableMiB=23888
++[memory-guard] at peak: node:106 node:81 node:53
++[queue] EXIT 0
+diff --git a/logs/test-1.rc b/logs/test-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/test-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/measured-control-both.sh b/measured-control-both.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..5cf899b6dae34c2948d411206ec99c7ab9d1e84a
+--- /dev/null
++++ b/measured-control-both.sh
+@@ -0,0 +1,9 @@
++#!/bin/bash
++# metal-measured-control.test.mjs on the UNMODIFIED deabf8f90 tree and on the restore commit; reports each verdict per test.
++set -u
++cd "$(dirname "$0")"
++rm -rf control-wt; git -C repo worktree add -q --detach ../control-wt deabf8f90f64902d20d48620fd911d34c445859d
++for d in . relay network; do ln -s "$(cd repo/$d && readlink -f node_modules)" control-wt/$d/node_modules; done
++echo "== deabf8f90 (unmodified)"; (cd control-wt && node --test --test-concurrency=1 test/metal-measured-control.test.mjs 2>&1 | grep -E '^(not )?ok|^# (pass|fail)')
++echo "== restore commit $(git -C repo rev-parse --short HEAD)"; (cd repo && node --test --test-concurrency=1 test/metal-measured-control.test.mjs 2>&1 | grep -E '^(not )?ok|^# (pass|fail)')
++git -C repo worktree remove --force ../control-wt
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/repro-1.sh b/repro-1.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..aaecde1a59bfe84a20e569a782d249feb577896c
+--- /dev/null
++++ b/repro-1.sh
+@@ -0,0 +1,19 @@
++#!/bin/bash
++# Reproducibility + release dir: rebuild the candidate a second time (must be byte-identical), stage the launcher release
++# dir as a git archive of the commit (no node_modules) and diff it against production's metal-deabf8f90, write INVENTORY.
++set -euo pipefail
++cd "$(dirname "$0")"
++R=$PWD/repo; S=$PWD/stage; P=/home/steven/enclave-prod
++NEW=$(git -C $R rev-parse HEAD); SHORT=${NEW:0:9}
++[ ! -e $S/repro-$SHORT ] && [ ! -e $S/metal-$SHORT ] || { echo "already staged"; exit 2; }
++(cd $R && python3 metal/overlay-control-image.py $P/dist-sdshield-2857356cd $S/repro-$SHORT $NEW) >/dev/null
++for f in initramfs.cpio.gz vmlinuz cmdline manifest.json; do cmp -s $S/repro-$SHORT/$f $S/dist-leasegas-$SHORT/$f && echo "REPRODUCIBLE $f" || { echo "NOT-REPRODUCIBLE $f"; exit 1; }; done
++rm -rf $S/repro-$SHORT
++mkdir $S/metal-$SHORT; git -C $R archive $NEW | tar -x -C $S/metal-$SHORT
++[ ! -e $S/metal-$SHORT/node_modules ] || { echo "release dir carries node_modules"; exit 1; }
++diff -rq $P/metal-deabf8f90 $S/metal-$SHORT | sort > $S/release-delta.txt || true
++cat $S/release-delta.txt
++printf 'Files %s/metal-deabf8f90/metal/guest/gsup.mjs and %s/metal-%s/metal/guest/gsup.mjs differ\nOnly in %s/metal-%s/test: metal-gsup-custody-env.test.mjs\nOnly in %s/metal-%s/test/helpers: gsup-env-harness.mjs\n' $P $S $SHORT $S $SHORT $S $SHORT | sort > $S/release-delta.expected
++cmp -s $S/release-delta.txt $S/release-delta.expected && echo "RELEASE-DELTA-EXACT" || { echo "RELEASE-DELTA-UNEXPECTED"; exit 1; }
++(cd $S && find dist-leasegas-$SHORT -type f | sort | xargs sha256sum; (cd metal-$SHORT && find . -type f | sort | xargs sha256sum) | sha256sum | sed "s#  -#  metal-$SHORT/(tree digest: sha256 of the sorted per-file sha256 list)#") > $S/INVENTORY.sha256
++cat $S/INVENTORY.sha256
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..e0673f537283c99ec47a999d87f184b46654654e
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,19 @@
++#!/bin/bash
++# Secret + rewritten-literal scans (checkpoint's own unchanged scanners/config) of every file to be committed: the outer
++# evidence files and the restore commit's changed files. Staged binaries and node_modules are excluded (never committed).
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d)
++for f in RESULT.md ACTIVATION-PLAN.md build-1.sh repro-1.sh control-old-gsup.sh measured-control-both.sh entries.py q.sh scan.sh logs/*.out logs/*.log stage/INVENTORY.sha256 stage/entries-vs-production.jsonl stage/release-delta.txt stage/release-delta.expected; do [ -f "$f" ] && { mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; }; done
++for f in $(git -C repo diff --name-only deabf8f90f64902d20d48620fd911d34c445859d HEAD); do mkdir -p "$st/repo/$(dirname $f)"; git -C repo show HEAD:$f > "$st/repo/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find "$st" -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - "$st" <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] files $(find "$st" -type f | wc -l) gitleaks=$g scan-crypto-keys=$k literal=$l"; rm -rf "$st"
++[ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/stage/INVENTORY.sha256 b/stage/INVENTORY.sha256
+new file mode 100644
+index 0000000000000000000000000000000000000000..1cd79efd38a40b7f9a134340c17369f962b1315b
+--- /dev/null
++++ b/stage/INVENTORY.sha256
+@@ -0,0 +1,6 @@
++d99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9  dist-leasegas-a6b1378cd/MEASUREMENT
++d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8  dist-leasegas-a6b1378cd/cmdline
++5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de  dist-leasegas-a6b1378cd/initramfs.cpio.gz
++3874066dff197d154f51f1fe791ab66e5000e81017670cb6c39cb861e79ec12b  dist-leasegas-a6b1378cd/manifest.json
++1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  dist-leasegas-a6b1378cd/vmlinuz
++1f2a54b3cabcd16e9a9686a628cff763358a9745bc0e4ec76dbd4564c6765b68  metal-a6b1378cd/(tree digest: sha256 of the sorted per-file sha256 list)
+diff --git a/stage/entries-vs-production.jsonl b/stage/entries-vs-production.jsonl
+new file mode 100644
+index 0000000000000000000000000000000000000000..302bdcc5a1f47588aa5110d7d535633c4d0eb843
+--- /dev/null
++++ b/stage/entries-vs-production.jsonl
+@@ -0,0 +1,3 @@
++{"entry": "opt/metal/gsup.mjs", "a": ["0o100644", 49848, "c2896d743e36be8fa1832f1f6f0e41042140b61549fd780f32c1921d5a157e99"], "b": ["0o100644", 50341, "2981a5feb98fe46b13968fd8d1ef2d503f624fc84b3d22824fe000bf45bb6a5a"]}
++{"entry": "opt/metal/manifest.json", "a": ["0o100644", 25978, "544416e1a53daff9a886658b295a112a94f15cce8b5ce83ff534a785804f1ca0"], "b": ["0o100644", 25978, "6364bdc45f299362468b7fd60b616bdc0c1a99600f75ac39435639ff03ce952d"]}
++{"entriesA": 29063, "entriesB": 29063, "differing": ["opt/metal/gsup.mjs", "opt/metal/manifest.json"]}
+diff --git a/stage/release-delta.expected b/stage/release-delta.expected
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4b51ddd74f35e6dbc6969270d6e36ebd02992aa
+--- /dev/null
++++ b/stage/release-delta.expected
+@@ -0,0 +1,3 @@
++Files /home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs and /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/metal/guest/gsup.mjs differ
++Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test/helpers: gsup-env-harness.mjs
++Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test: metal-gsup-custody-env.test.mjs
+diff --git a/stage/release-delta.txt b/stage/release-delta.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4b51ddd74f35e6dbc6969270d6e36ebd02992aa
+--- /dev/null
++++ b/stage/release-delta.txt
+@@ -0,0 +1,3 @@
++Files /home/steven/enclave-prod/metal-deabf8f90/metal/guest/gsup.mjs and /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/metal/guest/gsup.mjs differ
++Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test/helpers: gsup-env-harness.mjs
++Only in /home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023/stage/metal-a6b1378cd/test: metal-gsup-custody-env.test.mjs

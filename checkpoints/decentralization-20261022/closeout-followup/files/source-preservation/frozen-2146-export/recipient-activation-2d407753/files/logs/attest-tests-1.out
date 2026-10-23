@@ -1,0 +1,75 @@
+[queue] START available=28006MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: the verifier pins hold for the restore repo at a6b1378c
+ok 1 - the verifier pins hold for the restore repo at a6b1378c
+  ---
+  duration_ms: 13.695601
+  type: 'test'
+  ...
+# Subtest: genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
+ok 2 - genuine AMD-signed Turin evidence: chain, policy, TCB and measurement PASS, but a report not bound to OUR nonce is REJECTED
+  ---
+  duration_ms: 18.417143
+  type: 'test'
+  ...
+# Subtest: a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
+ok 3 - a pin other than the observed measurement is REJECTED at the measurement (default pin = ee5df6b8)
+  ---
+  duration_ms: 3.247154
+  type: 'test'
+  ...
+# Subtest: relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
+ok 4 - relay misbehaviour is UNAVAILABLE and never a pass: another nonce, an HTTP error, a non-metal document, a network failure
+  ---
+  duration_ms: 2.300582
+  type: 'test'
+  ...
+# Subtest: persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
+ok 5 - persist: the raw answer is 0600 in a 0700 private dir, nothing is overwritten, the public file has no raw
+  ---
+  duration_ms: 4.353605
+  type: 'test'
+  ...
+# Subtest: checkImage ties each pin to the reviewed image files and refuses another file
+ok 6 - checkImage ties each pin to the reviewed image files and refuses another file
+  ---
+  duration_ms: 0.985412
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 137.838919
+test_additive_in_installed_order (test_activation.Admission.test_additive_in_installed_order) ... ok
+test_refusals (test_activation.Admission.test_refusals) ... ok
+test_baseline_must_equal_root_record (test_activation.Preconditions.test_baseline_must_equal_root_record) ... ok
+test_preflight (test_activation.Preconditions.test_preflight) ... ok
+test_baseline_passes (test_activation.Protected.test_baseline_passes) ... ok
+test_every_protected_field_refuses (test_activation.Protected.test_every_protected_field_refuses) ... ok
+test_cas_failed_restart_restores_previous_bytes (test_activation.RemoteScripts.test_cas_failed_restart_restores_previous_bytes) ... ok
+test_cas_refuses_changed_env_dropin_or_existing_backup (test_activation.RemoteScripts.test_cas_refuses_changed_env_dropin_or_existing_backup) ... ok
+test_cas_success_writes_backup_and_restarts (test_activation.RemoteScripts.test_cas_success_writes_backup_and_restarts) ... ok
+test_read_reports_hashes_and_body (test_activation.RemoteScripts.test_read_reports_hashes_and_body) ... ok
+test_restore_is_cas_on_both_versions (test_activation.RemoteScripts.test_restore_is_cas_on_both_versions) ... ok
+test_only_dist_changes_every_other_byte_preserved (test_activation.RewriteDist.test_only_dist_changes_every_other_byte_preserved) ... ok
+test_refuses_missing_duplicate_or_ambiguous (test_activation.RewriteDist.test_refuses_missing_duplicate_or_ambiguous) ... ok
+test_refuses_concurrent_config_or_dropin_change (test_activation.SafeRollback.test_refuses_concurrent_config_or_dropin_change) ... ok
+test_stop_first_wait_deadline_then_restore_and_start (test_activation.SafeRollback.test_stop_first_wait_deadline_then_restore_and_start) ... ok
+test_unreadable_journal_waits_the_ttl_bound (test_activation.SafeRollback.test_unreadable_journal_waits_the_ttl_bound) ... ok
+test_every_weakening_refused (test_verdict_check.VerdictCheck.test_every_weakening_refused) ... ok
+test_good_passes (test_verdict_check.VerdictCheck.test_good_passes) ... ok
+test_raw_mode_and_presence (test_verdict_check.VerdictCheck.test_raw_mode_and_presence) ... ok
+test_substring_alone_is_not_enough (test_verdict_check.VerdictCheck.test_substring_alone_is_not_enough) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.445s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=45 minHostAvailableMiB=28023
+[memory-guard] at peak: python3:28 python3:11 bash:6
+[queue] EXIT 0

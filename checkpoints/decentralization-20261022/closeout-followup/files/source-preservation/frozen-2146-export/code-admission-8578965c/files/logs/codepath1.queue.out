@@ -1,0 +1,20 @@
+[queue] START available=27992MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: original vault: code admission, seven-day boundary, handover, cancel; production digests
+ok 1 - original vault: code admission, seven-day boundary, handover, cancel; production digests
+  ---
+  duration_ms: 623.004049
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1105.79464
+[memory-guard] exit=0 peakTreeRssMiB=169 minHostAvailableMiB=27852
+[memory-guard] at peak: node:86 node:53 anvil:31
+[queue] EXIT 0
