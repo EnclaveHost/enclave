@@ -1,0 +1,20 @@
+{
+ "reviewed": false,
+ "note": "PROPOSAL for root review: set reviewed=true only after root review (root-validation/activate-node.py format)",
+ "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-resource-shares-20261023/repo",
+ "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+ "files": {
+  "windows/node/host.mjs": {
+   "before": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+   "after": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234"
+  },
+  "windows/node/chain.mjs": {
+   "before": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+   "after": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225"
+  },
+  "windows/node/isolation-client.mjs": {
+   "before": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
+   "after": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04"
+  }
+ }
+}

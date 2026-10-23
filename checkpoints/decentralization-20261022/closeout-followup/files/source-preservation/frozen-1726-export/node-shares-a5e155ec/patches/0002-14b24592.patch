@@ -1,0 +1,909 @@
+From 14b2459262415ae93a970fc79ac224ab158fffdf Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:38:56 -0700
+Subject: [PATCH] Windows node: one share is one fraction of both CPU and the
+ app RAM pool
+
+The partition manager already gives a partition floor(NODE_APP_RAM_GB x cpuShare)
+MiB, but the node advertised and admitted RAM as the pool less catalog floors: the
+NucBox published 17% of its CPU beside 79.8 of 96 GB free while the manager held
+57% of the pool. On the partition backend (sharesCoupled) the node now:
+
+- frees ONE fraction: the owner reserve and cap bind RAM exactly as CPU, each
+  deployment holds the larger of floor(pool x share) and what the manager's
+  /vms says its partitions hold, and ramMbFree = floor(pool x cpuShareFree);
+- reads the manager each pass and before a claim (refreshManagerView) and sells
+  nothing new when that view is unread, malformed, stale, recovered, pool-less,
+  or from another pool (capacity.ramUnknown; claimPolicy refuses), while work
+  already here is never refused or given back for it;
+- treats the version's RAM floor as a share requirement (effectiveCpuShare
+  with the pool, whole percents up), so a floor raises the share or refuses;
+- spawns at the share it counts (0xc13d4b6a was spawned at its 1% dial while
+  the node counted 2%), adopts a partition sized for another share as it is
+  (allocatedShare + reason on the record), and relaunches in place only when
+  its owner pays for more than it holds and it fits, at most once per 10 min;
+- rounds cpuShareFree down to millionths (0.16999999999999993 read as 16%).
+
+isolation-client: GET /vms without a vms list is a protocol error, never an
+empty inventory; views carry the pinned policy (the readiness witness only).
+---
+ ...indows-node-coupled-shares-defect.test.mjs | 120 ++++++
+ test/windows-node-coupled-shares.test.mjs     | 378 ++++++++++++++++++
+ windows/node/chain.mjs                        |  32 +-
+ windows/node/host.mjs                         | 174 +++++++-
+ windows/node/isolation-client.mjs             |   7 +-
+ 5 files changed, 690 insertions(+), 21 deletions(-)
+ create mode 100644 test/windows-node-coupled-shares-defect.test.mjs
+ create mode 100644 test/windows-node-coupled-shares.test.mjs
+
+diff --git a/test/windows-node-coupled-shares-defect.test.mjs b/test/windows-node-coupled-shares-defect.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..81cb9b24f71334210c1f66c5b5b6dcc96c8689d1
+--- /dev/null
++++ b/test/windows-node-coupled-shares-defect.test.mjs
+@@ -0,0 +1,120 @@
++// The 2026-10-23 NucBox share defect, reproduced through APIs the INSTALLED node already has (capacity, cpuShareFree,
++// availability, claimRefusal, ensureApp over the real manager), so the same file runs against the installed source and
++// the fix: every test here fails on the former and passes on the latter. The fix's own suite is
++// test/windows-node-coupled-shares.test.mjs. (`managerView` is what the fix sizes against; the installed node ignores it.)
++import { test, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { fakeBaseRpc, DEPLOYMENTS, CATALOG } from "./helpers/fake-base-rpc.mjs";
++import { REC, DEP, ISOLATED, PLANNED, FakeHost, FakeLauncher, clientFor, fast, closeManagers } from "./helpers/hv-fake-manager.mjs";
++import { servedOwner } from "./helpers/owners.mjs";
++import { Manager, createServer, startManager } from "../windows/vbslike/manager/server.mjs";
++import { HyperVPartitionBackend } from "../windows/vbslike/manager/backend.mjs";
++import { reconcile } from "../windows/node/isolation-lifecycle.mjs";
++
++const rpc = await fakeBaseRpc();
++const chain = await import("../windows/node/chain.mjs");
++chain.addresses.deployments = DEPLOYMENTS;
++chain.addresses.appCatalog = CATALOG;
++const { Host } = await import("../windows/node/host.mjs");
++const servers = [];
++after(() => { closeManagers(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } rpc.close(); });
++
++const OWNER = "0x29479bf04ed889d46a7afb7f292b9bb26e12647c";
++const POOL = 98304;
++const ram = (share) => Math.floor(POOL * share + 1e-7);          // memory-share.mjs
++const box = (cfg = {}) => servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-defect-")),
++  endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {},
++  ramGb: 112, appRamGb: 96, gflopsFloorBasis: 1000, appSlots: 16, isolationManager: "http://127.0.0.1:9",
++  isolationRuntimeId: REC.runtimeId, ...cfg }), OWNER);
++const W = { id: "hvwitness", name: "shield-readiness-v1", status: "running", memory: null, policy: { memMiB: 256 } };
++const vm = (name, share, o = {}) => ({ id: "hv" + name.slice(2, 10), name, status: "running", policy: { memMiB: 128 },
++  memory: { rule: "cpu-share", poolMiB: POOL, cpuShare: share, appMiB: ram(share) }, ...o });
++// 15:58:09Z: [id, node cpuShare, catalog memMb, the share its partition was spawned with]
++const LIVE = [["0x7ae4", 0.02, 1024, 0.02], ["0x38f3", 0.01, 128, 0.01], ["0xe64f", 0.25, 12288, 0.25], ["0xd979", 0.01, 128, 0.01],
++              ["0xa77d", 0.01, 128, 0.01], ["0xc13d", 0.02, 512, 0.01], ["0x59f1", 0.04, 256, 0.04], ["0xef51", 0.21, 2048, 0.21],
++              ["0xa69d", 0.01, 128, 0.01]].map(([p, ...r]) => [p + p.slice(2).repeat(15), ...r]);
++const live = () => {
++  const h = box();
++  for (const [id, cpuShare, memMb] of LIVE)
++    h.records.set(id, { id, status: "running", cpuShare, gpuShare: 0, memMb, isolationRequired: true, isolation: { instance: "hv" + id.slice(2, 10) } });
++  h.managerView = { at: Date.now(), memory: { rule: "cpu-share", poolMiB: POOL }, vms: [W, ...LIVE.map(([id, , , s]) => vm(id, s))] };
++  return h;
++};
++const newDep = (o = {}) => ({ id: "0x" + "d".repeat(64), owner: OWNER, appRef: "catalog://0xapp/0", configCid: ISOLATED, gpuMilli: 0,
++  cpuMilli: 10, isPublic: true, active: true, createdAt: 1790000000n, runner: "0x" + "0".repeat(64), leaseUntil: 0n, ...o });
++const ver = (o = {}) => ({ cid: "bafy", version: "1", memMb: 128, cpuGflops: 0, config: "", approval: 1, yanked: false, ...o });
++
++test("DEFECT 1: the live box advertises 79.8 GB of RAM beside 16% of its CPU; one share must be one fraction of both", () => {
++  const h = live();
++  assert.equal(Math.floor(h.cpuShareFree() * 100), 17, "1 - 0.58 - 0.25 floors to 16 in the fleet row");
++  assert.equal(h.capacity().ramMbFree, ram(0.17), "RAM free must be the free 17% of the pool, not pool less floors");
++  assert.equal(h.availability().ramGbFree, 16.3);
++});
++
++test("DEFECT 2: a 20 GiB app dialed at 1% is admitted against 'independent' RAM; it needs 21% and only 17% is free", () => {
++  const h = live();
++  const why = h.claimRefusal(newDep(), { version: ver({ memMb: 20480 }), capacity: h.capacity({ exclude: newDep().id }), appsEnabled: true });
++  assert.notEqual(why, null, "admitted: the manager would then refuse 983 MiB < 20480 at spawn, after the claim");
++  assert.match(why, /21%/);
++});
++
++test("DEFECT 3: a partition manager holding recovered (unknown) reservations is still sold as free", () => {
++  const h = live();
++  h.managerView.vms.push({ ...vm("0x" + "f".repeat(64), 0.1), recovered: true });
++  assert.equal(h.cpuShareFree(), 0, "unknown reservations must not be sold");
++  assert.notEqual(h.claimRefusal(newDep(), { version: ver(), capacity: h.capacity({ exclude: newDep().id }), appsEnabled: true }), null);
++});
++
++async function bootPooled(host) {
++  const component = Buffer.from(JSON.parse(fs.readFileSync(new URL("../isolation/contract/catalog/derive_vectors.json", import.meta.url), "utf8")).component_hex, "hex");
++  const manager = new Manager({ judgeReady: async () => ({ status: "running", transportKeySha256: "cd".repeat(32),
++    checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } }), runtimeId: REC.runtimeId,
++    fetchComponent: async () => component, ramPoolMiB: POOL, backend: new HyperVPartitionBackend({ launcher: new FakeLauncher(host) }) });
++  await startManager(manager);
++  const server = createServer(manager);
++  await new Promise((res) => server.listen(0, "127.0.0.1", res));
++  servers.push(server);
++  return { manager, port: server.address().port };
++}
++const dep = (cpuMilli) => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4",
++  leaseUntil: Math.floor(Date.now() / 1000) + 3600, cpuMilli, gpuMilli: 0, isPublic: true, owner: OWNER, configCid: ISOLATED });
++const ready = async (m) => {
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` });
++  h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
++  await h.refreshManagerView?.();
++  return h;
++};
++const mine = (m) => m.manager.list().filter((r) => r.name === DEP);
++
++test("DEFECT 4 (0xc13d4b6a): a partition is spawned at the 1% DIAL while the node counts the 2% its version needs", async () => {
++  const m = await bootPooled(new FakeHost());
++  const h = await ready(m);
++  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
++  const r = await h.ensureApp(DEP, dep(10), { version: { ...PLANNED, cpuGflops: 20 } });
++  assert.equal(r.status, "running", r.reason);
++  assert.equal(h.records.get(DEP).cpuShare, 0.02, "what the node counts");
++  assert.equal(mine(m)[0].memory.appMiB, ram(0.02), "what the partition was given");
++});
++
++test("DEFECT 5: a version whose RAM floor exceeds its dial is claimed, then refused by the manager at spawn", async () => {
++  const m = await bootPooled(new FakeHost());
++  const h = await ready(m);
++  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
++  const r = await h.ensureApp(DEP, dep(10), { version: { ...PLANNED, memMb: 4096 } });
++  assert.equal(r.status, "running", r.reason);
++  assert.equal(mine(m)[0].memory.appMiB, ram(0.05));
++});
++
++test("DEFECT 6: an owner's resize stops the app being served (held: 'different RAM share') instead of relaunching it", async () => {
++  const m = await bootPooled(new FakeHost());
++  const h = await ready(m);
++  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
++  assert.equal((await h.ensureApp(DEP, dep(100), { version: PLANNED })).status, "running");
++  await h.refreshManagerView?.();
++  const r = await h.ensureApp(DEP, dep(200), { version: PLANNED });
++  assert.equal(r.status, "running", r.reason);
++  assert.equal(mine(m)[0].memory.appMiB, ram(0.2));
++});
+diff --git a/test/windows-node-coupled-shares.test.mjs b/test/windows-node-coupled-shares.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..12eb631ba73291fb085c913cc4e308af0a111a8b
+--- /dev/null
++++ b/test/windows-node-coupled-shares.test.mjs
+@@ -0,0 +1,378 @@
++// ONE SHARE, BOTH POOLS (the Hyper-V partition backend). The user's rule (2026-10-23): "1% share should be 1% of both ram
++// and compute. The numbers must be tied together." The manager already gives a partition floor(NODE_APP_RAM_GB x share)
++// MiB (memory-share.mjs); the node advertised and admitted RAM as the pool less catalog FLOORS, so the NucBox published
++// 17% of its CPU beside 79.8 of 96 GB "free" while the manager held 57% of the pool. What this holds to:
++//   - free is ONE fraction: owner reserve and cap bind CPU and RAM alike, and ramMbFree = floor(pool x cpuShareFree);
++//   - every deployment holds the larger of what its share buys and what the manager says its partitions hold;
++//   - the version's RAM floor is a share requirement (a larger effective share, or a refusal), never discounted RAM;
++//   - the spawn carries the share the node counts; a partition sized for another share is adopted as it is (never
++//     grown or shrunk on the node's own initiative) unless its owner pays for more, when it is relaunched if it fits;
++//   - an unread, malformed, stale, recovered, pool-less or other-pool manager sells nothing new, and refuses nothing here.
++// Hyper-V is faked behind the REAL (installed) manager; Base is a fake JSON-RPC.
++import { test, after } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import http from "node:http";
++import { fakeBaseRpc, DEPLOYMENTS, CATALOG } from "./helpers/fake-base-rpc.mjs";
++import { REC, DEP, ISOLATED, PLANNED, FakeHost, FakeLauncher, clientFor, fast, closeManagers } from "./helpers/hv-fake-manager.mjs";
++import { servedOwner } from "./helpers/owners.mjs";
++import { Manager, createServer, startManager } from "../windows/vbslike/manager/server.mjs";
++import { HyperVPartitionBackend } from "../windows/vbslike/manager/backend.mjs";
++import { reconcile } from "../windows/node/isolation-lifecycle.mjs";
++
++const rpc = await fakeBaseRpc();                     // BEFORE chain.mjs loads: it reads BASE_RPCS once
++const chain = await import("../windows/node/chain.mjs");
++chain.addresses.deployments = DEPLOYMENTS;
++chain.addresses.appCatalog = CATALOG;
++const { Host } = await import("../windows/node/host.mjs");
++const servers = [];
++after(() => { closeManagers(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } rpc.close(); });
++
++const OWNER = "0x29479bf04ed889d46a7afb7f292b9bb26e12647c";
++const POOL = 96 * 1024;                              // NODE_APP_RAM_GB 96 (the NucBox, 2026-10-23)
++const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "ee-coupled-"));
++const box = (cfg = {}, logs = []) => servedOwner(new Host({ dir: tmp(), endpoint: "https://api.enclave.host/t/test", name: "test",
++  appsEnabled: true, cpuPricePerSec6: 12, log: (s) => logs.push(s), ramGb: 112, appRamGb: 96, gflopsFloorBasis: 1000, appSlots: 32,
++  isolationManager: "http://127.0.0.1:9", isolationRuntimeId: REC.runtimeId, ...cfg }), OWNER);
++const W = { id: "hvwitness", name: "shield-readiness-v1", status: "running", memory: null, policy: { cpuPercent: 100, memMiB: 256, vcpus: 1 } };
++const vm = (name, share, extra = {}) => ({ id: "hv" + name.slice(2, 10), name, status: "running",
++  memory: { rule: "cpu-share", poolMiB: POOL, cpuShare: share, appMiB: chain.shareRamMiB(POOL, share) }, policy: { memMiB: 128, vcpus: 1, cpuPercent: 100 }, ...extra });
++const view = (vms, o = {}) => ({ at: Date.now(), memory: { rule: "cpu-share", poolMiB: POOL }, vms, ...o });
++const running = (id, cpuShare, memMb = 128) => ({ id, status: "running", cpuShare, gpuShare: 0, memMb, isolationRequired: true, isolation: { instance: "hv" + id.slice(2, 10) } });
++const idOf = (c) => "0x" + c.repeat(64);
++const idN = (i) => "0x" + i.toString(16).padStart(2, "0").repeat(32);
++// a public deployment of the box owner's, as claimPolicy reads it
++const newDep = (o = {}) => ({ id: idOf("d"), owner: OWNER, appRef: "catalog://0xapp/0", configCid: ISOLATED, gpuMilli: 0,
++  cpuMilli: 10, isPublic: true, active: true, createdAt: 1790000000n, runner: "0x" + "0".repeat(64), leaseUntil: 0n, ...o });
++const ver = (o = {}) => ({ cid: "bafy", version: "1", memMb: 128, cpuGflops: 0, config: "", approval: 1, yanked: false, ...o });
++const admit = (h, d, v = ver(), o = {}) => h.claimRefusal(d, { version: v, capacity: h.capacity({ exclude: d.id, ...o }), appsEnabled: true });
++const tied = (h, o) => assert.equal(h.capacity(o).ramMbFree, chain.shareRamMiB(POOL, h.cpuShareFree(o)), "RAM free is the free share of the pool");
++
++// The nine apps and the manager's view at 2026-10-23T15:58:09Z (work/nucbox-ram96-20261023/share-accounting-live.json).
++const LIVE = [
++  ["0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33", 0.02, 1024, 0.02],
++  ["0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c", 0.01, 128, 0.01],
++  ["0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b", 0.25, 12288, 0.25],
++  ["0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a", 0.01, 128, 0.01],
++  ["0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371", 0.01, 128, 0.01],
++  ["0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681", 0.02, 512, 0.01],   // dialed 1%, version needs 2%
++  ["0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c", 0.04, 256, 0.04],
++  ["0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238", 0.21, 2048, 0.21],
++  ["0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77", 0.01, 128, 0.01],
++];
++const live = () => {
++  const h = box();
++  for (const [id, share, memMb] of LIVE) h.records.set(id, running(id, share, memMb));
++  h.managerView = view([W, ...LIVE.map(([id, , , m]) => vm(id, m))]);
++  return h;
++};
++
++test("the live NucBox: 17% of its CPU is 17% of its 96 GiB app pool, not 79.8 GB beside 16%", () => {
++  const h = live();
++  const cap = h.capacity();
++  assert.equal(h.cpuShareFree(), 0.17, "1 - 0.58 sold - 0.25 reserve, as a reader sees it");
++  assert.equal(Math.floor(h.cpuShareFree() * 100), 17, "the fleet row's floor reads 17, not 16");
++  assert.equal(cap.cpuShareFree, 0.17);
++  assert.equal(cap.ramMbFree, 16711, "floor(98304 x 0.17)");
++  assert.notEqual(cap.ramMbFree, 98304 - 16640, "never the pool less catalog floors (79.8 GB)");
++  assert.equal(cap.sharePoolMiB, POOL);
++  assert.equal(cap.ramMbHeld, 57015, "0xc13d4b6a counts at the 2% this box counts (1966 MiB), not the 983 its partition was given");
++  assert.equal(cap.ramUnknown, undefined);
++  assert.equal(h.availability().ramGbFree, 16.3);
++  tied(h);
++});
++
++test("1% buys 1% of both pools: each admission takes a hundredth of the CPU and floor(pool/100) MiB together", () => {
++  const h = live();
++  assert.equal(admit(h, newDep()), null);
++  for (let i = 0; i < 17; i++) h.records.set(idN(i), running(idN(i), 0.01));
++  assert.equal(h.cpuShareFree(), 0, "seventeen more 1% apps sell the last 17%");
++  assert.equal(h.capacity().ramMbFree, 0);
++  assert.match(admit(h, newDep()), /takes 1% of this box and this box has 0% left/);
++  h.records.delete(idN(0));
++  assert.equal(h.cpuShareFree(), 0.01);
++  assert.equal(h.capacity().ramMbFree, 983, "floor(98304 x 0.01)");
++  tied(h);
++  assert.equal(admit(h, newDep()), null);
++});
++
++test("the owner's reserve and cap bind the same fraction of RAM as of CPU", () => {
++  const h = box();
++  h.managerView = view([]);
++  assert.equal(h.cpuShareFree(), 0.75, "a quarter stays for the owner");
++  assert.equal(h.capacity().ramMbFree, 73728, "...a quarter of the RAM pool too, not 96 GiB");
++  h.caps = { cpuShare: 0.3, gpuShare: 1, paused: false };
++  h.records.set(idOf("a"), running(idOf("a"), 0.1));
++  assert.equal(h.cpuShareFree(), 0.2);
++  assert.equal(h.capacity().ramMbFree, chain.shareRamMiB(POOL, 0.2));
++  tied(h);
++  assert.match(admit(h, newDep({ cpuMilli: 250 })), /owner offers 30% of this box's CPU to hosting with 10% of that in use/);
++  // what is already here is measured without the cap (a lowered cap takes nothing back)
++  assert.equal(h.cpuShareFree({ capped: false }), 0.65);
++  tied(h, { capped: false });
++  h.caps = { cpuShare: 1, gpuShare: 1, paused: false };
++  h.cfg.reservedShare = 0.5;
++  assert.equal(h.cpuShareFree(), 0.4);
++  assert.equal(h.capacity().ramMbFree, chain.shareRamMiB(POOL, 0.4));
++});
++
++test("a version's RAM floor is a SHARE requirement: a larger effective share, or a refusal - never discounted RAM", () => {
++  const h = live();
++  const big = ver({ memMb: 12288 });                   // RISC Box: 12 GiB is 12.5% of 96 GiB -> 13%
++  assert.equal(chain.effectiveCpuShare({ cpuMilli: 10 }, big, 1000, POOL), 0.13);
++  assert.equal(chain.effectiveCpuShare({ cpuMilli: 250 }, big, 1000, POOL), 0.25, "a dial above the need is kept");
++  assert.equal(chain.effectiveCpuShare({ cpuMilli: 10 }, big, 1000), 0.01, "no pool (not coupled): RAM is not a share");
++  assert.equal(h.cpuShareOf("x", { cpuMilli: 10 }, big), 0.13, "the node counts the share the version needs");
++  assert.equal(admit(h, newDep(), big), null, "13% fits in 17%");
++  h.records.set(idOf("b"), running(idOf("b"), 0.05));
++  assert.match(admit(h, newDep(), big), /takes 13% of this box \(its version needs 12288 MB of RAM, 13% of this box\) and this box has 12% left/);
++  // the publisher's coreless cpuFallback raises the floor the same way
++  const fb = ver({ memMb: 512, config: JSON.stringify({ cpuFallback: { memMb: 8192 } }) });
++  assert.equal(chain.effectiveCpuShare({ cpuMilli: 10 }, fb, 1000, POOL), 0.09);
++  // floors round UP to whole percents, and what the share gives always covers the floor
++  for (const memMb of [128, 512, 983, 984, 1024, 4097, 30000, 98304]) {
++    const s = chain.effectiveCpuShare({ cpuMilli: 10 }, ver({ memMb }), 1000, POOL);
++    assert.ok(chain.shareRamMiB(POOL, s) >= memMb, `${memMb} MiB -> ${s}`);
++    assert.ok(s === 0.01 || chain.shareRamMiB(POOL, s - 0.01) < memMb, `${memMb} MiB: ${s} is the smallest whole percent`);
++  }
++});
++
++test("what the manager actually holds counts: a partition larger than its share, a failed one, a deployment not tracked here", () => {
++  const h = live();
++  // 0xd979 was resized down to 1% but its partition still holds the 10% it was spawned with
++  const d979 = LIVE[3][0];
++  h.managerView = view([W, ...LIVE.map(([id, , , m]) => vm(id, id === d979 ? 0.10 : m)),
++                        vm(idOf("f"), 0.03, { status: "failed" })]);      // ended, not yet removed, untracked here
++  assert.equal(h.capacity().ramMbHeld, 57015 - 983 + 9830 + 2949);
++  // 73728 sellable less 68811 held: 4917 MiB, the share it is (rounded down to a millionth)
++  assert.equal(h.cpuShareFree(), Math.floor((73728 - 68811) / POOL * 1e6) / 1e6, "17% less the 9% the larger partition holds over its share, less the failed 3%");
++  tied(h);
++  // the manager's own pool admits the readiness witness too: it binds only when the manager's pool is the tighter one
++  const full = box({ reservedShare: 0 });
++  full.managerView = view([W, vm(idOf("a"), 0.99)]);
++  assert.equal(full.capacity().ramMbFree, POOL - chain.shareRamMiB(POOL, 0.99) - 256 - 1, "less the witness, as the manager counts it (rounded down to a millionth of a share)");
++});
++
++test("unknown is not room: unread, failed, stale, recovered, unsized or other-pool managers sell nothing new and take nothing away", () => {
++  const cases = [
++    [null, /has not been read yet/],
++    [{ at: Date.now(), error: "connect ECONNREFUSED" }, /could not be read: connect ECONNREFUSED/],
++    [view([], { at: Date.now() - Host.MANAGER_VIEW_MAX_AGE_MS - 1000 }), /last read \d+ s ago/],
++    [view([{ ...vm(idOf("a"), 0.1), recovered: true }]), /recovered from an earlier manager/],
++    [view([{ id: "hvx", name: null, unattributed: true, recovered: true }]), /recovered from an earlier manager/],
++    [view([{ ...vm(idOf("a"), 0.1), memory: null, policy: null }]), /states no RAM reservation/],
++    // an ordinary partition with no share reservation is NOT its catalog floor (only the readiness witness is)
++    [view([{ ...vm(idOf("a"), 0.1), memory: null, policy: { memMiB: 8192 } }]), /partition hv[a]+ states no RAM reservation/],
++    [view([{ ...vm(idOf("a"), 0.1), memory: { rule: "floor", appMiB: 8192 } }]), /states no RAM reservation/],
++    [view([{ ...vm(idOf("a"), 0.1), memory: { rule: "cpu-share", appMiB: "8192" } }]), /states no RAM reservation/],
++    [view([{ ...W, name: "not-the-witness" }]), /states no RAM reservation/],
++    // a manager that states no share pool (an older pool-less one), another rule, or a malformed pool
++    [view([], { memory: null }), /states no cpu-share RAM pool/],
++    [view([], { memory: { rule: "floor", poolMiB: POOL } }), /states no cpu-share RAM pool/],
++    [view([], { memory: { rule: "cpu-share", poolMiB: "98304" } }), /states no cpu-share RAM pool/],
++    [view([], { memory: { rule: "cpu-share", poolMiB: 95 * 1024 } }), /sizes partitions from a 97280 MiB pool and this node sells a 98304 MiB one/],
++  ];
++  for (const [mv, why] of cases) {
++    const h = box();
++    h.records.set(idOf("a"), running(idOf("a"), 0.1));
++    h.managerView = mv;
++    const cap = h.capacity();
++    assert.equal(h.cpuShareFree(), 0, String(why));
++    assert.equal(cap.ramMbFree, 0);
++    assert.match(cap.ramUnknown, why);
++    assert.match(admit(h, newDep()), /cannot establish how much of its app RAM pool is reserved/);
++    // a deployment already here is measured uncapped and is never refused for it
++    const here = h.capacity({ exclude: idOf("a"), capped: false });
++    assert.equal(here.ramUnknown, undefined);
++    assert.equal(here.cpuShareFree, 0.75);
++    assert.equal(admit(h, newDep({ id: idOf("a") }), ver(), { capped: false }), null);
++  }
++  // an isolation box with no app RAM pool sells nothing at all
++  const none = box({ appRamGb: 0 });
++  none.managerView = view([]);
++  assert.equal(none.cpuShareFree(), 0);
++  assert.match(none.capacity().ramUnknown, /no app RAM pool/);
++});
++
++test("a box that is NOT coupled (no partition manager) keeps its RAM budget and only gains the rounding", () => {
++  const h = new Host({ dir: tmp(), endpoint: "https://api.enclave.host/t/test", name: "t", appsEnabled: true, cpuPricePerSec6: 12,
++                       log: () => {}, ramGb: 112, appRamGb: 96 });
++  h.records.set(idOf("a"), { id: idOf("a"), status: "running", cpuShare: 0.58, memMb: 16640 });
++  assert.equal(h.sharesCoupled(), false);
++  assert.equal(h.cpuShareFree(), 0.17);
++  assert.equal(h.capacity().ramMbFree, POOL - 16640);
++  assert.equal(h.capacity().sharePoolMiB, undefined);
++  assert.equal(h.cpuShareOf("x", { cpuMilli: 10 }, ver({ memMb: 12288 })), 0.01);
++});
++
++// ---- the real manager, over a faked Hyper-V, at NODE_APP_RAM_GB 96 ------------------------------------------------
++async function bootPooled(host) {
++  const component = Buffer.from(JSON.parse(fs.readFileSync(new URL("../isolation/contract/catalog/derive_vectors.json", import.meta.url), "utf8")).component_hex, "hex");
++  const manager = new Manager({ judgeReady: (async () => ({ status: "running", transportKeySha256: "cd".repeat(32),
++    checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } })), runtimeId: REC.runtimeId,
++    fetchComponent: async () => component, ramPoolMiB: POOL, backend: new HyperVPartitionBackend({ launcher: new FakeLauncher(host) }) });
++  await startManager(manager);
++  const server = createServer(manager);
++  await new Promise((res) => server.listen(0, "127.0.0.1", res));
++  servers.push(server);
++  return { manager, port: server.address().port };
++}
++const dep = (cpuMilli) => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4",
++  leaseUntil: Math.floor(Date.now() / 1000) + 3600, cpuMilli, gpuMilli: 0, isPublic: true, owner: OWNER, configCid: ISOLATED });
++const noSecrets = (h) => { h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {}); };
++const NEEDS2 = { ...PLANNED, cpuGflops: 20 };          // 20 GFLOPS of a nominal 1000: 2%, as 0xc13d4b6a's 0.1.5 needs
++const domains = (m) => m.manager.list().filter((r) => r.name === DEP);
++
++test("the manager is read over its real API, and a claim re-reads it", async () => {
++  const fh = new FakeHost();
++  const m = await bootPooled(fh);
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` });
++  assert.equal(h.managerView, null);
++  await reconcile({ client: clientFor(m.port), deployment: { id: DEP, body: { derive: REC, name: DEP, isPublic: true, hasSecrets: false, cpuShare: 0.25 } }, ...fast });
++  const v = await h.refreshManagerView();
++  assert.deepEqual(v.memory, { rule: "cpu-share", poolMiB: POOL });
++  assert.equal(v.vms[0].memory.appMiB, 24576);
++  assert.equal(h.capacity().ramMbHeld, 24576, "held by the manager, untracked by this node: counted");
++  assert.equal(h.cpuShareFree(), 0.5);
++  // consider() re-reads a view older than MANAGER_VIEW_CLAIM_AGE_MS before it sizes a claim (pinned in source)
++  const src = fs.readFileSync(new URL("../windows/node/host.mjs", import.meta.url), "utf8");
++  assert.match(src, /if \(this\.sharesCoupled\(\) && !\(Date\.now\(\) - \(this\.managerView\?\.at \|\| 0\) < Host\.MANAGER_VIEW_CLAIM_AGE_MS && !this\.managerView\?\.error\)\)\n\s+await this\.refreshManagerView\(\);\n\s+const refuse = await this\.walletPolicyRefusal/);
++  assert.match(src, /if \(this\.sharesCoupled\(\)\) await this\.refreshManagerView\(\);\n\s+\/\/ SERVING FIRST/);
++  // a manager that stops answering is unknown at the next read
++  const dead = box({ isolationManager: "http://127.0.0.1:9" });
++  await dead.refreshManagerView();
++  assert.match(dead.capacity().ramUnknown, /could not be read/);
++});
++
++test("c13d4b6a: a partition spawned at its 1% DIAL below the 2% this box counts is adopted as it is, never grown in place", async () => {
++  const fh = new FakeHost();
++  const m = await bootPooled(fh);
++  // what the installed node did: spawned at the dial
++  const r0 = await reconcile({ client: clientFor(m.port), deployment: { id: DEP, body: { derive: REC, name: DEP, isPublic: true, hasSecrets: false, cpuShare: 0.01 } }, ...fast });
++  assert.equal(r0.instance.memory.appMiB, 983);
++  const logs = [];
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` }, logs);
++  h.records.set(DEP, { id: DEP, status: "running", isolation: { instance: r0.instance.id } });
++  noSecrets(h);
++  await h.refreshManagerView();
++  const r = await h.ensureApp(DEP, dep(10), { version: NEEDS2 });
++  assert.equal(r.status, "running", `${r.reason} | ${logs.join(" / ")}`);
++  assert.match(r.reason, /was given 983 MiB for a 1% share and this deployment takes 2%; not relaunched: it holds at least the share its owner pays for/);
++  assert.equal(r.allocatedShare, 0.01, "the under-allocation is on the record, not hidden behind a bare running");
++  assert.equal(r.cpuShare, 0.02, "what this box counts");
++  assert.deepEqual(domains(m).map((x) => x.id), [r0.instance.id], "the serving partition was left alone");
++  assert.equal(fh.starts, 1);
++  // ...and every later pass says so again: the reason is not cleared by the routine reconcile
++  await h.refreshManagerView();
++  assert.match((await h.ensureApp(DEP, dep(10), { version: NEEDS2 })).reason, /not relaunched/);
++  assert.equal(h.capacity().ramMbHeld, 1966, "counted at the larger of its share and its partition");
++  // its next FRESH start (here an operator's forced relaunch) is at the share this box counts
++  const f = await h.ensureApp(DEP, dep(10), { version: NEEDS2, force: true });
++  assert.equal(f.status, "running", f.reason);
++  assert.equal(f.reason, null);
++  assert.equal(f.allocatedShare, null);
++  assert.deepEqual([domains(m)[0].memory.cpuShare, domains(m)[0].memory.appMiB], [0.02, 1966]);
++});
++
++test("an owner's resize UP is served at the new share's RAM; a resize down, or up beyond what fits, keeps serving as it is", async () => {
++  const fh = new FakeHost();
++  const m = await bootPooled(fh);
++  const logs = [];
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` }, logs);
++  noSecrets(h);
++  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
++  await h.refreshManagerView();
++  assert.equal((await h.ensureApp(DEP, dep(100), { version: PLANNED })).status, "running");
++  assert.equal(domains(m)[0].memory.appMiB, 9830);
++  // the owner pays for 20% now: relaunched in place
++  await h.refreshManagerView();
++  let r = await h.ensureApp(DEP, dep(200), { version: PLANNED });
++  assert.equal(r.status, "running", r.reason);
++  assert.equal(r.reason, null);
++  assert.equal(domains(m)[0].memory.appMiB, 19660);
++  assert.ok(logs.some((l) => /its owner pays for more, relaunching it in place at its share/.test(l)));
++  // 30%, but within SHARE_RELAUNCH_MIN_MS of the last relaunch: kept at 20%, said, and counted at 30%
++  await h.refreshManagerView();
++  r = await h.ensureApp(DEP, dep(300), { version: PLANNED });
++  assert.equal(r.status, "running");
++  assert.match(r.reason, /not relaunched: it was relaunched for its share \d+ s ago/);
++  assert.equal(r.allocatedShare, 0.2);
++  assert.equal(domains(m)[0].memory.appMiB, 19660);
++  h.records.get(DEP).shareRelaunchAt = Date.now() - Host.SHARE_RELAUNCH_MIN_MS - 1;
++  r = await h.ensureApp(DEP, dep(300), { version: PLANNED });
++  assert.equal(r.reason, null);
++  assert.equal(domains(m)[0].memory.appMiB, 29491);
++  // down to 5%: not shrunk in place (it holds more than it pays for, counted so until it starts again)
++  await h.refreshManagerView();
++  r = await h.ensureApp(DEP, dep(50), { version: PLANNED });
++  assert.equal(r.status, "running");
++  assert.match(r.reason, /not relaunched: it holds at least the share its owner pays for/);
++  assert.equal(domains(m)[0].memory.appMiB, 29491);
++  assert.equal(h.capacity().ramMbHeld, 29491, "the larger of share and partition");
++  // up to 90%: beyond the 75% this box sells, so the 30% partition keeps serving and says why
++  h.records.get(DEP).shareRelaunchAt = 0;
++  r = await h.ensureApp(DEP, dep(900), { version: PLANNED });
++  assert.equal(r.status, "running", r.reason);
++  assert.match(r.reason, /not relaunched: 88473 MiB does not fit beside the others \(73728 MiB left\)/);
++  assert.equal(domains(m)[0].memory.appMiB, 29491);
++  // ...and an unknown manager is not a fit either
++  h.managerView = { at: Date.now(), error: "connect ECONNREFUSED" };
++  r = await h.ensureApp(DEP, dep(400), { version: PLANNED });
++  assert.match(r.reason, /not relaunched: what the manager holds is unknown/);
++  assert.equal(fh.starts, 3);
++});
++
++test("a resize this box cannot size (unknown manager) waits instead of giving the lease back (pinned in source)", () => {
++  const src = fs.readFileSync(new URL("../windows/node/host.mjs", import.meta.url), "utf8");
++  const wait = src.indexOf("if (cpu > wasCpu && capped.ramUnknown) {"), giveUp = src.indexOf("return await this.#giveUp(id, `it was resized to");
++  assert.ok(wait > 0 && giveUp > wait, "the unknown-manager wait precedes the resize give-up");
++  assert.match(src.slice(wait, giveUp), /waits: \$\{capped\.ramUnknown\}`\);\n\s+return;\n\s+\}/);
++});
++
++test("a malformed manager answer is an unread manager, never an empty inventory (real HTTP)", async () => {
++  let vmsBody = { vms: null };
++  const health = { memory: { rule: "cpu-share", poolMiB: POOL } };
++  const server = http.createServer((req, res) => {
++    const body = req.url === "/health" ? health : req.url === "/vms" ? vmsBody : {};
++    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(body));
++  });
++  await new Promise((r) => server.listen(0, "127.0.0.1", r));
++  servers.push(server);
++  const port = server.address().port;
++  const h = box({ isolationManager: `http://127.0.0.1:${port}` });
++  for (const bad of [{ vms: null }, {}, { vms: {} }, { vms: "[]" }, null, 7]) {
++    vmsBody = bad;
++    await assert.rejects(clientFor(port).list(), /GET \/vms: the answer carries no vms list/, JSON.stringify(bad));
++    await h.refreshManagerView();
++    assert.match(h.capacity().ramUnknown, /could not be read: GET \/vms: the answer carries no vms list/, JSON.stringify(bad));
++    assert.equal(h.cpuShareFree(), 0);
++  }
++  // the same manager answering properly is read, and sells
++  vmsBody = { vms: [] };
++  await h.refreshManagerView();
++  assert.equal(h.cpuShareFree(), 0.75);
++  // a client whose list() is not a list (a mock, or a future client) is unread too
++  await h.refreshManagerView({ health: async () => health, list: async () => ({ vms: [] }) });
++  assert.match(h.capacity().ramUnknown, /its \/vms answer is not a list/);
++  await h.refreshManagerView({ health: async () => null, list: async () => [] });
++  assert.match(h.capacity().ramUnknown, /its \/health answer is not an object/);
++  // a /health with no share pool: read, and still unknown
++  delete health.memory;
++  await h.refreshManagerView();
++  assert.match(h.capacity().ramUnknown, /states no cpu-share RAM pool/);
++});
++
++test("the spawn carries the share this box counts, so the manager's RAM floor check never refuses a counted share", async () => {
++  const fh = new FakeHost();
++  const m = await bootPooled(fh);
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` });
++  noSecrets(h);
++  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
++  await h.refreshManagerView();
++  const r = await h.ensureApp(DEP, dep(10), { version: { ...PLANNED, memMb: 4096 } });
++  assert.equal(r.status, "running", r.reason);
++  assert.equal(h.records.get(DEP).cpuShare, 0.05, "4096 MiB of a 98304 MiB pool is 4.2%: 5%");
++  assert.deepEqual([domains(m)[0].memory.cpuShare, domains(m)[0].memory.appMiB], [0.05, 4915]);
++});
+diff --git a/windows/node/chain.mjs b/windows/node/chain.mjs
+index 3c99299703a32daf18d8fc78ef8d53327bb2c07e..ccec6ae1c426bbb9fb2752a71da1305c9ea2ac79 100644
+--- a/windows/node/chain.mjs
++++ b/windows/node/chain.mjs
+@@ -445,12 +445,22 @@
+  * exists only relative to a box, so it is derived here from this box's capacity, never required of the record: the
+  * share is what the owner dialed, or what the version needs on this box if that is more (whole percents, rounded up).
+  * The ledger still bills the dialed share (the rate is set at claim from the record).
++ *
++ * `sharePoolMiB`: on a box where ONE share buys the same fraction of compute and of an app-RAM pool (the Hyper-V
++ * partition backend: memory-share.mjs gives a partition floor(pool x share) MiB), the version's RAM floor is a share
++ * requirement too, rounded up the same way (the site's minPctsOf does the same). 0 (absent) keeps RAM out of it.
+  */
+-export function effectiveCpuShare(d, version, cpuGflops) {
++export function effectiveCpuShare(d, version, cpuGflops, sharePoolMiB = 0) {
+   const dial = Number(d && d.cpuMilli) / 1000 || 0;
+-  const need = version ? nodeFloorOf(version).cpuGflops : 0;
+-  if (!(need > 0) || !(Number(cpuGflops) > 0)) return dial;
+-  return Math.max(dial, Math.min(1, Math.ceil(need / Number(cpuGflops) * 100 - 1e-9) / 100));
++  const floor = version ? nodeFloorOf(version) : null;
++  const pct = (x) => Math.min(1, Math.ceil(x * 100 - 1e-9) / 100);
++  const cpuNeed = floor && floor.cpuGflops > 0 && Number(cpuGflops) > 0 ? pct(floor.cpuGflops / Number(cpuGflops)) : 0;
++  const ramNeed = floor && Number(sharePoolMiB) > 0 ? pct(floor.memMb / Number(sharePoolMiB)) : 0;
++  return Math.max(dial, cpuNeed, ramNeed);
++}
++/** The app RAM one share is given on a coupled box, exactly as the partition manager computes it (memory-share.mjs). */
++export function shareRamMiB(sharePoolMiB, share) {
++  return Math.floor(Number(sharePoolMiB) * Number(share) + 1e-7);
+ }
+ export function nodeFloorOf(v) {
+   const fb = cpuFallbackOfConfig(v && v.config);
+@@ -701,10 +711,16 @@
+   // Capacity, in the numbers the refusal can be checked against. A lease this box cannot fit is
+   // worse than one it declines: the tenant's funding is tied up against an app that thrashes.
+   if (capacity) {
+-    const dial = Number(d.cpuMilli) / 1000, want = effectiveCpuShare(d, version, capacity.cpuGflops);
+-    const derived = want > dial + 1e-9 ? ` (its version needs ${nodeFloorOf(version).cpuGflops} GFLOPS, ${Math.round(want * 100)}% of this box)` : "";
++    const pool = Number(capacity.sharePoolMiB) || 0;
++    const dial = Number(d.cpuMilli) / 1000, want = effectiveCpuShare(d, version, capacity.cpuGflops, pool);
++    const needs = want > dial + 1e-9 ? [...(nodeFloorOf(version).cpuGflops > 0 ? [`${nodeFloorOf(version).cpuGflops} GFLOPS`] : []),
++                                         ...(pool ? [`${nodeFloorOf(version).memMb} MB of RAM`] : [])] : [];
++    const derived = needs.length ? ` (its version needs ${needs.join(" and ")}, ${Math.round(want * 100)}% of this box)` : "";
+     if (capacity.slotsFree != null && capacity.slotsFree <= 0)
+       return `this box is running its ${capacity.slots} app slots already`;
++    // A coupled box that cannot read what its partition manager holds does not know what is free: unknown is not room.
++    if (capacity.ramUnknown)
++      return `this box cannot establish how much of its app RAM pool is reserved (${capacity.ramUnknown}); it takes no new work until it can`;
+     // The box owner's hosting cap (windows/node/hosting.mjs), named when it is what limits: the box is not full, its
+     // owner offers less of it.
+     if (want > (capacity.cpuShareFree ?? 0) + 1e-9)
+@@ -712,6 +728,10 @@
+         ? `it takes ${Math.round(want * 100)}% of this box${derived}, and the owner offers ${Math.round(capacity.cpuCap.offered * 100)}%`
+           + ` of this box's CPU to hosting with ${Math.round(capacity.cpuCap.used * 100)}% of that in use`
+         : `it takes ${Math.round(want * 100)}% of this box${derived} and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
++    // ONE SHARE, BOTH POOLS: the RAM this share is given (never only the catalog floor) must be free as well.
++    if (pool && capacity.ramMbFree != null && shareRamMiB(pool, want) > capacity.ramMbFree)
++      return `it takes ${Math.round(want * 100)}% of this box${derived}, which is ${shareRamMiB(pool, want)} MB of its app RAM,`
++        + ` and this box has ${capacity.ramMbFree} MB left`;
+     if (version && capacity.ramMbFree != null) {
+       const floor = nodeFloorOf(version);
+       if (floor.memMb > capacity.ramMbFree)
+diff --git a/windows/node/host.mjs b/windows/node/host.mjs
+index eb8ceda7d2a9c33bcebd76375a720a09c381ebf8..23e7c7c1f0491e9bc93a7817613d4041bd7c13e3 100644
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -723,6 +723,9 @@
+     // hosting cap: a hint for a deployment this box runs is not a new claim, and lowering a cap never takes a running
+     // app away (hosting.mjs). Measured against itself, or against a cap below what runs, it would be marked refused.
+     const here = Host.occupies(this.records.get(id) || {});
++    // a claim is sized against what the partition manager holds NOW, not what the last pass saw
++    if (this.sharesCoupled() && !(Date.now() - (this.managerView?.at || 0) < Host.MANAGER_VIEW_CLAIM_AGE_MS && !this.managerView?.error))
++      await this.refreshManagerView();
+     const refuse = await this.walletPolicyRefusal({...d,id}) || this.claimRefusal(d, { version: v, capacity: this.capacity({ exclude: id, capped: !here }),
+                                           appsEnabled: this.cfg.appsEnabled, invited: invited || force });
+     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse, standing: "refused" }; }
+@@ -905,6 +908,12 @@
+     const cpuRoom = cpu > wasCpu ? capped.cpuShareFree : open.cpuShareFree;
+     const gpuRoom = (gpu > wasGpu ? capped.gpuShareFree : open.gpuShareFree) ?? 0;
+     const under = (c) => (c ? ` under the owner's ${Math.round(c.offered * 100)}% hosting cap` : "");
++    // A growth this box cannot size because what its partition manager holds is unknown is not a refusal: it is
++    // decided on a later pass (not recorded as served), and the lease is kept.
++    if (cpu > wasCpu && capped.ramUnknown) {
++      this.log(`resize ${id.slice(0, 10)}: node share ${Math.round(wasCpu * 100)}% -> ${Math.round(cpu * 100)}% waits: ${capped.ramUnknown}`);
++      return;
++    }
+     if (cpu > cpuRoom + 1e-9) {
+       return await this.#giveUp(id, `it was resized to ${Math.round(cpu * 100)}% of a node and this box has`
+         + ` ${Math.round(cpuRoom * 100)}% left${under(cpu > wasCpu && capped.cpuCap)}; handing the lease back so a box that fits can take it`);
+@@ -921,7 +930,8 @@
+       return;
+     }
+     this.log(`resize ${id.slice(0, 10)}: node share ${Math.round(wasCpu * 100)}% -> ${Math.round(cpu * 100)}%`
+-      + ` (an admission and billing figure here: an app in this enclave is interpreted, not cgroup-sliced)`);
++      + (this.sharesCoupled() ? " (its partition is relaunched in place at the new share's RAM by the isolation reconcile)"
++        : ` (an admission and billing figure here: an app in this enclave is interpreted, not cgroup-sliced)`));
+   }
+ 
+   /**
+@@ -1214,6 +1224,10 @@
+       return this.#record(id, { status: "provisioning", reason: pendingRestart.reason });
+ 
+     const body = IsolationManagerClient.spawnBody(plan.spawn);
++    // THE SHARE THIS BOX COUNTS, not only the one dialed: the manager sizes the partition's RAM from body.cpuShare, and a
++    // version that needs more than the dial (its GFLOPS or RAM floor, cpuShareOf) is counted here at that larger share.
++    // Spawned at the dial, 0xc13d4b6a (dialed 1%, its version needs 2%) held 983 MiB while this box counted 1966.
++    if (this.sharesCoupled()) body.cpuShare = this.cpuShareOf(id, d, v);
+     // What this partition holds of the card is what it is spawned with, not what the lease bought: the accounting the
+     // owner's GPU cap and the tray read (shareUse).
+     this.#record(id, { partitionGpuShare: Number(body.gpuShare) || 0 });
+@@ -1241,8 +1255,45 @@
+       if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: version change (${stale}); the old domain `
+         + "could not be confirmed removed, so nothing new is started" });
+     }
++    // A DOMAIN SIZED FOR ANOTHER SHARE is never adopted silently (isolation-lifecycle holds it, and a held domain does not
++    // serve), and a running app is never grown or shrunk in place on this node's own initiative. Only when its owner paid
++    // for MORE than its partition holds (the dial, what the ledger bills, is above the partition's share: a resize up) is
++    // it relaunched at its share - when that fits beside the others, at most once per SHARE_RELAUNCH_MIN_MS. Otherwise it
++    // is adopted at the share it HAS and keeps serving, the difference on its record (allocatedShare, reason); coupledRoom
++    // counts the larger of the two, so nothing is oversold meanwhile, and its next fresh start is at its share.
++    // (0xc13d4b6a: dialed 1%, its version needs 2%, spawned at 1% by the dial: adopted at 1% until it starts again.)
++    let adoptBody = body, shareWait = null, allocatedShare = null;
++    const sized = stale ? null : await client.findByName(id).catch(() => null);
++    const mem = sized && !sized.recovered && sized.memory?.rule === "cpu-share" ? sized.memory : null;
++    if (this.sharesCoupled() && mem && Math.abs(Number(mem.cpuShare) - Number(body.cpuShare)) > 1e-9) {
++      const pct = (x) => `${Math.round(Number(x) * 100)}%`;
++      const what = `${sized.id} was given ${mem.appMiB} MiB for a ${pct(mem.cpuShare)} share and this deployment takes ${pct(body.cpuShare)}`;
++      let wait = "it holds at least the share its owner pays for, so it is not resized in place; its next fresh start is at its share";
++      if (Number(d.cpuMilli) / 1000 > Number(mem.cpuShare) + 1e-9) {
++        const room = this.capacity({ exclude: id });
++        const need = chain.shareRamMiB(this.sharePoolMiB(), body.cpuShare);
++        const since = Date.now() - (Number(this.records.get(id)?.shareRelaunchAt) || 0);
++        wait = room.ramUnknown ? `what the manager holds is unknown (${room.ramUnknown})`
++          : Number(body.cpuShare) > room.cpuShareFree + 1e-9 || need > room.ramMbFree
++            ? `${need} MiB does not fit beside the others (${room.ramMbFree} MiB left)`
++          : since < Host.SHARE_RELAUNCH_MIN_MS ? `it was relaunched for its share ${Math.round(since / 1000)} s ago` : null;
++      }
++      if (wait) {
++        shareWait = `isolation: ${what}; not relaunched: ${wait}`;
++        allocatedShare = Number(mem.cpuShare);
++        if (this.records.get(id)?.reason !== shareWait) this.log(`${id.slice(0, 10)} ${shareWait}`);
++        this.#record(id, { reason: shareWait, allocatedShare });
++        adoptBody = { ...body, cpuShare: mem.cpuShare };
++      } else {
++        this.log(`${id.slice(0, 10)} isolation: ${what}; its owner pays for more, relaunching it in place at its share`);
++        this.#record(id, { shareRelaunchAt: Date.now() });
++        const gone = await this.#retireIsolated(id, `share relaunch: ${what}`);
++        if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: ${what}; the old domain could not be `
++          + "confirmed removed, so nothing new is started" });
++      }
++    }
+     let r;
+-    try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
++    try { r = await reconcile({ client, deployment: { id, body: adoptBody }, ledger: null }); }
+     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
+ 
+     // RECOVERY AFTER A MANAGER OR HOST RESTART (enclave-87's ruling (B) and its amendment from d1's live A8). A VM the
+@@ -1392,7 +1443,7 @@
+     // 2026-10-14 03:52Z poweroff one did, so the line never fired. Only this node's own retire forgets a domain.
+     this.#noteServing(id, inst, r.action);
+     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
+-    return this.#record(id, { status: "running", reason: null, isolationHeld: null, boundaryHeld: null,
++    return this.#record(id, { status: "running", reason: shareWait, allocatedShare, isolationHeld: null, boundaryHeld: null,
+                               // when this pass last saw it serving: what proveAll's checkpoint stands on
+                               servingSeenAt: Date.now(),
+                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
+@@ -2488,6 +2539,8 @@
+     // a worker is answering, and a worker that dies mid-shift must take the card's price off the
+     // registry with it.
+     await this.ensurePriced().catch((e) => this.log(`prices: ${e.message}`));
++    // what the partition manager holds, read once per pass before anything is sized against it (sharesCoupled)
++    if (this.sharesCoupled()) await this.refreshManagerView();
+     // SERVING FIRST: every deployment this box already tracks (served, adopted after a restart, recovered) is reconciled
+     // BEFORE the queued-claim sweep - its fresh row, the host wallet and platform decisions, renew-when-due, the owner's
+     // edit and resize, adoption, keeper eligibility and its readiness row. A slow sweep (a claim's gate, send and launch)
+@@ -2830,10 +2883,98 @@
+    */
+   cpuShareOf(id, d, version = null) {
+     const dial = Number(d && d.cpuMilli) / 1000 || 0;
+-    const need = version ? chain.effectiveCpuShare({ cpuMilli: 0 }, version, Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0)
++    const need = version ? chain.effectiveCpuShare({ cpuMilli: 0 }, version, Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0,
++                                                   this.sharesCoupled() ? this.sharePoolMiB() : 0)
+                          : Number(this.records.get(id)?.needCpuShare) || 0;
+     return Math.max(dial, need);
+   }
++
++  /**
++   * ONE SHARE, BOTH POOLS. On the partition backend a share is a fraction of this box's compute AND of its app RAM pool:
++   * the manager gives a partition floor(pool x share) MiB (memory-share.mjs), so 1% of the box is 1% of the CPU and 1%
++   * of NODE_APP_RAM_GB. What is free is therefore ONE fraction, bound by the owner's reserve and cap exactly as the CPU
++   * is, and by what the manager actually holds (a partition sized for another share, a failed one not yet removed, its
++   * readiness witness). The guest OS's own overhead (align2(max(2048, app + 640)) per VM) is outside the pool and is
++   * never sold. Unknown is not room: an unread, stale or recovered manager, or one sizing from another pool, sells nothing new.
++   */
++  sharesCoupled() { return this.isolation && !this.appsInTee(); }
++  /** The app RAM pool one share is a fraction of (NODE_APP_RAM_GB, at most the machine's RAM). */
++  sharePoolMiB() { return this.#hostRamMb(); }
++  #hostRamMb() {
++    const physicalMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024);
++    // RAM is an independent hosting budget, not a CPU share. Invalid explicit
++    // budgets admit nothing; absence preserves the older reserved-share policy.
++    const configuredRam = this.cfg.appRamGb;
++    return configuredRam === undefined || configuredRam === null
++      ? Math.round(physicalMb * (1 - (this.cfg.reservedShare ?? 0.25)))
++      : (Number.isFinite(configuredRam) && configuredRam >= 0
++        ? Math.min(physicalMb, Math.floor(configuredRam * 1024)) : 0);
++  }
++  static MANAGER_VIEW_MAX_AGE_MS = 10 * 60_000;     // older than this, what the manager holds is unknown (sells nothing new)
++  static MANAGER_VIEW_CLAIM_AGE_MS = 30_000;        // a claim re-reads anything older
++  /** { at, memory, vms } from the manager's GET /health and GET /vms, or { at, error }; null before the first read. */
++  managerView = null;
++  async refreshManagerView(client = null) {
++    if (!this.cfg.isolationManager && !client) return null;
++    try {
++      if (!client) {
++        const { IsolationManagerClient } = await import("./isolation-client.mjs");
++        client = new IsolationManagerClient({ base: this.cfg.isolationManager, timeoutMs: 10_000 });
++      }
++      const [health, vms] = await Promise.all([client.health(), client.list()]);
++      // a malformed answer is an unread manager, never an empty one
++      if (!Array.isArray(vms)) throw new Error("its /vms answer is not a list");
++      if (!health || typeof health !== "object") throw new Error("its /health answer is not an object");
++      this.managerView = { at: Date.now(), memory: health.memory ?? null, vms };
++    } catch (e) {
++      if (!this.managerView?.error) this.log(`isolation: the partition manager's reservations could not be read: ${e.message}`);
++      this.managerView = { at: Date.now(), error: e.message };
++    }
++    return this.managerView;
++  }
++  /**
++   * coupledRoom({exclude, capped}) -> { pool, share, heldMiB, unknown }: the fraction of this box still free in BOTH pools.
++   * Each deployment holds the larger of what its share buys (floor(pool x cpuShare), the ledger) and what the manager says
++   * its partitions hold; partitions naming no deployment count against the manager's own pool. `capped: false` (a resize
++   * that does not grow, a deployment already here) ignores the owner's cap and is not refused for an unknown manager.
++   */
++  coupledRoom({ exclude = null, capped = true } = {}) {
++    const pool = this.sharePoolMiB(), view = this.managerView, ex = exclude ? String(exclude).toLowerCase() : null;
++    const unknown = (why) => ({ pool, share: capped ? 0 : Infinity, heldMiB: null, unknown: why });
++    if (!(pool > 0)) return { pool, share: 0, heldMiB: null, unknown: "it has no app RAM pool (NODE_APP_RAM_GB)" };
++    if (!view) return unknown("its partition manager has not been read yet");
++    if (view.error) return unknown(`its partition manager could not be read: ${view.error}`);
++    if (!(Date.now() - view.at <= Host.MANAGER_VIEW_MAX_AGE_MS)) return unknown(`its partition manager was last read ${Math.round((Date.now() - view.at) / 1000)} s ago`);
++    // The manager must SAY it sizes partitions by share, from this node's pool: a manager that states no rule (an older
++    // pool-less one), another rule, or another pool is not one whose reservations this node can add up.
++    const mgrPool = view.memory?.rule === "cpu-share" && Number.isSafeInteger(view.memory.poolMiB) ? view.memory.poolMiB : null;
++    if (mgrPool === null) return unknown("its partition manager states no cpu-share RAM pool");
++    if (mgrPool !== pool)
++      return unknown(`the partition manager sizes partitions from a ${mgrPool} MiB pool and this node sells a ${pool} MiB one`);
++    const held = new Map();
++    let other = 0;
++    for (const v of view.vms) {
++      if (v.recovered || v.unattributed) return unknown(`partition ${v.id} was recovered from an earlier manager and its reservation is unknown until it is reconciled`);
++      const name = String(v.name || "").toLowerCase();
++      // only the readiness witness is sized by its pinned policy (server.mjs: no purchase, no share); every other
++      // partition must state its share reservation, and one that does not is unknown, never its catalog floor
++      const witness = name === "shield-readiness-v1" && !v.memory;
++      const mib = witness ? v.policy?.memMiB : v.memory?.rule === "cpu-share" ? v.memory.appMiB : null;
++      if (!Number.isSafeInteger(mib) || mib < 0) return unknown(`partition ${v.id} states no RAM reservation`);
++      if (!/^0x[0-9a-f]{64}$/.test(name)) other += mib;
++      else if (name !== ex) held.set(name, (held.get(name) || 0) + mib);
++    }
++    for (const r of this.records.values()) {
++      const id = String(r.id || "").toLowerCase();
++      if (!Host.occupies(r) || id === ex) continue;
++      held.set(id, Math.max(held.get(id) || 0, chain.shareRamMiB(pool, r.cpuShare || 0)));
++    }
++    const sold = [...held.values()].reduce((a, b) => a + b, 0);
++    const limit = Math.max(0, Math.min(1 - (this.cfg.reservedShare ?? 0.25), capped ? this.#offered("cpuShare") : 1));
++    // ...and the manager's own admission (server.mjs: held + new <= its pool), which also counts the witness
++    const room = Math.min(chain.shareRamMiB(pool, limit) - sold, mgrPool - sold - other);
++    return { pool, share: Math.max(0, room) / pool, heldMiB: sold, unknown: null };
++  }
+   shareUse({ exclude = null } = {}) {
+     let cpu = 0, gpu = 0, gpuInUse = 0;
+     for (const r of this.records.values()) {
+@@ -2853,7 +2994,10 @@
+     // The owner's cap (hosting.mjs) can only lower this; at the default 1.0 it never binds and the figure is exactly
+     // the one before caps existed.
+     const offered = capped ? this.#offered("cpuShare") - used : Infinity;
+-    return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
++    let free = Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
++    if (this.sharesCoupled()) free = Math.min(free, this.coupledRoom({ exclude, capped }).share);
++    // whole millionths, rounded down: 1 - 0.58 - 0.25 is 0.16999999999999993 in floating point, which reads as 16%
++    return Math.floor(free * 1e6 + 1e-6) / 1e6;
+   }
+   /**
+    * The CARD pool this box has left, as a fraction of the worker's budget.
+@@ -3066,14 +3210,7 @@
+     // reported 14 GB of its enclave "used" while four apps between them held half a gigabyte.
+     // Cores are sold as a share; this memory is a fixed allocation, and it reports as one.
+     const enclaveMb = Math.round((Number(this.cfg.enclaveGb) || 0) * 1024);
+-    const physicalMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024);
+-    // RAM is an independent hosting budget, not a CPU share. Invalid explicit
+-    // budgets admit nothing; absence preserves the older reserved-share policy.
+-    const configuredRam = this.cfg.appRamGb;
+-    const hostMb = configuredRam === undefined || configuredRam === null
+-      ? Math.round(physicalMb * (1 - (this.cfg.reservedShare ?? 0.25)))
+-      : (Number.isFinite(configuredRam) && configuredRam >= 0
+-        ? Math.min(physicalMb, Math.floor(configuredRam * 1024)) : 0);
++    const hostMb = this.#hostRamMb();
+     // UNKNOWN is not ZERO. `engineHeldMb` is null until the node has asked the enclave what the
+     // model, its KV cache and the pads hold (the host protocol's `mem`), and treating that as "the
+     // engine holds nothing" would offer a tenant the WHOLE enclave including the part the engine
+@@ -3094,9 +3231,13 @@
+     const budgetMb = this.appsInTee()
+       ? (measured === null ? 0 : Math.min(Math.max(0, enclaveMb - engineMb), capMb > 0 ? capMb : Infinity))
+       : hostMb;
+-    const ramMb = Math.max(0, budgetMb - committedMb);
+     const card = this.card && this.card();
+     const cpuFree = this.cpuShareFree({ exclude, capped }), gpuFree = this.gpuShareFree({ exclude, capped });
++    // ...except on the partition backend, where RAM is NOT independent: a share buys floor(pool x share) MiB, so what is
++    // free is the free share of the pool (coupledRoom has already bound cpuFree by RAM), never pool less catalog floors
++    // (2026-10-23 NucBox: 79.8 of 96 GB "free" beside 17% of its CPU, while the manager held 57% of the pool).
++    const coupled = this.sharesCoupled() ? this.coupledRoom({ exclude, capped }) : null;
++    const ramMb = coupled ? chain.shareRamMiB(coupled.pool, cpuFree) : Math.max(0, budgetMb - committedMb);
+     // THE OWNER'S CAP, named when it is what limits an axis (the capped figure is below the uncapped one), so a refusal
+     // says so (chain.mjs claimPolicy) instead of reading as a full box.
+     const use = this.shareUse({ exclude });
+@@ -3113,6 +3254,10 @@
+              cpuGflops: Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0,
+              // The card, in the same shape: what a GPU-dialled deployment is checked against.
+              gpuShareFree: gpuFree, cardGb: card ? Number(card.vramBudgetGb) || 0 : 0,
++             // coupled: the pool a share is a fraction of (claimPolicy sizes RAM floors and shares against it), what the
++             // deployments hold of it, and why nothing new is sold when what the manager holds is unknown
++             // (new work only: what is already here is not refused for a manager this node cannot read right now)
++             ...(coupled ? { sharePoolMiB: coupled.pool, ramMbHeld: coupled.heldMiB, ...(coupled.unknown && capped ? { ramUnknown: coupled.unknown } : {}) } : {}),
+              ...(cpuCap ? { cpuCap } : {}), ...(gpuCap ? { gpuCap } : {}) };
+   }
+   /**
+@@ -3383,6 +3528,7 @@
+   }
+   static MARKET_GRACE_MS = 15 * 60_000;    // servingScope(): the relay's owner-read grace is the same 15 min
+   static STARTUP_GRACE_MS = 10 * 60_000;   // a running owner-committed partition outlasts an unanswered re-verification this long
++  static SHARE_RELAUNCH_MIN_MS = 10 * 60_000;   // at most one in-place relaunch per deployment for its share in this window
+   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
+   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
+   static SCAN_CLAIMFAIL_HOLD_MS = 2 * 60_000; // a row whose claim tx failed twice running under the same inputs
+diff --git a/windows/node/isolation-client.mjs b/windows/node/isolation-client.mjs
+index 00c6994073b384a8e412b1f608bf97520850e7ff..8af54860ae9213606e7fc3d1d106f8db6497303c 100644
+--- a/windows/node/isolation-client.mjs
++++ b/windows/node/isolation-client.mjs
+@@ -153,7 +153,9 @@
+   async list() {
+     const r = await this.#req("GET", "/vms");
+     if (r.status !== 200) throw IsolationManagerClient.#answerError("GET /vms", r);
+-    const rows = Array.isArray(r.body) ? r.body : (r.body && r.body.vms) || [];
++    // An answer with no inventory is not an EMPTY inventory: "nothing is running" would let a caller sell the whole box
++    const rows = Array.isArray(r.body) ? r.body : Array.isArray(r.body?.vms) ? r.body.vms : null;
++    if (!rows) throw new IsolationError("protocol", "GET /vms: the answer carries no vms list");
+     return rows.map((v) => this.#view(v));
+   }
+ 
+@@ -216,6 +218,9 @@
+       imageRole: typeof o.imageRole === "string" ? o.imageRole : "legacy",
+       igvmSha256: typeof o.igvmSha256 === "string" && /^[0-9a-f]{64}$/.test(o.igvmSha256) ? o.igvmSha256 : null,
+       memory: o.memory ?? null,
++      // the pinned policy it was derived with: a partition the manager sized without a share (its readiness witness, an
++      // older pool-less manager) holds policy.memMiB of the pool, which the node counts (host.mjs coupledRoom)
++      policy: o.policy && typeof o.policy === "object" ? o.policy : null,
+       image: o.image ?? null,
+       transportKeySha256: o.transportKeySha256 ?? null,
+       // carried through verbatim, never summarised away: the backend's own word about what its

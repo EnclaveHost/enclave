@@ -37,6 +37,8 @@ Frozen 1517 append (2026-10-23; "1517" = the batch start 15:17Z, an identifier):
 
 Frozen 1639 append (2026-10-23; "1639" = the batch start 16:39Z, an identifier): root-accepted terminal heads A credit-vault submitter fd8d5806 (SOURCE-ONLY: the held MCP bundle as before), E generated-artifact reconcile ff13ebe0 + report d37f7a04 (exports/ omitted), ROOT nucbox-ram96 3d42d7eb (96 GiB activation, headroom, share mismatch), ROOT RPC integration review 803c6975, ROOT api-mcp 844edbf2; root receipts and journal/requirements snapshots. The coupled resource-share fix is active WIP and not captured. See `MANIFEST.json` `appends`.
 
+Frozen 1726 append (2026-10-23; "1726" = the batch start 17:26Z, an identifier): resource repair only. Node coupled-share fix a5e155ec on the installed baseline 0f1ef848 + ROOT activation report 33ba0fc3; CPU enforcement source 670a753e/bf376363/ea6717d2 (+ retained old-guest-b 15ad0042) + ROOT native Hyper-V canary c516049c; CPU worker FINAL.txt and canary kit runner/manifests; root receipts and journal/requirements snapshots. The whole CPU fix is NOT complete (manager/guest rollout pending; guest cgroup enforcement not yet native); pre-existing fixture failures are not called green. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

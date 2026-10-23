@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-10-23T17:00:57.2532363Z",
+  "status": "native CPU allocation and SMP canary passed; production rollout pending",
+  "sourceCommit": "15ad00420733ea47a5747a14687a4afb3e12a14a",
+  "evidenceCommit": "c516049cb763149ad261b32c7eac16524d49b939",
+  "poolVcpus": 16,
+  "runs": [
+    {
+      "share": 0.01,
+      "exit": 0,
+      "ok": true,
+      "want": {
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000
+      },
+      "readback": {
+        "reservation": 16000,
+        "weight": 100,
+        "count": 1,
+        "maximum": 16,
+        "limit": 16000,
+        "vcpus": 1,
+        "reserve": 16,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 1,
+      "error": null
+    },
+    {
+      "share": 0.21,
+      "exit": 0,
+      "ok": true,
+      "want": {
+        "vcpus": 4,
+        "limit": 84000,
+        "reservation": 84000
+      },
+      "readback": {
+        "reservation": 84000,
+        "weight": 100,
+        "count": 4,
+        "maximum": 84,
+        "limit": 84000,
+        "vcpus": 4,
+        "reserve": 84,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 4,
+      "error": null
+    },
+    {
+      "share": 0.13,
+      "exit": 0,
+      "ok": true,
+      "want": {
+        "vcpus": 3,
+        "limit": 69333,
+        "reservation": 69333
+      },
+      "readback": {
+        "reservation": 69333,
+        "weight": 100,
+        "count": 3,
+        "maximum": 69,
+        "limit": 69333,
+        "vcpus": 3,
+        "reserve": 69,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 3,
+      "error": null
+    }
+  ],
+  "canaryVmsRemaining": 0,
+  "originalVms": 12,
+  "originalVmIdsAndStatesUnchanged": true,
+  "productionManagerUnchanged": true,
+  "productionFilesChanged": false,
+  "limitations": [
+    "No application throughput benchmark.",
+    "Guest CPU allowance image and loader are not activated.",
+    "Node accounting and share-resize repair remain pending rollout.",
+    "This does not establish Custody v2 rollout or decentralized custody."
+  ]
+}

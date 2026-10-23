@@ -1,0 +1,468 @@
+From c516049cb763149ad261b32c7eac16524d49b939 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:03:46 -0700
+Subject: [PATCH] Verify exact CPU shares and SMP on NucBox using isolated
+ native canaries
+
+---
+ native-canary.py  |  61 +++++++++++++++++++++++++
+ native-read.ps1   |   1 +
+ native-run.ps1    |   1 +
+ native-stage.ps1  |   1 +
+ read-1.guard.log  |   1 +
+ read-1.out        |   5 ++
+ read.json         | 100 ++++++++++++++++++++++++++++++++++++++++
+ run-1.guard.log   |   1 +
+ run.json          |  76 +++++++++++++++++++++++++++++++
+ stage-1.guard.log |   1 +
+ stage-2.guard.log |   1 +
+ stage.json        | 114 ++++++++++++++++++++++++++++++++++++++++++++++
+ 12 files changed, 363 insertions(+)
+ create mode 100644 native-canary.py
+ create mode 100644 native-read.ps1
+ create mode 100644 native-run.ps1
+ create mode 100644 native-stage.ps1
+ create mode 100644 read-1.guard.log
+ create mode 100644 read-1.out
+ create mode 100644 read.json
+ create mode 100644 run-1.guard.log
+ create mode 100644 run.json
+ create mode 100644 stage-1.guard.log
+ create mode 100644 stage-2.guard.log
+ create mode 100644 stage.json
+
+diff --git a/native-canary.py b/native-canary.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..2eae6ac273ac154bd10099849e109f60a3c18a34
+--- /dev/null
++++ b/native-canary.py
+@@ -0,0 +1,61 @@
++"""Root-only staging and execution of the reviewed, isolated CPU canary; never edits live control files."""
++import argparse,datetime,hashlib,importlib.util,json,pathlib,subprocess
++HERE=pathlib.Path(__file__).resolve().parent
++BASE=HERE.parent
++ROOT=BASE.parents[1]
++s=importlib.util.spec_from_file_location('helper',ROOT/'work/nucbox-tls-20261021/root-activate-reviewed.py')
++m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=argparse.ArgumentParser();p.add_argument('step',choices=['stage','run','read']);a=p.parse_args()
++remote=r'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658'
++out=remote+r'\results'
++commit='15ad00420'
++allowed={'windows/vbslike/manager/'+x+'.mjs' for x in ['cpu-share','egress','psrun','wmi-launcher','wmiserve-run']}
++allowed|={'windows/vbslike/manager/ops/launcher-canary.mjs','windows/vbslike/verify/boot-statements.mjs'}
++manifest=json.loads((BASE/'native-canary/KIT-MANIFEST.json').read_text())
++assert {r['path'] for r in manifest['kit']}==allowed
++rows=[]
++for row in manifest['kit']:
++ rel=row['path'];src=BASE/'native-canary/kit'/rel
++ data=src.read_bytes()
++ assert hashlib.sha256(data).hexdigest()==row['sha256']
++ assert data==subprocess.check_output(['git','-C',str(BASE/'repo'),'show',commit+':'+rel])
++ rows.append((src,rel,row['sha256']))
++runner=BASE/'native-canary/run-cpu-canary.ps1'
++runner_sha=hashlib.sha256(runner.read_bytes()).hexdigest()
++assert runner_sha==manifest['runner']['sha256']
++rows.append((runner,'run-cpu-canary.ps1',runner_sha))
++receipt=HERE/'stage.json'
++checks=''.join("if((FileSha '"+remote+'\\'+rel.replace('/','\\')+"') -ne '"+sha+"'){throw 'Canary file changed: "+rel+"'};" for _,rel,sha in rows)
++def invoke_script(script,seconds):
++ local=HERE/('native-'+a.step+'.ps1')
++ local.write_text(script+'\n')
++ sha=hashlib.sha256(local.read_bytes()).hexdigest()
++ dst=remote+'\\native-'+a.step+'.ps1'
++ subprocess.run(['scp','-o','BatchMode=yes','-o','ConnectTimeout=15',str(local),'minipc:'+dst.replace('\\','/')],check=True,timeout=45,capture_output=True,text=True)
++ return m.ps("$p='"+dst+"';if((FileSha $p) -ne '"+sha+"'){throw 'Root script changed'};& ([ScriptBlock]::Create([IO.File]::ReadAllText($p)))",seconds)
++if a.step=='stage':
++ dirs=sorted({str(pathlib.PurePosixPath(rel).parent) for _,rel,_ in rows})
++ script=''.join("New-Item -ItemType Directory -Force -Path '"+remote+'\\'+d.replace('/','\\')+"'|Out-Null;" for d in dirs)
++ r=m.ps(script+"@{ok=$true}|ConvertTo-Json -Compress",30)
++ assert r.get('ok'),r
++ for src,rel,_ in rows:
++  subprocess.run(['scp','-o','BatchMode=yes','-o','ConnectTimeout=15',str(src),'minipc:'+remote.replace('\\','/')+'/'+rel],check=True,timeout=45)
++ script=checks+r'''$err=$null;$tokens=$null;$null=[Management.Automation.Language.Parser]::ParseFile('RUNNER',[ref]$tokens,[ref]$err);if($err.Count){throw ($err|Out-String)};$os=Get-CimInstance Win32_OperatingSystem;if($os.FreePhysicalMemory -lt 8*1024*1024){throw 'Less than 8 GiB physical headroom'};if(@(Get-VM|Where-Object {$_.Name.StartsWith('enclave-cpucanary-')}).Count){throw 'Canary prefix already occupied'};$m=@(Get-NetTCPConnection -LocalPort 8091 -State Listen);if($m.Count -ne 1){throw 'Expected one Shield listener'};@{ok=$true;at=(Get-Date).ToUniversalTime().ToString('o');shieldPid=$m[0].OwningProcess;freePhysicalKiB=$os.FreePhysicalMemory;vms=@(Get-VM|Select-Object Id,Name,State)}|ConvertTo-Json -Depth 4 -Compress'''.replace('RUNNER',remote+r'\run-cpu-canary.ps1')
++ r=invoke_script(script,45)
++ if r.get('ok'):
++  receipt.write_text(json.dumps({'commit':subprocess.check_output(['git','-C',str(BASE/'repo'),'rev-parse',commit],text=True).strip(),'manifest':manifest,'result':r},indent=2)+'\n')
++elif a.step=='run':
++ prior=json.loads(receipt.read_text());assert prior['manifest']==manifest
++ age=datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(prior['result']['at'].replace('Z','+00:00'))
++ assert age.total_seconds()<900,'Staged preflight stale'
++ pid=int(prior['result']['shieldPid'])
++ script=checks+f"$m=@(Get-NetTCPConnection -LocalPort 8091 -State Listen);if($m.Count -ne 1 -or $m[0].OwningProcess -ne {pid}){{throw 'Shield changed since staging'}};"
++ script+="& ([ScriptBlock]::Create([IO.File]::ReadAllText('"+remote+"\\run-cpu-canary.ps1'))) -Kit '"+remote+"' -Shares @(0.01,0.21,0.13) -Out '"+out+"'"
++ r=invoke_script(script,420)
++ (HERE/'run.json').write_text(json.dumps(r,indent=2)+'\n')
++else:
++ script=r'''$files=@(Get-ChildItem -LiteralPath 'OUT' -File -ErrorAction SilentlyContinue|Where-Object {$_.Name -match '^(summary\.json|out-.+\.jsonl|err-.+\.txt)$'}|ForEach-Object {@{name=$_.Name;text=[IO.File]::ReadAllText($_.FullName)}});@{at=(Get-Date).ToUniversalTime().ToString('o');files=$files;vms=@(Get-VM|Select-Object Id,Name,State);shield=@(Get-NetTCPConnection -LocalPort 8091 -State Listen|Select-Object OwningProcess)}|ConvertTo-Json -Depth 5 -Compress'''.replace('OUT',out)
++ r=invoke_script(script,45)
++ (HERE/'read.json').write_text(json.dumps(r,indent=2)+'\n')
++print(json.dumps(r))
++if a.step!='read' and not r.get('ok'):raise SystemExit(1)
+diff --git a/native-read.ps1 b/native-read.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..af6a84b89dc0d9592dfaddb162f4b9ad2d9f632c
+--- /dev/null
++++ b/native-read.ps1
+@@ -0,0 +1 @@
++$files=@(Get-ChildItem -LiteralPath 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\results' -File -ErrorAction SilentlyContinue|Where-Object {$_.Name -match '^(summary\.json|out-.+\.jsonl|err-.+\.txt)$'}|ForEach-Object {@{name=$_.Name;text=[IO.File]::ReadAllText($_.FullName)}});@{at=(Get-Date).ToUniversalTime().ToString('o');files=$files;vms=@(Get-VM|Select-Object Id,Name,State);shield=@(Get-NetTCPConnection -LocalPort 8091 -State Listen|Select-Object OwningProcess)}|ConvertTo-Json -Depth 5 -Compress
+diff --git a/native-run.ps1 b/native-run.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..152381fe6bfbbdfaabfd733d9c46433e2d37ad49
+--- /dev/null
++++ b/native-run.ps1
+@@ -0,0 +1 @@
++if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\cpu-share.mjs') -ne '50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0'){throw 'Canary file changed: windows/vbslike/manager/cpu-share.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\egress.mjs') -ne '1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05'){throw 'Canary file changed: windows/vbslike/manager/egress.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\ops\launcher-canary.mjs') -ne '1656dfdab11ae01b956f0ad9a825c611a0aa14f9a210787623e981e098ec8289'){throw 'Canary file changed: windows/vbslike/manager/ops/launcher-canary.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\psrun.mjs') -ne '39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6'){throw 'Canary file changed: windows/vbslike/manager/psrun.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\wmi-launcher.mjs') -ne '2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606'){throw 'Canary file changed: windows/vbslike/manager/wmi-launcher.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\wmiserve-run.mjs') -ne '9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14'){throw 'Canary file changed: windows/vbslike/manager/wmiserve-run.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\verify\boot-statements.mjs') -ne 'f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3'){throw 'Canary file changed: windows/vbslike/verify/boot-statements.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\run-cpu-canary.ps1') -ne '853570b417d80a2b103ebb8b9b82e3ac33d053313ee194e68ae354f410ab7c49'){throw 'Canary file changed: run-cpu-canary.ps1'};$m=@(Get-NetTCPConnection -LocalPort 8091 -State Listen);if($m.Count -ne 1 -or $m[0].OwningProcess -ne 2376){throw 'Shield changed since staging'};& ([ScriptBlock]::Create([IO.File]::ReadAllText('C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\run-cpu-canary.ps1'))) -Kit 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658' -Shares @(0.01,0.21,0.13) -Out 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\results'
+diff --git a/native-stage.ps1 b/native-stage.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b727589d914a97978d5a13e5bc936fe42b49b53
+--- /dev/null
++++ b/native-stage.ps1
+@@ -0,0 +1 @@
++if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\cpu-share.mjs') -ne '50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0'){throw 'Canary file changed: windows/vbslike/manager/cpu-share.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\egress.mjs') -ne '1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05'){throw 'Canary file changed: windows/vbslike/manager/egress.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\ops\launcher-canary.mjs') -ne '1656dfdab11ae01b956f0ad9a825c611a0aa14f9a210787623e981e098ec8289'){throw 'Canary file changed: windows/vbslike/manager/ops/launcher-canary.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\psrun.mjs') -ne '39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6'){throw 'Canary file changed: windows/vbslike/manager/psrun.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\wmi-launcher.mjs') -ne '2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606'){throw 'Canary file changed: windows/vbslike/manager/wmi-launcher.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\manager\wmiserve-run.mjs') -ne '9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14'){throw 'Canary file changed: windows/vbslike/manager/wmiserve-run.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\windows\vbslike\verify\boot-statements.mjs') -ne 'f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3'){throw 'Canary file changed: windows/vbslike/verify/boot-statements.mjs'};if((FileSha 'C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\run-cpu-canary.ps1') -ne '853570b417d80a2b103ebb8b9b82e3ac33d053313ee194e68ae354f410ab7c49'){throw 'Canary file changed: run-cpu-canary.ps1'};$err=$null;$tokens=$null;$null=[Management.Automation.Language.Parser]::ParseFile('C:\ProgramData\Enclave\hotfix\cpu-canary-20261023-1658\run-cpu-canary.ps1',[ref]$tokens,[ref]$err);if($err.Count){throw ($err|Out-String)};$os=Get-CimInstance Win32_OperatingSystem;if($os.FreePhysicalMemory -lt 8*1024*1024){throw 'Less than 8 GiB physical headroom'};if(@(Get-VM|Where-Object {$_.Name.StartsWith('enclave-cpucanary-')}).Count){throw 'Canary prefix already occupied'};$m=@(Get-NetTCPConnection -LocalPort 8091 -State Listen);if($m.Count -ne 1){throw 'Expected one Shield listener'};@{ok=$true;at=(Get-Date).ToUniversalTime().ToString('o');shieldPid=$m[0].OwningProcess;freePhysicalKiB=$os.FreePhysicalMemory;vms=@(Get-VM|Select-Object Id,Name,State)}|ConvertTo-Json -Depth 4 -Compress
+diff --git a/read-1.guard.log b/read-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..44bfa384883de7415dfe174dc57fbb4c53ee41dc
+--- /dev/null
++++ b/read-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24622
+diff --git a/read-1.out b/read-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a4b38fc138a740a39351ffdde25707efaa5cb9d
+--- /dev/null
++++ b/read-1.out
+@@ -0,0 +1,5 @@
++[queue] START available=24686MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++{"vms": [{"Id": "940285f5-c6fb-4091-98f1-8779715c233f", "Name": "enclave-app-hv181ef1f570cd6b-46de1836", "State": 2}, {"Id": "99581b30-de5f-450b-ac23-90d0735f3487", "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773", "State": 2}, {"Id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9", "Name": "enclave-app-hv3c8e73d2d9c235-322c5206", "State": 2}, {"Id": "29b799d0-98e6-43bb-9adf-5274dfe89e19", "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8", "State": 2}, {"Id": "f38952e3-537b-4271-85cd-6c14e993ee5c", "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a", "State": 2}, {"Id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07", "Name": "enclave-app-hvc18d297da5a21b-a79db30f", "State": 2}, {"Id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d", "Name": "enclave-app-hvc6c4073c817dad-ad0f596e", "State": 2}, {"Id": "07097d0e-65e3-4a84-8756-cc984cee2f1a", "Name": "enclave-app-hvdc425d67f2b0e1-3f770400", "State": 2}, {"Id": "dd22abf9-4ec1-4159-90fd-56b7115e986a", "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953", "State": 2}, {"Id": "14df250c-65f8-4218-8838-086d4f77cb6a", "Name": "enclave-app-hve60d223d27d01b-9e2053bc", "State": 2}, {"Id": "dd8df95d-b771-4545-a861-0092e74a40f3", "Name": "enclave-control", "State": 2}, {"Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8", "Name": "enclave-storage", "State": 2}], "shield": [{"OwningProcess": 2376}], "files": [{"text": "", "name": "err-0p01.txt"}, {"text": "", "name": "err-0p13.txt"}, {"text": "", "name": "err-0p21.txt"}, {"text": "{\"step\":\"preflight\",\"ok\":true,\"failed\":[]}\r\n{\"step\":\"start\",\"ok\":true,\"ms\":8637,\"handle\":{\"transport\":null,\"egress\":null,\"instanceId\":\"hv84271d1a8dc130-canary\",\"name\":\"enclave-cpucanary-hv84271d1a8dc130-canary\",\"vmId\":\"f0760250-606d-419d-b8bb-6d5de4b11beb\",\"pipe\":\"\\\\\\\\.\\\\pipe\\\\enclave-cpucanary-hv84271d1a8dc130-canary-com1\",\"state\":\"Running\",\"boot\":\"linux-direct\",\"isolationType\":1,\"image\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"guestIdentity\":{\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestImageKind\":\"igvm-linux-direct\",\"igvmSha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"igvmPath\":\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"},\"firmware\":{\"sha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"bytes\":76288988},\"boundary\":{\"tier\":\"T0-hv\",\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestStateIsolationType\":1,\"hostExcluded\":false,\"attested\":false,\"note\":\"a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity.\"},\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"vtpm\":{\"enabled\":true,\"pcrsRead\":false,\"note\":\"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.\"},\"cpu\":{\"rule\":\"allocated\",\"vcpus\":1,\"limit\":16000,\"reservation\":16000,\"grantedUnits\":16000,\"readback\":{\"reservation\":16000,\"weight\":100,\"count\":1,\"maximum\":16,\"limit\":16000,\"vcpus\":1,\"reserve\":16,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":1,\"appCpuRequested\":null,\"appCpuPercent\":null},\"memory\":{\"policyMiB\":128,\"appMiB\":128,\"vmMiB\":2048,\"rule\":\"align2(max(2048, app + 640))\"},\"definition\":{\"recipe\":\"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)\",\"hypervModuleSha256\":\"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c\",\"hypervUtilitiesSha256\":\"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731\",\"featureSet\":513,\"vtl2Mode\":0,\"vbsOptOut\":true,\"guestState\":{\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv84271d1a8dc130-canary.vmgs\",\"masterSha256\":\"e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96\"},\"grants\":[\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"]},\"guest\":{\"booted\":true,\"bytes\":720,\"head\":\"\\r\\nMON snp=0 vcpus=1 memMiB=1833 boot_ms=314\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\",\"readyLine\":true,\"attach\":{\"early\":true,\"ms\":1347}},\"appReady\":false}}\r\n{\"step\":\"cpu\",\"ok\":true,\"want\":{\"vcpus\":1,\"limit\":16000,\"reservation\":16000},\"readback\":{\"reservation\":16000,\"weight\":100,\"count\":1,\"maximum\":16,\"limit\":16000,\"vcpus\":1,\"reserve\":16,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":1,\"head\":\"\\r\\nMON snp=0 vcpus=1 memMiB=1833 boot_ms=314\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\"}\r\n{\"step\":\"survey\",\"ok\":true,\"vm\":{\"vmId\":\"f0760250-606d-419d-b8bb-6d5de4b11beb\",\"name\":\"enclave-cpucanary-hv84271d1a8dc130-canary\",\"state\":\"Running\"},\"identity\":{\"v\":1,\"id\":\"hv84271d1a8dc13053ae4d13e05340a9a5\",\"name\":\"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0\",\"instanceId\":\"hv84271d1a8dc130-canary\",\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}\r\n{\"step\":\"stop\",\"ok\":true,\"result\":{\"stopped\":true,\"removed\":true,\"name\":\"enclave-cpucanary-hv84271d1a8dc130-canary\",\"vmId\":\"f0760250-606d-419d-b8bb-6d5de4b11beb\",\"guestState\":{\"archive\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\vmgs-archive\\\\enclave-cpucanary-hv84271d1a8dc130-canary-20261023-165934-046.vmgs\",\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv84271d1a8dc130-canary.vmgs\",\"retired\":true,\"sha256\":\"734d2a1a5f2d7046a77fbb91ba46c6a4e0441720534a99d13290ef8ddb37d419\",\"present\":true}}}\r\n{\"step\":\"survey-after\",\"ok\":true,\"left\":[]}\r\n{\"step\":\"result\",\"ok\":true}\r\n", "name": "out-0p01.jsonl"}, {"text": "{\"step\":\"preflight\",\"ok\":true,\"failed\":[]}\r\n{\"step\":\"start\",\"ok\":true,\"ms\":8475,\"handle\":{\"transport\":null,\"egress\":null,\"instanceId\":\"hv7faeed34cf315a-canary\",\"name\":\"enclave-cpucanary-hv7faeed34cf315a-canary\",\"vmId\":\"c5f38441-2f7b-4ec1-9a28-74bfee576ed7\",\"pipe\":\"\\\\\\\\.\\\\pipe\\\\enclave-cpucanary-hv7faeed34cf315a-canary-com1\",\"state\":\"Running\",\"boot\":\"linux-direct\",\"isolationType\":1,\"image\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"guestIdentity\":{\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestImageKind\":\"igvm-linux-direct\",\"igvmSha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"igvmPath\":\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"},\"firmware\":{\"sha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"bytes\":76288988},\"boundary\":{\"tier\":\"T0-hv\",\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestStateIsolationType\":1,\"hostExcluded\":false,\"attested\":false,\"note\":\"a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity.\"},\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"vtpm\":{\"enabled\":true,\"pcrsRead\":false,\"note\":\"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.\"},\"cpu\":{\"rule\":\"allocated\",\"vcpus\":3,\"limit\":69333,\"reservation\":69333,\"grantedUnits\":207999,\"readback\":{\"reservation\":69333,\"weight\":100,\"count\":3,\"maximum\":69,\"limit\":69333,\"vcpus\":3,\"reserve\":69,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":3,\"appCpuRequested\":null,\"appCpuPercent\":null},\"memory\":{\"policyMiB\":128,\"appMiB\":128,\"vmMiB\":2048,\"rule\":\"align2(max(2048, app + 640))\"},\"definition\":{\"recipe\":\"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)\",\"hypervModuleSha256\":\"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c\",\"hypervUtilitiesSha256\":\"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731\",\"featureSet\":513,\"vtl2Mode\":0,\"vbsOptOut\":true,\"guestState\":{\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv7faeed34cf315a-canary.vmgs\",\"masterSha256\":\"e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96\"},\"grants\":[\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"]},\"guest\":{\"booted\":true,\"bytes\":684,\"head\":\"\\r\\nMON snp=0 vcpus=3 memMiB=1822 boot_ms=278\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\",\"readyLine\":true,\"attach\":{\"early\":true,\"ms\":1408}},\"appReady\":false}}\r\n{\"step\":\"cpu\",\"ok\":true,\"want\":{\"vcpus\":3,\"limit\":69333,\"reservation\":69333},\"readback\":{\"reservation\":69333,\"weight\":100,\"count\":3,\"maximum\":69,\"limit\":69333,\"vcpus\":3,\"reserve\":69,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":3,\"head\":\"\\r\\nMON snp=0 vcpus=3 memMiB=1822 boot_ms=278\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\"}\r\n{\"step\":\"survey\",\"ok\":true,\"vm\":{\"vmId\":\"c5f38441-2f7b-4ec1-9a28-74bfee576ed7\",\"name\":\"enclave-cpucanary-hv7faeed34cf315a-canary\",\"state\":\"Running\"},\"identity\":{\"v\":1,\"id\":\"hv7faeed34cf315a99fdbdb5b8ccc18a80\",\"name\":\"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0\",\"instanceId\":\"hv7faeed34cf315a-canary\",\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}\r\n{\"step\":\"stop\",\"ok\":true,\"result\":{\"stopped\":true,\"removed\":true,\"name\":\"enclave-cpucanary-hv7faeed34cf315a-canary\",\"vmId\":\"c5f38441-2f7b-4ec1-9a28-74bfee576ed7\",\"guestState\":{\"archive\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\vmgs-archive\\\\enclave-cpucanary-hv7faeed34cf315a-canary-20261023-170003-086.vmgs\",\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv7faeed34cf315a-canary.vmgs\",\"retired\":true,\"sha256\":\"4d6c8f869417db058efe1ba44a0773c5f2edd0b0190d6d5ca7031e5c4734a3e4\",\"present\":true}}}\r\n{\"step\":\"survey-after\",\"ok\":true,\"left\":[]}\r\n{\"step\":\"result\",\"ok\":true}\r\n", "name": "out-0p13.jsonl"}, {"text": "{\"step\":\"preflight\",\"ok\":true,\"failed\":[]}\r\n{\"step\":\"start\",\"ok\":true,\"ms\":8517,\"handle\":{\"transport\":null,\"egress\":null,\"instanceId\":\"hvd13607f3bb77bd-canary\",\"name\":\"enclave-cpucanary-hvd13607f3bb77bd-canary\",\"vmId\":\"d48f9a71-98ae-421b-b757-1e65066e912e\",\"pipe\":\"\\\\\\\\.\\\\pipe\\\\enclave-cpucanary-hvd13607f3bb77bd-canary-com1\",\"state\":\"Running\",\"boot\":\"linux-direct\",\"isolationType\":1,\"image\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"guestIdentity\":{\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestImageKind\":\"igvm-linux-direct\",\"igvmSha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"igvmPath\":\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"},\"firmware\":{\"sha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"bytes\":76288988},\"boundary\":{\"tier\":\"T0-hv\",\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestStateIsolationType\":1,\"hostExcluded\":false,\"attested\":false,\"note\":\"a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity.\"},\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"vtpm\":{\"enabled\":true,\"pcrsRead\":false,\"note\":\"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.\"},\"cpu\":{\"rule\":\"allocated\",\"vcpus\":4,\"limit\":84000,\"reservation\":84000,\"grantedUnits\":336000,\"readback\":{\"reservation\":84000,\"weight\":100,\"count\":4,\"maximum\":84,\"limit\":84000,\"vcpus\":4,\"reserve\":84,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":4,\"appCpuRequested\":null,\"appCpuPercent\":null},\"memory\":{\"policyMiB\":128,\"appMiB\":128,\"vmMiB\":2048,\"rule\":\"align2(max(2048, app + 640))\"},\"definition\":{\"recipe\":\"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)\",\"hypervModuleSha256\":\"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c\",\"hypervUtilitiesSha256\":\"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731\",\"featureSet\":513,\"vtl2Mode\":0,\"vbsOptOut\":true,\"guestState\":{\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hvd13607f3bb77bd-canary.vmgs\",\"masterSha256\":\"e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96\"},\"grants\":[\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"]},\"guest\":{\"booted\":true,\"bytes\":682,\"head\":\"\\r\\nMON snp=0 vcpus=4 memMiB=1818 boot_ms=280\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\",\"readyLine\":true,\"attach\":{\"early\":true,\"ms\":1399}},\"appReady\":false}}\r\n{\"step\":\"cpu\",\"ok\":true,\"want\":{\"vcpus\":4,\"limit\":84000,\"reservation\":84000},\"readback\":{\"reservation\":84000,\"weight\":100,\"count\":4,\"maximum\":84,\"limit\":84000,\"vcpus\":4,\"reserve\":84,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":4,\"head\":\"\\r\\nMON snp=0 vcpus=4 memMiB=1818 boot_ms=280\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\"}\r\n{\"step\":\"survey\",\"ok\":true,\"vm\":{\"vmId\":\"d48f9a71-98ae-421b-b757-1e65066e912e\",\"name\":\"enclave-cpucanary-hvd13607f3bb77bd-canary\",\"state\":\"Running\"},\"identity\":{\"v\":1,\"id\":\"hvd13607f3bb77bd4519d5e7c6f3a24b4b\",\"name\":\"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0\",\"instanceId\":\"hvd13607f3bb77bd-canary\",\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}\r\n{\"step\":\"stop\",\"ok\":true,\"result\":{\"stopped\":true,\"removed\":true,\"name\":\"enclave-cpucanary-hvd13607f3bb77bd-canary\",\"vmId\":\"d48f9a71-98ae-421b-b757-1e65066e912e\",\"guestState\":{\"archive\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\vmgs-archive\\\\enclave-cpucanary-hvd13607f3bb77bd-canary-20261023-165948-585.vmgs\",\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hvd13607f3bb77bd-canary.vmgs\",\"retired\":true,\"sha256\":\"0f8978e0803acda2f7a19d8c4fd41ba22f33bd60a6649d05d240a63980249db3\",\"present\":true}}}\r\n{\"step\":\"survey-after\",\"ok\":true,\"left\":[]}\r\n{\"step\":\"result\",\"ok\":true}\r\n", "name": "out-0p21.jsonl"}, {"text": "{\r\n    \"at\":  \"2026-10-23T16:59:20.4579782Z\",\r\n    \"poolVcpus\":  16,\r\n    \"hostLogicalProcessors\":  16,\r\n    \"runs\":  [\r\n                 {\r\n                     \"share\":  0.01,\r\n                     \"exit\":  0,\r\n                     \"ok\":  true,\r\n                     \"want\":  {\r\n                                  \"vcpus\":  1,\r\n                                  \"limit\":  16000,\r\n                                  \"reservation\":  16000\r\n                              },\r\n                     \"readback\":  {\r\n                                      \"reservation\":  16000,\r\n                                      \"weight\":  100,\r\n                                      \"count\":  1,\r\n                                      \"maximum\":  16,\r\n                                      \"limit\":  16000,\r\n                                      \"vcpus\":  1,\r\n                                      \"reserve\":  16,\r\n                                      \"units\":  \"percent / 1000\"\r\n                                  },\r\n                     \"guestOnlineVcpus\":  1,\r\n                     \"error\":  null\r\n                 },\r\n                 {\r\n                     \"share\":  0.21,\r\n                     \"exit\":  0,\r\n                     \"ok\":  true,\r\n                     \"want\":  {\r\n                                  \"vcpus\":  4,\r\n                                  \"limit\":  84000,\r\n                                  \"reservation\":  84000\r\n                              },\r\n                     \"readback\":  {\r\n                                      \"reservation\":  84000,\r\n                                      \"weight\":  100,\r\n                                      \"count\":  4,\r\n                                      \"maximum\":  84,\r\n                                      \"limit\":  84000,\r\n                                      \"vcpus\":  4,\r\n                                      \"reserve\":  84,\r\n                                      \"units\":  \"percent / 1000\"\r\n                                  },\r\n                     \"guestOnlineVcpus\":  4,\r\n                     \"error\":  null\r\n                 },\r\n                 {\r\n                     \"share\":  0.13,\r\n                     \"exit\":  0,\r\n                     \"ok\":  true,\r\n                     \"want\":  {\r\n                                  \"vcpus\":  3,\r\n                                  \"limit\":  69333,\r\n                                  \"reservation\":  69333\r\n                              },\r\n                     \"readback\":  {\r\n                                      \"reservation\":  69333,\r\n                                      \"weight\":  100,\r\n                                      \"count\":  3,\r\n                                      \"maximum\":  69,\r\n                                      \"limit\":  69333,\r\n                                      \"vcpus\":  3,\r\n                                      \"reserve\":  69,\r\n                                      \"units\":  \"percent / 1000\"\r\n                                  },\r\n                     \"guestOnlineVcpus\":  3,\r\n                     \"error\":  null\r\n                 }\r\n             ],\r\n    \"leftBefore\":  0,\r\n    \"leftAfter\":  0,\r\n    \"ok\":  true\r\n}\r\n", "name": "summary.json"}], "at": "2026-10-23T17:00:57.2532363Z"}
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24622
++[memory-guard] at peak: python3:24 ssh:12 scp:4
++[queue] EXIT 0
+diff --git a/read.json b/read.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..174635835a3f1e1393af2aa144c2b9c20151a273
+--- /dev/null
++++ b/read.json
+@@ -0,0 +1,100 @@
++{
++  "vms": [
++    {
++      "Id": "940285f5-c6fb-4091-98f1-8779715c233f",
++      "Name": "enclave-app-hv181ef1f570cd6b-46de1836",
++      "State": 2
++    },
++    {
++      "Id": "99581b30-de5f-450b-ac23-90d0735f3487",
++      "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
++      "State": 2
++    },
++    {
++      "Id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9",
++      "Name": "enclave-app-hv3c8e73d2d9c235-322c5206",
++      "State": 2
++    },
++    {
++      "Id": "29b799d0-98e6-43bb-9adf-5274dfe89e19",
++      "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
++      "State": 2
++    },
++    {
++      "Id": "f38952e3-537b-4271-85cd-6c14e993ee5c",
++      "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
++      "State": 2
++    },
++    {
++      "Id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07",
++      "Name": "enclave-app-hvc18d297da5a21b-a79db30f",
++      "State": 2
++    },
++    {
++      "Id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d",
++      "Name": "enclave-app-hvc6c4073c817dad-ad0f596e",
++      "State": 2
++    },
++    {
++      "Id": "07097d0e-65e3-4a84-8756-cc984cee2f1a",
++      "Name": "enclave-app-hvdc425d67f2b0e1-3f770400",
++      "State": 2
++    },
++    {
++      "Id": "dd22abf9-4ec1-4159-90fd-56b7115e986a",
++      "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
++      "State": 2
++    },
++    {
++      "Id": "14df250c-65f8-4218-8838-086d4f77cb6a",
++      "Name": "enclave-app-hve60d223d27d01b-9e2053bc",
++      "State": 2
++    },
++    {
++      "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
++      "Name": "enclave-control",
++      "State": 2
++    },
++    {
++      "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
++      "Name": "enclave-storage",
++      "State": 2
++    }
++  ],
++  "shield": [
++    {
++      "OwningProcess": 2376
++    }
++  ],
++  "files": [
++    {
++      "text": "",
++      "name": "err-0p01.txt"
++    },
++    {
++      "text": "",
++      "name": "err-0p13.txt"
++    },
++    {
++      "text": "",
++      "name": "err-0p21.txt"
++    },
++    {
++      "text": "{\"step\":\"preflight\",\"ok\":true,\"failed\":[]}\r\n{\"step\":\"start\",\"ok\":true,\"ms\":8637,\"handle\":{\"transport\":null,\"egress\":null,\"instanceId\":\"hv84271d1a8dc130-canary\",\"name\":\"enclave-cpucanary-hv84271d1a8dc130-canary\",\"vmId\":\"f0760250-606d-419d-b8bb-6d5de4b11beb\",\"pipe\":\"\\\\\\\\.\\\\pipe\\\\enclave-cpucanary-hv84271d1a8dc130-canary-com1\",\"state\":\"Running\",\"boot\":\"linux-direct\",\"isolationType\":1,\"image\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"guestIdentity\":{\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestImageKind\":\"igvm-linux-direct\",\"igvmSha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"igvmPath\":\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"},\"firmware\":{\"sha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"bytes\":76288988},\"boundary\":{\"tier\":\"T0-hv\",\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestStateIsolationType\":1,\"hostExcluded\":false,\"attested\":false,\"note\":\"a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity.\"},\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"vtpm\":{\"enabled\":true,\"pcrsRead\":false,\"note\":\"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.\"},\"cpu\":{\"rule\":\"allocated\",\"vcpus\":1,\"limit\":16000,\"reservation\":16000,\"grantedUnits\":16000,\"readback\":{\"reservation\":16000,\"weight\":100,\"count\":1,\"maximum\":16,\"limit\":16000,\"vcpus\":1,\"reserve\":16,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":1,\"appCpuRequested\":null,\"appCpuPercent\":null},\"memory\":{\"policyMiB\":128,\"appMiB\":128,\"vmMiB\":2048,\"rule\":\"align2(max(2048, app + 640))\"},\"definition\":{\"recipe\":\"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)\",\"hypervModuleSha256\":\"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c\",\"hypervUtilitiesSha256\":\"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731\",\"featureSet\":513,\"vtl2Mode\":0,\"vbsOptOut\":true,\"guestState\":{\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv84271d1a8dc130-canary.vmgs\",\"masterSha256\":\"e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96\"},\"grants\":[\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"]},\"guest\":{\"booted\":true,\"bytes\":720,\"head\":\"\\r\\nMON snp=0 vcpus=1 memMiB=1833 boot_ms=314\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\",\"readyLine\":true,\"attach\":{\"early\":true,\"ms\":1347}},\"appReady\":false}}\r\n{\"step\":\"cpu\",\"ok\":true,\"want\":{\"vcpus\":1,\"limit\":16000,\"reservation\":16000},\"readback\":{\"reservation\":16000,\"weight\":100,\"count\":1,\"maximum\":16,\"limit\":16000,\"vcpus\":1,\"reserve\":16,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":1,\"head\":\"\\r\\nMON snp=0 vcpus=1 memMiB=1833 boot_ms=314\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\"}\r\n{\"step\":\"survey\",\"ok\":true,\"vm\":{\"vmId\":\"f0760250-606d-419d-b8bb-6d5de4b11beb\",\"name\":\"enclave-cpucanary-hv84271d1a8dc130-canary\",\"state\":\"Running\"},\"identity\":{\"v\":1,\"id\":\"hv84271d1a8dc13053ae4d13e05340a9a5\",\"name\":\"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0\",\"instanceId\":\"hv84271d1a8dc130-canary\",\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}\r\n{\"step\":\"stop\",\"ok\":true,\"result\":{\"stopped\":true,\"removed\":true,\"name\":\"enclave-cpucanary-hv84271d1a8dc130-canary\",\"vmId\":\"f0760250-606d-419d-b8bb-6d5de4b11beb\",\"guestState\":{\"archive\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\vmgs-archive\\\\enclave-cpucanary-hv84271d1a8dc130-canary-20261023-165934-046.vmgs\",\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv84271d1a8dc130-canary.vmgs\",\"retired\":true,\"sha256\":\"734d2a1a5f2d7046a77fbb91ba46c6a4e0441720534a99d13290ef8ddb37d419\",\"present\":true}}}\r\n{\"step\":\"survey-after\",\"ok\":true,\"left\":[]}\r\n{\"step\":\"result\",\"ok\":true}\r\n",
++      "name": "out-0p01.jsonl"
++    },
++    {
++      "text": "{\"step\":\"preflight\",\"ok\":true,\"failed\":[]}\r\n{\"step\":\"start\",\"ok\":true,\"ms\":8475,\"handle\":{\"transport\":null,\"egress\":null,\"instanceId\":\"hv7faeed34cf315a-canary\",\"name\":\"enclave-cpucanary-hv7faeed34cf315a-canary\",\"vmId\":\"c5f38441-2f7b-4ec1-9a28-74bfee576ed7\",\"pipe\":\"\\\\\\\\.\\\\pipe\\\\enclave-cpucanary-hv7faeed34cf315a-canary-com1\",\"state\":\"Running\",\"boot\":\"linux-direct\",\"isolationType\":1,\"image\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"guestIdentity\":{\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestImageKind\":\"igvm-linux-direct\",\"igvmSha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"igvmPath\":\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"},\"firmware\":{\"sha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"bytes\":76288988},\"boundary\":{\"tier\":\"T0-hv\",\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestStateIsolationType\":1,\"hostExcluded\":false,\"attested\":false,\"note\":\"a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity.\"},\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"vtpm\":{\"enabled\":true,\"pcrsRead\":false,\"note\":\"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.\"},\"cpu\":{\"rule\":\"allocated\",\"vcpus\":3,\"limit\":69333,\"reservation\":69333,\"grantedUnits\":207999,\"readback\":{\"reservation\":69333,\"weight\":100,\"count\":3,\"maximum\":69,\"limit\":69333,\"vcpus\":3,\"reserve\":69,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":3,\"appCpuRequested\":null,\"appCpuPercent\":null},\"memory\":{\"policyMiB\":128,\"appMiB\":128,\"vmMiB\":2048,\"rule\":\"align2(max(2048, app + 640))\"},\"definition\":{\"recipe\":\"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)\",\"hypervModuleSha256\":\"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c\",\"hypervUtilitiesSha256\":\"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731\",\"featureSet\":513,\"vtl2Mode\":0,\"vbsOptOut\":true,\"guestState\":{\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv7faeed34cf315a-canary.vmgs\",\"masterSha256\":\"e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96\"},\"grants\":[\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"]},\"guest\":{\"booted\":true,\"bytes\":684,\"head\":\"\\r\\nMON snp=0 vcpus=3 memMiB=1822 boot_ms=278\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\",\"readyLine\":true,\"attach\":{\"early\":true,\"ms\":1408}},\"appReady\":false}}\r\n{\"step\":\"cpu\",\"ok\":true,\"want\":{\"vcpus\":3,\"limit\":69333,\"reservation\":69333},\"readback\":{\"reservation\":69333,\"weight\":100,\"count\":3,\"maximum\":69,\"limit\":69333,\"vcpus\":3,\"reserve\":69,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":3,\"head\":\"\\r\\nMON snp=0 vcpus=3 memMiB=1822 boot_ms=278\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\"}\r\n{\"step\":\"survey\",\"ok\":true,\"vm\":{\"vmId\":\"c5f38441-2f7b-4ec1-9a28-74bfee576ed7\",\"name\":\"enclave-cpucanary-hv7faeed34cf315a-canary\",\"state\":\"Running\"},\"identity\":{\"v\":1,\"id\":\"hv7faeed34cf315a99fdbdb5b8ccc18a80\",\"name\":\"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0\",\"instanceId\":\"hv7faeed34cf315a-canary\",\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}\r\n{\"step\":\"stop\",\"ok\":true,\"result\":{\"stopped\":true,\"removed\":true,\"name\":\"enclave-cpucanary-hv7faeed34cf315a-canary\",\"vmId\":\"c5f38441-2f7b-4ec1-9a28-74bfee576ed7\",\"guestState\":{\"archive\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\vmgs-archive\\\\enclave-cpucanary-hv7faeed34cf315a-canary-20261023-170003-086.vmgs\",\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hv7faeed34cf315a-canary.vmgs\",\"retired\":true,\"sha256\":\"4d6c8f869417db058efe1ba44a0773c5f2edd0b0190d6d5ca7031e5c4734a3e4\",\"present\":true}}}\r\n{\"step\":\"survey-after\",\"ok\":true,\"left\":[]}\r\n{\"step\":\"result\",\"ok\":true}\r\n",
++      "name": "out-0p13.jsonl"
++    },
++    {
++      "text": "{\"step\":\"preflight\",\"ok\":true,\"failed\":[]}\r\n{\"step\":\"start\",\"ok\":true,\"ms\":8517,\"handle\":{\"transport\":null,\"egress\":null,\"instanceId\":\"hvd13607f3bb77bd-canary\",\"name\":\"enclave-cpucanary-hvd13607f3bb77bd-canary\",\"vmId\":\"d48f9a71-98ae-421b-b757-1e65066e912e\",\"pipe\":\"\\\\\\\\.\\\\pipe\\\\enclave-cpucanary-hvd13607f3bb77bd-canary-com1\",\"state\":\"Running\",\"boot\":\"linux-direct\",\"isolationType\":1,\"image\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"guestIdentity\":{\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestImageKind\":\"igvm-linux-direct\",\"igvmSha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"igvmPath\":\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"},\"firmware\":{\"sha256\":\"5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d\",\"bytes\":76288988},\"boundary\":{\"tier\":\"T0-hv\",\"partition\":\"wmi-openhcl-gen2-igvm-linux\",\"guestStateIsolationType\":1,\"hostExcluded\":false,\"attested\":false,\"note\":\"a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no chain is verified: never advertise this as verified or host-excluded capacity.\"},\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"vtpm\":{\"enabled\":true,\"pcrsRead\":false,\"note\":\"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.\"},\"cpu\":{\"rule\":\"allocated\",\"vcpus\":4,\"limit\":84000,\"reservation\":84000,\"grantedUnits\":336000,\"readback\":{\"reservation\":84000,\"weight\":100,\"count\":4,\"maximum\":84,\"limit\":84000,\"vcpus\":4,\"reserve\":84,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":4,\"appCpuRequested\":null,\"appCpuPercent\":null},\"memory\":{\"policyMiB\":128,\"appMiB\":128,\"vmMiB\":2048,\"rule\":\"align2(max(2048, app + 640))\"},\"definition\":{\"recipe\":\"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)\",\"hypervModuleSha256\":\"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c\",\"hypervUtilitiesSha256\":\"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731\",\"featureSet\":513,\"vtl2Mode\":0,\"vbsOptOut\":true,\"guestState\":{\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hvd13607f3bb77bd-canary.vmgs\",\"masterSha256\":\"e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96\"},\"grants\":[\"C:\\\\Program Files\\\\Enclave\\\\guest\\\\runtime.bin\"]},\"guest\":{\"booted\":true,\"bytes\":682,\"head\":\"\\r\\nMON snp=0 vcpus=4 memMiB=1818 boot_ms=280\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\",\"readyLine\":true,\"attach\":{\"early\":true,\"ms\":1399}},\"appReady\":false}}\r\n{\"step\":\"cpu\",\"ok\":true,\"want\":{\"vcpus\":4,\"limit\":84000,\"reservation\":84000},\"readback\":{\"reservation\":84000,\"weight\":100,\"count\":4,\"maximum\":84,\"limit\":84000,\"vcpus\":4,\"reserve\":84,\"units\":\"percent / 1000\"},\"guestOnlineVcpus\":4,\"head\":\"\\r\\nMON snp=0 vcpus=4 memMiB=1818 boot_ms=280\\r\\nMON insmod /vsock.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\\r\\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\\r\\nMON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, C\"}\r\n{\"step\":\"survey\",\"ok\":true,\"vm\":{\"vmId\":\"d48f9a71-98ae-421b-b757-1e65066e912e\",\"name\":\"enclave-cpucanary-hvd13607f3bb77bd-canary\",\"state\":\"Running\"},\"identity\":{\"v\":1,\"id\":\"hvd13607f3bb77bd4519d5e7c6f3a24b4b\",\"name\":\"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0\",\"instanceId\":\"hvd13607f3bb77bd-canary\",\"appId\":\"0000000000000000000000000000000000000000000000000000000000000000\"}}\r\n{\"step\":\"stop\",\"ok\":true,\"result\":{\"stopped\":true,\"removed\":true,\"name\":\"enclave-cpucanary-hvd13607f3bb77bd-canary\",\"vmId\":\"d48f9a71-98ae-421b-b757-1e65066e912e\",\"guestState\":{\"archive\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\vmgs-archive\\\\enclave-cpucanary-hvd13607f3bb77bd-canary-20261023-165948-585.vmgs\",\"path\":\"C:\\\\ProgramData\\\\Enclave\\\\shield\\\\enclave-cpucanary-hvd13607f3bb77bd-canary.vmgs\",\"retired\":true,\"sha256\":\"0f8978e0803acda2f7a19d8c4fd41ba22f33bd60a6649d05d240a63980249db3\",\"present\":true}}}\r\n{\"step\":\"survey-after\",\"ok\":true,\"left\":[]}\r\n{\"step\":\"result\",\"ok\":true}\r\n",
++      "name": "out-0p21.jsonl"
++    },
++    {
++      "text": "{\r\n    \"at\":  \"2026-10-23T16:59:20.4579782Z\",\r\n    \"poolVcpus\":  16,\r\n    \"hostLogicalProcessors\":  16,\r\n    \"runs\":  [\r\n                 {\r\n                     \"share\":  0.01,\r\n                     \"exit\":  0,\r\n                     \"ok\":  true,\r\n                     \"want\":  {\r\n                                  \"vcpus\":  1,\r\n                                  \"limit\":  16000,\r\n                                  \"reservation\":  16000\r\n                              },\r\n                     \"readback\":  {\r\n                                      \"reservation\":  16000,\r\n                                      \"weight\":  100,\r\n                                      \"count\":  1,\r\n                                      \"maximum\":  16,\r\n                                      \"limit\":  16000,\r\n                                      \"vcpus\":  1,\r\n                                      \"reserve\":  16,\r\n                                      \"units\":  \"percent / 1000\"\r\n                                  },\r\n                     \"guestOnlineVcpus\":  1,\r\n                     \"error\":  null\r\n                 },\r\n                 {\r\n                     \"share\":  0.21,\r\n                     \"exit\":  0,\r\n                     \"ok\":  true,\r\n                     \"want\":  {\r\n                                  \"vcpus\":  4,\r\n                                  \"limit\":  84000,\r\n                                  \"reservation\":  84000\r\n                              },\r\n                     \"readback\":  {\r\n                                      \"reservation\":  84000,\r\n                                      \"weight\":  100,\r\n                                      \"count\":  4,\r\n                                      \"maximum\":  84,\r\n                                      \"limit\":  84000,\r\n                                      \"vcpus\":  4,\r\n                                      \"reserve\":  84,\r\n                                      \"units\":  \"percent / 1000\"\r\n                                  },\r\n                     \"guestOnlineVcpus\":  4,\r\n                     \"error\":  null\r\n                 },\r\n                 {\r\n                     \"share\":  0.13,\r\n                     \"exit\":  0,\r\n                     \"ok\":  true,\r\n                     \"want\":  {\r\n                                  \"vcpus\":  3,\r\n                                  \"limit\":  69333,\r\n                                  \"reservation\":  69333\r\n                              },\r\n                     \"readback\":  {\r\n                                      \"reservation\":  69333,\r\n                                      \"weight\":  100,\r\n                                      \"count\":  3,\r\n                                      \"maximum\":  69,\r\n                                      \"limit\":  69333,\r\n                                      \"vcpus\":  3,\r\n                                      \"reserve\":  69,\r\n                                      \"units\":  \"percent / 1000\"\r\n                                  },\r\n                     \"guestOnlineVcpus\":  3,\r\n                     \"error\":  null\r\n                 }\r\n             ],\r\n    \"leftBefore\":  0,\r\n    \"leftAfter\":  0,\r\n    \"ok\":  true\r\n}\r\n",
++      "name": "summary.json"
++    }
++  ],
++  "at": "2026-10-23T17:00:57.2532363Z"
++}
+diff --git a/run-1.guard.log b/run-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f2c04b270d78ae849932567f778257f2193ee3c3
+--- /dev/null
++++ b/run-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24532
+diff --git a/run.json b/run.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..833492f637c08caa76644c48e199db5eecb9e95e
+--- /dev/null
++++ b/run.json
+@@ -0,0 +1,76 @@
++{
++  "at": "2026-10-23T16:59:20.4579782Z",
++  "poolVcpus": 16,
++  "hostLogicalProcessors": 16,
++  "runs": [
++    {
++      "share": 0.01,
++      "exit": 0,
++      "ok": true,
++      "want": {
++        "vcpus": 1,
++        "limit": 16000,
++        "reservation": 16000
++      },
++      "readback": {
++        "reservation": 16000,
++        "weight": 100,
++        "count": 1,
++        "maximum": 16,
++        "limit": 16000,
++        "vcpus": 1,
++        "reserve": 16,
++        "units": "percent / 1000"
++      },
++      "guestOnlineVcpus": 1,
++      "error": null
++    },
++    {
++      "share": 0.21,
++      "exit": 0,
++      "ok": true,
++      "want": {
++        "vcpus": 4,
++        "limit": 84000,
++        "reservation": 84000
++      },
++      "readback": {
++        "reservation": 84000,
++        "weight": 100,
++        "count": 4,
++        "maximum": 84,
++        "limit": 84000,
++        "vcpus": 4,
++        "reserve": 84,
++        "units": "percent / 1000"
++      },
++      "guestOnlineVcpus": 4,
++      "error": null
++    },
++    {
++      "share": 0.13,
++      "exit": 0,
++      "ok": true,
++      "want": {
++        "vcpus": 3,
++        "limit": 69333,
++        "reservation": 69333
++      },
++      "readback": {
++        "reservation": 69333,
++        "weight": 100,
++        "count": 3,
++        "maximum": 69,
++        "limit": 69333,
++        "vcpus": 3,
++        "reserve": 69,
++        "units": "percent / 1000"
++      },
++      "guestOnlineVcpus": 3,
++      "error": null
++    }
++  ],
++  "leftBefore": 0,
++  "leftAfter": 0,
++  "ok": true
++}
+diff --git a/stage-1.guard.log b/stage-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd5cecb6df23c9511d8d920d1615d3aee487e82f
+--- /dev/null
++++ b/stage-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=41 minHostAvailableMiB=24624
+diff --git a/stage-2.guard.log b/stage-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ca754eab54b769943994695c3fe4a82da121da0
+--- /dev/null
++++ b/stage-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24638
+diff --git a/stage.json b/stage.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..28e2734a11f4dd3eeaa35d20c1b93c8d36576934
+--- /dev/null
++++ b/stage.json
+@@ -0,0 +1,114 @@
++{
++  "commit": "15ad00420733ea47a5747a14687a4afb3e12a14a",
++  "manifest": {
++    "kit": [
++      {
++        "path": "windows/vbslike/manager/cpu-share.mjs",
++        "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0",
++        "bytes": 3044
++      },
++      {
++        "path": "windows/vbslike/manager/egress.mjs",
++        "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05",
++        "bytes": 10148
++      },
++      {
++        "path": "windows/vbslike/manager/ops/launcher-canary.mjs",
++        "sha256": "1656dfdab11ae01b956f0ad9a825c611a0aa14f9a210787623e981e098ec8289",
++        "bytes": 5707
++      },
++      {
++        "path": "windows/vbslike/manager/psrun.mjs",
++        "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6",
++        "bytes": 2341
++      },
++      {
++        "path": "windows/vbslike/manager/wmi-launcher.mjs",
++        "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606",
++        "bytes": 91817
++      },
++      {
++        "path": "windows/vbslike/manager/wmiserve-run.mjs",
++        "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
++        "bytes": 13831
++      },
++      {
++        "path": "windows/vbslike/verify/boot-statements.mjs",
++        "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3",
++        "bytes": 1712
++      }
++    ],
++    "runner": {
++      "path": "run-cpu-canary.ps1",
++      "sha256": "853570b417d80a2b103ebb8b9b82e3ac33d053313ee194e68ae354f410ab7c49"
++    }
++  },
++  "result": {
++    "freePhysicalKiB": 26575536,
++    "ok": true,
++    "vms": [
++      {
++        "Id": "940285f5-c6fb-4091-98f1-8779715c233f",
++        "Name": "enclave-app-hv181ef1f570cd6b-46de1836",
++        "State": 2
++      },
++      {
++        "Id": "99581b30-de5f-450b-ac23-90d0735f3487",
++        "Name": "enclave-app-hv255b5ea98b99cf-ea9d4773",
++        "State": 2
++      },
++      {
++        "Id": "8a745c7d-4da8-4ba6-9690-c87f924fb3a9",
++        "Name": "enclave-app-hv3c8e73d2d9c235-322c5206",
++        "State": 2
++      },
++      {
++        "Id": "29b799d0-98e6-43bb-9adf-5274dfe89e19",
++        "Name": "enclave-app-hv5e00a0f0dfae61-3dfcbff8",
++        "State": 2
++      },
++      {
++        "Id": "f38952e3-537b-4271-85cd-6c14e993ee5c",
++        "Name": "enclave-app-hvba429ebb1c40a9-10c44a8a",
++        "State": 2
++      },
++      {
++        "Id": "2f48ce4f-c8e0-4de9-ac7b-18d8c13bdf07",
++        "Name": "enclave-app-hvc18d297da5a21b-a79db30f",
++        "State": 2
++      },
++      {
++        "Id": "c4ac6e3d-9482-4e84-8f6a-8227edcb9e3d",
++        "Name": "enclave-app-hvc6c4073c817dad-ad0f596e",
++        "State": 2
++      },
++      {
++        "Id": "07097d0e-65e3-4a84-8756-cc984cee2f1a",
++        "Name": "enclave-app-hvdc425d67f2b0e1-3f770400",
++        "State": 2
++      },
++      {
++        "Id": "dd22abf9-4ec1-4159-90fd-56b7115e986a",
++        "Name": "enclave-app-hvdd8cb84cf13a4e-f4322953",
++        "State": 2
++      },
++      {
++        "Id": "14df250c-65f8-4218-8838-086d4f77cb6a",
++        "Name": "enclave-app-hve60d223d27d01b-9e2053bc",
++        "State": 2
++      },
++      {
++        "Id": "dd8df95d-b771-4545-a861-0092e74a40f3",
++        "Name": "enclave-control",
++        "State": 2
++      },
++      {
++        "Id": "4a4ddcac-d06f-4a5c-b96e-e692302db5c8",
++        "Name": "enclave-storage",
++        "State": 2
++      }
++    ],
++    "shieldPid": 2376,
++    "at": "2026-10-23T16:58:59.0261652Z"
++  }
++}

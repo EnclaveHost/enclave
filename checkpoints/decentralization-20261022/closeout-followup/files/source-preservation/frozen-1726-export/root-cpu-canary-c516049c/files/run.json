@@ -1,0 +1,76 @@
+{
+  "at": "2026-10-23T16:59:20.4579782Z",
+  "poolVcpus": 16,
+  "hostLogicalProcessors": 16,
+  "runs": [
+    {
+      "share": 0.01,
+      "exit": 0,
+      "ok": true,
+      "want": {
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000
+      },
+      "readback": {
+        "reservation": 16000,
+        "weight": 100,
+        "count": 1,
+        "maximum": 16,
+        "limit": 16000,
+        "vcpus": 1,
+        "reserve": 16,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 1,
+      "error": null
+    },
+    {
+      "share": 0.21,
+      "exit": 0,
+      "ok": true,
+      "want": {
+        "vcpus": 4,
+        "limit": 84000,
+        "reservation": 84000
+      },
+      "readback": {
+        "reservation": 84000,
+        "weight": 100,
+        "count": 4,
+        "maximum": 84,
+        "limit": 84000,
+        "vcpus": 4,
+        "reserve": 84,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 4,
+      "error": null
+    },
+    {
+      "share": 0.13,
+      "exit": 0,
+      "ok": true,
+      "want": {
+        "vcpus": 3,
+        "limit": 69333,
+        "reservation": 69333
+      },
+      "readback": {
+        "reservation": 69333,
+        "weight": 100,
+        "count": 3,
+        "maximum": 69,
+        "limit": 69333,
+        "vcpus": 3,
+        "reserve": 69,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 3,
+      "error": null
+    }
+  ],
+  "leftBefore": 0,
+  "leftAfter": 0,
+  "ok": true
+}

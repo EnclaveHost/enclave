@@ -1,0 +1,144 @@
+{
+  "step": "preflight",
+  "at": "2026-10-23T17:09:26.842685+00:00",
+  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+  "result": {
+    "ok": true,
+    "vms": [
+      {
+        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
+        "name": "shield-readiness-v1",
+        "status": "running",
+        "memory": null
+      },
+      {
+        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
+        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        }
+      },
+      {
+        "id": "hvba429ebb1c40a95c27186168f7669f74",
+        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.02,
+          "appMiB": 1966,
+          "vmMiB": 2606
+        }
+      },
+      {
+        "id": "hvdc425d67f2b0e16d83e393766f786d10",
+        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        }
+      },
+      {
+        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
+        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.25,
+          "appMiB": 24576,
+          "vmMiB": 25216
+        }
+      },
+      {
+        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
+        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        }
+      },
+      {
+        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
+        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        }
+      },
+      {
+        "id": "hv181ef1f570cd6b380d424310c995e920",
+        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.01,
+          "appMiB": 983,
+          "vmMiB": 2048
+        }
+      },
+      {
+        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
+        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.21,
+          "appMiB": 20643,
+          "vmMiB": 21284
+        }
+      },
+      {
+        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
+        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+        "status": "running",
+        "memory": {
+          "rule": "cpu-share",
+          "poolMiB": 98304,
+          "cpuShare": 0.04,
+          "appMiB": 3932,
+          "vmMiB": 4572
+        }
+      }
+    ],
+    "managerMemory": {
+      "rule": "cpu-share",
+      "poolMiB": 98304
+    },
+    "state": {
+      "at": "2026-10-23T17:09:25.8134962Z",
+      "nodeTask": "Running",
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 9600,
+          "OwningProcess": 15188
+        },
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 2376
+        }
+      ]
+    }
+  }
+}

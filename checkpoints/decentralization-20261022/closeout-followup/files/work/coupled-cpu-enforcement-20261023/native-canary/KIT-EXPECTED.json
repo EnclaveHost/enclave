@@ -1,0 +1,94 @@
+{
+  "sourceCommit": "670a753e0 (package A; kit files are byte-identical at ea6717d27)",
+  "kitManifestSha256": "247e3c239a92f0ad313388346a1ab5d05033b953c3d04b73b3051624af51be5b",
+  "importClosure": {
+    "manager/ops/launcher-canary.mjs": [
+      "../wmi-launcher.mjs",
+      "../cpu-share.mjs",
+      "../psrun.mjs"
+    ],
+    "manager/wmi-launcher.mjs": [
+      "../verify/boot-statements.mjs",
+      "./wmiserve-run.mjs",
+      "./egress.mjs",
+      "./cpu-share.mjs"
+    ],
+    "manager/wmiserve-run.mjs": [],
+    "manager/egress.mjs": [],
+    "manager/psrun.mjs": [],
+    "manager/cpu-share.mjs": [],
+    "verify/boot-statements.mjs": [],
+    "note": "plus node: builtins only; no package imports"
+  },
+  "pool": "Win32_ComputerSystem.NumberOfLogicalProcessors (16 on NucBox) unless -PoolVcpus; must be <= Get-VMHost LogicalProcessorCount",
+  "expected": [
+    {
+      "share": 0.01,
+      "want": {
+        "vcpus": 1,
+        "limit": 16000,
+        "reservation": 16000
+      },
+      "readback": {
+        "vcpus": 1,
+        "count": 1,
+        "limit": 16000,
+        "reservation": 16000,
+        "units": "percent / 1000",
+        "maximum": 16,
+        "reserve": 16
+      },
+      "guestOnlineVcpus": 1,
+      "exit": 0
+    },
+    {
+      "share": 0.21,
+      "want": {
+        "vcpus": 4,
+        "limit": 84000,
+        "reservation": 84000
+      },
+      "readback": {
+        "vcpus": 4,
+        "count": 4,
+        "limit": 84000,
+        "reservation": 84000,
+        "units": "percent / 1000",
+        "maximum": 84,
+        "reserve": 84
+      },
+      "guestOnlineVcpus": 4,
+      "exit": 0
+    },
+    {
+      "share": 0.13,
+      "want": {
+        "vcpus": 3,
+        "limit": 69333,
+        "reservation": 69333
+      },
+      "readback": {
+        "vcpus": 3,
+        "count": 3,
+        "limit": 69333,
+        "reservation": 69333,
+        "units": "percent / 1000",
+        "maximum": "69 (Get-VMProcessor rounds; informational)",
+        "reserve": "69 (informational)"
+      },
+      "guestOnlineVcpus": 3,
+      "exit": 0
+    }
+  ],
+  "pass": "summary.ok true, leftAfter 0, every run exit 0 with its cpu step ok (readback == want exactly AND guestOnlineVcpus == vcpus)",
+  "rolloutBlockers": [
+    "any processor-step error or read-back mismatch",
+    "Start-VM refusal after the processor step",
+    "guestOnlineVcpus < vcpus (root ruling: e.g. 1 of 4 VPs online blocks rollout)",
+    "leftAfter > 0"
+  ],
+  "notProven": [
+    "app throughput or cap under load",
+    "the guest CPU allowance (package B; needs a new image + shield-host.exe)"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-23T16:13:37.7134368Z",
+  "name": "enclave-resource-api-canary-20261023-1614",
+  "started": false,
+  "whole": {
+    "count": 4,
+    "maximum": 84,
+    "state": "Off"
+  },
+  "before": {
+    "quantity": 4,
+    "limit": 84000,
+    "units": "percent / 1000"
+  },
+  "ok": true,
+  "removed": true
+}

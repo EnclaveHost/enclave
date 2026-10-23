@@ -31259,6 +31259,972 @@
       "stored": "files/source-preservation/make-frozen-1639-snapshots.py",
       "sha256": "4f9a5154f8a3aebb424b44cf17a3aef4c2dbaf418662f817197f4086a3eece23",
       "bytes": 834
+    },
+    {
+      "label": "FROZEN 1726 resource-repair batch exported from Git objects (never worktrees); every base rebuilt from pushed 1219a988 material plus this export's own earlier patches, and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + EVIDENCE ONLY: not merged into the normal tree, not imaged, not deployed by this capture. The whole CPU fix is NOT complete",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-1726-export/INVENTORY.json",
+      "sha256": "f62cd6b83fede94089e14a0d0d32da77af0d8a1b25f01a182a9b09b4d836432a",
+      "bytes": 47988
+    },
+    {
+      "label": "FROZEN 1726 resource-repair batch exported from Git objects (never worktrees); every base rebuilt from pushed 1219a988 material plus this export's own earlier patches, and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + EVIDENCE ONLY: not merged into the normal tree, not imaged, not deployed by this capture. The whole CPU fix is NOT complete",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-1726-export/REBUILD.md",
+      "sha256": "674d5dc2e70a5d34a7f3161576367436c506d76b297e9333239b816678aadf15",
+      "bytes": 4237
+    },
+    {
+      "label": "FROZEN 1726 resource-repair batch exported from Git objects (never worktrees); every base rebuilt from pushed 1219a988 material plus this export's own earlier patches, and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + EVIDENCE ONLY: not merged into the normal tree, not imaged, not deployed by this capture. The whole CPU fix is NOT complete",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-1726-export/REPRODUCE-CHECK.txt",
+      "sha256": "aafc1e5c5548699f0e50473ae981e640b1de7d7e593e5499a467586c12840b91",
+      "bytes": 1648
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/patches/0001-0f1ef848.patch",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/patches/0001-0f1ef848.patch",
+      "sha256": "127840b47b05e0e9acd34f0c3d0e1f7f86d9cfd2e7bf44b03b7126c701dfa632",
+      "bytes": 94598
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/patches/0002-14b24592.patch",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/patches/0002-14b24592.patch",
+      "sha256": "6cedd9e43c8abc85d69acb5041fd300a2f69390f9b9034a239cf166991655294",
+      "bytes": 64048
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/patches/0003-a5e155ec.patch",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/patches/0003-a5e155ec.patch",
+      "sha256": "d5234f8319f2d87249f89aa200c1bd17181217df39cb93b9c806197f6b5c3039",
+      "bytes": 32921
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/helpers/hv-fake-manager.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/helpers/hv-fake-manager.mjs",
+      "sha256": "ad707f58b3ea26935a1a62059bbce3179b795b268025f69a1695ad510c61d6c0",
+      "bytes": 8486
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-coupled-shares-defect.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-coupled-shares-defect.test.mjs",
+      "sha256": "fb063940acf0bde67261409c8ad00908e398332029d529f9d8d94cfa29267cf6",
+      "bytes": 7892
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-coupled-shares.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-coupled-shares.test.mjs",
+      "sha256": "22f4485bfdbf42255d520911d86285b8db36e43b5136daff60ba8a10cf4b0c2d",
+      "bytes": 26704
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-hosting-caps.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-hosting-caps.test.mjs",
+      "sha256": "638b35d0e7b550ace1440dd0079ecbbfd08e5759d9d3f2a012e7c9ea2a7ce7e8",
+      "bytes": 37061
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-isolation-host.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-isolation-host.test.mjs",
+      "sha256": "e5d7106c8270f2593243cb15cf1068051a523a7108b1bafc1290916b248fde4b",
+      "bytes": 13901
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-preclaim.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-preclaim.test.mjs",
+      "sha256": "a9ee980e7cd7e0e250c49b3cca33120fa913007ae919bc9bd3924dc78cd02fb2",
+      "bytes": 7966
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-scan-slot.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/test/windows-node-scan-slot.test.mjs",
+      "sha256": "242b0fb00a892b740053cb1eba76289ac61802fa8ff3e76ab50fb555f424fa2b",
+      "bytes": 20612
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/node/chain.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/node/chain.mjs",
+      "sha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+      "bytes": 60398
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/node/host.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/node/host.mjs",
+      "sha256": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234",
+      "bytes": 318526
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/node/isolation-client.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/node/isolation-client.mjs",
+      "sha256": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04",
+      "bytes": 17677
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/backend.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/backend.mjs",
+      "sha256": "961d348386907452df7c742d2690709e0c6c47feaa496ca33d60298da4584e30",
+      "bytes": 5482
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/main.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/main.mjs",
+      "sha256": "11b42b3a3c66967fa4b260f9adca288f618e2e2b4f28e7487f2632ebcd6cb876",
+      "bytes": 18144
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/server.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/server.mjs",
+      "sha256": "58b5d7fd76e7d3bbd3c64780a27e8475dce4dd1aa21753f1e44aaee9c5ea8beb",
+      "bytes": 51166
+    },
+    {
+      "label": "Node coupled-share fix on d281007c: 0f1ef848 installed NucBox control baseline (root snapshot ~16:02-16:06Z), 14b24592 + a5e155ec one share = one fraction of both CPU and the app RAM pool (windows/node/host, chain, isolation-client + regression fixtures/tests). Per root review: new 14/14, defect 6/6 (0/6 baseline), client 27/27, memory 1/1, hosting 25/25, isolation 15/15, preclaim 5/5, scan 13/13; broad suite 222/233 = the same 11 pre-existing baseline fixture failures, NOT called green. Not re-run by D",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/wmi-launcher.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/node-shares-a5e155ec/files/windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "33ef5f0e57755e596a50a11a256d8a4b831a90dfd4cda6a9699f8761be4a4592",
+      "bytes": 84372
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/patches/0001-670a753e.patch",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/patches/0001-670a753e.patch",
+      "sha256": "c05e8e407c2572b508194349f76622abaa74cd76d49544d11351df58ef0bf345",
+      "bytes": 77705
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/patches/0002-bf376363.patch",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/patches/0002-bf376363.patch",
+      "sha256": "9c1f4dc405bcddea2ab3f02a03e2afecc0a4c5462396f4b97fc46c2b5a0589f8",
+      "bytes": 1729
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/patches/0003-ea6717d2.patch",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/patches/0003-ea6717d2.patch",
+      "sha256": "44dd1e5bd00e6d076089639304413271a27390ec720cdd7f6ad95c3583a01364",
+      "bytes": 15186
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/isolation/m3/monitor/cpu_allowance_test.go",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/isolation/m3/monitor/cpu_allowance_test.go",
+      "sha256": "692479dd779dfa08fa09359ba4f89e06a4b42a10fe75b5e36fe6d1180d19adf4",
+      "bytes": 3020
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/isolation/m3/monitor/cpu_load_test.go",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/isolation/m3/monitor/cpu_load_test.go",
+      "sha256": "e96e8efb927b42ef7cd9bfca8439a2d0d54491c6fcff4f2831f33d49451e5a15",
+      "bytes": 2907
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/isolation/m3/monitor/main.go",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/isolation/m3/monitor/main.go",
+      "sha256": "f53826db5ac10f5739c63ce0a0837c0086eebc001161f32a6dbf334241c08a74",
+      "bytes": 75357
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/WMISERVE-PROTOCOL.md",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/WMISERVE-PROTOCOL.md",
+      "sha256": "dc6cd68beaac976a2e8246d6fe79f5f3f14a1a8cf219a1ab14b7e410804caeff",
+      "bytes": 4669
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/host/src/wmiserve.rs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/host/src/wmiserve.rs",
+      "sha256": "8699491da2eaa069910a887e208161ad25c3b465147211cd8ccbb37d9cf599d1",
+      "bytes": 27460
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/cpu-allocation.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/cpu-allocation.test.mjs",
+      "sha256": "78ef5dabff1c56c4918bafcd0ee66f0b0aa4d488c6431949c4b88b5ed5b01743",
+      "bytes": 16665
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/cpu-share.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/cpu-share.mjs",
+      "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0",
+      "bytes": 3044
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/cpu-share.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/cpu-share.test.mjs",
+      "sha256": "ebd976882be5dac52973940e4125c40e5d8535a5e04fe1a579deba220d26d06f",
+      "bytes": 5762
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/fake-hyperv.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/fake-hyperv.mjs",
+      "sha256": "26f75ba194b4e2a8a23df8e7d012f5ff9aa6f2837b1d0b17a6b1af6e228bd763",
+      "bytes": 5111
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/main.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/main.mjs",
+      "sha256": "3e236ac01fa0b41545af50c11a09455c9a93164d275227171f9847ee4a837265",
+      "bytes": 20058
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/ops/launcher-canary.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/ops/launcher-canary.mjs",
+      "sha256": "1656dfdab11ae01b956f0ad9a825c611a0aa14f9a210787623e981e098ec8289",
+      "bytes": 5707
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/ops/launcher-canary.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/ops/launcher-canary.test.mjs",
+      "sha256": "f2c7697b31b555ed63975a44e4d70fc31c1dd9d38aeeb84865a54425dc11d8a3",
+      "bytes": 4674
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/ops/manager-launcher-canary.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/ops/manager-launcher-canary.ps1",
+      "sha256": "30013523b2ea96081d703f70eac4f8f130f7c08c9c1663554a4b0cec6bb7604c",
+      "bytes": 8774
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/server.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/server.mjs",
+      "sha256": "9242b026977f8a48c33da798f8a897d1353a3058f2cfc636eea1d1dca872f47f",
+      "bytes": 55865
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/server.test.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/server.test.mjs",
+      "sha256": "04767c7c811b34ca4a10825df88e43b8a0976c2e6384f393460c9e32d44b0965",
+      "bytes": 43064
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+      "sha256": "0c7b1a8d7a3f4901624aba08123ac91d57e79088c81cb6a7579d574859c83531",
+      "bytes": 4773
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/wmi-launcher.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/wmi-launcher.mjs",
+      "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606",
+      "bytes": 91817
+    },
+    {
+      "label": "CPU enforcement source on 0f1ef848: 670a753e manager (one share sizes VPs as well as RAM), bf376363 test seam (no behaviour change), ea6717d2 guest cgroup cpu.max. Per root review: CPU call chain 11/11 (2/11 baseline), guest real-load seam 3/3 (1/3 baseline). NOT a full fix: manager/guest rollout pending; guest cgroup enforcement not yet native",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/wmiserve-run.mjs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-enforce-ea6717d2/files/windows/vbslike/manager/wmiserve-run.mjs",
+      "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+      "bytes": 13831
+    },
+    {
+      "label": "old-guest-b 15ad0042 on 670a753e: earlier guest change superseded by bf376363+ea6717d2, retained because root's native canary kit references it",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/patches/0001-15ad0042.patch",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/patches/0001-15ad0042.patch",
+      "sha256": "055b391a15246ec9c2163621877b262ccded057f2f8089cd6efb2b30c04d23b1",
+      "bytes": 11635
+    },
+    {
+      "label": "old-guest-b 15ad0042 on 670a753e: earlier guest change superseded by bf376363+ea6717d2, retained because root's native canary kit references it",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/isolation/m3/monitor/cpu_allowance_test.go",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/isolation/m3/monitor/cpu_allowance_test.go",
+      "sha256": "692479dd779dfa08fa09359ba4f89e06a4b42a10fe75b5e36fe6d1180d19adf4",
+      "bytes": 3020
+    },
+    {
+      "label": "old-guest-b 15ad0042 on 670a753e: earlier guest change superseded by bf376363+ea6717d2, retained because root's native canary kit references it",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/isolation/m3/monitor/main.go",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/isolation/m3/monitor/main.go",
+      "sha256": "84d17dbe03c02518ad5b194047415728f0d535499cc5faa66c68c5a85a49546d",
+      "bytes": 75132
+    },
+    {
+      "label": "old-guest-b 15ad0042 on 670a753e: earlier guest change superseded by bf376363+ea6717d2, retained because root's native canary kit references it",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/windows/vbslike/WMISERVE-PROTOCOL.md",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/windows/vbslike/WMISERVE-PROTOCOL.md",
+      "sha256": "dc6cd68beaac976a2e8246d6fe79f5f3f14a1a8cf219a1ab14b7e410804caeff",
+      "bytes": 4669
+    },
+    {
+      "label": "old-guest-b 15ad0042 on 670a753e: earlier guest change superseded by bf376363+ea6717d2, retained because root's native canary kit references it",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/windows/vbslike/host/src/wmiserve.rs",
+      "stored": "files/source-preservation/frozen-1726-export/cpu-oldguest-15ad0042/files/windows/vbslike/host/src/wmiserve.rs",
+      "sha256": "8699491da2eaa069910a887e208161ad25c3b465147211cd8ccbb37d9cf599d1",
+      "bytes": 27460
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/patches/0001-d10a78cb.patch",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/patches/0001-d10a78cb.patch",
+      "sha256": "fa4167aed776b6c75d6493f1e44e3d2288304d4c8cb7e79d398462edee144136",
+      "bytes": 172882
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/patches/0002-33ba0fc3.patch",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/patches/0002-33ba0fc3.patch",
+      "sha256": "288e1921dec25c3f389b50581c903196f1471621c9d43f3d40fc0dc70b2327cd",
+      "bytes": 3486
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/.gitignore",
+      "sha256": "ca005582a173d32eb695c428d53dd954b2b0c0efaf6c135b1ccd75c37551d660",
+      "bytes": 37
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/PROGRESS.txt",
+      "sha256": "d8acbc22d8e18d4c6dc6f0b50b53eeca8baeb44f23bda4aa493e4ea4010a18a1",
+      "bytes": 3973
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/RESULT.md",
+      "sha256": "49edfa8bc5a6dcf0f70eb9d0006c95bf63c26ef2a225dc02f69a552a8d51f591",
+      "bytes": 10112
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/delivery/MANIFEST.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/delivery/MANIFEST.json",
+      "sha256": "4317a16fbe9cfcaabe71b8a22a6314353d19e58bfdf4df8696d8e0d1bcf6d1c1",
+      "bytes": 2380
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/delivery/release-proposal.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/delivery/release-proposal.json",
+      "sha256": "bec958512a69b295ca9c52e9d1cdcdc9334f021afdebfd29f122584656c7d46b",
+      "bytes": 907
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activate-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activate-1.guard.log",
+      "sha256": "2228059b75e1b73f3259d11a0f51ec3ef07c70780fe0f6be722f7bf5cf265d22",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activate-node.py",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activate-node.py",
+      "sha256": "b2efb719042953f3246be2971cb8c8c3b0288ddade2e12e2678a4f5ed50c2f21",
+      "bytes": 8719
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-install-20261023T171034Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-install-20261023T171034Z.json",
+      "sha256": "4979a5184a4d4efcc8214e3d224a8a867d8668fde6091d82cafb7a872f514cfe",
+      "bytes": 400
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-last.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-last.json",
+      "sha256": "183c7b6a7e9e4bdda22601c2232bcbd45d7513366764aea7eeb45bea51d668c2",
+      "bytes": 8814
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-preflight-20261023T170926Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-preflight-20261023T170926Z.json",
+      "sha256": "80c0d900d20921ece34d558ce263695587cc3965ce057ed69680d6d927f63c32",
+      "bytes": 3943
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-preflight-pinned.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-preflight-pinned.json",
+      "sha256": "80c0d900d20921ece34d558ce263695587cc3965ce057ed69680d6d927f63c32",
+      "bytes": 3943
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-stage-20261023T170901Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-stage-20261023T170901Z.json",
+      "sha256": "a76fb5697cc7bd52adbd504fbfab2f26a80b056f1ff84aaf60a2cdb2d51eee6d",
+      "bytes": 522
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-start-node-20261023T171059Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-start-node-20261023T171059Z.json",
+      "sha256": "3c30d8a54800e2b6a778bd2600f62d19b73c465ad2f636564d262a630459826a",
+      "bytes": 405
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-stop-node-20261023T171010Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-stop-node-20261023T171010Z.json",
+      "sha256": "372ca56b3a7b481f2a3e8357a35656f1c753eb097a9eb428ba019fbda1ff8e17",
+      "bytes": 524
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-verify-20261023T171120Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-verify-20261023T171120Z.json",
+      "sha256": "f14dfc108ea0e3a25f2807d9a117191852e0f24922ac4672d3d2c41047fd6672",
+      "bytes": 8697
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-verify-20261023T171240Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-verify-20261023T171240Z.json",
+      "sha256": "1a398321a29d943befe8caa76a1629a4b8513dabd364992452c5ae33cc627c54",
+      "bytes": 7485
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-verify-20261023T171454Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activation-verify-20261023T171454Z.json",
+      "sha256": "183c7b6a7e9e4bdda22601c2232bcbd45d7513366764aea7eeb45bea51d668c2",
+      "bytes": 8814
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activator-parse-2.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activator-parse-2.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activator-parse-3.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activator-parse-3.guard.log",
+      "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activator-parse-4.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/activator-parse-4.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/cpu-api-canary.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/cpu-api-canary.guard.log",
+      "sha256": "47fc4a4a863ba0b8be0d1c11e92e9395d6ae0ac2a4fa2915c1407f7539688b0c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/cpu-api-canary.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/cpu-api-canary.json",
+      "sha256": "9c442941f282ea161e91040f36384b9bd9385601149a340dd4032b8f1da2308c",
+      "bytes": 311
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/cpu-api-canary.py",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/cpu-api-canary.py",
+      "sha256": "20e5f6f4e56c7da20d195aad18a09b848d93b7b8a288dc78ca61de36734d7227",
+      "bytes": 1928
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/guest-build.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/guest-build.json",
+      "sha256": "0498683194fbd4c7c851419a2f296fca5cdc07d1f2064defba26b9b7c72af28e",
+      "bytes": 1137
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/node-rollout-result.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/node-rollout-result.json",
+      "sha256": "c1507170fb675e1cc2a686749a0c8571c91aa6ac2fee03f0b80540c59cdc2199",
+      "bytes": 1915
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/pool-config.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/pool-config.json",
+      "sha256": "8a22ec89caffd2bf781eb840a07489019780b8c39379837589810878a2facc8d",
+      "bytes": 308
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/preflight-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/preflight-1.guard.log",
+      "sha256": "4008baa6b9c626af438908f351e6c755a8e993325de1b0004cbd3148ec323499",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/public-fleet.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/public-fleet.json",
+      "sha256": "60afb86184d3ddab9880702bc85bf93ac54a590117c453da0bd9a007b7887bad",
+      "bytes": 392
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-guest-build.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-guest-build.guard.log",
+      "sha256": "b1acf8919a73bbf7633462495fd00aee7861a9673af7cf40f875eadf8cadbcb5",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-guest-build.py",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-guest-build.py",
+      "sha256": "ca64ebc40603dbaab0396c58646cc18df36bfa1ac73415a7451d2747ac810cd6",
+      "bytes": 1222
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-pool-config.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-pool-config.guard.log",
+      "sha256": "f81ea9b8ee5f8d663ff0ee5237b967fa5b9bdd2ac802584b28bd089a2b05cb7f",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-pool-config.py",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/read-pool-config.py",
+      "sha256": "90235973c84dc182ec0e4f2473238b62e4ba78e71d9e09b44d3d14dba0c5e019",
+      "bytes": 867
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-1.guard.log",
+      "sha256": "f03c0363c822c2f688aa3aeaebad402bc5426a6f835590c444bf7aaf2368d12c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-171218.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-171218.json",
+      "sha256": "9d9f586e343132b89eb7a12e17f1a2a22b76d3c297b598249116c416a17d132f",
+      "bytes": 8786
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-2.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-2.guard.log",
+      "sha256": "826d7df59081bb5ac18e9e11daf1b66fe265a51fee91ca4935afa49942d94987",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-2.out",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs-2.out",
+      "sha256": "79213d34e7fdf3c82f229c4b6222cda67e046a853acf82c09e80ba76220c7d9b",
+      "bytes": 9611
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs.json",
+      "sha256": "9f3b712291e419311da1c923ce9b12d3242bd5778adedde128b954669675c5e4",
+      "bytes": 9369
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs.py",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/recovery-logs.py",
+      "sha256": "96fb44b54cba2130fc7129b2f54eee94d90ef9581feee16b8a510f96e983fb1f",
+      "bytes": 1076
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/release.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/release.json",
+      "sha256": "5d6cef359da4eee1ae8578d5e6e37dbc02548d53e2d0de6bca6cf9eb31365243",
+      "bytes": 994
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/stage-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/stage-1.guard.log",
+      "sha256": "e6912a070f2608990b31c0e2189408caedf3b093a44e918092098d909f33e625",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-install.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-install.ps1",
+      "sha256": "7fb11538ad9990d4b2857c64bf72f9b37d1e0d812f7c69c944ef4618196aa790",
+      "bytes": 3651
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-preflight.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-preflight.ps1",
+      "sha256": "4f477eb2d6ee487dac6cfc7625f97016f35225c6554181a7eb231b5c5cd0bf3e",
+      "bytes": 3393
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-stage.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-stage.ps1",
+      "sha256": "91f89215028a8034e8c0fa901a65cdf9b6be3c9bab67685ce3821842c32bb70a",
+      "bytes": 2950
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-start-node.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-start-node.ps1",
+      "sha256": "dd09f0701ab203c8e77d8ce081b7dfe100d68a0ac041bf0f6f34c654a9ff872b",
+      "bytes": 3205
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-stop-node.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-stop-node.ps1",
+      "sha256": "e8aaad59a3fe88e940becf44d02b15ffb8ad189d96296d8f2d3feffd4388241e",
+      "bytes": 3214
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-verify.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/step-verify.ps1",
+      "sha256": "6e99a2f235e18fac21877e95c8237eb863a0b15ae925d3a32cf70fbd0a51b82b",
+      "bytes": 3548
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-1.guard.log",
+      "sha256": "fdbe504ee0524f7aa54f412e5ef752a986cedeee6e0c9b4ee6e57cb4404ac2ad",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-2.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-2.guard.log",
+      "sha256": "418dba89f862305cbc0dbb50fffada084cddbbaa356c79fe23c3b60bd6281599",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-20261023T171409Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-20261023T171409Z.json",
+      "sha256": "cc74976874680607536ea8d26bbd40b874abc7bb40f4a064df4ca9d48062ccb7",
+      "bytes": 3365
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-20261023T171550Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-20261023T171550Z.json",
+      "sha256": "013fc45f1d6189a9cfae55a895b2401c9cb2d352c96e32230c8503408f725735",
+      "bytes": 1013
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-20261023T171818Z.json",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-20261023T171818Z.json",
+      "sha256": "e068a60c77246d041636be01f33db0b944e5314d728ff25fc15dfb21be4642e2",
+      "bytes": 1160
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-3.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/tls-3.guard.log",
+      "sha256": "c632edf9e924352fac01f5ad68950174f79161cc8c98409e7d6a4d62ac533839",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-1.guard.log",
+      "sha256": "a42f38458fbd16b37314a39fe100c2d5b236b2a07ce350c011c95edba576bc3c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-2.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-2.guard.log",
+      "sha256": "7d14b28757dbd1487d00953d657b25c55811b3c7dcf4477c1d4f985d3b2ce606",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-2.out",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-2.out",
+      "sha256": "5082e88162d578f4e64e587ff6f4f5cc45afe5d618c61aa536446bee445ec530",
+      "bytes": 6140
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-3.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-3.guard.log",
+      "sha256": "89f6c2f0e13b88ada8b6a8f0aae32d35325190e52d25c2cb2d3b71486d860978",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-3.out",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-3.out",
+      "sha256": "874add3c9f738f0e9881a27a118ee2268c5368ccb5abdaca8f7a1eeabfc215ff",
+      "bytes": 7041
+    },
+    {
+      "label": "ROOT-reviewed NucBox coupled-share rollout report d10a78cb + 33ba0fc3 (committed tree only): native node activation, root rollback helper, VM snapshots, TLS retries, public fleet API evidence (17:22:15: 17% CPU, 16.3 GiB of 96 GB, 9/9 apps running, c13 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-public.py",
+      "stored": "files/source-preservation/frozen-1726-export/node-report-33ba0fc3/files/root-validation/verify-public.py",
+      "sha256": "799cea4b44551353e25c1854235563859efe449f6280f5d081e7635616bcd9dd",
+      "bytes": 1863
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/patches/0001-c516049c.patch",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/patches/0001-c516049c.patch",
+      "sha256": "5839f1aaa325c23da0d3b823e54296a8e62fcb65dfe5b039316adc474def6112",
+      "bytes": 61345
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-canary.py",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-canary.py",
+      "sha256": "5d14fffd75ce8d4f90f4dcaa5993fefbae3dcd84263fe247086c6ab7956e7b8c",
+      "bytes": 5046
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-read.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-read.ps1",
+      "sha256": "b003c4a972fc4cf7caf118309ee12973bae94108fd7d8a367f654b09483ba8a0",
+      "bytes": 515
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-run.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-run.ps1",
+      "sha256": "ea9edc5819a930e2200cb3cf501e8f6dfd27b02c1b9df86245a50edc9fe4b7ef",
+      "bytes": 2406
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-stage.ps1",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/native-stage.ps1",
+      "sha256": "b960cd9779669091d99a95c18b2f00e35d1a1a297cb26d389c33bbf728d08641",
+      "bytes": 2757
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/read-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/read-1.guard.log",
+      "sha256": "82181973ec56bc527b4776994e66cd0f7d66cdd34385376ebd0853957df8fe26",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/read-1.out",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/read-1.out",
+      "sha256": "f5752948805b975909ffbd382aa7d95a8aa7139b539d8e8cab06251b0e94ba7e",
+      "bytes": 20589
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/read.json",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/read.json",
+      "sha256": "5b40fce772d37b05dc2917ae0e3b5efd83b846fe9a7db86a50d62c714c201bdb",
+      "bytes": 20880
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/run-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/run-1.guard.log",
+      "sha256": "fedd1e1ecaf2db7a746b41677b8b4cd156dc56e623c260b96c95858151e95f6f",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/run.json",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/run.json",
+      "sha256": "a3620e5914ce14a05708c8d8abf96601a27df7dee9542dbf96b03e49b7bd0b96",
+      "bytes": 1486
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/stage-1.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/stage-1.guard.log",
+      "sha256": "2aab6245fc6de82818070371c7148d2936d8fd58a2974e77d6ce9a3a6e0b2f92",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/stage-2.guard.log",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/stage-2.guard.log",
+      "sha256": "31edaac03dd8711c529ee0da83688a60bf73ce3e121dc894b89ece973a15a3f8",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT-run native Hyper-V type-1 CPU canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, 12 original VM IDs/states and manager PID 2376 unchanged; no production manager or image updated; evidence, NOT production activation",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/stage.json",
+      "stored": "files/source-preservation/frozen-1726-export/root-cpu-canary-c516049c/files/stage.json",
+      "sha256": "0e977f0751f8c1e7ab69e850f046eb624e7f4f38a245cfbfa2bce84426516176",
+      "bytes": 3402
+    },
+    {
+      "label": "CPU worker FINAL report (dated 2026-10-23, frozen source 670a753e/bf376363/ea6717d2, old-guest-b 15ad0042): source and tests only; states it is NOT a full fix",
+      "source": "work/coupled-cpu-enforcement-20261023/FINAL.txt",
+      "stored": "files/work/coupled-cpu-enforcement-20261023/FINAL.txt",
+      "sha256": "21e67e0bf1177d1374a336ab73dafe5b289294b2a52291a498bb1bddbe543de9",
+      "bytes": 10964
+    },
+    {
+      "label": "CPU worker native canary kit: raw source runner run-cpu-canary.ps1, KIT-MANIFEST/KIT-EXPECTED, NATIVE-CANARY.txt (no prebuilt binary; kit files = repo blobs at 15ad0042 and ea6717d2, asserted in INVENTORY nativeKit)",
+      "source": "work/coupled-cpu-enforcement-20261023/native-canary/run-cpu-canary.ps1",
+      "stored": "files/work/coupled-cpu-enforcement-20261023/native-canary/run-cpu-canary.ps1",
+      "sha256": "853570b417d80a2b103ebb8b9b82e3ac33d053313ee194e68ae354f410ab7c49",
+      "bytes": 5319
+    },
+    {
+      "label": "CPU worker native canary kit: raw source runner run-cpu-canary.ps1, KIT-MANIFEST/KIT-EXPECTED, NATIVE-CANARY.txt (no prebuilt binary; kit files = repo blobs at 15ad0042 and ea6717d2, asserted in INVENTORY nativeKit)",
+      "source": "work/coupled-cpu-enforcement-20261023/native-canary/KIT-EXPECTED.json",
+      "stored": "files/work/coupled-cpu-enforcement-20261023/native-canary/KIT-EXPECTED.json",
+      "sha256": "f79dbfc43c2710fb64e7555bdf20a9d37234b665ef8eba2773e50f6ba3f58048",
+      "bytes": 2582
+    },
+    {
+      "label": "CPU worker native canary kit: raw source runner run-cpu-canary.ps1, KIT-MANIFEST/KIT-EXPECTED, NATIVE-CANARY.txt (no prebuilt binary; kit files = repo blobs at 15ad0042 and ea6717d2, asserted in INVENTORY nativeKit)",
+      "source": "work/coupled-cpu-enforcement-20261023/native-canary/KIT-MANIFEST.json",
+      "stored": "files/work/coupled-cpu-enforcement-20261023/native-canary/KIT-MANIFEST.json",
+      "sha256": "247e3c239a92f0ad313388346a1ab5d05033b953c3d04b73b3051624af51be5b",
+      "bytes": 1372
+    },
+    {
+      "label": "CPU worker native canary kit: raw source runner run-cpu-canary.ps1, KIT-MANIFEST/KIT-EXPECTED, NATIVE-CANARY.txt (no prebuilt binary; kit files = repo blobs at 15ad0042 and ea6717d2, asserted in INVENTORY nativeKit)",
+      "source": "work/coupled-cpu-enforcement-20261023/native-canary/NATIVE-CANARY.txt",
+      "stored": "files/work/coupled-cpu-enforcement-20261023/native-canary/NATIVE-CANARY.txt",
+      "sha256": "68c462447c01f1e6c54d8e7a98305aeb9cbcafe4d8defe17a70ea57c4857170b",
+      "bytes": 4287
+    },
+    {
+      "label": "D receipt of the 1639 batch (1219a988, committed 17:19:57Z, pushed 17:20:38Z; root verified remote): sides, omissions with recipes, attempts",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-1639-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-1639-checkpoint.md",
+      "sha256": "551270ba0dcb1af0c84639f2d6c1d8ecfd0b20a6eedfd6b589a7f4136380eca2",
+      "bytes": 6135
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T17:30:05Z) of root's journal ROOT-PENDING-LATEST.txt and effective-goal-requirements.txt as coordination evidence (resource-share priority, then Custody v2 production SNP verification)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1726/ROOT-PENDING-LATEST.snapshot-1726.txt",
+      "stored": "files/source-preservation/snapshots-1726/ROOT-PENDING-LATEST.snapshot-1726.txt",
+      "sha256": "5de232d31a08e5f285d3b424543ed0a5b1e44315bafcd69e39cf4c9b04eea058",
+      "bytes": 38770
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T17:30:05Z) of root's journal ROOT-PENDING-LATEST.txt and effective-goal-requirements.txt as coordination evidence (resource-share priority, then Custody v2 production SNP verification)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1726/effective-goal-requirements.snapshot-1726.txt",
+      "stored": "files/source-preservation/snapshots-1726/effective-goal-requirements.snapshot-1726.txt",
+      "sha256": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2",
+      "bytes": 20300
+    },
+    {
+      "label": "ROOT receipt: native CPU-share canary (c516049c); evidence, not production activation",
+      "source": "outputs/decentralization-audit/nucbox-cpu-share-native-canary-20261023.json",
+      "stored": "files/outputs/decentralization-audit/nucbox-cpu-share-native-canary-20261023.json",
+      "sha256": "2b21b3675f18a08ead1f5855585b617bcbb32c60b105922e58ac608dcf1c82e0",
+      "bytes": 2065
+    },
+    {
+      "label": "ROOT receipt: node coupled-share accounting active on the NucBox (a5e155ec / report 33ba0fc3); the whole CPU fix is not complete",
+      "source": "outputs/decentralization-audit/nucbox-coupled-accounting-active-20261023.json",
+      "stored": "files/outputs/decentralization-audit/nucbox-coupled-accounting-active-20261023.json",
+      "sha256": "c1507170fb675e1cc2a686749a0c8571c91aa6ac2fee03f0b80540c59cdc2199",
+      "bytes": 1915
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-1726.py",
+      "stored": "files/source-preservation/export-frozen-1726.py",
+      "sha256": "96204f7075d77bcf6321097224746530b5c3b208a020fa25e1c8b20bf6c3888f",
+      "bytes": 16824
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-1726-export.py",
+      "stored": "files/source-preservation/verify-frozen-1726-export.py",
+      "sha256": "1d879c93ecb0e26ff4764f5e57c75cfab00af027a557e364cca0ac3b85c01fae",
+      "bytes": 4391
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-1726.py",
+      "stored": "files/source-preservation/capture-frozen-1726.py",
+      "sha256": "ff92e3615847408cc4627aabfbc6a195e1defa4cc605e9c9e27a129cf0a23d70",
+      "bytes": 7600
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-pins.json",
+      "stored": "files/source-preservation/frozen-1726-pins.json",
+      "sha256": "d01a6660b53cc9abd77ae93a042a87a197f4e7f9dfe70686cb0d1e1f7396ed65",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-q.sh",
+      "stored": "files/source-preservation/frozen-1726-q.sh",
+      "sha256": "2ac0aa269f757965c1b3093968154233c59cae532fb4a32a0f5aa5661df6e80f",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-export.sh",
+      "stored": "files/source-preservation/frozen-1726-export.sh",
+      "sha256": "94bd5cef061a4d48accb3cb385cf098da187a5aba2f78e385e3589459d99a95d",
+      "bytes": 2770
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-capture.sh",
+      "stored": "files/source-preservation/frozen-1726-capture.sh",
+      "sha256": "dbb6b2e811b3d903dd2f49619b09565e46dd1c48a0b43edde8991fbe934905e8",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1726-labels.json",
+      "stored": "files/source-preservation/frozen-1726-labels.json",
+      "sha256": "6a67809063c4236db7493900882b52102c1b46ed1faf52e2608a48b785c2c5c7",
+      "bytes": 3876
+    },
+    {
+      "label": "frozen-1726 checkpoint tooling (\"1726\" = batch start 2026-10-23T17:26Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-1726-snapshots.py",
+      "stored": "files/source-preservation/make-frozen-1726-snapshots.py",
+      "sha256": "1190c7e8ed19c62b2db3f2f8ef4dd1b24e8d389fdb53a083cf6a0202ca6db827",
+      "bytes": 861
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -31404,6 +32370,15 @@
       "added": 112,
       "bytes": 4778267,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1639\" is a batch identifier (start 16:39Z), not this time"
+    },
+    {
+      "at": "2026-10-23T17:32:56.940446+00:00",
+      "by": "source-preservation/capture-frozen-1726.py",
+      "onCheckpoint": "1219a9882904b73349aee9582a9e35b355c03e26",
+      "entriesBefore": 4551,
+      "added": 138,
+      "bytes": 2110691,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1726\" is a batch identifier (start 17:26Z), not this time"
     }
   ]
 }

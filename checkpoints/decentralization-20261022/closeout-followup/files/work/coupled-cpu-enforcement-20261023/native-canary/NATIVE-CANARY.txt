@@ -1,0 +1,48 @@
+NATIVE CANARY FOR ROOT — share-sized processor allocation on NucBox (CPU worker, 2026-10-23). Root runs it; I ran nothing native.
+
+WHAT IT PROVES (and what it does not)
+  Proves on the real host, with the PRODUCTION linux-direct image (guest/runtime.bin 5fbfb947), guest-state master and
+  pinned hyperv.psm1 read from shield-config.cmd:
+   (1) the candidate launcher's processor step sets Msvm_ProcessorSettingData Limit/Reservation on a NEW type-1 VM before
+       its first start and Hyper-V reads back exactly VirtualQuantity/Limit/Reservation/AllocationUnits ("percent / 1000");
+   (2) the type-1 VM STARTS with that cap and reservation (Hyper-V admits the reservation);
+   (3) the guest's first console line "MON snp=0 vcpus=N" shows all N VPs online (SMP of runtime.bin, never recorded before:
+       every recorded type-1 console says vcpus=1);
+   (4) the VM is removed by its Id, its VMGS copy archived, and nothing remains under the prefix.
+  Does NOT prove: an app's throughput, the cap under load, or the guest CPU allowance (needs the new image + shield-host.exe,
+  package B). No GFLOPS claim follows from it.
+
+KIT (exact files, hashes in KIT-MANIFEST.json, unchanged since root staged it; expected results in KIT-EXPECTED.json): the canary's whole import closure from the candidate commit:
+  windows/vbslike/manager/{wmi-launcher,cpu-share,wmiserve-run,egress,psrun}.mjs, manager/ops/launcher-canary.mjs,
+  windows/vbslike/verify/boot-statements.mjs. Copy kit/ to e.g. C:\ProgramData\Enclave\cpu-canary-kit (NOT into
+  Program Files\Enclave\control); verify every sha256 against KIT-MANIFEST.json before running.
+
+PRECONDITIONS (all read-only checks; the script refuses otherwise)
+  - shield-config.cmd has ENCLAVE_BOOT_FORM=linux-direct and the image/VMGS/module pins (the live manager's own config).
+  - AllowFirmwareLoadFromFile already DWORD 1 (the canary's preflight requires it; it never writes the registry).
+  - No VM named enclave-cpucanary-* exists. Do NOT restart the production manager while it runs (a restarted manager would
+    recover a canary VM as a "recovered" record; if that happens, DELETE that id through the manager after the canary).
+  - Headroom: each run = one 2048 MiB VM for ~1 minute; peak reservation 3.36 VPs (21% of 16). One run at a time.
+
+RUN (elevated PowerShell on NucBox, root's reviewed helper):
+  powershell -NoProfile -ExecutionPolicy Bypass -File run-cpu-canary.ps1 -Kit C:\ProgramData\Enclave\cpu-canary-kit
+  Default shares 0.01, 0.21, 0.13 with pool = Win32_ComputerSystem.NumberOfLogicalProcessors (16; the node's os.cpus()):
+    0.01 -> want {vcpus 1, limit 16000, reservation 16000}   (exercises ModifyResourceSettings on type 1; guest vcpus=1)
+    0.21 -> want {vcpus 4, limit 84000, reservation 84000}   (SMP proof: guest must print vcpus=4)
+    0.13 -> want {vcpus 3, limit 69333, reservation 69333}   (fractional per-VP quota, not whole percent)
+  Output: C:\ProgramData\Enclave\logs\cpu-canary-<UTC>\summary.json (+ per-share out-*.jsonl, cfg-*.json, err-*.txt).
+  PASS = summary.ok true: every run exit 0 (each run's "cpu" step ok: readback == want AND guestOnlineVcpus == vcpus),
+  leftAfter 0. Return summary.json + out-*.jsonl to work/coupled-cpu-enforcement-20261023/root-validation/.
+
+IF IT FAILS
+  - processor step error (ModifyResourceSettings return/job state, or read-back mismatch): the launcher already removed the
+    VM; DO NOT activate package A. Send the out-*.jsonl.
+  - Start-VM refused after the processor step: Worker-Admin events are in the error; DO NOT activate.
+  - guestOnlineVcpus 1 with vcpus 4: runtime.bin does not bring up SMP -> ROLLOUT BLOCKER (root ruling): do not activate A
+    and do not report compute fixed; the record's truthful blocker string is not an acceptable substitute.
+  - leftAfter > 0: the script already removed only VMs carrying our identity Notes; anything else under the prefix is
+    reported, never touched.
+
+LATER (package B, guest CPU allowance): after a new guest image (monitor allocatedPolicy) + shield-host.exe (wmiserve
+--app-cpu) are built and pinned, a staging manager with ENCLAVE_GUEST_CPU_ALLOWANCE=1 must load one real app at 21% and
+show record.cpu.appCpuPercent 336 (wmiserve load step cpuPercent 336, console "MON domain N loaded ... cpu=336%").

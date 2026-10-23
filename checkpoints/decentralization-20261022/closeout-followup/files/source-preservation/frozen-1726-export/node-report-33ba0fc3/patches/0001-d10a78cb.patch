@@ -1,0 +1,2770 @@
+From d10a78cb06ccbb05426effeaa587326ad6c03c62 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:20:28 -0700
+Subject: [PATCH] Record verified NucBox coupled-share rollout and rollback
+ procedure
+
+---
+ .gitignore                                    |   3 +
+ PROGRESS.txt                                  |  11 +
+ RESULT.md                                     | 122 ++++++++
+ delivery/MANIFEST.json                        |  41 +++
+ delivery/release-proposal.json                |  20 ++
+ root-validation/activate-1.guard.log          |   1 +
+ root-validation/activate-node.py              |  74 +++++
+ .../activation-install-20261023T171034Z.json  |  19 ++
+ root-validation/activation-last.json          | 282 ++++++++++++++++++
+ ...activation-preflight-20261023T170926Z.json | 144 +++++++++
+ .../activation-preflight-pinned.json          | 144 +++++++++
+ .../activation-stage-20261023T170901Z.json    |  24 ++
+ ...ctivation-start-node-20261023T171059Z.json |  19 ++
+ ...activation-stop-node-20261023T171010Z.json |  24 ++
+ .../activation-verify-20261023T171120Z.json   | 226 ++++++++++++++
+ .../activation-verify-20261023T171240Z.json   | 226 ++++++++++++++
+ .../activation-verify-20261023T171454Z.json   | 282 ++++++++++++++++++
+ root-validation/activator-parse-2.guard.log   |   1 +
+ root-validation/activator-parse-3.guard.log   |   1 +
+ root-validation/activator-parse-4.guard.log   |   1 +
+ root-validation/cpu-api-canary.guard.log      |   1 +
+ root-validation/cpu-api-canary.json           |  17 ++
+ root-validation/cpu-api-canary.py             |   5 +
+ root-validation/guest-build.json              |  40 +++
+ root-validation/node-rollout-result.json      |  35 +++
+ root-validation/pool-config.json              |  20 ++
+ root-validation/preflight-1.guard.log         |   1 +
+ root-validation/read-guest-build.guard.log    |   1 +
+ root-validation/read-guest-build.py           |   8 +
+ root-validation/read-pool-config.guard.log    |   1 +
+ root-validation/read-pool-config.py           |   4 +
+ root-validation/recovery-logs-1.guard.log     |   1 +
+ root-validation/recovery-logs-171218.json     |  68 +++++
+ root-validation/recovery-logs-2.guard.log     |   1 +
+ root-validation/recovery-logs-2.out           |  77 +++++
+ root-validation/recovery-logs.json            |  73 +++++
+ root-validation/recovery-logs.py              |   4 +
+ root-validation/release.json                  |  20 ++
+ root-validation/stage-1.guard.log             |   1 +
+ root-validation/step-install.ps1              |   2 +
+ root-validation/step-preflight.ps1            |   2 +
+ root-validation/step-stage.ps1                |   2 +
+ root-validation/step-start-node.ps1           |   2 +
+ root-validation/step-stop-node.ps1            |   2 +
+ root-validation/step-verify.ps1               |   2 +
+ root-validation/tls-1.guard.log               |   1 +
+ root-validation/tls-2.guard.log               |   1 +
+ root-validation/tls-20261023T171409Z.json     | 115 +++++++
+ root-validation/tls-20261023T171550Z.json     |  39 +++
+ root-validation/tls-20261023T171818Z.json     |  42 +++
+ root-validation/tls-3.guard.log               |   1 +
+ root-validation/verify-1.guard.log            |   1 +
+ root-validation/verify-2.guard.log            |   1 +
+ root-validation/verify-2.out                  |   8 +
+ root-validation/verify-3.guard.log            |   1 +
+ root-validation/verify-3.out                  |   8 +
+ root-validation/verify-public.py              |  30 ++
+ 57 files changed, 2303 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 PROGRESS.txt
+ create mode 100644 RESULT.md
+ create mode 100644 delivery/MANIFEST.json
+ create mode 100644 delivery/release-proposal.json
+ create mode 100644 root-validation/activate-1.guard.log
+ create mode 100644 root-validation/activate-node.py
+ create mode 100644 root-validation/activation-install-20261023T171034Z.json
+ create mode 100644 root-validation/activation-last.json
+ create mode 100644 root-validation/activation-preflight-20261023T170926Z.json
+ create mode 100644 root-validation/activation-preflight-pinned.json
+ create mode 100644 root-validation/activation-stage-20261023T170901Z.json
+ create mode 100644 root-validation/activation-start-node-20261023T171059Z.json
+ create mode 100644 root-validation/activation-stop-node-20261023T171010Z.json
+ create mode 100644 root-validation/activation-verify-20261023T171120Z.json
+ create mode 100644 root-validation/activation-verify-20261023T171240Z.json
+ create mode 100644 root-validation/activation-verify-20261023T171454Z.json
+ create mode 100644 root-validation/activator-parse-2.guard.log
+ create mode 100644 root-validation/activator-parse-3.guard.log
+ create mode 100644 root-validation/activator-parse-4.guard.log
+ create mode 100644 root-validation/cpu-api-canary.guard.log
+ create mode 100644 root-validation/cpu-api-canary.json
+ create mode 100644 root-validation/cpu-api-canary.py
+ create mode 100644 root-validation/guest-build.json
+ create mode 100644 root-validation/node-rollout-result.json
+ create mode 100644 root-validation/pool-config.json
+ create mode 100644 root-validation/preflight-1.guard.log
+ create mode 100644 root-validation/read-guest-build.guard.log
+ create mode 100644 root-validation/read-guest-build.py
+ create mode 100644 root-validation/read-pool-config.guard.log
+ create mode 100644 root-validation/read-pool-config.py
+ create mode 100644 root-validation/recovery-logs-1.guard.log
+ create mode 100644 root-validation/recovery-logs-171218.json
+ create mode 100644 root-validation/recovery-logs-2.guard.log
+ create mode 100644 root-validation/recovery-logs-2.out
+ create mode 100644 root-validation/recovery-logs.json
+ create mode 100644 root-validation/recovery-logs.py
+ create mode 100644 root-validation/release.json
+ create mode 100644 root-validation/stage-1.guard.log
+ create mode 100644 root-validation/step-install.ps1
+ create mode 100644 root-validation/step-preflight.ps1
+ create mode 100644 root-validation/step-stage.ps1
+ create mode 100644 root-validation/step-start-node.ps1
+ create mode 100644 root-validation/step-stop-node.ps1
+ create mode 100644 root-validation/step-verify.ps1
+ create mode 100644 root-validation/tls-1.guard.log
+ create mode 100644 root-validation/tls-2.guard.log
+ create mode 100644 root-validation/tls-20261023T171409Z.json
+ create mode 100644 root-validation/tls-20261023T171550Z.json
+ create mode 100644 root-validation/tls-20261023T171818Z.json
+ create mode 100644 root-validation/tls-3.guard.log
+ create mode 100644 root-validation/verify-1.guard.log
+ create mode 100644 root-validation/verify-2.guard.log
+ create mode 100644 root-validation/verify-2.out
+ create mode 100644 root-validation/verify-3.guard.log
+ create mode 100644 root-validation/verify-3.out
+ create mode 100644 root-validation/verify-public.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..7396f9751e2aa8f0bff032a3ec75b6d578c5805f
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,3 @@
++repo/
++baseline-tree/
++**/__pycache__/
+diff --git a/PROGRESS.txt b/PROGRESS.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..0b82ec73d3a89d8d14e246cece7be3063ef11337
+--- /dev/null
++++ b/PROGRESS.txt
+@@ -0,0 +1,11 @@
++16:04Z started: reading installed source + live share accounting
++16:25Z repo/ created (clone of frozen candidate, branch coupled-shares). Baseline commit 0f1ef848b = d281007c2 + installed manager overlay; all 12 installed snapshot files byte-equal.
++Findings so far: (1) node RAM free = pool - catalog floors (79.8GiB) instead of pool x share; (2) c13 root cause: node-bridge spawn sends DIALED share .01, node counts effective .02 (GFLOPS need) -> manager sized 983MiB; (3) lifecycle reconcile HOLDS any domain whose RAM share != spawn share, so a resize or spawn-share fix would take an app offline without in-place relaunch; (4) every app VM = 1 vCPU, Maximum100/Reserve0 regardless of share (compute not enforced; manager-side, needs manager restart -> reported, not patched).
++Plan: node-only patch (no manager restart): coupled share/RAM free incl. reserve+cap+actual manager reservations, RAM minimum -> effective share, spawn effective share, relaunch-in-place on share mismatch with fit check, fail-closed on unknown/recovered/pool-mismatch.
++16:55Z new suite test/windows-node-coupled-shares.test.mjs 11/11 pass on fix (logs/new1.out); running same file on installed baseline for counterexample
++17:05Z behavioural counterexample test/windows-node-coupled-shares-defect.test.mjs: installed baseline 0/6 (16!=17; 20GiB@1% admitted; recovered sold 0.1699..; c13 983!=1966; manager refusal "983 MiB < 4096"; resize -> provisioning "different RAM share"), fix 6/6 (logs/defect-*.out). Next: regression batch of existing non-Anvil Windows node suites on baseline and fix.
++16:36Z CORRECTION: earlier PROGRESS timestamps (16:25Z/16:55Z/17:05Z) were estimates, not clock reads; from now on lines carry date -u. Stopped my own not-yet-admitted regression waiter reg1 (child was sleep) to apply ROOT-REVIEW-1/2 changes first.
++16:38Z ROOT-REVIEW-1/2 applied: list() fails closed on missing/non-array vms (real-HTTP bad-200 negative), refreshManagerView rejects non-list/non-object, coupled capacity requires health memory {rule:cpu-share, integer poolMiB == node pool}, only shield-readiness-v1 may use policy memMiB, non-witness VM w/o share reservation = unknown; no in-place grow/shrink on node initiative (only owner-paid growth relaunches, if fits, <=1/10min); waited reason + allocatedShare persist on running record. Focused: coupled-shares 13/13, defect 6/6 (baseline 0/6, DEFECT4 983!=1966), isolation-client 27/27, isolation-memory 1/1 (logs/new2.out, defect2-baseline.out).
++16:40Z candidate commit 14b2459262415ae93a970fc79ac224ab158fffdf (parent baseline 0f1ef848b). Regression: 256 run guard-stopped at 257MiB on hv-attach-relay after 26 baseline files (pre-existing baseline fails: catalog-platform-enforcement, registry-reconcile); resumed remaining baseline + full fix at 512 (reg3).
++17:04Z per ROOT-C13-AUTHORIZATION/FINAL-CHECKLIST: restored bounded in-place relaunch for ANY share mismatch (owner resize up AND down, c13 dial-spawn), fit-checked for growth, <=1 per 10 min, else explicit pending (allocatedShare+reason each pass). Fixtures adapted (pooled fake manager opt-in ramPoolMiB, known manager views, rounding-aware defaults) without weakening unknown/malformed rejection. Stopped own unadmitted 512 fixtures1 waiter (child sleep); running focused3 at 256.
++17:06Z FINAL: HEAD a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a (clean). Delivery: delivery/ (3 node files; host e537f727, chain b257fcf6, client d2222100; rollback = installed ea0f6b8a/3e9fae03/8d07cb4e; patch 7165865a; release-proposal.json reviewed:false). Focused on fix all green (coupled 14/14, defect 6/6 vs baseline 0/6, client 27/27, memory 1/1, hosting-caps 25/25, isolation-host 15/15, preclaim 5/5, scan-slot 13/13). 7 baseline failures matched, not touched. Activation effect: avail 17%/16.3GB; c13 relaunched once at 2% on first pass (fits). Rollback caveat: old node HOLDS a re-sized partition -> forced relaunch c13 after rollback. CPU enforcement NOT done here (Q). See RESULT.md.
+diff --git a/RESULT.md b/RESULT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..0271108124c133f0207d0f843f108ba7ce8fb0da
+--- /dev/null
++++ b/RESULT.md
+@@ -0,0 +1,122 @@
++# Coupled resource shares: node-side source fix (R)
++
++Status: the source fix is final and tested. It has **not** been activated, and nothing in production was touched.
++
++The user's request is **not complete**. Actual CPU enforcement belongs to the parallel worker Q (`work/coupled-cpu-enforcement-20261023`). Until Q's manager change and guest image land, a partition still runs on 1 vCPU with no cap, whatever its share. See "Gaps".
++
++## Commits
++Repo: `work/coupled-resource-shares-20261023/repo`, branch `coupled-shares`. Its parent clone is the frozen candidate; there is no remote.
++
++| commit | what |
++|---|---|
++| `0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2` | **Baseline = installed source.** It is d281007c2 plus root's installed manager overlay. All 14 files in root's installed snapshot are byte-equal, including isolation-client `8d07cb4e` and isolation-lifecycle `5ae5f457`. |
++| `14b2459262415ae93a970fc79ac224ab158fffdf` | The fix: one share, both pools. |
++| `a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a` | **Final HEAD.** Owner resizes are relaunched up and down; test fixtures read a pooled manager. The worktree is clean. |
++
++## Installed delta (node only; the manager is unchanged)
++Files are in `delivery/`:
++- `files/` holds the new files and `rollback/` holds the installed ones.
++- `installed-to-fix.patch` has sha256 `7165865a…acb5`.
++- `MANIFEST.json` is included.
++- `release-proposal.json` uses the format of root's `activate-node.py`, with `reviewed:false`.
++
++| target (`C:\Program Files\Enclave\control\…`) | before (installed) | after |
++|---|---|---|
++| `windows\node\host.mjs` | `ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de` | `e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234` |
++| `windows\node\chain.mjs` | `3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938` | `b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225` |
++| `windows\node\isolation-client.mjs` | `8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b` | `d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04` |
++
++Only the Node agent process loads these three files, so only the Node wrapper needs a restart. The Shield manager and the partitions keep running.
++
++## What changed (sharesCoupled = partition manager configured, no in-enclave apps)
++- **One free fraction for both pools.** `cpuShareFree = min(ledger free [reserve 25% and owner cap], RAM room / pool)` and `ramMbFree = floor(pool × cpuShareFree)`.
++  - Each deployment holds the larger of `floor(pool × share)` and what the manager's `/vms` says its partitions hold.
++  - Partitions that name no deployment are counted against the manager's own pool. Today that is only the readiness witness, counted by its policy `memMiB`.
++- **Unknown is not room.** The node refuses new claims and publishes 0 free when the manager view is any of these:
++  - not read yet, or the read failed;
++  - malformed (a `/vms` answer with no list, or `/health` that is not an object);
++  - stale (more than 10 min old);
++  - holding recovered or unattributed VMs;
++  - pool-less, or using a rule other than cpu-share;
++  - sized from a different pool than the node's;
++  - listing a non-witness VM that states no share reservation.
++
++  Work already on the box is never refused or given back for this; uncapped capacity ignores it. A resize up waits instead of giving up the lease. The node reads the manager once per pass (10 s timeout) and again before any claim older than 30 s.
++- **The RAM floor is a share requirement.** `effectiveCpuShare(…, sharePoolMiB)` rounds `memMb/pool` up to whole percent, the same as the site's `minPctsOf`. A RAM floor raises the share or the claim is refused; it never buys discounted RAM. The ledger dial and billing are unchanged.
++- **Spawns use the share the node counts** (`body.cpuShare = cpuShareOf`). This was c13's root cause: node-bridge sent the 1% dial while the node counted 2%.
++- **A partition sized for another share is relaunched in place.** This covers an owner resize up or down, and a dial-sized spawn like c13.
++  - It happens only when the new size fits (a shrink always fits), and at most once per 10 min.
++  - The old partition is retired and confirmed gone before the new one starts.
++  - Otherwise the partition keeps serving and is shown as pending on every pass, via `allocatedShare` and a reason. It is counted at the larger size meanwhile.
++- **Rounding.** `cpuShareFree` is rounded down to millionths, so 0.16999999999999993 is published as 0.17 and the fleet row shows 17%, not 16%.
++- **isolation-client.** A `GET /vms` answer with no `vms` list is now a protocol error, never an empty inventory. Views carry `policy`.
++
++## Evidence (all through `work/claude-test-queue.py`; logs in `logs/`)
++- **Counterexample, `test/windows-node-coupled-shares-defect.test.mjs`.** It uses only installed APIs and is the same file on both trees (`logs/focused3-baseline.out`, `logs/focused3-fix.out`).
++  - **Baseline (installed): 0/6.**
++    - The live box floors to 16, not 17.
++    - A 20 GiB app dialed at 1% is admitted.
++    - Recovered VMs are sold (0.1699…).
++    - c13: **983 ≠ 1966**.
++    - The manager refuses the spawn: "983 MiB < 4096".
++    - A resize leaves the app in "provisioning" ("different RAM share").
++  - **Fix: 6/6.**
++- **Focused suites on the fix (256 lane, peak 177 MiB):**
++
++  | suite | passed |
++  |---|---|
++  | coupled-shares | 14/14 |
++  | defect | 6/6 |
++  | isolation-client | 27/27 |
++  | isolation-memory | 1/1 |
++  | hosting-caps | 25/25 |
++  | isolation-host | 15/15 |
++  | preclaim | 5/5 |
++  | scan-slot | 13/13 (`logs/scanslot-fix.out`) |
++
++  The coupled-shares suite covers:
++  - the live 9-app state (17% CPU, 16711 MiB, 16.3 GB);
++  - 1% of both pools;
++  - reserve and cap;
++  - RAM floor to share;
++  - manager-held sizes larger than the share;
++  - every unknown and malformed case, including a real-HTTP bad-200 manager;
++  - a non-coupled box keeping its old figures;
++  - c13 auto-repair, and c13 explicitly pending when the repair does not fit;
++  - owner resize up and down with the 10-min bound;
++  - an unknown manager making a resize wait (pinned in source).
++- **Regression, 63 existing non-Anvil files touching the changed modules, run on both trees** (`logs/reg-baseline-part{1,2}.out`, `logs/reg-fix.out`).
++  - **Seven fail on baseline and fix alike, with identical failing subtests (compared on the 14b245926 run).** These were already failing in the installed source:
++    - catalog-platform-enforcement
++    - registry-reconcile
++    - hv-attach-relay
++    - lease-readiness
++    - wallet-grant-refresh
++    - wallet-network-hold
++    - shield-startup (newer pin-interface failures)
++  - **Four failed only on the fix:** hosting-caps, isolation-host, preclaim and scan-slot. Each failure was a fixture with a pool-less or unreachable manager, which the node now correctly refuses, or an exact-float expectation. I adapted those fixtures in `a5e155ecf` and they now pass. Only these 4 plus the new and client suites were rerun on `a5e155ecf`, per root's instruction not to repeat broad runs. The unknown and malformed rejection tests are kept.
++  - The batch first ran at 256. The guard stopped it at 257 MiB on hv-attach-relay, so I resumed the remaining files at 512.
++  - **Not run:** the 9 Anvil/contract suites (lease-*, offchain-heartbeat, session-api-auth, windows-current-runtime, windows-host-app-funded, windows-release-journal). They need Anvil or foundry `out`, and they cover lease and gas paths that this change does not touch.
++
++## Expected live effect when root activates (from the 15:58Z state)
++- Availability will show **CPU 17% with RAM 16.3 GB** (16711 MiB = floor(98304 × 0.17)) and `nodeRamGb` 96. Today it shows 79.8 GB.
++- **On the first pass, c13d4b6a is relaunched once in place at 2% (983 → 1966 MiB).** It fits: excluding c13, 19% is free. The app is down for one partition boot plus readiness. Root controls the timing. The other 8 apps already match their share and are untouched.
++- Physical RAM grows by +558 MiB: c13's VM goes from 2048 to 2606 MiB (align2(max(2048, 1966 + 640))). Today 74.9 GiB of VMs are assigned on a 111.8 GiB machine.
++
++## Rollback
++Stop Node, restore the three files from `delivery/rollback/` (or root's `.pre-coupled-<sha12>` backups), then start Node. The manager is untouched.
++
++**Caveat:** if c13 or any resized app was already relaunched at its effective share, the old node spawns at the dial. Its lifecycle then **holds** that partition ("different RAM share") and stops serving it. After a rollback, run a forced relaunch for c13 (0xc13d4b6a); it respawns at the 1% dial.
++
++## Gaps (reported, not hidden)
++1. **CPU is not enforced (owner: Q).**
++   - All 9 app VMs have 1 vCPU, Maximum 100 and Reserve 0, whatever their share (`cpu-live.json`). The 25% and 21% apps are capped at 6.25% of the box, and 1% apps can burst to 6.25%.
++   - The guest monitor's cgroup `cpu.max` is fixed by the catalog `cpuPercent`.
++   - My node already sends the one effective share Q's manager will size CPU from (wire unchanged, per `CPU-WORKER-INTERFACE.txt`).
++2. **Nothing measures physical free RAM** (reserved availability is kept distinct from OS usage, as asked). On paper:
++   - The remaining 16.3 GiB of app RAM plus at most 7 new VMs × ≤1065 MiB of guest overhead is about 23.6 GiB, against about 25.5 GiB physically free.
++   - At a full 75% sale with all 16 slots, worst-case overhead could exceed physical RAM.
++   - Not changed (no pool growth).
++3. **Site and Linux:** no change needed.
++   - The fleet row prefers `ramGbFree` and floors `cpuShareFree`; both are now correct at the source.
++   - The Linux supervisor already publishes `ramGbFree = cpuFree × ramGb` (root audit).
+diff --git a/delivery/MANIFEST.json b/delivery/MANIFEST.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..d22d08955c5dff62857acdb272f7316cb31a12af
+--- /dev/null
++++ b/delivery/MANIFEST.json
+@@ -0,0 +1,41 @@
++{
++ "format": "enclave-control-delta/1",
++ "baselineCommit": "0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2",
++ "fixCommit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++ "deploy": [
++  {
++   "name": "windows/node/host.mjs",
++   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
++   "old": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
++   "new": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234",
++   "how": "swap",
++   "loadedBy": "Enclave Node agent process only (windows/node/agent.mjs); restart Node wrapper only"
++  },
++  {
++   "name": "windows/node/chain.mjs",
++   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\chain.mjs",
++   "old": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
++   "new": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
++   "how": "swap",
++   "loadedBy": "Enclave Node agent process only (windows/node/agent.mjs); restart Node wrapper only"
++  },
++  {
++   "name": "windows/node/isolation-client.mjs",
++   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-client.mjs",
++   "old": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
++   "new": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04",
++   "how": "swap",
++   "loadedBy": "Enclave Node agent process only (windows/node/agent.mjs); restart Node wrapper only"
++  }
++ ],
++ "patch": {
++  "path": "installed-to-fix.patch",
++  "sha256": "7165865a59711bc59081dffb8c9989ac7248d6568497d749e46280191cd4acb5"
++ },
++ "diffstat": " test/helpers/hv-fake-manager.mjs                 |   9 +-\n test/windows-node-coupled-shares-defect.test.mjs | 120 +++++++\n test/windows-node-coupled-shares.test.mjs        | 399 +++++++++++++++++++++++\n test/windows-node-hosting-caps.test.mjs          |  31 +-\n test/windows-node-isolation-host.test.mjs        |   6 +-\n test/windows-node-preclaim.test.mjs              |   4 +-\n test/windows-node-scan-slot.test.mjs             |   4 +\n windows/node/chain.mjs                           |  32 +-\n windows/node/host.mjs                            | 171 +++++++++-\n windows/node/isolation-client.mjs                |   7 +-\n 10 files changed, 740 insertions(+), 43 deletions(-)\n",
++ "notDeployed": [
++  "test/windows-node-coupled-shares.test.mjs",
++  "test/windows-node-coupled-shares-defect.test.mjs"
++ ],
++ "managerUnchanged": true
++}
+diff --git a/delivery/release-proposal.json b/delivery/release-proposal.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..bdf19d481bb94e1eae4b5ad110c859544601c556
+--- /dev/null
++++ b/delivery/release-proposal.json
+@@ -0,0 +1,20 @@
++{
++ "reviewed": false,
++ "note": "PROPOSAL for root review: set reviewed=true only after root review (root-validation/activate-node.py format)",
++ "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-resource-shares-20261023/repo",
++ "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++ "files": {
++  "windows/node/host.mjs": {
++   "before": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
++   "after": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234"
++  },
++  "windows/node/chain.mjs": {
++   "before": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
++   "after": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225"
++  },
++  "windows/node/isolation-client.mjs": {
++   "before": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
++   "after": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04"
++  }
++ }
++}
+diff --git a/root-validation/activate-1.guard.log b/root-validation/activate-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4d5abaf91fe985df6040235f9552ed520add7b4f
+--- /dev/null
++++ b/root-validation/activate-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=54 minHostAvailableMiB=24570
+diff --git a/root-validation/activate-node.py b/root-validation/activate-node.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8da18c6c9b31fbc44edac39b1ace713090672d5e
+--- /dev/null
++++ b/root-validation/activate-node.py
+@@ -0,0 +1,74 @@
++"""Exact-file, node-only activation. Requires a reviewed immutable release.json.
++Steps: stage, preflight, stop-node, install, start-node, verify. No manager/VM control.
++Each mutating step is explicit. Backups permit rollback of these exact files.
++"""
++import argparse,base64,datetime,hashlib,importlib.util,json,pathlib,subprocess
++HERE=pathlib.Path(__file__).resolve().parent
++ROOT=HERE.parents[2]
++s=importlib.util.spec_from_file_location('helper',ROOT/'work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=argparse.ArgumentParser(description=__doc__);p.add_argument('step',choices=['stage','preflight','stop-node','install','start-node','verify','stop-for-rollback','rollback']);a=p.parse_args()
++manifest=json.loads((HERE/'release.json').read_text())
++assert manifest['reviewed'] is True
++allowed={'windows/node/host.mjs','windows/node/chain.mjs','windows/node/isolation-client.mjs'}
++assert set(manifest['files'])==allowed
++repo=pathlib.Path(manifest['repo'])
++assert subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()==manifest['commit']
++assert not subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=no'],text=True).strip()
++stage=r'C:\ProgramData\Enclave\hotfix\coupled-shares-20261023'
++control=r'C:\Program Files\Enclave\control'
++rows=[]
++for rel,v in manifest['files'].items():
++ assert hashlib.sha256((repo/rel).read_bytes()).hexdigest()==v['after']
++ assert len(v['before'])==len(v['after'])==64 and all(c in '0123456789abcdef' for c in v['before']+v['after'])
++ rows.append(dict(rel=rel,live=control+'\\'+rel.replace('/','\\'),stage=stage+'\\'+pathlib.Path(rel).name,before=v['before'],after=v['after']))
++data=base64.b64encode(json.dumps(rows).encode()).decode()
++common=r'''$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('ROWS'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++'''.replace('ROWS',data)
++last=HERE/'activation-last.json'
++preflight_receipt=HERE/'activation-preflight-pinned.json'
++requires={'preflight':'stage','stop-node':'preflight','install':'stop-node','start-node':'install','verify':'start-node'}
++if a.step in requires:
++ prior=json.loads(last.read_text())
++ assert (prior['step']==requires[a.step] or (a.step=='verify' and prior['step']=='verify')) and prior['result'].get('ok') is True
++ assert prior['commit']==manifest['commit']
++ if a.step in ('stop-node','install','start-node'):
++  age=datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(prior['at'])
++  assert age.total_seconds()<600,'preceding receipt stale; inspect before proceeding'
++if a.step in ('stop-node','install','start-node','verify'):
++ baseline=json.loads(preflight_receipt.read_text())
++ assert baseline['commit']==manifest['commit']
++ shield=[x for x in baseline['result']['state']['listeners'] if x['LocalPort']==8091]
++ assert len(shield)==1
++ shield_pid=int(shield[0]['OwningProcess'])
++ common+=f"$shieldNow=@((State).listeners|Where-Object {{$_.LocalPort -eq 8091}});if($shieldNow.Count -ne 1 -or $shieldNow[0].OwningProcess -ne {shield_pid}){{throw 'Shield restarted since preflight; inspect before proceeding'}};"
++if a.step=='stage':
++ r=m.ps("$p='"+stage+"';if(-not(Test-Path -LiteralPath $p)){New-Item -ItemType Directory -Path $p|Out-Null};@{ok=$true}|ConvertTo-Json -Compress",30)
++ if not r.get('ok'):raise RuntimeError(r)
++ for row in rows:
++  subprocess.run(['scp','-o','BatchMode=yes','-o','ConnectTimeout=15',str(repo/row['rel']),'minipc:'+row['stage'].replace('\\','/')],check=True,timeout=45)
++ body="CheckTask;CheckFiles 'before';Staged;@{ok=$true;state=(State)}"
++elif a.step=='preflight':
++ body=r'''CheckTask;CheckFiles 'before';Staged;$s=State;if(@($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 1 -or @($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Expected Node and Shield listeners'};$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;if($h.memory.poolMiB -ne 98304){throw 'RAM pool changed'};$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;@{ok=$true;state=$s;managerMemory=$h.memory;vms=@($v.vms|Select-Object id,name,status,memory)}'''
++elif a.step=='stop-node':
++ body="CheckTask;CheckFiles 'before';Staged;Stop-ScheduledTask -TaskPath '\\Enclave\\' -TaskName 'Node';@{ok=$true;state=(State)}"
++elif a.step=='stop-for-rollback':
++ body="CheckTask;CheckFiles 'after';Stop-ScheduledTask -TaskPath '\\Enclave\\' -TaskName 'Node';@{ok=$true;state=(State)}"
++elif a.step=='install':
++ body=r'''Stopped;CheckFiles 'before';Staged;foreach($r in $rows){$b=$r.live+'.pre-coupled-'+$r.before.Substring(0,12);if(Test-Path -LiteralPath $b){if((FileSha $b) -ne $r.before){throw 'Backup collision'}}else{Copy-Item -LiteralPath $r.live -Destination $b};if((FileSha $b) -ne $r.before){throw 'Backup failed'}};foreach($r in $rows){$t=$r.live+'.coupled-new';Copy-Item -LiteralPath $r.stage -Destination $t -Force;if((FileSha $t) -ne $r.after){throw 'Copy changed'};Move-Item -LiteralPath $t -Destination $r.live -Force};CheckFiles 'after';@{ok=$true;state=(State)}'''
++elif a.step=='start-node':
++ body="Stopped;CheckFiles 'after';Start-ScheduledTask -TaskPath '\\Enclave\\' -TaskName 'Node';@{ok=$true;state=(State)}"
++elif a.step=='verify':
++ body=r'''CheckFiles 'after';$a=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/availability;$h=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/v1/host/state;$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;@{ok=$true;state=(State);availability=$a|Select-Object nodeRamGb,ramGbFree,ramMbFree,cpuShareFree,maxShare;deployments=@($h.deployments|Select-Object id,status,reason,cpuShare,memMb);vms=@($v.vms|Select-Object id,name,status,memory)}'''
++else:
++ body=r'''Stopped;foreach($r in $rows){$h=FileSha $r.live;if($h -ne $r.before -and $h -ne $r.after){throw ('Unexpected source; rollback refused '+$r.rel)};$b=$r.live+'.pre-coupled-'+$r.before.Substring(0,12);if((FileSha $b) -ne $r.before){throw 'Missing exact backup'}};foreach($r in $rows){$b=$r.live+'.pre-coupled-'+$r.before.Substring(0,12);Copy-Item -LiteralPath $b -Destination ($r.live+'.coupled-restore') -Force;Move-Item -LiteralPath ($r.live+'.coupled-restore') -Destination $r.live -Force};CheckFiles 'before';Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';@{ok=$true;state=(State)}'''
++script=common+'try {'+body+'|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}'
++script_path=HERE/('step-'+a.step+'.ps1');script_path.write_text(script+'\n')
++script_sha=hashlib.sha256(script_path.read_bytes()).hexdigest()
++remote_script=stage+'\\step-'+a.step+'.ps1'
++subprocess.run(['scp','-o','BatchMode=yes','-o','ConnectTimeout=15',str(script_path),'minipc:'+remote_script.replace('\\','/')],check=True,timeout=45)
++r=m.ps("$p='"+remote_script+"';if((FileSha $p) -ne '"+script_sha+"'){throw 'Step script hash changed'};& ([ScriptBlock]::Create([IO.File]::ReadAllText($p)))",45)
++rec={'step':a.step,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'commit':manifest['commit'],'result':r}
++(HERE/('activation-'+a.step+'-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'.json')).write_text(json.dumps(rec,indent=2)+'\n')
++if r.get('ok'):last.write_text(json.dumps(rec,indent=2)+'\n')
++if a.step=='preflight' and r.get('ok'):preflight_receipt.write_text(json.dumps(rec,indent=2)+'\n')
++print(json.dumps(rec));raise SystemExit(0 if r.get('ok') else 1)
+diff --git a/root-validation/activation-install-20261023T171034Z.json b/root-validation/activation-install-20261023T171034Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..dba99f59a2b5603850fce6dfcfadad637e7131c2
+--- /dev/null
++++ b/root-validation/activation-install-20261023T171034Z.json
+@@ -0,0 +1,19 @@
++{
++  "step": "install",
++  "at": "2026-10-23T17:10:34.842019+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "state": {
++      "at": "2026-10-23T17:10:33.7545522Z",
++      "nodeTask": "Ready",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    },
++    "ok": true
++  }
++}
+diff --git a/root-validation/activation-last.json b/root-validation/activation-last.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f61cd45162666ec7b8670717ab3752b08ba46be5
+--- /dev/null
++++ b/root-validation/activation-last.json
+@@ -0,0 +1,282 @@
++{
++  "step": "verify",
++  "at": "2026-10-23T17:14:54.085876+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "ok": true,
++    "vms": [
++      {
++        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++        "name": "shield-readiness-v1",
++        "status": "running",
++        "memory": null
++      },
++      {
++        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvba429ebb1c40a95c27186168f7669f74",
++        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      },
++      {
++        "id": "hvdc425d67f2b0e16d83e393766f786d10",
++        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.25,
++          "appMiB": 24576,
++          "vmMiB": 25216
++        }
++      },
++      {
++        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.21,
++          "appMiB": 20643,
++          "vmMiB": 21284
++        }
++      },
++      {
++        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.04,
++          "appMiB": 3932,
++          "vmMiB": 4572
++        }
++      },
++      {
++        "id": "hv2dd42ee0ca9d667ebb314782286900d0",
++        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      }
++    ],
++    "deployments": [
++      {
++        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++        "status": "queued",
++        "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++        "status": "refused",
++        "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.02,
++        "memMb": 1024
++      },
++      {
++        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.25,
++        "memMb": 12288
++      },
++      {
++        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.02,
++        "memMb": 512
++      },
++      {
++        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.04,
++        "memMb": 256
++      },
++      {
++        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.21,
++        "memMb": 2048
++      },
++      {
++        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++        "status": "stopped",
++        "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++        "status": "stopped",
++        "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++        "status": "refused",
++        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++        "status": "refused",
++        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++        "status": "refused",
++        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++        "status": "refused",
++        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++        "status": "refused",
++        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++        "status": "refused",
++        "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled.",
++        "cpuShare": null,
++        "memMb": null
++      }
++    ],
++    "availability": {
++      "nodeRamGb": 96,
++      "ramGbFree": 16.3,
++      "ramMbFree": 16711,
++      "cpuShareFree": 0.17,
++      "maxShare": 0.17
++    },
++    "state": {
++      "at": "2026-10-23T17:14:53.1272560Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 17272
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    }
++  }
++}
+diff --git a/root-validation/activation-preflight-20261023T170926Z.json b/root-validation/activation-preflight-20261023T170926Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e9f92c7a417f08bbbc7fe414e25d51b0631f368
+--- /dev/null
++++ b/root-validation/activation-preflight-20261023T170926Z.json
+@@ -0,0 +1,144 @@
++{
++  "step": "preflight",
++  "at": "2026-10-23T17:09:26.842685+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "ok": true,
++    "vms": [
++      {
++        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++        "name": "shield-readiness-v1",
++        "status": "running",
++        "memory": null
++      },
++      {
++        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvba429ebb1c40a95c27186168f7669f74",
++        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      },
++      {
++        "id": "hvdc425d67f2b0e16d83e393766f786d10",
++        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.25,
++          "appMiB": 24576,
++          "vmMiB": 25216
++        }
++      },
++      {
++        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv181ef1f570cd6b380d424310c995e920",
++        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.21,
++          "appMiB": 20643,
++          "vmMiB": 21284
++        }
++      },
++      {
++        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.04,
++          "appMiB": 3932,
++          "vmMiB": 4572
++        }
++      }
++    ],
++    "managerMemory": {
++      "rule": "cpu-share",
++      "poolMiB": 98304
++    },
++    "state": {
++      "at": "2026-10-23T17:09:25.8134962Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 15188
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    }
++  }
++}
+diff --git a/root-validation/activation-preflight-pinned.json b/root-validation/activation-preflight-pinned.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e9f92c7a417f08bbbc7fe414e25d51b0631f368
+--- /dev/null
++++ b/root-validation/activation-preflight-pinned.json
+@@ -0,0 +1,144 @@
++{
++  "step": "preflight",
++  "at": "2026-10-23T17:09:26.842685+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "ok": true,
++    "vms": [
++      {
++        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++        "name": "shield-readiness-v1",
++        "status": "running",
++        "memory": null
++      },
++      {
++        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvba429ebb1c40a95c27186168f7669f74",
++        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      },
++      {
++        "id": "hvdc425d67f2b0e16d83e393766f786d10",
++        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.25,
++          "appMiB": 24576,
++          "vmMiB": 25216
++        }
++      },
++      {
++        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv181ef1f570cd6b380d424310c995e920",
++        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.21,
++          "appMiB": 20643,
++          "vmMiB": 21284
++        }
++      },
++      {
++        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.04,
++          "appMiB": 3932,
++          "vmMiB": 4572
++        }
++      }
++    ],
++    "managerMemory": {
++      "rule": "cpu-share",
++      "poolMiB": 98304
++    },
++    "state": {
++      "at": "2026-10-23T17:09:25.8134962Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 15188
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    }
++  }
++}
+diff --git a/root-validation/activation-stage-20261023T170901Z.json b/root-validation/activation-stage-20261023T170901Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2479d6139d44789fac00dcf1cfe4a453cf55e1b6
+--- /dev/null
++++ b/root-validation/activation-stage-20261023T170901Z.json
+@@ -0,0 +1,24 @@
++{
++  "step": "stage",
++  "at": "2026-10-23T17:09:01.043658+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "state": {
++      "at": "2026-10-23T17:09:00.1630954Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 15188
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    },
++    "ok": true
++  }
++}
+diff --git a/root-validation/activation-start-node-20261023T171059Z.json b/root-validation/activation-start-node-20261023T171059Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..ed6dd1df74aed10eca1116401a622b0ffedeac63
+--- /dev/null
++++ b/root-validation/activation-start-node-20261023T171059Z.json
+@@ -0,0 +1,19 @@
++{
++  "step": "start-node",
++  "at": "2026-10-23T17:10:59.668387+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "state": {
++      "at": "2026-10-23T17:10:58.8236703Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    },
++    "ok": true
++  }
++}
+diff --git a/root-validation/activation-stop-node-20261023T171010Z.json b/root-validation/activation-stop-node-20261023T171010Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7d842c9d5b1fc22b5f75e778dd128b75eb9462a9
+--- /dev/null
++++ b/root-validation/activation-stop-node-20261023T171010Z.json
+@@ -0,0 +1,24 @@
++{
++  "step": "stop-node",
++  "at": "2026-10-23T17:10:10.581977+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "state": {
++      "at": "2026-10-23T17:10:09.7082315Z",
++      "nodeTask": "Ready",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 15188
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    },
++    "ok": true
++  }
++}
+diff --git a/root-validation/activation-verify-20261023T171120Z.json b/root-validation/activation-verify-20261023T171120Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9fa88edc5fd87080836c424b77940d2860fb28a4
+--- /dev/null
++++ b/root-validation/activation-verify-20261023T171120Z.json
+@@ -0,0 +1,226 @@
++{
++  "step": "verify",
++  "at": "2026-10-23T17:11:20.383858+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "ok": true,
++    "vms": [
++      {
++        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++        "name": "shield-readiness-v1",
++        "status": "running",
++        "memory": null
++      },
++      {
++        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvba429ebb1c40a95c27186168f7669f74",
++        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      },
++      {
++        "id": "hvdc425d67f2b0e16d83e393766f786d10",
++        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.25,
++          "appMiB": 24576,
++          "vmMiB": 25216
++        }
++      },
++      {
++        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv181ef1f570cd6b380d424310c995e920",
++        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.21,
++          "appMiB": 20643,
++          "vmMiB": 21284
++        }
++      },
++      {
++        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.04,
++          "appMiB": 3932,
++          "vmMiB": 4572
++        }
++      }
++    ],
++    "deployments": [
++      {
++        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++        "status": "queued",
++        "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++        "status": "refused",
++        "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      }
++    ],
++    "availability": {
++      "nodeRamGb": 96,
++      "ramGbFree": 17.3,
++      "ramMbFree": 17695,
++      "cpuShareFree": 0.180013,
++      "maxShare": 0.180013
++    },
++    "state": {
++      "at": "2026-10-23T17:11:19.3228478Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 17272
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    }
++  }
++}
+diff --git a/root-validation/activation-verify-20261023T171240Z.json b/root-validation/activation-verify-20261023T171240Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..09ff1b0c0f7a6d5f6a49f27f0dd16c409d30fba3
+--- /dev/null
++++ b/root-validation/activation-verify-20261023T171240Z.json
+@@ -0,0 +1,226 @@
++{
++  "step": "verify",
++  "at": "2026-10-23T17:12:40.793275+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "ok": true,
++    "vms": [
++      {
++        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++        "name": "shield-readiness-v1",
++        "status": "running",
++        "memory": null
++      },
++      {
++        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvba429ebb1c40a95c27186168f7669f74",
++        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      },
++      {
++        "id": "hvdc425d67f2b0e16d83e393766f786d10",
++        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.25,
++          "appMiB": 24576,
++          "vmMiB": 25216
++        }
++      },
++      {
++        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.21,
++          "appMiB": 20643,
++          "vmMiB": 21284
++        }
++      },
++      {
++        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.04,
++          "appMiB": 3932,
++          "vmMiB": 4572
++        }
++      },
++      {
++        "id": "hv2dd42ee0ca9d667ebb314782286900d0",
++        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      }
++    ],
++    "deployments": [
++      {
++        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++        "status": "queued",
++        "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++        "status": "refused",
++        "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.02,
++        "memMb": 1024
++      },
++      {
++        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.25,
++        "memMb": 12288
++      },
++      {
++        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": 0.02,
++        "memMb": 512
++      },
++      {
++        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "held",
++        "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision",
++        "cpuShare": null,
++        "memMb": null
++      }
++    ],
++    "availability": {
++      "nodeRamGb": 96,
++      "ramGbFree": 17.3,
++      "ramMbFree": 17695,
++      "cpuShareFree": 0.180013,
++      "maxShare": 0.180013
++    },
++    "state": {
++      "at": "2026-10-23T17:12:39.7453467Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 17272
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    }
++  }
++}
+diff --git a/root-validation/activation-verify-20261023T171454Z.json b/root-validation/activation-verify-20261023T171454Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f61cd45162666ec7b8670717ab3752b08ba46be5
+--- /dev/null
++++ b/root-validation/activation-verify-20261023T171454Z.json
+@@ -0,0 +1,282 @@
++{
++  "step": "verify",
++  "at": "2026-10-23T17:14:54.085876+00:00",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "result": {
++    "ok": true,
++    "vms": [
++      {
++        "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++        "name": "shield-readiness-v1",
++        "status": "running",
++        "memory": null
++      },
++      {
++        "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++        "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvba429ebb1c40a95c27186168f7669f74",
++        "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      },
++      {
++        "id": "hvdc425d67f2b0e16d83e393766f786d10",
++        "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++        "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.25,
++          "appMiB": 24576,
++          "vmMiB": 25216
++        }
++      },
++      {
++        "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++        "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++        "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.01,
++          "appMiB": 983,
++          "vmMiB": 2048
++        }
++      },
++      {
++        "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++        "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.21,
++          "appMiB": 20643,
++          "vmMiB": 21284
++        }
++      },
++      {
++        "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++        "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.04,
++          "appMiB": 3932,
++          "vmMiB": 4572
++        }
++      },
++      {
++        "id": "hv2dd42ee0ca9d667ebb314782286900d0",
++        "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "memory": {
++          "rule": "cpu-share",
++          "poolMiB": 98304,
++          "cpuShare": 0.02,
++          "appMiB": 1966,
++          "vmMiB": 2606
++        }
++      }
++    ],
++    "deployments": [
++      {
++        "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++        "status": "queued",
++        "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++        "status": "refused",
++        "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.02,
++        "memMb": 1024
++      },
++      {
++        "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.25,
++        "memMb": 12288
++      },
++      {
++        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.02,
++        "memMb": 512
++      },
++      {
++        "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.04,
++        "memMb": 256
++      },
++      {
++        "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.21,
++        "memMb": 2048
++      },
++      {
++        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++        "status": "running",
++        "reason": null,
++        "cpuShare": 0.01,
++        "memMb": 128
++      },
++      {
++        "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++        "status": "stopped",
++        "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++        "status": "stopped",
++        "reason": "the lease expired; a new claim must pass the current funding and hosting policy",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++        "status": "refused",
++        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++        "status": "refused",
++        "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++        "status": "refused",
++        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++        "status": "refused",
++        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++        "status": "refused",
++        "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app",
++        "cpuShare": null,
++        "memMb": null
++      },
++      {
++        "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++        "status": "refused",
++        "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled.",
++        "cpuShare": null,
++        "memMb": null
++      }
++    ],
++    "availability": {
++      "nodeRamGb": 96,
++      "ramGbFree": 16.3,
++      "ramMbFree": 16711,
++      "cpuShareFree": 0.17,
++      "maxShare": 0.17
++    },
++    "state": {
++      "at": "2026-10-23T17:14:53.1272560Z",
++      "nodeTask": "Running",
++      "listeners": [
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 9600,
++          "OwningProcess": 17272
++        },
++        {
++          "LocalAddress": "127.0.0.1",
++          "LocalPort": 8091,
++          "OwningProcess": 2376
++        }
++      ]
++    }
++  }
++}
+diff --git a/root-validation/activator-parse-2.guard.log b/root-validation/activator-parse-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/root-validation/activator-parse-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/root-validation/activator-parse-3.guard.log b/root-validation/activator-parse-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..d66a239c7c881d3a9f39e8a35a2403360d00af30
+--- /dev/null
++++ b/root-validation/activator-parse-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/root-validation/activator-parse-4.guard.log b/root-validation/activator-parse-4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/root-validation/activator-parse-4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/root-validation/cpu-api-canary.guard.log b/root-validation/cpu-api-canary.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4502087116b1aa2b74884f55bfd657c7c5bb04cd
+--- /dev/null
++++ b/root-validation/cpu-api-canary.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24643
+diff --git a/root-validation/cpu-api-canary.json b/root-validation/cpu-api-canary.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..166c620e71b80dd5899b2e2e0ca2af1b03530e42
+--- /dev/null
++++ b/root-validation/cpu-api-canary.json
+@@ -0,0 +1,17 @@
++{
++  "at": "2026-10-23T16:13:37.7134368Z",
++  "name": "enclave-resource-api-canary-20261023-1614",
++  "started": false,
++  "whole": {
++    "count": 4,
++    "maximum": 84,
++    "state": "Off"
++  },
++  "before": {
++    "quantity": 4,
++    "limit": 84000,
++    "units": "percent / 1000"
++  },
++  "ok": true,
++  "removed": true
++}
+diff --git a/root-validation/cpu-api-canary.py b/root-validation/cpu-api-canary.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..57e22c21d475d64917ce505984c7d15d1f6efbaa
+--- /dev/null
++++ b/root-validation/cpu-api-canary.py
+@@ -0,0 +1,5 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++# A new diskless, disconnected, NEVER STARTED VM. Exact GUID ownership gates cleanup.
++p=r'''[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$name='enclave-resource-api-canary-20261023-1614';$id=$null;$o=[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');name=$name;started=$false};try {if(Get-VM -Name $name -EA SilentlyContinue){throw 'name already exists'};$v=New-VM -Name $name -Generation 2 -MemoryStartupBytes 512MB -NoVHD;$id=$v.Id;Set-VMProcessor -VM $v -Count 4 -Maximum 84;$p=Get-VMProcessor -VM $v;$o.whole=[ordered]@{count=$p.Count;maximum=$p.Maximum;state=(Get-VM -Id $id).State.ToString()};$ns='root/virtualization/v2';$vm=Get-CimInstance -Namespace $ns -ClassName Msvm_ComputerSystem -Filter ('Name="'+$id.Guid+'"');$vssd=$vm|Get-CimAssociatedInstance -ResultClassName Msvm_VirtualSystemSettingData|Where-Object {$_.VirtualSystemType -eq 'Microsoft:Hyper-V:System:Realized'};$cpu=$vssd|Get-CimAssociatedInstance -ResultClassName Msvm_ProcessorSettingData;$o.before=[ordered]@{quantity=$cpu.VirtualQuantity;limit=$cpu.Limit;units=$cpu.AllocationUnits};$o.ok=($p.Count -eq 4 -and $p.Maximum -eq 84 -and $cpu.Limit -eq 84000 -and (Get-VM -Id $id).State -eq 'Off')}catch{$o.ok=$false;$o.error=$_.Exception.Message}finally{if($id){$v=Get-VM -Id $id -EA SilentlyContinue;if($v -and $v.Name -eq $name -and $v.State -eq 'Off'){Remove-VM -VM $v -Force;$o.removed= -not [bool](Get-VM -Id $id -EA SilentlyContinue)}else{$o.cleanupRefused=$true}}};$o|ConvertTo-Json -Depth 6 -Compress'''
++r=m.ps(p,40);pathlib.Path('work/coupled-resource-shares-20261023/root-validation/cpu-api-canary.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r));raise SystemExit(0 if r.get('ok') and r.get('removed') else 1)
+diff --git a/root-validation/guest-build.json b/root-validation/guest-build.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..14d0713c47f33c946d0208b2898b0874de0fd36f
+--- /dev/null
++++ b/root-validation/guest-build.json
+@@ -0,0 +1,40 @@
++{
++  "at": "2026-10-23T16:48:11.7023612Z",
++  "settings": [
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_GUEST_IGVM",
++      "value": "C:\\Program Files\\Enclave\\guest\\runtime.bin"
++    },
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_GUEST_IGVM_SHA256",
++      "value": "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d"
++    },
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_BOOT_FORM",
++      "value": "linux-direct"
++    },
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_GUEST_STATE_MASTER",
++      "value": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs"
++    },
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_GUEST_STATE_MASTER_SHA256",
++      "value": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96"
++    },
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_GUEST_STATE_ARCHIVE_DIR",
++      "value": "C:\\ProgramData\\Enclave\\shield\\vmgs-archive"
++    },
++    {
++      "file": "shield-config.cmd",
++      "key": "ENCLAVE_HYPERV_MODULE",
++      "value": "C:\\Program Files\\Enclave\\guest\\hyperv.psm1"
++    }
++  ]
++}
+diff --git a/root-validation/node-rollout-result.json b/root-validation/node-rollout-result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..cff6d0cd190ec0048507975ec450a18b89f209bc
+--- /dev/null
++++ b/root-validation/node-rollout-result.json
+@@ -0,0 +1,35 @@
++{
++  "at": "2026-10-23T17:20:21.451615+00:00",
++  "scope": "Node resource accounting and RAM share repair",
++  "sourceCommit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "productionActive": true,
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 16.3,
++    "ramMbFree": 16711,
++    "cpuShareFree": 0.17,
++    "maxShare": 0.17
++  },
++  "existingAppsRunning": 9,
++  "unchangedAppVmIds": 8,
++  "restartedApp": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++  "repairedAllocation": {
++    "rule": "cpu-share",
++    "poolMiB": 98304,
++    "cpuShare": 0.02,
++    "appMiB": 1966,
++    "vmMiB": 2606
++  },
++  "managerPidUnchanged": true,
++  "publicChecks": {
++    "allNineEventuallyPassedCaHostnameAndHttp200": true,
++    "lastRetryAt": "2026-10-23T17:18:18.490619+00:00",
++    "transientIssues": "Initial market reattach, routing and renewed-certificate readiness settled; targeted retries verified recovery."
++  },
++  "remaining": [
++    "Manager CPU quota source has passed isolated native canaries but is not deployed.",
++    "Guest CPU allowance needs a rebuilt image and launcher with compatibility validation.",
++    "Custody v2 production verification and rollout remain next, not yet begun."
++  ],
++  "rollback": "Restore exact three saved node files and restart Node. If rolling back after c13 was resized, the old node expects its dial-sized partition, so c13 requires a scoped forced relaunch under the old node. Do not restore a mismatched partial file set."
++}
+diff --git a/root-validation/pool-config.json b/root-validation/pool-config.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..db34ef8fa15222cfd49850d0b595529d04e891aa
+--- /dev/null
++++ b/root-validation/pool-config.json
+@@ -0,0 +1,20 @@
++[
++  {
++    "file": "node-config.cmd",
++    "poolSettings": [
++      "set NODE_APP_RAM_GB=96"
++    ]
++  },
++  {
++    "file": "node-config.local.cmd",
++    "poolSettings": [
++      "set NODE_APP_RAM_GB=96"
++    ]
++  },
++  {
++    "file": "shield-config.cmd",
++    "poolSettings": [
++      "set NODE_APP_RAM_GB=96"
++    ]
++  }
++]
+diff --git a/root-validation/preflight-1.guard.log b/root-validation/preflight-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..08beca6239364d8310a74fa828e3ea59938f36cf
+--- /dev/null
++++ b/root-validation/preflight-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24603
+diff --git a/root-validation/read-guest-build.guard.log b/root-validation/read-guest-build.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..596cf38d9925878a7583456eac5f734158cff52c
+--- /dev/null
++++ b/root-validation/read-guest-build.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25085
+diff --git a/root-validation/read-guest-build.py b/root-validation/read-guest-build.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..d2c976f6e35682d119a7ad3bdb33267716bff90d
+--- /dev/null
++++ b/root-validation/read-guest-build.py
+@@ -0,0 +1,8 @@
++"""Read only public guest-image and launcher pins needed to prepare the CPU canary."""
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py')
++m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$keys=@('ENCLAVE_BOOT_FORM','ENCLAVE_GUEST_IGVM','ENCLAVE_GUEST_IGVM_SHA256','ENCLAVE_GUEST_STATE_MASTER','ENCLAVE_GUEST_STATE_MASTER_SHA256','ENCLAVE_GUEST_STATE_ARCHIVE_DIR','ENCLAVE_HYPERV_MODULE','ENCLAVE_WMISERVE','ENCLAVE_UEFI_BOOT_MEDIUM','ENCLAVE_UEFI_BOOT_MEDIUM_SHA256','NODE_VCPUS');$rows=@(foreach($file in @('shield-config.cmd','node-config.cmd','node-config.local.cmd')){$path=Join-Path 'C:\ProgramData\Enclave' $file;if(Test-Path -LiteralPath $path){foreach($line in Get-Content -LiteralPath $path){if($line -match '^\s*set\s+"?([^=]+)=(.*)$' -and $keys -contains $Matches[1]){[ordered]@{file=$file;key=$Matches[1];value=$Matches[2].TrimEnd('"')}}}}});@{at=(Get-Date).ToUniversalTime().ToString('o');settings=$rows}|ConvertTo-Json -Depth 4 -Compress'''
++r=m.ps(p,30)
++pathlib.Path('work/coupled-resource-shares-20261023/root-validation/guest-build.json').write_text(json.dumps(r,indent=2)+'\n')
++print(json.dumps(r))
+diff --git a/root-validation/read-pool-config.guard.log b/root-validation/read-pool-config.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..995d5de2fbc7b87b55639cd3805a9869ec73871a
+--- /dev/null
++++ b/root-validation/read-pool-config.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24634
+diff --git a/root-validation/read-pool-config.py b/root-validation/read-pool-config.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..65b59dbdf6149835e1820b5775715a9c20a86a93
+--- /dev/null
++++ b/root-validation/read-pool-config.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$names=@('node-config.cmd','node-config.local.cmd','shield-config.cmd');$out=@(foreach($n in $names){$p=Join-Path 'C:\ProgramData\Enclave' $n;[ordered]@{file=$n;poolSettings=@(if(Test-Path -LiteralPath $p){Get-Content -LiteralPath $p|Where-Object {$_ -match '^\s*set\s+"?(NODE_VCPUS|NODE_RAM_GB|NODE_APP_RAM_GB|NODE_RESERVED_SHARE)='}})}});$out|ConvertTo-Json -Depth 4 -Compress'''
++r=m.ps(p,30);r=[{'file':x['file'],'poolSettings':[v['value'] if isinstance(v,dict) else v for v in x['poolSettings']]} for x in r];pathlib.Path('work/coupled-resource-shares-20261023/root-validation/pool-config.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/root-validation/recovery-logs-1.guard.log b/root-validation/recovery-logs-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..265604d5b634b90b0411d28ac1343cadd342cfc1
+--- /dev/null
++++ b/root-validation/recovery-logs-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24774
+diff --git a/root-validation/recovery-logs-171218.json b/root-validation/recovery-logs-171218.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..36c6e038497fe147d23f873296b9bee1c52a133b
+--- /dev/null
++++ b/root-validation/recovery-logs-171218.json
+@@ -0,0 +1,68 @@
++{
++  "at": "2026-10-23T17:12:18.0915095Z",
++  "node": [
++    "17:08:19 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:08:21 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:08:24 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:05 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:07 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:10 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:13 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:15 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:17 [node] [host] 0xc13d4b6a isolation adopted: hv181ef1f570cd6b380d424310c995e920 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:20 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:22 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:09:24 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:10:57 [node] isolation-only node: the VBS enclave engine is retired; transport key 353b383b2c637406\u00e2\u20ac\u00a6 (a host key: it proves only that an admin-level process on this host chose it)",
++    "17:11:04 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature=[redacted], 0 delegation(s)",
++    "17:11:06 [node] attach ACCEPTED tier=hv-node measurement=",
++    "17:11:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:11:36 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:11:39 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:11:41 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:11:44 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:11:55 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:12:00 [node] 0x7ae476a3 certificate: partition hvba429ebb1c40a95c27186168f7669f74 already serves a valid one for 7ae476a3.app.enclave.host on its key 5bf95e31cae835ba\u00e2\u20ac\u00a6 (serial 57249B397D55D850AD3683EAA9852068, until 2027-01-21T23:59:59.000Z); nothing issued",
++    "17:12:00 [node] 0x38f368d6 certificate: partition hvdc425d67f2b0e16d83e393766f786d10 already serves a valid one for 38f368d6.app.enclave.host on its key 8f3a46e399a88d8a\u00e2\u20ac\u00a6 (serial 248EA7B600B54B59D6A154353E84FB03, until 2027-01-21T23:59:59.000Z); nothing issued",
++    "17:12:00 [node] 0xe64f7cba certificate: partition hv3c8e73d2d9c235d0e91dcfcccdbee49d already serves a valid one for e64f7cba.app.enclave.host on its key e5e0ad737a3b3213\u00e2\u20ac\u00a6 (serial 983AC213CA3D1C261D8DB09C3DCF9537, until 2027-01-21T23:59:59.000Z); nothing issued",
++    "17:12:00 [node] 0xd9798e4c certificate: partition hv5e00a0f0dfae6122912103ad8361ce22 already serves a valid one for d9798e4c.app.enclave.host on its key 680a4f0b31a90b83\u00e2\u20ac\u00a6 (serial 83F7E04F3A7FB23B3A4112EC2338D26F, until 2027-01-21T23:59:59.000Z); nothing issued",
++    "17:12:00 [node] 0xa77d0c57 certificate: partition hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c already serves a valid one for a77d0c57.app.enclave.host on its key c9a60bd4363d7098\u00e2\u20ac\u00a6 (serial DEB322962BC31A713235D39A721C5F35, until 2027-01-21T23:59:59.000Z); nothing issued",
++    "17:12:07 [node] [host] 0xc13d4b6a isolation: hv181ef1f570cd6b380d424310c995e920 was given 983 MiB for a 1% share and this deployment takes 2%; relaunching it in place at its share",
++    "17:12:09 [node] [host] 0xc13d4b6a isolated domain retired (share relaunch: hv181ef1f570cd6b380d424310c995e920 was given 983 MiB for a 1% share and this deployment takes 2%)"
++  ],
++  "network": [
++    "17:10:33 [privacy] app 0x7ae476a3 circuit d5c83ceea735d2468d86cbe2a7d13300: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
++    "17:10:33 [privacy] app 0x7ae476a3 circuit eb523b77da8a1fd7c6cbb44d474ad697: route verification failed: no current local guest proof",
++    "17:10:33 [privacy] app 0x38f368d6 circuit 202c685f7d18b575f99ce913dcae5076: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
++    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
++    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
++    "17:10:33 [privacy] wallet admission withheld: invalid or expired wallet admission document",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:51352",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56887",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56991",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56855",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:61592",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:60076"
++  ],
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 17.3,
++    "apps": {
++      "isolation": "hyperv-partition-per-app",
++      "tier": "enclave-shield",
++      "hostExcluded": false,
++      "hostOsExcluded": true,
++      "operatorExcluded": false,
++      "inTee": false,
++      "running": 5,
++      "capacity": 16,
++      "scope": "market",
++      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/root-validation/recovery-logs-2.guard.log b/root-validation/recovery-logs-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a63c8f98951b1f6f75eebae26d66a5d732f7e8f
+--- /dev/null
++++ b/root-validation/recovery-logs-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24623
+diff --git a/root-validation/recovery-logs-2.out b/root-validation/recovery-logs-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..b3f73ffb31e3451cfa0d3a313c1c72a4a4dd71e8
+--- /dev/null
++++ b/root-validation/recovery-logs-2.out
+@@ -0,0 +1,77 @@
++[queue] START available=24642MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++{
++  "at": "2026-10-23T17:17:22.7722415Z",
++  "node": [
++    "17:14:49 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:14:52 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:14:55 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:14:58 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:15 [node] 0xc13d4b6a certificate: none for c13d4b6a.app.enclave.host (the order for c13d4b6a.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
++    "17:15:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:15:35 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:38 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:41 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:45 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:49 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:52 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:55 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:58 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:01 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:01 [node] [host] checkpoint 0x59f1273d failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:16:15 [node] 0xc13d4b6a certificate: none for c13d4b6a.app.enclave.host (the order for c13d4b6a.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
++    "17:16:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:16:35 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:38 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:40 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:43 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:45 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:48 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:51 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:54 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:57 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:17:07 [node] 0xc13d4b6a certificate: c13d4b6a.app.enclave.host installed in partition hv2dd42ee0ca9d667ebb314782286900d0 (key 18053cd8dc6ee991\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)"
++  ],
++  "network": [
++    "17:10:33 [privacy] app 0x7ae476a3 circuit d5c83ceea735d2468d86cbe2a7d13300: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
++    "17:10:33 [privacy] app 0x7ae476a3 circuit eb523b77da8a1fd7c6cbb44d474ad697: route verification failed: no current local guest proof",
++    "17:10:33 [privacy] app 0x38f368d6 circuit 202c685f7d18b575f99ce913dcae5076: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
++    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
++    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
++    "17:10:33 [privacy] wallet admission withheld: invalid or expired wallet admission document",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:51352",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56887",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56991",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56855",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:61592",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:60076",
++    "17:12:43 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "17:13:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "17:14:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "17:15:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "17:16:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)"
++  ],
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 16.3,
++    "apps": {
++      "isolation": "hyperv-partition-per-app",
++      "tier": "enclave-shield",
++      "hostExcluded": false,
++      "hostOsExcluded": true,
++      "operatorExcluded": false,
++      "inTee": false,
++      "running": 9,
++      "capacity": 16,
++      "scope": "market",
++      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++    }
++  }
++}
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24623
++[memory-guard] at peak: python3:15 ssh:12 timeout:4
++[queue] EXIT 0
+diff --git a/root-validation/recovery-logs.json b/root-validation/recovery-logs.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..548e659e654a14bec9c12d54e263551226c2377d
+--- /dev/null
++++ b/root-validation/recovery-logs.json
+@@ -0,0 +1,73 @@
++{
++  "at": "2026-10-23T17:17:22.7722415Z",
++  "node": [
++    "17:14:49 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:14:52 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:14:55 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:14:58 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:15 [node] 0xc13d4b6a certificate: none for c13d4b6a.app.enclave.host (the order for c13d4b6a.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
++    "17:15:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:15:35 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:38 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:41 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:45 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:49 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:52 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:55 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:15:58 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:01 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:01 [node] [host] checkpoint 0x59f1273d failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:16:15 [node] 0xc13d4b6a certificate: none for c13d4b6a.app.enclave.host (the order for c13d4b6a.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
++    "17:16:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
++    "17:16:35 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:38 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:40 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:43 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:45 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:48 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:51 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:54 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:16:57 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
++    "17:17:07 [node] 0xc13d4b6a certificate: c13d4b6a.app.enclave.host installed in partition hv2dd42ee0ca9d667ebb314782286900d0 (key 18053cd8dc6ee991\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)"
++  ],
++  "network": [
++    "17:10:33 [privacy] app 0x7ae476a3 circuit d5c83ceea735d2468d86cbe2a7d13300: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
++    "17:10:33 [privacy] app 0x7ae476a3 circuit eb523b77da8a1fd7c6cbb44d474ad697: route verification failed: no current local guest proof",
++    "17:10:33 [privacy] app 0x38f368d6 circuit 202c685f7d18b575f99ce913dcae5076: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
++    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
++    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
++    "17:10:33 [privacy] wallet admission withheld: invalid or expired wallet admission document",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:51352",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56887",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56991",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56855",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:61592",
++    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076",
++    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:60076",
++    "17:12:43 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
++    "17:13:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
++    "17:14:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "17:15:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
++    "17:16:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)"
++  ],
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 16.3,
++    "apps": {
++      "isolation": "hyperv-partition-per-app",
++      "tier": "enclave-shield",
++      "hostExcluded": false,
++      "hostOsExcluded": true,
++      "operatorExcluded": false,
++      "inTee": false,
++      "running": 9,
++      "capacity": 16,
++      "scope": "market",
++      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/root-validation/recovery-logs.py b/root-validation/recovery-logs.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c0003594bdd533096d110f8c09ecd344910ae51
+--- /dev/null
++++ b/root-validation/recovery-logs.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$o=[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o')};foreach($n in @('node','network')){$o[$n]=@(Get-Content ('C:\ProgramData\Enclave\logs\'+$n+'.log') -Tail 500|Where-Object {$_ -match 'market|attach|readiness|recover|delegat|certificate|error|failed|isolat|held|refused'}|Select-Object -Last 28|ForEach-Object {$l=[string]$_;$l=$l -replace '(?i)(token|signature|authorization|password|secret)([=: ]+)[^ ,;]+','$1=[redacted]';$l.Substring(0,[Math]::Min(1000,$l.Length))})};$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$o.availability=$h|Select-Object nodeRamGb,ramGbFree,apps;$o|ConvertTo-Json -Depth 7 -Compress'''
++r=m.ps(p,35);pathlib.Path('work/coupled-resource-shares-20261023/root-validation/recovery-logs.json').write_text(json.dumps(r,indent=2));print(json.dumps(r,indent=2))
+diff --git a/root-validation/release.json b/root-validation/release.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0e95cb4b898122e922c8f63335bbd297188d8b5
+--- /dev/null
++++ b/root-validation/release.json
+@@ -0,0 +1,20 @@
++{
++  "reviewed": true,
++  "note": "Root reviewed minimal installed source delta, native manager compatibility and focused tests. Node accounting/resize only; CPU runtime rollout remains separate.",
++  "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/coupled-resource-shares-20261023/repo",
++  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
++  "files": {
++    "windows/node/host.mjs": {
++      "before": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
++      "after": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234"
++    },
++    "windows/node/chain.mjs": {
++      "before": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
++      "after": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225"
++    },
++    "windows/node/isolation-client.mjs": {
++      "before": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
++      "after": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04"
++    }
++  }
++}
+diff --git a/root-validation/stage-1.guard.log b/root-validation/stage-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..2df1d583e7a50656e163b3502cfe0818ce6dcb31
+--- /dev/null
++++ b/root-validation/stage-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24668
+diff --git a/root-validation/step-install.ps1 b/root-validation/step-install.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..e228fb0f65f3a05f44c42512cd8857f75ef1de05
+--- /dev/null
++++ b/root-validation/step-install.ps1
+@@ -0,0 +1,2 @@
++$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sicmVsIjogIndpbmRvd3Mvbm9kZS9ob3N0Lm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxob3N0Lm1qcyIsICJzdGFnZSI6ICJDOlxcUHJvZ3JhbURhdGFcXEVuY2xhdmVcXGhvdGZpeFxcY291cGxlZC1zaGFyZXMtMjAyNjEwMjNcXGhvc3QubWpzIiwgImJlZm9yZSI6ICJlYTBmNmI4YWI5NTYyZTk1Y2MyMGU4MmVhMGQ2Y2M2YzdhMjQyNDQ1ZDBhODYwODE5NWY1MGViYjcxMWMwMGRlIiwgImFmdGVyIjogImU1MzdmNzI3N2E2OWI1ZDgwOWJhOTk5NGVlOTc3NDRmM2U5MDM4YTE3NWVmYTE1NjQyNWFiYTYxMWQxNTcyMzQifSwgeyJyZWwiOiAid2luZG93cy9ub2RlL2NoYWluLm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxjaGFpbi5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxjaGFpbi5tanMiLCAiYmVmb3JlIjogIjNlOWZhZTAzOTI0OTc4NDFmNWM0ZTA4NGM5ZDExZjZjMDEyNDNkMzM5YjBiZGYzMzk1YjU2OWY5MjFhMTI5MzgiLCAiYWZ0ZXIiOiAiYjI1N2ZjZjY0ZTdlMGY0NDczOGI4NGEzNWYzMjIzN2EwM2U2MjAzNGI3NGIwZGMwYzlmZjI3NmE0OWFiOTIyNSJ9LCB7InJlbCI6ICJ3aW5kb3dzL25vZGUvaXNvbGF0aW9uLWNsaWVudC5tanMiLCAibGl2ZSI6ICJDOlxcUHJvZ3JhbSBGaWxlc1xcRW5jbGF2ZVxcY29udHJvbFxcd2luZG93c1xcbm9kZVxcaXNvbGF0aW9uLWNsaWVudC5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxpc29sYXRpb24tY2xpZW50Lm1qcyIsICJiZWZvcmUiOiAiOGQwN2NiNGVhMTA1ODE5YzhmNzY5ZTk0MmM1ODA2M2QyMGNmMTI4OTU0NGMyYWZhYzBiOWFlZGEwZDk2M2I3YiIsICJhZnRlciI6ICJkMjIyMjEwMGEyYThmYzA5NzY1ZmQ0YmYzOGVlYmNlYTA2MWJlNzc0MDFjZjZlMGIzOWRkYmFmMDk4YTQxYTA0In1d'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++$shieldNow=@((State).listeners|Where-Object {$_.LocalPort -eq 8091});if($shieldNow.Count -ne 1 -or $shieldNow[0].OwningProcess -ne 2376){throw 'Shield restarted since preflight; inspect before proceeding'};try {Stopped;CheckFiles 'before';Staged;foreach($r in $rows){$b=$r.live+'.pre-coupled-'+$r.before.Substring(0,12);if(Test-Path -LiteralPath $b){if((FileSha $b) -ne $r.before){throw 'Backup collision'}}else{Copy-Item -LiteralPath $r.live -Destination $b};if((FileSha $b) -ne $r.before){throw 'Backup failed'}};foreach($r in $rows){$t=$r.live+'.coupled-new';Copy-Item -LiteralPath $r.stage -Destination $t -Force;if((FileSha $t) -ne $r.after){throw 'Copy changed'};Move-Item -LiteralPath $t -Destination $r.live -Force};CheckFiles 'after';@{ok=$true;state=(State)}|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}
+diff --git a/root-validation/step-preflight.ps1 b/root-validation/step-preflight.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..75c11ac21ca24070882812268dcbd90e6a140ff1
+--- /dev/null
++++ b/root-validation/step-preflight.ps1
+@@ -0,0 +1,2 @@
++$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sicmVsIjogIndpbmRvd3Mvbm9kZS9ob3N0Lm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxob3N0Lm1qcyIsICJzdGFnZSI6ICJDOlxcUHJvZ3JhbURhdGFcXEVuY2xhdmVcXGhvdGZpeFxcY291cGxlZC1zaGFyZXMtMjAyNjEwMjNcXGhvc3QubWpzIiwgImJlZm9yZSI6ICJlYTBmNmI4YWI5NTYyZTk1Y2MyMGU4MmVhMGQ2Y2M2YzdhMjQyNDQ1ZDBhODYwODE5NWY1MGViYjcxMWMwMGRlIiwgImFmdGVyIjogImU1MzdmNzI3N2E2OWI1ZDgwOWJhOTk5NGVlOTc3NDRmM2U5MDM4YTE3NWVmYTE1NjQyNWFiYTYxMWQxNTcyMzQifSwgeyJyZWwiOiAid2luZG93cy9ub2RlL2NoYWluLm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxjaGFpbi5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxjaGFpbi5tanMiLCAiYmVmb3JlIjogIjNlOWZhZTAzOTI0OTc4NDFmNWM0ZTA4NGM5ZDExZjZjMDEyNDNkMzM5YjBiZGYzMzk1YjU2OWY5MjFhMTI5MzgiLCAiYWZ0ZXIiOiAiYjI1N2ZjZjY0ZTdlMGY0NDczOGI4NGEzNWYzMjIzN2EwM2U2MjAzNGI3NGIwZGMwYzlmZjI3NmE0OWFiOTIyNSJ9LCB7InJlbCI6ICJ3aW5kb3dzL25vZGUvaXNvbGF0aW9uLWNsaWVudC5tanMiLCAibGl2ZSI6ICJDOlxcUHJvZ3JhbSBGaWxlc1xcRW5jbGF2ZVxcY29udHJvbFxcd2luZG93c1xcbm9kZVxcaXNvbGF0aW9uLWNsaWVudC5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxpc29sYXRpb24tY2xpZW50Lm1qcyIsICJiZWZvcmUiOiAiOGQwN2NiNGVhMTA1ODE5YzhmNzY5ZTk0MmM1ODA2M2QyMGNmMTI4OTU0NGMyYWZhYzBiOWFlZGEwZDk2M2I3YiIsICJhZnRlciI6ICJkMjIyMjEwMGEyYThmYzA5NzY1ZmQ0YmYzOGVlYmNlYTA2MWJlNzc0MDFjZjZlMGIzOWRkYmFmMDk4YTQxYTA0In1d'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++try {CheckTask;CheckFiles 'before';Staged;$s=State;if(@($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 1 -or @($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Expected Node and Shield listeners'};$h=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;if($h.memory.poolMiB -ne 98304){throw 'RAM pool changed'};$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;@{ok=$true;state=$s;managerMemory=$h.memory;vms=@($v.vms|Select-Object id,name,status,memory)}|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}
+diff --git a/root-validation/step-stage.ps1 b/root-validation/step-stage.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..95c92548246736eba7895ee0a67a1bce87c86e23
+--- /dev/null
++++ b/root-validation/step-stage.ps1
+@@ -0,0 +1,2 @@
++$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sicmVsIjogIndpbmRvd3Mvbm9kZS9ob3N0Lm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxob3N0Lm1qcyIsICJzdGFnZSI6ICJDOlxcUHJvZ3JhbURhdGFcXEVuY2xhdmVcXGhvdGZpeFxcY291cGxlZC1zaGFyZXMtMjAyNjEwMjNcXGhvc3QubWpzIiwgImJlZm9yZSI6ICJlYTBmNmI4YWI5NTYyZTk1Y2MyMGU4MmVhMGQ2Y2M2YzdhMjQyNDQ1ZDBhODYwODE5NWY1MGViYjcxMWMwMGRlIiwgImFmdGVyIjogImU1MzdmNzI3N2E2OWI1ZDgwOWJhOTk5NGVlOTc3NDRmM2U5MDM4YTE3NWVmYTE1NjQyNWFiYTYxMWQxNTcyMzQifSwgeyJyZWwiOiAid2luZG93cy9ub2RlL2NoYWluLm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxjaGFpbi5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxjaGFpbi5tanMiLCAiYmVmb3JlIjogIjNlOWZhZTAzOTI0OTc4NDFmNWM0ZTA4NGM5ZDExZjZjMDEyNDNkMzM5YjBiZGYzMzk1YjU2OWY5MjFhMTI5MzgiLCAiYWZ0ZXIiOiAiYjI1N2ZjZjY0ZTdlMGY0NDczOGI4NGEzNWYzMjIzN2EwM2U2MjAzNGI3NGIwZGMwYzlmZjI3NmE0OWFiOTIyNSJ9LCB7InJlbCI6ICJ3aW5kb3dzL25vZGUvaXNvbGF0aW9uLWNsaWVudC5tanMiLCAibGl2ZSI6ICJDOlxcUHJvZ3JhbSBGaWxlc1xcRW5jbGF2ZVxcY29udHJvbFxcd2luZG93c1xcbm9kZVxcaXNvbGF0aW9uLWNsaWVudC5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxpc29sYXRpb24tY2xpZW50Lm1qcyIsICJiZWZvcmUiOiAiOGQwN2NiNGVhMTA1ODE5YzhmNzY5ZTk0MmM1ODA2M2QyMGNmMTI4OTU0NGMyYWZhYzBiOWFlZGEwZDk2M2I3YiIsICJhZnRlciI6ICJkMjIyMjEwMGEyYThmYzA5NzY1ZmQ0YmYzOGVlYmNlYTA2MWJlNzc0MDFjZjZlMGIzOWRkYmFmMDk4YTQxYTA0In1d'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++try {CheckTask;CheckFiles 'before';Staged;@{ok=$true;state=(State)}|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}
+diff --git a/root-validation/step-start-node.ps1 b/root-validation/step-start-node.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5472536bfab54a8b301bca93f599aacd992a8fe
+--- /dev/null
++++ b/root-validation/step-start-node.ps1
+@@ -0,0 +1,2 @@
++$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sicmVsIjogIndpbmRvd3Mvbm9kZS9ob3N0Lm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxob3N0Lm1qcyIsICJzdGFnZSI6ICJDOlxcUHJvZ3JhbURhdGFcXEVuY2xhdmVcXGhvdGZpeFxcY291cGxlZC1zaGFyZXMtMjAyNjEwMjNcXGhvc3QubWpzIiwgImJlZm9yZSI6ICJlYTBmNmI4YWI5NTYyZTk1Y2MyMGU4MmVhMGQ2Y2M2YzdhMjQyNDQ1ZDBhODYwODE5NWY1MGViYjcxMWMwMGRlIiwgImFmdGVyIjogImU1MzdmNzI3N2E2OWI1ZDgwOWJhOTk5NGVlOTc3NDRmM2U5MDM4YTE3NWVmYTE1NjQyNWFiYTYxMWQxNTcyMzQifSwgeyJyZWwiOiAid2luZG93cy9ub2RlL2NoYWluLm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxjaGFpbi5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxjaGFpbi5tanMiLCAiYmVmb3JlIjogIjNlOWZhZTAzOTI0OTc4NDFmNWM0ZTA4NGM5ZDExZjZjMDEyNDNkMzM5YjBiZGYzMzk1YjU2OWY5MjFhMTI5MzgiLCAiYWZ0ZXIiOiAiYjI1N2ZjZjY0ZTdlMGY0NDczOGI4NGEzNWYzMjIzN2EwM2U2MjAzNGI3NGIwZGMwYzlmZjI3NmE0OWFiOTIyNSJ9LCB7InJlbCI6ICJ3aW5kb3dzL25vZGUvaXNvbGF0aW9uLWNsaWVudC5tanMiLCAibGl2ZSI6ICJDOlxcUHJvZ3JhbSBGaWxlc1xcRW5jbGF2ZVxcY29udHJvbFxcd2luZG93c1xcbm9kZVxcaXNvbGF0aW9uLWNsaWVudC5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxpc29sYXRpb24tY2xpZW50Lm1qcyIsICJiZWZvcmUiOiAiOGQwN2NiNGVhMTA1ODE5YzhmNzY5ZTk0MmM1ODA2M2QyMGNmMTI4OTU0NGMyYWZhYzBiOWFlZGEwZDk2M2I3YiIsICJhZnRlciI6ICJkMjIyMjEwMGEyYThmYzA5NzY1ZmQ0YmYzOGVlYmNlYTA2MWJlNzc0MDFjZjZlMGIzOWRkYmFmMDk4YTQxYTA0In1d'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++$shieldNow=@((State).listeners|Where-Object {$_.LocalPort -eq 8091});if($shieldNow.Count -ne 1 -or $shieldNow[0].OwningProcess -ne 2376){throw 'Shield restarted since preflight; inspect before proceeding'};try {Stopped;CheckFiles 'after';Start-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';@{ok=$true;state=(State)}|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}
+diff --git a/root-validation/step-stop-node.ps1 b/root-validation/step-stop-node.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..7660bc9d7e455865e96f1b422f42ccc3bf3d2f05
+--- /dev/null
++++ b/root-validation/step-stop-node.ps1
+@@ -0,0 +1,2 @@
++$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sicmVsIjogIndpbmRvd3Mvbm9kZS9ob3N0Lm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxob3N0Lm1qcyIsICJzdGFnZSI6ICJDOlxcUHJvZ3JhbURhdGFcXEVuY2xhdmVcXGhvdGZpeFxcY291cGxlZC1zaGFyZXMtMjAyNjEwMjNcXGhvc3QubWpzIiwgImJlZm9yZSI6ICJlYTBmNmI4YWI5NTYyZTk1Y2MyMGU4MmVhMGQ2Y2M2YzdhMjQyNDQ1ZDBhODYwODE5NWY1MGViYjcxMWMwMGRlIiwgImFmdGVyIjogImU1MzdmNzI3N2E2OWI1ZDgwOWJhOTk5NGVlOTc3NDRmM2U5MDM4YTE3NWVmYTE1NjQyNWFiYTYxMWQxNTcyMzQifSwgeyJyZWwiOiAid2luZG93cy9ub2RlL2NoYWluLm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxjaGFpbi5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxjaGFpbi5tanMiLCAiYmVmb3JlIjogIjNlOWZhZTAzOTI0OTc4NDFmNWM0ZTA4NGM5ZDExZjZjMDEyNDNkMzM5YjBiZGYzMzk1YjU2OWY5MjFhMTI5MzgiLCAiYWZ0ZXIiOiAiYjI1N2ZjZjY0ZTdlMGY0NDczOGI4NGEzNWYzMjIzN2EwM2U2MjAzNGI3NGIwZGMwYzlmZjI3NmE0OWFiOTIyNSJ9LCB7InJlbCI6ICJ3aW5kb3dzL25vZGUvaXNvbGF0aW9uLWNsaWVudC5tanMiLCAibGl2ZSI6ICJDOlxcUHJvZ3JhbSBGaWxlc1xcRW5jbGF2ZVxcY29udHJvbFxcd2luZG93c1xcbm9kZVxcaXNvbGF0aW9uLWNsaWVudC5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxpc29sYXRpb24tY2xpZW50Lm1qcyIsICJiZWZvcmUiOiAiOGQwN2NiNGVhMTA1ODE5YzhmNzY5ZTk0MmM1ODA2M2QyMGNmMTI4OTU0NGMyYWZhYzBiOWFlZGEwZDk2M2I3YiIsICJhZnRlciI6ICJkMjIyMjEwMGEyYThmYzA5NzY1ZmQ0YmYzOGVlYmNlYTA2MWJlNzc0MDFjZjZlMGIzOWRkYmFmMDk4YTQxYTA0In1d'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++$shieldNow=@((State).listeners|Where-Object {$_.LocalPort -eq 8091});if($shieldNow.Count -ne 1 -or $shieldNow[0].OwningProcess -ne 2376){throw 'Shield restarted since preflight; inspect before proceeding'};try {CheckTask;CheckFiles 'before';Staged;Stop-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';@{ok=$true;state=(State)}|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}
+diff --git a/root-validation/step-verify.ps1 b/root-validation/step-verify.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..cc77cbd5ed220580355e552e23af5c3b663dd277
+--- /dev/null
++++ b/root-validation/step-verify.ps1
+@@ -0,0 +1,2 @@
++$ErrorActionPreference='Stop';$rows=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('W3sicmVsIjogIndpbmRvd3Mvbm9kZS9ob3N0Lm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxob3N0Lm1qcyIsICJzdGFnZSI6ICJDOlxcUHJvZ3JhbURhdGFcXEVuY2xhdmVcXGhvdGZpeFxcY291cGxlZC1zaGFyZXMtMjAyNjEwMjNcXGhvc3QubWpzIiwgImJlZm9yZSI6ICJlYTBmNmI4YWI5NTYyZTk1Y2MyMGU4MmVhMGQ2Y2M2YzdhMjQyNDQ1ZDBhODYwODE5NWY1MGViYjcxMWMwMGRlIiwgImFmdGVyIjogImU1MzdmNzI3N2E2OWI1ZDgwOWJhOTk5NGVlOTc3NDRmM2U5MDM4YTE3NWVmYTE1NjQyNWFiYTYxMWQxNTcyMzQifSwgeyJyZWwiOiAid2luZG93cy9ub2RlL2NoYWluLm1qcyIsICJsaXZlIjogIkM6XFxQcm9ncmFtIEZpbGVzXFxFbmNsYXZlXFxjb250cm9sXFx3aW5kb3dzXFxub2RlXFxjaGFpbi5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxjaGFpbi5tanMiLCAiYmVmb3JlIjogIjNlOWZhZTAzOTI0OTc4NDFmNWM0ZTA4NGM5ZDExZjZjMDEyNDNkMzM5YjBiZGYzMzk1YjU2OWY5MjFhMTI5MzgiLCAiYWZ0ZXIiOiAiYjI1N2ZjZjY0ZTdlMGY0NDczOGI4NGEzNWYzMjIzN2EwM2U2MjAzNGI3NGIwZGMwYzlmZjI3NmE0OWFiOTIyNSJ9LCB7InJlbCI6ICJ3aW5kb3dzL25vZGUvaXNvbGF0aW9uLWNsaWVudC5tanMiLCAibGl2ZSI6ICJDOlxcUHJvZ3JhbSBGaWxlc1xcRW5jbGF2ZVxcY29udHJvbFxcd2luZG93c1xcbm9kZVxcaXNvbGF0aW9uLWNsaWVudC5tanMiLCAic3RhZ2UiOiAiQzpcXFByb2dyYW1EYXRhXFxFbmNsYXZlXFxob3RmaXhcXGNvdXBsZWQtc2hhcmVzLTIwMjYxMDIzXFxpc29sYXRpb24tY2xpZW50Lm1qcyIsICJiZWZvcmUiOiAiOGQwN2NiNGVhMTA1ODE5YzhmNzY5ZTk0MmM1ODA2M2QyMGNmMTI4OTU0NGMyYWZhYzBiOWFlZGEwZDk2M2I3YiIsICJhZnRlciI6ICJkMjIyMjEwMGEyYThmYzA5NzY1ZmQ0YmYzOGVlYmNlYTA2MWJlNzc0MDFjZjZlMGIzOWRkYmFmMDk4YTQxYTA0In1d'))|ConvertFrom-Json);function State {$l=@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object {$_.LocalPort -in @(9600,8091)});[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');nodeTask=(Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node').State.ToString();listeners=@($l|Select-Object LocalAddress,LocalPort,OwningProcess)}};function CheckTask {$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName 'Node';$x=@($t.Actions);if($x.Count -ne 1 -or $x[0].Execute -ne 'cmd.exe' -or $x[0].Arguments -ne '/c "C:\ProgramData\Enclave\run-node.cmd"'){throw 'Unexpected Node scheduled task'}};function CheckFiles($key){foreach($r in $rows){if((FileSha $r.live) -ne $r.$key){throw ('live source changed: '+$r.rel)}}};function Staged {foreach($r in $rows){if((FileSha $r.stage) -ne $r.after){throw ('staged source changed: '+$r.rel)};& 'C:\Program Files\Enclave\runtime\node\node.exe' --check $r.stage;if($LASTEXITCODE -ne 0){throw ('native syntax failed: '+$r.rel)}}};function Stopped {CheckTask;$s=State;if($s.nodeTask -eq 'Running' -or @($s.listeners|Where-Object {$_.LocalPort -eq 9600}).Count -ne 0){throw 'Node still active'};if(@($s.listeners|Where-Object {$_.LocalPort -eq 8091}).Count -ne 1){throw 'Shield listener changed'}};
++$shieldNow=@((State).listeners|Where-Object {$_.LocalPort -eq 8091});if($shieldNow.Count -ne 1 -or $shieldNow[0].OwningProcess -ne 2376){throw 'Shield restarted since preflight; inspect before proceeding'};try {CheckFiles 'after';$a=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/availability;$h=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/v1/host/state;$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;@{ok=$true;state=(State);availability=$a|Select-Object nodeRamGb,ramGbFree,ramMbFree,cpuShareFree,maxShare;deployments=@($h.deployments|Select-Object id,status,reason,cpuShare,memMb);vms=@($v.vms|Select-Object id,name,status,memory)}|ConvertTo-Json -Depth 7 -Compress}catch{@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress}
+diff --git a/root-validation/tls-1.guard.log b/root-validation/tls-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8faaf3071dc47aa7cef39f22293c5787205ec248
+--- /dev/null
++++ b/root-validation/tls-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=28 minHostAvailableMiB=24663
+diff --git a/root-validation/tls-2.guard.log b/root-validation/tls-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..80f4703c09266dbae1744b60247807240a50d7d2
+--- /dev/null
++++ b/root-validation/tls-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=28 minHostAvailableMiB=24799
+diff --git a/root-validation/tls-20261023T171409Z.json b/root-validation/tls-20261023T171409Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7bb1c863555c917367c7b148bb5ad0a128bc0fb
+--- /dev/null
++++ b/root-validation/tls-20261023T171409Z.json
+@@ -0,0 +1,115 @@
++{
++  "at": "2026-10-23T17:14:09.921422+00:00",
++  "results": [
++    {
++      "host": "a69dcbba.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "2EF32838BFBF5E9AE7FDB90E387B3445",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "7ae476a3.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "57249B397D55D850AD3683EAA9852068",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "7ae476a3.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "57249B397D55D850AD3683EAA9852068",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "248EA7B600B54B59D6A154353E84FB03",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 503 Service Unavailable",
++      "ok": true
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "248EA7B600B54B59D6A154353E84FB03",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 503 Service Unavailable",
++      "ok": true
++    },
++    {
++      "host": "e64f7cba.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "983AC213CA3D1C261D8DB09C3DCF9537",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "d9798e4c.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "83F7E04F3A7FB23B3A4112EC2338D26F",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "d9798e4c.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "83F7E04F3A7FB23B3A4112EC2338D26F",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a77d0c57.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "DEB322962BC31A713235D39A721C5F35",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "a77d0c57.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "DEB322962BC31A713235D39A721C5F35",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "ok": false,
++      "error": "[Errno -3] Temporary failure in name resolution"
++    },
++    {
++      "host": "ef514ed3.app.enclave.host",
++      "ok": false,
++      "error": "[Errno -3] Temporary failure in name resolution"
++    },
++    {
++      "host": "59f1273d.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "B58DB78C1E22477A081DB3F202FC557A",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    }
++  ],
++  "ok": false
++}
+diff --git a/root-validation/tls-20261023T171550Z.json b/root-validation/tls-20261023T171550Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..887477209b03deb9fc37ca014b7e63e1f56c2d6e
+--- /dev/null
++++ b/root-validation/tls-20261023T171550Z.json
+@@ -0,0 +1,39 @@
++{
++  "at": "2026-10-23T17:15:50.623142+00:00",
++  "results": [
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.199.235.187",
++      "ok": false,
++      "error": "The read operation timed out"
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.209.248.172",
++      "ok": false,
++      "error": "The read operation timed out"
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "134.209.248.172",
++      "ok": false,
++      "error": "_ssl.c:1064: The handshake operation timed out"
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "146.190.246.39",
++      "ok": false,
++      "error": "_ssl.c:1064: The handshake operation timed out"
++    },
++    {
++      "host": "ef514ed3.app.enclave.host",
++      "address": "146.190.246.39",
++      "tlsVerified": true,
++      "serial": "75B9E47882A32AD251DAB1C7B709A637",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    }
++  ],
++  "ok": false
++}
+diff --git a/root-validation/tls-20261023T171818Z.json b/root-validation/tls-20261023T171818Z.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..cbd9bfe38ca7bec5eba7fd95619a39371288b2d3
+--- /dev/null
++++ b/root-validation/tls-20261023T171818Z.json
+@@ -0,0 +1,42 @@
++{
++  "at": "2026-10-23T17:18:18.490619+00:00",
++  "results": [
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "248EA7B600B54B59D6A154353E84FB03",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "38f368d6.app.enclave.host",
++      "address": "134.209.248.172",
++      "tlsVerified": true,
++      "serial": "248EA7B600B54B59D6A154353E84FB03",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "134.199.235.187",
++      "tlsVerified": true,
++      "serial": "A2983374FD95457E73E045F018968BEC",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    },
++    {
++      "host": "c13d4b6a.app.enclave.host",
++      "address": "165.245.191.129",
++      "tlsVerified": true,
++      "serial": "A2983374FD95457E73E045F018968BEC",
++      "expires": "Jan 21 23:59:59 2027 GMT",
++      "response": "HTTP/1.1 200 OK",
++      "ok": true
++    }
++  ],
++  "ok": true
++}
+diff --git a/root-validation/tls-3.guard.log b/root-validation/tls-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..47dc19d0771ca17b436ddfe50502f777445bb275
+--- /dev/null
++++ b/root-validation/tls-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=24933
+diff --git a/root-validation/verify-1.guard.log b/root-validation/verify-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..bfda4a116418ebab64ceabb288802a4908101dae
+--- /dev/null
++++ b/root-validation/verify-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24723
+diff --git a/root-validation/verify-2.guard.log b/root-validation/verify-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..c8f9bf1f7fa575ae5ec9e66b9c6ed1581f21e8bf
+--- /dev/null
++++ b/root-validation/verify-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24637
+diff --git a/root-validation/verify-2.out b/root-validation/verify-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..05ca5865dd67ddad2f6050a75109742852cfc4d0
+--- /dev/null
++++ b/root-validation/verify-2.out
+@@ -0,0 +1,8 @@
++[queue] START available=24742MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++** WARNING: connection is not using a post-quantum key exchange algorithm.
++** This session may be vulnerable to "store now, decrypt later" attacks.
++** The server may need to be upgraded. See https://openssh.com/pq.html
++{"step": "verify", "at": "2026-10-23T17:12:40.793275+00:00", "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a", "result": {"ok": true, "vms": [{"id": "hvc18d297da5a21bc3cbae5836531b00c2", "name": "shield-readiness-v1", "status": "running", "memory": null}, {"id": "hvc6c4073c817dadf1d692f67b6f9222e3", "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hvba429ebb1c40a95c27186168f7669f74", "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.02, "appMiB": 1966, "vmMiB": 2606}}, {"id": "hvdc425d67f2b0e16d83e393766f786d10", "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d", "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.25, "appMiB": 24576, "vmMiB": 25216}}, {"id": "hv5e00a0f0dfae6122912103ad8361ce22", "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c", "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hv255b5ea98b99cf19c2e420f6a5a271ca", "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.21, "appMiB": 20643, "vmMiB": 21284}}, {"id": "hve60d223d27d01b8bcacb65a8e46f2e78", "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.04, "appMiB": 3932, "vmMiB": 4572}}, {"id": "hv2dd42ee0ca9d667ebb314782286900d0", "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.02, "appMiB": 1966, "vmMiB": 2606}}], "deployments": [{"id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3", "status": "queued", "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)", "cpuShare": null, "memMb": null}, {"id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f", "status": "refused", "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.", "cpuShare": null, "memMb": null}, {"id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33", "status": "running", "reason": null, "cpuShare": 0.02, "memMb": 1024}, {"id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b", "status": "running", "reason": null, "cpuShare": 0.25, "memMb": 12288}, {"id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681", "status": "held", "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision", "cpuShare": 0.02, "memMb": 512}, {"id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c", "status": "held", "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0xB794C4DD0e1C5E6B72281799F282BfdE7654345D: held - not started, not renewed, not released - pending the operator's decision", "cpuShare": null, "memMb": null}, {"id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238", "status": "held", "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision", "cpuShare": null, "memMb": null}, {"id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77", "status": "held", "reason": "this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61: held - not started, not renewed, not released - pending the operator's decision", "cpuShare": null, "memMb": null}], "availability": {"nodeRamGb": 96, "ramGbFree": 17.3, "ramMbFree": 17695, "cpuShareFree": 0.180013, "maxShare": 0.180013}, "state": {"at": "2026-10-23T17:12:39.7453467Z", "nodeTask": "Running", "listeners": [{"LocalAddress": "127.0.0.1", "LocalPort": 9600, "OwningProcess": 17272}, {"LocalAddress": "127.0.0.1", "LocalPort": 8091, "OwningProcess": 2376}]}}}
++[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=24637
++[memory-guard] at peak: python3:24 ssh:12 scp:4
++[queue] EXIT 0
+diff --git a/root-validation/verify-3.guard.log b/root-validation/verify-3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..432a6ae3aae48594b8bd4b66570524ecd7af2efb
+--- /dev/null
++++ b/root-validation/verify-3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24990
+diff --git a/root-validation/verify-3.out b/root-validation/verify-3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e20f17a135a599416d962af6d17e77164ff22c42
+--- /dev/null
++++ b/root-validation/verify-3.out
+@@ -0,0 +1,8 @@
++[queue] START available=25107MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++** WARNING: connection is not using a post-quantum key exchange algorithm.
++** This session may be vulnerable to "store now, decrypt later" attacks.
++** The server may need to be upgraded. See https://openssh.com/pq.html
++{"step": "verify", "at": "2026-10-23T17:14:54.085876+00:00", "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a", "result": {"ok": true, "vms": [{"id": "hvc18d297da5a21bc3cbae5836531b00c2", "name": "shield-readiness-v1", "status": "running", "memory": null}, {"id": "hvc6c4073c817dadf1d692f67b6f9222e3", "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hvba429ebb1c40a95c27186168f7669f74", "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.02, "appMiB": 1966, "vmMiB": 2606}}, {"id": "hvdc425d67f2b0e16d83e393766f786d10", "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d", "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.25, "appMiB": 24576, "vmMiB": 25216}}, {"id": "hv5e00a0f0dfae6122912103ad8361ce22", "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c", "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.01, "appMiB": 983, "vmMiB": 2048}}, {"id": "hv255b5ea98b99cf19c2e420f6a5a271ca", "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.21, "appMiB": 20643, "vmMiB": 21284}}, {"id": "hve60d223d27d01b8bcacb65a8e46f2e78", "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.04, "appMiB": 3932, "vmMiB": 4572}}, {"id": "hv2dd42ee0ca9d667ebb314782286900d0", "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681", "status": "running", "memory": {"rule": "cpu-share", "poolMiB": 98304, "cpuShare": 0.02, "appMiB": 1966, "vmMiB": 2606}}], "deployments": [{"id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3", "status": "queued", "reason": "the ledger will not let this box claim it: its rate cap, its funded balance or a live lease says no (this box charges 84/sec per whole node, 1% of it here)", "cpuShare": null, "memMb": null}, {"id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f", "status": "refused", "reason": "This version requires catalog approval; pending versions may only be deployed PRIVATE for testing.", "cpuShare": null, "memMb": null}, {"id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33", "status": "running", "reason": null, "cpuShare": 0.02, "memMb": 1024}, {"id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b", "status": "running", "reason": null, "cpuShare": 0.25, "memMb": 12288}, {"id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681", "status": "running", "reason": null, "cpuShare": 0.02, "memMb": 512}, {"id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c", "status": "running", "reason": null, "cpuShare": 0.04, "memMb": 256}, {"id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238", "status": "running", "reason": null, "cpuShare": 0.21, "memMb": 2048}, {"id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77", "status": "running", "reason": null, "cpuShare": 0.01, "memMb": 128}, {"id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7", "status": "stopped", "reason": "the lease expired; a new claim must pass the current funding and hosting policy", "cpuShare": null, "memMb": null}, {"id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1", "status": "stopped", "reason": "the lease expired; a new claim must pass the current funding and hosting policy", "cpuShare": null, "memMb": null}, {"id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889", "status": "refused", "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer", "cpuShare": null, "memMb": null}, {"id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8", "status": "refused", "reason": "it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer", "cpuShare": null, "memMb": null}, {"id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e", "status": "refused", "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app", "cpuShare": null, "memMb": null}, {"id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595", "status": "refused", "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app", "cpuShare": null, "memMb": null}, {"id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76", "status": "refused", "reason": "it requires isolation backend snp-guest-per-app, and this box runs hyperv-partition-per-app", "cpuShare": null, "memMb": null}, {"id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef", "status": "refused", "reason": "Pinned to host 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658; fallback is disabled.", "cpuShare": null, "memMb": null}], "availability": {"nodeRamGb": 96, "ramGbFree": 16.3, "ramMbFree": 16711, "cpuShareFree": 0.17, "maxShare": 0.17}, "state": {"at": "2026-10-23T17:14:53.1272560Z", "nodeTask": "Running", "listeners": [{"LocalAddress": "127.0.0.1", "LocalPort": 9600, "OwningProcess": 17272}, {"LocalAddress": "127.0.0.1", "LocalPort": 8091, "OwningProcess": 2376}]}}}
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24990
++[memory-guard] at peak: python3:24 ssh:12 timeout:4
++[queue] EXIT 0
+diff --git a/root-validation/verify-public.py b/root-validation/verify-public.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f637e2f57e8cfeb7a4c4136bad413643986affd5
+--- /dev/null
++++ b/root-validation/verify-public.py
+@@ -0,0 +1,30 @@
++"""Verify CA/hostname TLS and an HTTP response for all DNS-advertised app ingress addresses."""
++import concurrent.futures,datetime,json,pathlib,socket,ssl,sys
++HERE=pathlib.Path(__file__).resolve().parent
++prior=json.loads((HERE/'activation-preflight-pinned.json').read_text())['result']['vms']
++hosts=[v['name'][2:10]+'.app.enclave.host' for v in prior if v['name'].startswith('0x')]
++if sys.argv[1:]:
++ requested={s+'.app.enclave.host' for s in sys.argv[1:]}
++ assert requested.issubset(set(hosts))
++ hosts=[s for s in hosts if s in requested]
++ctx=ssl.create_default_context()
++def check(host):
++ results=[]
++ try: addresses=sorted({r[4][0] for r in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)})
++ except Exception as e:return [{'host':host,'ok':False,'error':str(e)}]
++ for addr in addresses:
++  try:
++   with socket.create_connection((addr,443),timeout=10) as raw:
++    with ctx.wrap_socket(raw,server_hostname=host) as s:
++     cert=s.getpeercert();s.sendall(('GET / HTTP/1.1\r\nHost: '+host+'\r\nConnection: close\r\n\r\n').encode())
++     first=s.recv(1024).split(b'\r\n',1)[0].decode('ascii','replace')
++     results.append({'host':host,'address':addr,'tlsVerified':True,'serial':cert.get('serialNumber'),'expires':cert.get('notAfter'),'response':first,'ok':first.startswith('HTTP/')})
++  except Exception as e:results.append({'host':host,'address':addr,'ok':False,'error':str(e)})
++ return results
++with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
++ rows=[row for group in pool.map(check,hosts) for row in group]
++result={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'results':rows,'ok':all(r['ok'] for r in rows)}
++path=HERE/('tls-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'.json')
++path.write_text(json.dumps(result,indent=2)+'\n')
++print(json.dumps(result))
++raise SystemExit(0 if result['ok'] else 1)

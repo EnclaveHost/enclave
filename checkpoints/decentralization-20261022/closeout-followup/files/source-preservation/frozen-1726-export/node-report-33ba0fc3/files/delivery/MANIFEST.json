@@ -1,0 +1,41 @@
+{
+ "format": "enclave-control-delta/1",
+ "baselineCommit": "0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2",
+ "fixCommit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+ "deploy": [
+  {
+   "name": "windows/node/host.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\host.mjs",
+   "old": "ea0f6b8ab9562e95cc20e82ea0d6cc6c7a242445d0a8608195f50ebb711c00de",
+   "new": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234",
+   "how": "swap",
+   "loadedBy": "Enclave Node agent process only (windows/node/agent.mjs); restart Node wrapper only"
+  },
+  {
+   "name": "windows/node/chain.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\chain.mjs",
+   "old": "3e9fae0392497841f5c4e084c9d11f6c01243d339b0bdf3395b569f921a12938",
+   "new": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+   "how": "swap",
+   "loadedBy": "Enclave Node agent process only (windows/node/agent.mjs); restart Node wrapper only"
+  },
+  {
+   "name": "windows/node/isolation-client.mjs",
+   "target": "C:\\Program Files\\Enclave\\control\\windows\\node\\isolation-client.mjs",
+   "old": "8d07cb4ea105819c8f769e942c58063d20cf1289544c2afac0b9aeda0d963b7b",
+   "new": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04",
+   "how": "swap",
+   "loadedBy": "Enclave Node agent process only (windows/node/agent.mjs); restart Node wrapper only"
+  }
+ ],
+ "patch": {
+  "path": "installed-to-fix.patch",
+  "sha256": "7165865a59711bc59081dffb8c9989ac7248d6568497d749e46280191cd4acb5"
+ },
+ "diffstat": " test/helpers/hv-fake-manager.mjs                 |   9 +-\n test/windows-node-coupled-shares-defect.test.mjs | 120 +++++++\n test/windows-node-coupled-shares.test.mjs        | 399 +++++++++++++++++++++++\n test/windows-node-hosting-caps.test.mjs          |  31 +-\n test/windows-node-isolation-host.test.mjs        |   6 +-\n test/windows-node-preclaim.test.mjs              |   4 +-\n test/windows-node-scan-slot.test.mjs             |   4 +\n windows/node/chain.mjs                           |  32 +-\n windows/node/host.mjs                            | 171 +++++++++-\n windows/node/isolation-client.mjs                |   7 +-\n 10 files changed, 740 insertions(+), 43 deletions(-)\n",
+ "notDeployed": [
+  "test/windows-node-coupled-shares.test.mjs",
+  "test/windows-node-coupled-shares-defect.test.mjs"
+ ],
+ "managerUnchanged": true
+}

@@ -1,0 +1,1104 @@
+From 670a753e05f85180d71402f3d8b6dbda13ae55fa Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 09:56:09 -0700
+Subject: [PATCH] Manager: one purchased share sizes the VM's processors as
+ well as its RAM
+
+Every NucBox app VM ran 1 VP at 100% (Reserve 0) whatever its share, while app RAM already
+followed floor(pool*share). The manager now sizes CPU from the SAME cpuShare (cpu-share.mjs):
+VPs = max(catalog vcpus, ceil(pool*share)), and an exact per-VP Msvm_ProcessorSettingData
+Limit = Reservation in Hyper-V's percent/1000 units (16 LP: 1% -> 1 VP @16000, 21% -> 4 @84000,
+25% -> 4 @100000, 13% -> 3 @69333). A separate pre-start processor script sets it on the
+never-started VM, reads it back and fails the start (VM removed by Id) on any mismatch; the
+define script is unchanged. Pool = the node's rule NODE_VCPUS || os.cpus().length, a malformed
+explicit value refuses startup, and it must fit Hyper-V's LogicalProcessorCount before any
+deployment spawns. Admission never oversubscribes the pool; recovered partitions keep it 503.
+The readiness witness keeps its fixed launch. Records state the granted, read-back and
+realizable allocation, including the guest's online VPs and the measured monitor's catalog
+cgroup cap (a blocker until a guest image honours ENCLAVE_GUEST_CPU_ALLOWANCE, off by default).
+The catalog policy, AppID and attestation statements are unchanged.
+---
+ .../vbslike/manager/cpu-allocation.test.mjs   | 256 ++++++++++++++++++
+ windows/vbslike/manager/cpu-share.mjs         |  45 +++
+ windows/vbslike/manager/cpu-share.test.mjs    |  84 ++++++
+ windows/vbslike/manager/fake-hyperv.mjs       |  10 +
+ windows/vbslike/manager/main.mjs              |  26 ++
+ .../vbslike/manager/ops/launcher-canary.mjs   |  17 +-
+ .../manager/ops/launcher-canary.test.mjs      |  23 +-
+ .../manager/ops/manager-launcher-canary.ps1   |   7 +-
+ windows/vbslike/manager/server.mjs            |  69 ++++-
+ windows/vbslike/manager/server.test.mjs       |  13 +-
+ .../manager/testdata/fake-wmiserve.mjs        |   4 +-
+ windows/vbslike/manager/wmi-launcher.mjs      |  96 ++++++-
+ windows/vbslike/manager/wmiserve-run.mjs      |  12 +-
+ 13 files changed, 639 insertions(+), 23 deletions(-)
+ create mode 100644 windows/vbslike/manager/cpu-allocation.test.mjs
+ create mode 100644 windows/vbslike/manager/cpu-share.mjs
+ create mode 100644 windows/vbslike/manager/cpu-share.test.mjs
+
+diff --git a/windows/vbslike/manager/cpu-allocation.test.mjs b/windows/vbslike/manager/cpu-allocation.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3856ed91291e9178dc43169980c11da44e4c8bc
+--- /dev/null
++++ b/windows/vbslike/manager/cpu-allocation.test.mjs
+@@ -0,0 +1,256 @@
++// THE PURCHASED SHARE SIZES THE VM'S PROCESSORS, through the real call chain: Manager.spawn -> HyperVPartitionBackend ->
++// WmiHyperVLauncher (fake PowerShell host) -> the define script's VP count and WMI Limit/Reservation -> the read-back ->
++// wmiserve's argv -> the record. Imports no new module, so it also runs against the pre-fix tree (where every app VM was
++// 1 VP at 100% whatever the share) and fails there.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawn as nodeSpawn } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { Manager } from "./server.mjs";
++import { HyperVPartitionBackend } from "./backend.mjs";
++import { WmiHyperVLauncher, READINESS_WITNESS_APP_ID } from "./wmi-launcher.mjs";
++import { TYPE1, PREFLIGHT_OK, defineAnswer, keyOf, startAndReadAnswer } from "./fake-hyperv.mjs";
++
++// What a compliant Hyper-V reads back after the processor script: taken FROM the script, so a launcher that asks for the
++// wrong quota gets the wrong quota back. (Kept here rather than imported, so this file also runs on the pre-fix tree.)
++function processorAnswer(script, over = {}) {
++  const [q, l, r] = (/\$cpuWant = @\{q=(\d+); l=(\d+); r=(\d+)\}/.exec(script) || [null, 0, 0, 0]).slice(1).map(Number);
++  return { vcpus: q, count: q, limit: l, reservation: r, weight: 100, units: "percent / 1000", maximum: Math.round(l / 1000), reserve: Math.round(r / 1000), ...over };
++}
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const v = JSON.parse(fs.readFileSync(path.join(HERE, "../../../isolation/contract/catalog/derive_vectors.json"), "utf8"));
++const component = Buffer.from(v.component_hex, "hex");
++const REC = v.ok[0].mapping.record;                          // policy { cpuPercent: 100, memMiB: 512, vcpus: 1 }
++const IMG = "C:\\Users\\claude\\vbs-like\\runtime.bin";
++const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
++const FAKE_WMISERVE = path.join(HERE, "testdata/fake-wmiserve.mjs");
++const dep = (n) => "0x" + n.toString(16).padStart(2, "0").repeat(32);
++
++/** A Hyper-V host that does what it is asked unless `over` says otherwise; records every script. */
++function host({ define = {}, processor = {}, preflight = PREFLIGHT_OK, head = "\nMON snp=0 vcpus=1 memMiB=395 boot_ms=312\nMON ready" } = {}) {
++  const seen = [];
++  const answers = { preflight, imageHash: { present: true, sha256: SHA, bytes: 1 }, start: { state: "Running" },
++                    readConsole: { connected: true, bytes: 64, head }, removeById: { found: true, removed: true },
++                    retire: { present: true, retired: true }, survey: { vms: [] } };
++  const run = async (script) => {
++    seen.push(script);
++    const k = keyOf(script);
++    let a = answers[k];
++    if (k === "startAndRead") a = startAndReadAnswer((x) => answers[x]);
++    if (k === "define") a = defineAnswer(script, typeof define === "function" ? define(script) : define);
++    if (k === "processor") a = processorAnswer(script, processor);
++    return { code: 0, stdout: JSON.stringify(a ?? { ok: true }), stderr: "" };
++  };
++  return { run, seen, scripts: (k) => seen.filter((s) => keyOf(s) === k) };
++}
++
++function stack({ pool = 16, lp = 16, ram = 98304, hostOver = {}, serve = false, mode = "ok", guestCpuAllowance = false } = {}) {
++  const h = host({ ...hostOver, preflight: { ...PREFLIGHT_OK, logicalProcessors: lp } });
++  const argsFiles = [];
++  const bundleDir = serve ? fs.mkdtempSync(path.join(os.tmpdir(), "cpu-alloc-")) : null;
++  const spawn = (exe, args, opts) => {
++    const f = path.join(bundleDir, `args-${argsFiles.length}.json`); argsFiles.push(f);
++    return nodeSpawn(process.execPath, [FAKE_WMISERVE, ...args], { ...opts, env: { ...process.env, FAKE_WMISERVE: mode, FAKE_WMISERVE_ARGS: f } });
++  };
++  const launcher = new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-app-t-", ...TYPE1, guestCpuAllowance,
++    ...(serve ? { serve: { exe: "shield-host.exe", bundleDir, portFor: () => 19411, readyTimeoutMs: 5_000, spawn } } : {}) });
++  const m = new Manager({ runtimeId: REC.runtimeId, fetchComponent: async () => component, ramPoolMiB: ram, cpuPoolVcpus: ram === null ? null : pool,
++                          backend: new HyperVPartitionBackend({ launcher }) });
++  return { m, h, argsFiles, bundleDir };
++}
++const body = (share, name = dep(0xe6)) => ({ derive: REC, name, isPublic: true, hasSecrets: false, cpuShare: share });
++const cpuWant = (s) => { const x = /\$cpuWant = @\{q=(\d+); l=(\d+); r=(\d+)\}/.exec(s); return x ? x.slice(1).map(Number) : null; };
++const vpCount = (s) => Number(/-VpCount (\d+)/.exec(s)?.[1]);
++async function stopAll(m) { for (const r of m.list()) await m.remove(r.id).catch(() => {}); }
++
++test("16 logical processors: 1% -> 1 VP at 16%, 25% -> 4 VPs at 100%, 21% -> 4 VPs at 84%, 13% -> 3 VPs at 69.333%", async () => {
++  for (const [share, vps, limit] of [[.01, 1, 16000], [.25, 4, 100000], [.21, 4, 84000], [.13, 3, 69333], [.17, 3, 90666]]) {
++    const { m, h } = stack();
++    await m.probe(); await m.recover();
++    const r = await m.spawn(body(share));
++    try {
++      const def = h.scripts("define")[0], cpuScript = h.scripts("processor")[0];
++      assert.equal(vpCount(def), vps, `${share}: New-CustomVM -VpCount`);
++      assert.ok(cpuScript, `${share}: the processor allocation is set`);
++      assert.deepEqual(cpuWant(cpuScript), [vps, limit, limit], `${share}: the exact WMI Limit and Reservation asked for`);
++      assert.match(cpuScript, /-MethodName ModifyResourceSettings/);
++      assert.ok(h.seen.indexOf(cpuScript) > h.seen.indexOf(def) && h.seen.indexOf(cpuScript) < h.seen.findIndex((x) => keyOf(x) === "startAndRead"),
++                "after the definition and BEFORE the first start");
++      assert.equal(r.status, "starting", r.reason);
++      assert.equal(r.cpu.vcpus, vps); assert.equal(r.cpu.limit, limit); assert.equal(r.cpu.reservation, limit);
++      assert.equal(r.cpu.grantedUnits, vps * limit);
++      assert.ok(r.cpu.grantedUnits <= Math.round(16 * share * 100000) && r.cpu.grantedUnits > 16 * share * 100000 - vps,
++                `${share}: granted ${r.cpu.grantedUnits} is the purchased ${16 * share} vCPU, never over and under by < 1 unit per VP`);
++      assert.deepEqual([r.cpu.readback.vcpus, r.cpu.readback.limit, r.cpu.readback.reservation, r.cpu.readback.units],
++                       [vps, limit, limit, "percent / 1000"], "what Hyper-V read back is on the record");
++      assert.deepEqual(r.policy, REC.policy, "the catalog policy (and so the AppID) is unchanged");
++      assert.equal(r.appId, v.ok[0].mapping.appId);
++      assert.equal(r.memory.appMiB, Math.floor(98304 * share + 1e-7), "and the SAME share sized the app RAM");
++      assert.equal(m.health().cpu.allocatedUnits, vps * limit);
++    } finally { await stopAll(m); }
++  }
++});
++
++test("the guest's own launcher statement and its online count follow the allocation (wmiserve --vcpus, MON vcpus=)", async () => {
++  const { m, argsFiles } = stack({ serve: true, hostOver: { head: "\nMON snp=0 vcpus=4 memMiB=8000 boot_ms=300\nMON ready" } });
++  await m.probe(); await m.recover();
++  const r = await m.spawn(body(.21));
++  try {
++    const argv = JSON.parse(fs.readFileSync(argsFiles[0], "utf8"));
++    assert.equal(argv[argv.indexOf("--vcpus") + 1], "4", "the signed report's partition.vcpus states the VPs the VM has");
++    assert.equal(argv[argv.indexOf("--app-mem") + 1], String(Math.floor(98304 * .21)));
++    assert.equal(r.cpu.guestOnlineVcpus, 4);
++    // the measured guest still confines the app to its catalog cpuPercent: said, not hidden
++    assert.equal(r.cpu.realizableUnits, 100000);
++    assert.match(r.cpu.blocker, /catalog cpuPercent 100/);
++  } finally { await stopAll(m); }
++});
++
++test("a guest that brings fewer processors online than it was given is recorded as such, not as the full allocation", async () => {
++  const { m } = stack({ hostOver: { head: "\nMON snp=0 vcpus=1 memMiB=8000 boot_ms=300\nMON ready" } });
++  await m.probe(); await m.recover();
++  const r = await m.spawn(body(.05));                       // 0.8 vCPU on 1 VP: nothing lost
++  assert.equal(r.cpu.realizableUnits, 80000); assert.equal(r.cpu.blocker, null);
++  await stopAll(m);
++  const s = stack({ hostOver: { head: "\nMON snp=0 vcpus=1 memMiB=8000 boot_ms=300\nMON ready" } });
++  await s.m.probe(); await s.m.recover();
++  const r2 = await s.m.spawn(body(.0625 * 2));              // 2 VPs at 100%
++  try {
++    assert.equal(r2.cpu.vcpus, 2); assert.equal(r2.cpu.guestOnlineVcpus, 1);
++    assert.equal(r2.cpu.realizableUnits, 100000);
++    assert.match(r2.cpu.blocker, /brought 1 of 2 virtual processors online/);
++  } finally { await stopAll(s.m); }
++});
++
++test("Hyper-V reading back anything but the exact quota fails the start, and the VM it defined is removed", async () => {
++  for (const bad of [{ limit: 84 }, { limit: 84001 }, { reservation: 0 }, { vcpus: 1, count: 1 }, { count: 1 }, { units: "percent" }]) {
++    const { m, h } = stack({ hostOver: { processor: bad } });
++    await m.probe(); await m.recover();
++    const r = await m.spawn(body(.21));
++    assert.equal(r.status, "failed", JSON.stringify(bad));
++    assert.match(r.reason, /processor allocation reads back as/);
++    assert.equal(h.scripts("removeById").length, 1, `${JSON.stringify(bad)}: the VM is removed by its Id`);
++    assert.equal(h.scripts("startAndRead").length, 0, "and never started");
++  }
++});
++
++test("bad shares are refused before anything is defined; no share, no bypass for an ordinary deployment", async () => {
++  for (const share of [0, -1, 1.01, NaN, Infinity, undefined, null, "0.25", .0001]) {
++    const { m, h } = stack();
++    await m.probe(); await m.recover();
++    await assert.rejects(m.spawn(body(share)), (e) => e.status === 400, String(share));
++    assert.equal(h.scripts("define").length, 0);
++  }
++  // the readiness witness's NAME with another app is an ordinary spawn, and needs a deployment id and a share
++  const { m } = stack(); await m.probe(); await m.recover();
++  await assert.rejects(m.spawn({ ...body(undefined), name: "shield-readiness-v1" }), /deployment ID is required/);
++});
++
++test("bad or unknown CPU pools fail closed", async () => {
++  for (const pool of [0, -1, 1.5, 2000, "16", NaN])
++    assert.throws(() => new Manager({ ramPoolMiB: 98304, cpuPoolVcpus: pool }), /cpuPoolVcpus/);
++  assert.throws(() => new Manager({ ramPoolMiB: 98304 }), /configured together/, "RAM by share with CPU fixed is the defect");
++  assert.throws(() => new Manager({ cpuPoolVcpus: 16 }), /configured together/);
++  // a pool larger than the host's processors: canStart false, and no deployment spawns
++  const big = stack({ pool: 32, lp: 16 });
++  const pre = await big.m.probe(); await big.m.recover();
++  assert.equal(pre.ok, false); assert.equal(big.m.health().canStart, false);
++  assert.ok(pre.checks.some((c) => c.name === "CPU pool within host logical processors" && !c.ok));
++  await assert.rejects(big.m.spawn(body(.01)), (e) => e.status === 503 && /logical processors/.test(e.message));
++  // never read (no preflight yet, or the read failed): unknown is not "fits"
++  const unread = stack({ lp: null });
++  await unread.m.probe(); await unread.m.recover();
++  assert.equal(unread.m.health().cpu.hostLogicalProcessors, null);
++  await assert.rejects(unread.m.spawn(body(.01)), (e) => e.status === 503);
++  assert.equal(unread.h.scripts("define").length, 0);
++});
++
++test("the CPU pool is never oversubscribed, including by the fixed-policy readiness witness", async () => {
++  const { m } = stack();
++  await m.probe(); await m.recover();
++  const results = await Promise.allSettled([m.spawn(body(.6)), m.spawn(body(.6, dep(0xab)))]);
++  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
++  await stopAll(m);
++  // the witness keeps its qualified fixed policy (1 VP at 100%, no reservation) and holds that 1 VP of the pool
++  const w = stack();
++  await w.m.probe(); await w.m.recover();
++  const wv = v.ok.find((x) => x.mapping.appId === READINESS_WITNESS_APP_ID);
++  if (wv) {
++    const wr = await w.m.spawn({ derive: wv.mapping.record, name: "shield-readiness-v1", isPublic: true, hasSecrets: false });
++    assert.equal(wr.cpu.rule, "readiness-witness-fixed");
++    assert.equal(vpCount(w.h.scripts("define")[0]), 1);
++    assert.equal(w.h.scripts("processor").length, 0, "the witness's qualified launch is unchanged: no processor step");
++  } else {
++    // the vectors carry no witness bundle: model one held fixed-policy record directly (the same held-units rule)
++    w.m.domains.set("w", { id: "w", name: "shield-readiness-v1", status: "running", policy: { vcpus: 1, memMiB: 256, cpuPercent: 100 },
++                           cpu: { rule: "readiness-witness-fixed", vcpus: 1, limit: 100000, reservation: 0, grantedUnits: 100000 } });
++  }
++  assert.equal(w.m.health().cpu.allocatedUnits, 100000);
++  // RAM fits (.95 of 96 GiB plus the witness's 256 MiB), CPU does not (15.2 + 1 > 16 VPs)
++  await assert.rejects(w.m.spawn(body(.95)), (e) => e.status === 507 && /CPU pool/.test(e.message));
++  const ok = await w.m.spawn(body(.9));
++  assert.equal(ok.cpu.grantedUnits, 1440000);
++  assert.equal(w.m.health().cpu.freeUnits, 1600000 - 1440000 - 100000);
++  await stopAll(w.m);
++});
++
++test("after a manager restart, recovered partitions make CPU allocation unknown: deployments 503 until reconciled", async () => {
++  const { m, h } = stack();
++  // the survey answers one of our VMs, recovered from its Notes
++  const notes = "enclave-vbslike-app-domain/manager|" + Buffer.from(JSON.stringify({ v: 1, id: "hvold", name: dep(0x11), instanceId: "hvold-1" })).toString("base64url");
++  m.backend.survey = async () => ({ vms: [{ vmId: "5DB6D4EB-1619-4936-9D60-C7E3CA67F3A8", name: "enclave-app-t-hvold-1", state: "Running", notes }] });
++  await m.probe(); await m.recover();
++  await assert.rejects(m.spawn(body(.01)), (e) => e.status === 503 && /unknown until recovered partitions are reconciled/.test(e.message));
++  assert.equal(h.scripts("define").length, 0);
++});
++
++test("with no pools (a lab manager) nothing changes: the catalog's VP count, no processor script, no CPU record", async () => {
++  const { m, h } = stack({ ram: null });
++  await m.probe(); await m.recover();
++  const r = await m.spawn(body(.25));
++  try {
++    assert.equal(vpCount(h.scripts("define")[0]), 1);
++    assert.equal(h.scripts("processor").length, 0);
++    assert.equal(r.cpu, null); assert.equal(m.health().cpu, undefined);
++  } finally { await stopAll(m); }
++});
++
++test("a guest image with the CPU allowance: the app's own cgroup quota is raised to the VM allocation, and confirmed", async () => {
++  const { m, argsFiles } = stack({ serve: true, guestCpuAllowance: true, hostOver: { head: "\nMON snp=0 vcpus=4 memMiB=8000 boot_ms=300\nMON ready" } });
++  await m.probe(); await m.recover();
++  const r = await m.spawn(body(.21));
++  try {
++    const argv = JSON.parse(fs.readFileSync(argsFiles[0], "utf8"));
++    assert.equal(argv[argv.indexOf("--app-cpu") + 1], "336", "4 VPs at 84% = 336% of one CPU");
++    assert.equal(r.cpu.appCpuPercent, 336, "as the monitor applied it (wmiserve's load step)");
++    assert.equal(r.cpu.realizableUnits, 336000); assert.equal(r.cpu.blocker, null);
++  } finally { await stopAll(m); }
++  // 13%: 207999 units -> 208%, rounded UP so the VM's exact Limit, not the cgroup, is the binding cap
++  const t = stack({ serve: true, guestCpuAllowance: true, hostOver: { head: "\nMON snp=0 vcpus=3 memMiB=8000 boot_ms=300\nMON ready" } });
++  await t.m.probe(); await t.m.recover();
++  const r13 = await t.m.spawn(body(.13));
++  try {
++    const argv = JSON.parse(fs.readFileSync(t.argsFiles[0], "utf8"));
++    assert.equal(argv[argv.indexOf("--app-cpu") + 1], "208");
++    assert.equal(r13.cpu.realizableUnits, 207999);
++  } finally { await stopAll(t.m); }
++  // at or below the catalog share there is nothing to raise, and nothing is sent
++  const u = stack({ serve: true, guestCpuAllowance: true });
++  await u.m.probe(); await u.m.recover();
++  const r1 = await u.m.spawn(body(.01));
++  try { assert.equal(JSON.parse(fs.readFileSync(u.argsFiles[0], "utf8")).includes("--app-cpu"), false); }
++  finally { await stopAll(u.m); }
++});
++
++test("an allowance the guest path did not apply is refused, not served under the catalog cap", async () => {
++  const { m, h } = stack({ serve: true, guestCpuAllowance: true, mode: "cpu-ignored" });
++  await m.probe(); await m.recover();
++  const r = await m.spawn(body(.21));
++  assert.equal(r.status, "failed");
++  assert.match(r.reason, /loaded with cpuPercent null, not the 336 allocated/);
++  assert.equal(h.scripts("removeById").length, 1, "and the VM is removed");
++});
+diff --git a/windows/vbslike/manager/cpu-share.mjs b/windows/vbslike/manager/cpu-share.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a1727a5a5a1571803d16dc069849035299917f01
+--- /dev/null
++++ b/windows/vbslike/manager/cpu-share.mjs
+@@ -0,0 +1,45 @@
++// CPU allocation, like RAM (memory-share.mjs), is separate from the immutable catalog/attestation policy.
++// Units are Hyper-V's own: Msvm_ProcessorSettingData Limit/Reservation in percent/1000 of ONE virtual processor,
++// so 100000 is a whole VP. The share buys poolVcpus*share VPs' worth; the VP count only shapes it.
++export const CPU_UNITS_PER_VCPU = 100000;
++export const CPU_MIN_LIMIT = 1000;          // 1% of one VP: below this the cap is not a meaningful allocation
++export const CPU_MAX_POOL_VCPUS = 1024;
++export const CPU_WMI_UNITS = "percent / 1000";
++
++export function validCpuPool(poolVcpus) {
++  return Number.isSafeInteger(poolVcpus) && poolVcpus > 0 && poolVcpus <= CPU_MAX_POOL_VCPUS;
++}
++
++export function cpuForShare(poolVcpus, cpuShare, policy) {
++  if (!validCpuPool(poolVcpus)) throw new Error("the manager has no valid CPU pool (NODE_VCPUS)");
++  if (!Number.isFinite(cpuShare) || cpuShare <= 0 || cpuShare > 1)
++    throw new Error("cpuShare must be greater than zero and at most one");
++  const minVcpus = policy?.vcpus, cpuPercent = policy?.cpuPercent;
++  if (!Number.isSafeInteger(minVcpus) || minVcpus <= 0 || !Number.isSafeInteger(cpuPercent) || cpuPercent <= 0)
++    throw new Error("the app has no valid catalog CPU policy");
++  const entitlementUnits = Math.floor(poolVcpus * cpuShare * CPU_UNITS_PER_VCPU + 1e-6);
++  const vcpus = Math.max(minVcpus, Math.ceil(entitlementUnits / CPU_UNITS_PER_VCPU));
++  if (vcpus > poolVcpus)
++    throw new Error(`the app needs ${vcpus} virtual processors, but the CPU pool has ${poolVcpus}`);
++  const limit = Math.floor(entitlementUnits / vcpus);
++  if (limit < CPU_MIN_LIMIT)
++    throw new Error(`CPU share allows ${entitlementUnits} units over ${vcpus} VP(s), below ${CPU_MIN_LIMIT} per VP`);
++  const grantedUnits = vcpus * limit;
++  // The measured guest monitor confines the app to cgroup cpu.max = catalog cpuPercent (EffectivePolicy: the
++  // bundle wins), so the app itself can use no more than that, whatever the VM is given.
++  const appCapUnits = cpuPercent * 1000;
++  const realizableUnits = Math.min(grantedUnits, appCapUnits);
++  return { rule: "cpu-share", poolVcpus, cpuShare, entitlementUnits, vcpus, limit, reservation: limit, grantedUnits,
++           policy: { vcpus: minVcpus, cpuPercent }, appCapUnits, realizableUnits,
++           blocker: realizableUnits < grantedUnits
++             ? `the measured guest confines the app to its catalog cpuPercent ${cpuPercent} (cgroup cpu.max); `
++               + `${grantedUnits - realizableUnits} of ${grantedUnits} granted units are not usable by the app until the guest honours a runtime CPU allowance`
++             : null };
++}
++
++/** The fixed legacy policy, for the synthetic readiness witness and for managers with no pools (labs). */
++export function cpuFixedPolicy(policy, rule) {
++  const vcpus = policy?.vcpus;
++  if (!Number.isSafeInteger(vcpus) || vcpus <= 0) throw new Error("the app has no valid catalog CPU policy");
++  return { rule, vcpus, limit: CPU_UNITS_PER_VCPU, reservation: 0, grantedUnits: vcpus * CPU_UNITS_PER_VCPU };
++}
+diff --git a/windows/vbslike/manager/cpu-share.test.mjs b/windows/vbslike/manager/cpu-share.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..533abcf3082018130198895e5a8cc7993a045bea
+--- /dev/null
++++ b/windows/vbslike/manager/cpu-share.test.mjs
+@@ -0,0 +1,84 @@
++// The share -> processors rule (cpu-share.mjs), and main.mjs taking the CPU pool only from trusted host config.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { spawn } from "node:child_process";
++import os from "node:os";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { cpuForShare, cpuFixedPolicy, CPU_UNITS_PER_VCPU } from "./cpu-share.mjs";
++
++const P1 = { vcpus: 1, cpuPercent: 100 };
++
++test("16 logical processors: the exact examples, and fractions that need a fractional per-VP quota", () => {
++  const at = (share, policy = P1) => { const c = cpuForShare(16, share, policy); return [c.vcpus, c.limit, c.reservation, c.grantedUnits]; };
++  assert.deepEqual(at(.01), [1, 16000, 16000, 16000]);          // .16 vCPU: one VP at 16%
++  assert.deepEqual(at(.25), [4, 100000, 100000, 400000]);
++  assert.deepEqual(at(.21), [4, 84000, 84000, 336000]);
++  assert.deepEqual(at(.13), [3, 69333, 69333, 207999]);         // 2.08 vCPU: whole percent would be 69% (2.07) or 70% (2.10)
++  assert.deepEqual(at(.0625), [1, 100000, 100000, 100000]);
++  assert.deepEqual(at(1), [16, 100000, 100000, 1600000]);
++  // floating-point shares the node can produce land on the intended unit, never one below it
++  assert.deepEqual(at(.29), [5, 92800, 92800, 464000]);         // 16*.29*1e5 = 463999.99999999994
++  assert.deepEqual(at(0.16999999999999998), [3, 90666, 90666, 271998]);
++  assert.deepEqual(at(.07), [2, 56000, 56000, 112000]);
++  for (const s of [.01, .02, .05, .13, .17, .21, .25, .33, .5, .75, .99]) {
++    const c = cpuForShare(16, s, P1), want = 16 * s * CPU_UNITS_PER_VCPU;
++    assert.ok(c.grantedUnits <= Math.round(want) && Math.round(want) - c.grantedUnits < c.vcpus, `${s}: ${c.grantedUnits} vs ${want}`);
++    assert.equal(c.vcpus, Math.max(1, Math.ceil(Math.round(want) / CPU_UNITS_PER_VCPU)), `${s}: the fewest VPs that can carry it`);
++  }
++});
++
++test("the catalog VP count is a minimum shape, and the pool is a hard ceiling", () => {
++  const shield = { vcpus: 4, cpuPercent: 400 };
++  assert.deepEqual([cpuForShare(16, .25, shield).vcpus, cpuForShare(16, .25, shield).limit], [4, 100000]);
++  assert.deepEqual([cpuForShare(8, .25, shield).vcpus, cpuForShare(8, .25, shield).limit], [4, 50000], "2 vCPU of an 8-VP pool over the 4 VPs it requires");
++  assert.throws(() => cpuForShare(2, .5, shield), /needs 4 virtual processors, but the CPU pool has 2/);
++  assert.equal(cpuForShare(16, .25, shield).blocker, null, "a 400% catalog cap can use all 4 VPs");
++});
++
++test("bad shares, pools and policies are refused, and a cap below 1% of a VP is not an allocation", () => {
++  for (const s of [0, -0.1, 1.0001, NaN, Infinity, undefined, null, "0.5"]) assert.throws(() => cpuForShare(16, s, P1), /cpuShare/, String(s));
++  for (const p of [0, -16, 1.5, 1025, NaN, "16", null]) assert.throws(() => cpuForShare(p, .1, P1), /CPU pool/, String(p));
++  for (const pol of [null, {}, { vcpus: 0, cpuPercent: 100 }, { vcpus: 1, cpuPercent: 0 }, { vcpus: "1", cpuPercent: 100 }])
++    assert.throws(() => cpuForShare(16, .1, pol), /catalog CPU policy/);
++  assert.throws(() => cpuForShare(16, .0005, P1), /below 1000 per VP/);
++  assert.equal(cpuForShare(16, .000625, P1).limit, 1000);
++});
++
++test("what the app can use is stated beside what the VM is given: the measured guest caps it at catalog cpuPercent", () => {
++  const small = cpuForShare(16, .01, P1);
++  assert.deepEqual([small.appCapUnits, small.realizableUnits, small.blocker], [100000, 16000, null]);
++  const big = cpuForShare(16, .25, P1);
++  assert.equal(big.grantedUnits, 400000); assert.equal(big.realizableUnits, 100000);
++  assert.match(big.blocker, /cgroup cpu\.max.*300000 of 400000 granted units are not usable/);
++  assert.deepEqual(cpuFixedPolicy({ vcpus: 1 }, "readiness-witness-fixed"),
++                   { rule: "readiness-witness-fixed", vcpus: 1, limit: 100000, reservation: 0, grantedUnits: 100000 });
++});
++
++const MAIN = path.join(path.dirname(fileURLToPath(import.meta.url)), "main.mjs");
++function runMain(env, ms = 6000) {
++  return new Promise((resolve) => {
++    const clean = { ...process.env }; delete clean.NODE_VCPUS; delete clean.NODE_APP_RAM_GB;
++    const p = spawn(process.execPath, [MAIN], { env: { ...clean, VMMGR_PORT: "0", ENCLAVE_RUNTIME_ID: "", ENCLAVE_RUNTIME_IDENTITY: "", ...env },
++                                                stdio: ["ignore", "pipe", "pipe"] });
++    let out = "", err = "";
++    p.stdout.on("data", (d) => { out += d; }); p.stderr.on("data", (d) => { err += d; });
++    const t = setTimeout(() => { p.kill(); resolve({ code: null, out, err, timedOut: true }); }, ms);
++    p.on("close", (code) => { clearTimeout(t); resolve({ code, out, err, timedOut: false }); });
++  });
++}
++
++test("main.mjs: the node's pool rule (NODE_VCPUS || os.cpus().length), and a malformed explicit pool refuses to start", async () => {
++  const fallback = await runMain({ NODE_APP_RAM_GB: "96" });
++  assert.ok(fallback.timedOut, `the node's default runs: exited ${fallback.code}: ${fallback.err.slice(0, 300)}`);
++  assert.match(fallback.out, new RegExp(`CPU pool ${os.cpus().length} VPs \\(os\\.cpus\\), RAM pool 96 GB`));
++  for (const bad of ["16.5", "0", "-4", "sixteen", "0x10", "1025", "016"]) {
++    const r = await runMain({ NODE_APP_RAM_GB: "96", NODE_VCPUS: bad });
++    assert.equal(r.code, 2, `${bad}: ${r.err}`); assert.match(r.err, /NODE_VCPUS must be a positive integer/);
++  }
++  const lone = await runMain({ NODE_VCPUS: "16" });
++  assert.equal(lone.code, 2); assert.match(lone.err, /without NODE_APP_RAM_GB/);
++  const ok = await runMain({ NODE_APP_RAM_GB: "96", NODE_VCPUS: "16" });
++  assert.ok(ok.timedOut, `with both it runs: exited ${ok.code}: ${ok.err.slice(0, 300)}`);
++  assert.match(ok.out, /CPU pool 16 VPs \(NODE_VCPUS\)/);
++});
+diff --git a/windows/vbslike/manager/fake-hyperv.mjs b/windows/vbslike/manager/fake-hyperv.mjs
+index 2dc9abe581495a0d07baa931d44ad7514fe9c5cc..48ae3639960f88b2b66d955eafcfda71cf0f4d6a 100644
+--- a/windows/vbslike/manager/fake-hyperv.mjs
++++ b/windows/vbslike/manager/fake-hyperv.mjs
+@@ -22,6 +22,7 @@
+   firmwareOptIn: { present: true, value: 1, kind: "DWord", error: null },
+   hypervModule: { path: TYPE1.hypervModule, present: true, sha256: HYPERV_MODULE_SHA256 },
+   guestStateMaster: { path: TYPE1.guestStateMaster, present: true, bytes: 4194816 },
++  logicalProcessors: 16,
+ });
+ 
+ export const VM_ID = "5DB6D4EB-1619-4936-9D60-C7E3CA67F3A8";
+@@ -51,12 +52,21 @@
+   };
+ }
+ 
++/** What a compliant host reads back after the processor-allocation script (CMD.processor) it was given. */
++export function processorAnswer(script, over = {}) {
++  const cw = script.match(/\$cpuWant = @\{q=(\d+); l=(\d+); r=(\d+)\}/) || [null, "0", "0", "0"];
++  const [q, l, r] = cw.slice(1).map(Number);
++  return { vcpus: q, count: q, limit: l, reservation: r, weight: 100, units: "percent / 1000",
++           maximum: Math.round(l / 1000), reserve: Math.round(r / 1000), ...over };
++}
++
+ /** Which launcher command a script is. Order matters: the define script also hashes files and removes VMs. */
+ export function keyOf(s) {
+   return s.includes("its disks are not removed") ? "removeRunDisks"
+     : s.includes("Add-VMHardDiskDrive") ? "attachDisks"
+     : s.includes("$r.vmms") ? "preflight"
+     : s.includes("New-CustomVM") ? "define"
++    : s.includes("Msvm_ProcessorSettingData") ? "processor"
+     : s.includes("GetFileNameWithoutExtension") ? "retire"
+     : s.includes("Get-FileHash") ? "imageHash"
+     : s.includes("Start-VM") && s.includes("NamedPipeClientStream") ? "startAndRead"
+diff --git a/windows/vbslike/manager/main.mjs b/windows/vbslike/manager/main.mjs
+index 5c3cfffec89067c58873e06161765686b530e656..0c31971eadbbe07b58f6f63148831deb5efe0b8e 100644
+--- a/windows/vbslike/manager/main.mjs
++++ b/windows/vbslike/manager/main.mjs
+@@ -7,6 +7,7 @@
+    /health, so "canStart" is the host's answer rather than a configuration detail. */
+ import { profile, probeWorker, startBridge, ProfileLauncher } from "./shield-profile.mjs";
+ import fs from "node:fs";
++import os from "node:os";
+ import { createHash } from "node:crypto";
+ import path from "node:path";
+ import { fileURLToPath } from "node:url";
+@@ -19,6 +20,7 @@
+ import { cidFetcher } from "./fetchcid.mjs";
+ import { egressConfigFromEnv, checkPin, startEgress, EGRESS_SERVICE_GUID } from "./egress.mjs";
+ import { DERIVATION_V6, DERIVATION_V7 } from "./derive.mjs";
++import { validCpuPool } from "./cpu-share.mjs";
+ import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
+ 
+ const HERE = path.dirname(fileURLToPath(import.meta.url));
+@@ -112,6 +114,9 @@
+       hypervModuleSha256: env("ENCLAVE_HYPERV_MODULE_SHA256", HYPERV_MODULE_SHA256),
+       hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
+       serve,
++      // set ONLY with a guest image whose monitor applies a launcher CPU allowance (allocatedPolicy) and a wmiserve with
++      // --app-cpu; with it, a domain the guest did not raise is refused rather than served under its catalog cap
++      guestCpuAllowance: env("ENCLAVE_GUEST_CPU_ALLOWANCE") === "1",
+       ...(egress ? { startEgress: egressHook, egressService: EGRESS_SERVICE_GUID } : {}),
+     };
+     launcher = new WmiHyperVLauncher(launcherOptions);
+@@ -170,6 +175,7 @@
+   const cfg = JSON.parse(fs.readFileSync(shieldConfig,"utf8"));
+   shield = { ...profile(cfg.runtime), ready:false, imageSha256:cfg.imageSha256 };
+   const gpuLauncher = new WmiHyperVLauncher({ ...launcherOptions, startEgress:null, egressService:null,   // no secret domain runs on the GPU image
++    guestCpuAllowance:false,                                       // the GPU image's monitor is not stated to raise CPU
+     imagePath:cfg.imagePath, imageSha256:cfg.imageSha256,
+     startTransport:vmId => startBridge({ exe:cfg.bridgeExe, sha256:cfg.bridgeSha256, vmId, port:cfg.workerPort || 19595 }) });
+   await gpuLauncher.verifyImage();
+@@ -183,9 +189,29 @@
+   setInterval(refresh,15000).unref();
+ }
+ 
++// THE CPU POOL the node sells shares of, by the node's own rule (agent.mjs: NODE_VCPUS || os.cpus().length, on this same
++// host) and never from a spawn. An explicit value that is not a positive integer is refused, never replaced by the
++// fallback; either way the pool must fit Hyper-V's LogicalProcessorCount before any deployment starts (server.mjs).
++const cpuPoolText = env("NODE_VCPUS");
++if (cpuPoolText && !(/^[1-9][0-9]*$/.test(cpuPoolText) && validCpuPool(Number(cpuPoolText)))) {
++  console.error(`[winmgr] REFUSING TO START: NODE_VCPUS must be a positive integer up to 1024, not ${JSON.stringify(cpuPoolText)}`);
++  process.exit(2);
++}
++if (cpuPoolText && !env("NODE_APP_RAM_GB")) {
++  console.error("[winmgr] REFUSING TO START: NODE_VCPUS is set without NODE_APP_RAM_GB: one purchased share sizes both pools");
++  process.exit(2);
++}
++const cpuPoolVcpus = env("NODE_APP_RAM_GB") ? (cpuPoolText ? Number(cpuPoolText) : os.cpus().length) : null;
++const cpuPoolSource = cpuPoolText ? "NODE_VCPUS" : "os.cpus";
++if (cpuPoolVcpus !== null && !validCpuPool(cpuPoolVcpus)) {
++  console.error(`[winmgr] REFUSING TO START: this host reports ${cpuPoolVcpus} processors, which is no CPU pool; set NODE_VCPUS`);
++  process.exit(2);
++}
++if (cpuPoolVcpus !== null) console.log(`[winmgr] CPU pool ${cpuPoolVcpus} VPs (${cpuPoolSource}), RAM pool ${env("NODE_APP_RAM_GB")} GB: one share sizes both`);
+ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer,
+   // Match the node agent's advertised hosting RAM, not physical machine RAM.
+   ramPoolMiB: env("NODE_APP_RAM_GB") ? Number(env("NODE_APP_RAM_GB")) * 1024 : null,
++  cpuPoolVcpus, cpuPoolSource,
+   runtime,
+   shield,
+   runtimeId,
+diff --git a/windows/vbslike/manager/ops/launcher-canary.mjs b/windows/vbslike/manager/ops/launcher-canary.mjs
+index 3dbea0442218c51cd0c1874fb03fd6c2d8414dfe..950166c71e9c9c26ab338af0d9ec0ad0ec4ba8ca 100644
+--- a/windows/vbslike/manager/ops/launcher-canary.mjs
++++ b/windows/vbslike/manager/ops/launcher-canary.mjs
+@@ -5,10 +5,13 @@
+ //
+ //   node launcher-canary.mjs <config.json>
+ //   config: { imagePath, imageSha256, boot, guestStateMaster, guestStateMasterSha256, guestStateArchiveDir,
+-//             hypervModule, prefix, memMiB, vcpus }
++//             hypervModule, prefix, memMiB, vcpus, cpuPoolVcpus?, cpuShare? }
++//   cpuPoolVcpus + cpuShare: size the VM's processors exactly as the manager does for that share (cpu-share.mjs), and
++//   require Hyper-V's read-back AND the guest's own "MON ... vcpus=N" line to show every VP online.
+ // Each step prints one JSON line. Exit 0 only if every step held: started, listed with our identity, removed, gone.
+ // runCanary() is exported so launcher-canary.test.mjs can drive the same steps against the fake host.
+ import { WmiHyperVLauncher, parseNotes } from "../wmi-launcher.mjs";
++import { cpuForShare } from "../cpu-share.mjs";
+ import { powershellRunner } from "../psrun.mjs";
+ import crypto from "node:crypto";
+ import fs from "node:fs";
+@@ -23,15 +26,25 @@
+   const identity = { id, name: "0x" + "c0".repeat(32), instanceId, appId: "00".repeat(32) };
+   // the CATALOG policy (hello-world pins memMiB 128): the launcher sizes the VM from it (type1VmMemMiB)
+   const mapping = { appId: identity.appId, record: { policy: { vcpus: cfg.vcpus || 1, memMiB: cfg.memMiB || 128, cpuPercent: 100 } } };
++  const sized = cfg.cpuPoolVcpus != null || cfg.cpuShare != null;
++  const cpu = sized ? cpuForShare(cfg.cpuPoolVcpus, cfg.cpuShare, mapping.record.policy) : null;
+   let ok = true, handle = null;
+   try {
+     const pre = await launcher.preflight();
+     say({ step: "preflight", ok: pre.ok, failed: pre.checks.filter((c) => !c.ok).map((c) => c.name) });
+     if (!pre.ok) throw new Error("preflight refused: " + pre.checks.filter((c) => !c.ok).map((c) => c.name).join(", "));
+     const t0 = Date.now();
+-    handle = await launcher.start(mapping, { instanceId, identity, guestReadySec });
++    handle = await launcher.start(mapping, { instanceId, identity, guestReadySec,
++      ...(cpu ? { appCpu: { vcpus: cpu.vcpus, limit: cpu.limit, reservation: cpu.reservation } } : {}) });
+     const { stop, ...h } = handle;
+     say({ step: "start", ok: true, ms: Date.now() - t0, handle: h });
++    if (cpu) {
++      // the launcher already refused any read-back mismatch; the guest must also have brought every VP online
++      const smp = handle.cpu.guestOnlineVcpus === cpu.vcpus;
++      say({ step: "cpu", ok: smp, want: { vcpus: cpu.vcpus, limit: cpu.limit, reservation: cpu.reservation },
++            readback: handle.cpu.readback, guestOnlineVcpus: handle.cpu.guestOnlineVcpus, head: handle.guest.head });
++      ok = ok && smp;
++    }
+     const s1 = await launcher.survey();
+     const mine = (s1.vms || []).filter((v) => String(v.vmId).toLowerCase() === String(handle.vmId).toLowerCase());
+     const notes = mine[0] ? parseNotes(mine[0].notes) : null;
+diff --git a/windows/vbslike/manager/ops/launcher-canary.test.mjs b/windows/vbslike/manager/ops/launcher-canary.test.mjs
+index 7390db861f682d0233e0307b465b4fcac5560e36..97a3b927fcfe2e8210e2e367929ae828890a010e 100644
+--- a/windows/vbslike/manager/ops/launcher-canary.test.mjs
++++ b/windows/vbslike/manager/ops/launcher-canary.test.mjs
+@@ -2,14 +2,14 @@
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ import { runCanary } from "./launcher-canary.mjs";
+-import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf } from "../fake-hyperv.mjs";
++import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, processorAnswer, keyOf } from "../fake-hyperv.mjs";
+ 
+ const SHA = "a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4";
+ const cfg = { ...TYPE1, imagePath: "C:\\Users\\claude\\vbs-like\\pkg\\x\\guest\\igvm-vbs\\c.bin", imageSha256: SHA,
+               prefix: "enclave-mgrcanary-", memMiB: 2048, vcpus: 1 };
+ 
+ /** A host that keeps its VMs: define adds one (with the Notes it was asked for), removeById drops it. */
+-function host({ removeFails = false, silent = false } = {}) {
++function host({ removeFails = false, silent = false, head = "MON ready" } = {}) {
+   const vms = new Map();
+   const run = async (s) => {
+     const k = keyOf(s);
+@@ -17,8 +17,9 @@
+     if (k === "preflight") return ok(PREFLIGHT_OK);
+     if (k === "imageHash") return ok({ present: true, sha256: SHA, bytes: 77794396 });
+     if (k === "define") { const a = defineAnswer(s); vms.set(a.id, { vmId: a.id, name: a.name, state: "Off", notes: a.notes }); return ok(a); }
++    if (k === "processor") return ok(processorAnswer(s));
+     if (k === "startAndRead") { for (const v of vms.values()) v.state = "Running";
+-      return ok({ state: "Running", console: { connected: true, bytes: silent ? 0 : 613, head: silent ? "" : "MON ready", sawUntil: !silent } }); }
++      return ok({ state: "Running", console: { connected: true, bytes: silent ? 0 : 613, head: silent ? "" : head, sawUntil: !silent } }); }
+     if (k === "readConsole") return ok({ connected: true, bytes: silent ? 0 : 613, head: silent ? "" : "MON ready" });
+     if (k === "survey") return ok({ vms: [...vms.values()] });
+     if (k === "removeById" || k === "removeExact") {
+@@ -59,3 +60,19 @@
+   assert.equal(lines.find((l) => l.step === "survey-after").ok, true);
+   assert.equal(h.vms.size, 0);
+ });
++
++test("a share-sized canary (16 VPs pool, 21%) passes only when Hyper-V AND the guest show 4 VPs at 84%", async () => {
++  const sized = { ...cfg, cpuPoolVcpus: 16, cpuShare: .21 };
++  const run1 = async (h) => { const lines = []; const r = await runCanary({ run: h.run, cfg: sized, say: (o) => lines.push(o), guestReadySec: 1 }); return { r, lines }; };
++  const good = await run1(host({ head: "\nMON snp=0 vcpus=4 memMiB=1833 boot_ms=300\nMON ready" }));
++  assert.equal(good.r, true, JSON.stringify(good.lines));
++  const c = good.lines.find((l) => l.step === "cpu");
++  assert.deepEqual(c.want, { vcpus: 4, limit: 84000, reservation: 84000 });
++  assert.deepEqual([c.readback.vcpus, c.readback.limit, c.readback.reservation], [4, 84000, 84000]);
++  for (const head of ["\nMON snp=0 vcpus=1 memMiB=1833 boot_ms=300\nMON ready", "MON ready"]) {
++    const bad = await run1(host({ head }));
++    assert.equal(bad.r, false, `${JSON.stringify(head)}: a guest that does not show every VP online is not an SMP pass`);
++    assert.equal(bad.lines.find((l) => l.step === "cpu").ok, false);
++    assert.equal(bad.lines.find((l) => l.step === "survey-after").ok, true, "and its VM is still removed");
++  }
++});
+diff --git a/windows/vbslike/manager/ops/manager-launcher-canary.ps1 b/windows/vbslike/manager/ops/manager-launcher-canary.ps1
+index 84ea52e6ebbe555828bda96048579d569ccc0b4b..abdaa82be8d852a94c1c08aff638bd852dc89446 100644
+--- a/windows/vbslike/manager/ops/manager-launcher-canary.ps1
++++ b/windows/vbslike/manager/ops/manager-launcher-canary.ps1
+@@ -21,6 +21,9 @@
+   # the APP's policy memMiB, as a catalog version pins it (hello-world: 128). The launcher sizes the VM from it
+   # (type1VmMemMiB: max(2048, policy + 640)); it is not the VM's RAM.
+   [int] $PolicyMemMiB = 128,
++  # the manager's processor sizing for a purchased share (cpu-share.mjs): both, or neither (1 VP at 100%)
++  [int] $CpuPoolVcpus = 0,
++  [double] $CpuShare = 0,
+   # DIAGNOSTIC: delay the console reader (ms) and the reader's window (s), to test the late-attach race
+   [int] $ConsoleDelayMs = 0,
+   [int] $GuestReadySec = 40
+@@ -68,7 +71,9 @@
+   Note "SETTING APPLIED for this run"
+   $cfg = @{ imagePath = $ImagePath; imageSha256 = $ImageSha256.ToLower(); boot = $Boot; guestStateMaster = $GuestStateMaster;
+             guestStateMasterSha256 = $GuestStateMasterSha256; guestStateArchiveDir = 'C:\Users\claude\vbs-evidence';
+-            hypervModule = $HypervModule; prefix = $Prefix; memMiB = $PolicyMemMiB; vcpus = 1; consoleDelayMs = $ConsoleDelayMs; guestReadySec = $GuestReadySec } | ConvertTo-Json -Compress
++            hypervModule = $HypervModule; prefix = $Prefix; memMiB = $PolicyMemMiB; vcpus = 1; consoleDelayMs = $ConsoleDelayMs; guestReadySec = $GuestReadySec }
++  if ($CpuPoolVcpus -gt 0 -or $CpuShare -gt 0) { $cfg.cpuPoolVcpus = $CpuPoolVcpus; $cfg.cpuShare = $CpuShare }
++  $cfg = $cfg | ConvertTo-Json -Compress
+   $out = "C:\Users\claude\vbs-evidence\mgrcanary-$stamp.out"
+   $cfgFile = "C:\Users\claude\vbs-evidence\mgrcanary-$stamp.json"
+   [System.IO.File]::WriteAllText($cfgFile, $cfg)   # no BOM; a file, because Windows re-quotes native arguments
+diff --git a/windows/vbslike/manager/server.mjs b/windows/vbslike/manager/server.mjs
+index 4c03940472bd010031ab041a247af89e14ce72c3..b5b1ca401b996b8b74cf2c9bb48dd8646faedcc4 100644
+--- a/windows/vbslike/manager/server.mjs
++++ b/windows/vbslike/manager/server.mjs
+@@ -19,6 +19,7 @@
+    ============================================================ */
+ import http from "node:http";
+ import { appMemoryForShare } from "./memory-share.mjs";
++import { cpuForShare, cpuFixedPolicy, validCpuPool, CPU_UNITS_PER_VCPU } from "./cpu-share.mjs";
+ import { inferenceRefusal } from "./shield-profile.mjs";
+ import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
+ import crypto from "node:crypto";
+@@ -74,10 +75,17 @@
+    */
+   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
+                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
+-                egress = null, ramPoolMiB = null } = {}) {
++                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS" } = {}) {
+     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
+       throw new Error("ramPoolMiB must be a positive integer");
++    if (cpuPoolVcpus !== null && !validCpuPool(cpuPoolVcpus)) throw new Error("cpuPoolVcpus must be a positive integer");
++    // One purchased share sizes both pools; a RAM pool without a CPU pool is the fixed-1-VP defect.
++    if ((ramPoolMiB === null) !== (cpuPoolVcpus === null)) throw new Error("ramPoolMiB and cpuPoolVcpus must be configured together");
+     this.ramPoolMiB = ramPoolMiB;
++    this.cpuPoolVcpus = cpuPoolVcpus;
++    this.cpuPoolSource = cpuPoolSource;
++    // Hyper-V's own LogicalProcessorCount from preflight, kept once read: the pool must fit inside it.
++    this.hostLogicalProcessors = null;
+     this.backend = backend;
+     this.shield = shield;
+     this.configEnabled = configEnabled === true && typeof fetchConfig === "function";
+@@ -267,10 +275,17 @@
+     if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) return 1000;
+     return [...this.domains.values()].reduce((n,r) => n+(r.gpuMilli || 0),0);
+   }
++  cpuAllocated() {
++    return [...this.domains.values()].reduce((n, r) => n + (r.cpu?.grantedUnits ?? (r.policy?.vcpus ?? 0) * CPU_UNITS_PER_VCPU), 0);
++  }
++  cpuPoolFits() { return this.hostLogicalProcessors !== null && this.cpuPoolVcpus <= this.hostLogicalProcessors; }
+   health() {
+     return {
+       managerEpoch: this.epoch,
+       ...(this.ramPoolMiB !== null ? { memory: { rule: "cpu-share", poolMiB: this.ramPoolMiB } } : {}),
++      ...(this.cpuPoolVcpus !== null ? { cpu: { rule: "cpu-share", poolVcpus: this.cpuPoolVcpus, source: this.cpuPoolSource,
++        hostLogicalProcessors: this.hostLogicalProcessors, unitsPerVcpu: CPU_UNITS_PER_VCPU, allocatedUnits: this.cpuAllocated(),
++        freeUnits: this.cpuPoolFits() ? Math.max(0, this.cpuPoolVcpus * CPU_UNITS_PER_VCPU - this.cpuAllocated()) : null } } : {}),
+       inventory: this.inventory,
+       backend: this.backend.backend,
+       supports: { ...this.backend.supports, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled, ports: this.protectedPorts, set: this.wasmSet, mem64: this.memory64,
+@@ -313,6 +328,14 @@
+   async probe() {
+     try { this._preflight = (await this.backend.preflight()) || { ok: false, checks: [{ name: "no launcher configured", ok: false }] }; }
+     catch (e) { this._preflight = { ok: false, checks: [{ name: "preflight", ok: false, detail: e.message }] }; }
++    const lp = this._preflight.hostLogicalProcessors;
++    if (Number.isSafeInteger(lp) && lp > 0) this.hostLogicalProcessors = lp;
++    if (this.cpuPoolVcpus !== null) {
++      const ok = this.cpuPoolFits();
++      this._preflight = { ...this._preflight, ok: this._preflight.ok === true && ok, checks: [...(this._preflight.checks || []),
++        { name: "CPU pool within host logical processors", ok,
++          detail: `${this.cpuPoolSource} ${this.cpuPoolVcpus}; Hyper-V host LogicalProcessorCount ${this.hostLogicalProcessors ?? "unknown"}` }] };
++    }
+     return this._preflight;
+   }
+ 
+@@ -367,6 +390,13 @@
+       try { memory = appMemoryForShare(this.ramPoolMiB, body.cpuShare, mapping.record.policy.memMiB); }
+       catch (e) { throw badRequest(e.message); }
+     }
++    // The SAME share sizes the VM's processors: VP count and a per-VP Limit/Reservation (cpu-share.mjs).
++    let cpu = null;
++    if (this.cpuPoolVcpus !== null) {
++      try { cpu = witness ? cpuFixedPolicy(mapping.record.policy, "readiness-witness-fixed")
++                          : cpuForShare(this.cpuPoolVcpus, body.cpuShare, mapping.record.policy); }
++      catch (e) { throw badRequest(e.message); }
++    }
+ 
+     // DEFECT 6: a second spawn for a live deployment is an ADOPTION, not a silent overwrite. The
+     // first version replaced the record and forgot the first handle, orphaning a running partition
+@@ -404,8 +434,20 @@
+         const e = new Error("the RAM pool cannot fit the full purchased allowance"); e.status = 507; throw e;
+       }
+     }
++    if (cpu && cpu.rule === "cpu-share") {
++      if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) {
++        const e = new Error("CPU allocation is unknown until recovered partitions are reconciled"); e.status = 503; throw e;
++      }
++      if (!this.cpuPoolFits()) {
++        const e = new Error(`the CPU pool (${this.cpuPoolSource} ${this.cpuPoolVcpus}) is not known to fit this host's logical processors (${this.hostLogicalProcessors ?? "unread"})`);
++        e.status = 503; throw e;
++      }
++      if (this.cpuAllocated() + cpu.grantedUnits > this.cpuPoolVcpus * CPU_UNITS_PER_VCPU) {
++        const e = new Error("the CPU pool cannot fit the full purchased allowance"); e.status = 507; throw e;
++      }
++    }
+     const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
+-                  componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory,
++                  componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory, cpu,
+                   catalog: mapping.record.catalog, cid: mapping.record.cid,
+                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
+                   // DEFECT 4: what the data plane needs to route, and what the boundary IS. 5d's
+@@ -416,7 +458,10 @@
+                   domainId: null, guestPort: null };
+     this.domains.set(id, rec);
+     try {
+-      const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}), identity: { id, name, instanceId, appId: mapping.appId } });
++      const h = await this.backend.start(mapping, { instanceId, ...(memory ? { appMemoryMiB: memory.appMiB } : {}),
++        // the witness keeps its qualified launch exactly (Hyper-V's default, no processor step); every deployment is sized
++        ...(cpu?.rule === "cpu-share" ? { appCpu: { vcpus: cpu.vcpus, limit: cpu.limit, reservation: cpu.reservation } } : {}),
++        identity: { id, name, instanceId, appId: mapping.appId } });
+       if (h?.transport?.exited) h.transport.exited.then(() => {
+         if (this.domains.get(id) === rec && !this.#stopping.has(rec) && rec.status !== "stopped") {
+           rec.status="failed"; rec.appReady=false; rec.reason="Shield transport exited";
+@@ -442,6 +487,24 @@
+       rec.appReady = !!(h && h.appReady === true);
+       rec.startedAt = Date.now(); rec.handle = h;
+       if (memory && h?.memory) rec.memory = { ...memory, vmMiB: h.memory.vmMiB };
++      if (cpu && h?.cpu) {
++        // WHAT THE APP CAN USE: the VM's read-back allocation, bounded by the processors the guest brought online and by
++        // the cgroup quota the monitor applied (its catalog cpuPercent unless it confirmed a raised allowance)
++        const online = Number.isSafeInteger(h.cpu.guestOnlineVcpus) ? h.cpu.guestOnlineVcpus : null;
++        const applied = Number.isSafeInteger(h.cpu.appCpuPercent) ? h.cpu.appCpuPercent : null;
++        rec.cpu = { ...cpu, readback: h.cpu.readback ?? null, guestOnlineVcpus: online, appCpuPercent: applied };
++        if (cpu.rule === "cpu-share") {
++          const appCap = Math.max(cpu.appCapUnits, (applied ?? 0) * 1000);
++          const why = [];
++          if (online !== null && online < cpu.vcpus) why.push(`the guest brought ${online} of ${cpu.vcpus} virtual processors online`);
++          // unobserved is not "all of them": only the one VP any booted guest has is counted
++          if (online === null && cpu.vcpus > 1) why.push("the guest's online processor count was not seen on its console");
++          if (appCap < cpu.grantedUnits) why.push(cpu.blocker);
++          rec.cpu.appCapUnits = appCap;
++          rec.cpu.realizableUnits = Math.min(cpu.grantedUnits, appCap, (online ?? 1) * cpu.limit);
++          rec.cpu.blocker = why.length ? why.join("; ") : null;
++        }
++      }
+       // THE RELAY IS A CHILD PROCESS (wmiserve-run.mjs). If it exits while this record stands and no stop is under way,
+       // the domain can no longer be reached and must not read as running (d1's review of 299ce3e9). The record fails,
+       // its sessions are reclaimed, and the VM is LEFT for the node to retire: only a stop removes a VM.
+diff --git a/windows/vbslike/manager/server.test.mjs b/windows/vbslike/manager/server.test.mjs
+index ae04135df9f0f3f64724345e07e3e66dcd6fe402..82ee167a9873d1a6821beddd20dd778a92c65ef7 100644
+--- a/windows/vbslike/manager/server.test.mjs
++++ b/windows/vbslike/manager/server.test.mjs
+@@ -20,13 +20,16 @@
+ const VMID = "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f";   // the partition a fake handle's launcher key signs for
+ // the body the node client actually sends: guestd's contract, name included
+ const spawnBody = (over = {}) => ({ derive: REC, name: DEP, isPublic: true, hasSecrets: false, ...over });
++// a launcher-shaped backend whose preflight states the host's logical processors, as WmiHyperVLauncher's does
++const sized = (start, lp = 16) => new HyperVPartitionBackend({ launcher: { start, preflight: async () => ({ ok: true, checks: [], hostLogicalProcessors: lp }) } });
+ 
+ test("purchased RAM reaches the launcher without changing the catalog identity", async () => {
+   for (const share of [.25, .5, .15]) {
+     let launched;
+-    const m = mk({ ramPoolMiB: 65536, backend: new HyperVPartitionBackend({ launch: async (mapping, opts) => {
++    const m = mk({ ramPoolMiB: 65536, cpuPoolVcpus: 16, backend: sized(async (mapping, opts) => {
+       launched = { mapping, opts }; return { appReady: true };
+-    } }) });
++    }) });
++    await m.probe();
+     const r = await m.spawn(spawnBody({ cpuShare: share }));
+     assert.equal(r.status, "running");
+     assert.equal(launched.opts.appMemoryMiB, Math.floor(65536 * share));
+@@ -34,11 +37,15 @@
+     assert.equal(r.appId, v.ok[0].mapping.appId);
+     assert.equal(r.memory.appMiB, launched.opts.appMemoryMiB);
+     assert.equal(m.health().memory.poolMiB, 65536);
++    // ...and the SAME share reaches it as processors (cpu-share.mjs)
++    const units = Math.floor(16 * share * 100000 + 1e-6), vps = Math.ceil(units / 100000);
++    assert.deepEqual(launched.opts.appCpu, { vcpus: vps, limit: Math.floor(units / vps), reservation: Math.floor(units / vps) });
+   }
+ });
+ 
+ test("share sizing refuses invalid purchases and does not overbook concurrent starts", async () => {
+-  const m = mk({ ramPoolMiB: 65536, backend: new HyperVPartitionBackend({ launch: async () => ({ appReady: true }) }) });
++  const m = mk({ ramPoolMiB: 65536, cpuPoolVcpus: 16, backend: sized(async () => ({ appReady: true })) });
++  await m.probe();
+   for (const share of [0, -1, 1.01, NaN, Infinity, .0001])
+     await assert.rejects(m.spawn(spawnBody({ cpuShare: share })), /cpuShare|allows/);
+   const results = await Promise.allSettled([m.spawn(spawnBody({ cpuShare: .6 })),
+diff --git a/windows/vbslike/manager/testdata/fake-wmiserve.mjs b/windows/vbslike/manager/testdata/fake-wmiserve.mjs
+index d83f864714c5aed5cf385461aa6ce8947e5cd2e7..fad3d57f5cc40bb810ededf19d69772dccdf2ef3 100644
+--- a/windows/vbslike/manager/testdata/fake-wmiserve.mjs
++++ b/windows/vbslike/manager/testdata/fake-wmiserve.mjs
+@@ -32,7 +32,9 @@
+ out({ step: "load", ok: true, id: 1, guestPort: 40001,
+       appSha256: mode === "wrong-app" ? "ee".repeat(32) : app, agreed: mode !== "not-agreed",
+       ...(mode === "no-boot" ? {} : { boot: mode === "bad-boot" ? "xyz" : "39725c19e15c91afe488ce62251055f5" }),
+-      certName: loadedName });
++      certName: loadedName,
++      // the cpuPercent the monitor applied (a new wmiserve states it); "cpu-ignored" plays a wmiserve that predates --app-cpu
++      ...(mode === "cpu-ignored" ? {} : { cpuPercent: arg("--app-cpu") ? Number(arg("--app-cpu")) : 100 }) });
+ out({ step: "relay", ok: true, tcp: mode === "relay-wrong-port" ? tcp + 1 : tcp, guestPort: 40001 });
+ if (mode === "hang") { setInterval(() => {}, 1 << 30); }
+ else {
+diff --git a/windows/vbslike/manager/wmi-launcher.mjs b/windows/vbslike/manager/wmi-launcher.mjs
+index 3ec38ac23113bb30673fd4e8d43556ba8100cd5b..3b5ee5f5edbfebe6632addb638e457d02e9bd71e 100644
+--- a/windows/vbslike/manager/wmi-launcher.mjs
++++ b/windows/vbslike/manager/wmi-launcher.mjs
+@@ -42,6 +42,7 @@
+ import fs from "node:fs";
+ import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
+ import { GCS_KEY, EGRESS_VSOCK_PORT } from "./egress.mjs";
++import { CPU_UNITS_PER_VCPU, CPU_MIN_LIMIT, CPU_WMI_UNITS, cpuFixedPolicy } from "./cpu-share.mjs";
+ 
+ /** The preflight check egress adds (egress.mjs): its hv_sock service is registered, read and never written. */
+ export const EGRESS_CHECK = "hv_sock egress service (vsock 9443) registered";
+@@ -310,6 +311,7 @@
+     $r.module = [bool](Get-Command Get-VM -ErrorAction SilentlyContinue);
+     $r.firmwareField = [bool]((Get-CimClass -Namespace 'root\\virtualization\\v2' -ClassName Msvm_VirtualSystemSettingData -ErrorAction SilentlyContinue).CimClassProperties.Name -contains 'FirmwareFile');
+     $r.hypervisor = (Get-CimInstance Win32_ComputerSystem).HypervisorPresent;
++    $r.logicalProcessors = $null; try { $r.logicalProcessors = [int](Get-VMHost -ErrorAction Stop).LogicalProcessorCount } catch {};
+     $fo = @{present=$false; value=$null; kind=$null; error=$null};
+     try {
+       $k = Get-Item -LiteralPath ${q(FIRMWARE_OPT_IN.psPath)} -ErrorAction Stop;
+@@ -688,6 +690,49 @@
+       else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
+     } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
+ 
++  /**
++   * THE PROCESSOR ALLOCATION (cpu-share.mjs): Msvm_ProcessorSettingData Limit and Reservation in Hyper-V's own units
++   * (percent/1000 of one VP), exact, because Set-VMProcessor -Maximum/-Reserve take whole percent. ONE resource setting
++   * of ONE VM, by its Id and only if ours, only while it has never run (Off), between the definition and its first
++   * start; never system settings. Modified only when it differs, then READ BACK from Hyper-V and refused on any
++   * mismatch, so a start's failure path removes the VM. Its own script, so the define script keeps its size and shape.
++   */
++  processor: ({ vmId, vcpus, limit, reservation }) => {
++    if (!GUID.test(String(vmId))) throw new Error(`processor: not a VM Id: ${vmId}`);
++    if (!Number.isSafeInteger(vcpus) || vcpus < 1 || !Number.isSafeInteger(limit) || limit < CPU_MIN_LIMIT || limit > CPU_UNITS_PER_VCPU
++        || !Number.isSafeInteger(reservation) || reservation < 0 || reservation > limit)
++      throw new Error("processor: vcpus, limit and reservation must be exact percent/1000 integers, reservation <= limit");
++    return ps(`
++    $ErrorActionPreference = 'Stop';
++    $vm = Get-VM -Id ${q(vmId)};
++    if (-not ${OWNED("$vm")}) { throw 'not ours: the ownership marker is absent, so its processors are not changed' };
++    if ([string]$vm.State -ne 'Off') { throw ('the VM is ' + [string]$vm.State + ': its processor allocation is set only before its first start') };
++    $ns = 'root\\virtualization\\v2';
++    $vssd = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where Name = '" + $vm.Id.Guid + "'") | Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState;
++    if (-not $vssd) { throw ('no Msvm_VirtualSystemSettingData for ' + $vm.Id.Guid) };
++    $cpuWant = @{q=${vcpus}; l=${limit}; r=${reservation}};
++    $psd = @($vssd | Get-CimAssociatedInstance -ResultClassName Msvm_ProcessorSettingData);
++    if ($psd.Count -ne 1) { throw ([string]$psd.Count + ' Msvm_ProcessorSettingData, not exactly one') };
++    $psd = $psd[0];
++    if ([int64]$psd.Limit -ne $cpuWant.l -or [int64]$psd.Reservation -ne $cpuWant.r) {
++      $psd.Limit = [uint64]$cpuWant.l; $psd.Reservation = [uint64]$cpuWant.r;
++      $ser = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create();
++      $xml = [System.Text.Encoding]::Unicode.GetString($ser.Serialize($psd, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None));
++      $svc = Get-CimInstance -Namespace $ns -ClassName Msvm_VirtualSystemManagementService;
++      $mr = Invoke-CimMethod -InputObject $svc -MethodName ModifyResourceSettings -Arguments @{ResourceSettings=@($xml)};
++      if ($mr.ReturnValue -eq 4096 -and $mr.Job) { $job = $mr.Job; $dl = (Get-Date).AddSeconds(60);
++        while ($job.JobState -in 2, 3, 4 -and (Get-Date) -lt $dl) { Start-Sleep -Milliseconds 250; $job = Get-CimInstance -InputObject $job };
++        if ($job.JobState -ne 7) { throw ('ModifyResourceSettings (processor) job ended in state ' + [string]$job.JobState + ': ' + [string]$job.ErrorDescription) }
++      } elseif ($mr.ReturnValue -ne 0) { throw ('ModifyResourceSettings (processor) returned ' + [string]$mr.ReturnValue) }
++    };
++    $psd = @($vssd | Get-CimAssociatedInstance -ResultClassName Msvm_ProcessorSettingData)[0];
++    $gp = Get-VMProcessor -VM $vm;
++    $cpuBack = @{vcpus=[int64]$psd.VirtualQuantity; limit=[int64]$psd.Limit; reservation=[int64]$psd.Reservation; weight=[int64]$psd.Weight;
++                 units=[string]$psd.AllocationUnits; count=[int64]$gp.Count; maximum=[int64]$gp.Maximum; reserve=[int64]$gp.Reserve};
++    if ($cpuBack.units -ne ${q(CPU_WMI_UNITS)} -or $cpuBack.vcpus -ne $cpuWant.q -or $cpuBack.count -ne $cpuWant.q -or $cpuBack.limit -ne $cpuWant.l -or $cpuBack.reservation -ne $cpuWant.r) { throw ('the processor allocation reads back as ' + ($cpuBack | ConvertTo-Json -Compress) + ', not ' + ($cpuWant | ConvertTo-Json -Compress)) };
++    $cpuBack | ConvertTo-Json -Compress`);
++  },
++
+   /**
+    * ARCHIVE AND REMOVE a per-run guest-state copy, once the VM that used it is GONE.
+    *
+@@ -765,6 +810,21 @@
+   return true;
+ }
+ 
++/** The monitor's first line ("MON snp=0 vcpus=N ...", dominit.c) states the processors the guest brought online. */
++export function guestOnlineVcpus(head) {
++  const m = /MON snp=\d+ vcpus=(\d+) /.exec(String(head ?? ""));
++  return m ? Number(m[1]) : null;
++}
++
++/** The processor allocation's read-back, asserted again here: Hyper-V's own fields, in its own units, exactly. */
++export function checkProcessor(c, want) {
++  if (!c || c.units !== CPU_WMI_UNITS || Number(c.vcpus) !== want.vcpus || Number(c.count) !== want.vcpus
++      || Number(c.limit) !== want.limit || Number(c.reservation) !== want.reservation)
++    throw new Error(`the processor allocation reads back as ${JSON.stringify(c ?? null)}, not ${want.vcpus} VP(s) at limit `
++      + `${want.limit}, reservation ${want.reservation} (${CPU_WMI_UNITS})`);
++  return true;
++}
++
+ const VTPM_NOTE = "Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS "
+   + "PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.";
+ 
+@@ -786,7 +846,7 @@
+                 guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
+                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
+                 prefix = "enclave-app-", pipeFor = null, serve = null, startTransport = null,
+-                startEgress = null, egressService = null }) {
++                startEgress = null, egressService = null, guestCpuAllowance = false }) {
+     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
+     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
+     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
+@@ -831,6 +891,9 @@
+     if (egressService !== null && !GUID.test(String(egressService))) throw new Error("egressService must be a service GUID");
+     if (startEgress !== null && typeof startEgress !== "function") throw new Error("startEgress must be a function");
+     this.startEgress = startEgress;
++    // THE GUEST IMAGE'S CPU ALLOWANCE (monitor allocatedPolicy, wmiserve --app-cpu): stated for an image whose monitor
++    // raises a domain's cgroup cpu.max to the allocation and says so. Never inferred: an older monitor ignores it.
++    this.guestCpuAllowance = guestCpuAllowance === true;
+     this.egressService = egressService ? String(egressService).toLowerCase() : null;
+   }
+ 
+@@ -910,7 +973,8 @@
+         detail: `${GCS_KEY}\\${this.egressService} (vsock port ${EGRESS_VSOCK_PORT}) is ${got.egressService === true ? "registered" : "NOT registered"}`
+               + ": the egress bridge binds this partition's service there. Reported only; this manager never writes the registry." }] : []),
+     ];
+-    return { ok: checks.every((c) => c.ok), checks };
++    const lp = got.logicalProcessors;
++    return { ok: checks.every((c) => c.ok), checks, hostLogicalProcessors: Number.isSafeInteger(lp) && lp > 0 ? lp : null };
+   }
+ 
+   /** The image must be the bytes we expect, on the host, at the moment we pin it. */
+@@ -942,7 +1006,7 @@
+    * the define script removes it itself if it fails before returning - both, because a leak here is a
+    * VM nobody owns.
+    */
+-  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null } = {}) {
++  async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, appCpu = null } = {}) {
+     if (!instanceId || !/^[A-Za-z0-9._-]{4,64}$/.test(String(instanceId)))
+       throw new Error("a unique instanceId is required: naming a domain by its AppID alone collides when the same app is deployed twice");
+     const miss = this.unconfigured();
+@@ -974,7 +1038,14 @@
+     const notes = identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER;
+     const guestStateRun = this.guestStateRunFor(name);
+     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
+-    const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
++    // The runtime CPU allowance (server.mjs, cpu-share.mjs), or with none the fixed catalog policy at a full VP each.
++    const cpu = appCpu ?? cpuFixedPolicy(mapping.record.policy, "catalog-policy-fixed");
++    if (!Number.isSafeInteger(cpu.vcpus) || cpu.vcpus < mapping.record.policy.vcpus || cpu.vcpus > 1024)
++      throw new Error("allocated virtual processors are below the catalog minimum or outside host bounds");
++    if (!Number.isSafeInteger(cpu.limit) || cpu.limit < CPU_MIN_LIMIT || cpu.limit > CPU_UNITS_PER_VCPU
++        || !Number.isSafeInteger(cpu.reservation) || cpu.reservation < 0 || cpu.reservation > cpu.limit)
++      throw new Error("allocated CPU limit/reservation are not exact percent/1000 integers with reservation <= limit");
++    const vcpus = cpu.vcpus;
+     const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
+     if (!Number.isSafeInteger(appMiB) || appMiB < mapping.record.policy.memMiB)
+       throw new Error("allocated app RAM is below its catalog minimum");
+@@ -992,6 +1063,9 @@
+       checkDefinition(created, { notes, pipe, boot: this.boot, vcpus, memMiB, firmware: this.imagePath, firmwareSha256: this.imageSha256,
+                                  hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
+                                  guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
++      // THE PURCHASED PROCESSOR SHARE, before the first start; with none, Hyper-V's default (each VP uncapped) as before
++      const cpuBack = appCpu ? await this.#ps(CMD.processor({ vmId: created.id, ...cpu })) : null;
++      if (appCpu) checkProcessor(cpuBack, cpu);
+ 
+       // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
+       const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE }));
+@@ -1022,7 +1096,11 @@
+       // OUTBOUND HTTPS (egress.mjs): the partition's bridge and egress endpoint, now that the VM runs and before its app is
+       // served; the hook decides which mappings get one (main.mjs: secret deployments) and answers null for the rest
+       if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping)) || null;
+-      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, certName: certNameFor(identity && identity.name) });
++      // the app's own cgroup quota, raised to the VM's allocation where it exceeds the catalog cpuPercent (rounded UP:
++      // the VM's exact Limit stays the binding cap)
++      const want = this.guestCpuAllowance && appCpu ? Math.ceil(vcpus * cpu.limit / 1000) : null;
++      const appCpuPercent = want !== null && want > mapping.record.policy.cpuPercent ? want : null;
++      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, appCpuPercent, certName: certNameFor(identity && identity.name) });
+       const guestIdentity = uefi
+         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
+         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
+@@ -1031,6 +1109,10 @@
+                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
+                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
+                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
++               // what Hyper-V READ BACK for this VM's processors, and how many the guest says it brought online
++               cpu: { rule: appCpu ? "allocated" : "catalog-policy-fixed", vcpus, limit: cpu.limit, reservation: cpu.reservation,
++                      grantedUnits: vcpus * cpu.limit, readback: cpuBack, guestOnlineVcpus: guestOnlineVcpus(con.head),
++                      appCpuRequested: appCpuPercent, appCpuPercent: served?.cpuPercent ?? null },
+                memory: { policyMiB: mapping.record.policy.memMiB, appMiB, vmMiB: memMiB,
+                          rule: memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
+                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
+@@ -1086,14 +1168,14 @@
+   }
+ 
+   /** The app into the guest and a relay to it (wmiserve-run.mjs). Its bundle file is removed if this fails. */
+-  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB, appMemoryMiB, certName = null }) {
++  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB, appMemoryMiB, appCpuPercent = null, certName = null }) {
+     const s = this.serve;
+     const bundleFile = writeBundle({ dir: s.bundleDir, instanceId, bundle: mapping.bundle, appId: mapping.appId });
+     try {
+       const tcpPort = await (s.portFor ? s.portFor(instanceId) : freePort());
+       const run = await (s.run || runWmiserve)({ exe: s.exe, vmId, bundleFile, appId: mapping.appId, tcpPort,
+         ...(uefi ? { mediumSha256: created.mediumSha256 } : { igvmSha256: created.firmwareSha256 }),
+-        isolationType: 1, label: instanceId, vcpus, memMiB, appMemoryMiB, ...(certName ? { certName } : {}),
++        isolationType: 1, label: instanceId, vcpus, memMiB, appMemoryMiB, ...(appCpuPercent ? { appCpuPercent } : {}), ...(certName ? { certName } : {}),
+         ...(s.readyTimeoutMs ? { readyTimeoutMs: s.readyTimeoutMs } : {}), ...(s.spawn ? { spawn: s.spawn } : {}) });
+       run.bundleFile = bundleFile;
+       return run;
+diff --git a/windows/vbslike/manager/wmiserve-run.mjs b/windows/vbslike/manager/wmiserve-run.mjs
+index 85b944d8c62ee176c27ca6bfbb14a2635c8910ff..68d0bbbe7116100ade38a89e0ef651686f9e3bea 100644
+--- a/windows/vbslike/manager/wmiserve-run.mjs
++++ b/windows/vbslike/manager/wmiserve-run.mjs
+@@ -67,7 +67,7 @@
+  *       partition.vmId repeats): the manager judges each report against it (READINESS.md M1)
+  */
+ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 = null, mediumSha256 = null,
+-                              isolationType = 1, label = null, vcpus = null, memMiB = null, appMemoryMiB = null, certName = null,
++                              isolationType = 1, label = null, vcpus = null, memMiB = null, appMemoryMiB = null, appCpuPercent = null, certName = null,
+                               readyTimeoutMs = 180_000, closeTimeoutMs = 15_000, spawn = nodeSpawn, log = () => {} } = {}) {
+   if (!exe) return Promise.reject(new Error("the wmiserve executable is required"));
+   if (!/^[0-9a-f-]{36}$/i.test(String(vmId || ""))) return Promise.reject(new Error("wmiserve joins a VM by its GUID"));
+@@ -75,12 +75,15 @@
+   const identity = igvmSha256 ? ["--igvm-sha256", String(igvmSha256)] : ["--medium-sha256", String(mediumSha256)];
+   if (!HEX64.test(identity[1])) return Promise.reject(new Error(`${identity[0]} needs 64 lowercase hex`));
+   if (!Number.isInteger(tcpPort) || tcpPort < 1 || tcpPort > 65535) return Promise.reject(new Error("a host TCP port for the relay is required"));
++  if (appCpuPercent != null && !(Number.isSafeInteger(appCpuPercent) && appCpuPercent > 0 && Number.isSafeInteger(vcpus) && appCpuPercent <= vcpus * 100))
++    return Promise.reject(new Error("--app-cpu must be a positive integer percent, at most 100 per vCPU"));
+   if (certName != null && !CERT_NAME.test(String(certName)))
+     return Promise.reject(new Error(`--cert-name must be <8 hex>.app.enclave.host, not ${JSON.stringify(String(certName)).slice(0, 80)}`));
+   const args = ["wmiserve", "--vm", String(vmId), "--bundle", String(bundleFile), ...identity,
+                 "--isolation-type", String(isolationType), "--tcp", String(tcpPort), "--hold", "stdin",
+                 ...(label ? ["--label", String(label)] : []), ...(vcpus ? ["--vcpus", String(vcpus)] : []),
+-                ...(memMiB ? ["--mem", String(memMiB)] : []), ...(appMemoryMiB ? ["--app-mem", String(appMemoryMiB)] : []), ...(certName ? ["--cert-name", String(certName)] : [])];
++                ...(memMiB ? ["--mem", String(memMiB)] : []), ...(appMemoryMiB ? ["--app-mem", String(appMemoryMiB)] : []),
++                ...(appCpuPercent ? ["--app-cpu", String(appCpuPercent)] : []), ...(certName ? ["--cert-name", String(certName)] : [])];
+ 
+   return new Promise((resolve, reject) => {
+     const child = spawn(exe, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+@@ -124,6 +127,9 @@
+           // G1: a per-boot nonce from a monitor that has it; null only from an older monitor. Anything else is refused.
+           if (o.boot != null && !HEX32.test(String(o.boot))) return fail(`the load's boot ${JSON.stringify(o.boot)} is not 32 hex`);
+           // M4: the name the monitor recorded (wmiserve reports its answer): exactly the one asked for, none when none was
++          // the CPU allocation as the MONITOR applied it: a wmiserve or monitor that predates it states none, or the catalog's
++          if (appCpuPercent != null && o.cpuPercent !== appCpuPercent)
++            return fail(`the domain was loaded with cpuPercent ${JSON.stringify(o.cpuPercent ?? null)}, not the ${appCpuPercent} allocated`);
+           if ((o.certName ?? null) !== (certName ?? null))
+             return fail(`the domain was loaded with the name ${JSON.stringify(o.certName ?? null)}, not ${JSON.stringify(certName ?? null)}`);
+           return;
+@@ -137,7 +143,7 @@
+           log(`wmiserve ${vmId}: ready (domain ${got.load.id}, relay ${tcpPort})`);
+           resolve({ pid: child.pid, launcherKey: got.launcher.key, vm: String(got.launcher.vm), domainId: got.load.id, boot: got.load.boot ?? null,
+                     appSha256: got.load.appSha256, guestPort: got.load.guestPort, tcpPort, note: o.note ?? null, exited,
+-                    certName: got.load.certName ?? null,
++                    certName: got.load.certName ?? null, cpuPercent: Number.isSafeInteger(got.load.cpuPercent) ? got.load.cpuPercent : null,
+                     stop: () => stopRun() });
+           return;
+       }

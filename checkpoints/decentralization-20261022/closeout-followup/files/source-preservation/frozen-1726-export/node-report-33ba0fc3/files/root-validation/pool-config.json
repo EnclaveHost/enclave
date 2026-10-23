@@ -1,0 +1,20 @@
+[
+  {
+    "file": "node-config.cmd",
+    "poolSettings": [
+      "set NODE_APP_RAM_GB=96"
+    ]
+  },
+  {
+    "file": "node-config.local.cmd",
+    "poolSettings": [
+      "set NODE_APP_RAM_GB=96"
+    ]
+  },
+  {
+    "file": "shield-config.cmd",
+    "poolSettings": [
+      "set NODE_APP_RAM_GB=96"
+    ]
+  }
+]

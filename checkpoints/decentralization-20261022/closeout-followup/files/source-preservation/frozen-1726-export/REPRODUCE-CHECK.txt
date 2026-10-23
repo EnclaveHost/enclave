@@ -1,0 +1,16 @@
+node-shares base rebuilt from f58e03ec4 + 6 stored patch(es) in 1219a9882 + 0 patch(es) of this export: tree a9eeada592a9f18c160fdf8590c674afe0a8cf93 OK
+node-shares 0f1ef848b: tree ab399272a4b8f8e6c05a0af93bd786109afe91cd OK
+node-shares 14b245926: tree 933292a5c45623b3770cb8b4937b06e5296eee13 OK
+node-shares a5e155ecf: tree 609d98c8f0c6457f5bb5d3da66658691f1beae7f OK
+cpu-enforce base rebuilt from f58e03ec4 + 6 stored patch(es) in 1219a9882 + 1 patch(es) of this export: tree ab399272a4b8f8e6c05a0af93bd786109afe91cd OK
+cpu-enforce 670a753e0: tree 3964843520deece140f9c58388ba5b4b0e0eae8e OK
+cpu-enforce bf3763634: tree 9395b5cdef2f21d51b11010a1e6037deed4a707d OK
+cpu-enforce ea6717d27: tree 5b1d4b5ae5a446ad37ac9a94e5d162f402b34757 OK
+cpu-oldguest base rebuilt from f58e03ec4 + 6 stored patch(es) in 1219a9882 + 2 patch(es) of this export: tree 3964843520deece140f9c58388ba5b4b0e0eae8e OK
+cpu-oldguest 15ad00420: tree bdf8cee34f0fc8f830ca526e8c054e649db4e42d OK
+node-report base rebuilt from empty + 0 stored patch(es) in 1219a9882 + 0 patch(es) of this export: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+node-report d10a78cb0: tree ab82a09ba9c919f69f9a597f100baa6b3005ba73 OK
+node-report 33ba0fc3e: tree f7cd0dd73d092bf9d8da2a5af70bbb026309f44a OK
+root-cpu-canary base rebuilt from empty + 0 stored patch(es) in 1219a9882 + 0 patch(es) of this export: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+root-cpu-canary c516049cb: tree 777366f2b326d8587d0a97d9b3789d21d34bab91 OK
+RESULT node-shares reproduced: True, cpu-enforce reproduced: True, cpu-oldguest reproduced: True, node-report reproduced: True, root-cpu-canary reproduced: True

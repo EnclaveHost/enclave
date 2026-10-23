@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-23T16:48:11.7023612Z",
+  "settings": [
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_GUEST_IGVM",
+      "value": "C:\\Program Files\\Enclave\\guest\\runtime.bin"
+    },
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_GUEST_IGVM_SHA256",
+      "value": "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d"
+    },
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_BOOT_FORM",
+      "value": "linux-direct"
+    },
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_GUEST_STATE_MASTER",
+      "value": "C:\\ProgramData\\Enclave\\shield\\type1.vmgs"
+    },
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_GUEST_STATE_MASTER_SHA256",
+      "value": "e93237a717a7e0e9fa201db2b331d2ed480274bfa47145854ea3ba85852abb96"
+    },
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_GUEST_STATE_ARCHIVE_DIR",
+      "value": "C:\\ProgramData\\Enclave\\shield\\vmgs-archive"
+    },
+    {
+      "file": "shield-config.cmd",
+      "key": "ENCLAVE_HYPERV_MODULE",
+      "value": "C:\\Program Files\\Enclave\\guest\\hyperv.psm1"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "step": "install",
+  "at": "2026-10-23T17:10:34.842019+00:00",
+  "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+  "result": {
+    "state": {
+      "at": "2026-10-23T17:10:33.7545522Z",
+      "nodeTask": "Ready",
+      "listeners": [
+        {
+          "LocalAddress": "127.0.0.1",
+          "LocalPort": 8091,
+          "OwningProcess": 2376
+        }
+      ]
+    },
+    "ok": true
+  }
+}

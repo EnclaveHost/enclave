@@ -1,0 +1,52 @@
+{
+  "at": "2026-10-23T17:20:21.451615+00:00",
+  "scope": "Node resource accounting and RAM share repair",
+  "sourceCommit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+  "productionActive": true,
+  "availability": {
+    "nodeRamGb": 96,
+    "ramGbFree": 16.3,
+    "ramMbFree": 16711,
+    "cpuShareFree": 0.17,
+    "maxShare": 0.17
+  },
+  "existingAppsRunning": 9,
+  "unchangedAppVmIds": 8,
+  "restartedApp": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
+  "repairedAllocation": {
+    "rule": "cpu-share",
+    "poolMiB": 98304,
+    "cpuShare": 0.02,
+    "appMiB": 1966,
+    "vmMiB": 2606
+  },
+  "managerPidUnchanged": true,
+  "publicChecks": {
+    "allNineEventuallyPassedCaHostnameAndHttp200": true,
+    "lastRetryAt": "2026-10-23T17:18:18.490619+00:00",
+    "transientIssues": "Initial market reattach, routing and renewed-certificate readiness settled; targeted retries verified recovery."
+  },
+  "remaining": [
+    "Manager CPU quota source has passed isolated native canaries but is not deployed.",
+    "Guest CPU allowance needs a rebuilt image and launcher with compatibility validation.",
+    "Custody v2 production verification and rollout remain next, not yet begun."
+  ],
+  "rollback": "Restore exact three saved node files and restart Node. If rolling back after c13 was resized, the old node expects its dial-sized partition, so c13 requires a scoped forced relaunch under the old node. Do not restore a mismatched partial file set.",
+  "publicFleet": {
+    "at": "2026-10-23T17:22:15.912469+00:00",
+    "rows": [
+      {
+        "endpoint": "tunnel://nucbox-k11-4",
+        "id": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+        "availability": {
+          "nodeRamGb": 96,
+          "ramGbFree": 16.3,
+          "ramMbFree": 16711,
+          "cpuShareFree": 0.17,
+          "maxShare": 0.17,
+          "nodeVcpus": 16
+        }
+      }
+    ]
+  }
+}

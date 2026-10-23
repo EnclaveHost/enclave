@@ -1,0 +1,37 @@
+From bf376363493b5c50d2e5d2a17d162d97fd90e772 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:00:10 -0700
+Subject: [PATCH] Monitor: a test seam around load's call into start (no
+ behaviour change)
+
+startDomain is (*monitor).start, called where load called m.start. It lets a load test run the
+real request path (bundle parse, policy, domain) without root, and reach the cgroup writer
+against a temporary directory.
+---
+ isolation/m3/monitor/main.go | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/isolation/m3/monitor/main.go b/isolation/m3/monitor/main.go
+index 0951a9dfd0e17dd300fff1734713ec797d7ccace..d97455f87b5b0157d78319d62a07dd3886716266 100644
+--- a/isolation/m3/monitor/main.go
++++ b/isolation/m3/monitor/main.go
+@@ -535,7 +535,7 @@
+ 	if manifest != nil {
+ 		d.Ports = append([]string(nil), manifest.Ports...)
+ 	}
+-	if err := m.start(d, artifact); err != nil {
++	if err := startDomain(m, d, artifact); err != nil {
+ 		return nil, err // start() has already released whatever it managed to take
+ 	}
+ 	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d front_uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
+@@ -543,6 +543,10 @@
+ 	return d, nil
+ }
+ 
++// startDomain is load's call into start: a test seam only (a load test without root replaces it to stop before any process
++// or real cgroup exists). Production never reassigns it.
++var startDomain = (*monitor).start
++
+ // start builds the domain's root, its share, and the process tree that runs it. The domain is in the
+ // table BEFORE its first instruction, so however it ends — including during startup — the reaper can
+ // find it and retire it.

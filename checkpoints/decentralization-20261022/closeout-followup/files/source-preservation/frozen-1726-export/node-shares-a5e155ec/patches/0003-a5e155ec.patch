@@ -1,0 +1,483 @@
+From a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:05:45 -0700
+Subject: [PATCH] Coupled shares: relaunch on an owner's resize both ways;
+ fixtures read a pooled manager
+
+Per root review of 14b245926: a partition sized for another share (an owner's
+resize up OR down, or 0xc13d4b6a's dial-sized spawn below the 2% this node
+counts) is relaunched in place at its share when that fits (a shrink always
+does), at most once per SHARE_RELAUNCH_MIN_MS. Until then it keeps serving and
+stays explicitly pending on every pass (allocatedShare + reason), counted at
+the larger of the two. The resize log no longer claims a relaunch it has not
+made.
+
+Fixtures (no production behaviour): the shared fake manager takes an opt-in
+ramPoolMiB (main.mjs NODE_APP_RAM_GB x 1024); hosting-caps and preclaim boot a
+pooled manager with the same pool on the node; isolation-host and scan-slot give
+the share-accounting tests a known, empty manager view; hosting-caps DEFAULTS
+compares at the published millionth. Unknown/malformed/pool-less managers are
+still refused in their own tests.
+---
+ test/helpers/hv-fake-manager.mjs          |   9 +-
+ test/windows-node-coupled-shares.test.mjs | 127 +++++++++++++---------
+ test/windows-node-hosting-caps.test.mjs   |  31 +++---
+ test/windows-node-isolation-host.test.mjs |   6 +-
+ test/windows-node-preclaim.test.mjs       |   4 +-
+ test/windows-node-scan-slot.test.mjs      |   4 +
+ windows/node/host.mjs                     |  37 +++----
+ 7 files changed, 123 insertions(+), 95 deletions(-)
+
+diff --git a/test/helpers/hv-fake-manager.mjs b/test/helpers/hv-fake-manager.mjs
+index c3db91ac4df3232184ad93e0c6eca2c420426b3a..57c6a7f615ec1e696b5a92c350125f0ac3479ee1 100644
+--- a/test/helpers/hv-fake-manager.mjs
++++ b/test/helpers/hv-fake-manager.mjs
+@@ -74,19 +74,20 @@
+ export function closeManagers() { for (const s of live) { s.closeAllConnections?.(); s.close(); } live.clear(); }
+ 
+ // judgeReady: the readiness verdict (default: running on one fixed key); kept across restartManager
+-export async function bootManager(host, port = 0, { legacyNotes = false, judgeReady = judgeRunning } = {}) {
+-  const manager = new Manager({ judgeReady, runtimeId: REC.runtimeId, fetchComponent: async () => component,
++// ramPoolMiB: the app RAM pool partitions are sized from by share (main.mjs: NODE_APP_RAM_GB x 1024); null = pool-less
++export async function bootManager(host, port = 0, { legacyNotes = false, judgeReady = judgeRunning, ramPoolMiB = null } = {}) {
++  const manager = new Manager({ judgeReady, runtimeId: REC.runtimeId, fetchComponent: async () => component, ramPoolMiB,
+                                 backend: new HyperVPartitionBackend({ launcher: new FakeLauncher(host, { legacyNotes }) }) });
+   await startManager(manager);
+   const server = createServer(manager);
+   await new Promise((res) => server.listen(port, "127.0.0.1", res));
+   live.add(server);
+-  return { manager, server, port: server.address().port, judgeReady };
++  return { manager, server, port: server.address().port, judgeReady, ramPoolMiB };
+ }
+ export async function restartManager(m, host) {
+   m.server.closeAllConnections?.();
+   await new Promise((r) => m.server.close(r)); live.delete(m.server);
+-  return await bootManager(host, m.port, { judgeReady: m.judgeReady });
++  return await bootManager(host, m.port, { judgeReady: m.judgeReady, ramPoolMiB: m.ramPoolMiB });
+ }
+ /** A readiness verdict whose transport key is the partition's own (sha256 of the VM id the launcher names): every
+  *  fresh partition answers on a NEW key, as a real one does. */
+diff --git a/test/windows-node-coupled-shares.test.mjs b/test/windows-node-coupled-shares.test.mjs
+index 12eb631ba73291fb085c913cc4e308af0a111a8b..1e05f2a2634b958572ba671e93e929894d5c22e3 100644
+--- a/test/windows-node-coupled-shares.test.mjs
++++ b/test/windows-node-coupled-shares.test.mjs
+@@ -5,8 +5,8 @@
+ //   - free is ONE fraction: owner reserve and cap bind CPU and RAM alike, and ramMbFree = floor(pool x cpuShareFree);
+ //   - every deployment holds the larger of what its share buys and what the manager says its partitions hold;
+ //   - the version's RAM floor is a share requirement (a larger effective share, or a refusal), never discounted RAM;
+-//   - the spawn carries the share the node counts; a partition sized for another share is adopted as it is (never
+-//     grown or shrunk on the node's own initiative) unless its owner pays for more, when it is relaunched if it fits;
++//   - the spawn carries the share the node counts, and a partition sized for another share (an owner's resize either
++//     way, or 0xc13d4b6a's dial-sized spawn) is relaunched in place when that fits, else stays explicitly pending;
+ //   - an unread, malformed, stale, recovered, pool-less or other-pool manager sells nothing new, and refuses nothing here.
+ // Hyper-V is faked behind the REAL (installed) manager; Base is a fake JSON-RPC.
+ import { test, after } from "node:test";
+@@ -246,7 +246,7 @@
+   assert.match(dead.capacity().ramUnknown, /could not be read/);
+ });
+ 
+-test("c13d4b6a: a partition spawned at its 1% DIAL below the 2% this box counts is adopted as it is, never grown in place", async () => {
++test("c13d4b6a: a partition spawned at its 1% DIAL below the 2% this box counts is relaunched once, in place, at 2%", async () => {
+   const fh = new FakeHost();
+   const m = await bootPooled(fh);
+   // what the installed node did: spawned at the dial
+@@ -259,69 +259,90 @@
+   await h.refreshManagerView();
+   const r = await h.ensureApp(DEP, dep(10), { version: NEEDS2 });
+   assert.equal(r.status, "running", `${r.reason} | ${logs.join(" / ")}`);
+-  assert.match(r.reason, /was given 983 MiB for a 1% share and this deployment takes 2%; not relaunched: it holds at least the share its owner pays for/);
+-  assert.equal(r.allocatedShare, 0.01, "the under-allocation is on the record, not hidden behind a bare running");
+-  assert.equal(r.cpuShare, 0.02, "what this box counts");
+-  assert.deepEqual(domains(m).map((x) => x.id), [r0.instance.id], "the serving partition was left alone");
+-  assert.equal(fh.starts, 1);
+-  // ...and every later pass says so again: the reason is not cleared by the routine reconcile
++  assert.equal(r.reason, null);
++  assert.equal(r.allocatedShare, null);
++  assert.equal(r.cpuShare, 0.02);
++  const now = domains(m);
++  assert.equal(now.length, 1, "exactly one partition");
++  assert.notEqual(now[0].id, r0.instance.id, "the 1% partition was retired first");
++  assert.deepEqual([now[0].memory.cpuShare, now[0].memory.appMiB], [0.02, 1966]);
++  assert.ok(logs.some((l) => /was given 983 MiB for a 1% share and this deployment takes 2%; relaunching it in place/.test(l)), logs.join(" / "));
++  // the next pass adopts it: no second relaunch
+   await h.refreshManagerView();
+-  assert.match((await h.ensureApp(DEP, dep(10), { version: NEEDS2 })).reason, /not relaunched/);
+-  assert.equal(h.capacity().ramMbHeld, 1966, "counted at the larger of its share and its partition");
+-  // its next FRESH start (here an operator's forced relaunch) is at the share this box counts
+-  const f = await h.ensureApp(DEP, dep(10), { version: NEEDS2, force: true });
+-  assert.equal(f.status, "running", f.reason);
+-  assert.equal(f.reason, null);
+-  assert.equal(f.allocatedShare, null);
+-  assert.deepEqual([domains(m)[0].memory.cpuShare, domains(m)[0].memory.appMiB], [0.02, 1966]);
++  assert.equal((await h.ensureApp(DEP, dep(10), { version: NEEDS2 })).status, "running");
++  assert.equal(domains(m)[0].id, now[0].id);
++  assert.equal(fh.starts, 2);
+ });
+ 
+-test("an owner's resize UP is served at the new share's RAM; a resize down, or up beyond what fits, keeps serving as it is", async () => {
++test("c13d4b6a when 2% does NOT fit: it keeps serving at 1%, explicitly pending (allocatedShare, reason) every pass, until it fits", async () => {
+   const fh = new FakeHost();
+   const m = await bootPooled(fh);
+-  const logs = [];
+-  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` }, logs);
++  const r0 = await reconcile({ client: clientFor(m.port), deployment: { id: DEP, body: { derive: REC, name: DEP, isPublic: true, hasSecrets: false, cpuShare: 0.01 } }, ...fast });
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` });
++  h.records.set(DEP, { id: DEP, status: "running", isolation: { instance: r0.instance.id } });
+   noSecrets(h);
+-  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
+-  await h.refreshManagerView();
+-  assert.equal((await h.ensureApp(DEP, dep(100), { version: PLANNED })).status, "running");
+-  assert.equal(domains(m)[0].memory.appMiB, 9830);
+-  // the owner pays for 20% now: relaunched in place
+-  await h.refreshManagerView();
+-  let r = await h.ensureApp(DEP, dep(200), { version: PLANNED });
+-  assert.equal(r.status, "running", r.reason);
+-  assert.equal(r.reason, null);
+-  assert.equal(domains(m)[0].memory.appMiB, 19660);
+-  assert.ok(logs.some((l) => /its owner pays for more, relaunching it in place at its share/.test(l)));
+-  // 30%, but within SHARE_RELAUNCH_MIN_MS of the last relaunch: kept at 20%, said, and counted at 30%
++  // the box has sold everything but 1% beside it (and the manager holds the other tenant's partition)
++  await reconcile({ client: clientFor(m.port), deployment: { id: idOf("b"), body: { derive: REC, name: idOf("b"), isPublic: true, hasSecrets: false, cpuShare: 0.74 } }, ...fast });
++  h.records.set(idOf("b"), running(idOf("b"), 0.74));
++  for (let pass = 0; pass < 2; pass++) {
++    await h.refreshManagerView();
++    const r = await h.ensureApp(DEP, dep(10), { version: NEEDS2 });
++    assert.equal(r.status, "running", r.reason);
++    assert.match(r.reason, /was given 983 MiB for a 1% share and this deployment takes 2%; not relaunched yet: 1966 MiB does not fit beside the others \(983 MiB left\)/);
++    assert.equal(r.allocatedShare, 0.01, "pending, not done");
++    assert.equal(domains(m)[0].id, r0.instance.id);
++  }
++  assert.equal(h.capacity().ramMbHeld, 1966 + chain.shareRamMiB(POOL, 0.74), "counted at 2% meanwhile: nothing is oversold");
++  // the other tenant leaves: the next pass repairs it
++  await clientFor(m.port).remove(m.manager.list().find((x) => x.name === idOf("b")).id);
++  h.records.delete(idOf("b"));
+   await h.refreshManagerView();
+-  r = await h.ensureApp(DEP, dep(300), { version: PLANNED });
+-  assert.equal(r.status, "running");
+-  assert.match(r.reason, /not relaunched: it was relaunched for its share \d+ s ago/);
+-  assert.equal(r.allocatedShare, 0.2);
+-  assert.equal(domains(m)[0].memory.appMiB, 19660);
+-  h.records.get(DEP).shareRelaunchAt = Date.now() - Host.SHARE_RELAUNCH_MIN_MS - 1;
+-  r = await h.ensureApp(DEP, dep(300), { version: PLANNED });
++  const r = await h.ensureApp(DEP, dep(10), { version: NEEDS2 });
+   assert.equal(r.reason, null);
+-  assert.equal(domains(m)[0].memory.appMiB, 29491);
+-  // down to 5%: not shrunk in place (it holds more than it pays for, counted so until it starts again)
+-  await h.refreshManagerView();
+-  r = await h.ensureApp(DEP, dep(50), { version: PLANNED });
++  assert.equal(r.allocatedShare, null);
++  assert.deepEqual([domains(m)[0].memory.cpuShare, domains(m)[0].memory.appMiB], [0.02, 1966]);
++});
++
++test("an owner's resize is served at the new share's RAM both ways (bounded: once per window, only when it fits)", async () => {
++  const fh = new FakeHost();
++  const m = await bootPooled(fh);
++  const h = box({ isolationManager: `http://127.0.0.1:${m.port}` });
++  noSecrets(h);
++  h.records.set(DEP, { id: DEP, status: "provisioning", isolationRequired: true });
++  const pass = async (cpuMilli) => { await h.refreshManagerView(); return await h.ensureApp(DEP, dep(cpuMilli), { version: PLANNED }); };
++  const held = () => domains(m)[0].memory.appMiB;
++  const open = () => { h.records.get(DEP).shareRelaunchAt = Date.now() - Host.SHARE_RELAUNCH_MIN_MS - 1; };
++  assert.equal((await pass(100)).status, "running");
++  assert.equal(held(), 9830);
++  // UP to 20%: relaunched in place
++  let r = await pass(200);
++  assert.deepEqual([r.status, r.reason, r.allocatedShare, held()], ["running", null, null, 19660]);
++  // UP to 30% inside the window: pending at 20%, said, counted at 30%; once the window passes, relaunched
++  r = await pass(300);
+   assert.equal(r.status, "running");
+-  assert.match(r.reason, /not relaunched: it holds at least the share its owner pays for/);
+-  assert.equal(domains(m)[0].memory.appMiB, 29491);
+-  assert.equal(h.capacity().ramMbHeld, 29491, "the larger of share and partition");
+-  // up to 90%: beyond the 75% this box sells, so the 30% partition keeps serving and says why
+-  h.records.get(DEP).shareRelaunchAt = 0;
+-  r = await h.ensureApp(DEP, dep(900), { version: PLANNED });
++  assert.match(r.reason, /not relaunched yet: it was relaunched for its share \d+ s ago/);
++  assert.deepEqual([r.allocatedShare, held(), h.capacity().ramMbHeld], [0.2, 19660, 29491]);
++  open();
++  r = await pass(300);
++  assert.deepEqual([r.reason, r.allocatedShare, held()], [null, null, 29491]);
++  // DOWN to 5%: the owner's downsize is applied too (pending inside the window, counted at what it still holds)
++  r = await pass(50);
++  assert.match(r.reason, /takes 5%; not relaunched yet: it was relaunched/);
++  assert.deepEqual([r.allocatedShare, held(), h.capacity().ramMbHeld], [0.3, 29491, 29491]);
++  open();
++  r = await pass(50);
++  assert.deepEqual([r.status, r.reason, r.allocatedShare, held()], ["running", null, null, 4915]);
++  // UP to 90%: beyond the 75% this box sells; the 5% partition keeps serving, pending, and says why
++  open();
++  r = await pass(900);
+   assert.equal(r.status, "running", r.reason);
+-  assert.match(r.reason, /not relaunched: 88473 MiB does not fit beside the others \(73728 MiB left\)/);
+-  assert.equal(domains(m)[0].memory.appMiB, 29491);
++  assert.match(r.reason, /not relaunched yet: 88473 MiB does not fit beside the others \(73728 MiB left\)/);
++  assert.deepEqual([r.allocatedShare, held()], [0.05, 4915]);
+   // ...and an unknown manager is not a fit either
+   h.managerView = { at: Date.now(), error: "connect ECONNREFUSED" };
+   r = await h.ensureApp(DEP, dep(400), { version: PLANNED });
+-  assert.match(r.reason, /not relaunched: what the manager holds is unknown/);
+-  assert.equal(fh.starts, 3);
++  assert.match(r.reason, /not relaunched yet: what the manager holds is unknown/);
++  assert.equal(fh.starts, 4, "one spawn and three relaunches: 20%, 30%, 5%");
+ });
+ 
+ test("a resize this box cannot size (unknown manager) waits instead of giving the lease back (pinned in source)", () => {
+diff --git a/test/windows-node-hosting-caps.test.mjs b/test/windows-node-hosting-caps.test.mjs
+index 9695acce500b3ba4cc9bbb56b658e9cacca7bcfe..6c4b44d7e46aa05234e8400de9dffb9920ce6200 100644
+--- a/test/windows-node-hosting-caps.test.mjs
++++ b/test/windows-node-hosting-caps.test.mjs
+@@ -40,7 +40,8 @@
+ // ---- defaults ----------------------------------------------------------------------------------------------------
+ test("DEFAULTS: no caps file is 1.0 on both axes, and every figure is exactly the one computed before caps existed", () => {
+   // the two formulas as they stood before this change (host.mjs cpuShareFree / gpuShareFree)
+-  const oldCpu = (used) => Math.max(0, Math.min(1, 1 - used - 0.25));
++  // (cpuShareFree is published rounded down to whole millionths: 0.19999999999999996 is 0.2)
++  const oldCpu = (used) => Math.floor(Math.max(0, Math.min(1, 1 - used - 0.25)) * 1e6 + 1e-6) / 1e6;
+   const oldGpu = (sold) => Math.max(0, Math.min(1, 1 - sold, card.vramFreeGb / card.vramBudgetGb));
+   for (const set of [[], [[0.1, 0]], [[0.25, 0.1], [0.3, 0.2]], [[0.5, 0.5], [0.4, 0]], [[0.9, 0.9]], [[0.05, 0.15], [0.1, 0.35], [0.15, 0]]]) {
+     const h = box({ card: () => card });
+@@ -187,16 +188,18 @@
+ // ---- the isolated backend: the cap gates a NEW partition, and nothing else ----------------------------------------
+ const dep = () => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4",
+   leaseUntil: Math.floor(Date.now() / 1000) + 3600, cpuMilli: 100, gpuMilli: 0, isPublic: true, owner: OWNER, configCid: ISOLATED });
++// one share is one fraction of CPU and of this pool on the partition backend: the manager sizes partitions from it
++const POOLED = { ramPoolMiB: 48 * 1024 };
+ function hvBox(port, logs = [], dir = tmp()) {
+   const h = new Host({ dir, endpoint: ENDPOINT, name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: (s) => logs.push(s),
+-                       ramGb: 64, engineRetired: true, isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
++                       ramGb: 64, appRamGb: 48, engineRetired: true, isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+   h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});   // known: no secrets staged
+   // the box serves OWNER as its operator (main's owner rule, 4fcb1740: OWNER_WALLET authorizes nothing)
+   return servedOwner(h, OWNER);
+ }
+ 
+ test("hv: a NEW partition that does not fit under the CPU cap is not started, is held with the reason, and starts once it fits", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = hvBox(port, logs);
+   h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });          // another partition, running
+   h.setHostingCaps({ cpuShare: 0.55, gpuShare: 1 });
+@@ -217,7 +220,7 @@
+ });
+ 
+ test("hv: a running partition is never stopped by a lower cap; it is adopted every pass, and a forced relaunch brings it back", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const h = hvBox(port);
+   assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+   h.setHostingCaps({ cpuShare: 0, gpuShare: 0 });
+@@ -230,7 +233,7 @@
+ });
+ 
+ test("hv: OFF holds a NEW partition; turning off (confirmed) retires EVERY partition and hands their leases back; enforceOff stops a late one", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = hvBox(port, logs);
+   h.records.set(B, { ...running(B, 0.1), isolation: { instance: "hvB" } });
+   h.setHostingCaps({ cpuShare: 1, gpuShare: 1, paused: true });
+@@ -262,7 +265,7 @@
+ });
+ 
+ test("hv: a confirmed drop retires the newest partition and hands its lease back; the older one keeps running", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = hvBox(port, logs);
+   h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });          // older, running
+   assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+@@ -281,7 +284,7 @@
+ });
+ 
+ test("hv: a CAP-HELD deployment is not spawned above the cap by a FORCED ensure - the owner's restart path (enclave-5d)", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const h = hvBox(port);
+   h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });
+   h.setHostingCaps({ cpuShare: 0.55, gpuShare: 1 });
+@@ -301,7 +304,7 @@
+ });
+ 
+ test("hv: a node that RESTARTED under a lower cap adopts the partition that is already there (asking the manager only because the cap would refuse)", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const first = hvBox(port);
+   assert.equal((await first.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+   const dir = tmp(); fs.writeFileSync(path.join(dir, "hosting-caps.json"), JSON.stringify({ cpuShare: 0.05 }));
+@@ -312,7 +315,7 @@
+ });
+ 
+ test("hv: the GPU cap never holds a partition spawned with no GPU share (this backend spawns every one with gpuShare 0)", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const h = hvBox(port);
+   h.setHostingCaps({ cpuShare: 1, gpuShare: 0 });
+   const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
+@@ -337,7 +340,7 @@
+ const onTick = (h) => { h.chainReady = true; h.registered = { endpoint: ENDPOINT, cpuPricePerSec6: 12n }; h.tracked.add(DEP); return h; };
+ 
+ test("tick: a cap-held deployment is NOT renewed inside its window; once the cap allows, it starts and is renewed again", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = onTick(hvBox(port, logs));
+   h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });
+   h.setHostingCaps({ cpuShare: 0.5, gpuShare: 1 });
+@@ -355,7 +358,7 @@
+ });
+ 
+ test("tick: an expired lease still naming this runner is retired without a renewal attempt or permanent block", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = onTick(hvBox(port, logs));
+   ledgerRow();
+   assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+@@ -371,7 +374,7 @@
+ });
+ 
+ test("tick: a cap-held deployment whose lease LAPSED is let go locally - not renewed, not blocked, nothing released on chain", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = onTick(hvBox(port, logs));
+   h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });
+   h.setHostingCaps({ cpuShare: 0.5, gpuShare: 1 });
+@@ -388,7 +391,7 @@
+ });
+ 
+ test("tick: under a cap lowered below use, a resize that SHRINKS is applied (never a give-up); one that GROWS past the cap is handed back, naming it", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const logs = []; const h = onTick(hvBox(port, logs));
+   ledgerRow({ cpuMilli: 250 });
+   assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+@@ -406,7 +409,7 @@
+ });
+ 
+ test("consider(): a hint for a partition this box already runs is accepted under a cap below use (a NEW deployment is refused)", async () => {
+-  const fake = new FakeHost(); const { port } = await bootManager(fake);
++  const fake = new FakeHost(); const { port } = await bootManager(fake, 0, POOLED);
+   const h = onTick(hvBox(port));
+   ledgerRow();
+   assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+diff --git a/test/windows-node-isolation-host.test.mjs b/test/windows-node-isolation-host.test.mjs
+index 3ea0504c4d4130f5b0bed9d19eb70f165a71b816..575c8e2d6c723001ec3700c3e33bf758af83e834 100644
+--- a/test/windows-node-isolation-host.test.mjs
++++ b/test/windows-node-isolation-host.test.mjs
+@@ -199,8 +199,10 @@
+   assert.equal(rr.removed, false); assert.match(rr.reason, /VMs naming no deployment: orphan-/);
+ });
+ 
++// what the partition manager holds, as the tick reads it (host.mjs refreshManagerView): known, empty, a 96 GiB pool
++const knownPool = (h) => { h.cfg.ramGb = 112; h.cfg.appRamGb = 96; h.managerView = { at: Date.now(), memory: { rule: "cpu-share", poolMiB: 98304 }, vms: [] }; return h; };
+ test("a domain the node holds or could not confirm gone still occupies the box: its share and slot are not sold again", () => {
+-  const h = box(1);
++  const h = knownPool(box(1));
+   const before = h.capacity();
+   h.records.set("0x" + "a1".repeat(32), { id: "0x" + "a1".repeat(32), status: "held", cpuShare: 0.25, memMb: 256, isolation: { instance: "hvA" } });
+   h.records.set("0x" + "a2".repeat(32), { id: "0x" + "a2".repeat(32), status: "provisioning", cpuShare: 0.25, memMb: 256, isolationHeld: "hvB" });
+@@ -212,7 +214,7 @@
+ });
+ 
+ test("an ISOLATED deployment provisioning with no instance id yet (held on a manager 503) holds its share too", () => {
+-  const h = box(1);
++  const h = knownPool(box(1));
+   h.cfg.reservedShare = 0;
+   h.records.set("0x" + "b1".repeat(32), { id: "0x" + "b1".repeat(32), status: "provisioning", cpuShare: 0.3, isolationRequired: true });
+   h.records.set("0x" + "b2".repeat(32), { id: "0x" + "b2".repeat(32), status: "provisioning", cpuShare: 0.3, isolationRequired: false });
+diff --git a/test/windows-node-preclaim.test.mjs b/test/windows-node-preclaim.test.mjs
+index 49ad417a337388bddc4d3f539207eef9cea33a18..03c25607fbda15dd5ef746b7164ee10cde8b9064 100644
+--- a/test/windows-node-preclaim.test.mjs
++++ b/test/windows-node-preclaim.test.mjs
+@@ -48,11 +48,11 @@
+ const open = [];
+ after(() => { for (const c of open) try { c(); } catch {} });
+ async function node(answer) {
+-  const { port } = await bootManager(new FakeHost(), 0);
++  const { port } = await bootManager(new FakeHost(), 0, { ramPoolMiB: 48 * 1024 });
+   const r = await relay(answer);
+   open.push(r.close);
+   const h = new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-preclaim-")), endpoint: ENDPOINT, name: "test", appsEnabled: true,
+-    cpuPricePerSec6: 12, ramGb: 64, log: () => {}, engineRetired: true, isolationManager: `http://127.0.0.1:${port}`,
++    cpuPricePerSec6: 12, ramGb: 64, appRamGb: 48, log: () => {}, engineRetired: true, isolationManager: `http://127.0.0.1:${port}`,
+     isolationRuntimeId: REC.runtimeId, relayBase: r.base });
+   h.chainReady = true; h.registered = { endpoint: ENDPOINT, cpuPricePerSec6: 12n, gpuPricePerSec6: 0n };
+   return { h, r };
+diff --git a/test/windows-node-scan-slot.test.mjs b/test/windows-node-scan-slot.test.mjs
+index 980522ab6d63d466d62fbcfb89a07657fdf152c8..8ed690e0a09b47b4acd8db708d3843cf08377aa4 100644
+--- a/test/windows-node-scan-slot.test.mjs
++++ b/test/windows-node-scan-slot.test.mjs
+@@ -43,6 +43,10 @@
+   h.registered = { cpuPricePerSec6: "12" };
+   h.chainReady = true;
+   h.logs = logs;
++  // the partition manager here is unreachable (its verdict is the preclaim's business): what it HOLDS is read as known
++  // and empty, of the box's own pool, so a claim is sized by its share (host.mjs coupledRoom), not refused as unknown
++  h.refreshManagerView = async () => (h.managerView = { at: Date.now(), memory: { rule: "cpu-share", poolMiB: h.sharePoolMiB() }, vms: [] });
++  await h.refreshManagerView();                        // as tick() does before its scan
+   await h.refreshOwners();
+   return h;
+ }
+diff --git a/windows/node/host.mjs b/windows/node/host.mjs
+index 23e7c7c1f0491e9bc93a7817613d4041bd7c13e3..38bfb85bd8d812a7eb6ab93476c0cbbb1839e867 100644
+--- a/windows/node/host.mjs
++++ b/windows/node/host.mjs
+@@ -930,7 +930,7 @@
+       return;
+     }
+     this.log(`resize ${id.slice(0, 10)}: node share ${Math.round(wasCpu * 100)}% -> ${Math.round(cpu * 100)}%`
+-      + (this.sharesCoupled() ? " (its partition is relaunched in place at the new share's RAM by the isolation reconcile)"
++      + (this.sharesCoupled() ? " (this pass's isolation reconcile relaunches its partition at the new share when that fits; until then its record's allocatedShare says what it holds)"
+         : ` (an admission and billing figure here: an app in this enclave is interpreted, not cgroup-sliced)`));
+   }
+ 
+@@ -1255,37 +1255,34 @@
+       if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: version change (${stale}); the old domain `
+         + "could not be confirmed removed, so nothing new is started" });
+     }
+-    // A DOMAIN SIZED FOR ANOTHER SHARE is never adopted silently (isolation-lifecycle holds it, and a held domain does not
+-    // serve), and a running app is never grown or shrunk in place on this node's own initiative. Only when its owner paid
+-    // for MORE than its partition holds (the dial, what the ledger bills, is above the partition's share: a resize up) is
+-    // it relaunched at its share - when that fits beside the others, at most once per SHARE_RELAUNCH_MIN_MS. Otherwise it
+-    // is adopted at the share it HAS and keeps serving, the difference on its record (allocatedShare, reason); coupledRoom
+-    // counts the larger of the two, so nothing is oversold meanwhile, and its next fresh start is at its share.
+-    // (0xc13d4b6a: dialed 1%, its version needs 2%, spawned at 1% by the dial: adopted at 1% until it starts again.)
++    // A DOMAIN SIZED FOR ANOTHER SHARE (its owner resized it, up or down, or it was spawned at its dial below the share
++    // this box counts: 0xc13d4b6a, dialed 1%, its version needs 2%) is relaunched IN PLACE at its share. Never adopted as
++    // if it matched: isolation-lifecycle holds it (a held domain does not serve), and serving it unchanged gives the tenant
++    // another size than the one this box counts. Only when the new size fits beside the others (a shrink always does), and
++    // at most once per SHARE_RELAUNCH_MIN_MS; until then it is adopted at the share it HAS, keeps serving, and its record
++    // says so (allocatedShare, reason: pending, not done). coupledRoom counts the larger of the two meanwhile.
+     let adoptBody = body, shareWait = null, allocatedShare = null;
+     const sized = stale ? null : await client.findByName(id).catch(() => null);
+     const mem = sized && !sized.recovered && sized.memory?.rule === "cpu-share" ? sized.memory : null;
+     if (this.sharesCoupled() && mem && Math.abs(Number(mem.cpuShare) - Number(body.cpuShare)) > 1e-9) {
+       const pct = (x) => `${Math.round(Number(x) * 100)}%`;
+       const what = `${sized.id} was given ${mem.appMiB} MiB for a ${pct(mem.cpuShare)} share and this deployment takes ${pct(body.cpuShare)}`;
+-      let wait = "it holds at least the share its owner pays for, so it is not resized in place; its next fresh start is at its share";
+-      if (Number(d.cpuMilli) / 1000 > Number(mem.cpuShare) + 1e-9) {
+-        const room = this.capacity({ exclude: id });
+-        const need = chain.shareRamMiB(this.sharePoolMiB(), body.cpuShare);
+-        const since = Date.now() - (Number(this.records.get(id)?.shareRelaunchAt) || 0);
+-        wait = room.ramUnknown ? `what the manager holds is unknown (${room.ramUnknown})`
+-          : Number(body.cpuShare) > room.cpuShareFree + 1e-9 || need > room.ramMbFree
+-            ? `${need} MiB does not fit beside the others (${room.ramMbFree} MiB left)`
+-          : since < Host.SHARE_RELAUNCH_MIN_MS ? `it was relaunched for its share ${Math.round(since / 1000)} s ago` : null;
+-      }
++      const grows = Number(body.cpuShare) > Number(mem.cpuShare);
++      const room = this.capacity({ exclude: id, capped: grows });
++      const need = chain.shareRamMiB(this.sharePoolMiB(), body.cpuShare);
++      const since = Date.now() - (Number(this.records.get(id)?.shareRelaunchAt) || 0);
++      const wait = room.ramUnknown ? `what the manager holds is unknown (${room.ramUnknown})`
++        : grows && (Number(body.cpuShare) > room.cpuShareFree + 1e-9 || need > room.ramMbFree)
++          ? `${need} MiB does not fit beside the others (${room.ramMbFree} MiB left)`
++        : since < Host.SHARE_RELAUNCH_MIN_MS ? `it was relaunched for its share ${Math.round(since / 1000)} s ago` : null;
+       if (wait) {
+-        shareWait = `isolation: ${what}; not relaunched: ${wait}`;
++        shareWait = `isolation: ${what}; not relaunched yet: ${wait}`;
+         allocatedShare = Number(mem.cpuShare);
+         if (this.records.get(id)?.reason !== shareWait) this.log(`${id.slice(0, 10)} ${shareWait}`);
+         this.#record(id, { reason: shareWait, allocatedShare });
+         adoptBody = { ...body, cpuShare: mem.cpuShare };
+       } else {
+-        this.log(`${id.slice(0, 10)} isolation: ${what}; its owner pays for more, relaunching it in place at its share`);
++        this.log(`${id.slice(0, 10)} isolation: ${what}; relaunching it in place at its share`);
+         this.#record(id, { shareRelaunchAt: Date.now() });
+         const gone = await this.#retireIsolated(id, `share relaunch: ${what}`);
+         if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: ${what}; the old domain could not be `

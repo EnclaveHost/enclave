@@ -1,0 +1,4 @@
+import importlib.util,json,pathlib
+s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+p=r'''$names=@('node-config.cmd','node-config.local.cmd','shield-config.cmd');$out=@(foreach($n in $names){$p=Join-Path 'C:\ProgramData\Enclave' $n;[ordered]@{file=$n;poolSettings=@(if(Test-Path -LiteralPath $p){Get-Content -LiteralPath $p|Where-Object {$_ -match '^\s*set\s+"?(NODE_VCPUS|NODE_RAM_GB|NODE_APP_RAM_GB|NODE_RESERVED_SHARE)='}})}});$out|ConvertTo-Json -Depth 4 -Compress'''
+r=m.ps(p,30);r=[{'file':x['file'],'poolSettings':[v['value'] if isinstance(v,dict) else v for v in x['poolSettings']]} for x in r];pathlib.Path('work/coupled-resource-shares-20261023/root-validation/pool-config.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

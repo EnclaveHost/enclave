@@ -1,0 +1,1245 @@
+{
+ "format": "enclave-frozen-1726-export/v1",
+ "checkpointHeadAtExport": "1219a9882904b73349aee9582a9e35b355c03e26",
+ "batch": "1726 = the batch start 2026-10-23T17:26Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY for the coupled resource-share repair; not production completion. Node coupled-share fix a5e155ec (on the installed baseline 0f1ef848) with root's activation report 33ba0fc3; CPU enforcement source 670a753e/bf376363/ea6717d2 (+ retained old-guest-b 15ad0042) and root's native Hyper-V canary c516049c. The entire CPU resource fix is NOT complete: the manager/guest rollout is pending and guest cgroup enforcement is not yet native. Known pre-existing fixture failures (11 in the broad suite) are NOT called green.",
+ "sides": {
+  "node-shares": {
+   "repo": "work/coupled-resource-shares-20261023/repo",
+   "branch": "coupled-shares",
+   "headReachableFromBranch": true,
+   "base": "d281007c234031e5729b882b4e9ff3d9e4ffd5ad",
+   "baseProvenance": "d281007c preserved in 1219a988 (rpc-native-codec-export side c, 6th commit; tree a9eeada5)",
+   "head": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+   "headTree": "609d98c8f0c6457f5bb5d3da66658691f1beae7f",
+   "commits": [
+    {
+     "commit": "0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2",
+     "tree": "ab399272a4b8f8e6c05a0af93bd786109afe91cd",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T09:13:38-07:00",
+     "subject": "Baseline: installed NucBox control source (root snapshot 2026-10-23 ~16:02-16:06Z)",
+     "parent": "d281007c234031e5729b882b4e9ff3d9e4ffd5ad",
+     "patch": "node-shares-a5e155ec/patches/0001-0f1ef848.patch"
+    },
+    {
+     "commit": "14b2459262415ae93a970fc79ac224ab158fffdf",
+     "tree": "933292a5c45623b3770cb8b4937b06e5296eee13",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T09:38:56-07:00",
+     "subject": "Windows node: one share is one fraction of both CPU and the app RAM pool",
+     "parent": "0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2",
+     "patch": "node-shares-a5e155ec/patches/0002-14b24592.patch"
+    },
+    {
+     "commit": "a5e155ecfd9b71faa8f1e853d65bcc08efea7b5a",
+     "tree": "609d98c8f0c6457f5bb5d3da66658691f1beae7f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:05:45-07:00",
+     "subject": "Coupled shares: relaunch on an owner's resize both ways; fixtures read a pooled manager",
+     "parent": "14b2459262415ae93a970fc79ac224ab158fffdf",
+     "patch": "node-shares-a5e155ec/patches/0003-a5e155ec.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "test/helpers/hv-fake-manager.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "57c6a7f615ec1e696b5a92c350125f0ac3479ee1",
+     "sha256": "ad707f58b3ea26935a1a62059bbce3179b795b268025f69a1695ad510c61d6c0",
+     "bytes": 8486,
+     "baseBlob": "c3db91ac4df3232184ad93e0c6eca2c420426b3a"
+    },
+    {
+     "path": "test/windows-node-coupled-shares-defect.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "81cb9b24f71334210c1f66c5b5b6dcc96c8689d1",
+     "sha256": "fb063940acf0bde67261409c8ad00908e398332029d529f9d8d94cfa29267cf6",
+     "bytes": 7892,
+     "baseBlob": null
+    },
+    {
+     "path": "test/windows-node-coupled-shares.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1e05f2a2634b958572ba671e93e929894d5c22e3",
+     "sha256": "22f4485bfdbf42255d520911d86285b8db36e43b5136daff60ba8a10cf4b0c2d",
+     "bytes": 26704,
+     "baseBlob": null
+    },
+    {
+     "path": "test/windows-node-hosting-caps.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "6c4b44d7e46aa05234e8400de9dffb9920ce6200",
+     "sha256": "638b35d0e7b550ace1440dd0079ecbbfd08e5759d9d3f2a012e7c9ea2a7ce7e8",
+     "bytes": 37061,
+     "baseBlob": "9695acce500b3ba4cc9bbb56b658e9cacca7bcfe"
+    },
+    {
+     "path": "test/windows-node-isolation-host.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "575c8e2d6c723001ec3700c3e33bf758af83e834",
+     "sha256": "e5d7106c8270f2593243cb15cf1068051a523a7108b1bafc1290916b248fde4b",
+     "bytes": 13901,
+     "baseBlob": "3ea0504c4d4130f5b0bed9d19eb70f165a71b816"
+    },
+    {
+     "path": "test/windows-node-preclaim.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "03c25607fbda15dd5ef746b7164ee10cde8b9064",
+     "sha256": "a9ee980e7cd7e0e250c49b3cca33120fa913007ae919bc9bd3924dc78cd02fb2",
+     "bytes": 7966,
+     "baseBlob": "49ad417a337388bddc4d3f539207eef9cea33a18"
+    },
+    {
+     "path": "test/windows-node-scan-slot.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "8ed690e0a09b47b4acd8db708d3843cf08377aa4",
+     "sha256": "242b0fb00a892b740053cb1eba76289ac61802fa8ff3e76ab50fb555f424fa2b",
+     "bytes": 20612,
+     "baseBlob": "980522ab6d63d466d62fbcfb89a07657fdf152c8"
+    },
+    {
+     "path": "windows/node/chain.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ccec6ae1c426bbb9fb2752a71da1305c9ea2ac79",
+     "sha256": "b257fcf64e7e0f44738b84a35f32237a03e62034b74b0dc0c9ff276a49ab9225",
+     "bytes": 60398,
+     "baseBlob": "3c99299703a32daf18d8fc78ef8d53327bb2c07e"
+    },
+    {
+     "path": "windows/node/host.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "38bfb85bd8d812a7eb6ab93476c0cbbb1839e867",
+     "sha256": "e537f7277a69b5d809ba9994ee97744f3e9038a175efa156425aba611d157234",
+     "bytes": 318526,
+     "baseBlob": "eb8ceda7d2a9c33bcebd76375a720a09c381ebf8"
+    },
+    {
+     "path": "windows/node/isolation-client.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "8af54860ae9213606e7fc3d1d106f8db6497303c",
+     "sha256": "d2222100a2a8fc09765fd4bf38eebcea061be77401cf6e0b39ddbaf098a41a04",
+     "bytes": 17677,
+     "baseBlob": "00c6994073b384a8e412b1f608bf97520850e7ff"
+    },
+    {
+     "path": "windows/vbslike/manager/backend.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f48cfcbe7e656c004cfa8b1431712691f3b03ef5",
+     "sha256": "961d348386907452df7c742d2690709e0c6c47feaa496ca33d60298da4584e30",
+     "bytes": 5482,
+     "baseBlob": "3d1f5aa8e65c9971030b2728b5ee0f371d33e209"
+    },
+    {
+     "path": "windows/vbslike/manager/main.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "5c3cfffec89067c58873e06161765686b530e656",
+     "sha256": "11b42b3a3c66967fa4b260f9adca288f618e2e2b4f28e7487f2632ebcd6cb876",
+     "bytes": 18144,
+     "baseBlob": "c0d896a39ad3f465ac6ac918d91ae7969fe5ac0f"
+    },
+    {
+     "path": "windows/vbslike/manager/server.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "4c03940472bd010031ab041a247af89e14ce72c3",
+     "sha256": "58b5d7fd76e7d3bbd3c64780a27e8475dce4dd1aa21753f1e44aaee9c5ea8beb",
+     "bytes": 51166,
+     "baseBlob": "ba5f14c202218393fbc0ae6f83e3021d71b05ecf"
+    },
+    {
+     "path": "windows/vbslike/manager/wmi-launcher.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3ec38ac23113bb30673fd4e8d43556ba8100cd5b",
+     "sha256": "33ef5f0e57755e596a50a11a256d8a4b831a90dfd4cda6a9699f8761be4a4592",
+     "bytes": 84372,
+     "baseBlob": "3dddf7391113b7731475a17d1bdbd03bc674b783"
+    }
+   ],
+   "patches": [
+    {
+     "file": "node-shares-a5e155ec/patches/0001-0f1ef848.patch",
+     "sha256": "127840b47b05e0e9acd34f0c3d0e1f7f86d9cfd2e7bf44b03b7126c701dfa632"
+    },
+    {
+     "file": "node-shares-a5e155ec/patches/0002-14b24592.patch",
+     "sha256": "6cedd9e43c8abc85d69acb5041fd300a2f69390f9b9034a239cf166991655294"
+    },
+    {
+     "file": "node-shares-a5e155ec/patches/0003-a5e155ec.patch",
+     "sha256": "d5234f8319f2d87249f89aa200c1bd17181217df39cb93b9c806197f6b5c3039"
+    }
+   ],
+   "note": "0f1ef848 = installed NucBox control source baseline (root snapshot 2026-10-23 ~16:02-16:06Z; installed-source overlays on d281007c), 14b24592 + a5e155ec = the coupled-share fix: production files windows/node/{host,chain,isolation-client}.mjs plus regression fixtures/tests. Node worker tests per root review: new 14/14; defect 6/6 (0/6 on the baseline); client 27/27; memory 1/1; hosting 25/25; isolation 15/15; preclaim 5/5; scan 13/13. Broad suite 222/233 = the same 11 pre-existing baseline fixture failures, which are documented and NOT called green. Root-activated natively on the NucBox (node-report); not re-run by D"
+  },
+  "cpu-enforce": {
+   "repo": "work/coupled-cpu-enforcement-20261023/repo",
+   "branch": "cpu-enforcement",
+   "headReachableFromBranch": true,
+   "base": "0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2",
+   "baseProvenance": "0f1ef848 = node-shares 1st commit in THIS batch (the same commit object in both repos)",
+   "head": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+   "headTree": "5b1d4b5ae5a446ad37ac9a94e5d162f402b34757",
+   "commits": [
+    {
+     "commit": "670a753e05f85180d71402f3d8b6dbda13ae55fa",
+     "tree": "3964843520deece140f9c58388ba5b4b0e0eae8e",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T09:56:09-07:00",
+     "subject": "Manager: one purchased share sizes the VM's processors as well as its RAM",
+     "parent": "0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2",
+     "patch": "cpu-enforce-ea6717d2/patches/0001-670a753e.patch"
+    },
+    {
+     "commit": "bf376363493b5c50d2e5d2a17d162d97fd90e772",
+     "tree": "9395b5cdef2f21d51b11010a1e6037deed4a707d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:00:10-07:00",
+     "subject": "Monitor: a test seam around load's call into start (no behaviour change)",
+     "parent": "670a753e05f85180d71402f3d8b6dbda13ae55fa",
+     "patch": "cpu-enforce-ea6717d2/patches/0002-bf376363.patch"
+    },
+    {
+     "commit": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+     "tree": "5b1d4b5ae5a446ad37ac9a94e5d162f402b34757",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:00:44-07:00",
+     "subject": "Guest: the launcher's CPU allocation raises the domain's cgroup cpu.max, and is confirmed",
+     "parent": "bf376363493b5c50d2e5d2a17d162d97fd90e772",
+     "patch": "cpu-enforce-ea6717d2/patches/0003-ea6717d2.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "isolation/m3/monitor/cpu_allowance_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d3e3313f1ad123522df5cd84c59ee3ea90717417",
+     "sha256": "692479dd779dfa08fa09359ba4f89e06a4b42a10fe75b5e36fe6d1180d19adf4",
+     "bytes": 3020,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/cpu_load_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8b99bdbe386b5df1f53f7caf7c587dd6d05891f5",
+     "sha256": "e96e8efb927b42ef7cd9bfca8439a2d0d54491c6fcff4f2831f33d49451e5a15",
+     "bytes": 2907,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/main.go",
+     "status": "M",
+     "mode": "100644",
+     "blob": "35acdf3f00cc897ae795d8742c6e1d6e316971d7",
+     "sha256": "f53826db5ac10f5739c63ce0a0837c0086eebc001161f32a6dbf334241c08a74",
+     "bytes": 75357,
+     "baseBlob": "0951a9dfd0e17dd300fff1734713ec797d7ccace"
+    },
+    {
+     "path": "windows/vbslike/WMISERVE-PROTOCOL.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "995d37a76a2645f01529ea393a2014b03e48671a",
+     "sha256": "dc6cd68beaac976a2e8246d6fe79f5f3f14a1a8cf219a1ab14b7e410804caeff",
+     "bytes": 4669,
+     "baseBlob": "81ba3bd38a6a64fcf2b69d6e6faba6f024925138"
+    },
+    {
+     "path": "windows/vbslike/host/src/wmiserve.rs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "401634af634a5b2046541a0508665eea6087a182",
+     "sha256": "8699491da2eaa069910a887e208161ad25c3b465147211cd8ccbb37d9cf599d1",
+     "bytes": 27460,
+     "baseBlob": "1c2df457d33955024d85aa5595ea4462ea95b3d9"
+    },
+    {
+     "path": "windows/vbslike/manager/cpu-allocation.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d3856ed91291e9178dc43169980c11da44e4c8bc",
+     "sha256": "78ef5dabff1c56c4918bafcd0ee66f0b0aa4d488c6431949c4b88b5ed5b01743",
+     "bytes": 16665,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/vbslike/manager/cpu-share.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a1727a5a5a1571803d16dc069849035299917f01",
+     "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0",
+     "bytes": 3044,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/vbslike/manager/cpu-share.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "533abcf3082018130198895e5a8cc7993a045bea",
+     "sha256": "ebd976882be5dac52973940e4125c40e5d8535a5e04fe1a579deba220d26d06f",
+     "bytes": 5762,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/vbslike/manager/fake-hyperv.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "48ae3639960f88b2b66d955eafcfda71cf0f4d6a",
+     "sha256": "26f75ba194b4e2a8a23df8e7d012f5ff9aa6f2837b1d0b17a6b1af6e228bd763",
+     "bytes": 5111,
+     "baseBlob": "2dc9abe581495a0d07baa931d44ad7514fe9c5cc"
+    },
+    {
+     "path": "windows/vbslike/manager/main.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "0c31971eadbbe07b58f6f63148831deb5efe0b8e",
+     "sha256": "3e236ac01fa0b41545af50c11a09455c9a93164d275227171f9847ee4a837265",
+     "bytes": 20058,
+     "baseBlob": "5c3cfffec89067c58873e06161765686b530e656"
+    },
+    {
+     "path": "windows/vbslike/manager/ops/launcher-canary.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "950166c71e9c9c26ab338af0d9ec0ad0ec4ba8ca",
+     "sha256": "1656dfdab11ae01b956f0ad9a825c611a0aa14f9a210787623e981e098ec8289",
+     "bytes": 5707,
+     "baseBlob": "3dbea0442218c51cd0c1874fb03fd6c2d8414dfe"
+    },
+    {
+     "path": "windows/vbslike/manager/ops/launcher-canary.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "97a3b927fcfe2e8210e2e367929ae828890a010e",
+     "sha256": "f2c7697b31b555ed63975a44e4d70fc31c1dd9d38aeeb84865a54425dc11d8a3",
+     "bytes": 4674,
+     "baseBlob": "7390db861f682d0233e0307b465b4fcac5560e36"
+    },
+    {
+     "path": "windows/vbslike/manager/ops/manager-launcher-canary.ps1",
+     "status": "M",
+     "mode": "100644",
+     "blob": "abdaa82be8d852a94c1c08aff638bd852dc89446",
+     "sha256": "30013523b2ea96081d703f70eac4f8f130f7c08c9c1663554a4b0cec6bb7604c",
+     "bytes": 8774,
+     "baseBlob": "84ea52e6ebbe555828bda96048579d569ccc0b4b"
+    },
+    {
+     "path": "windows/vbslike/manager/server.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "b5b1ca401b996b8b74cf2c9bb48dd8646faedcc4",
+     "sha256": "9242b026977f8a48c33da798f8a897d1353a3058f2cfc636eea1d1dca872f47f",
+     "bytes": 55865,
+     "baseBlob": "4c03940472bd010031ab041a247af89e14ce72c3"
+    },
+    {
+     "path": "windows/vbslike/manager/server.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "82ee167a9873d1a6821beddd20dd778a92c65ef7",
+     "sha256": "04767c7c811b34ca4a10825df88e43b8a0976c2e6384f393460c9e32d44b0965",
+     "bytes": 43064,
+     "baseBlob": "ae04135df9f0f3f64724345e07e3e66dcd6fe402"
+    },
+    {
+     "path": "windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "fad3d57f5cc40bb810ededf19d69772dccdf2ef3",
+     "sha256": "0c7b1a8d7a3f4901624aba08123ac91d57e79088c81cb6a7579d574859c83531",
+     "bytes": 4773,
+     "baseBlob": "d83f864714c5aed5cf385461aa6ce8947e5cd2e7"
+    },
+    {
+     "path": "windows/vbslike/manager/wmi-launcher.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "3b5ee5f5edbfebe6632addb638e457d02e9bd71e",
+     "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606",
+     "bytes": 91817,
+     "baseBlob": "3ec38ac23113bb30673fd4e8d43556ba8100cd5b"
+    },
+    {
+     "path": "windows/vbslike/manager/wmiserve-run.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "68d0bbbe7116100ade38a89e0ef651686f9e3bea",
+     "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14",
+     "bytes": 13831,
+     "baseBlob": "85b944d8c62ee176c27ca6bfbb14a2635c8910ff"
+    }
+   ],
+   "patches": [
+    {
+     "file": "cpu-enforce-ea6717d2/patches/0001-670a753e.patch",
+     "sha256": "c05e8e407c2572b508194349f76622abaa74cd76d49544d11351df58ef0bf345"
+    },
+    {
+     "file": "cpu-enforce-ea6717d2/patches/0002-bf376363.patch",
+     "sha256": "9c1f4dc405bcddea2ab3f02a03e2afecc0a4c5462396f4b97fc46c2b5a0589f8"
+    },
+    {
+     "file": "cpu-enforce-ea6717d2/patches/0003-ea6717d2.patch",
+     "sha256": "44dd1e5bd00e6d076089639304413271a27390ec720cdd7f6ad95c3583a01364"
+    }
+   ],
+   "note": "CPU worker final: A 670a753e manager (one share sizes VPs as well as RAM), S bf376363 test seam (no behaviour change), B ea6717d2 guest (launcher CPU allocation raises the domain cgroup cpu.max, and is confirmed). CPU call chain 11/11 (2/11 on the baseline); guest real-load seam 3/3 (1/3 on the baseline), per root review; not re-run by D. NOT a full fix: the manager/guest rollout is pending (guest image + shield-host.exe); the CPU worker is building in a NEW workspace, which is not captured"
+  },
+  "cpu-oldguest": {
+   "repo": "work/coupled-cpu-enforcement-20261023/repo",
+   "branch": "old-guest-b",
+   "headReachableFromBranch": true,
+   "base": "670a753e05f85180d71402f3d8b6dbda13ae55fa",
+   "baseProvenance": "670a753e = cpu-enforce 1st commit in THIS batch",
+   "head": "15ad00420733ea47a5747a14687a4afb3e12a14a",
+   "headTree": "bdf8cee34f0fc8f830ca526e8c054e649db4e42d",
+   "commits": [
+    {
+     "commit": "15ad00420733ea47a5747a14687a4afb3e12a14a",
+     "tree": "bdf8cee34f0fc8f830ca526e8c054e649db4e42d",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T09:56:18-07:00",
+     "subject": "Guest: the launcher's CPU allocation raises the domain's cgroup cpu.max, and is confirmed",
+     "parent": "670a753e05f85180d71402f3d8b6dbda13ae55fa",
+     "patch": "cpu-oldguest-15ad0042/patches/0001-15ad0042.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "isolation/m3/monitor/cpu_allowance_test.go",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d3e3313f1ad123522df5cd84c59ee3ea90717417",
+     "sha256": "692479dd779dfa08fa09359ba4f89e06a4b42a10fe75b5e36fe6d1180d19adf4",
+     "bytes": 3020,
+     "baseBlob": null
+    },
+    {
+     "path": "isolation/m3/monitor/main.go",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e88a069f20760aac992d57a4608d594a26a3fbbb",
+     "sha256": "84d17dbe03c02518ad5b194047415728f0d535499cc5faa66c68c5a85a49546d",
+     "bytes": 75132,
+     "baseBlob": "0951a9dfd0e17dd300fff1734713ec797d7ccace"
+    },
+    {
+     "path": "windows/vbslike/WMISERVE-PROTOCOL.md",
+     "status": "M",
+     "mode": "100644",
+     "blob": "995d37a76a2645f01529ea393a2014b03e48671a",
+     "sha256": "dc6cd68beaac976a2e8246d6fe79f5f3f14a1a8cf219a1ab14b7e410804caeff",
+     "bytes": 4669,
+     "baseBlob": "81ba3bd38a6a64fcf2b69d6e6faba6f024925138"
+    },
+    {
+     "path": "windows/vbslike/host/src/wmiserve.rs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "401634af634a5b2046541a0508665eea6087a182",
+     "sha256": "8699491da2eaa069910a887e208161ad25c3b465147211cd8ccbb37d9cf599d1",
+     "bytes": 27460,
+     "baseBlob": "1c2df457d33955024d85aa5595ea4462ea95b3d9"
+    }
+   ],
+   "patches": [
+    {
+     "file": "cpu-oldguest-15ad0042/patches/0001-15ad0042.patch",
+     "sha256": "055b391a15246ec9c2163621877b262ccded057f2f8089cd6efb2b30c04d23b1"
+    }
+   ],
+   "note": "15ad0042 (branch old-guest-b) = the earlier guest change superseded by S+B; retained because root's native canary kit references it. The canary kit files are byte-identical at 15ad0042 and ea6717d2 (nativeKit, asserted)"
+  },
+  "node-report": {
+   "repo": "work/coupled-resource-shares-20261023",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "33ba0fc3ef5006c9be7874dd6e7fe287d07b7fda",
+   "headTree": "f7cd0dd73d092bf9d8da2a5af70bbb026309f44a",
+   "commits": [
+    {
+     "commit": "d10a78cb06ccbb05426effeaa587326ad6c03c62",
+     "tree": "ab82a09ba9c919f69f9a597f100baa6b3005ba73",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:20:28-07:00",
+     "subject": "Record verified NucBox coupled-share rollout and rollback procedure",
+     "parent": "",
+     "patch": "node-report-33ba0fc3/patches/0001-d10a78cb.patch"
+    },
+    {
+     "commit": "33ba0fc3ef5006c9be7874dd6e7fe287d07b7fda",
+     "tree": "f7cd0dd73d092bf9d8da2a5af70bbb026309f44a",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:22:43-07:00",
+     "subject": "Confirm corrected shares in the public fleet API",
+     "parent": "d10a78cb06ccbb05426effeaa587326ad6c03c62",
+     "patch": "node-report-33ba0fc3/patches/0002-33ba0fc3.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7396f9751e2aa8f0bff032a3ec75b6d578c5805f",
+     "sha256": "ca005582a173d32eb695c428d53dd954b2b0c0efaf6c135b1ccd75c37551d660",
+     "bytes": 37,
+     "baseBlob": null
+    },
+    {
+     "path": "PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0b82ec73d3a89d8d14e246cece7be3063ef11337",
+     "sha256": "d8acbc22d8e18d4c6dc6f0b50b53eeca8baeb44f23bda4aa493e4ea4010a18a1",
+     "bytes": 3973,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d38222444feba340787ef625e815de3785c0d6bc",
+     "sha256": "49edfa8bc5a6dcf0f70eb9d0006c95bf63c26ef2a225dc02f69a552a8d51f591",
+     "bytes": 10112,
+     "baseBlob": null
+    },
+    {
+     "path": "delivery/MANIFEST.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d22d08955c5dff62857acdb272f7316cb31a12af",
+     "sha256": "4317a16fbe9cfcaabe71b8a22a6314353d19e58bfdf4df8696d8e0d1bcf6d1c1",
+     "bytes": 2380,
+     "baseBlob": null
+    },
+    {
+     "path": "delivery/release-proposal.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bdf19d481bb94e1eae4b5ad110c859544601c556",
+     "sha256": "bec958512a69b295ca9c52e9d1cdcdc9334f021afdebfd29f122584656c7d46b",
+     "bytes": 907,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activate-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4d5abaf91fe985df6040235f9552ed520add7b4f",
+     "sha256": "2228059b75e1b73f3259d11a0f51ec3ef07c70780fe0f6be722f7bf5cf265d22",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activate-node.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8da18c6c9b31fbc44edac39b1ace713090672d5e",
+     "sha256": "b2efb719042953f3246be2971cb8c8c3b0288ddade2e12e2678a4f5ed50c2f21",
+     "bytes": 8719,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-install-20261023T171034Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "dba99f59a2b5603850fce6dfcfadad637e7131c2",
+     "sha256": "4979a5184a4d4efcc8214e3d224a8a867d8668fde6091d82cafb7a872f514cfe",
+     "bytes": 400,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-last.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f61cd45162666ec7b8670717ab3752b08ba46be5",
+     "sha256": "183c7b6a7e9e4bdda22601c2232bcbd45d7513366764aea7eeb45bea51d668c2",
+     "bytes": 8814,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-preflight-20261023T170926Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2e9f92c7a417f08bbbc7fe414e25d51b0631f368",
+     "sha256": "80c0d900d20921ece34d558ce263695587cc3965ce057ed69680d6d927f63c32",
+     "bytes": 3943,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-preflight-pinned.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2e9f92c7a417f08bbbc7fe414e25d51b0631f368",
+     "sha256": "80c0d900d20921ece34d558ce263695587cc3965ce057ed69680d6d927f63c32",
+     "bytes": 3943,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-stage-20261023T170901Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2479d6139d44789fac00dcf1cfe4a453cf55e1b6",
+     "sha256": "a76fb5697cc7bd52adbd504fbfab2f26a80b056f1ff84aaf60a2cdb2d51eee6d",
+     "bytes": 522,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-start-node-20261023T171059Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ed6dd1df74aed10eca1116401a622b0ffedeac63",
+     "sha256": "3c30d8a54800e2b6a778bd2600f62d19b73c465ad2f636564d262a630459826a",
+     "bytes": 405,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-stop-node-20261023T171010Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7d842c9d5b1fc22b5f75e778dd128b75eb9462a9",
+     "sha256": "372ca56b3a7b481f2a3e8357a35656f1c753eb097a9eb428ba019fbda1ff8e17",
+     "bytes": 524,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-verify-20261023T171120Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9fa88edc5fd87080836c424b77940d2860fb28a4",
+     "sha256": "f14dfc108ea0e3a25f2807d9a117191852e0f24922ac4672d3d2c41047fd6672",
+     "bytes": 8697,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-verify-20261023T171240Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "09ff1b0c0f7a6d5f6a49f27f0dd16c409d30fba3",
+     "sha256": "1a398321a29d943befe8caa76a1629a4b8513dabd364992452c5ae33cc627c54",
+     "bytes": 7485,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activation-verify-20261023T171454Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f61cd45162666ec7b8670717ab3752b08ba46be5",
+     "sha256": "183c7b6a7e9e4bdda22601c2232bcbd45d7513366764aea7eeb45bea51d668c2",
+     "bytes": 8814,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activator-parse-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activator-parse-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d66a239c7c881d3a9f39e8a35a2403360d00af30",
+     "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/activator-parse-4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/cpu-api-canary.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4502087116b1aa2b74884f55bfd657c7c5bb04cd",
+     "sha256": "47fc4a4a863ba0b8be0d1c11e92e9395d6ae0ac2a4fa2915c1407f7539688b0c",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/cpu-api-canary.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "166c620e71b80dd5899b2e2e0ca2af1b03530e42",
+     "sha256": "9c442941f282ea161e91040f36384b9bd9385601149a340dd4032b8f1da2308c",
+     "bytes": 311,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/cpu-api-canary.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "57e22c21d475d64917ce505984c7d15d1f6efbaa",
+     "sha256": "20e5f6f4e56c7da20d195aad18a09b848d93b7b8a288dc78ca61de36734d7227",
+     "bytes": 1928,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/guest-build.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "14d0713c47f33c946d0208b2898b0874de0fd36f",
+     "sha256": "0498683194fbd4c7c851419a2f296fca5cdc07d1f2064defba26b9b7c72af28e",
+     "bytes": 1137,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/node-rollout-result.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8540087e321e3695326192c7e0d4dd92b83d8326",
+     "sha256": "c1507170fb675e1cc2a686749a0c8571c91aa6ac2fee03f0b80540c59cdc2199",
+     "bytes": 1915,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/pool-config.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "db34ef8fa15222cfd49850d0b595529d04e891aa",
+     "sha256": "8a22ec89caffd2bf781eb840a07489019780b8c39379837589810878a2facc8d",
+     "bytes": 308,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/preflight-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "08beca6239364d8310a74fa828e3ea59938f36cf",
+     "sha256": "4008baa6b9c626af438908f351e6c755a8e993325de1b0004cbd3148ec323499",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/public-fleet.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d84b4e47f93cb26393e4c0fb81568ed85649129b",
+     "sha256": "60afb86184d3ddab9880702bc85bf93ac54a590117c453da0bd9a007b7887bad",
+     "bytes": 392,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/read-guest-build.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "596cf38d9925878a7583456eac5f734158cff52c",
+     "sha256": "b1acf8919a73bbf7633462495fd00aee7861a9673af7cf40f875eadf8cadbcb5",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/read-guest-build.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d2c976f6e35682d119a7ad3bdb33267716bff90d",
+     "sha256": "ca64ebc40603dbaab0396c58646cc18df36bfa1ac73415a7451d2747ac810cd6",
+     "bytes": 1222,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/read-pool-config.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "995d5de2fbc7b87b55639cd3805a9869ec73871a",
+     "sha256": "f81ea9b8ee5f8d663ff0ee5237b967fa5b9bdd2ac802584b28bd089a2b05cb7f",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/read-pool-config.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "65b59dbdf6149835e1820b5775715a9c20a86a93",
+     "sha256": "90235973c84dc182ec0e4f2473238b62e4ba78e71d9e09b44d3d14dba0c5e019",
+     "bytes": 867,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/recovery-logs-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "265604d5b634b90b0411d28ac1343cadd342cfc1",
+     "sha256": "f03c0363c822c2f688aa3aeaebad402bc5426a6f835590c444bf7aaf2368d12c",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/recovery-logs-171218.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "36c6e038497fe147d23f873296b9bee1c52a133b",
+     "sha256": "9d9f586e343132b89eb7a12e17f1a2a22b76d3c297b598249116c416a17d132f",
+     "bytes": 8786,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/recovery-logs-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4a63c8f98951b1f6f75eebae26d66a5d732f7e8f",
+     "sha256": "826d7df59081bb5ac18e9e11daf1b66fe265a51fee91ca4935afa49942d94987",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/recovery-logs-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b3f73ffb31e3451cfa0d3a313c1c72a4a4dd71e8",
+     "sha256": "79213d34e7fdf3c82f229c4b6222cda67e046a853acf82c09e80ba76220c7d9b",
+     "bytes": 9611,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/recovery-logs.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "548e659e654a14bec9c12d54e263551226c2377d",
+     "sha256": "9f3b712291e419311da1c923ce9b12d3242bd5778adedde128b954669675c5e4",
+     "bytes": 9369,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/recovery-logs.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c0003594bdd533096d110f8c09ecd344910ae51",
+     "sha256": "96fb44b54cba2130fc7129b2f54eee94d90ef9581feee16b8a510f96e983fb1f",
+     "bytes": 1076,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/release.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f0e95cb4b898122e922c8f63335bbd297188d8b5",
+     "sha256": "5d6cef359da4eee1ae8578d5e6e37dbc02548d53e2d0de6bca6cf9eb31365243",
+     "bytes": 994,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/stage-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2df1d583e7a50656e163b3502cfe0818ce6dcb31",
+     "sha256": "e6912a070f2608990b31c0e2189408caedf3b093a44e918092098d909f33e625",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/step-install.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e228fb0f65f3a05f44c42512cd8857f75ef1de05",
+     "sha256": "7fb11538ad9990d4b2857c64bf72f9b37d1e0d812f7c69c944ef4618196aa790",
+     "bytes": 3651,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/step-preflight.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "75c11ac21ca24070882812268dcbd90e6a140ff1",
+     "sha256": "4f477eb2d6ee487dac6cfc7625f97016f35225c6554181a7eb231b5c5cd0bf3e",
+     "bytes": 3393,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/step-stage.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "95c92548246736eba7895ee0a67a1bce87c86e23",
+     "sha256": "91f89215028a8034e8c0fa901a65cdf9b6be3c9bab67685ce3821842c32bb70a",
+     "bytes": 2950,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/step-start-node.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "d5472536bfab54a8b301bca93f599aacd992a8fe",
+     "sha256": "dd09f0701ab203c8e77d8ce081b7dfe100d68a0ac041bf0f6f34c654a9ff872b",
+     "bytes": 3205,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/step-stop-node.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7660bc9d7e455865e96f1b422f42ccc3bf3d2f05",
+     "sha256": "e8aaad59a3fe88e940becf44d02b15ffb8ad189d96296d8f2d3feffd4388241e",
+     "bytes": 3214,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/step-verify.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cc77cbd5ed220580355e552e23af5c3b663dd277",
+     "sha256": "6e99a2f235e18fac21877e95c8237eb863a0b15ae925d3a32cf70fbd0a51b82b",
+     "bytes": 3548,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/tls-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8faaf3071dc47aa7cef39f22293c5787205ec248",
+     "sha256": "fdbe504ee0524f7aa54f412e5ef752a986cedeee6e0c9b4ee6e57cb4404ac2ad",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/tls-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "80f4703c09266dbae1744b60247807240a50d7d2",
+     "sha256": "418dba89f862305cbc0dbb50fffada084cddbbaa356c79fe23c3b60bd6281599",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/tls-20261023T171409Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c7bb1c863555c917367c7b148bb5ad0a128bc0fb",
+     "sha256": "cc74976874680607536ea8d26bbd40b874abc7bb40f4a064df4ca9d48062ccb7",
+     "bytes": 3365,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/tls-20261023T171550Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "887477209b03deb9fc37ca014b7e63e1f56c2d6e",
+     "sha256": "013fc45f1d6189a9cfae55a895b2401c9cb2d352c96e32230c8503408f725735",
+     "bytes": 1013,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/tls-20261023T171818Z.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cbd9bfe38ca7bec5eba7fd95619a39371288b2d3",
+     "sha256": "e068a60c77246d041636be01f33db0b944e5314d728ff25fc15dfb21be4642e2",
+     "bytes": 1160,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/tls-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "47dc19d0771ca17b436ddfe50502f777445bb275",
+     "sha256": "c632edf9e924352fac01f5ad68950174f79161cc8c98409e7d6a4d62ac533839",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/verify-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bfda4a116418ebab64ceabb288802a4908101dae",
+     "sha256": "a42f38458fbd16b37314a39fe100c2d5b236b2a07ce350c011c95edba576bc3c",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/verify-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c8f9bf1f7fa575ae5ec9e66b9c6ed1581f21e8bf",
+     "sha256": "7d14b28757dbd1487d00953d657b25c55811b3c7dcf4477c1d4f985d3b2ce606",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/verify-2.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "05ca5865dd67ddad2f6050a75109742852cfc4d0",
+     "sha256": "5082e88162d578f4e64e587ff6f4f5cc45afe5d618c61aa536446bee445ec530",
+     "bytes": 6140,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/verify-3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "432a6ae3aae48594b8bd4b66570524ecd7af2efb",
+     "sha256": "89f6c2f0e13b88ada8b6a8f0aae32d35325190e52d25c2cb2d3b71486d860978",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/verify-3.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e20f17a135a599416d962af6d17e77164ff22c42",
+     "sha256": "874add3c9f738f0e9881a27a118ee2268c5368ccb5abdaca8f7a1eeabfc215ff",
+     "bytes": 7041,
+     "baseBlob": null
+    },
+    {
+     "path": "root-validation/verify-public.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f637e2f57e8cfeb7a4c4136bad413643986affd5",
+     "sha256": "799cea4b44551353e25c1854235563859efe449f6280f5d081e7635616bcd9dd",
+     "bytes": 1863,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "node-report-33ba0fc3/patches/0001-d10a78cb.patch",
+     "sha256": "fa4167aed776b6c75d6493f1e44e3d2288304d4c8cb7e79d398462edee144136"
+    },
+    {
+     "file": "node-report-33ba0fc3/patches/0002-33ba0fc3.patch",
+     "sha256": "288e1921dec25c3f389b50581c903196f1471621c9d43f3d40fc0dc70b2327cd"
+    }
+   ],
+   "note": "ROOT-reviewed NucBox coupled-share rollout report: native node activation, root rollback helper, VM snapshots, TLS retries and public fleet API evidence (17:22:15 public API: 17% CPU, 16.3 GiB RAM of 96 GB, all 9 apps running, c13 resized 983 -> 1966 MiB / 2%, other 8 VM IDs unchanged; all 9 public TLS/HTTP 200 by 17:18). Committed tree only; the untracked installed/, delivery/files/, logs/, jobs/, root notes and live-read files are NOT captured. The whole CPU fix is NOT complete"
+  },
+  "root-cpu-canary": {
+   "repo": "work/coupled-cpu-enforcement-20261023/root-validation",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "c516049cb763149ad261b32c7eac16524d49b939",
+   "headTree": "777366f2b326d8587d0a97d9b3789d21d34bab91",
+   "commits": [
+    {
+     "commit": "c516049cb763149ad261b32c7eac16524d49b939",
+     "tree": "777366f2b326d8587d0a97d9b3789d21d34bab91",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:03:46-07:00",
+     "subject": "Verify exact CPU shares and SMP on NucBox using isolated native canaries",
+     "parent": "",
+     "patch": "root-cpu-canary-c516049c/patches/0001-c516049c.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "native-canary.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2eae6ac273ac154bd10099849e109f60a3c18a34",
+     "sha256": "5d14fffd75ce8d4f90f4dcaa5993fefbae3dcd84263fe247086c6ab7956e7b8c",
+     "bytes": 5046,
+     "baseBlob": null
+    },
+    {
+     "path": "native-read.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "af6a84b89dc0d9592dfaddb162f4b9ad2d9f632c",
+     "sha256": "b003c4a972fc4cf7caf118309ee12973bae94108fd7d8a367f654b09483ba8a0",
+     "bytes": 515,
+     "baseBlob": null
+    },
+    {
+     "path": "native-run.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "152381fe6bfbbdfaabfd733d9c46433e2d37ad49",
+     "sha256": "ea9edc5819a930e2200cb3cf501e8f6dfd27b02c1b9df86245a50edc9fe4b7ef",
+     "bytes": 2406,
+     "baseBlob": null
+    },
+    {
+     "path": "native-stage.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2b727589d914a97978d5a13e5bc936fe42b49b53",
+     "sha256": "b960cd9779669091d99a95c18b2f00e35d1a1a297cb26d389c33bbf728d08641",
+     "bytes": 2757,
+     "baseBlob": null
+    },
+    {
+     "path": "read-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "44bfa384883de7415dfe174dc57fbb4c53ee41dc",
+     "sha256": "82181973ec56bc527b4776994e66cd0f7d66cdd34385376ebd0853957df8fe26",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "read-1.out",
+     "status": "A",
+     "mode": "100644",
+     "blob": "2a4b38fc138a740a39351ffdde25707efaa5cb9d",
+     "sha256": "f5752948805b975909ffbd382aa7d95a8aa7139b539d8e8cab06251b0e94ba7e",
+     "bytes": 20589,
+     "baseBlob": null
+    },
+    {
+     "path": "read.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "174635835a3f1e1393af2aa144c2b9c20151a273",
+     "sha256": "5b40fce772d37b05dc2917ae0e3b5efd83b846fe9a7db86a50d62c714c201bdb",
+     "bytes": 20880,
+     "baseBlob": null
+    },
+    {
+     "path": "run-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f2c04b270d78ae849932567f778257f2193ee3c3",
+     "sha256": "fedd1e1ecaf2db7a746b41677b8b4cd156dc56e623c260b96c95858151e95f6f",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "run.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "833492f637c08caa76644c48e199db5eecb9e95e",
+     "sha256": "a3620e5914ce14a05708c8d8abf96601a27df7dee9542dbf96b03e49b7bd0b96",
+     "bytes": 1486,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd5cecb6df23c9511d8d920d1615d3aee487e82f",
+     "sha256": "2aab6245fc6de82818070371c7148d2936d8fd58a2974e77d6ce9a3a6e0b2f92",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "stage-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0ca754eab54b769943994695c3fe4a82da121da0",
+     "sha256": "31edaac03dd8711c529ee0da83688a60bf73ce3e121dc894b89ece973a15a3f8",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "stage.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "28e2734a11f4dd3eeaa35d20c1b93c8d36576934",
+     "sha256": "0e977f0751f8c1e7ab69e850f046eb624e7f4f38a245cfbfa2bce84426516176",
+     "bytes": 3402,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-cpu-canary-c516049c/patches/0001-c516049c.patch",
+     "sha256": "5839f1aaa325c23da0d3b823e54296a8e62fcb65dfe5b039316adc474def6112"
+    }
+   ],
+   "note": "ROOT-run native Hyper-V type-1 canary on the current image: 1%/21%/13% exact WMI limit and reservation, all guest VPs online, cleanup 0, the 12 original VM IDs/states and manager PID 2376 unchanged. No production manager or image was updated. Guest cgroup enforcement is NOT yet native. Committed tree only"
+  }
+ },
+ "derivatives": {},
+ "nativeKit": {
+  "dir": "work/coupled-cpu-enforcement-20261023/native-canary/kit",
+  "files": [
+   {
+    "path": "windows/vbslike/manager/cpu-share.mjs",
+    "blob": "a1727a5a5a1571803d16dc069849035299917f01",
+    "sha256": "50ca362649a1b53486b9ad9906e9cb51890b1a4a4973babeb09098a7dfcf6bf0"
+   },
+   {
+    "path": "windows/vbslike/manager/egress.mjs",
+    "blob": "aa6833b86744ac3f366ada668ae67b4788ea088a",
+    "sha256": "1686229adeee15cf1c28017ccbb355dcd47bc24650579414c9fc4e2b01915e05"
+   },
+   {
+    "path": "windows/vbslike/manager/ops/launcher-canary.mjs",
+    "blob": "950166c71e9c9c26ab338af0d9ec0ad0ec4ba8ca",
+    "sha256": "1656dfdab11ae01b956f0ad9a825c611a0aa14f9a210787623e981e098ec8289"
+   },
+   {
+    "path": "windows/vbslike/manager/psrun.mjs",
+    "blob": "469c0f8a366702c9eefe879794ac5acf13e28032",
+    "sha256": "39ed693cd9e4258bf6f5b1e2c9b14b90e8314743b95b37e1dc8ec6283b1720b6"
+   },
+   {
+    "path": "windows/vbslike/manager/wmi-launcher.mjs",
+    "blob": "3b5ee5f5edbfebe6632addb638e457d02e9bd71e",
+    "sha256": "2573e9963904446d0fdd3706fef6c115cb47258d2df3e1c5c0b59750f7107606"
+   },
+   {
+    "path": "windows/vbslike/manager/wmiserve-run.mjs",
+    "blob": "68d0bbbe7116100ade38a89e0ef651686f9e3bea",
+    "sha256": "9f6ea7ecf1f3bf28337f808c0f3bd49fe255a82199d4f8e14730904f500aaf14"
+   },
+   {
+    "path": "windows/vbslike/verify/boot-statements.mjs",
+    "blob": "a95d48a9820a639008287fd6cc2a06cff146bcf1",
+    "sha256": "f34a98484a9190b08dcd3d06a3fe28f35e702e764b64d4d3eca6d9b79c5816d3"
+   }
+  ],
+  "note": "kit copies = repo blobs at 15ad0042 and ea6717d2 (asserted) and KIT-MANIFEST.json sha256s; no prebuilt binary in the kit"
+ },
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "../coupled-cpu-enforcement-20261023/FINAL.txt": "21e67e0bf1177d1374a336ab73dafe5b289294b2a52291a498bb1bddbe543de9",
+  "../coupled-cpu-enforcement-20261023/native-canary/run-cpu-canary.ps1": "853570b417d80a2b103ebb8b9b82e3ac33d053313ee194e68ae354f410ab7c49",
+  "../coupled-cpu-enforcement-20261023/native-canary/KIT-EXPECTED.json": "f79dbfc43c2710fb64e7555bdf20a9d37234b665ef8eba2773e50f6ba3f58048",
+  "../coupled-cpu-enforcement-20261023/native-canary/KIT-MANIFEST.json": "247e3c239a92f0ad313388346a1ab5d05033b953c3d04b73b3051624af51be5b",
+  "../coupled-cpu-enforcement-20261023/native-canary/NATIVE-CANARY.txt": "68c462447c01f1e6c54d8e7a98305aeb9cbcafe4d8defe17a70ea57c4857170b",
+  "source-preservation/RESULT-frozen-1639-checkpoint.md": "551270ba0dcb1af0c84639f2d6c1d8ecfd0b20a6eedfd6b589a7f4136380eca2",
+  "source-preservation/snapshots-1726/ROOT-PENDING-LATEST.snapshot-1726.txt": "5de232d31a08e5f285d3b424543ed0a5b1e44315bafcd69e39cf4c9b04eea058",
+  "source-preservation/snapshots-1726/effective-goal-requirements.snapshot-1726.txt": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2"
+ },
+ "rootEvidence": {
+  "../../outputs/decentralization-audit/nucbox-cpu-share-native-canary-20261023.json": "2b21b3675f18a08ead1f5855585b617bcbb32c60b105922e58ac608dcf1c82e0",
+  "../../outputs/decentralization-audit/nucbox-coupled-accounting-active-20261023.json": "c1507170fb675e1cc2a686749a0c8571c91aa6ac2fee03f0b80540c59cdc2199"
+ },
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "the CPU worker's NEW build workspace and outer build/progress files (build/, freeze/, scratch/, seam-tree/, baseline-tree/, BUILD-*.txt, *progress*.txt, run-*.sh, logs/) and any binary; its ROOT-*.txt coordination notes",
+  "untracked files of the node report repo (installed/, delivery/files/, delivery/rollback/, delivery/installed-to-fix.patch, installed-*-manifest.json, jobs/, logs/, root notes, read-*.py, cpu-live.json, guard logs) and of root-validation",
+  "resource-guest-lineage-20261023 and every other active tree; M sealed-startup and T HDD client recovery (later batch)"
+ ]
+}

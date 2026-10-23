@@ -1,0 +1,77 @@
+[queue] START available=24642MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{
+  "at": "2026-10-23T17:17:22.7722415Z",
+  "node": [
+    "17:14:49 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:14:52 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:14:55 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:14:58 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:15 [node] 0xc13d4b6a certificate: none for c13d4b6a.app.enclave.host (the order for c13d4b6a.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+    "17:15:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+    "17:15:35 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:38 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:41 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:45 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:49 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:52 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:55 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:15:58 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:01 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:01 [node] [host] checkpoint 0x59f1273d failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+    "17:16:15 [node] 0xc13d4b6a certificate: none for c13d4b6a.app.enclave.host (the order for c13d4b6a.app.enclave.host is in flight (the relay is still getting it)); retry in 30s",
+    "17:16:31 [node] [host] registry: setPrices failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+    "17:16:35 [node] [host] 0x7ae476a3 isolation adopted: hvba429ebb1c40a95c27186168f7669f74 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:38 [node] [host] 0x38f368d6 isolation adopted: hvdc425d67f2b0e16d83e393766f786d10 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:40 [node] [host] 0xe64f7cba isolation adopted: hv3c8e73d2d9c235d0e91dcfcccdbee49d status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:43 [node] [host] 0xd9798e4c isolation adopted: hv5e00a0f0dfae6122912103ad8361ce22 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:45 [node] [host] 0xa77d0c57 isolation adopted: hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:48 [node] [host] 0xc13d4b6a isolation adopted: hv2dd42ee0ca9d667ebb314782286900d0 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:51 [node] [host] 0x59f1273d isolation adopted: hve60d223d27d01b8bcacb65a8e46f2e78 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:54 [node] [host] 0xef514ed3 isolation adopted: hv255b5ea98b99cf19c2e420f6a5a271ca status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:16:57 [node] [host] 0xa69dcbba isolation adopted: hvc6c4073c817dadf1d692f67b6f9222e3 status=running image=5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d",
+    "17:17:07 [node] 0xc13d4b6a certificate: c13d4b6a.app.enclave.host installed in partition hv2dd42ee0ca9d667ebb314782286900d0 (key 18053cd8dc6ee991\u00e2\u20ac\u00a6, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z; domain monitor-signed)"
+  ],
+  "network": [
+    "17:10:33 [privacy] app 0x7ae476a3 circuit d5c83ceea735d2468d86cbe2a7d13300: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
+    "17:10:33 [privacy] app 0x7ae476a3 circuit eb523b77da8a1fd7c6cbb44d474ad697: route verification failed: no current local guest proof",
+    "17:10:33 [privacy] app 0x38f368d6 circuit 202c685f7d18b575f99ce913dcae5076: probe 1/3 failed: Client network socket disconnected before secure TLS connection was established",
+    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
+    "17:10:33 [privacy] optional discovery transport: all public directory publications failed: read ECONNRESET; read ECONNRESET; read ECONNRESET; read ECONNRESET",
+    "17:10:33 [privacy] wallet admission withheld: invalid or expired wallet admission document",
+    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:51352",
+    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887; connect ECONNREFUSED 127.0.0.1:56887",
+    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56887",
+    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991; connect ECONNREFUSED 127.0.0.1:56991",
+    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56991",
+    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855; connect ECONNREFUSED 127.0.0.1:56855",
+    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:56855",
+    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592; connect ECONNREFUSED 127.0.0.1:61592",
+    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:61592",
+    "17:10:34 [privacy] optional discovery transport: all public directory publications failed: connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076; connect ECONNREFUSED 127.0.0.1:60076",
+    "17:10:34 [privacy] optional discovery transport: connect ECONNREFUSED 127.0.0.1:60076",
+    "17:12:43 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca",
+    "17:13:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (9 more since the last line)",
+    "17:14:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+    "17:15:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)",
+    "17:16:44 [privacy] local guest proof 0xc13d4b6a: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca (10 more since the last line)"
+  ],
+  "availability": {
+    "nodeRamGb": 96,
+    "ramGbFree": 16.3,
+    "apps": {
+      "isolation": "hyperv-partition-per-app",
+      "tier": "enclave-shield",
+      "hostExcluded": false,
+      "hostOsExcluded": true,
+      "operatorExcluded": false,
+      "inTee": false,
+      "running": 9,
+      "capacity": 16,
+      "scope": "market",
+      "note": "each app has a measured Shield partition and guest-held TLS key; the relay verified its boot and readiness evidence; physical operator and hypervisor remain trusted"
+    }
+  }
+}
+[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24623
+[memory-guard] at peak: python3:15 ssh:12 timeout:4
+[queue] EXIT 0

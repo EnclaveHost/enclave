@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-23T17:15:50.623142+00:00",
+  "results": [
+    {
+      "host": "38f368d6.app.enclave.host",
+      "address": "134.199.235.187",
+      "ok": false,
+      "error": "The read operation timed out"
+    },
+    {
+      "host": "38f368d6.app.enclave.host",
+      "address": "134.209.248.172",
+      "ok": false,
+      "error": "The read operation timed out"
+    },
+    {
+      "host": "c13d4b6a.app.enclave.host",
+      "address": "134.209.248.172",
+      "ok": false,
+      "error": "_ssl.c:1064: The handshake operation timed out"
+    },
+    {
+      "host": "c13d4b6a.app.enclave.host",
+      "address": "146.190.246.39",
+      "ok": false,
+      "error": "_ssl.c:1064: The handshake operation timed out"
+    },
+    {
+      "host": "ef514ed3.app.enclave.host",
+      "address": "146.190.246.39",
+      "tlsVerified": true,
+      "serial": "75B9E47882A32AD251DAB1C7B709A637",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    }
+  ],
+  "ok": false
+}

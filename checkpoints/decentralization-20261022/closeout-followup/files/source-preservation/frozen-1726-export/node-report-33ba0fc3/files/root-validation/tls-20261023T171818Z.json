@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-23T17:18:18.490619+00:00",
+  "results": [
+    {
+      "host": "38f368d6.app.enclave.host",
+      "address": "134.199.235.187",
+      "tlsVerified": true,
+      "serial": "248EA7B600B54B59D6A154353E84FB03",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "38f368d6.app.enclave.host",
+      "address": "134.209.248.172",
+      "tlsVerified": true,
+      "serial": "248EA7B600B54B59D6A154353E84FB03",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "c13d4b6a.app.enclave.host",
+      "address": "134.199.235.187",
+      "tlsVerified": true,
+      "serial": "A2983374FD95457E73E045F018968BEC",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    },
+    {
+      "host": "c13d4b6a.app.enclave.host",
+      "address": "165.245.191.129",
+      "tlsVerified": true,
+      "serial": "A2983374FD95457E73E045F018968BEC",
+      "expires": "Jan 21 23:59:59 2027 GMT",
+      "response": "HTTP/1.1 200 OK",
+      "ok": true
+    }
+  ],
+  "ok": true
+}

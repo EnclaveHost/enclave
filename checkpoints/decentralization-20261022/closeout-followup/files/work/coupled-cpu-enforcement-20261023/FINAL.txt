@@ -1,0 +1,135 @@
+CPU ENFORCEMENT — FINAL (CPU worker, frozen 2026-10-23). Source and tests only. I ran nothing native and staged or
+activated nothing. No SSH.
+STATUS: NOT a full fix yet. Compute is fixed only after (1) root's native canary passes, (2) package A is activated, and
+(3) package B ships in a new guest image + shield-host.exe. Until (3), apps above 1/16 cannot use their entitlement.
+
+SOURCE  repo work/coupled-cpu-enforcement-20261023/repo, branch cpu-enforcement, on the node worker's immutable baseline
+  0f1ef848b21e03f6fd6c4852d7cccff6f18ba2b2. Author and committer are SteveDeFacto <5148995+...@users.noreply.github.com>,
+  with no trailers.
+   A  670a753e0  Manager: one purchased share sizes the VM's processors as well as its RAM   (windows/vbslike/manager/** only)
+   S  bf3763634  Monitor: a test seam around load's call into start (no behaviour change)
+   B  ea6717d27  Guest: the launcher's CPU allocation raises the domain's cgroup cpu.max, and is confirmed
+  15ad00420 (branch old-guest-b) is superseded by S+B: same fix, but without the seam and the load test. Root's canary
+  receipt can still resolve it.
+  freeze/patches/000{1,2,3}-*.patch, freeze/package-{A,B}.diff, freeze/PACKAGE-{A,B}-MANIFEST.json.
+  No overlap with the node worker's 14b245926 (windows/node/*, test/*). health.cpu is additive and sits beside
+  health.memory.
+
+DEFECT (installed baseline, proven below): every app VM had 1 VP, Limit 100000 and Reserve 0 whatever its share
+  (cpu-live.json: 16 LP; all 9 apps at shares .01-.25 had Maximum 100 / Reserve 0). RAM followed floor(98304*share).
+  CPU did not.
+
+PACKAGE A (manager; works with the CURRENT guest image)
+  Rule (cpu-share.mjs; units are Msvm_ProcessorSettingData percent/1000 per VP):
+    entitlement = floor(pool*share*1e5 + 1e-6)
+    VPs         = max(catalog vcpus, ceil(entitlement/1e5)), and <= pool
+    Limit       = Reservation = floor(entitlement/VPs), and >= 1000
+    granted     = VPs*Limit (never over the entitlement; under by fewer than VPs units)
+    On 16 LP: 1% -> 1 VP @16000 | 13% -> 3 @69333 | 17% -> 3 @90666 | 21% -> 4 @84000 | 25% -> 4 @100000.
+  Call chain:
+    1. Manager.spawn takes the same body.cpuShare that sizes RAM (the witness keeps its exact current launch) and passes
+       backend.start opts.appCpu.
+    2. WmiHyperVLauncher defines the VM with New-CustomVM -VpCount VPs (the define script is UNCHANGED).
+    3. The new CMD.processor script runs on the never-started VM (must be Off and ours by its Notes). It calls
+       ModifyResourceSettings only when the values differ, re-reads VirtualQuantity/Limit/Reservation/AllocationUnits
+       plus the Get-VMProcessor Count, and throws on any mismatch. checkProcessor states the same check again.
+    4. Any failure removes the VM by its Id.
+    5. startAndRead, then wmiserve --vcpus VPs.
+  Pool: the node's own rule, NODE_VCPUS || os.cpus().length (16 on NucBox). main.mjs refuses to start (exit 2) on an
+    explicit value that is invalid, above 1024, or set without NODE_APP_RAM_GB. Preflight reads Hyper-V
+    LogicalProcessorCount and keeps the last good value. If the pool is unknown or larger than that count, real
+    deployments get 503 and /health canStart is false.
+  Admission: sum(granted for held domains, witness = 1 VP) + new <= pool*1e5, else 507. Recovered partitions => 503.
+  Metadata:
+    /health.cpu: rule, poolVcpus, source, hostLogicalProcessors, allocatedUnits, freeUnits.
+    record.cpu: entitlementUnits, vcpus, limit, reservation, grantedUnits, readback, guestOnlineVcpus (console
+      "MON ... vcpus=N"), appCpuPercent, appCapUnits, realizableUnits, blocker. An unobserved online count counts as 1 VP.
+  With the current image the monitor's cgroup caps the app at the catalog cpuPercent (1 CPU). The record states this,
+    but per root's ruling it is NOT an acceptable end state.
+  ENCLAVE_GUEST_CPU_ALLOWANCE (default off) is the manager half of B. It sends ceil(granted/1000) only when that is above
+    the catalog cpuPercent. A missing or mismatched echo is refused, never served. The GPU launcher has it forced off.
+  Installed delta: 5 files in C:\Program Files\Enclave\control\windows\vbslike\manager\. "Was" is root's installed
+    snapshot, which equals the baseline.
+    cpu-share.mjs     50ca362649a1b534  NEW
+    main.mjs          3e236ac01fa0b415  (was 11b42b3a3c66967f)
+    server.mjs        9242b026977f8a48  (was 58b5d7fd76e7d3bb)
+    wmi-launcher.mjs  2573e9963904446d  (was 33ef5f0e57755e59)
+    wmiserve-run.mjs  9f6ea7ecf1f3bf28  (was 8107f272741c40a3)
+    Full hashes are in freeze/PACKAGE-A-MANIFEST.json and the files in freeze/package-A-installed-delta/. No config change
+    is needed.
+
+PACKAGE B (guest CPU allowance; root-requested)
+  Monitor allocatedPolicy: a bundle load's cpu RAISES the domain's cgroup cpu.max when
+    catalog cpuPercent <= cpu <= online CPUs*100, and refuses it otherwise. No silent ignore, no lowering, no unbounded
+    override. The manifest, AppID and report policy are unchanged, and the load answer echoes cpuPercent.
+  wmiserve --app-cpu (at most 100 per VP) is sent as the load's cpu. wmiserve refuses to serve, and destroys the domain,
+    unless the echo matches; it prints cpuPercent and memMiB on its load step.
+  Compatibility:
+    - Old wmiserve: it ignores --app-cpu and states no cpuPercent, so the manager refuses the start.
+    - New wmiserve on an old monitor: the echo is 100, so wmiserve refuses.
+    - The m3ctl dev tool sends cpu equal to its own bundle policy, which is accepted.
+  Build/stage (image owner/root; NOT done by me):
+    No in-scope kit builds the legacy CPU image. The installed runtime.bin 5fbfb947 (VBS digest 8414496C...) was built by
+      /home/steven/enclave-bench/nucbox-public-web-20261005/build-image.mjs over initrd f86fb512 (kernel 6bbd7340,
+      igvmfilegen 81647f66, manifest 0ce9d8a8; it reproduces b7ba7731 first).
+    Its monitor 82af9d87 came from 28d642888 plus an uncommitted diff, so a monitor-only swap cannot be built from
+      source. Two options:
+      (1) Legacy candidate: f86fb512 with init, domexec, front (WITHOUT the shielddirect tags), monitor and secretrun
+          compiled from B, in the image-kit compile.sh/pack.py style, then assembled with that build-image.mjs. One
+          1024 MiB queue job, existing Go 1.27.2/gcc/igvmfilegen. This is a full current-source guest release and needs
+          full guest validation.
+      (2) Carry B in the next current-source image (image-kit/rebuild-current.sh with source = B).
+    Then pin these together:
+      - the new runtime.bin sha: ENCLAVE_GUEST_IGVM_SHA256 (from build-bundle.ps1:38 and the bundle manifest)
+      - a shield-host.exe built from wmiserve.rs: ENCLAVE_WMISERVE_EXE_SHA256. Root's remote compile; I only ran
+        cargo check.
+      - ENCLAVE_GUEST_CPU_ALLOWANCE=1
+    The RuntimeID is unchanged if plat/rt/runtime.json is kept. Release signing and publication of the installer bundle
+      are root's.
+    Measurement registration, per the trace (root to confirm): NucBox tier hv-node has no launch-digest allowlist
+      (docs/security/nucbox-custom-vm-verifier.md:47, verifier/pins/nucbox-vbs-reference.json does not list 5fbfb947),
+      and a current-source monitor states W^X/seccomp, so judge-hv needs no table entry. No trust or attestation gate is
+      widened.
+
+TESTS (all through work/claude-test-queue.py; logs/)
+  final1 (Go + Node in one 1024 job; Node peak 212 MiB): Node 233 tests, 222 pass. The 11 failures are exactly the 11
+    that fail on the untouched baseline (both1): test/windows-manager-vm-scope [no markerFor], windows-shield-image-
+    selection 12-19,22 and model-volumes [no checkDisks] are newer d281007c2 tests over the older installed overlay.
+    The one new failure in both1 (ops canary "share-sized 21%") was a test host without a processor answer. It was
+    repaired, and it passes in final1.
+  counter1 (256): the final cpu-allocation.test.mjs (78ef5dab) on baseline 0f1ef848b fails 9/11: VpCount 1 instead of 4,
+    no processor step or read-back, no pool refusal, no CPU oversubscription refusal, no allowance. The 2 that pass
+    there are bad shares and recovered => 503, which the RAM path already enforced. At A..B HEAD it passes 11/11.
+  guest2 (1024): the real m.load path through the startDomain seam, with cpu_load_test.go identical on both trees:
+    - seam-only bf3763634 (pre-fix behaviour): asked for 336, the domain got cpuPercent 100 and cgroup cpu.max
+      "100000 100000", and the answer said 100. 16 was silently accepted. 2 of 3 FAIL.
+    - fix ea6717d27: 336 applied, cpu.max "336000 100000", answer "cpuPercent":336. No request keeps 100. 16 is
+      refused. 3/3 pass.
+    - full monitor package ok; gofmt clean.
+    Limit: this writes into a temporary directory. It is not live cgroup enforcement; that needs the guest image canary.
+  guest1: cargo check --offline --target x86_64-pc-windows-gnu of the host crate rc=0. wmiserve.rs is byte-identical in
+    B. guest1's Go-on-baseline step failed to COMPILE (allocatedPolicy absent). That is not behavioural proof; guest2
+    replaces it.
+  Comparison scripts exit 0 by design. Pass/fail is the counts above, not the script exit code.
+  Covered: the manager -> backend -> launcher chain; the WMI quota script; the read-back hard failure (6 mismatch shapes)
+    and VM removal; wmiserve argv --vcpus/--app-mem/--app-cpu; guest online count; 1%/13%/17%/21%/25%; 9 bad shares;
+    6 bad pools, pool > LP and an unread LP; oversubscription including the witness; recovery 503; the no-pool lab is
+    unchanged; allowance applied/ignored; main.mjs startup. NOT covered: any native Hyper-V or live-cgroup behaviour.
+    No throughput claim.
+
+NATIVE CANARY (root): native-canary/NATIVE-CANARY.txt, run-cpu-canary.ps1 (853570b4...), kit/ (7-file closure),
+  KIT-MANIFEST.json (247e3c23..., unchanged since root staged it) and KIT-EXPECTED.json (want/read-back/guest per share;
+  rollout blockers).
+  Shares .01/.21/.13 on the production image/VMGS/module. It checks the read-back, the guest "vcpus=N" line and
+  removal. 1 of 4 VPs online is a ROLLOUT BLOCKER.
+
+ACTIVATION A (root, after canary PASS):
+  1. Copy the 5 files and verify them against PACKAGE-A-MANIFEST.
+  2. Restart the manager. Restart semantics are unchanged: running VMs come back recovered and not serving until the node
+     reconciles, and admission is 503 meanwhile.
+  3. Check /health.cpu: poolVcpus 16, source os.cpus, hostLogicalProcessors 16, and canStart true.
+  4. On a new spawn, check that record.cpu.readback equals the request and that Get-VMProcessor agrees.
+  Existing VMs keep 1 VP at 100% until relaunched. The VP count needs the VM Off; Limit/Reservation could change live,
+  but that is not implemented.
+ROLLBACK A: restore the 4 files from root's installed snapshot (hashes above), remove cpu-share.mjs and restart the
+  manager. VMs made under A keep their processor settings until relaunched, which is harmless.
