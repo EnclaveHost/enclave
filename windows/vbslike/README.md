@@ -135,6 +135,12 @@ Remote paths: `C:\Users\claude\vbs-like\{host,verify,apps,out}`, `wsl-kernel` (a
   guest firmware): the one Hyper-V construct that would exclude the root partition from a domain's
   memory on this hardware. It needs the OpenHCL image and, on a client SKU, `AllowFirmwareLoadFromFile`
   (a host-wide registry value) — a deployment change, deliberately not made in this pass.
+  **DEMONSTRATED 2026-10-23** (`evidence/e3-host-memory-20261023/RESULT.md`): on a VBS type-1 partition
+  the root partition's VTL0 cannot read the guest's private memory — a privileged host live capture
+  that DOES read a non-isolated child partition's guest RAM does not contain the isolated guest's
+  guest-only secret (same GPA-backed partitions, differing only in the isolation bit). The per-app
+  report still carries `hostExcluded:false` (box-local demonstration, not report-attestable); residual:
+  a raw-SPA kernel-debugger read, blocked by Secure Boot, not run.
 - **The Linux live suite after the monitor change: re-run and passing** (2026-09-23, in a window the
   M3b owner handed over): `test-m3.sh` on the M3b path (COCONUT-SVSM at VMPL0, monitor at VMPL2, digest
   derived from the IGVM `62b4a946…` equal to the live report) 31/31, and on the plain M3a path 31/31 with
