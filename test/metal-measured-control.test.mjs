@@ -118,7 +118,13 @@ test("planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, anoth
 
 test("gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct", () => {
   const now = fs.readFileSync(path.join(REPO, "metal/guest/gsup.mjs"), "utf8");
-  const head = execFileSync("git", ["show", "HEAD:metal/guest/gsup.mjs"], { cwd: REPO, encoding: "utf8" });
+  // The REFERENCE is the reviewed main release before the direct-control composition (7752a423), not HEAD: HEAD already
+  // carries every reviewed change listed below, so comparing against it could never hold (and only passed where HEAD was
+  // that base). It must be an ancestor of the tree under test: the invariant is "the legacy launch of the reviewed base,
+  // changed only by these reviewed wrappers".
+  const BASE = "7752a4239b3bec2cf452491cd1b95164a8c2bdb8";
+  execFileSync("git", ["merge-base", "--is-ancestor", BASE, "HEAD"], { cwd: REPO });
+  const head = execFileSync("git", ["show", `${BASE}:metal/guest/gsup.mjs`], { cwd: REPO, encoding: "utf8" });
   const legacy = (s) => s.slice(s.indexOf("const supEnv = {"), s.indexOf("// --- shielded GPU"));
   // the one reviewed change inside it: the supervisor gets its lease-gas names from the conduit only (lease-gas-conduit.mjs)
   const LEASED = "withLeaseGasEnv(supEnv, LEASE_GAS)";
@@ -135,7 +141,7 @@ test("gsup: the legacy path is untouched; the direct branch runs only for metal.
   // and the reviewed metal host policy (6f2c7da4, network/metal-host-policy.mjs): the fw_cfg wallet-policy names, after the flavor
   const HOSTED = "  ...HOST_POLICY_ENV,\n";
   assert.equal(legacy(now).split(HOSTED).length, 2, "...the metal host policy's names, once, right after the flavor");
-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(VERIFIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical, only wrapped in if (!CONTROL)");
+  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(VERIFIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical to the reviewed base, only wrapped in if (!CONTROL)");
   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);
