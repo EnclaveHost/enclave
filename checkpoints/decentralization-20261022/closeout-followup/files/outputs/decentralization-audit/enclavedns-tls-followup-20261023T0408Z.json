@@ -1,0 +1,64 @@
+{
+  "checkedAt": "2026-10-23T04:06:52.308138+00:00",
+  "url": "https://59f1273d.app.enclave.host/",
+  "observations": [
+    {
+      "address": "146.190.246.39",
+      "trustedHostnameAndChain": true,
+      "expires": "Jan 20 23:59:59 2027 GMT",
+      "issuer": [
+        [
+          [
+            "countryName",
+            "AT"
+          ]
+        ],
+        [
+          [
+            "organizationName",
+            "ZeroSSL GmbH"
+          ]
+        ],
+        [
+          [
+            "commonName",
+            "ZeroSSL ECC DV SSL CA 2"
+          ]
+        ]
+      ],
+      "sha256": "f3ee30e226789d195bb7eb6c398e705529a090c80651e5ff76002de6dc1cef71",
+      "httpStatus": 200,
+      "responseBytesRead": 1623
+    },
+    {
+      "address": "165.245.191.129",
+      "trustedHostnameAndChain": true,
+      "expires": "Jan 20 23:59:59 2027 GMT",
+      "issuer": [
+        [
+          [
+            "countryName",
+            "AT"
+          ]
+        ],
+        [
+          [
+            "organizationName",
+            "ZeroSSL GmbH"
+          ]
+        ],
+        [
+          [
+            "commonName",
+            "ZeroSSL ECC DV SSL CA 2"
+          ]
+        ]
+      ],
+      "sha256": "f3ee30e226789d195bb7eb6c398e705529a090c80651e5ff76002de6dc1cef71",
+      "httpStatus": 200,
+      "responseBytesRead": 1623
+    }
+  ],
+  "healthy": true,
+  "limitation": "Current public DNS addresses only; does not prove future renewal or provider independence."
+}

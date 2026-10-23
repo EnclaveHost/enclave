@@ -1,0 +1,102 @@
+{
+ "base": "d7f520bf8eca94ce3464bc0b70a0619261c04b68",
+ "commit": "427780bbc0fc524f8091893614eae8a653518139",
+ "files": [
+  {
+   "path": "network/privacy-agent.mjs",
+   "status": "modified",
+   "blob": "cb66f1a3e2a2a568955f53b4a9451ddfb3c883c5",
+   "sha256": "1d0c0f99d00890d247f814cae0c75694e9f29870706c87d8fd0438130bf6e72e",
+   "beforeSha256": "a3f08aca344d4022f9af3d3954c9d6601654ab084251dcbd60d1ee76372f9c62",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "network/build.mjs",
+   "status": "modified",
+   "blob": "331d0486ca4165e6158e350d98c35f33493112e0",
+   "sha256": "cbd9217d6bb6be7d1cbd44f7dc0bca7532ae8dcc1a285a55e9a5db3cd4c175fd",
+   "beforeSha256": "a7aeb460dcbd3a7b94bd4fd1274197d533fe3861359cd457c1026dc66938283a",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "network/bundle-checks.mjs",
+   "status": "added",
+   "blob": "4a622b60eddc588a98040af5b1a711aeef27b945",
+   "sha256": "f899fb5d430a57cb642ea9b1d203997b660aa44819d7b4244274c538cf8ea4e6",
+   "beforeSha256": null,
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "network/main-guard.mjs",
+   "status": "added",
+   "blob": "c89770e175a9323377a2f24d930ae42311071297",
+   "sha256": "d132a30fef98fbcaa127391248c80b537b6c14e661a77019af78702e23d4ed84",
+   "beforeSha256": null,
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "network/entries/privacy-agent.mjs",
+   "status": "added",
+   "blob": "9c497b274481edd51ec27b07495b12d1f1402bd6",
+   "sha256": "d401b5b7a36abefb0c96456724dd20b415bc3cc61c66ec5d3eda4082aae56fe7",
+   "beforeSha256": null,
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "scripts/network/build-consumers.mjs",
+   "status": "modified",
+   "blob": "53506ab77c97ef079520973c1467ff202d66d5e4",
+   "sha256": "e61fe02cb8c96d332470235efc081126c0bbba076322506a1da4e65d4da89b4c",
+   "beforeSha256": "8337873515443e680568d2c07485e9ba0e159547566bb2068d5cb1e1f334d6d3",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "scripts/build-host-service-packages.mjs",
+   "status": "modified",
+   "blob": "8c9add20b6b28b09b7ae670f1208df75859a5b80",
+   "sha256": "f86857792f696119cfe42dd61605869e180f25aa69a7c2d8f1bcdbaf12b1287e",
+   "beforeSha256": "6eae482fee713896bcae0282d8ea546972962128b539548614e80bb29c662d53",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "scripts/locked-inputs.mjs",
+   "status": "added",
+   "blob": "3719b53ac833ef593aac262a8838b9d6f1ce92e7",
+   "sha256": "9945b34fa409aa129e64581318b5ec1d1c7ee145dd27ed7f62461a95bc6fba61",
+   "beforeSha256": null,
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "windows/node/network-enroll.mjs",
+   "status": "modified",
+   "blob": "f45f17f360e21b55f0687862934f16b3d4526e3e",
+   "sha256": "abd4e6315f01a90f621870c7fbe92c9341886781f24b5f1ec54c94ac7614e360",
+   "beforeSha256": "a9729786598107e69d24d5163ea8592d114f93a9b6693106a7fa3414c95430d6",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "windows/node/agent.mjs",
+   "status": "modified",
+   "blob": "8304e1fdb7c947872af71eadfcee160b2b2bf821",
+   "sha256": "e530ff3b4f60c2606b04ff2853d8f9c7403056e341e8b333ec7897c1eb8307d6",
+   "beforeSha256": "76cac3559713313251a0c0ab618fc31980c750496b6d55d94969d30b32c083a1",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "windows/node/node-config.example.cmd",
+   "status": "modified",
+   "blob": "de3d6ad5a0d4b01fdcd6bd3770ee681c9a121a7d",
+   "sha256": "2cee80dac1591f1a80e732903147806ad6ce639eba6f138f515660f22d7c482c",
+   "beforeSha256": "46f74609d8660dc1772aa386ee1ae456f8b94d59b9f84d6e01bb4bd3146ed62b",
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  },
+  {
+   "path": "test/host-services-cold-start.test.mjs",
+   "status": "added",
+   "blob": "7f7dd859adb4932c80dc141163245a15ebe3529c",
+   "sha256": "8fc56eaf5a97dae15b65dbc1965578f62a051a57d0dc1e49ebc63b6e1dc5990e",
+   "beforeSha256": null,
+   "source": "authored in this job (cold scope) on top of d7f520bf"
+  }
+ ]
+}

@@ -1,0 +1,62 @@
+{
+ "format": "witness-failover-real-history-provenance/v1",
+ "label": "SOURCE + OFFLINE TEST + one bounded read-only public recording attempt pair (no proofs obtained). Not deployed, merged or pushed.",
+ "enclave": {
+  "base": "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c",
+  "head": "7b4dd69201d00bc5649cda6bcf57b21c6197c3af",
+  "tree": "ccb7f0ac1911ba613989729c030509e69af1176c",
+  "files": {
+   "test/fixtures/base-real-history-52965080/attempt-1.json": {
+    "blob": "991923f3d487685e8ec9fb49dab56dbd48f2b4ad",
+    "sha256": "1f601a366d0b317596c83256a339996fb78b3f3790a8936dec5aeae831c21ad6"
+   },
+   "test/fixtures/base-real-history-52965080/recording.json": {
+    "blob": "3ca8045823818e649aa4589d6cc840283c8a712a",
+    "sha256": "ebcb5eb7bdda5720d145ff3f8d364ea5ea442d7cfc4e69db7b1f2d2d1b79161f"
+   },
+   "test/fixtures/record-real-history.mjs": {
+    "blob": "5f02ac99751719c0f6a7be0a6f4c009d15bd6f21",
+    "sha256": "c5d2c48de25cf982a9929922a6a3210be6ae478a56c1b34bfa084c94de28e332"
+   },
+   "test/helios-real-history.e2e.test.mjs": {
+    "blob": "3ecb16cac7fa87b0f6ddeab2e8fcc09857288d16",
+    "sha256": "f53e291da57e4b7e481b3aecbc405f4dca046206a08f104b2c7a2536061c1cbf"
+   }
+  }
+ },
+ "helios": "unchanged: enclave-witness-check aca81764 (helper fab2f1ce)",
+ "binaries": {
+  "witness-check": "fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93",
+  "helios-eeffcc9": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "helios-compat-0a02256": "0929f7f383a082b8aa7fda97c3058e72a4acc93cbf250a24c7a08ae4e1df98fc"
+ },
+ "recording": {
+  "target": {
+   "number": 52965080,
+   "hash": "0x067ca9489316bedb18d12b628402e6e46937ca16a684070da549f06f6bc2dc11",
+   "stateRoot": "0x4621fa883d2276b4fbafece01f3a9798c2e286300fed81a2bb0e83b3ec0e2290"
+  },
+  "head": {
+   "number": 52965106,
+   "hash": "0x723b40aad9af8aa1f99f78c1c06acf76e4c079a1c246a5ec011d5c444aa67a8d"
+  },
+  "sources": [
+   "https://base.gateway.tenderly.co",
+   "https://mainnet.base.org"
+  ],
+  "credentials": "none",
+  "files": {
+   "attempt-1.json": "1f601a366d0b317596c83256a339996fb78b3f3790a8936dec5aeae831c21ad6",
+   "recording.json": "ebcb5eb7bdda5720d145ff3f8d364ea5ea442d7cfc4e69db7b1f2d2d1b79161f"
+  },
+  "usedCumulative": {
+   "requests": 4,
+   "bytes": 160,
+   "ms": 82274
+  },
+  "outcome": "no verifiable proof obtained: tenderly HTTP 429 -32005 rate limit (both attempts); mainnet.base.org no response within 15 s / 30 s"
+ },
+ "patch": {
+  "patches/real-history/0001-Record-real-Base-history-proofs-under-a-strict-budge.patch": "79b351486329dc57a082f812c908b474049c1a7d25c1e7ff26b9662c7e3b36e6"
+ }
+}

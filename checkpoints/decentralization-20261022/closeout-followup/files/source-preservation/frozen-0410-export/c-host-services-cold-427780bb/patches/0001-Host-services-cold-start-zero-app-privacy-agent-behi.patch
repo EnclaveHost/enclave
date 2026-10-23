@@ -1,0 +1,887 @@
+From 427780bbc0fc524f8091893614eae8a653518139 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 20:40:46 -0700
+Subject: [PATCH] Host services cold start: zero-app privacy agent behind the
+ platform host policy, guarded bundles, locked package inputs
+
+A host with no app yet can run its own public service roles: runPrivacy accepts
+an empty app list only with a hostServices block that passes preflight and an
+enabled platform host policy, and host services (any app count) start only on
+the gate's authenticated admit, close on a refusal (ban, allowlist miss,
+deregistration) and restart on the admin's admit. An empty list without a
+usable block is refused as before. App-less hosts skip the per-round lease
+read.
+
+Enrollment: the operator's ENCLAVE_HOST_SERVICES_FILE opt-in is the only way a
+fresh box can opt in; an app-less config is written only for a valid block the
+agent would accept (worker staged, runner = keccak(endpoint), policy on) while
+the node's own gate does not refuse the host. The first app joins by reload.
+
+Bundles: the privacy agent is bundled from a main-guarded entry (a challenge
+replica with policy carriers loaded host-services/runner.mjs, whose CLI exited
+the agent); the consumer dns.mjs uses the route-dns argv-guard entry (it ran
+the host-identity CLI); both builders refuse a bundle that does not parse or
+carries a second main-module check.
+
+Packages: every npm input must match its governing lockfile, and the gitignored
+network-runtime bundle input must be exactly what this tree builds.
+
+PrivacyAgent.start: a stop during the last startup status write no longer
+leaves five intervals running (the process never exited).
+---
+ network/build.mjs                       |  13 +-
+ network/bundle-checks.mjs               |  17 ++
+ network/entries/privacy-agent.mjs       |  11 +
+ network/main-guard.mjs                  |   9 +
+ network/privacy-agent.mjs               |  69 ++++-
+ scripts/build-host-service-packages.mjs |  24 +-
+ scripts/locked-inputs.mjs               |  43 ++++
+ scripts/network/build-consumers.mjs     |  12 +-
+ test/host-services-cold-start.test.mjs  | 320 ++++++++++++++++++++++++
+ windows/node/agent.mjs                  |   4 +
+ windows/node/network-enroll.mjs         |  66 ++++-
+ windows/node/node-config.example.cmd    |   4 +
+ 12 files changed, 565 insertions(+), 27 deletions(-)
+ create mode 100644 network/bundle-checks.mjs
+ create mode 100644 network/entries/privacy-agent.mjs
+ create mode 100644 network/main-guard.mjs
+ create mode 100644 scripts/locked-inputs.mjs
+ create mode 100644 test/host-services-cold-start.test.mjs
+
+diff --git a/network/build.mjs b/network/build.mjs
+index e7de5a32925fed50cf3cddfd1675d26063a123eb..331d0486ca4165e6158e350d98c35f33493112e0 100644
+--- a/network/build.mjs
++++ b/network/build.mjs
+@@ -3,14 +3,19 @@ import {execFileSync} from 'node:child_process';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import {fileURLToPath} from 'node:url';
++import {checkBundle} from './bundle-checks.mjs';
+ const root = path.dirname(fileURLToPath(import.meta.url));
+ const out = path.resolve(process.argv[2] || path.join(root, 'dist'));
+ fs.mkdirSync(out, {recursive:true});
+-const bundle = (entry, file) => build({entryPoints:[path.join(root,entry)], outfile:path.join(out,file), bundle:true, platform:'node', format:'esm', target:'node22',
+-  banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
++// every bundle is checked once written (network/bundle-checks.mjs): it parses, and no bundled library's command line can run
++// inside it; GUARDED: bundled from an entry behind network/main-guard.mjs
++const GUARDED = new Set(['entries/privacy-agent.mjs']);
++const bundle = async (entry, file) => { await build({entryPoints:[path.join(root,entry)], outfile:path.join(out,file), bundle:true, platform:'node', format:'esm', target:'node22',
++  banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}}); checkBundle(path.join(out,file), {guarded: GUARDED.has(entry)}); };
+ // the host's privacy agent and its circuits' ingress worker (the SNI gate each Enclave-network circuit runs; the name is
+-// historical: Linux hosts run the same worker)
+-await bundle('privacy-agent.mjs', 'privacy-agent.mjs');
++// historical: Linux hosts run the same worker). The agent is bundled from its entry (network/entries/privacy-agent.mjs):
++// a challenge replica with policy carriers loads host-services/runner.mjs into it, whose own command line exited the agent.
++await bundle('entries/privacy-agent.mjs', 'privacy-agent.mjs');
+ await bundle('reconcile-apps.mjs', 'reconcile-apps.mjs');
+ await bundle('windows-circuit-worker.mjs', 'windows-circuit-worker.mjs');
+ await bundle('host-service-ingress.mjs', 'host-service-ingress.mjs');
+diff --git a/network/bundle-checks.mjs b/network/bundle-checks.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4a622b60eddc588a98040af5b1a711aeef27b945
+--- /dev/null
++++ b/network/bundle-checks.mjs
+@@ -0,0 +1,17 @@
++// Checks every emitted JS bundle must pass (network/build.mjs, scripts/network/build-consumers.mjs): it parses (a duplicate
++// top-level declaration is a SyntaxError only node reports), and it carries at most ONE "am I the main script?" check - its
++// program's own. Inside one bundle every module's import.meta.url is the bundle's, so a second check (a bundled library's
++// command line) runs inside the program when the bundle runs. A bundle built behind network/main-guard.mjs or
++// network/host-services/argv-guard.mjs (guarded) may carry more: the guard makes every such check false.
++import fs from 'node:fs';
++import { execFileSync } from 'node:child_process';
++const MAIN_CHECK = /process\.argv\[1\][\s\S]{0,200}?import\.meta\.url/g;
++const GUARDS = ['(enclave bundle entry)', '(enclave host role)'];
++export function checkBundle(file, { guarded = false } = {}) {
++  try { execFileSync(process.execPath, ['--check', file], { stdio: ['ignore', 'ignore', 'pipe'] }); }
++  catch (e) { throw new Error(`${file}: the bundle does not parse: ${String(e.stderr || e.message).split('\n').filter(Boolean).slice(0, 6).join(' | ')}`); }
++  const text = fs.readFileSync(file, 'utf8'), checks = (text.match(MAIN_CHECK) || []).length;
++  if (guarded && !GUARDS.some((g) => text.includes(g))) throw new Error(`${file}: built as guarded, but the main guard is not in the bundle`);
++  if (!guarded && checks > 1) throw new Error(`${file}: ${checks} bundled "main module" checks; a bundled library's command line would run inside the program (bundle it behind network/main-guard.mjs)`);
++  return { mainChecks: checks, guarded };
++}
+diff --git a/network/entries/privacy-agent.mjs b/network/entries/privacy-agent.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9c497b274481edd51ec27b07495b12d1f1402bd6
+--- /dev/null
++++ b/network/entries/privacy-agent.mjs
+@@ -0,0 +1,11 @@
++// Bundle entry of the privacy agent (network/build.mjs, scripts/network/build-consumers.mjs): the main guard FIRST (no
++// bundled library's command line can run inside the agent), then the agent - its exports for embedders, and its daemon
++// (`node privacy-agent.mjs --config FILE`) only when the bundle itself is the main script.
++import { mainScript } from '../main-guard.mjs';
++import path from 'node:path';
++import { pathToFileURL } from 'node:url';
++import { runPrivacy } from '../privacy-agent.mjs';
++export * from '../privacy-agent.mjs';
++if (mainScript() && import.meta.url === pathToFileURL(path.resolve(mainScript())).href) {
++  const i = process.argv.indexOf('--config'); runPrivacy(process.argv[i + 1]).catch((e) => { console.error(e.message); process.exitCode = 1; });
++}
+diff --git a/network/main-guard.mjs b/network/main-guard.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c89770e175a9323377a2f24d930ae42311071297
+--- /dev/null
++++ b/network/main-guard.mjs
+@@ -0,0 +1,9 @@
++// Imported FIRST by a bundle entry whose program is also a library (network/entries/*). Inside ONE bundle every module's
++// import.meta.url is the bundle's own, so a bundled library's "am I the main script?" check (process.argv[1] against its
++// own import.meta.url) fires when the bundle runs, and runs that library's command line instead - e.g.
++// network/host-services/runner.mjs, which a challenge replica with policy carriers loads INTO the privacy agent: its usage
++// line and process.exit(2) stopped the agent. Renaming argv[1] here (as host-services/argv-guard.mjs does for host roles)
++// makes every such check false; the entry asks mainScript() instead.
++const main = process.argv[1];
++if (main) process.argv[1] = `${main} (enclave bundle entry)`;
++export const mainScript = () => main;
+diff --git a/network/privacy-agent.mjs b/network/privacy-agent.mjs
+index bf70b4279f5c90218dfee0ee1419ddb47dfc3081..cb66f1a3e2a2a568955f53b4a9451ddfb3c883c5 100644
+--- a/network/privacy-agent.mjs
++++ b/network/privacy-agent.mjs
+@@ -17,6 +17,7 @@ import {EnclaveNetworkManager} from './wg-manager.mjs';
+ import {createNetworkHost} from './enclave-network-host.mjs';
+ import {WgControlTransport} from './wg-control.mjs';
+ import {HostServiceTransport,validateHostServicesTransport} from './host-service-transport.mjs';
++import {createHostServiceGate} from './host-service-gate.mjs';
+ import {createPaidNetwork} from './paid-network.mjs';
+ import {ShieldHostProof} from './shield-host-proof.mjs';
+ import {RoutePublisher} from './route-publisher.mjs';
+@@ -83,7 +84,9 @@ export class PrivacyAgent {
+       // round goes on to the policies and guest proofs (2026-10-13 15:21Z: control circuits down ~1 min -> three apps'
+       // egress OFF, their leases fine).
+       let leases;
+-      try{
++      // an app-less host (host services only) has no lease to read: no chain round every 15 s for nothing
++      if(!this.apps.length)leases=[];
++      else try{
+         // one read at a time: a read still running from an earlier round is not doubled, and that round's leases are held
+         if(this.chainRead)throw new Error('the previous chain read has not finished');
+         const began=this.now();
+@@ -150,6 +153,8 @@ export class PrivacyAgent {
+   admit(){return this.snapshot();}
+   async start(){
+     this.admission.wallet?.refresh();await this.refreshAuthorization();await this.refreshProofs();if(this.closed)throw new Error('privacy agent stopped during startup');await this.snapshot();
++    // a stop during that last write: close() has run, so no timer may be created now (five intervals held the process forever)
++    if(this.closed)throw new Error('privacy agent stopped during startup');
+     this.timers=[setInterval(()=>{void this.admit().catch(e=>this.log(e.message));},1000),
+       setInterval(()=>void this.refreshAuthorization(),15000),
+       setInterval(()=>void this.refreshProofs(),5000),
+@@ -175,7 +180,10 @@ export function hostServicesPreflight({block,workerModule,runner,endpoint,exists
+ 
+ export async function runPrivacy(configFile){
+   const cfg=JSON.parse(await fs.readFile(configFile,'utf8'));
+-  if(cfg.version!==2||!Array.isArray(cfg.apps)||!cfg.apps.length||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
++  // an EMPTY app list runs only for this host's own public service roles (below: a valid hostServices block and the platform
++  // host policy on); without them it is refused exactly as before
++  if(cfg.version!==2||!Array.isArray(cfg.apps)||cfg.apps.length>256||!path.isAbsolute(cfg.directory))throw new Error('version 2 app configuration required');
++  if(!cfg.apps.length&&cfg.enclaveNetwork?.hostServices===undefined)throw new Error('version 2 app configuration required');
+   if(!cfg.enclaveNetwork||typeof cfg.enclaveNetwork!=='object')throw new Error(NETWORK_REQUIRED);
+   // each line carries its UTC time: a cut stream has to be matched against circuit events, and the log had none
+   const log=message=>console.error(new Date().toISOString().slice(11,19)+' [privacy] '+message);
+@@ -228,17 +236,35 @@ export async function runPrivacy(configFile){
+   const wa=cfg.enclaveNetwork.walletAdmission;
+   if(wa!==undefined&&(!wa||typeof wa!=='object'||Array.isArray(wa)||Object.keys(wa).join()!=='file'))throw new Error('enclaveNetwork.walletAdmission must be {file}');
+   const wallet=wa?new WalletAllowFile({file:wa.file,runner:cfg.runner,log}):null;
+-  let wgControl=null,hostServices=null,paid=null,stopping=false;
++  let wgControl=null,hostServices=null,hostGateTimer=null,paid=null,stopping=false;
+   // this host's own public service roles (cfg.enclaveNetwork.hostServices, host-service-transport.mjs): checked before
+   // anything is bound. A block that does not pass refuses HOST SERVICES only, loudly - the apps this host serves are
+   // never taken down by it (hostServicesPreflight)
+   const pre=hostServicesPreflight({block:cfg.enclaveNetwork.hostServices,workerModule:cfg.enclaveNetwork.serviceWorkerModule,runner:cfg.runner,endpoint:cfg.endpoint});
+-  const hostServicesConfig=pre.config;
++  let hostServicesConfig=pre.config;
+   if(pre.refused)log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);
++  // ...and they run only while THIS host is admitted by the platform host policy: the same gate as the node and
++  // supervisor.js (host-service-gate.mjs), for this host's registry id, on by default for the production chain and address
++  // book. Never before a first authenticated admit in this process (a fresh or restarted host, or one whose policy cannot
++  // be read, holds them); an explicit refusal (ban, allowlist miss, deregistration) closes them and withdraws their grants,
++  // sticky until the admin's admit; a transient outage keeps them within the gate's grace. The exits judge the same policy
++  // before every grant (wg-provider), so this is the host's own half, not the only one.
++  let hostGate=null;
++  if(hostServicesConfig){try{hostGate=createHostServiceGate({env:process.env,chainId:8453,book:cfg.chain?.addressBook||null,hostId:cfg.runner,
++    stateDir:path.join(cfg.directory,'host-services-policy'),fetch:globalThis.fetch,log});}
++   catch(e){log('HOST SERVICES REFUSED (apps unaffected): platform host policy: '+e.message);hostServicesConfig=null;}}
++  // an app-less host has nothing else to run: refused (before anything binds) unless its host services can actually run -
++  // a valid block, and a platform host policy that is ON (an "off" policy admits nothing, so it cannot admit host services)
++  if(!apps.length){
++    if(!hostServicesConfig)throw new Error('version 2 app configuration required: an empty app list runs only this host\'s services, and they are refused ('+(pre.refused||'platform host policy')+')');
++    if(!hostGate.enabled)throw new Error('version 2 app configuration required: an empty app list runs only this host\'s services, and they need the platform host policy on ('+hostGate.reason+')');
++    log('no apps: running this host\'s services only (they start once the platform host policy admits this host)');
++  }
+   // The network host is closed LAST and always (enclave-network-host.mjs close(), idempotent): its direct runtime and the
+   // qualification canary hold public listeners from startup, and a daemon that keeps them cannot exit.
+   const closeNetwork=()=>Promise.resolve(networkHost?.close()).catch(e=>log('network host: '+e.message));
+-  const close=()=>{stopping=true;hostProof?.close();void Promise.all([agent?.close(),wgControl?.close(),hostServices?.close()]).then(()=>paid?.close()).catch(e=>log(e.message)).finally(closeNetwork);};
++  const stopHostGate=()=>{clearInterval(hostGateTimer);hostGate?.stop();};
++  const close=()=>{stopping=true;stopHostGate();hostProof?.close();void Promise.all([agent?.close(),wgControl?.close(),hostServices?.close()]).then(()=>paid?.close()).catch(e=>log(e.message)).finally(closeNetwork);};
+   process.once('SIGTERM',close);process.once('SIGINT',close);
+   // SIGHUP re-reads the app list: each app's expectation, names and mirror
+   // flag, and any new app, and the operator's host-egress offer (enclaveNetwork.hostEgress). Everything is validated before anything changes; no
+@@ -294,10 +320,31 @@ export async function runPrivacy(configFile){
+   try{
+   if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,
+     probeUrls:(cfg.enclaveNetwork.directories||[cfg.enclaveNetwork.relay]).map(origin=>new URL('/v1/network/providers',origin).href),log});await wgControl.start();}
+-  // host services never take the agent (its apps) down: a failure here refuses them, loudly
+-  if(hostServicesConfig){try{hostServices=new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log});
+-    log('host services: '+JSON.stringify(hostServices.names));await hostServices.start();}
+-   catch(e){log('HOST SERVICES REFUSED (apps unaffected): '+e.message);await hostServices?.close().catch(()=>{});hostServices=null;}}
++  // host services never take the agent (its apps) down: a failure here refuses them, loudly. They follow the platform host
++  // policy gate (above): started on its admit, closed (grants withdrawn) on its refusal, started again on the next admit.
++  // The first decision is not awaited: a slow or unreadable policy never holds up the apps.
++  if(hostServicesConfig){
++    let judging=false,held='';
++    const judge=async()=>{
++      if(judging||stopping||!hostServicesConfig)return;judging=true;
++      try{
++        const refusal=hostGate.serviceRefusal();
++        if(refusal){
++          if(hostServices){const h=hostServices;hostServices=null;log('host services stopped: '+refusal);await h.close().catch(e=>log('host services: '+e.message));}
++          else if(refusal!==held)log('host services held: '+refusal);
++          held=refusal;return;
++        }
++        held='';if(hostServices)return;
++        try{hostServices=new HostServiceTransport({runtime:network.runtime,providers:network.providers,grants:network.grants,hostId:cfg.runner,config:hostServicesConfig,log});
++          log('host services: '+JSON.stringify(hostServices.names));await hostServices.start();
++          if(stopping){const h=hostServices;hostServices=null;await h.close();}}
++        catch(e){log('HOST SERVICES REFUSED (apps unaffected): '+e.message);await hostServices?.close().catch(()=>{});hostServices=null;hostServicesConfig=null;}
++      }finally{judging=false;}
++    };
++    hostGate.start();
++    void hostGate.check().catch(()=>{}).then(judge);
++    hostGateTimer=setInterval(()=>void judge(),2000);hostGateTimer.unref?.();
++  }
+   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
+   paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,providers:network.providers,fetchFn:networkFetch,log}):null;
+   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,wallet,log,
+@@ -342,9 +389,9 @@ export async function runPrivacy(configFile){
+       ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
+       ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
+     })});
+-  }catch(e){await closeNetwork();throw e;}
++  }catch(e){stopping=true;stopHostGate();await hostServices?.close().catch(()=>{});await closeNetwork();throw e;}
+   try{if(stopping)throw new Error('privacy agent stopped during startup');await agent.start();}
+-  catch(e){try{hostProof?.close();await agent.close();await wgControl?.close();await hostServices?.close();}finally{await closeNetwork();}throw e;}
++  catch(e){stopping=true;stopHostGate();try{hostProof?.close();await agent.close();await wgControl?.close();await hostServices?.close();}finally{await closeNetwork();}throw e;}
+   return agent;
+ }
+ if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
+diff --git a/scripts/build-host-service-packages.mjs b/scripts/build-host-service-packages.mjs
+index 2c19c8e66fa86ec5e5642fb78c9279693ff75ee5..8c9add20b6b28b09b7ae670f1208df75859a5b80 100644
+--- a/scripts/build-host-service-packages.mjs
++++ b/scripts/build-host-service-packages.mjs
+@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
+ import { execFileSync } from 'node:child_process';
+ import os from 'node:os';
+ import { ROLES, PACKAGE_FORMAT } from '../network/host-services/roles.mjs';
++import { lockedInputs } from './locked-inputs.mjs';
+ 
+ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const out = path.join(root, 'network/host-services/packages');
+@@ -21,7 +22,22 @@ const check = args.includes('--check');
+ const sha = (b) => createHash('sha256').update(b).digest('hex');
+ const CHAIN_READER = new Set(['custody/v2/quorum.mjs']);
+ await fs.mkdir(out, { recursive: true });
+-const summary = [];
++const summary = [], lockfiles = {};
++// relay/network-runtime.bundle.mjs (gitignored, built by relay/build-network.mjs) is an INPUT of the roles that bundle the
++// relay's DNS: rebuilt here into a scratch directory and compared byte for byte, its own npm inputs locked the same way
++const RUNTIME_BUNDLE = 'relay/network-runtime.bundle.mjs';
++let runtimeChecked = null;
++const currentRuntimeBundle = () => (runtimeChecked ||= (async () => {
++  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'runtime-bundle-check-'));
++  try {
++    const file = path.join(dir, 'network-runtime.bundle.mjs');
++    execFileSync(process.execPath, [path.join(root, 'relay/build-network.mjs'), file], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'] });
++    const have = await fs.readFile(path.join(root, RUNTIME_BUNDLE)).catch(() => null);
++    if (!have || !have.equals(await fs.readFile(file))) throw new Error(`${RUNTIME_BUNDLE} is ${have ? 'stale' : 'missing'}: run node relay/build-network.mjs first`);
++    const locked = lockedInputs(root, JSON.parse(await fs.readFile(file + '.manifest.json', 'utf8')).inputs);
++    for (const [f, d] of Object.entries(locked.lockfiles)) lockfiles[f] = d;
++  } finally { await fs.rm(dir, { recursive: true, force: true }); }
++})());
+ for (const [role, r] of Object.entries(ROLES)) {
+   const result = await build({ absWorkingDir: root, entryPoints: [r.bundleEntry || r.entry], outfile: path.join(out, `${role}.mjs`), write: false, metafile: true,
+     bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'none',
+@@ -39,6 +55,11 @@ for (const [role, r] of Object.entries(ROLES)) {
+   finally { await fs.rm(probe, { force: true }); }
+   const mainChecks = (bytes.toString('utf8').match(/process\.argv\[1\]\s*&&[^\n]{0,200}import\.meta\.url/g) || []).length;
+   if (!r.bundleEntry && mainChecks > 1) throw new Error(`${role}: ${mainChecks} bundled "main module" checks; a bundled library's CLI would run inside the role (bundle it behind network/host-services/argv-guard.mjs)`);
++  // pinned dependencies: every npm input exactly as the committed lockfiles pin it, and every GENERATED input (the gitignored
++  // relay/network-runtime.bundle.mjs) exactly what this tree builds - otherwise the package is not reproducible from the commit
++  const locked = lockedInputs(root, Object.keys(result.metafile.inputs));
++  for (const [f, d] of Object.entries(locked.lockfiles)) lockfiles[f] = d;
++  if (Object.keys(result.metafile.inputs).some((f) => f.split(path.sep).join('/') === RUNTIME_BUNDLE)) await currentRuntimeBundle();
+   const inputs = {};
+   for (const rel of Object.keys(result.metafile.inputs).sort()) {
+     const normalized = rel.includes('node_modules/') ? 'node_modules/' + rel.split('node_modules/').pop() : rel;
+@@ -64,4 +85,5 @@ for (const [role, r] of Object.entries(ROLES)) {
+   }
+   summary.push(`${role}: bundle ${bytes.length} bytes sha256:${sha(bytes).slice(0, 16)}…, manifest sha256:${sha(Buffer.from(manifest))}, ${Object.keys(inputs).length} inputs`);
+ }
++summary.push('npm inputs locked by: ' + Object.entries(lockfiles).sort().map(([f, d]) => `${f} sha256:${d}`).join(', '));
+ console.log(summary.join('\n') + (check ? '\n(verified current)' : ''));
+diff --git a/scripts/locked-inputs.mjs b/scripts/locked-inputs.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..3719b53ac833ef593aac262a8838b9d6f1ce92e7
+--- /dev/null
++++ b/scripts/locked-inputs.mjs
+@@ -0,0 +1,43 @@
++// Every npm package a generated artifact is built from must be EXACTLY what the committed lockfile governing it pins: a
++// release artifact (scripts/build-host-service-packages.mjs) is reproducible only from a node_modules installed with
++// `npm ci` from those lockfiles, never from whatever node_modules a builder happens to have. esbuild metafile inputs are
++// paths relative to the builder's root: <prefix>node_modules/<pkg>[/node_modules/<pkg>]/<file>, governed by
++// <prefix>package-lock.json (lockfile v2/v3 "packages" keys). -> { lockfiles: { <lockfile>: sha256 }, packages: { <prefix><key>: version } }
++import fs from 'node:fs';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++
++export function lockedInputs(root, inputs) {
++  const locks = new Map(), packages = {}, lockfiles = {};
++  const lockOf = (prefix) => {
++    if (!locks.has(prefix)) {
++      const file = path.join(root, prefix, 'package-lock.json');
++      let bytes; try { bytes = fs.readFileSync(file); } catch { throw new Error(`no lockfile governs ${prefix || './'}node_modules (${path.join(prefix, 'package-lock.json')})`); }
++      const lock = JSON.parse(bytes.toString('utf8'));
++      if (!lock.packages || typeof lock.packages !== 'object') throw new Error(`${path.join(prefix, 'package-lock.json')}: lockfile v2 or v3 required`);
++      locks.set(prefix, lock); lockfiles[path.join(prefix, 'package-lock.json')] = createHash('sha256').update(bytes).digest('hex');
++    }
++    return locks.get(prefix);
++  };
++  for (const rel of inputs) {
++    const p = rel.split(path.sep).join('/');
++    if (p.startsWith('../') || path.isAbsolute(p)) throw new Error(`bundle input outside the tree: ${rel}`);
++    const first = p.indexOf('node_modules/');
++    if (first < 0) continue;
++    const prefix = p.slice(0, first), rest = p.slice(first).split('/');
++    // the package directory: through the LAST node_modules/<name> (or <@scope>/<name>) segment
++    let end = 0;
++    for (let i = 0; i < rest.length - 1; i++) if (rest[i] === 'node_modules') end = i + (rest[i + 1].startsWith('@') ? 3 : 2);
++    const key = rest.slice(0, end).join('/');
++    if (packages[prefix + key] !== undefined) continue;
++    const entry = lockOf(prefix).packages[key];
++    if (!entry || typeof entry.version !== 'string') throw new Error(`${prefix}${key} is not in ${prefix}package-lock.json (an extraneous package)`);
++    let installed;
++    try { installed = JSON.parse(fs.readFileSync(path.join(root, prefix, key, 'package.json'), 'utf8')); } catch (e) { throw new Error(`${prefix}${key}: no package.json (${e.message})`); }
++    const name = entry.name || key.split('node_modules/').pop();
++    if (installed.version !== entry.version || installed.name !== name)
++      throw new Error(`${prefix}${key} is ${installed.name}@${installed.version}, but ${prefix}package-lock.json pins ${name}@${entry.version}: install with npm ci`);
++    packages[prefix + key] = entry.version;
++  }
++  return { lockfiles, packages: Object.fromEntries(Object.entries(packages).sort()) };
++}
+diff --git a/scripts/network/build-consumers.mjs b/scripts/network/build-consumers.mjs
+index 04799bbc46afe6e94dba2071fe349b9fcbbb8dfb..53506ab77c97ef079520973c1467ff202d66d5e4 100644
+--- a/scripts/network/build-consumers.mjs
++++ b/scripts/network/build-consumers.mjs
+@@ -4,16 +4,22 @@ import {mkdir,writeFile} from 'node:fs/promises';
+ import {createHash} from 'node:crypto';
+ import path from 'node:path';
+ import {fileURLToPath} from 'node:url';
++import {checkBundle} from '../../network/bundle-checks.mjs';
+ const root=fileURLToPath(new URL('../../',import.meta.url));
+ const output=process.argv[2];
+ if(!output)throw Error('usage: node scripts/network/build-consumers.mjs OUTPUT_DIRECTORY');
+ await mkdir(output,{recursive:true});
+ const files={};
+-for(const [name,entry] of Object.entries({'provider.mjs':'network/wg-provider/main.mjs','privacy-agent.mjs':'network/privacy-agent.mjs','checker.mjs':'scripts/network/wg-qualify.mjs','dns.mjs':'relay/dns-relay.js'})){
++// the privacy agent and DNS are bundled from their guarded entries (network/main-guard.mjs, host-services/argv-guard.mjs):
++// inside one bundle a bundled library's "main script" check fires (dns.mjs ran the host-identity command line and exited)
++const guarded=new Set(['privacy-agent.mjs','dns.mjs']);
++for(const [name,entry] of Object.entries({'provider.mjs':'network/wg-provider/main.mjs','privacy-agent.mjs':'network/entries/privacy-agent.mjs','checker.mjs':'scripts/network/wg-qualify.mjs','dns.mjs':'network/host-services/entries/route-dns.mjs'})){
++ // the banner's names are opaque to esbuild: unique, so no bundled module's own top-level import (relay/network-runtime.bundle.mjs
++ // imports createRequire as bundleRequire) can collide with them
+  const result=await build({absWorkingDir:root,entryPoints:[entry],outfile:name,write:false,bundle:true,platform:'node',format:'esm',target:'node20',minify:true,metafile:true,
+-  banner:{js:'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);'}});
++  banner:{js:'import {createRequire as __enclaveConsumerCreateRequire} from "node:module"; const require=__enclaveConsumerCreateRequire(import.meta.url);'}});
+  const bytes=result.outputFiles[0].contents;
+- await writeFile(path.join(output,name),bytes);
++ await writeFile(path.join(output,name),bytes);checkBundle(path.join(output,name),{guarded:guarded.has(name)});
+  files[name]={bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),inputs:Object.keys(result.metafile.inputs).sort()};
+ }
+ await writeFile(path.join(output,'build-manifest.json'),JSON.stringify({files},null,2)+'\n');
+diff --git a/test/host-services-cold-start.test.mjs b/test/host-services-cold-start.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f7dd859adb4932c80dc141163245a15ebe3529c
+--- /dev/null
++++ b/test/host-services-cold-start.test.mjs
+@@ -0,0 +1,320 @@
++// Cold start of a host's own public service roles (ROOT-HOST-SERVICE-COLD-REVIEW, 2026-10-23): a host with NO app yet runs
++// its host services (directory/bootstrap replica, policy mirror, route-dns transport) only on its operator's explicit
++// opt-in and only once the platform host policy admits it - on the REAL daemon (node network/privacy-agent.mjs --config,
++// and the bundle network/build.mjs ships) and the REAL enrollment pass. No app, lease or policy is faked: the policy is
++// the unchanged gate (network/host-service-gate.mjs) reading a local chain + mirror (test/helpers/platform-policy-world.mjs)
++// or, unconfigured, the production policy with no network at all; every *.enclave.host lookup is refused and logged.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import net from 'node:net';
++import path from 'node:path';
++import { spawn, execFileSync } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import { build } from 'esbuild';
++import { generatePrivateKey } from 'viem/accounts';
++import { keccak256, toBytes } from 'viem';
++import { platformPolicyWorld } from './helpers/platform-policy-world.mjs';
++import { createNetworkEnroll, readHostServicesFile } from '../windows/node/network-enroll.mjs';
++import { checkBundle } from '../network/bundle-checks.mjs';
++import { lockedInputs } from '../scripts/locked-inputs.mjs';
++import { PRODUCTION_BOOK } from '../network/platform-host-policy-config.mjs';
++import { rawDigest } from '../network/shield-expectation.mjs';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const ENDPOINT = 'https://host.policy.example', RUNNER = keccak256(toBytes(ENDPOINT)).toLowerCase(), OPERATOR = '0x' + '44'.repeat(20);
++const HS = { zone: 'app.alice-net.org', exits: ['e1'.repeat(16)], ports: { 'directory-replica': 18188 } };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const freeTcp = () => new Promise((ok) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)); }); });
++const count = (text, re) => (text.match(new RegExp(re.source, 'g')) || []).length;
++const PRELOAD = `import net from 'node:net'; import dns from 'node:dns'; import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
++const enclave = (h) => /(^|\\.)enclave\\.host\\.?$/i.test(String(h || ''));
++const refuse = (h) => { fs.appendFileSync(process.env.BLOCK_LOG, String(h) + '\\n'); return Object.assign(new Error('blocked ' + h), { code: 'ENOTFOUND' }); };
++const lookup = dns.lookup, plookup = dns.promises.lookup;
++dns.lookup = function (h, ...a) { if (enclave(h)) return process.nextTick(a.at(-1), refuse(h)); return lookup.call(this, h, ...a); };
++dns.promises.lookup = async function (h, ...a) { if (enclave(h)) throw refuse(h); return plookup.call(this, h, ...a); };
++syncBuiltinESMExports();
++const connect = net.Socket.prototype.connect;
++net.Socket.prototype.connect = function (...a) { const o = Array.isArray(a[0]) ? a[0][0] : (a[0] && typeof a[0] === 'object' ? a[0] : null);
++  if (o && enclave(o.host)) { const e = refuse(o.host); process.nextTick(() => this.destroy(e)); return this; } return connect.apply(this, a); };
++process.on('SIGUSR2', () => console.error('ACTIVE RESOURCES ' + JSON.stringify(process.getActiveResourcesInfo())));`;
++
++// a Linux host's privacy agent config (this rig runs Linux; the Windows-only Shield/TPM branch is not exercised here)
++async function hostRig(t, { apps = 0, hostServices = HS, addressBook = '0x' + '00'.repeat(20), endpoint = ENDPOINT, runner = RUNNER, worker = true } = {}) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-cold-')), f = (n) => path.join(dir, n);
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  fs.writeFileSync(f('operator.key'), generatePrivateKey(), { mode: 0o600 });
++  fs.writeFileSync(f('expected.json'), JSON.stringify({ appRef: 'catalog://0x' + '12'.repeat(32) + '/1', configCid: '' }));
++  for (const n of ['runtime.json', 'min-tcb.json']) fs.writeFileSync(f(n), '{}');
++  fs.writeFileSync(f('vcek.der'), 'not used before an app is probed'); fs.writeFileSync(f('preload.mjs'), PRELOAD); fs.writeFileSync(f('blocked.log'), '');
++  fs.mkdirSync(f('state'));
++  const app = { deploymentId: '0x' + 'ab'.repeat(32), names: ['app1.alice-net.org'], expectedFile: f('expected.json') };
++  const deadDirs = [`http://127.0.0.1:${await freeTcp()}/`];
++  const cfg = { version: 2, directory: f('state'), operatorKeyFile: f('operator.key'), runner, ...(endpoint ? { endpoint } : {}),
++    apps: apps ? [app] : [], dns: ['9.9.9.9'], upstream: `http://127.0.0.1:${await freeTcp()}`,
++    chain: { rpc: ['https://127.0.0.2:1', 'https://127.0.0.3:1'], addressBook,
++             authorityPins: { deployments: '0x' + '11'.repeat(20), registry: '0x' + '22'.repeat(20), connectivity: '0x' + '00'.repeat(20), sessionVaultFactory: '0x' + '00'.repeat(20) } },
++    linux: { runtimeFile: f('runtime.json'), minTcbFile: f('min-tcb.json'), vcekFile: f('vcek.der') },
++    enclaveNetwork: { directories: deadDirs, checkers: ['0x' + '45'.repeat(20)], apps: 'all', control: true,
++      wgBinary: process.execPath, nodeBinary: process.execPath, workerModule: path.join(ROOT, 'network', 'windows-circuit-worker.mjs'),
++      serviceWorkerModule: worker ? path.join(ROOT, 'network', 'host-service-ingress.mjs') : path.join(dir, 'absent-host-service-ingress.mjs'),
++      ...(hostServices !== null ? { hostServices } : {}) } };
++  const rig = { dir, f, cfg, app, file: f('privacy-config.json'), state: f('state') };
++  rig.write = (c = cfg) => fs.writeFileSync(rig.file, JSON.stringify(c), { mode: 0o600 });
++  rig.write();
++  return rig;
++}
++function daemon(t, rig, { env = {}, script = path.join(ROOT, 'network/privacy-agent.mjs') } = {}) {
++  const child = spawn(process.execPath, ['--import', pathToFileURL(rig.f('preload.mjs')).href, script, '--config', rig.file],
++    { env: { ...process.env, ENCLAVE_PLATFORM_HOST_POLICY: '', ENCLAVE_PLATFORM_HOST_POLICY_RPCS: '', ...env, BLOCK_LOG: rig.f('blocked.log') }, stdio: ['ignore', 'pipe', 'pipe'] });
++  const d = { child, out: '' };
++  child.stdout.on('data', (b) => { d.out += b; }); child.stderr.on('data', (b) => { d.out += b; });
++  d.exited = new Promise((ok) => child.once('exit', (code, signal) => ok({ code, signal })));
++  d.until = async (re, ms = 20_000, n = 1) => { const end = Date.now() + ms; while (Date.now() < end && count(d.out, re) < n && child.exitCode === null) await sleep(100);
++    assert.ok(count(d.out, re) >= n, `expected ${n}x ${re} in:\n${d.out.slice(-3000)}`); };
++  d.stop = async () => { if (child.exitCode !== null || child.signalCode !== null) return d.exited; child.kill('SIGTERM');
++    const r = await Promise.race([d.exited, sleep(20_000).then(() => null)]);
++    if (!r) { child.kill('SIGUSR2'); await sleep(500); }                                       // what still holds it (test diagnostics)
++    return r; };
++  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await Promise.race([d.exited, sleep(5000)]); });
++  return d;
++}
++const STARTED = /host services: \{/, HELD = /host services held: platform host policy:/, STOPPED = /host services stopped: platform host policy:/;
++const policyWorld = (t) => platformPolicyWorld(t, { hosts: { [RUNNER]: { endpoint: ENDPOINT, operator: OPERATOR, owner: '0x' + '55'.repeat(20), active: true } } });
++const fast = (w) => w.env({ ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC: '1', ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC: '6' });
++
++test('zero apps: host services only after the platform admits; an admin ban stops them (grants withdrawn), the unban restarts them', { timeout: 120_000 }, async (t) => {
++  const w = await policyWorld(t); await w.publish({ deny: [{ kind: 'operator', value: OPERATOR, reason: 'abuse' }] });   // banned before the host starts
++  const rig = await hostRig(t), d = daemon(t, rig, { env: fast(w) });
++  await d.until(/no apps: running this host's services only/);
++  await d.until(/host services held: platform host policy: banned by platform policy/);
++  for (let i = 0; i < 40 && !fs.existsSync(path.join(rig.state, 'status.json')); i++) await sleep(250);
++  assert.ok(fs.existsSync(path.join(rig.state, 'status.json')), 'the app-less agent started (its status is written)');
++  assert.equal(count(d.out, STARTED), 0, 'a banned host starts no host service');
++  await w.publish({ deny: [] });                                                                 // the admin's unban
++  await d.until(STARTED);
++  await d.until(/host service circuits: .*directories unavailable/);                             // they really run (and retry)
++  await w.publish({ deny: [{ kind: 'operator', value: OPERATOR, reason: 'abuse' }] });          // banned again while serving
++  await d.until(STOPPED); assert.match(d.out, /host services stopped: platform host policy: banned by platform policy #\d+ \(operator\): abuse/);
++  w.setDown(true); await sleep(3000);
++  assert.equal(count(d.out, STARTED), 1, 'an outage after a known ban never resurrects them');
++  w.setDown(false); await w.publish({ deny: [] });
++  await d.until(STARTED, 20_000, 2);
++  assert.equal(d.child.exitCode, null, 'the agent never exited');
++  const exit = await d.stop(); assert.ok(exit && exit.code === 0, `clean exit: ${JSON.stringify(exit)}\n${d.out.slice(-1500)}`);
++  assert.equal(fs.readFileSync(rig.f('blocked.log'), 'utf8'), '', 'no enclave.host name was looked up or connected to');
++});
++
++test('zero apps, unknown chain policy: the production policy with no network holds them (the agent runs); a fresh host never serves on an unread policy', { timeout: 60_000 }, async (t) => {
++  // no ENCLAVE_PLATFORM_HOST_POLICY: the production chain and address book turn the production policy ON by default
++  const rig = await hostRig(t, { addressBook: PRODUCTION_BOOK }), d = daemon(t, rig);
++  await d.until(/no apps: running this host's services only/);
++  await d.until(HELD);
++  await sleep(6000);
++  assert.equal(count(d.out, STARTED), 0, 'never started while the policy cannot be read');
++  assert.equal(d.child.exitCode, null, 'the agent keeps running (and keeps asking)');
++  const exit = await d.stop(); assert.ok(exit && exit.code === 0, JSON.stringify(exit));
++});
++
++test('zero apps, the local policy down from the start: held; once it answers and admits, started', { timeout: 60_000 }, async (t) => {
++  const w = await policyWorld(t); await w.publish({ deny: [] }); w.setDown(true);
++  const rig = await hostRig(t), d = daemon(t, rig, { env: fast(w) });
++  await d.until(HELD); await sleep(3000);
++  assert.equal(count(d.out, STARTED), 0);
++  w.setDown(false); await d.until(STARTED);
++  await d.stop();
++});
++
++test('first app added and last app removed (live reload) never touch host services; a restart with no app starts them again', { timeout: 120_000 }, async (t) => {
++  const w = await policyWorld(t); await w.publish({ deny: [] });
++  const rig = await hostRig(t);
++  let d = daemon(t, rig, { env: fast(w) });
++  await d.until(STARTED);
++  rig.write({ ...rig.cfg, apps: [rig.app] }); d.child.kill('SIGHUP');                          // the first app
++  await d.until(/config reloaded: 1 apps \(1 added, 0 changed\)/);
++  rig.write({ ...rig.cfg, apps: [] }); d.child.kill('SIGHUP');                                   // the last app removed
++  await d.until(/config reloaded: 1 apps \(0 added, 0 changed\)/);                                 // (a dropped app is left to its lease)
++  await sleep(2500);
++  assert.equal(count(d.out, STARTED), 1, 'host services started once and were never restarted');
++  assert.doesNotMatch(d.out, /host services stopped|HOST SERVICES REFUSED/);
++  let t0 = Date.now(), exit = await d.stop();
++  assert.ok(exit?.code === 0, `SIGTERM -> ${JSON.stringify(exit)} after ${Date.now() - t0} ms:\n${d.out.slice(-4000)}`);
++  d = daemon(t, rig, { env: fast(w) });                                                        // the restart: the file has no app now
++  await d.until(/no apps: running this host's services only/); await d.until(STARTED);
++  // SIGTERM right away, often during the agent's own startup: it must EXIT (0, or 1 "stopped during startup"), never hang
++  // (counterexample: a stop during start()'s last status write left its five intervals running - the process never exited)
++  t0 = Date.now(); exit = await d.stop();
++  assert.ok(exit?.code === 0 || (exit?.code === 1 && /privacy agent stopped during startup/.test(d.out)), `SIGTERM -> ${JSON.stringify(exit)} after ${Date.now() - t0} ms:\n${d.out.slice(-4000)}`);
++});
++
++test('zero apps: refused before anything binds without a usable host-services block or with the policy off', { timeout: 60_000 }, async (t) => {
++  const exitOf = async (rig, env = {}) => { const d = daemon(t, rig, { env }); const e = await Promise.race([d.exited, sleep(20_000).then(() => null)]); return { e, out: d.out }; };
++  const cases = [
++    [{ hostServices: null }, /^version 2 app configuration required\s*$/m, 'no hostServices: refused exactly as before'],
++    [{ hostServices: { ...HS, exits: [] } }, /an empty app list runs only this host's services, and they are refused \(invalid hostServices block: hostServices\.exits/, 'malformed block'],
++    [{ hostServices: { ...HS, futureField: 1 } }, /they are refused \(invalid hostServices block: hostServices: unknown field/, 'a newer release\'s block'],
++    [{ worker: false }, /they are refused \(the host-service ingress worker is missing/, 'no ingress worker'],
++    [{ endpoint: ENDPOINT + '/' }, /they are refused \(the runner is not keccak256 of this host's endpoint/, 'runner != keccak(endpoint)'],
++    [{}, /they need the platform host policy on \(not the production chain\/book/, 'policy off (a non-production book, nothing configured)'],
++  ];
++  for (const [opts, re, why] of cases) {
++    const { e, out } = await exitOf(await hostRig(t, opts));
++    assert.equal(e?.code, 1, `${why}: exit 1\n${out}`); assert.match(out, re, why);
++    assert.doesNotMatch(out, /host services: \{|control circuits/, `${why}: nothing started`);
++  }
++  // explicitly off is off: still refused for an app-less host
++  const w = await policyWorld(t);
++  const { e, out } = await exitOf(await hostRig(t), { ...fast(w), ENCLAVE_PLATFORM_HOST_POLICY: 'off' });
++  assert.equal(e?.code, 1); assert.match(out, /need the platform host policy on \(ENCLAVE_PLATFORM_HOST_POLICY=off/);
++});
++
++test('with an app, an "off" policy keeps the earlier behavior (host services start at once); on, they wait for the admit', { timeout: 60_000 }, async (t) => {
++  let rig = await hostRig(t, { apps: 1 }), d = daemon(t, rig);
++  await d.until(STARTED); await d.stop();
++  const w = await policyWorld(t); await w.publish({ deny: [{ kind: 'operator', value: OPERATOR, reason: 'abuse' }] });
++  rig = await hostRig(t, { apps: 1 }); d = daemon(t, rig, { env: fast(w) });
++  await d.until(HELD); await sleep(1500);
++  assert.equal(count(d.out, STARTED), 0, 'a banned host with apps runs no host service either');
++  assert.doesNotMatch(d.out, /no apps:/);
++  await d.stop();
++});
++
++// ---- the shipped bundle: network/build.mjs bundles the agent from network/entries/privacy-agent.mjs (the main guard) ----
++const bundleOpts = { bundle: true, platform: 'node', format: 'esm', target: 'node22', logLevel: 'silent',
++  banner: { js: 'import {createRequire as bundleRequire} from "node:module"; const require=bundleRequire(import.meta.url);' } };
++
++test('bundled library command lines: without the guard, the runner.mjs a carrier-configured challenge replica loads EXITS the bundle; with it, nothing runs', async (t) => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'main-guard-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const probe = async (guard) => { const file = path.join(dir, `${guard ? 'guarded' : 'bare'}.mjs`);
++    await build({ ...bundleOpts, stdin: { contents: `${guard ? "import './main-guard.mjs';\n" : ''}await import('./host-services/runner.mjs'); console.log('agent still running');`, resolveDir: path.join(ROOT, 'network'), loader: 'js' }, outfile: file });
++    try { return { code: 0, out: execFileSync(process.execPath, [file, '--config', path.join(dir, 'privacy-config.json')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
++    catch (e) { return { code: e.status, out: String(e.stdout) + String(e.stderr) }; } };
++  const bare = await probe(false);
++  assert.equal(bare.code, 2, 'the counterexample: the bundled runner ran its own command line'); assert.match(bare.out, /usage: runner\.mjs check\|run\|advertise/);
++  const guarded = await probe(true);
++  assert.deepEqual(guarded, { code: 0, out: 'agent still running\n' });
++  // the build check: the agent bundled from its source (two main checks: its own and runner.mjs's) is refused; from its entry, accepted
++  const bare2 = path.join(dir, 'agent-bare.mjs'), entry = path.join(dir, 'privacy-agent.mjs');
++  await build({ ...bundleOpts, entryPoints: [path.join(ROOT, 'network/privacy-agent.mjs')], outfile: bare2 });
++  assert.throws(() => checkBundle(bare2), /2 bundled "main module" checks/);
++  await build({ ...bundleOpts, entryPoints: [path.join(ROOT, 'network/entries/privacy-agent.mjs')], outfile: entry });
++  assert.equal(checkBundle(entry, { guarded: true }).guarded, true);
++  assert.throws(() => checkBundle(bare2, { guarded: true }), /main guard is not in the bundle/);
++  // imported (not run): no daemon starts, the library is there
++  const imported = execFileSync(process.execPath, ['--input-type=module', '-e', `const m=await import(${JSON.stringify(pathToFileURL(entry).href)}); console.log(typeof m.runPrivacy, typeof m.PrivacyAgent);`], { encoding: 'utf8', cwd: dir });
++  assert.equal(imported.trim(), 'function function');
++});
++
++test('the shipped bundle runs the app-less daemon: admitted -> host services', { timeout: 90_000 }, async (t) => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-bundle-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const file = path.join(dir, 'privacy-agent.mjs');
++  await build({ ...bundleOpts, entryPoints: [path.join(ROOT, 'network/entries/privacy-agent.mjs')], outfile: file });
++  const w = await policyWorld(t); await w.publish({ deny: [] });
++  const rig = await hostRig(t), d = daemon(t, rig, { env: fast(w), script: file });
++  await d.until(/no apps: running this host's services only/); await d.until(STARTED);
++  assert.ok((await d.stop())?.code === 0);
++});
++
++// ---- enrollment: the fresh box's only opt-in (ENCLAVE_HOST_SERVICES_FILE) and the zero-app write ----
++function enrollRig(t, { hostServicesFile = null, rows = [], refusal = () => null, worker = true, endpoint = ENDPOINT, addressBook = PRODUCTION_BOOK } = {}) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-cold-enroll-')), agentDir = path.join(dir, 'agent'), policyFile = path.join(dir, 'policy.json');
++  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  fs.mkdirSync(agentDir); fs.writeFileSync(policyFile, JSON.stringify({ cpu: { runtimeId: 'ab'.repeat(32) }, gpu: {} }));
++  if (worker) { fs.mkdirSync(path.join(dir, 'bin')); fs.writeFileSync(path.join(dir, 'bin', 'host-service-ingress.mjs'), '// the staged worker'); }
++  const D = '0x' + '11'.repeat(32), APP = '0x' + '5a'.repeat(32), CID = 'bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza';
++  const vm = { name: D, status: 'running', appReady: true, catalog: { app: APP, version: 4 }, cid: CID, appId: 'ef'.repeat(32), runtimeId: 'ab'.repeat(32), componentSha256: rawDigest(CID), derivation: 'enclave-catalog-bundle/1', gpuMilli: 0, startedAt: 1 };
++  const w = { dir, restarts: 0, logs: [], rows, refusal, row: { id: D, appRef: `catalog://${APP}/4`, configCid: '{}', runner: RUNNER, active: true, isPublic: true, leaseUntil: 9999999999n } };
++  const config = { agentDir, binDir: path.join(dir, 'bin'), nodeBinary: 'node.exe', operatorKeyFile: 'op.key', runner: RUNNER, endpoint, relayBase: 'https://api.enclave.host',
++    policyFile, tpmBinary: 'tpmattest.exe', tpmSha256: 'aa'.repeat(32), addressBook, chainRpc: ['https://rpc'], enclaveNetwork: { checkers: ['0x' + '57'.repeat(20)] }, hostServicesFile };
++  w.enroll = createNetworkEnroll({ agentDir, binDir: path.join(dir, 'bin'), runner: RUNNER, relayBase: 'https://api.enclave.host', restartAgent: async () => { w.restarts++; }, config, log: (m) => w.logs.push(m),
++    fetch: async () => ({ ok: true, json: async () => ({ domains: {} }) }), rows: async () => w.rows, version: async () => ({ cid: CID }), vms: async () => [vm],
++    hostServiceRefusal: () => w.refusal() });
++  w.file = path.join(agentDir, 'privacy-config.json'); w.exists = () => fs.existsSync(w.file); w.read = () => JSON.parse(fs.readFileSync(w.file, 'utf8')); w.raw = () => fs.readFileSync(w.file, 'utf8');
++  return w;
++}
++const optInFile = (t, body) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-optin-')); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
++  const f = path.join(d, 'host-services.json'); if (body !== undefined) fs.writeFileSync(f, typeof body === 'string' ? body : JSON.stringify(body)); return f; };
++
++test('enrollment, fresh box: no opt-in -> nothing written (as before); a valid opt-in -> an app-less config for host services; the first app joins it without a restart', async (t) => {
++  let w = enrollRig(t);
++  assert.equal((await w.enroll.pass()).changed, false); assert.equal(w.exists(), false, 'no app, no opt-in: the agent keeps waiting');
++  const challengeReplica = { reviewed: true, note: 'carried byte-for-byte, judged by the agent' };
++  w = enrollRig(t, { hostServicesFile: optInFile(t, { hostServices: HS, challengeReplica }) });
++  const r = await w.enroll.pass();
++  assert.equal(r.changed, true); assert.equal(r.apps, 0);
++  const c = w.read();
++  assert.deepEqual(c.apps, []); assert.deepEqual(c.enclaveNetwork.hostServices, HS); assert.deepEqual(c.enclaveNetwork.challengeReplica, challengeReplica);
++  assert.equal(path.basename(c.enclaveNetwork.serviceWorkerModule), 'host-service-ingress.mjs');
++  assert.equal(Object.keys(c.enclaveNetwork).at(-1), 'challengeReplica', 'the agent-facing section keeps its order (walletAdmission would stay last)');
++  assert.ok(w.logs.some((l) => /written for this host's services only \(no app yet\)/.test(l)));
++  const steady = w.raw();
++  for (let i = 0; i < 3; i++) assert.equal((await w.enroll.pass()).changed, false);
++  assert.equal(w.raw(), steady, 'steady across passes'); assert.equal(w.restarts, 0);
++  w.rows = [w.row];                                                                               // the first app is leased
++  assert.equal((await w.enroll.pass()).changed, true);
++  assert.equal(w.read().apps.length, 1); assert.deepEqual(w.read().enclaveNetwork.hostServices, HS, 'host services kept');
++  assert.equal(w.restarts, 0, 'the first app is a reload, not a restart (host services keep running)');
++});
++
++test('enrollment, fresh box: a refused host, an invalid block or an unusable opt-in file writes no app-less config', async (t) => {
++  let w = enrollRig(t, { hostServicesFile: optInFile(t, { hostServices: HS }), refusal: () => 'platform host policy: banned by platform policy #2 (operator): abuse' });
++  assert.equal((await w.enroll.pass()).changed, false); assert.equal(w.exists(), false);
++  assert.ok(w.logs.some((l) => /no app yet, and the platform host policy refuses this host \(platform host policy: banned/.test(l)));
++  w.refusal = () => null; assert.equal((await w.enroll.pass()).changed, true, 'the admin\'s admit: written on the next pass');
++  w = enrollRig(t, { hostServicesFile: optInFile(t, { hostServices: { ...HS, exits: [] } }) });
++  const r = await w.enroll.pass();
++  assert.equal(r.changed, false); assert.equal(w.exists(), false); assert.match(r.hostServicesError, /exits/);
++  for (const [body, re] of [[undefined, /missing/], ['{not json', /JSON|Unexpected|Expected/], [{ hostServices: HS, extra: 1 }, /must be \{ hostServices, challengeReplica\? \}/],
++    [{ challengeReplica: {} }, /must be \{ hostServices/], [{ hostServices: HS, challengeReplica: [] }, /challengeReplica must be an object/]]) {
++    w = enrollRig(t, { hostServicesFile: optInFile(t, body) });
++    const x = await w.enroll.pass();
++    assert.equal(w.exists(), false); assert.match(x.hostServicesOptInError, re);
++    assert.ok(w.logs.some((l) => /HOST SERVICES OPT-IN NOT APPLIED/.test(l)));
++  }
++  assert.match((await readHostServicesFile('relative/host-services.json')).error, /absolute path/);
++  // a config the agent would refuse is never written (the \Enclave\Network task would restart it every 10 s)
++  for (const [opts, re] of [[{ worker: false }, /worker is not staged/], [{ endpoint: ENDPOINT + '/' }, /runner is not keccak256/],
++    [{ addressBook: '0x' + '44'.repeat(20) }, /platform host policy is off for this config/]]) {
++    w = enrollRig(t, { hostServicesFile: optInFile(t, { hostServices: HS }), ...opts });
++    assert.equal((await w.enroll.pass()).changed, false); assert.equal(w.exists(), false);
++    assert.ok(w.logs.some((l) => re.test(l) && /the privacy agent would refuse them/.test(l)), w.logs.join('\n'));
++  }
++});
++
++test('enrollment, existing box: the opt-in file is the source while configured (a change restarts once); an unusable file keeps the config\'s blocks', async (t) => {
++  const file = optInFile(t, { hostServices: HS });
++  const w = enrollRig(t, { hostServicesFile: file, rows: [] });
++  w.rows = [w.row]; await w.enroll.pass();
++  assert.deepEqual(w.read().enclaveNetwork.hostServices, HS); assert.equal(w.restarts, 0, 'fresh: no restart');
++  const HS2 = { ...HS, exits: ['e1'.repeat(16), 'e3'.repeat(16)] };
++  fs.writeFileSync(file, JSON.stringify({ hostServices: HS2 }));
++  await w.enroll.pass(); assert.deepEqual(w.read().enclaveNetwork.hostServices, HS2); assert.equal(w.restarts, 1, 'restarted once on the new block');
++  await w.enroll.pass(); assert.equal(w.restarts, 1);
++  const before = w.raw();
++  fs.writeFileSync(file, '{broken');
++  const r = await w.enroll.pass();
++  assert.equal(w.raw(), before, 'an unusable file never drops or rewrites the running block'); assert.equal(w.restarts, 1); assert.ok(r.hostServicesOptInError);
++});
++
++// ---- release dependencies: every npm input exactly as the committed lockfile pins it ----
++test('locked inputs: the governing lockfile per node_modules tree; a version drift, an extraneous package or an outside input is refused', (t) => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locked-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
++  const put = (rel, obj) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), typeof obj === 'string' ? obj : JSON.stringify(obj)); };
++  put('package-lock.json', { lockfileVersion: 3, packages: { '': {}, 'node_modules/viem': { version: '2.53.1' }, 'node_modules/@noble/curves': { version: '1.9.1' }, 'node_modules/a/node_modules/b': { version: '2.0.0' } } });
++  put('relay/package-lock.json', { lockfileVersion: 3, packages: { 'node_modules/ws': { version: '8.21.1' } } });
++  put('node_modules/viem/package.json', { name: 'viem', version: '2.53.1' }); put('node_modules/@noble/curves/package.json', { name: '@noble/curves', version: '1.9.1' });
++  put('node_modules/a/node_modules/b/package.json', { name: 'b', version: '2.0.0' }); put('relay/node_modules/ws/package.json', { name: 'ws', version: '8.21.1' });
++  const r = lockedInputs(dir, ['src/x.mjs', 'node_modules/viem/_esm/index.js', 'node_modules/@noble/curves/esm/secp256k1.js', 'node_modules/a/node_modules/b/i.js', 'relay/node_modules/ws/lib/x.js']);
++  assert.deepEqual(r.packages, { 'node_modules/@noble/curves': '1.9.1', 'node_modules/a/node_modules/b': '2.0.0', 'node_modules/viem': '2.53.1', 'relay/node_modules/ws': '8.21.1' });
++  assert.deepEqual(Object.keys(r.lockfiles).sort(), ['package-lock.json', 'relay/package-lock.json']);
++  put('relay/node_modules/ws/package.json', { name: 'ws', version: '8.18.0' });
++  assert.throws(() => lockedInputs(dir, ['relay/node_modules/ws/lib/x.js']), /relay\/node_modules\/ws is ws@8\.18\.0, but relay\/package-lock\.json pins ws@8\.21\.1: install with npm ci/);
++  put('node_modules/extra/package.json', { name: 'extra', version: '1.0.0' });
++  assert.throws(() => lockedInputs(dir, ['node_modules/extra/i.js']), /extraneous/);
++  assert.throws(() => lockedInputs(dir, ['../outside/node_modules/x/i.js']), /outside the tree/);
++  assert.throws(() => lockedInputs(dir, ['sdk/node_modules/x/i.js']), /no lockfile governs sdk\//);
++  // the repository itself: every npm input of the shipped privacy agent is locked
++  const ours = lockedInputs(ROOT, ['node_modules/viem/package.json', 'node_modules/ws/package.json']);
++  assert.ok(ours.packages['node_modules/viem'] && ours.lockfiles['package-lock.json']);
++});
+diff --git a/windows/node/agent.mjs b/windows/node/agent.mjs
+index ab691f8bd49f55ec4e0407cf1918586f513b7e55..8304e1fdb7c947872af71eadfcee160b2b2bf821 100644
+--- a/windows/node/agent.mjs
++++ b/windows/node/agent.mjs
+@@ -1062,6 +1062,8 @@ async function startHostingControls() {
+                       // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
+                       // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
+                       walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
++                      // the operator's host-services opt-in (node-config.local.cmd), the only one a box with no app yet can make
++                      hostServicesFile: process.env.ENCLAVE_HOST_SERVICES_FILE || null,
+                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
+                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
+                       tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+@@ -1079,6 +1081,8 @@ async function startHostingControls() {
+             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
+             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
+                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
++            // an app-less config (host services only) is not written while this node's platform host policy refuses this host
++            hostServiceRefusal: () => host.platformPolicy?.serviceRefusal?.() || null,
+             log: (m) => log('[network]', m) });
+           const r = await enroll.pass(); lastEnrollError = ''; enrollWaiting = Number(r?.waiting) || 0;
+         } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
+diff --git a/windows/node/network-enroll.mjs b/windows/node/network-enroll.mjs
+index caa8ea25b862e564c40ba2a93c6d04ba1942dbe8..f45f17f360e21b55f0687862934f16b3d4526e3e 100644
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -4,7 +4,9 @@
+ // Every app this box serves reaches the internet only through its own Enclave-network circuits (network/privacy-agent.mjs,
+ // the \Enclave\Network task; docs/design/enclave-network.md). This pass, run by the node agent every few minutes:
+ //   1. writes privacy-config.json with the first app (the agent refuses an empty list) - the \Enclave\Network task waits
+-//      for it; the box's own control traffic uses Enclave-network control circuits;
++//      for it; the box's own control traffic uses Enclave-network control circuits. A box whose operator opted into its
++//      own public service roles (ENCLAVE_HOST_SERVICES_FILE, or hostServices set by hand) gets it with no app yet, unless
++//      the node's platform host policy refuses the box: the agent then runs those services only, once it admits the box;
+ //   2. enrolls each public deployment leased to this box, running ready in a partition of its current version: its
+ //      expectation (network/shield-expectation.mjs) and its names (the relay's domain map). An expectation that changes
+ //      (an upgrade) is rewritten; the names follow the relay's map.
+@@ -20,6 +22,8 @@ import path from "node:path";
+ import { createHash } from "node:crypto";
+ import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
+ import { validateHostServicesTransport } from "../../network/host-service-transport.mjs";
++import { resolveHostPolicyConfig } from "../../network/platform-host-policy-config.mjs";
++import { keccak256, toBytes } from "viem";
+ 
+ const ID = /^0x[0-9a-f]{64}$/;
+ // settings of the retired TUNA transport a box's config may still hold; the agent ignores them, the next pass drops them
+@@ -80,6 +84,36 @@ export function hostServicesBlock(h) {
+   catch (e) { return { block: structuredClone(h), error: e.message }; }
+ }
+ 
++/** The operator's host-services opt-in FILE (ENCLAVE_HOST_SERVICES_FILE: what `stage-tool.mjs host-services` prints as
++ *  `agent`, i.e. { hostServices, challengeReplica? }), the source of those two blocks while it is configured - the only way
++ *  a box with no app yet (no privacy-config.json) can opt in. -> { hostServices?, challengeReplica?, error }. A file that is
++ *  missing, unreadable or not that shape yields only an error: the config's own blocks are then kept as they are. */
++export async function readHostServicesFile(file) {
++  if (!file) return { error: null };
++  if (!path.isAbsolute(file)) return { error: `ENCLAVE_HOST_SERVICES_FILE must be an absolute path (${file})` };
++  let j;
++  try { j = JSON.parse(await fs.readFile(file, "utf8")); } catch (e) { return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: ${e.code === "ENOENT" ? "missing" : e.message}` }; }
++  if (!j || typeof j !== "object" || Array.isArray(j) || j.hostServices === undefined || Object.keys(j).some((k) => !["hostServices", "challengeReplica"].includes(k)))
++    return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: must be { hostServices, challengeReplica? }` };
++  if (j.challengeReplica !== undefined && (!j.challengeReplica || typeof j.challengeReplica !== "object" || Array.isArray(j.challengeReplica)))
++    return { error: `ENCLAVE_HOST_SERVICES_FILE ${file}: challengeReplica must be an object` };
++  return { hostServices: j.hostServices, ...(j.challengeReplica !== undefined ? { challengeReplica: j.challengeReplica } : {}), error: null };
++}
++
++/** Why the privacy agent would refuse an app-less config (network/privacy-agent.mjs runPrivacy: hostServicesPreflight and its
++ *  platform host policy), or null. Such a config is written only when the agent would run it: the host-service worker staged,
++ *  the runner exactly keccak256 of the endpoint, the policy ON for the config's chain and address book (the agent's own
++ *  process carries no ENCLAVE_PLATFORM_HOST_POLICY) - otherwise the \Enclave\Network task restarts a refused agent every 10 s. */
++export async function appLessRefusal(cfg) {
++  const worker = cfg?.enclaveNetwork?.serviceWorkerModule;
++  if (typeof worker !== "string" || !path.isAbsolute(worker) || !(await fs.stat(worker).then((s) => s.isFile(), () => false)))
++    return `the host-service ingress worker is not staged (${worker || "none"})`;
++  const runner = String(cfg.runner || "");
++  if (!/^0x[0-9a-f]{64}$/.test(runner) || keccak256(toBytes(String(cfg.endpoint))) !== runner) return "the runner is not keccak256 of this host's endpoint exactly as configured";
++  const policy = resolveHostPolicyConfig({ env: {}, chainId: 8453, book: cfg?.chain?.addressBook || null });
++  return policy.on ? null : `the platform host policy is off for this config (${policy.reason})`;
++}
++
+ /** An operator's enclaveNetwork.paceMbps (this host's uplink in Mbps; circuits pace their UDP to it) kept when it is a number
+  *  in (0, 100000]; else none (unpaced). */
+ export function validPaceMbps(v) {
+@@ -93,7 +127,8 @@ export function validPaceMbps(v) {
+  * name, endpoint and transportKey are accepted (and unused) so older callers keep working.
+  */
+ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
+-                                   fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
++                                   fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {},
++                                   hostServiceRefusal = () => null }) {
+   if (!config?.enclaveNetwork) throw new Error("the Enclave network configuration (trusted checkers) is required: TUNA is retired");
+   const file = (f) => path.join(agentDir, f);
+   const readJSON = async (f, d) => { try { return JSON.parse(await fs.readFile(f, "utf8")); } catch (e) { if (e.code === "ENOENT") return d; throw e; } };
+@@ -101,10 +136,15 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+ 
+   async function pass() {
+     await fs.mkdir(file("state"), { recursive: true });
+-    // The config is written only once it names an app: the privacy agent refuses an empty app list.
++    // The config is written once it names an app - or, with no app yet, once it carries the operator's VALID host-services
++    // opt-in and this node's platform host policy does not refuse this host (the privacy agent then runs those services
++    // only, and starts them only on its own admit; it refuses an empty app list otherwise).
+     let cfg = await readJSON(file("privacy-config.json"), null), changed = false, waiting = 0;
+     const fresh = !cfg;
+     if (fresh) cfg = baseConfig(config);
++    // the operator's opt-in file, while configured, is the source of hostServices (and of challengeReplica when it has one)
++    const optIn = await readHostServicesFile(config.hostServicesFile);
++    if (optIn.error) log(`HOST SERVICES OPT-IN NOT APPLIED (the config's blocks are kept as they are): ${optIn.error}`);
+     // HOST EGRESS (network/privacy-agent.mjs, main 7e27c1d0c) is the OPERATOR's opt-in, set by hand in privacy-config.json
+     // ({apps:[deployment ids], own:[this box's public addresses]}): kept across passes, never computed here. Without this
+     // the next pass replaced the whole section and dropped it (and restarted the agent).
+@@ -113,12 +153,12 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+     const paceMbps = validPaceMbps(cfg?.enclaveNetwork?.paceMbps);
+     // HOST SERVICES: the operator's opt-in, kept byte-for-byte (valid or not: never deleted); only then is the service
+     // worker named (no other box's section changes, so nothing restarts for this release alone)
+-    const { block: hostServices, error: hostServicesError } = hostServicesBlock(cfg?.enclaveNetwork?.hostServices);
++    const { block: hostServices, error: hostServicesError } = hostServicesBlock(optIn.hostServices !== undefined ? optIn.hostServices : cfg?.enclaveNetwork?.hostServices);
+     if (hostServicesError) log(`HOST SERVICES CONFIG INVALID (kept unchanged; the privacy agent refuses host services until it is fixed): ${hostServicesError}`);
+     // CHALLENGE REPLICA (network/challenge-replica-host.mjs; work/challenge-host-tls-20261021): the operator's opt-in, kept
+     // byte-for-byte like hostServices - never computed or validated here (the privacy agent judges it at start). Without
+     // this every pass replaced the section, dropped it and restarted the agent. Placed before walletAdmission, which stays last.
+-    const challengeReplica = cfg?.enclaveNetwork?.challengeReplica;
++    const challengeReplica = optIn.challengeReplica !== undefined ? optIn.challengeReplica : cfg?.enclaveNetwork?.challengeReplica;
+     const keepChallenge = !!challengeReplica && typeof challengeReplica === "object" && !Array.isArray(challengeReplica);
+     // Directory choice belongs to the host operator; enrollment must not silently
+     // restore the default relay each time a new app appears.
+@@ -189,13 +229,23 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
+       cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true });
+       changed = true; log(`${short}: enrolled on the Enclave network (${namesFor(id).join(", ")})`);
+     }
+-    if (changed && cfg.apps.length) {
++    // no app yet: written only for a VALID host-services block (an invalid one would only be refused by the agent) while this
++    // node's platform host policy does not refuse this host (the agent judges the same policy itself before any service)
++    let servicesOnly = false;
++    if (changed && !cfg.apps.length && hostServices && !hostServicesError) {
++      const unusable = await appLessRefusal(cfg), refusal = unusable ? null : hostServiceRefusal();
++      if (unusable) log(`host services: no app yet, and the privacy agent would refuse them (${unusable}); the config is not written`);
++      else if (refusal) log(`host services: no app yet, and the platform host policy refuses this host (${refusal}); the config is not written`);
++      else servicesOnly = true;
++    }
++    const write = changed && (cfg.apps.length > 0 || servicesOnly);
++    if (write) {
+       await writeAtomic(file("privacy-config.json"), JSON.stringify(cfg, null, 2));
+-      if (fresh) log("privacy-config.json written: the privacy agent starts");
++      if (fresh) log(servicesOnly ? "privacy-config.json written for this host's services only (no app yet): the privacy agent starts" : "privacy-config.json written: the privacy agent starts");
+       if (switched) { log("restarting the privacy agent on its new network configuration"); await restartAgent().catch((e) => log(`agent restart: ${e.message}`)); }
+     }
+     // waiting: apps whose new version's partition is not ready yet - the caller looks again soon instead of in 5 minutes
+-    return { ready: true, apps: cfg.apps.length, changed: changed && cfg.apps.length > 0, waiting, ...(hostServicesError ? { hostServicesError } : {}) };
++    return { ready: true, apps: cfg.apps.length, changed: write, waiting, ...(hostServicesError ? { hostServicesError } : {}), ...(optIn.error ? { hostServicesOptInError: optIn.error } : {}) };
+   }
+   return { pass };
+ }
+diff --git a/windows/node/node-config.example.cmd b/windows/node/node-config.example.cmd
+index 62fc8003cf538cf3d8fbbf2721ad50c85357bce2..de3d6ad5a0d4b01fdcd6bd3770ee681c9a121a7d 100644
+--- a/windows/node/node-config.example.cmd
++++ b/windows/node/node-config.example.cmd
+@@ -16,3 +16,7 @@ rem set NODE_OPERATOR_KEY=0x...   (only when the name is registered on chain; si
+ rem set PUBLIC_URL=https://api.enclave.host/t/my-gaming-pc
+ rem The platform host policy (admin host bans): production = on, activated by the admin's anchor. Keep it.
+ set ENCLAVE_PLATFORM_HOST_POLICY=production
++rem This host's own public service roles (opt-in): the JSON `stage-tool.mjs host-services` prints as "agent",
++rem { "hostServices": {...}, "challengeReplica"?: {...} }. The network agent then runs them even before the first app, once
++rem the platform host policy admits this host. Unset: none (or the blocks set by hand in privacy-config.json).
++rem set ENCLAVE_HOST_SERVICES_FILE=C:\ProgramData\Enclave\host-services.json

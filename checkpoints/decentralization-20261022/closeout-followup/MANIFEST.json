@@ -8026,6 +8026,531 @@
       "stored": "files/source-preservation/frozen-0331-labels.json",
       "sha256": "2a6708b646f02a6da01e32e513eb82864bbebc51f3dd3e3e2a61f0e8c7e1598a",
       "bytes": 3672
+    },
+    {
+      "label": "FROZEN 04:10Z commits exported from Git objects (never worktrees); every base rebuilt from pushed f6668d86 material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-0410-export/INVENTORY.json",
+      "sha256": "d36384a4144066f884f99f73de387f72f0495cb78c1426dcd8bc95daa18060b9",
+      "bytes": 25106
+    },
+    {
+      "label": "FROZEN 04:10Z commits exported from Git objects (never worktrees); every base rebuilt from pushed f6668d86 material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-0410-export/REBUILD.md",
+      "sha256": "44885f00cce96821365ff202adf3621dde23637640e27523b542937bbb5abecf",
+      "bytes": 3091
+    },
+    {
+      "label": "FROZEN 04:10Z commits exported from Git objects (never worktrees); every base rebuilt from pushed f6668d86 material and every commit tree reproduced exactly (REPRODUCE-CHECK.txt). SOURCE + OFFLINE TESTS ONLY: not merged into the normal tree, not imaged, not deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-0410-export/REPRODUCE-CHECK.txt",
+      "sha256": "8fd0b3fb19b3e409a79cd78c009062fff14ec5b0608fe58d2d670dd5bd8828d3",
+      "bytes": 1744
+    },
+    {
+      "label": "A 0c43e4db on 921d60c2: canonical-trie Reth consumer E2E for the LeaseReader verifier authority (a test addition, 2 files). A's later commits 437d6ced6/2efc4a83e are NOT part of it and not captured. Source + test only; not RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/a-reth-e2e-0c43e4db/patches/0001-Test-the-verifier-authority-on-real-contracts-over-a.patch",
+      "stored": "files/source-preservation/frozen-0410-export/a-reth-e2e-0c43e4db/patches/0001-Test-the-verifier-authority-on-real-contracts-over-a.patch",
+      "sha256": "fd0b3239ea0c07667c8e49c4ed7e8be2b5ffa4c64f33a61644f7dcbab7e50742",
+      "bytes": 17200
+    },
+    {
+      "label": "A 0c43e4db on 921d60c2: canonical-trie Reth consumer E2E for the LeaseReader verifier authority (a test addition, 2 files). A's later commits 437d6ced6/2efc4a83e are NOT part of it and not captured. Source + test only; not RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/a-reth-e2e-0c43e4db/files/test/helpers/cli-independent-rig.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/a-reth-e2e-0c43e4db/files/test/helpers/cli-independent-rig.mjs",
+      "sha256": "53d66648494ea3b99c848a58a9cd305e4374ce37fef65d5813251d0f07cd015e",
+      "bytes": 38375
+    },
+    {
+      "label": "A 0c43e4db on 921d60c2: canonical-trie Reth consumer E2E for the LeaseReader verifier authority (a test addition, 2 files). A's later commits 437d6ced6/2efc4a83e are NOT part of it and not captured. Source + test only; not RPC independence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/a-reth-e2e-0c43e4db/files/test/lease-reader-verifier.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/a-reth-e2e-0c43e4db/files/test/lease-reader-verifier.e2e.test.mjs",
+      "sha256": "9078673b98eafb878aaa4094e44f341fa7eb152f92e806985dd21dc2579a14c0",
+      "bytes": 16683
+    },
+    {
+      "label": "B 62feb3aa -> 8d110101 on 921d60c2: one deadline bounds the whole verified read (its callback included) and closes its client; the deadline timer stays referenced so it fires when nothing else holds the process. lease-reader.mjs 7c01e53b; 11 new tests. Not merged into A or the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/patches/0001-Bound-the-whole-verified-read-its-callback-included-.patch",
+      "stored": "files/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/patches/0001-Bound-the-whole-verified-read-its-callback-included-.patch",
+      "sha256": "ef8bdbc334a413d1404244876c0700d6f233a5529fc050f92a4069dd9fa14f08",
+      "bytes": 24272
+    },
+    {
+      "label": "B 62feb3aa -> 8d110101 on 921d60c2: one deadline bounds the whole verified read (its callback included) and closes its client; the deadline timer stays referenced so it fires when nothing else holds the process. lease-reader.mjs 7c01e53b; 11 new tests. Not merged into A or the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/patches/0002-Keep-the-verified-operation-deadline-timer-reference.patch",
+      "stored": "files/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/patches/0002-Keep-the-verified-operation-deadline-timer-reference.patch",
+      "sha256": "c611c9119f6b565261d183dcf3a8b1a194652e65a45646ec9645cd4672b1656a",
+      "bytes": 3591
+    },
+    {
+      "label": "B 62feb3aa -> 8d110101 on 921d60c2: one deadline bounds the whole verified read (its callback included) and closes its client; the deadline timer stays referenced so it fires when nothing else holds the process. lease-reader.mjs 7c01e53b; 11 new tests. Not merged into A or the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/files/network/lease-reader.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/files/network/lease-reader.mjs",
+      "sha256": "7c01e53b17fb97c65a2043d2703caa2ccc9bbec1e9236d7b11c0c3559e4d060a",
+      "bytes": 48380
+    },
+    {
+      "label": "B 62feb3aa -> 8d110101 on 921d60c2: one deadline bounds the whole verified read (its callback included) and closes its client; the deadline timer stays referenced so it fires when nothing else holds the process. lease-reader.mjs 7c01e53b; 11 new tests. Not merged into A or the normal tree",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/files/test/lease-reader-verifier-deadline.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/b-verifier-deadline-8d110101/files/test/lease-reader-verifier-deadline.test.mjs",
+      "sha256": "f3e99df4438467529c41eeb0f784ef5b7d24002892bcafdd7a5179d7df72668d",
+      "bytes": 11811
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/patches/0001-Host-services-cold-start-zero-app-privacy-agent-behi.patch",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/patches/0001-Host-services-cold-start-zero-app-privacy-agent-behi.patch",
+      "sha256": "0b2e3edd723fb18fca3baf74ba05f08aa4ac4ed1bb26a72d9ee67a22611c35dd",
+      "bytes": 74844
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/build.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/build.mjs",
+      "sha256": "cbd9217d6bb6be7d1cbd44f7dc0bca7532ae8dcc1a285a55e9a5db3cd4c175fd",
+      "bytes": 2636
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/bundle-checks.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/bundle-checks.mjs",
+      "sha256": "f899fb5d430a57cb642ea9b1d203997b660aa44819d7b4244274c538cf8ea4e6",
+      "bytes": 1611
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/entries/privacy-agent.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/entries/privacy-agent.mjs",
+      "sha256": "d401b5b7a36abefb0c96456724dd20b415bc3cc61c66ec5d3eda4082aae56fe7",
+      "bytes": 778
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/main-guard.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/main-guard.mjs",
+      "sha256": "d132a30fef98fbcaa127391248c80b537b6c14e661a77019af78702e23d4ed84",
+      "bytes": 795
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/privacy-agent.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/network/privacy-agent.mjs",
+      "sha256": "1d0c0f99d00890d247f814cae0c75694e9f29870706c87d8fd0438130bf6e72e",
+      "bytes": 35754
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/scripts/build-host-service-packages.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/scripts/build-host-service-packages.mjs",
+      "sha256": "f86857792f696119cfe42dd61605869e180f25aa69a7c2d8f1bcdbaf12b1287e",
+      "bytes": 7734
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/scripts/locked-inputs.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/scripts/locked-inputs.mjs",
+      "sha256": "9945b34fa409aa129e64581318b5ec1d1c7ee145dd27ed7f62461a95bc6fba61",
+      "bytes": 3022
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/scripts/network/build-consumers.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/scripts/network/build-consumers.mjs",
+      "sha256": "e61fe02cb8c96d332470235efc081126c0bbba076322506a1da4e65d4da89b4c",
+      "bytes": 2188
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/test/host-services-cold-start.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/test/host-services-cold-start.test.mjs",
+      "sha256": "8fc56eaf5a97dae15b65dbc1965578f62a051a57d0dc1e49ebc63b6e1dc5990e",
+      "bytes": 28782
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/windows/node/agent.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/windows/node/agent.mjs",
+      "sha256": "e530ff3b4f60c2606b04ff2853d8f9c7403056e341e8b333ec7897c1eb8307d6",
+      "bytes": 93429
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/windows/node/network-enroll.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/windows/node/network-enroll.mjs",
+      "sha256": "abd4e6315f01a90f621870c7fbe92c9341886781f24b5f1ec54c94ac7614e360",
+      "bytes": 21100
+    },
+    {
+      "label": "C cold start 427780bb on d7f520bf: a zero-app privacy agent behind the platform host policy, ENCLAVE_HOST_SERVICES_FILE opt-in, release packaging. NOT ROLLOUT-READY: known late-start/close race (root probe root-host-service-stop-race: a transport closed before its start returns still creates a circuit and a timer) and the policy gate trusts DigitalOcean mirrors only. C is closing these elsewhere; not captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/windows/node/node-config.example.cmd",
+      "stored": "files/source-preservation/frozen-0410-export/c-host-services-cold-427780bb/files/windows/node/node-config.example.cmd",
+      "sha256": "2cee80dac1591f1a80e732903147806ad6ce639eba6f138f515660f22d7c482c",
+      "bytes": 1312
+    },
+    {
+      "label": "D FINAL f1d0666b on b744ba19 (supervisor e50da21d): lease permits bound to their decision (before the caller's first await / at decision start; an overlapped allow re-read), confirmed-stop teardown with withdrawal first on every teardown path, pending-stop slices kept by the pool reconciler and restore. Requires a measured image AND a host-admission bundle with decision() (3438cdf2 or 6bef372d; the live metal bundle e83515fc lacks it). NOT deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/patches/0001-Linux-hold-bind-lease-permits-to-their-decision-conf.patch",
+      "stored": "files/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/patches/0001-Linux-hold-bind-lease-permits-to-their-decision-conf.patch",
+      "sha256": "b34e8386a00884fb45b1d8c8938f272dfebc062194b6369207dbedea3bfb7492",
+      "bytes": 70464
+    },
+    {
+      "label": "D FINAL f1d0666b on b744ba19 (supervisor e50da21d): lease permits bound to their decision (before the caller's first await / at decision start; an overlapped allow re-read), confirmed-stop teardown with withdrawal first on every teardown path, pending-stop slices kept by the pool reconciler and restore. Requires a measured image AND a host-admission bundle with decision() (3438cdf2 or 6bef372d; the live metal bundle e83515fc lacks it). NOT deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/supervisor.js",
+      "stored": "files/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/supervisor.js",
+      "sha256": "e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d",
+      "bytes": 852665
+    },
+    {
+      "label": "D FINAL f1d0666b on b744ba19 (supervisor e50da21d): lease permits bound to their decision (before the caller's first await / at decision start; an overlapped allow re-read), confirmed-stop teardown with withdrawal first on every teardown path, pending-stop slices kept by the pool reconciler and restore. Requires a measured image AND a host-admission bundle with decision() (3438cdf2 or 6bef372d; the live metal bundle e83515fc lacks it). NOT deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/helpers/supervisor-wallet-fixture.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/helpers/supervisor-wallet-fixture.mjs",
+      "sha256": "1fbda768a87ff1b5cd34932167d9236a345933bca600f01e9b9f6df7d6103dee",
+      "bytes": 10228
+    },
+    {
+      "label": "D FINAL f1d0666b on b744ba19 (supervisor e50da21d): lease permits bound to their decision (before the caller's first await / at decision start; an overlapped allow re-read), confirmed-stop teardown with withdrawal first on every teardown path, pending-stop slices kept by the pool reconciler and restore. Requires a measured image AND a host-admission bundle with decision() (3438cdf2 or 6bef372d; the live metal bundle e83515fc lacks it). NOT deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/pool-reconcile.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/pool-reconcile.test.mjs",
+      "sha256": "7b8a8f2eb78f2ec07250ed94f4a2086515eacf2aa47a8669ecfd75176f411dbe",
+      "bytes": 8203
+    },
+    {
+      "label": "D FINAL f1d0666b on b744ba19 (supervisor e50da21d): lease permits bound to their decision (before the caller's first await / at decision start; an overlapped allow re-read), confirmed-stop teardown with withdrawal first on every teardown path, pending-stop slices kept by the pool reconciler and restore. Requires a measured image AND a host-admission bundle with decision() (3438cdf2 or 6bef372d; the live metal bundle e83515fc lacks it). NOT deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/supervisor-wallet-real-lease-client.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/supervisor-wallet-real-lease-client.test.mjs",
+      "sha256": "1973ad4025f7a6b29b7faa2366ba916355340491b5a58f6927524e74775442ba",
+      "bytes": 7402
+    },
+    {
+      "label": "D FINAL f1d0666b on b744ba19 (supervisor e50da21d): lease permits bound to their decision (before the caller's first await / at decision start; an overlapped allow re-read), confirmed-stop teardown with withdrawal first on every teardown path, pending-stop slices kept by the pool reconciler and restore. Requires a measured image AND a host-admission bundle with decision() (3438cdf2 or 6bef372d; the live metal bundle e83515fc lacks it). NOT deployed",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/supervisor-wallet-unknown-hold.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/d-linux-hold-final-f1d0666b/files/test/supervisor-wallet-unknown-hold.test.mjs",
+      "sha256": "6487b2cf4978dfac82a7c5f3ec429cc3cc52a8d7fb4c0040100829c8af01e830",
+      "bytes": 29326
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+      "sha256": "1c0aece90bb398dd1b76b97570fb1af10fe68ba67e8614255fceacdcbe1d40b5",
+      "bytes": 50210
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/patches/0002-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/patches/0002-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch",
+      "sha256": "69f049d6208e5be3099540fd174e6f192472e855c7936e28c72f6e7b6064412f",
+      "bytes": 85580
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/network/s3-witness-cache.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/network/s3-witness-cache.mjs",
+      "sha256": "cf180498deb47d8df1fc8b3f923baebb8d91f61fdd93aeda405692a22f90a14f",
+      "bytes": 18707
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/network/witness-gateway.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/network/witness-gateway.mjs",
+      "sha256": "72fb8eb4f3ba168426a90463f2ac2bfd78e14a83639d34ecf35b6853732d20b9",
+      "bytes": 19250
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/SOURCE.txt",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/SOURCE.txt",
+      "sha256": "e7c307a102d121ae622df22fa80f2e5a8c9c000eae0fc3a64548b064c1630b9d",
+      "bytes": 952
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+      "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+      "bytes": 318
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+      "sha256": "5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784",
+      "bytes": 337
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+      "sha256": "3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87",
+      "bytes": 85
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-vanilla/context.json",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-vanilla/context.json",
+      "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+      "bytes": 318
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+      "sha256": "f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc",
+      "bytes": 272
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-vanilla/request.txt",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/fixtures/aws-sigv4/get-vanilla/request.txt",
+      "sha256": "9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f",
+      "bytes": 42
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/helios-s3-replay.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/helios-s3-replay.e2e.test.mjs",
+      "sha256": "a46ffe25d55265cfc7b5c38eec46f179ecce8156c57e4d41c1bc12a47284231d",
+      "bytes": 9130
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/s3-witness-archive.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/s3-witness-archive.test.mjs",
+      "sha256": "c2b586a01612ec8b68e992a38adfe6e40899e3f172ea85f35cfe4fb856bda611",
+      "bytes": 13710
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/s3-witness-cache.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/s3-witness-cache.test.mjs",
+      "sha256": "ebb5402b68377427cbd376ab2c8356bd10257c0f767800cc3dcd90cc7e42ec3b",
+      "bytes": 16267
+    },
+    {
+      "label": "E 73c11ec9 (the S3 backend, = archived b71c8261 rebased, same patch-id) -> 27785278 on P bfbd649d: the S3 (Sia-S3) witness store as the verifying gateway's ARCHIVE tier. Offline MinIO/real-Helios tests; NOT live Sia. E's newer history-compose tree is NOT captured",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/support/s3-test-env.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/e-sia-cache-compose-27785278/files/test/support/s3-test-env.mjs",
+      "sha256": "95f606356ac7b75149fd03cff31a71a9bc1f0bbf42aefabddb53760beddad49b",
+      "bytes": 3461
+    },
+    {
+      "label": "P 7b4dd692 on ce7c1b73: bounded real-proof recording tool + composition tests. The authorized recording obtained NO real proof (2 sources: tenderly 429, mainnet.base.org timeout; 2 pass + 1 skip): NOT a successful real-history proof. Real public contract fixtures only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/p-real-history-7b4dd692/patches/0001-Record-real-Base-history-proofs-under-a-strict-budge.patch",
+      "stored": "files/source-preservation/frozen-0410-export/p-real-history-7b4dd692/patches/0001-Record-real-Base-history-proofs-under-a-strict-budge.patch",
+      "sha256": "79b351486329dc57a082f812c908b474049c1a7d25c1e7ff26b9662c7e3b36e6",
+      "bytes": 34222
+    },
+    {
+      "label": "P 7b4dd692 on ce7c1b73: bounded real-proof recording tool + composition tests. The authorized recording obtained NO real proof (2 sources: tenderly 429, mainnet.base.org timeout; 2 pass + 1 skip): NOT a successful real-history proof. Real public contract fixtures only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/fixtures/base-real-history-52965080/attempt-1.json",
+      "stored": "files/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/fixtures/base-real-history-52965080/attempt-1.json",
+      "sha256": "1f601a366d0b317596c83256a339996fb78b3f3790a8936dec5aeae831c21ad6",
+      "bytes": 2515
+    },
+    {
+      "label": "P 7b4dd692 on ce7c1b73: bounded real-proof recording tool + composition tests. The authorized recording obtained NO real proof (2 sources: tenderly 429, mainnet.base.org timeout; 2 pass + 1 skip): NOT a successful real-history proof. Real public contract fixtures only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/fixtures/base-real-history-52965080/recording.json",
+      "stored": "files/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/fixtures/base-real-history-52965080/recording.json",
+      "sha256": "ebcb5eb7bdda5720d145ff3f8d364ea5ea442d7cfc4e69db7b1f2d2d1b79161f",
+      "bytes": 2583
+    },
+    {
+      "label": "P 7b4dd692 on ce7c1b73: bounded real-proof recording tool + composition tests. The authorized recording obtained NO real proof (2 sources: tenderly 429, mainnet.base.org timeout; 2 pass + 1 skip): NOT a successful real-history proof. Real public contract fixtures only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/fixtures/record-real-history.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/fixtures/record-real-history.mjs",
+      "sha256": "c5d2c48de25cf982a9929922a6a3210be6ae478a56c1b34bfa084c94de28e332",
+      "bytes": 12367
+    },
+    {
+      "label": "P 7b4dd692 on ce7c1b73: bounded real-proof recording tool + composition tests. The authorized recording obtained NO real proof (2 sources: tenderly 429, mainnet.base.org timeout; 2 pass + 1 skip): NOT a successful real-history proof. Real public contract fixtures only",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/helios-real-history.e2e.test.mjs",
+      "stored": "files/source-preservation/frozen-0410-export/p-real-history-7b4dd692/files/test/helios-real-history.e2e.test.mjs",
+      "sha256": "f53e291da57e4b7e481b3aecbc405f4dca046206a08f104b2c7a2536061c1cbf",
+      "bytes": 12275
+    },
+    {
+      "label": "B report at its frozen bytes: describes exactly 62feb3aa/8d110101; source + offline tests only",
+      "source": "work/resume-after-checkpoint-20261022/rpc-verifier-deadline/RESULT.md",
+      "stored": "files/rpc-verifier-deadline/RESULT.md",
+      "sha256": "72d5b076460b34e15bd629b1c49e4bbe84afbb50534f60f2b67ae9906dcef9cc",
+      "bytes": 9097
+    },
+    {
+      "label": "C cold report + provenance at their frozen bytes (427780bb); explicitly NOT rollout-ready (late-start/close race, DO-mirror-only gate)",
+      "source": "work/resume-after-checkpoint-20261022/windows-host-services-compose/RESULT-COLD.md",
+      "stored": "files/windows-host-services-compose/RESULT-COLD.md",
+      "sha256": "b47209f268c81c7b7101726d6c3c6ffee18f0fce5d4df981d1040e94a9b87b32",
+      "bytes": 19082
+    },
+    {
+      "label": "C cold report + provenance at their frozen bytes (427780bb); explicitly NOT rollout-ready (late-start/close race, DO-mirror-only gate)",
+      "source": "work/resume-after-checkpoint-20261022/windows-host-services-compose/PROVENANCE-COLD.json",
+      "stored": "files/windows-host-services-compose/PROVENANCE-COLD.json",
+      "sha256": "423ac1258da8e1ee4316ccf5bc8681710fc870698342505c4f9f5381b0cd1075",
+      "bytes": 4228
+    },
+    {
+      "label": "D final reports, patches and the test-evidence digest (summary/failure/mutant/scan lines + full-log sha256; raw logs stay local) for 09ff3ed5 -> b744ba19 -> f1d0666b. Needs a measured image + decision() bundle; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/RESULT-DECISION-WINDOW.md",
+      "stored": "files/linux-wallet-unknown/RESULT-DECISION-WINDOW.md",
+      "sha256": "09af2b94dfcfff26e7c9bf77a63c51aaec0dc0ce9561bff1e6638e7047806568",
+      "bytes": 14330
+    },
+    {
+      "label": "D final reports, patches and the test-evidence digest (summary/failure/mutant/scan lines + full-log sha256; raw logs stay local) for 09ff3ed5 -> b744ba19 -> f1d0666b. Needs a measured image + decision() bundle; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/TEST-EVIDENCE-LINUX-HOLD.txt",
+      "stored": "files/linux-wallet-unknown/TEST-EVIDENCE-LINUX-HOLD.txt",
+      "sha256": "462b8e0411bc0196b2b28116447b411b6f8a0a38579fe607e3724f9274ef3102",
+      "bytes": 56911
+    },
+    {
+      "label": "D final reports, patches and the test-evidence digest (summary/failure/mutant/scan lines + full-log sha256; raw logs stay local) for 09ff3ed5 -> b744ba19 -> f1d0666b. Needs a measured image + decision() bundle; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/linux-wallet-unknown.patch",
+      "stored": "files/linux-wallet-unknown/linux-wallet-unknown.patch",
+      "sha256": "f621fe4bb7c6ba95b4aa08caa34f295d952de560b39e5068b5962fbd44377084",
+      "bytes": 36140
+    },
+    {
+      "label": "D final reports, patches and the test-evidence digest (summary/failure/mutant/scan lines + full-log sha256; raw logs stay local) for 09ff3ed5 -> b744ba19 -> f1d0666b. Needs a measured image + decision() bundle; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/linux-wallet-unknown-review.patch",
+      "stored": "files/linux-wallet-unknown/linux-wallet-unknown-review.patch",
+      "sha256": "300c02076aa161e1364ec433d5d4023d0e2c20dd53858806006a6d5fbccbed1b",
+      "bytes": 46925
+    },
+    {
+      "label": "D final reports, patches and the test-evidence digest (summary/failure/mutant/scan lines + full-log sha256; raw logs stay local) for 09ff3ed5 -> b744ba19 -> f1d0666b. Needs a measured image + decision() bundle; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/linux-wallet-unknown-decision-window.patch",
+      "stored": "files/linux-wallet-unknown/linux-wallet-unknown-decision-window.patch",
+      "sha256": "fb373d7eeab9c51bc9a1a42e9cb58695d21520e6e33e92d0d47cae14475ed5f1",
+      "bytes": 66830
+    },
+    {
+      "label": "D final reports, patches and the test-evidence digest (summary/failure/mutant/scan lines + full-log sha256; raw logs stay local) for 09ff3ed5 -> b744ba19 -> f1d0666b. Needs a measured image + decision() bundle; not deployed",
+      "source": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/linux-wallet-unknown-full.patch",
+      "stored": "files/linux-wallet-unknown/linux-wallet-unknown-full.patch",
+      "sha256": "3c30dd3ccc9a2dba0fd2f40b3d1b42bb259050fc38af71ba5f8136c68798f35f",
+      "bytes": 99296
+    },
+    {
+      "label": "E compose report at its frozen bytes (27785278); not live Sia",
+      "source": "work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/RESULT-COMPOSE.md",
+      "stored": "files/rpc-sia-cache/compose/RESULT-COMPOSE.md",
+      "sha256": "4efb7641f590e759bf3e69cc41d1346680ff73d9906412736986285bd50f12c4",
+      "bytes": 15149
+    },
+    {
+      "label": "P real-history report, provenance and test evidence at their frozen bytes (7b4dd692): real proof recording FAILED from both sources; NOT a successful real-history proof",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/RESULT-REAL-HISTORY.md",
+      "stored": "files/witness-failover/RESULT-REAL-HISTORY.md",
+      "sha256": "dd906f0127b78b98a02fbb0fe53c8829fe8b97fe8e224eb19c81cdf88b095832",
+      "bytes": 9401
+    },
+    {
+      "label": "P real-history report, provenance and test evidence at their frozen bytes (7b4dd692): real proof recording FAILED from both sources; NOT a successful real-history proof",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/PROVENANCE-REAL-HISTORY.json",
+      "stored": "files/witness-failover/PROVENANCE-REAL-HISTORY.json",
+      "sha256": "b955f2357fe18cf27c3148ced8a75d4dd4a0ff6dabee5fcb0605018f762c2b5a",
+      "bytes": 2607
+    },
+    {
+      "label": "P real-history report, provenance and test evidence at their frozen bytes (7b4dd692): real proof recording FAILED from both sources; NOT a successful real-history proof",
+      "source": "work/resume-after-checkpoint-20261022/witness-failover/TEST-EVIDENCE-REAL-HISTORY.txt",
+      "stored": "files/witness-failover/TEST-EVIDENCE-REAL-HISTORY.txt",
+      "sha256": "7b55f9d57e6d3c58a31398af60cff626b792ccd60c8d0d1fecb5d99bd9a349b8",
+      "bytes": 8533
+    },
+    {
+      "label": "ROOT probe + result (03:54:15Z) against C 427780bb's host-service-transport.mjs (de5bb98a): a transport closed before start returns still leaves 1 circuit and a timer, no revoke. MOCK RUNTIME ONLY: no WireGuard process, network grant or live proof",
+      "source": "work/resume-after-checkpoint-20261022/root-host-service-stop-race.mjs",
+      "stored": "files/root-host-service-stop-race.mjs",
+      "sha256": "56aac2fb846d298f17ab24ddc16cab04a511fe2b71827ad3b1b2099270075e9e",
+      "bytes": 2270
+    },
+    {
+      "label": "ROOT probe + result (03:54:15Z) against C 427780bb's host-service-transport.mjs (de5bb98a): a transport closed before start returns still leaves 1 circuit and a timer, no revoke. MOCK RUNTIME ONLY: no WireGuard process, network grant or live proof",
+      "source": "work/resume-after-checkpoint-20261022/root-host-service-stop-race-result.json",
+      "stored": "files/root-host-service-stop-race-result.json",
+      "sha256": "24da3c7636a0ee1234e00140a9007dc1ab3f9bcc811f4f180654230b1f57a0db",
+      "bytes": 584
+    },
+    {
+      "label": "ROOT read-only EnclaveDNS TLS / cert-log check sources (the filename says 0408; the actual receipts are 04:06:52Z and 04:07:42Z)",
+      "source": "work/resume-after-checkpoint-20261022/check-dns-tls-0408.py",
+      "stored": "files/check-dns-tls-0408.py",
+      "sha256": "11d79251bf37bc463e4c469ad9bd88a4fb315fc0c9c04273478fc89f1a59718e",
+      "bytes": 1755
+    },
+    {
+      "label": "ROOT read-only EnclaveDNS TLS / cert-log check sources (the filename says 0408; the actual receipts are 04:06:52Z and 04:07:42Z)",
+      "source": "work/resume-after-checkpoint-20261022/check-dns-cert-log-0408.py",
+      "stored": "files/check-dns-cert-log-0408.py",
+      "sha256": "15c7b86d582df99abde0a69f8d989d3d4cd5188ee736cd9cd70f8b8650a99299",
+      "bytes": 938
+    },
+    {
+      "label": "ROOT receipt, ACTUAL time 2026-10-23T04:06:52Z (filename says 0408): 59f1273d.app.enclave.host healthy on both current public addresses (trusted chain, ZeroSSL, HTTP 200). Current public DNS only; not future renewal or provider independence",
+      "source": "outputs/decentralization-audit/enclavedns-tls-followup-20261023T0408Z.json",
+      "stored": "files/outputs/decentralization-audit/enclavedns-tls-followup-20261023T0408Z.json",
+      "sha256": "d0228b623199b36e04e11d1aabfcfb253bda5748b96ee7f2ac480e4df56865e0",
+      "bytes": 1457
+    },
+    {
+      "label": "ROOT receipt, ACTUAL time 2026-10-23T04:07:42Z (filename says 0408): node.log certificate lines for 0x59f1273d (refused app_evidence_required, timeouts, then installed 00:28:55; valid at 01:18:52); deployment running. Log excerpt only",
+      "source": "outputs/decentralization-audit/enclavedns-cert-log-20261023T0408Z.json",
+      "stored": "files/outputs/decentralization-audit/enclavedns-cert-log-20261023T0408Z.json",
+      "sha256": "bfa583323ae615ebc637ebf7a996bd187fda8051ba0223d3c47fffd1766e0000",
+      "bytes": 1593
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-0410.py",
+      "stored": "files/source-preservation/export-frozen-0410.py",
+      "sha256": "8de1c083ff15100614281d6526ea12e5c940a817700f1e8ff442ce9c4ee9980d",
+      "bytes": 15470
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-0410-export.py",
+      "stored": "files/source-preservation/verify-frozen-0410-export.py",
+      "sha256": "5b65887a80b3bd85f8d1c3aacbfb9bff9b0a2a3df0cc2709c02715fb7fd8fe4e",
+      "bytes": 6617
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-0410.py",
+      "stored": "files/source-preservation/capture-frozen-0410.py",
+      "sha256": "ee4890d402073dbcc832fb7af394da01fb8a903b434f31af10be434a3a884c6f",
+      "bytes": 7064
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-pins.json",
+      "stored": "files/source-preservation/frozen-0410-pins.json",
+      "sha256": "0758b38143a6836b26151bfc52aa4b0643933162f58ffa6dd3d8e225fa954a50",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-export.sh",
+      "stored": "files/source-preservation/frozen-0410-export.sh",
+      "sha256": "abb82adcc0c4dea996f0b98b0b64ec7c15bd1e410c88a3ccf2c7df8f8571fe7f",
+      "bytes": 1092
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-capture.sh",
+      "stored": "files/source-preservation/frozen-0410-capture.sh",
+      "sha256": "13b237f6ca1f293cf4b547c00b6abd329a659af3be91d5eec0da9dbf8b167d9b",
+      "bytes": 1933
+    },
+    {
+      "label": "frozen-0410 checkpoint tooling (Git-object export, offline tree verifier, append-only capture)",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-0410-labels.json",
+      "stored": "files/source-preservation/frozen-0410-labels.json",
+      "sha256": "33a05113024d6edeff897b148500d091be12170424198c84d28f13e2e1ee5355",
+      "bytes": 4704
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -8080,6 +8605,15 @@
       "entriesBefore": 1144,
       "added": 88,
       "bytes": 4233254,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
+    },
+    {
+      "at": "2026-10-23T04:16:05.175469+00:00",
+      "by": "source-preservation/capture-frozen-0410.py",
+      "onCheckpoint": "f6668d86584f67a5dee5b9a5261d9a725a4de754",
+      "entriesBefore": 1232,
+      "added": 75,
+      "bytes": 2159398,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run"
     }
   ]

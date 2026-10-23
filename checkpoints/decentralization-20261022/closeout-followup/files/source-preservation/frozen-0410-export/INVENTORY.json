@@ -1,0 +1,576 @@
+{
+ "format": "enclave-frozen-0410-export/v1",
+ "checkpointHeadAtExport": "f6668d86584f67a5dee5b9a5261d9a725a4de754",
+ "label": "SOURCE + OFFLINE TESTS ONLY. Nothing here is merged into the normal tree, imaged or deployed. a-reth-e2e 0c43e4db: canonical-trie Reth consumer E2E for the verifier authority (test addition on 921d60c2). b-verifier-deadline 62feb3aa/8d110101: whole verified-operation deadline + closure and a referenced timer (on 921d60c2). c-host-services-cold 427780bb: zero-app privacy agent behind the platform host policy (on d7f520bf); KNOWN late-start/close race (root probe: a transport closed before its start returns still creates a circuit + timer) and a DigitalOcean-mirror-only policy gate: NOT rollout-ready. d-linux-hold-final f1d0666b: decision-time lease permits and confirmed-stop teardown on every path; needs a measured image AND the decision() admission bundle; not deployed. e-sia-cache-compose 73c11ec9/27785278: S3 witness store as the gateway ARCHIVE tier; not live Sia. p-real-history 7b4dd692: bounded real-proof recording; real proof recording FAILED from 2 sources (2 pass, 1 skip): NOT a successful real-history proof.",
+ "sides": {
+  "a-reth-e2e": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-priority/repo",
+   "branch": "rpc-priority",
+   "headReachableFromBranch": true,
+   "base": "921d60c2b37ec8ae64e1fd22d7bc7b408939bd70",
+   "baseProvenance": "921d60c2 preserved in f6668d86 as frozen-0331-export/a-verifier-authority-921d60c2 (1 patch on 9fdc1418c)",
+   "head": "0c43e4db89f1be615ff11319abc43aefd69a9fcb",
+   "headTree": "63f1746a6036d71e527ca37cb94b166e2d9a66b5",
+   "commits": [
+    {
+     "commit": "0c43e4db89f1be615ff11319abc43aefd69a9fcb",
+     "parent": "921d60c2b37ec8ae64e1fd22d7bc7b408939bd70",
+     "tree": "63f1746a6036d71e527ca37cb94b166e2d9a66b5",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:30:17-07:00",
+     "subject": "Test the verifier authority on real contracts over a canonical-trie chain"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "test/helpers/cli-independent-rig.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "74986134075ca17526c40e2f0d337fb5705e4455",
+     "sha256": "53d66648494ea3b99c848a58a9cd305e4374ce37fef65d5813251d0f07cd015e",
+     "bytes": 38375,
+     "baseBlob": "aff0109b5c6c02cffda85713eebc29158524ee4c"
+    },
+    {
+     "path": "test/lease-reader-verifier.e2e.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a21ec016919ff3a6f3a7fca609c15f21b8640412",
+     "sha256": "9078673b98eafb878aaa4094e44f341fa7eb152f92e806985dd21dc2579a14c0",
+     "bytes": 16683,
+     "baseBlob": "c19c063cc66f3574a0dce60e7a45045ec1ab7bf8"
+    }
+   ],
+   "patches": [
+    {
+     "file": "a-reth-e2e-0c43e4db/patches/0001-Test-the-verifier-authority-on-real-contracts-over-a.patch",
+     "sha256": "fd0b3239ea0c07667c8e49c4ed7e8be2b5ffa4c64f33a61644f7dcbab7e50742"
+    }
+   ]
+  },
+  "b-verifier-deadline": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-verifier-deadline/repo",
+   "branch": "verifier-deadline",
+   "headReachableFromBranch": true,
+   "base": "921d60c2b37ec8ae64e1fd22d7bc7b408939bd70",
+   "baseProvenance": "921d60c2 as for a-reth-e2e",
+   "head": "8d110101f6cdd5a03ffa16f52e6afb1ea8c6f346",
+   "headTree": "740120a41ee88f492b83dd594a5a861a33ca1d01",
+   "commits": [
+    {
+     "commit": "62feb3aaff22dcb5cb3ba674cb22c052aa6f4ddd",
+     "parent": "921d60c2b37ec8ae64e1fd22d7bc7b408939bd70",
+     "tree": "b4975825d958fa6c5c0ac375eb2635311ae0a324",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:23:28-07:00",
+     "subject": "Bound the whole verified read, its callback included, and close its client"
+    },
+    {
+     "commit": "8d110101f6cdd5a03ffa16f52e6afb1ea8c6f346",
+     "parent": "62feb3aaff22dcb5cb3ba674cb22c052aa6f4ddd",
+     "tree": "740120a41ee88f492b83dd594a5a861a33ca1d01",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:27:22-07:00",
+     "subject": "Keep the verified-operation deadline timer referenced so it fires when nothing else holds the event loop"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/lease-reader.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "92d7126ad7780bcc18a8b932adecdcc747b8f630",
+     "sha256": "7c01e53b17fb97c65a2043d2703caa2ccc9bbec1e9236d7b11c0c3559e4d060a",
+     "bytes": 48380,
+     "baseBlob": "0a05b9a760b02d4c3db8492cbc9fd02a012e5143"
+    },
+    {
+     "path": "test/lease-reader-verifier-deadline.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4c92a00b80b60e7a3f542d52f9c6a741b6edca2c",
+     "sha256": "f3e99df4438467529c41eeb0f784ef5b7d24002892bcafdd7a5179d7df72668d",
+     "bytes": 11811,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "b-verifier-deadline-8d110101/patches/0001-Bound-the-whole-verified-read-its-callback-included-.patch",
+     "sha256": "ef8bdbc334a413d1404244876c0700d6f233a5529fc050f92a4069dd9fa14f08"
+    },
+    {
+     "file": "b-verifier-deadline-8d110101/patches/0002-Keep-the-verified-operation-deadline-timer-reference.patch",
+     "sha256": "c611c9119f6b565261d183dcf3a8b1a194652e65a45646ec9645cd4672b1656a"
+    }
+   ]
+  },
+  "c-host-services-cold": {
+   "repo": "work/resume-after-checkpoint-20261022/windows-host-services-compose/candidate",
+   "branch": "compose/host-services",
+   "headReachableFromBranch": true,
+   "base": "d7f520bf8eca94ce3464bc0b70a0619261c04b68",
+   "baseProvenance": "d7f520bf preserved in f6668d86 as rpc-native-codec-export/c-host-services-compose-d7f520bf (7 patches on f58e03ec4, a commit of this checkpoint branch; d281007c = patches 0001-0006)",
+   "head": "427780bbc0fc524f8091893614eae8a653518139",
+   "headTree": "820ae4be644d01214414469000a1d51632d0ce06",
+   "commits": [
+    {
+     "commit": "427780bbc0fc524f8091893614eae8a653518139",
+     "parent": "d7f520bf8eca94ce3464bc0b70a0619261c04b68",
+     "tree": "820ae4be644d01214414469000a1d51632d0ce06",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:40:46-07:00",
+     "subject": "Host services cold start: zero-app privacy agent behind the platform host policy, guarded bundles, locked package inputs"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/build.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "331d0486ca4165e6158e350d98c35f33493112e0",
+     "sha256": "cbd9217d6bb6be7d1cbd44f7dc0bca7532ae8dcc1a285a55e9a5db3cd4c175fd",
+     "bytes": 2636,
+     "baseBlob": "e7de5a32925fed50cf3cddfd1675d26063a123eb"
+    },
+    {
+     "path": "network/bundle-checks.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4a622b60eddc588a98040af5b1a711aeef27b945",
+     "sha256": "f899fb5d430a57cb642ea9b1d203997b660aa44819d7b4244274c538cf8ea4e6",
+     "bytes": 1611,
+     "baseBlob": null
+    },
+    {
+     "path": "network/entries/privacy-agent.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "9c497b274481edd51ec27b07495b12d1f1402bd6",
+     "sha256": "d401b5b7a36abefb0c96456724dd20b415bc3cc61c66ec5d3eda4082aae56fe7",
+     "bytes": 778,
+     "baseBlob": null
+    },
+    {
+     "path": "network/main-guard.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "c89770e175a9323377a2f24d930ae42311071297",
+     "sha256": "d132a30fef98fbcaa127391248c80b537b6c14e661a77019af78702e23d4ed84",
+     "bytes": 795,
+     "baseBlob": null
+    },
+    {
+     "path": "network/privacy-agent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "cb66f1a3e2a2a568955f53b4a9451ddfb3c883c5",
+     "sha256": "1d0c0f99d00890d247f814cae0c75694e9f29870706c87d8fd0438130bf6e72e",
+     "bytes": 35754,
+     "baseBlob": "bf70b4279f5c90218dfee0ee1419ddb47dfc3081"
+    },
+    {
+     "path": "scripts/build-host-service-packages.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "8c9add20b6b28b09b7ae670f1208df75859a5b80",
+     "sha256": "f86857792f696119cfe42dd61605869e180f25aa69a7c2d8f1bcdbaf12b1287e",
+     "bytes": 7734,
+     "baseBlob": "2c19c8e66fa86ec5e5642fb78c9279693ff75ee5"
+    },
+    {
+     "path": "scripts/locked-inputs.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3719b53ac833ef593aac262a8838b9d6f1ce92e7",
+     "sha256": "9945b34fa409aa129e64581318b5ec1d1c7ee145dd27ed7f62461a95bc6fba61",
+     "bytes": 3022,
+     "baseBlob": null
+    },
+    {
+     "path": "scripts/network/build-consumers.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "53506ab77c97ef079520973c1467ff202d66d5e4",
+     "sha256": "e61fe02cb8c96d332470235efc081126c0bbba076322506a1da4e65d4da89b4c",
+     "bytes": 2188,
+     "baseBlob": "04799bbc46afe6e94dba2071fe349b9fcbbb8dfb"
+    },
+    {
+     "path": "test/host-services-cold-start.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f7dd859adb4932c80dc141163245a15ebe3529c",
+     "sha256": "8fc56eaf5a97dae15b65dbc1965578f62a051a57d0dc1e49ebc63b6e1dc5990e",
+     "bytes": 28782,
+     "baseBlob": null
+    },
+    {
+     "path": "windows/node/agent.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "8304e1fdb7c947872af71eadfcee160b2b2bf821",
+     "sha256": "e530ff3b4f60c2606b04ff2853d8f9c7403056e341e8b333ec7897c1eb8307d6",
+     "bytes": 93429,
+     "baseBlob": "ab691f8bd49f55ec4e0407cf1918586f513b7e55"
+    },
+    {
+     "path": "windows/node/network-enroll.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "f45f17f360e21b55f0687862934f16b3d4526e3e",
+     "sha256": "abd4e6315f01a90f621870c7fbe92c9341886781f24b5f1ec54c94ac7614e360",
+     "bytes": 21100,
+     "baseBlob": "caa8ea25b862e564c40ba2a93c6d04ba1942dbe8"
+    },
+    {
+     "path": "windows/node/node-config.example.cmd",
+     "status": "M",
+     "mode": "100644",
+     "blob": "de3d6ad5a0d4b01fdcd6bd3770ee681c9a121a7d",
+     "sha256": "2cee80dac1591f1a80e732903147806ad6ce639eba6f138f515660f22d7c482c",
+     "bytes": 1312,
+     "baseBlob": "62fc8003cf538cf3d8fbbf2721ad50c85357bce2"
+    }
+   ],
+   "patches": [
+    {
+     "file": "c-host-services-cold-427780bb/patches/0001-Host-services-cold-start-zero-app-privacy-agent-behi.patch",
+     "sha256": "0b2e3edd723fb18fca3baf74ba05f08aa4ac4ed1bb26a72d9ee67a22611c35dd"
+    }
+   ]
+  },
+  "d-linux-hold-final": {
+   "repo": "work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate",
+   "branch": "fix/linux-wallet-unknown-hold",
+   "headReachableFromBranch": true,
+   "base": "b744ba19022763e9688c6b006e8cecd24e21cc18",
+   "baseProvenance": "b744ba19 preserved in f6668d86 as frozen-0318-export/d-linux-wallet-review-b744ba19 on 09ff3ed5 (rpc-native-codec-export/d-linux-wallet-unknown-09ff3ed5, 1 patch on checkpoint commit 2bbea898)",
+   "head": "f1d0666b9fc80d25a7c4cbacf4025f3a33152111",
+   "headTree": "2db82e4f4e013540afa727a2377884ce1893bd7f",
+   "commits": [
+    {
+     "commit": "f1d0666b9fc80d25a7c4cbacf4025f3a33152111",
+     "parent": "b744ba19022763e9688c6b006e8cecd24e21cc18",
+     "tree": "2db82e4f4e013540afa727a2377884ce1893bd7f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:01:15-07:00",
+     "subject": "Linux hold: bind lease permits to their decision; confirmed-stop teardown on every path"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "supervisor.js",
+     "status": "M",
+     "mode": "100644",
+     "blob": "2ea81f150d6c88ec790377c90deb58f62615c429",
+     "sha256": "e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d",
+     "bytes": 852665,
+     "baseBlob": "89db620f30ad6af2f3fa1908571e3f884c30d9e9"
+    },
+    {
+     "path": "test/helpers/supervisor-wallet-fixture.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4a16470feab258514a3a346df26e297fc318cb3c",
+     "sha256": "1fbda768a87ff1b5cd34932167d9236a345933bca600f01e9b9f6df7d6103dee",
+     "bytes": 10228,
+     "baseBlob": null
+    },
+    {
+     "path": "test/pool-reconcile.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "e742322445d21fb478f5166e6abe14a373f8228f",
+     "sha256": "7b8a8f2eb78f2ec07250ed94f4a2086515eacf2aa47a8669ecfd75176f411dbe",
+     "bytes": 8203,
+     "baseBlob": "df2e646f1bf0cb32dc9188b8ddba91756c33811a"
+    },
+    {
+     "path": "test/supervisor-wallet-real-lease-client.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bb9fc82f1ffc141f6cafcce6bec1b782597c0bfd",
+     "sha256": "1973ad4025f7a6b29b7faa2366ba916355340491b5a58f6927524e74775442ba",
+     "bytes": 7402,
+     "baseBlob": null
+    },
+    {
+     "path": "test/supervisor-wallet-unknown-hold.test.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "ba40e42fc233c6afc89c1db63ff4ceff9faaedcd",
+     "sha256": "6487b2cf4978dfac82a7c5f3ec429cc3cc52a8d7fb4c0040100829c8af01e830",
+     "bytes": 29326,
+     "baseBlob": "feff727d5f5152d5265034aac9bd3f2553bcae9b"
+    }
+   ],
+   "patches": [
+    {
+     "file": "d-linux-hold-final-f1d0666b/patches/0001-Linux-hold-bind-lease-permits-to-their-decision-conf.patch",
+     "sha256": "b34e8386a00884fb45b1d8c8938f272dfebc062194b6369207dbedea3bfb7492"
+    }
+   ]
+  },
+  "e-sia-cache-compose": {
+   "repo": "work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/repo",
+   "branch": "work/sia-cache-compose",
+   "headReachableFromBranch": true,
+   "base": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+   "baseProvenance": "bfbd649d preserved in f6668d86 as frozen-0318-export/witness-enclave-bfbd649d (2 patches on 9fdc1418c); 73c11ec9 is the S3 backend (same feature as the archived b71c8261, rebased onto bfbd649d)",
+   "head": "2778527853fdf2a42675eb8e613646727b7df509",
+   "headTree": "e9c0a82b0759f0619bfb8478d76a26279e1e593b",
+   "commits": [
+    {
+     "commit": "73c11ec936f16b4a8e02ced829fa31ca7c32c0b4",
+     "parent": "bfbd649d8c416922691a6dd1eaada8a81765bba5",
+     "tree": "0601c71108616e62fcf42c3176670c688fa02578",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T20:29:20-07:00",
+     "subject": "Optional S3 (Sia-S3) backend for the witness gateway's immutable cache"
+    },
+    {
+     "commit": "2778527853fdf2a42675eb8e613646727b7df509",
+     "parent": "73c11ec936f16b4a8e02ced829fa31ca7c32c0b4",
+     "tree": "e9c0a82b0759f0619bfb8478d76a26279e1e593b",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:04:54-07:00",
+     "subject": "Compose the S3 witness store as the verifying gateway's ARCHIVE tier"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "network/s3-witness-cache.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "546285fe36dd8dacf80368e6e147b8b75282bf89",
+     "sha256": "cf180498deb47d8df1fc8b3f923baebb8d91f61fdd93aeda405692a22f90a14f",
+     "bytes": 18707,
+     "baseBlob": null
+    },
+    {
+     "path": "network/witness-gateway.mjs",
+     "status": "M",
+     "mode": "100644",
+     "blob": "a80b6c8c37e3714104857f34d4571a6239b25aa3",
+     "sha256": "72fb8eb4f3ba168426a90463f2ac2bfd78e14a83639d34ecf35b6853732d20b9",
+     "bytes": 19250,
+     "baseBlob": "233045a384ad7b3113ce3e30fdeb0437d1ce2ad0"
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/SOURCE.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0cbe3d6ec5a80b937139df3d8814192919dad309",
+     "sha256": "e7c307a102d121ae622df22fa80f2e5a8c9c000eae0fc3a64548b064c1630b9d",
+     "bytes": 952,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/context.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+     "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+     "bytes": 318,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/header-signed-request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6331d16d5e40bdac24248b0c1732698d4672bcd5",
+     "sha256": "5a08e8c4caa69eb8521e06ebe0eaa62d4d93ecaa78fd13b83dc8eadede437784",
+     "bytes": 337,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-header-value-trim/request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ad1ea986773b32b50453c4fbc51d15dfe70e5149",
+     "sha256": "3ca569dba28e15df4200ca1619c6909645ad0259f6121827e099c46c66e9dc87",
+     "bytes": 85,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/context.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "0468d80074cb592e77c1d4bdfe088933e1028efc",
+     "sha256": "5f8a32a755e065dec2dbcb5b7f2a8b1dcd539391255514de714704e33916a2f1",
+     "bytes": 318,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/header-signed-request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "36b86e79ee9490c24a7902fc1142790f0364fd31",
+     "sha256": "f94281f97a281169827bbd016b1454eec132260d77c505405c558b7d21a177bc",
+     "bytes": 272,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/aws-sigv4/get-vanilla/request.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "e659c3be2c30123d75effb8e95c1c05927139a55",
+     "sha256": "9b87a0709187548ccac04f6d06a8cba1fc85273003efcda670e9f3ca1ad63e4f",
+     "bytes": 42,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-s3-replay.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "88cc9c7b1c89533e2bc7c93497ee0d080ffb6fc5",
+     "sha256": "a46ffe25d55265cfc7b5c38eec46f179ecce8156c57e4d41c1bc12a47284231d",
+     "bytes": 9130,
+     "baseBlob": null
+    },
+    {
+     "path": "test/s3-witness-archive.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4b0bc1d0ec6c523e2a07671bd2e31c4eec844992",
+     "sha256": "c2b586a01612ec8b68e992a38adfe6e40899e3f172ea85f35cfe4fb856bda611",
+     "bytes": 13710,
+     "baseBlob": null
+    },
+    {
+     "path": "test/s3-witness-cache.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "666a174d1f2628bdf53f44c97ae2b753d6442ade",
+     "sha256": "ebb5402b68377427cbd376ab2c8356bd10257c0f767800cc3dcd90cc7e42ec3b",
+     "bytes": 16267,
+     "baseBlob": null
+    },
+    {
+     "path": "test/support/s3-test-env.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "067326133f44a263c11ebab5eb90f8035119e91d",
+     "sha256": "95f606356ac7b75149fd03cff31a71a9bc1f0bbf42aefabddb53760beddad49b",
+     "bytes": 3461,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "e-sia-cache-compose-27785278/patches/0001-Optional-S3-Sia-S3-backend-for-the-witness-gateway-s.patch",
+     "sha256": "1c0aece90bb398dd1b76b97570fb1af10fe68ba67e8614255fceacdcbe1d40b5"
+    },
+    {
+     "file": "e-sia-cache-compose-27785278/patches/0002-Compose-the-S3-witness-store-as-the-verifying-gatewa.patch",
+     "sha256": "69f049d6208e5be3099540fd174e6f192472e855c7936e28c72f6e7b6064412f"
+    }
+   ]
+  },
+  "p-real-history": {
+   "repo": "work/resume-after-checkpoint-20261022/witness-failover/repo",
+   "branch": "witness-failover",
+   "headReachableFromBranch": true,
+   "base": "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c",
+   "baseProvenance": "ce7c1b73 preserved in f6668d86 as frozen-0331-export/p-history-enclave-ce7c1b73 (2 patches on bfbd649d)",
+   "head": "7b4dd69201d00bc5649cda6bcf57b21c6197c3af",
+   "headTree": "ccb7f0ac1911ba613989729c030509e69af1176c",
+   "commits": [
+    {
+     "commit": "7b4dd69201d00bc5649cda6bcf57b21c6197c3af",
+     "parent": "ce7c1b7309dbc1cb65bedbdf7db5a173c977208c",
+     "tree": "ccb7f0ac1911ba613989729c030509e69af1176c",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-22T21:04:43-07:00",
+     "subject": "Record real Base history proofs under a strict budget; test the real composition at a missed real block"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": "test/fixtures/base-real-history-52965080/attempt-1.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "991923f3d487685e8ec9fb49dab56dbd48f2b4ad",
+     "sha256": "1f601a366d0b317596c83256a339996fb78b3f3790a8936dec5aeae831c21ad6",
+     "bytes": 2515,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/base-real-history-52965080/recording.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3ca8045823818e649aa4589d6cc840283c8a712a",
+     "sha256": "ebcb5eb7bdda5720d145ff3f8d364ea5ea442d7cfc4e69db7b1f2d2d1b79161f",
+     "bytes": 2583,
+     "baseBlob": null
+    },
+    {
+     "path": "test/fixtures/record-real-history.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5f02ac99751719c0f6a7be0a6f4c009d15bd6f21",
+     "sha256": "c5d2c48de25cf982a9929922a6a3210be6ae478a56c1b34bfa084c94de28e332",
+     "bytes": 12367,
+     "baseBlob": null
+    },
+    {
+     "path": "test/helios-real-history.e2e.test.mjs",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3ecb16cac7fa87b0f6ddeab2e8fcc09857288d16",
+     "sha256": "f53e291da57e4b7e481b3aecbc405f4dca046206a08f104b2c7a2536061c1cbf",
+     "bytes": 12275,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "p-real-history-7b4dd692/patches/0001-Record-real-Base-history-proofs-under-a-strict-budge.patch",
+     "sha256": "79b351486329dc57a082f812c908b474049c1a7d25c1e7ff26b9662c7e3b36e6"
+    }
+   ]
+  }
+ },
+ "frozenSources": {
+  "rpc-verifier-deadline/RESULT.md": "72d5b076460b34e15bd629b1c49e4bbe84afbb50534f60f2b67ae9906dcef9cc",
+  "windows-host-services-compose/RESULT-COLD.md": "b47209f268c81c7b7101726d6c3c6ffee18f0fce5d4df981d1040e94a9b87b32",
+  "windows-host-services-compose/PROVENANCE-COLD.json": "423ac1258da8e1ee4316ccf5bc8681710fc870698342505c4f9f5381b0cd1075",
+  "linux-wallet-unknown/RESULT-DECISION-WINDOW.md": "09af2b94dfcfff26e7c9bf77a63c51aaec0dc0ce9561bff1e6638e7047806568",
+  "linux-wallet-unknown/TEST-EVIDENCE-LINUX-HOLD.txt": "462b8e0411bc0196b2b28116447b411b6f8a0a38579fe607e3724f9274ef3102",
+  "linux-wallet-unknown/linux-wallet-unknown.patch": "f621fe4bb7c6ba95b4aa08caa34f295d952de560b39e5068b5962fbd44377084",
+  "linux-wallet-unknown/linux-wallet-unknown-review.patch": "300c02076aa161e1364ec433d5d4023d0e2c20dd53858806006a6d5fbccbed1b",
+  "linux-wallet-unknown/linux-wallet-unknown-decision-window.patch": "fb373d7eeab9c51bc9a1a42e9cb58695d21520e6e33e92d0d47cae14475ed5f1",
+  "linux-wallet-unknown/linux-wallet-unknown-full.patch": "3c30dd3ccc9a2dba0fd2f40b3d1b42bb259050fc38af71ba5f8136c68798f35f",
+  "rpc-sia-cache/compose/RESULT-COMPOSE.md": "4efb7641f590e759bf3e69cc41d1346680ff73d9906412736986285bd50f12c4",
+  "witness-failover/RESULT-REAL-HISTORY.md": "dd906f0127b78b98a02fbb0fe53c8829fe8b97fe8e224eb19c81cdf88b095832",
+  "witness-failover/PROVENANCE-REAL-HISTORY.json": "b955f2357fe18cf27c3148ced8a75d4dd4a0ff6dabee5fcb0605018f762c2b5a",
+  "witness-failover/TEST-EVIDENCE-REAL-HISTORY.txt": "7b55f9d57e6d3c58a31398af60cff626b792ccd60c8d0d1fecb5d99bd9a349b8"
+ },
+ "alreadyCapturedUnchanged": {
+  "linux-wallet-unknown/RESULT.md": "d301ff6b",
+  "linux-wallet-unknown/RESULT-REVIEW.md": "b1f833e8"
+ },
+ "rootEvidence": {
+  "root-host-service-stop-race.mjs": "56aac2fb846d298f17ab24ddc16cab04a511fe2b71827ad3b1b2099270075e9e",
+  "root-host-service-stop-race-result.json": "24da3c7636a0ee1234e00140a9007dc1ab3f9bcc811f4f180654230b1f57a0db",
+  "check-dns-tls-0408.py": "11d79251bf37bc463e4c469ad9bd88a4fb315fc0c9c04273478fc89f1a59718e",
+  "check-dns-cert-log-0408.py": "15c7b86d582df99abde0a69f8d989d3d4cd5188ee736cd9cd70f8b8650a99299",
+  "../../outputs/decentralization-audit/enclavedns-tls-followup-20261023T0408Z.json": "d0228b623199b36e04e11d1aabfcfb253bda5748b96ee7f2ac480e4df56865e0",
+  "../../outputs/decentralization-audit/enclavedns-cert-log-20261023T0408Z.json": "bfa583323ae615ebc637ebf7a996bd187fda8051ba0223d3c47fffd1766e0000"
+ },
+ "notPreserved": [
+  "worktrees and anything after the exported heads: A 437d6ced6/2efc4a83e and its untracked trees; B, C, P, E active work (E history-compose tree, P new block-response work, C carriers/late-start fix)",
+  "outputs/decentralization-audit/storage-whole-recovery-bounded-live-20261023.json (MUTABLE: root has not frozen it)",
+  "root-host-service-stop-race.guard.log and every raw log, run handle, key, snapshot, archive, compiled binary, node_modules, cargo/forge cache and build output",
+  "linux-wallet-unknown candidate node_modules, tmp/ (base copies, mutants, controls) and logs/ (digested into TEST-EVIDENCE-LINUX-HOLD.txt)"
+ ]
+}

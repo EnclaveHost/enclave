@@ -1,0 +1,92 @@
+# witness-failover REAL-HISTORY stage: terminal evidence (digest of logs/; full logs stay local). Exit 98 runs not listed.
+
+## record-real-history-1.out  sha256 496ead568c616d8ac74caf3db3308db80737010fae42eec385673cc422b21edb  bytes 615  -- recording attempt 1 (recorder revision before the cumulative-budget change: 15 s per request, clock from script start)
+    [queue] START available=25149MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    {"used":{"requests":2,"bytes":80,"ms":52137},"preflight":[{"source":"base.gateway.tenderly.co","verdict":"unavailable"},{"source":"mainnet.base.org","verdict":"failed: The operation was aborted due to timeout"}],"error":"no source served a verifiable proof at the target block","cacheEntries":0}
+    [memory-guard] exit=0 peakTreeRssMiB=103 minHostAvailableMiB=25089
+    [memory-guard] at peak: node:86 witness-check:7 record-real-his:6 timeout:4
+    [queue] EXIT 0
+
+## record-real-history-2.out  sha256 bcc831ccebfb2af0b06a7d0f9110883e89bead41996532961597c03c45dc8457  bytes 616  -- recording attempt 2 = last (cumulative budget, 30 s per request): no proof obtained
+    [queue] START available=25090MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    {"used":{"requests":4,"bytes":160,"ms":82274},"preflight":[{"source":"base.gateway.tenderly.co","verdict":"unavailable"},{"source":"mainnet.base.org","verdict":"failed: The operation was aborted due to timeout"}],"error":"no source served a verifiable proof at the target block","cacheEntries":0}
+    [memory-guard] exit=0 peakTreeRssMiB=104 minHostAvailableMiB=24914
+    [memory-guard] at peak: node:87 witness-check:7 record-real-his:6 timeout:4
+    [queue] EXIT 0
+
+## e2e-real-history-r1.out  sha256 4bb699aa211a4d88bfe0f936647668b48571d8634777886ec261dddf75f05848  bytes 2869  -- FAILED: asserted eth_getBlockByNumber(80) after head 106 - Helios serves that via its execution source (historical path), not its cache; assertion removed
+    [queue] START available=25031MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - real heads: the real Base signature verifies in the helper and in Helios, and each canonical hash equals its signed hash
+    not ok 2 - cold gateway, missed real block: Helios pinned to real block 80 makes the gateway recover its root by authenticated ancestry from real head 106; no proof source -> refused
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/helios-real-history.e2e.test.mjs:93:1'
+      error: 'server returned an error response: error code -32000: no witness source answered: not recorded'
+    ok 3 - real proofs at the recovered real root (needs a recording with verified entries) # SKIP no real proofs recorded: no source served a verifiable proof at the target block (base.gateway.tenderly.co: rpc-error -32005: rate limit exceeded; mainnet.base.org: failed: The operation was aborted due to timeout)
+    # tests 3
+    # pass 1
+    # fail 1
+    # skipped 1
+    # duration_ms 39163.663379
+    [memory-guard] exit=1 peakTreeRssMiB=193 minHostAvailableMiB=24986
+    [memory-guard] at peak: node:80 node:54 helios-eeffcc9:48 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## e2e-real-history-r2.out  sha256 3549a32563d48f5575932a0cb260b461bf5bab28fe1ae4003e508f3da1938f20  bytes 3241  -- FAILED: expected the gateway ancestry to be reached through Helios; Helios instead took its EIP-2935 path (full block + history proof at 106); test rewritten to assert the observed path
+    [queue] START available=24555MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - real heads: the real Base signature verifies in the helper and in Helios, and each canonical hash equals its signed hash
+    not ok 2 - cold gateway, missed real block: Helios pinned to real block 80 makes the gateway recover its root by authenticated ancestry from real head 106; no proof source -> refused
+      location: '/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/repo/test/helios-real-history.e2e.test.mjs:93:1'
+      error: |-
+      expected: 26
+      actual: 0
+    # gateway: {"upstream":{"http://127.0.0.1:42035":{"ok":1,"failed":5,"invalid":1,"headerOk":0,"headerInvalid":0},"http://127.0.0.1:43907":{"ok":0,"failed":6,"invalid":0,"headerOk":0,"headerInvalid":0}},"cacheHits":0,"cachePuts":0,"cacheInvalid":0,"refused":{},"unavailable":6,"unauthenticatedBlock":0,"verifierUnavailable":0,"quarantined":0}; roots: {"verified":1,"refused":0,"conflicts":0,"polls":1,"pollFailures":0,"ancestors":0,"ancestryRefused":{},"roots":1,"conflicted":0,"recovering":0}
+    ok 3 - real proofs at the recovered real root (needs a recording with verified entries) # SKIP no real proofs recorded: no source served a verifiable proof at the target block (base.gateway.tenderly.co: rpc-error -32005: rate limit exceeded; mainnet.base.org: failed: The operation was aborted due to timeout)
+    # tests 3
+    # pass 1
+    # fail 1
+    # skipped 1
+    # duration_ms 39213.252612
+    [memory-guard] exit=1 peakTreeRssMiB=197 minHostAvailableMiB=24518
+    [memory-guard] at peak: node:81 node:54 helios-eeffcc9:50 witness-check:7 timeout:4
+    [queue] EXIT 1
+
+## e2e-real-history-r3.out  sha256 0ad77eb75114c06591a0dfb62c723c0081b474b175cd32e6e7fd3068ee613e0a  bytes 3039  -- FINAL: 2 pass, 1 skip (real-proof replay: no recorded proofs)
+    [queue] START available=25035MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    witness-check: OK
+    helios-eeffcc9: OK
+    helios-compat-0a02256: OK
+    external network: unreachable (as intended)
+    ok 1 - real heads: the real Base signature verifies in the helper and in Helios, and each canonical hash equals its signed hash
+    ok 2 - cold gateway, real block Helios has moved past: Helios takes its EIP-2935 path (proof at the signed head 106, verified and refused here); the gateway recovers 80 by authenticated ancestry from real head 106
+    # gateway: {"upstream":{"http://127.0.0.1:40513":{"ok":1,"failed":5,"invalid":1,"headerOk":0,"headerInvalid":0},"http://127.0.0.1:44989":{"ok":0,"failed":6,"invalid":0,"headerOk":0,"headerInvalid":0}},"cacheHits":0,"cachePuts":0,"cacheInvalid":0,"refused":{},"unavailable":6,"unauthenticatedBlock":0,"verifierUnavailable":0,"quarantined":0}; roots: {"verified":1,"refused":0,"conflicts":0,"polls":1,"pollFailures":0,"ancestors":0,"ancestryRefused":{},"roots":1,"conflicted":0,"recovering":0}; requests: [["liar","eth_getBlockByHash","[\\"0x067ca9489316bedb18d12b628402e6e46937ca16a684070da549f06f6bc2dc11\\",true]"],["liar","eth_getProof","[\\"0x0000f90827f1c53a10cb7a02335b175320002935\\",[\\"0x000000000000000000000000000000000000000000000000000000000000081a\\"],\\"0x723b40aad9af8aa1f99f78c1c06acf76e4c079a1"],["honest","eth_getProof","[\\"0x0000f90827f1c53a10cb7a02335b175320002935\\",[\\"0x000000000000000000000000000000000000000000000000000000000000081a\\"],\\"0x723b40aad9af8aa1f99f78c1c06acf76e4c079a1"]]
+    ok 3 - real proofs at the recovered real root (needs a recording with verified entries) # SKIP no real proofs recorded: no source served a verifiable proof at the target block (base.gateway.tenderly.co: rpc-error -32005: rate limit exceeded; mainnet.base.org: failed: The operation was aborted due to timeout)
+    # tests 3
+    # pass 2
+    # fail 0
+    # skipped 1
+    # duration_ms 39716.513134
+    [memory-guard] exit=0 peakTreeRssMiB=199 minHostAvailableMiB=25009
+    [memory-guard] at peak: node:84 node:54 helios-eeffcc9:50 witness-check:7 timeout:4
+    [queue] EXIT 0
+
+## scan-3.out  sha256 31ccb2f66c832554dcc73d8267c94b0449e031fc23e83dad6bce43f123cec695  bytes 672  -- range scan of the real-history commit
+    [queue] START available=24935MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    9:04PM INF 1 commits scanned.
+    9:04PM INF no leaks found
+    [scan] repo scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=24816
+    [memory-guard] at peak: gitleaks:50 scan-real-histo:6 timeout:4
+    [queue] EXIT 0

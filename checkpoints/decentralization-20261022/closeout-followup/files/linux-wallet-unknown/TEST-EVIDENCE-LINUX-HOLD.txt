@@ -1,0 +1,714 @@
+# linux-wallet-unknown terminal test evidence digest (09ff3ed5 -> b744ba19 -> f1d0666b), generated from logs/; the full logs stay local.
+# Per log: sha256 and size of the full log, then only its queue/job/summary/failure/skip/mutant/scan/guard lines (file hashes as printed by job.sh).
+# Rounds: l* = 09ff3ed5 (RESULT.md), r* = b744ba19 (RESULT-REVIEW.md), d* = f1d0666b (RESULT-DECISION-WINDOW.md). Controls and mutants are labelled in each RESULT.
+
+## d1-512.log  sha256 349e0ec6b6eb6c738b43abeae80fae01f5d1ee63ee34a21daa0bd1093deb492f  bytes 44030
+    [queue] START available=25124MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    === (1) candidate
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    44983822032b6bf76e765efd33dda5388b2beae77a81343b170661c38d33a311  test/supervisor-wallet-unknown-hold.test.mjs
+    503265a419dceb9fbb23bce6ac4dcb7831c756a9e9f3b3e5db79a3f63a47c4b9  test/supervisor-wallet-policy.test.mjs
+    7b8a8f2eb78f2ec07250ed94f4a2086515eacf2aa47a8669ecfd75176f411dbe  test/pool-reconcile.test.mjs
+    ✖ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (5.474721ms)
+    ✖ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (84.20885ms)
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.207907ms)
+    ℹ tests 38
+    ℹ pass 35
+    ℹ fail 3
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (5.474721ms)
+    ✖ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (84.20885ms)
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.207907ms)
+    [job] node --test exit=1
+    === (2) CONTROL b744ba19
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate SUPERVISOR_JS=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/t
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    44983822032b6bf76e765efd33dda5388b2beae77a81343b170661c38d33a311  test/supervisor-wallet-unknown-hold.test.mjs
+    ✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (54.913889ms)
+    ✖ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.392099ms)
+    ✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (53.589508ms)
+    ✖ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (33.75177ms)
+    ✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (42.906255ms)
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.204527ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.811314ms)
+    ℹ tests 25
+    ℹ pass 18
+    ℹ fail 7
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (54.913889ms)
+    ✖ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.392099ms)
+    ✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (53.589508ms)
+    ✖ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (33.75177ms)
+    ✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (42.906255ms)
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.204527ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.811314ms)
+    [job] node --test exit=1
+    === (3) CONTROL base pool
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/tmp/base
+    89ebb50affbec97e9ffdf6524c0e284ba226e3404be7558f2779c1bb64381b4f  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    7b8a8f2eb78f2ec07250ed94f4a2086515eacf2aa47a8669ecfd75176f411dbe  test/pool-review.test.mjs
+    ✖ a terminal record whose instance is NOT confirmed stopped (_stopPending) still holds its slice: not drift, never reclaimed (323.077918ms)
+    ℹ tests 9
+    ℹ pass 8
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ a terminal record whose instance is NOT confirmed stopped (_stopPending) still holds its slice: not drift, never reclaimed (323.077918ms)
+    [job] node --test exit=1
+    [jobd1] candidate=1 controlB744=1 controlPool=1
+    [memory-guard] exit=1 peakTreeRssMiB=242 minHostAvailableMiB=24857
+    [memory-guard] at peak: node:101 node:61 node:60 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## d2-512.log  sha256 cca6c439c93b6f1ed3fc1096acfe5c233e0352a06e52f10d00bcef194f5a9bae  bytes 41226
+    [queue] START available=24889MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    === (1) candidate
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    6487b2cf4978dfac82a7c5f3ec429cc3cc52a8d7fb4c0040100829c8af01e830  test/supervisor-wallet-unknown-hold.test.mjs
+    503265a419dceb9fbb23bce6ac4dcb7831c756a9e9f3b3e5db79a3f63a47c4b9  test/supervisor-wallet-policy.test.mjs
+    7b8a8f2eb78f2ec07250ed94f4a2086515eacf2aa47a8669ecfd75176f411dbe  test/pool-reconcile.test.mjs
+    ℹ tests 38
+    ℹ pass 38
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] node --test exit=0
+    === (2) CONTROL b744ba19
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate SUPERVISOR_JS=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/t
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    6487b2cf4978dfac82a7c5f3ec429cc3cc52a8d7fb4c0040100829c8af01e830  test/supervisor-wallet-unknown-hold.test.mjs
+    ✖ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (5.402382ms)
+    ✖ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (84.709523ms)
+    ✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (53.420947ms)
+    ✖ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.248169ms)
+    ✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (53.307018ms)
+    ✖ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (34.191656ms)
+    ✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (43.198871ms)
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.627555ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.906054ms)
+    ℹ tests 25
+    ℹ pass 16
+    ℹ fail 9
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ explicit refusal - the platform administrator yanks the version, or the host owner denies the deployment: retired and released as before (5.402382ms)
+    ✖ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (84.709523ms)
+    ✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (53.420947ms)
+    ✖ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.248169ms)
+    ✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (53.307018ms)
+    ✖ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (34.191656ms)
+    ✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (43.198871ms)
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (3.627555ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.906054ms)
+    [job] node --test exit=1
+    [jobd2] candidate=0 controlB744=1
+    [memory-guard] exit=0 peakTreeRssMiB=239 minHostAvailableMiB=24690
+    [memory-guard] at peak: node:98 node:61 node:60 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## d3-768.log  sha256 7ea817f152f4eeb703344b3df8b7924fcb26518177ff1dbfce8a5a0f72d4c535  bytes 2574
+    [queue] START available=25113MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    1973ad4025f7a6b29b7faa2366ba916355340491b5a58f6927524e74775442ba  test/supervisor-wallet-real-lease-client.test.mjs
+    ℹ tests 4
+    ℹ pass 4
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] node --test exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=692 minHostAvailableMiB=24514
+    [memory-guard] at peak: solc-0.8.35:460 node:88 node:53 forge:50 anvil:22 bash:6 bash:6 timeout:4
+    [queue] EXIT 0
+
+## d4-512.log  sha256 859b00aac7a778ff5cbe470545e7fdf78f92829ec713c3fc0080f4ecade4e409  bytes 2093
+    [queue] START available=24877MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    === MUTANT DM1-gate-captures-at-construction.js
+    ℹ fail 2
+    ℹ pass 23
+    ✖ decision window: the same with an UNKNOWN answer in between (RPC outage seen by another caller): no dispatch (53.72084ms)
+    ✖ decision window: tryClaim decides ALLOWED, openForUs is slow, another caller gets a REFUSAL meanwhile: neither sender dispatches the claim (54.521573ms)
+    [mutant] DM1-gate-captures-at-construction.js rc=1
+    === MUTANT DM2-no-overlap-reread.js
+    ℹ fail 1
+    ℹ pass 24
+    ✖ decision window: an OLD in-flight allow that returns after a newer refusal is read again; a fresh allow then stands, a second overlap is unknown (54.571782ms)
+    [mutant] DM2-no-overlap-reread.js rc=1
+    === MUTANT DM3-renew-permit-after-ledger-read.js
+    ℹ fail 1
+    ℹ pass 24
+    ✖ decision window: a renewal permit is bound BEFORE the ledger read - a retire during that read is never rebased (both senders) (35.011587ms)
+    [mutant] DM3-renew-permit-after-ledger-read.js rc=1
+    === MUTANT DM4-reconciler-reclaims-pending.js
+    ℹ fail 2
+    ℹ pass 23
+    ✖ restart and accounting: a pending stop survives loadState with its slice re-reserved, reconcilePools keeps it, confirmation frees it once (4.53581ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (1.708085ms)
+    [mutant] DM4-reconciler-reclaims-pending.js rc=1
+    === MUTANT DM5-no-pending-before-delete.js
+    ℹ fail 1
+    ℹ pass 24
+    ✖ teardown paths on a FAILED stop: owner stop, lost lease, eviction, abandoned claims, ledger move - routes/egress/permits withdrawn first, slice kept, lease rule unchanged (44.302714ms)
+    [mutant] DM5-no-pending-before-delete.js rc=1
+    [jobd4] killed 5/5
+    [memory-guard] exit=0 peakTreeRssMiB=174 minHostAvailableMiB=24833
+    [memory-guard] at peak: node:94 node:60 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## d5-768.log  sha256 fdf78056c0e337163893c7907a3a41cde841fc741b5cb5eba11f13f508a6ffba  bytes 3222
+    [queue] START available=25048MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate SUPERVISOR_JS=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/t
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    1973ad4025f7a6b29b7faa2366ba916355340491b5a58f6927524e74775442ba  test/supervisor-wallet-real-lease-client.test.mjs
+    ✖ decision window with the real client: a refusal during openForUs means the claim never reaches the client at all (185.010469ms)
+    ℹ tests 4
+    ℹ pass 3
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ decision window with the real client: a refusal during openForUs means the claim never reaches the client at all (185.010469ms)
+    [job] node --test exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=213 minHostAvailableMiB=24987
+    [memory-guard] at peak: node:104 node:55 anvil:34 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## d6-768.log  sha256 21d0d04417ccd261c6501de53cd3e70f7e4e089d39212f1a2e88b9986ed8fb43  bytes 16424
+    [queue] START available=25149MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    e50da21dac2cbbd79d06dc971558c17a8352bb590811b7366a08f2597579e04d  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    d19b585d0d3a350ff28d5a2eab91ed5800c6021e213865ede46d8613bde0e249  test/approval-gate.test.mjs
+    c4be6ac8f91052e89feb20ca36da40b248472661638f1849216999c3697950cc  test/claim-sweep.test.mjs
+    e8a7fb4fcba620b22235b5e13c5d9de8f1fba3b958d004f93ad8ff0c5846ff65  test/config-edit.test.mjs
+    cb993ae08272d67960cf1d6b77a3e3a0f26c2f54e7acdbec2d3a7f7f420fd3ed  test/custody-supervisor.test.mjs
+    6378dd15071f7c94fb3a0ef063731e0cc7ea89d7648c80740109c4399b3790b7  test/domain-carryover.test.mjs
+    ce17b1543bee2c41a52e28191b440c9654c7e9911846d46360e41e7a9d3f9a2d  test/instance-reconcile.test.mjs
+    b5dca660f0cf753f88f8b9dc26f0e64cf8f8617703104663dc04f92aa8b667f7  test/instance-sweep.test.mjs
+    9ceef7b150a23e4e2981fe05b91fdc9320751b0f51e7a3194ba79dadcdbaa427  test/isolation-guest-pool.test.mjs
+    af1a3633692b7c5aa5fd0109adb19e96e088c872ca10ba1027c285ce6355dd13  test/isolation-post-adoption-lease.test.mjs
+    30f95ef635c4fc7e80ecd7e6e0a66583824e9150183748cbf75f25b31e462c3c  test/isolation-release-ticket.test.mjs
+    510981bf2aaefbb666875625fddb2a1415f40e2c5907a5119567c9a05b8a3122  test/ledger-move.test.mjs
+    5e58bb83d173503c6039d35a0333350b5ec8321daf661c1a492f793613d662d5  test/rate-cap.test.mjs
+    c841b66fc3f6caeb8ec5cc37781c79ff94847728afcebb268f1717e1ad9be296  test/tenant-lease.test.mjs
+    2485fbce033aa4fcb463b69b8724c0343ebf28a2ac30fe951cf22a2f77a9df19  test/tenant-provision-race.test.mjs
+    511c001404181a0ae63ca3c3c665d4812d3707d71f3708f98ebbfdde2be53bbe  test/transfer.test.mjs
+    bbbec298b03a09ff9933c6f58457dc3966f4dd82f61a2c1bd5395742130c7fc2  test/version-switch.test.mjs
+    9949632c4be46acfdd2dccd791e9f352d00e18dd36665aaadaf3a2c22a6916de  test/waf.test.mjs
+    69613eb2dfb6021a1fca135c913cfac0fea4bc24071a4d89d20401842470c23b  test/yank-teardown.test.mjs
+    ﹣ those assertions depend on the ownership checks (0.185928ms) # SKIP
+    ﹣ those assertions depend on capturing the owner BEFORE the await (0.218678ms) # SKIP
+    ✖ a delayed second claim cannot replace an adopted or running record (3.613779ms)
+    ℹ tests 135
+    ℹ pass 132
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 2
+    ✖ failing tests:
+    ✖ a delayed second claim cannot replace an adopted or running record (3.613779ms)
+    [job] node --test exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=301 minHostAvailableMiB=23570
+    [memory-guard] at peak: node:112 node:88 node:61 nvidia-smi:21 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## d7-scan-256.log  sha256 d8e24c019aa26f59fd43fe83b33cfb43a098d1be5e96b57fb8754923801f5f90  bytes 970
+    [queue] START available=24884MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    9:01PM INF 3 commits scanned.
+    9:01PM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=59 minHostAvailableMiB=24833
+    [memory-guard] at peak: gitleaks:49 bash:6 timeout:4
+    [queue] EXIT 0
+
+## l1-512.log  sha256 fe7928a4ca5cc239004334d189e328fb410e6ddb9dae0bd6df03e83050abab7f  bytes 17784
+    [queue] START available=24899MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    === (1) candidate
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    1a805a223d88f4dade97e6b7ccdb72fab7d5f14e51f9ca8c0e541c99c3f2479e  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    d6da62f4203de27f371bdd4e944961906e37aedec0bf51675b47954a72b33914  test/supervisor-wallet-unknown-hold.test.mjs
+    712f6b64459a97d196cb9e963a4de1eda8b4e271ece25a25e2d39725f826ac38  test/supervisor-wallet-policy.test.mjs
+    ✖ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (2.612878ms)
+    ✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (3.270643ms)
+    ℹ tests 13
+    ℹ pass 11
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (2.612878ms)
+    ✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (3.270643ms)
+    [job] node --test exit=1
+    === (2) BASE CONTROL: new suite on base supervisor.js
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate SUPERVISOR_JS=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/t
+    1a805a223d88f4dade97e6b7ccdb72fab7d5f14e51f9ca8c0e541c99c3f2479e  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    d6da62f4203de27f371bdd4e944961906e37aedec0bf51675b47954a72b33914  test/supervisor-wallet-unknown-hold.test.mjs
+    ✖ unknown (RPC quorum unavailable): stopped here, never renewed or released, on the audit AND the renewal path; the gate answers 503 (3.058765ms)
+    ✖ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (2.818947ms)
+    ✖ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (2.175522ms)
+    ✖ expiry: a decision that passes its chain deadline in the operator queue is not sent; a held lease that lapses is simply let go (503.452697ms)
+    ✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (9.354394ms)
+    ✖ in-flight race: a renewal decided ALLOWED waits in the operator queue, an audit meanwhile finds the policy unknown: nothing is sent (app-funded and operator-paid senders) (53.078569ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.513886ms)
+    ℹ tests 9
+    ℹ pass 2
+    ℹ fail 7
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ unknown (RPC quorum unavailable): stopped here, never renewed or released, on the audit AND the renewal path; the gate answers 503 (3.058765ms)
+    ✖ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (2.818947ms)
+    ✖ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (2.175522ms)
+    ✖ expiry: a decision that passes its chain deadline in the operator queue is not sent; a held lease that lapses is simply let go (503.452697ms)
+    ✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (9.354394ms)
+    ✖ in-flight race: a renewal decided ALLOWED waits in the operator queue, an audit meanwhile finds the policy unknown: nothing is sent (app-funded and operator-paid senders) (53.078569ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.513886ms)
+    [job] node --test exit=1
+    === (3) BASE: existing wallet-policy suite on the unmodified tree
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/tmp/base
+    89ebb50affbec97e9ffdf6524c0e284ba226e3404be7558f2779c1bb64381b4f  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    a2588312b40e740cf6ff40789e07046fa57e189353a76715e55cb65da9123d7a  test/supervisor-wallet-policy.test.mjs
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.361873ms)
+    ℹ tests 4
+    ℹ pass 3
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (3.361873ms)
+    [job] node --test exit=1
+    [job1] candidate=1 base-control=1 base-existing=1 (base-control must be non-zero)
+    [memory-guard] exit=1 peakTreeRssMiB=160 minHostAvailableMiB=24811
+    [memory-guard] at peak: node:85 node:56 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## l1b-256.log  sha256 4d52f68d6803bb34d57382f2695796669ee31067f19300c3890293b8ab2e2bde  bytes 5305
+    [queue] START available=24777MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    1a805a223d88f4dade97e6b7ccdb72fab7d5f14e51f9ca8c0e541c99c3f2479e  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    85156553a360cf03ceaac4f9910cadb094b6b33b6c27441eb780d2fc1a6e7cd9  test/supervisor-wallet-unknown-hold.test.mjs
+    ℹ tests 9
+    ℹ pass 9
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] node --test exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=154 minHostAvailableMiB=24726
+    [memory-guard] at peak: node:85 node:55 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## l2-768.log  sha256 abbd04c047110a865e3d0aeed786b3fd45e68975fe7b70fc25f89b1419dc3a24  bytes 36011
+    [queue] START available=24969MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    === MUTANT M1-vouch-held.js
+    ℹ fail 1
+    ℹ pass 8
+    ✖ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (2.991285ms)
+    [mutant] M1-vouch-held.js rc=1
+    === MUTANT M2-gate-null.js
+    ℹ fail 2
+    ℹ pass 7
+    ✖ expiry: a decision that passes its chain deadline in the operator queue is not sent; a held lease that lapses is simply let go (504.126395ms)
+    ✖ in-flight race: a renewal decided ALLOWED waits in the operator queue, an audit meanwhile finds the policy unknown: nothing is sent (app-funded and operator-paid senders) (53.047983ms)
+    [mutant] M2-gate-null.js rc=1
+    === MUTANT M3-unknown-403.js
+    ℹ fail 2
+    ℹ pass 7
+    ✖ unknown (RPC quorum unavailable): stopped here, never renewed or released, on the audit AND the renewal path; the gate answers 503 (7.282861ms)
+    ✖ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (3.108715ms)
+    [mutant] M3-unknown-403.js rc=1
+    === MUTANT M4-held-release-proves.js
+    ℹ fail 1
+    ℹ pass 8
+    ✖ recovery: the policy becomes known again - allowed: the hold clears and the lease is resumable; refused: released as a retire (no final proof) (6.643507ms)
+    [mutant] M4-held-release-proves.js rc=1
+    === MUTANT M5-no-claim-recheck.js
+    ℹ fail 1
+    ℹ pass 8
+    ✖ unknown never releases through the share-resize eviction or claims/resumes in tryClaim (4.795521ms)
+    [mutant] M5-no-claim-recheck.js rc=1
+    [job2] mutants killed 5/5
+    === REGRESSION
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    1a805a223d88f4dade97e6b7ccdb72fab7d5f14e51f9ca8c0e541c99c3f2479e  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    d19b585d0d3a350ff28d5a2eab91ed5800c6021e213865ede46d8613bde0e249  test/approval-gate.test.mjs
+    038bb6b2f266c044da45dc45ccd7023263470b9c9ab99a91e3f5247a6a0f27c8  test/catalog-platform-enforcement.test.mjs
+    011c14abab3045319efbb6f86b7a34caacadae426e857652fd68189cd4f5e4e1  test/claim-open-for-us.test.mjs
+    c4be6ac8f91052e89feb20ca36da40b248472661638f1849216999c3697950cc  test/claim-sweep.test.mjs
+    109e1f7b8c2c2523006c2493b84ead82366b22fe304bb2f8ab47679f2381a878  test/host-admission-retry.test.mjs
+    cfd929f7a91a4074262dae837fbc57c56e53e680f4fab27c8a1964d5fd4dcafb  test/host-policy-callsites.test.mjs
+    ce17b1543bee2c41a52e28191b440c9654c7e9911846d46360e41e7a9d3f9a2d  test/instance-reconcile.test.mjs
+    b5dca660f0cf753f88f8b9dc26f0e64cf8f8617703104663dc04f92aa8b667f7  test/instance-sweep.test.mjs
+    cd7d70d1a7e9e62531210152ab7ea1a0a3bccdf23ed57dc01a90c34d5b3891e2  test/isolation-claim-gate.test.mjs
+    9ceef7b150a23e4e2981fe05b91fdc9320751b0f51e7a3194ba79dadcdbaa427  test/isolation-guest-pool.test.mjs
+    af1a3633692b7c5aa5fd0109adb19e96e088c872ca10ba1027c285ce6355dd13  test/isolation-post-adoption-lease.test.mjs
+    30f95ef635c4fc7e80ecd7e6e0a66583824e9150183748cbf75f25b31e462c3c  test/isolation-release-ticket.test.mjs
+    510981bf2aaefbb666875625fddb2a1415f40e2c5907a5119567c9a05b8a3122  test/ledger-move.test.mjs
+    28ed3e207e2daaa50c21e43f799cb642b926f21e2d7faca39c6d3da48f1a8aa8  test/owner-nomination.test.mjs
+    5e58bb83d173503c6039d35a0333350b5ec8321daf661c1a492f793613d662d5  test/rate-cap.test.mjs
+    65ecddee7cfcb2f786929262eea2102863f8561882d698b54b4dab9de37c2084  test/registry-advertise-retry.test.mjs
+    f2282f2831a0e651d90ce235dd49f10ecc1b91257d7bbc11cc5777417d04d422  test/registry-reconcile.test.mjs
+    c841b66fc3f6caeb8ec5cc37781c79ff94847728afcebb268f1717e1ad9be296  test/tenant-lease.test.mjs
+    e8d03b59e0632a9885f8607565b21e84587e16c8af0c766a26155dd1e0cfd5b3  test/tenant-provision-race.test.mjs
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.310971ms)
+    ✖ a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once (7049.522196ms)
+    ✖ both platforms load the same rule; the supervisor image and the Windows deploy closure ship it (3.318444ms)
+    ✖ a delayed second claim cannot replace an adopted or running record (1.795116ms)
+    ℹ tests 149
+    ℹ pass 145
+    ℹ fail 4
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ actual Windows wallet gate passes only ledger-authoritative private visibility (2.310971ms)
+    ✖ a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once (7049.522196ms)
+    ✖ both platforms load the same rule; the supervisor image and the Windows deploy closure ship it (3.318444ms)
+    ✖ a delayed second claim cannot replace an adopted or running record (1.795116ms)
+    [job] node --test exit=1
+    [job2] mutants=5/5 regression=1
+    [memory-guard] exit=0 peakTreeRssMiB=545 minHostAvailableMiB=24444
+    [memory-guard] at peak: node:293 node:109 node:62 anvil:40 nvidia-smi:21 bash:6 bash:6 timeout:4
+    [queue] EXIT 0
+
+## l3-768.log  sha256 4b6f03876c09db976296bfd640e388a82dc4a6e88154fb4bcbf2f3c1dae6c266  bytes 12740
+    [queue] START available=25271MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+    === (1) candidate
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    2742f5355017819a19a2f9b18f49503707ee485776d30937037038c50a495ef6  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    59840e65ca20783cbcb015476077fdd1571bcb8ba3d8caec5db5400833a116f7  test/supervisor-wallet-unknown-hold.test.mjs
+    712f6b64459a97d196cb9e963a4de1eda8b4e271ece25a25e2d39725f826ac38  test/supervisor-wallet-policy.test.mjs
+    ℹ tests 14
+    ℹ pass 14
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 0
+    [job] node --test exit=0
+    === (2) BASE: tenant-provision-race + owner-nomination (anvil)
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/tmp/base
+    89ebb50affbec97e9ffdf6524c0e284ba226e3404be7558f2779c1bb64381b4f  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    28ed3e207e2daaa50c21e43f799cb642b926f21e2d7faca39c6d3da48f1a8aa8  test/owner-nomination.test.mjs
+    e8d03b59e0632a9885f8607565b21e84587e16c8af0c766a26155dd1e0cfd5b3  test/tenant-provision-race.test.mjs
+    ✖ a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once (7022.986917ms)
+    ✖ a delayed second claim cannot replace an adopted or running record (1.747697ms)
+    ℹ tests 13
+    ℹ pass 11
+    ℹ fail 2
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ a state file that cannot be written: nothing is broadcast; writable again: the nomination goes out once (7022.986917ms)
+    ✖ a delayed second claim cannot replace an adopted or running record (1.747697ms)
+    [job] node --test exit=1
+    [job3] candidate=0 base=1
+    [memory-guard] exit=0 peakTreeRssMiB=536 minHostAvailableMiB=22246
+    [memory-guard] at peak: node:300 node:109 node:54 anvil:32 nvidia-smi:21 bash:6 bash:6 timeout:4
+    [queue] EXIT 0
+
+## l4-scan-256.log  sha256 3090f69bb96666c59e2345a836efb6ece0f9935826085bd37a5fc15786d6f1d0  bytes 640
+    [queue] START available=23977MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    7:20PM INF 1 commits scanned.
+    7:20PM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=23920
+    [memory-guard] at peak: gitleaks:50 bash:6 timeout:4
+    [queue] EXIT 0
+
+## r1-512.log  sha256 7248513c5478caa878f63fd1cdf6e814f55965b4ec7eb30702c5d6430c983acb  bytes 40491
+    [queue] START available=24739MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    === (1) candidate
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    db73a7f2d0c4bcb357e91c6c4fc5c7db9f81e3e74bcf2df853e83ecc095bc1d3  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    caa765e69970643d6dcd570194fa06e97c665475f0f9e28dd7cd4e936c70d5eb  test/supervisor-wallet-unknown-hold.test.mjs
+    712f6b64459a97d196cb9e963a4de1eda8b4e271ece25a25e2d39725f826ac38  test/supervisor-wallet-policy.test.mjs
+    309d4367b3a6de547c18dc06e7d63955313ef085f9d65a0aa596a8084b792989  test/egress.test.mjs
+    ✖ the upstream receives the validated destination without a claimed dedicated source IP (3.244854ms)
+    ✖ bytes round-trip through the tunnel both ways (2.573888ms)
+    ✖ closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing (2.944126ms)
+    ✖ CONNECT to a loopback literal is denied before leaving the enclave (1.696636ms)
+    ✖ DNS resolving into a private network never reaches the upstream (2.053022ms)
+    ﹣ phase2: transparent egress routes an UNMODIFIED guest's raw wasi:sockets outbound (0.203598ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: a locked-down guest dialing a loopback literal is refused (0.197579ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: phase-1 explicit SOCKS (ENCLAVE_EGRESS) still works under the lockdown (front pass-through) (0.244848ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: with egress lockdown and no inherit-network, a raw connect reaches nothing (0.099139ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: the wasi:http outgoing handler is mediated too (serve mode, socks5h domain) (0.044319ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: a dial to a SIBLING's port is refused (transparent egress on) (0.03339ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: the ALLOWED loopback port still connects (the /encvol plane) (0.02772ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: it holds under -Sinherit-network too (the port-serving posture) (0.025569ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: inherit-network keeps the raw network it was granted (0.0229ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: an empty list means NO loopback at all (0.02039ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is unchanged) (0.02041ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ✖ test/egress.test.mjs (120070.827006ms)
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (1.738736ms)
+    ℹ tests 40
+    ℹ pass 22
+    ℹ fail 6
+    ℹ cancelled 1
+    ℹ skipped 11
+    ✖ failing tests:
+    ✖ the upstream receives the validated destination without a claimed dedicated source IP (3.244854ms)
+    ✖ bytes round-trip through the tunnel both ways (2.573888ms)
+    ✖ closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing (2.944126ms)
+    ✖ CONNECT to a loopback literal is denied before leaving the enclave (1.696636ms)
+    ✖ DNS resolving into a private network never reaches the upstream (2.053022ms)
+    ✖ test/egress.test.mjs (120070.827006ms)
+    ✖ Linux audit and renewal stop before releasing a denied deployment, and do not renew it (1.738736ms)
+    [job] node --test exit=1
+    === (2) CONTROL: new suite on 09ff3ed5 supervisor
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate SUPERVISOR_JS=/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/t
+    db73a7f2d0c4bcb357e91c6c4fc5c7db9f81e3e74bcf2df853e83ecc095bc1d3  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    caa765e69970643d6dcd570194fa06e97c665475f0f9e28dd7cd4e936c70d5eb  test/supervisor-wallet-unknown-hold.test.mjs
+    ✖ review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded) (54.275406ms)
+    ✖ review 1: hold -> fresh allow cannot resurrect an earlier permission, even when the SAME record object serves again (53.77063ms)
+    ✖ review 1: owner stop, a restart (re-provision) and a replaced record each void a queued renewal (53.402614ms)
+    ✖ review 1: app-funded - a hold that lands while the sponsored client is still admitting relays stops the SIGNED lease before any relay (304.569368ms)
+    ✖ review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke) (52.803218ms)
+    ✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (90.643698ms)
+    ✖ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.563461ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.913532ms)
+    ✖ test/supervisor-wallet-unknown-hold.test.mjs (120012.115238ms)
+    ℹ tests 18
+    ℹ pass 9
+    ℹ fail 8
+    ℹ cancelled 1
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ review 1: a VERIFIED refusal voids a renewal already queued under an earlier allow (operator-paid and app-funded) (54.275406ms)
+    ✖ review 1: hold -> fresh allow cannot resurrect an earlier permission, even when the SAME record object serves again (53.77063ms)
+    ✖ review 1: owner stop, a restart (re-provision) and a replaced record each void a queued renewal (53.402614ms)
+    ✖ review 1: app-funded - a hold that lands while the sponsored client is still admitting relays stops the SIGNED lease before any relay (304.569368ms)
+    ✖ review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke) (52.803218ms)
+    ✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (90.643698ms)
+    ✖ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.563461ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (0.913532ms)
+    ✖ test/supervisor-wallet-unknown-hold.test.mjs (120012.115238ms)
+    [job] node --test exit=1
+    === (3) CONTROL: egress case on base egress.js
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/tmp/base
+    89ebb50affbec97e9ffdf6524c0e284ba226e3404be7558f2779c1bb64381b4f  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    309d4367b3a6de547c18dc06e7d63955313ef085f9d65a0aa596a8084b792989  test/egress-review.test.mjs
+    ✖ closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing (4.180816ms)
+    ﹣ phase2: transparent egress routes an UNMODIFIED guest's raw wasi:sockets outbound (0.09791ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: a locked-down guest dialing a loopback literal is refused (0.241448ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: phase-1 explicit SOCKS (ENCLAVE_EGRESS) still works under the lockdown (front pass-through) (0.256748ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: with egress lockdown and no inherit-network, a raw connect reaches nothing (0.09959ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: the wasi:http outgoing handler is mediated too (serve mode, socks5h domain) (0.04344ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: a dial to a SIBLING's port is refused (transparent egress on) (0.03163ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: the ALLOWED loopback port still connects (the /encvol plane) (0.026899ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: it holds under -Sinherit-network too (the port-serving posture) (0.02346ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: inherit-network keeps the raw network it was granted (0.02168ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: an empty list means NO loopback at all (0.01968ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is unchanged) (0.019169ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ℹ tests 18
+    ℹ pass 6
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 11
+    ✖ failing tests:
+    ✖ closeDeployment(id) ends that deployment's established tunnels now; another deployment's keep flowing (4.180816ms)
+    [job] node --test exit=1
+    [job5] candidate=1 control09ff=1 controlEgress=1
+    [memory-guard] exit=1 peakTreeRssMiB=171 minHostAvailableMiB=24686
+    [memory-guard] at peak: node:91 node:61 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## r1b-512.log  sha256 d9699de150a13cdf47a55baf33c6c9166c8c46ab97b03903786f67de2d3fbebf  bytes 15455
+    [queue] START available=25140MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    db73a7f2d0c4bcb357e91c6c4fc5c7db9f81e3e74bcf2df853e83ecc095bc1d3  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    caa765e69970643d6dcd570194fa06e97c665475f0f9e28dd7cd4e936c70d5eb  test/supervisor-wallet-unknown-hold.test.mjs
+    503265a419dceb9fbb23bce6ac4dcb7831c756a9e9f3b3e5db79a3f63a47c4b9  test/supervisor-wallet-policy.test.mjs
+    309d4367b3a6de547c18dc06e7d63955313ef085f9d65a0aa596a8084b792989  test/egress.test.mjs
+    ﹣ phase2: transparent egress routes an UNMODIFIED guest's raw wasi:sockets outbound (0.117039ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: a locked-down guest dialing a loopback literal is refused (0.232158ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: phase-1 explicit SOCKS (ENCLAVE_EGRESS) still works under the lockdown (front pass-through) (0.267508ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: with egress lockdown and no inherit-network, a raw connect reaches nothing (0.102079ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ phase2: the wasi:http outgoing handler is mediated too (serve mode, socks5h domain) (0.045669ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: a dial to a SIBLING's port is refused (transparent egress on) (0.04091ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: the ALLOWED loopback port still connects (the /encvol plane) (0.02901ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: it holds under -Sinherit-network too (the port-serving posture) (0.026999ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: inherit-network keeps the raw network it was granted (0.02397ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: an empty list means NO loopback at all (0.022ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ﹣ loopback policy: UNSET leaves the old behaviour (a hand-run wasmtime is unchanged) (0.02468ms) # set $ENCLAVE_EGRESS_WASMTIME to a patched wasmtime to run phase-2 e2e
+    ℹ tests 39
+    ℹ pass 28
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 11
+    [job] node --test exit=0
+    [memory-guard] exit=0 peakTreeRssMiB=171 minHostAvailableMiB=25019
+    [memory-guard] at peak: node:90 node:61 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## r2-768.log  sha256 8bb02e01c79c1e787f575c2514d3261a90c248d7de35ca7fe550d57e2ad5abc4  bytes 24141
+    [queue] START available=24627MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    db73a7f2d0c4bcb357e91c6c4fc5c7db9f81e3e74bcf2df853e83ecc095bc1d3  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    d19b585d0d3a350ff28d5a2eab91ed5800c6021e213865ede46d8613bde0e249  test/approval-gate.test.mjs
+    011c14abab3045319efbb6f86b7a34caacadae426e857652fd68189cd4f5e4e1  test/claim-open-for-us.test.mjs
+    c4be6ac8f91052e89feb20ca36da40b248472661638f1849216999c3697950cc  test/claim-sweep.test.mjs
+    cb993ae08272d67960cf1d6b77a3e3a0f26c2f54e7acdbec2d3a7f7f420fd3ed  test/custody-supervisor.test.mjs
+    503889a2d6adcb5aa12c26cb72cb744647d6e4ec6cf4165cbbeb1cef73a67851  test/egress-probes.test.mjs
+    b21672c451cfe1c21437e562e90144df5b53dd977033a8ebbac8bcb0f4504c87  test/host-egress.test.mjs
+    ce17b1543bee2c41a52e28191b440c9654c7e9911846d46360e41e7a9d3f9a2d  test/instance-reconcile.test.mjs
+    b5dca660f0cf753f88f8b9dc26f0e64cf8f8617703104663dc04f92aa8b667f7  test/instance-sweep.test.mjs
+    cd7d70d1a7e9e62531210152ab7ea1a0a3bccdf23ed57dc01a90c34d5b3891e2  test/isolation-claim-gate.test.mjs
+    ed4f0b6db4b3afd188b99e8897fa33e68772c1a5dcd41a6f97dc2c5ac35c9181  test/isolation-encvol-gate.test.mjs
+    9ceef7b150a23e4e2981fe05b91fdc9320751b0f51e7a3194ba79dadcdbaa427  test/isolation-guest-pool.test.mjs
+    e59b127115cc5638bfe85ae2e2f4fad495a366c1f6e9ebb2c5e79e47098f4559  test/isolation-modelvol-gate.test.mjs
+    af1a3633692b7c5aa5fd0109adb19e96e088c872ca10ba1027c285ce6355dd13  test/isolation-post-adoption-lease.test.mjs
+    30f95ef635c4fc7e80ecd7e6e0a66583824e9150183748cbf75f25b31e462c3c  test/isolation-release-ticket.test.mjs
+    7f9154f421269b4ccf4f88fd3657de9e49a16613edeeda409bbc333fb81ac1a5  test/isolation-resume-shield-model.test.mjs
+    39514a608ecf168a718e6c3221097760ab9e40ea6899683bf9a5e2f04a2b725f  test/launch-spec.test.mjs
+    510981bf2aaefbb666875625fddb2a1415f40e2c5907a5119567c9a05b8a3122  test/ledger-move.test.mjs
+    5e58bb83d173503c6039d35a0333350b5ec8321daf661c1a492f793613d662d5  test/rate-cap.test.mjs
+    36d0ce82a3231f4ef32e89624e3ffea0fb3cb8be344b0a5256d380b74bb445cb  test/secrets-release-status-lookup.test.mjs
+    b149a889179f05f0aee9de90885af6b49aa3585d029f000211d3273c22362e4d  test/startup-egress-map.test.mjs
+    c841b66fc3f6caeb8ec5cc37781c79ff94847728afcebb268f1717e1ad9be296  test/tenant-lease.test.mjs
+    e8d03b59e0632a9885f8607565b21e84587e16c8af0c766a26155dd1e0cfd5b3  test/tenant-provision-race.test.mjs
+    9949632c4be46acfdd2dccd791e9f352d00e18dd36665aaadaf3a2c22a6916de  test/waf.test.mjs
+    ﹣ evidence: production's own supervisor derives the same records (0.169069ms) # SKIP
+    ﹣ evidence: the frozen candidate reproduces the refusal (0.150259ms) # SKIP
+    ✖ audit skips an in-flight adoption and overlapping calls share one manager launch (3.022956ms)
+    ✖ a failed shared launch releases its allocation once and permits a later retry (1.657987ms)
+    ✖ a delayed second claim cannot replace an adopted or running record (1.750157ms)
+    ℹ tests 169
+    ℹ pass 164
+    ℹ fail 3
+    ℹ cancelled 0
+    ℹ skipped 2
+    ✖ failing tests:
+    ✖ audit skips an in-flight adoption and overlapping calls share one manager launch (3.022956ms)
+    ✖ a failed shared launch releases its allocation once and permits a later retry (1.657987ms)
+    ✖ a delayed second claim cannot replace an adopted or running record (1.750157ms)
+    [job] node --test exit=1
+    [memory-guard] exit=1 peakTreeRssMiB=299 minHostAvailableMiB=23270
+    [memory-guard] at peak: node:110 node:86 node:62 nvidia-smi:21 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 1
+
+## r3-512.log  sha256 6342bd35cd38a7a42b8ef88478c06dfbfffc4de7a3f711bfed040e5bba899833  bytes 17915
+    [queue] START available=24812MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+    === candidate
+    [job] ssh/scp/sftp -> denial stubs (rc=97)
+    [job] tree /home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/linux-wallet-unknown/candidate
+    3b9b371b7c1f84aaeb98ea4b7fc3920c75b5c28a2228f89009e82cebd0406983  supervisor.js
+    3438cdf29f2b5e41b3ce3e963bf35ea20f713cbbbe32cf5c007060b2941660f8  windows/node/host-admission.bundle.mjs
+    c2d9d5d8a83e52fc3067367ee3a1d2a8aeb88718f49bd33fc4ee41b51a8f6d41  test/supervisor-wallet-unknown-hold.test.mjs
+    503265a419dceb9fbb23bce6ac4dcb7831c756a9e9f3b3e5db79a3f63a47c4b9  test/supervisor-wallet-policy.test.mjs
+    2485fbce033aa4fcb463b69b8724c0343ebf28a2ac30fe951cf22a2f77a9df19  test/tenant-provision-race.test.mjs
+    ✖ a delayed second claim cannot replace an adopted or running record (1.760471ms)
+    ℹ tests 25
+    ℹ pass 24
+    ℹ fail 1
+    ℹ cancelled 0
+    ℹ skipped 0
+    ✖ failing tests:
+    ✖ a delayed second claim cannot replace an adopted or running record (1.760471ms)
+    [job] node --test exit=1
+    === mutants
+    === MUTANT RM1-no-epoch-check.js
+    ℹ fail 2
+    ℹ pass 16
+    ✖ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (83.320399ms)
+    ✖ review 1: owner stop, a restart (re-provision) and a replaced record each void a queued renewal (105.573116ms)
+    [mutant] RM1-no-epoch-check.js rc=1
+    === MUTANT RM2-stop-no-revoke.js
+    ℹ fail 2
+    ℹ pass 16
+    ✖ review 1: a renewal that reaches the queue WHILE an owner stop is still waiting for its DELETE is not sent (revoked before the await) (84.460562ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (1.721631ms)
+    [mutant] RM2-stop-no-revoke.js rc=1
+    === MUTANT RM3-free-on-failed-stop.js
+    ℹ fail 3
+    ℹ pass 15
+    ✖ no unsolicited release on unknown across repeated passes; the held id is not vouched for (its guest is not kept alive) (3.078184ms)
+    ✖ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.260273ms)
+    ✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (89.649884ms)
+    [mutant] RM3-free-on-failed-stop.js rc=1
+    === MUTANT RM4-trust-delete-only.js
+    ℹ fail 1
+    ℹ pass 17
+    ✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (89.904571ms)
+    [mutant] RM4-trust-delete-only.js rc=1
+    === MUTANT RM5-no-stream-cut.js
+    ℹ fail 2
+    ℹ pass 16
+    ✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (2090.526443ms)
+    ✖ source: every Linux lease send on a wallet decision carries its gate, and no caller folds unknown into a refusal (1.958919ms)
+    ✖ test/supervisor-wallet-unknown-hold.test.mjs (120022.867669ms)
+    [mutant] RM5-no-stream-cut.js rc=1
+    === MUTANT RM6-no-post-sign-check.js
+    ℹ fail 1
+    ℹ pass 17
+    ✖ review 1: app-funded - a hold that lands while the sponsored client is still admitting relays stops the SIGNED lease before any relay (305.206004ms)
+    [mutant] RM6-no-post-sign-check.js rc=1
+    === MUTANT RM7-no-resume-guard.js
+    ℹ fail 2
+    ℹ pass 16
+    ✖ review 2: an administrator refusal with a FAILED stop still releases the lease, but the slice waits for the confirmed stop (3.924258ms)
+    ✖ review 2: on a FAILED stop service is withdrawn at once (routes, open streams, egress, permits), the slice stays reserved and nothing resumes or replaces it until the backend confirms the guest gone (89.397752ms)
+    [mutant] RM7-no-resume-guard.js rc=1
+    === MUTANT RM8-no-verdict-epoch.js
+    ℹ fail 1
+    ℹ pass 17
+    ✖ review 1: a claim decided ALLOWED is voided by a later refusal for that deployment from any caller (no local record to revoke) (54.712885ms)
+    [mutant] RM8-no-verdict-epoch.js rc=1
+    [job8] killed 8/8
+    [job9] candidate=1 mutants=0
+    [memory-guard] exit=0 peakTreeRssMiB=178 minHostAvailableMiB=24521
+    [memory-guard] at peak: node:92 node:60 bash:6 bash:6 bash:6 timeout:4 unshare:4
+    [queue] EXIT 0
+
+## r4-scan-256.log  sha256 4817b365ae2786ad464f09fa524bbd8093a6c702465d639d09ebe35902f312f5  bytes 805
+    [queue] START available=24424MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+    8:09PM INF 2 commits scanned.
+    8:09PM INF no leaks found
+    [scan] scan-crypto-keys=0 gitleaks=0
+    [memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=24391
+    [memory-guard] at peak: gitleaks:50 bash:6 timeout:4
+    [queue] EXIT 0
+

@@ -17,6 +17,8 @@ Frozen 03:18Z append (2026-10-23): witness failover Enclave bfbd649d + Helios wi
 
 Frozen 03:31Z append (2026-10-23): S bounded bridge f98786e9 (offline/loopback tests + load fixture; NOT a restore pass), E optional S3 witness cache b71c8261 (not live Sia) and receipt-witness b84c5a11 (diagnostic only), P authenticated-ancestry history ce7c1b73/aca81764 (proof-call test uses a synthetic block identity) and A verifier authority 921d60c2 (whole-operation deadline gap open). See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest terminal full-restore status.
 
+Frozen 04:10Z append (2026-10-23): A canonical-trie Reth E2E 0c43e4db, B whole-operation verifier deadline 8d110101, C host-services cold start 427780bb (NOT rollout-ready: late-start/close race, DO-mirror-only gate), D Linux wallet hold final f1d0666b (needs a measured image + the decision() bundle; not deployed), E S3 witness ARCHIVE tier 27785278 (not live Sia) and P bounded real-history 7b4dd692 (real proof recording FAILED: no real proof); root's stop-race mock probe and the 04:06-04:07Z EnclaveDNS receipts. See `MANIFEST.json` `appends`. The whole-bucket OOM failure above remains the latest terminal full-restore status.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

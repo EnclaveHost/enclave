@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-23T04:07:42.9780624Z",
+  "deployment": [
+    {
+      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+      "status": "running"
+    }
+  ],
+  "certLines": [
+    "23:58:49 [node] 0x59f1273d certificate: none for 59f1273d.app.enclave.host (the certificate service refused 59f1273d.app.enclave.host: app_evidence_required This certificate key has not passed the app isolation policy. Retry after the guest evidence is available.); retry in 120s",
+    "00:01:02 [node] 0x59f1273d certificate: none for 59f1273d.app.enclave.host (the certificate service refused 59f1273d.app.enclave.host: app_evidence_required This certificate key has not passed the app isolation policy. Retry after the guest evidence is available.); retry in 240s",
+    "00:05:46 [node] 0x59f1273d certificate: none for 59f1273d.app.enclave.host (The operation was aborted due to timeout); retry in 480s",
+    "00:13:46 [node] 0x59f1273d certificate: none for 59f1273d.app.enclave.host (The operation was aborted due to timeout); retry in 960s",
+    "00:28:55 [node] 0x59f1273d certificate: 59f1273d.app.enclave.host installed in partition hv5931e9aa7ae0c217e4143a2a9926fd37 (key 110372d099960e1c~~~, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-20T23:59:59.000Z; domain monitor-signed)",
+    "01:18:52 [node] 0x59f1273d certificate: partition hv5931e9aa7ae0c217e4143a2a9926fd37 already serves a valid one for 59f1273d.app.enclave.host on its key 110372d099960e1c~~~ (serial 6DEDE481F65F87718B0968BBB51FA4E4, until 2027-01-20T23:59:59.000Z); nothing issued"
+  ]
+}

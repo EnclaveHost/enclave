@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T03:54:15.376Z",
+  "sourceSha256": "de5bb98a2e77ffd90ccf65211f564d9515f667b4cd6d17cbb3644fb2ca454e06",
+  "transportClosed": true,
+  "authorizationGateAfterClose": false,
+  "returnedCircuitClosed": false,
+  "circuitsAfterClose": 1,
+  "revokesBeforeCleanup": 0,
+  "timerCreatedAfterClose": true,
+  "limitation": "Actual HostServiceTransport with a deferred runtime seam; no real WireGuard process, network grant or production claim. Actual WgCircuitRuntime checks its own closure, but uses the supplied gate only for app broker/egress, not host-service startup."
+}
