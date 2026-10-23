@@ -57,12 +57,14 @@ export const CHAIN_ID = 8453;                 // Base mainnet: the listener, the
 export const PINNED_BUILDS = Object.freeze({
   listener: Object.freeze({
     ebd045b428227530fac1c1b079f47c67ecb874637a1c7dcb4f021dd5929e8d3a: 'enclave-base-head-listener commitment-mode 5e178676 (code a0c7c4e), base/base 5476069f, Rust 1.96.0, debug profile',
+    '9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3': 'enclave-base-head-listener 5e178676, release profile, scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
   }),
   helios: Object.freeze({
     cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to aca81764), base/base v1.5.1 EVM, Rust 1.96.0, debug profile',
   }),
   witnessCheck: Object.freeze({
     fab2f1cea2f69a8b2e676f8ffb51d0014408f99b5f92397566772e96e1c1ae93: 'witness-check enclave-witness-check aca81764, Rust 1.96.0, debug profile',
+    a33770482356c92861b77c3630e840761208c6c183aa5a67db795a44e8f85acf: 'witness-check aca81764, release profile (fat LTO, opt-level z), scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
   }),
 });
 const ROLES = Object.freeze(['listener', 'helios', 'witnessCheck']);
