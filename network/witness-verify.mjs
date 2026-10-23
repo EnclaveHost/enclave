@@ -35,30 +35,48 @@ export async function readBounded(response, maxBytes) {
   return Buffer.concat(chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength)), size).toString('utf8');
 }
 
+/** Settle with `promise`, or reject with signal.reason as soon as `signal` aborts (the listener is always removed).
+ *  The underlying work is NOT stopped by this; callers pass the signal to the work itself where the interface allows. */
+export function abortable(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) { promise.catch?.(() => {}); return Promise.reject(signal.reason); }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then((v) => { signal.removeEventListener('abort', onAbort); resolve(v); }, (e) => { signal.removeEventListener('abort', onAbort); reject(e); });
+  });
+}
+
 /**
  * bin: the witness-check executable; chainId, signer: the pinned chain and unsafe-block signer (the same pins Helios is
- * given). -> {check(request) -> {ok, ...}, close()}. A check that cannot complete (helper missing, crashed, over
- * timeoutMs, queue full) REJECTS: the caller must refuse, never treat it as a pass. The helper is restarted on next use.
+ * given). -> {check(request, {signal}) -> {ok, ...}, close()}. A check that cannot complete (helper missing, crashed,
+ * over timeoutMs, queue full, closed) REJECTS: the caller must refuse, never treat it as a pass. After a crash or a
+ * hang the helper is restarted on next use; close() is TERMINAL (no restart, every later check rejects).
+ * Per-request cancellation with one shared helper: an aborted `signal` drops only THAT check (its pending entry and
+ * timer; a late reply is ignored). The helper answers requests in order, so a check already written still costs the
+ * helper its (bounded) work, but no other caller's check is failed by one caller's abort.
  */
 export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000, maxPending = 256, maxRequestBytes = 48 << 20 } = {}) {
   if (typeof bin !== 'string' || !bin) throw new Error('witness-check binary path required');
   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chainId required');
   if (!/^0x[0-9a-fA-F]{40}$/.test(signer || '')) throw new Error('signer address required');
-  let child = null, buffer = '', seq = 0;
+  let child = null, buffer = '', seq = 0, closed = false;
   const pending = new Map();
-  const failAll = (why) => { for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error(why)); } pending.clear(); };
+  const settle = (id, p) => { pending.delete(id); clearTimeout(p.timer); p.signal?.removeEventListener('abort', p.onAbort); };
+  const failAll = (why) => { for (const [id, p] of [...pending]) { settle(id, p); p.reject(new Error(why)); } };
   function start() {
     const c = spawn(bin, ['--chain-id', String(chainId), '--signer', signer], { stdio: ['pipe', 'pipe', 'ignore'] });
     c.stdout.setEncoding('utf8');
     c.stdout.on('data', (d) => {
+      if (child !== c) return;                              // output of a helper already replaced or closed
       buffer += d;
       if (buffer.length > 1 << 20) { failAll('witness verifier output too long'); c.kill('SIGKILL'); return; }
       for (let i; (i = buffer.indexOf('\n')) >= 0;) {
         const line = buffer.slice(0, i); buffer = buffer.slice(i + 1);
         let reply; try { reply = JSON.parse(line); } catch { continue; }
         const p = pending.get(reply.id);
-        if (!p) continue;
-        pending.delete(reply.id); clearTimeout(p.timer); p.resolve(reply);
+        if (!p) continue;                                   // aborted or timed out: the late reply is ignored
+        settle(reply.id, p); p.resolve(reply);
       }
     });
     c.stdin.on('error', () => {});
@@ -66,7 +84,9 @@ export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000, 
     c.on('exit', () => { if (child === c) { child = null; buffer = ''; failAll('witness verifier exited'); } });
     return c;
   }
-  async function check(request) {
+  async function check(request, { signal } = {}) {
+    if (closed) throw new Error('witness verifier closed');
+    if (signal?.aborted) throw signal.reason;
     if (pending.size >= maxPending) throw new Error('witness verifier queue full');
     const id = ++seq;
     const line = JSON.stringify({ ...request, id }) + '\n';
@@ -74,23 +94,26 @@ export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000, 
     child ??= start();
     const c = child;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const p = { resolve, reject, signal };
+      p.timer = setTimeout(() => {
         // a hung verifier is killed: every pending check fails (callers refuse) and the next check restarts it
         if (child === c) { child = null; buffer = ''; }
         failAll('witness verifier timed out'); c.kill('SIGKILL');
       }, timeoutMs);
-      pending.set(id, { resolve, reject, timer });
+      p.onAbort = () => { if (pending.get(id) === p) { settle(id, p); reject(signal.reason); } };
+      signal?.addEventListener('abort', p.onAbort, { once: true });
+      pending.set(id, p);
       c.stdin.write(line);
     });
   }
-  function close() { const c = child; child = null; failAll('witness verifier closed'); c?.kill('SIGKILL'); }
-  return { check, close };
+  function close() { closed = true; const c = child; child = null; buffer = ''; failAll('witness verifier closed'); c?.kill('SIGKILL'); }
+  return { check, close, stats: () => ({ pending: pending.size, running: child !== null, closed }) };
 }
 
 /**
  * checker: createWitnessChecker. consensusUrl: the consensus head API (https, or http on loopback); optional when heads
- * are pushed with offer(). -> {rootFor(hash, {headers, deadline}), offer(commitment), addCommitment (= offer),
- * refresh(), start(pollMs), stop(), stats()}.
+ * are pushed with offer(). -> {rootFor(hash, {headers, deadline, signal}), offer(commitment, {signal}), addCommitment
+ * (= offer), refresh(), start(pollMs), stop(), close(), stats()}.
  *
  * Two ways a (block hash -> state root) binding enters the store, both verified by the helper:
  *   * 'signed-head': a sequencer commitment (polled from consensusUrl, or pushed with offer() by a head source such as
@@ -107,6 +130,12 @@ export function createWitnessChecker({ bin, chainId, signer, timeoutMs = 10000, 
  * A binding is history for that block, never freshness (Helios's own head checks decide what is fresh). Concurrent
  * recoveries of one hash share one walk. At most maxRoots bindings (oldest first out). A hash seen with two different
  * state roots is never served.
+ * Deadlines and cancellation: a caller's `signal` ends only ITS wait (refresh() and walks are shared). A walk runs
+ * under its own controller and the latest deadline of the callers waiting on it; it is aborted (no further header
+ * fetch or helper check) when its last caller has gone or its deadline passes. `headers(hash, child, {signal,
+ * deadline})` receives the walk's signal and deadline. Bindings already made by an aborted walk stay: they are
+ * authenticated immutable history, not freshness. stop() pauses polling; close() is TERMINAL: polling stops, the
+ * in-flight poll and every walk are aborted, a late poll answer is discarded, and rootFor/offer/refresh do no new work.
  */
 export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetch, timeoutMs = 5000, maxRoots = 8192, maxCommitmentBytes = 8 << 20,
   maxAncestry = 256 } = {}) {
@@ -115,7 +144,8 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
   const base = consensusUrl === undefined ? null : rpcEndpoint(consensusUrl).url.href.replace(/\/?$/, '/');
   const roots = new Map(), conflicted = new Set(), recovering = new Map();
   const stats = { verified: 0, refused: 0, conflicts: 0, polls: 0, pollFailures: 0, ancestors: 0, ancestryRefused: {} };
-  let inflight = null, timer = null;
+  let inflight = null, timer = null, closed = false;
+  const life = new AbortController();
   const lower = (x) => String(x).toLowerCase();
 
   function bind(r, via, boundTo) {
@@ -131,8 +161,10 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
     return entry;
   }
   /** Push a sequencer commitment (verified independently here; the pusher is not trusted). */
-  async function offer(commitment) {
-    const r = await checker.check({ op: 'head', commitment });
+  async function offer(commitment, { signal } = {}) {
+    if (closed) return null;
+    const r = await checker.check({ op: 'head', commitment }, { signal: signal ? AbortSignal.any([signal, life.signal]) : life.signal });
+    if (closed) return null;                               // a late answer after close() binds nothing
     if (!r.ok) { stats.refused++; return null; }
     return bind(r, 'signed-head');
   }
@@ -140,20 +172,22 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
     if (!base) return null;
     stats.polls++;
     try {
-      const res = await fetch(base + 'latest', { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
+      const res = await fetch(base + 'latest', { redirect: 'error', credentials: 'omit', signal: AbortSignal.any([life.signal, AbortSignal.timeout(timeoutMs)]) });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const c = JSON.parse(await readBounded(res, maxCommitmentBytes));
-      return c ? await offer(c) : null;     // null: the source has no head to offer (e.g. stale)
+      return c && !closed ? await offer(c) : null;     // null: no head to offer (e.g. stale), or the store closed
     } catch { stats.pollFailures++; return null; }
   }
   /** One coalesced poll of the head source. */
-  function refresh() { return (inflight ??= poll().finally(() => { inflight = null; })); }
+  function refresh() { return closed ? Promise.resolve(null) : (inflight ??= poll().finally(() => { inflight = null; })); }
   const refuse = (why) => { stats.ancestryRefused[why] = (stats.ancestryRefused[why] || 0) + 1; return null; };
   const child = (e) => ({ number: e.number, timestamp: e.timestamp, parentHash: e.parentHash });
 
-  async function recover(h, headers, deadline) {
+  async function recover(h, headers, walk) {
+    const ctx = () => ({ signal: walk.ac.signal, deadline: walk.deadline });
     if (!roots.size) return refuse('no-bound-head');       // nothing can anchor a walk: no source is asked
-    const guide = await headers(h, null, deadline);        // self-consistent header for h: only its NUMBER is used
+    const guide = await headers(h, null, ctx());           // self-consistent header for h: only its NUMBER is used
+    if (walk.ac.signal.aborted) return refuse('deadline');
     if (!guide) return refuse('unavailable');
     const n = guide.head.number;
     let above = null;                                      // the nearest bound block above n
@@ -162,10 +196,11 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
     if (above.number - n > maxAncestry) return refuse('too-deep');
     let cur = above;
     while (cur.number > n + 1) {
-      if (Date.now() > deadline) return refuse('deadline');
+      if (walk.ac.signal.aborted || Date.now() > walk.deadline) return refuse('deadline');
       let parent = roots.get(cur.parentHash);
       if (!parent) {
-        const got = await headers(cur.parentHash, child(cur), deadline);
+        const got = await headers(cur.parentHash, child(cur), ctx());
+        if (walk.ac.signal.aborted || closed) return refuse('deadline');
         if (!got) return refuse('unavailable');
         parent = bind(got.head, 'ancestor', cur.blockHash);
         if (!parent) return refuse('conflict');
@@ -174,24 +209,41 @@ export function createRootStore({ checker, consensusUrl, fetch = globalThis.fetc
       cur = parent;
     }
     if (cur.parentHash !== h) return refuse('not-an-ancestor');   // h is not on the bound chain (fork, orphan or a lie)
-    const r = await checker.check({ op: 'header', header: guide.header, expectHash: h, child: child(cur) });
+    const r = await checker.check({ op: 'header', header: guide.header, expectHash: h, child: child(cur) }, { signal: walk.ac.signal });
+    if (closed) return null;
     if (!r.ok) return refuse('mismatched-link');
     return bind(r, 'ancestor', cur.blockHash) ?? refuse('conflict');
   }
-  /** The binding for a block hash, or null (the caller must refuse). See above for `headers` and `deadline`. */
-  async function rootFor(blockHash, { headers = null, deadline = Date.now() + 30000 } = {}) {
+  /** The binding for a block hash, or null (the caller must refuse). See above for `headers`, `deadline`, `signal`.
+   *  Rejects with signal.reason when the caller's signal aborts first. */
+  async function rootFor(blockHash, { headers = null, deadline = Date.now() + 30000, signal } = {}) {
     const h = lower(blockHash);
-    if (conflicted.has(h)) return null;
-    if (!roots.has(h)) await refresh();             // a head Helios just adopted may be newer than our last poll
-    if (!roots.has(h) && headers && HASH.test(h) && !conflicted.has(h)) {
-      let p = recovering.get(h);
-      if (!p) { p = recover(h, headers, deadline).finally(() => recovering.delete(h)); recovering.set(h, p); }
-      await p;
+    if (closed || conflicted.has(h)) return null;
+    if (signal?.aborted) throw signal.reason;
+    if (!roots.has(h)) await abortable(refresh(), signal);   // shared poll: one caller's abort does not cancel it
+    if (!roots.has(h) && headers && HASH.test(h) && !conflicted.has(h) && !closed) {
+      let walk = recovering.get(h);
+      if (!walk || walk.ac.signal.aborted) {               // never join a walk that was already abandoned
+        walk = { ac: new AbortController(), subs: 0, deadline };
+        const onLife = () => walk.ac.abort(life.signal.reason);
+        life.signal.addEventListener('abort', onLife, { once: true });
+        walk.timer = setTimeout(() => walk.ac.abort(new Error('ancestry walk deadline')), Math.max(0, deadline - Date.now()));
+        walk.promise = recover(h, headers, walk).catch((e) => { if (walk.ac.signal.aborted) return refuse('deadline'); throw e; })
+          .finally(() => { clearTimeout(walk.timer); life.signal.removeEventListener('abort', onLife); if (recovering.get(h) === walk) recovering.delete(h); });
+        recovering.set(h, walk);
+      }
+      if (deadline > walk.deadline) {                       // a later caller extends the shared walk, never shortens it
+        walk.deadline = deadline; clearTimeout(walk.timer);
+        walk.timer = setTimeout(() => walk.ac.abort(new Error('ancestry walk deadline')), Math.max(0, deadline - Date.now()));
+      }
+      walk.subs++;
+      try { await abortable(walk.promise, signal); } finally { if (--walk.subs === 0) walk.ac.abort(new Error('no caller is waiting for this walk')); }
     }
-    return conflicted.has(h) ? null : roots.get(h) || null;
+    return closed || conflicted.has(h) ? null : roots.get(h) || null;
   }
-  function start(pollMs = 1000) { stop(); timer = setInterval(() => { refresh(); }, pollMs); timer.unref?.(); }
+  function start(pollMs = 1000) { if (closed) return; stop(); timer = setInterval(() => { refresh(); }, pollMs); timer.unref?.(); }
   function stop() { if (timer) clearInterval(timer); timer = null; }
-  return { rootFor, offer, addCommitment: offer, refresh, start, stop,
-    stats: () => ({ ...stats, ancestryRefused: { ...stats.ancestryRefused }, roots: roots.size, conflicted: conflicted.size, recovering: recovering.size }) };
+  function close() { closed = true; stop(); life.abort(new Error('root store closed')); }
+  return { rootFor, offer, addCommitment: offer, refresh, start, stop, close,
+    stats: () => ({ ...stats, ancestryRefused: { ...stats.ancestryRefused }, roots: roots.size, conflicted: conflicted.size, recovering: recovering.size, closed }) };
 }

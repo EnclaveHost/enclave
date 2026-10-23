@@ -90,6 +90,7 @@ test("root's probe: a malformed first answer costs only that try; the second sou
   const out = await g.handle(req(PROOF));
   assert.deepEqual(out.result, PROOF.result);
   assert.deepEqual([first.seen, second.seen], [['eth_getProof'], ['eth_getProof']]);
+  await g.settled();                                       // verified answers are written in the background
   const st = g.stats();
   assert.deepEqual(Object.values(st.upstream).map((x) => [x.ok, x.invalid]), [[0, 1], [1, 0]]);
   const w = witnessKey(PROOF.method, PROOF.params);
@@ -153,6 +154,7 @@ test('the cache: a bad first write never shadows a verified entry; cache-only la
   for (const r of [PROOF, CODE]) assert.deepEqual((await g.handle(req(r))).result, r.result);
   assert.equal(g.stats().cacheInvalid, 3, 'the legacy malformed entry and both forgeries were checked and quarantined');
   // later, every source is gone: a fresh cache-only gateway serves exactly the verified answers
+  await g.settled();
   const later = gw([], { cache: dirWitnessCache(dir) });
   for (const r of [PROOF, CODE]) assert.deepEqual((await later.handle(req(r))).result, r.result, r.method);
   const st = later.stats();
@@ -216,8 +218,8 @@ test('bounds: oversized bodies are cut off while reading, hung sources cost one 
   // with only hung sources the whole request ends at its deadline
   const g2 = gw([hung, (await upstream(() => () => {}))], { timeoutMs: 600, deadlineMs: 800 });
   const t1 = Date.now();
-  assert.match((await g2.handle(req(PROOF))).error.message, /no verifiable witness/);
-  assert.ok(Date.now() - t1 < 1500, `deadline held (${Date.now() - t1} ms)`);
+  assert.match((await g2.handle(req(PROOF))).error.message, /deadline exceeded/, 'refused as a deadline, not as a source verdict');
+  assert.ok(Date.now() - t1 < 1000, `deadline held (${Date.now() - t1} ms)`);
 });
 
 test('bounds: upstream requests in flight are capped across a batch', async () => {

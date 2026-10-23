@@ -109,6 +109,7 @@ test('a lying first source cannot deny service: every real call still matches th
     assert.equal(await rpc(h.url, 'eth_call', [c.tx, AT()]), c.p1.result, c.name);
     t.diagnostic(`${c.name}: ok`);
   }
+  await g.settled();                                       // verified answers are written in the background
   const st = g.stats();
   t.diagnostic(`gateway stats: ${JSON.stringify(st)}`);
   const [liar, good] = Object.values(st.upstream);

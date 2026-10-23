@@ -30,15 +30,17 @@
 //     block does), and with every upstream down nothing can be sent: the gateway says so.
 //   * Bounds: request body, upstream response bytes (enforced while reading), per-try timeout, one total deadline per
 //     request, batch size and upstream requests in flight.
-// No P2P witness transport exists for Base today (rpc-peer-audit RESULT §2: snap/2 off by default, no flag; GetNodeData
-// empty), so none is offered; a future transport is one more entry in `upstreams` behind the same interface. Failover
+// No P2P witness transport is offered: on the pinned/current Base client releases audited (rpc-peer-audit RESULT §2) the
+// state-serving protocol is disabled by default with no flag to enable it (snap/2 off; GetNodeData empty), and no enabled,
+// supported P2P proof path was observed. Custom peers that serve state were not ruled out. A future transport would be
+// one more entry in `upstreams` behind the same interface. Failover
 // between sources is NOT independence from them: with every fresh witness source down, only cached history remains.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
-import { readBounded } from './witness-verify.mjs';
+import { abortable, readBounded } from './witness-verify.mjs';
 
 export const WITNESS_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getProof', 'eth_getCode',
   'eth_createAccessList', 'eth_getBlockReceipts', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getLogs', 'eth_gasPrice',
@@ -103,21 +105,44 @@ export function dirWitnessCache(dir, { maxCandidates = 32, maxEntryBytes = 16 <<
   };
 }
 
-async function call(url, body, fetch, timeoutMs, maxBytes) {
-  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body, redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(timeoutMs) });
+async function call(url, body, fetch, signal, timeoutMs, maxBytes) {
+  // the request's own signal (deadline, gateway close) AND this try's timeout: aborting also cancels the body read
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body, redirect: 'error', credentials: 'omit',
+    signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) });
   if (!r.ok) { await r.body?.cancel?.().catch(() => {}); throw new Error('HTTP ' + r.status); }
   const j = JSON.parse(await readBounded(r, maxBytes));
   if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('malformed JSON-RPC response');
   return j;
 }
 
-function limiter(max) {
+/** At most `max` upstream requests at once, FIFO, at most `maxQueued` waiting. A waiter whose signal aborts is removed
+ *  from the queue at once (it never reaches an upstream). A slot is released only when the underlying work settles,
+ *  so a source that ignores abort still counts against `max`; its caller has already been answered (abort) and the
+ *  late result is discarded. */
+function limiter(max, maxQueued) {
   let active = 0; const waiting = [];
-  return async (fn) => {
-    if (active >= max) await new Promise((r) => waiting.push(r));
-    active++;
-    try { return await fn(); } finally { active--; waiting.shift()?.(); }
+  const release = () => {
+    active--;
+    const w = waiting.shift();
+    if (w) { w.signal.removeEventListener('abort', w.onAbort); active++; w.grant(); }
   };
+  async function run(fn, signal) {
+    if (signal.aborted) throw signal.reason;
+    if (active >= max) {
+      if (waiting.length >= maxQueued) throw new Error('gateway busy: upstream queue full');
+      await new Promise((grant, fail) => {
+        const w = { grant, signal };
+        w.onAbort = () => { const i = waiting.indexOf(w); if (i >= 0) waiting.splice(i, 1); fail(signal.reason); };
+        signal.addEventListener('abort', w.onAbort, { once: true });
+        waiting.push(w);
+      });
+    } else active++;
+    let work;
+    try { work = Promise.resolve(fn()); } catch (e) { release(); throw e; }
+    work.then(release, release);
+    return abortable(work, signal);
+  }
+  return { run, stats: () => ({ active, queued: waiting.length }) };
 }
 
 /**
@@ -126,12 +151,19 @@ function limiter(max) {
  * proofs: {checker, roots} (network/witness-verify.mjs), REQUIRED when eth_getProof/eth_getCode are offered or a cache
  * is given: there is no unverified witness mode. cache: optional {put(w, result), candidates(w)} (dirWitnessCache); a
  * store with only {get, put} works, but a single-slot store can still be shadowed by a bad first write.
- * Bounds: timeoutMs per try, deadlineMs per request (all tries and checks), maxResponseBytes per answer (while
- * reading), maxInFlight upstream requests at once.
- * -> {handle(request) -> response, root(blockHash) -> binding | null, listen(port) -> url (127.0.0.1 only), close(), stats()}
+ * Bounds: deadlineMs per request covers EVERYTHING the request does (queue wait for a slot, every upstream try and body
+ * read, root recovery, helper checks, the cache read); timeoutMs per try (cut to what is left of the deadline when the
+ * slot is granted; no try starts with less than minTryMs left); maxResponseBytes per answer (while reading);
+ * maxInFlight upstream requests at once, maxQueued waiting (more: refused at once); cacheTimeoutMs per cache read (a
+ * slow cache is skipped, not waited out); maxCacheOps concurrent cache reads and background writes.
+ * Cache interface (optional arguments, compatible with {get, put} / {candidates, put}): candidates(w, {signal}),
+ * get(w, {signal}), put(w, result, {signal}). Writes run in the background (a read never waits for one); settled()
+ * resolves when the writes started so far have settled.
+ * -> {handle(request) -> response, root(blockHash) -> binding | null, listen(port) -> url (127.0.0.1 only), close()
+ *    (terminal), settled(), stats()}
  */
 export function createWitnessGateway({ upstreams = [], cache = null, proofs = null, timeoutMs = 8000, deadlineMs = 30000, maxResponseBytes = 16 << 20,
-  maxHeaderBytes = 1 << 20, maxInFlight = 8, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
+  maxHeaderBytes = 1 << 20, maxInFlight = 8, maxQueued = 256, minTryMs = 25, cacheTimeoutMs = Math.min(1000, deadlineMs), maxCacheOps = 64, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
   const ids = upstreams.map((u) => rpcEndpoint(u).identity);
@@ -141,33 +173,81 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
   if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1024 || maxResponseBytes > 64 << 20) throw new Error('invalid maxResponseBytes');
   if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1 || maxInFlight > 64) throw new Error('invalid maxInFlight');
   if (!Number.isSafeInteger(maxHeaderBytes) || maxHeaderBytes < 1024 || maxHeaderBytes > maxResponseBytes) throw new Error('invalid maxHeaderBytes');
+  if (!Number.isSafeInteger(maxQueued) || maxQueued < 0 || maxQueued > 4096) throw new Error('invalid maxQueued');
+  if (!Number.isSafeInteger(minTryMs) || minTryMs < 1 || minTryMs > timeoutMs) throw new Error('invalid minTryMs');
+  if (!Number.isSafeInteger(cacheTimeoutMs) || cacheTimeoutMs < 10 || cacheTimeoutMs > deadlineMs) throw new Error('invalid cacheTimeoutMs');
+  if (!Number.isSafeInteger(maxCacheOps) || maxCacheOps < 1 || maxCacheOps > 1024) throw new Error('invalid maxCacheOps');
   if ((methods.some((m) => PINNED.has(m)) || cache) && !(proofs?.checker?.check && proofs?.roots?.rootFor))
     throw new Error('eth_getProof/eth_getCode and the witness cache need proofs: {checker, roots} (no unverified witness serving)');
   const stats = { upstream: Object.fromEntries(upstreams.map((u) => [rpcLabel(u), { ok: 0, failed: 0, invalid: 0, headerOk: 0, headerInvalid: 0, blockOk: 0, blockInvalid: 0, blockNull: 0 }])), cacheHits: 0, cachePuts: 0,
-    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0 };
-  const slot = limiter(maxInFlight);
+    cacheInvalid: 0, refused: {}, unavailable: 0, unauthenticatedBlock: 0, verifierUnavailable: 0, blocksFull: 0, blocksHeaderOnly: 0,
+    deadlineExceeded: 0, queueFull: 0, cacheTimeouts: 0, cacheSkipped: 0, cachePutSkipped: 0, closedRefusals: 0 };
+  const slot = limiter(maxInFlight, maxQueued);
+  const life = new AbortController();                     // gateway lifetime: close() aborts every request and walk
+  let closed = false, cacheOps = 0;
+  const puts = new Set();                                 // background cache writes (never awaited by a read)
+  class Deadline extends Error {}
+  /** One request's operation context: aborted at its deadline or when the gateway closes. */
+  function newOp() {
+    const ac = new AbortController(), deadline = Date.now() + deadlineMs;
+    const timer = setTimeout(() => ac.abort(new Deadline('request deadline exceeded')), deadlineMs);
+    return { signal: AbortSignal.any([ac.signal, life.signal]), deadline, done: () => clearTimeout(timer) };
+  }
+  // expiry is by time as well as by signal: a try's timeout or a slot handoff in the same millisecond as the deadline
+  // timer is still the deadline
+  const expired = (op) => op.signal.aborted || Date.now() >= op.deadline;
+  const ended = (op) => op.signal.reason ?? new Deadline('request deadline exceeded');
+  /** A cache read bounded by its own budget and the request: a hung or slow cache is skipped, never waited out. */
+  async function cacheRead(w, op) {
+    if (!cache) return [];
+    if (cacheOps >= maxCacheOps) { stats.cacheSkipped++; return []; }
+    const signal = AbortSignal.any([op.signal, AbortSignal.timeout(cacheTimeoutMs)]);
+    cacheOps++;
+    const read = Promise.resolve().then(() => (cache.candidates ? cache.candidates(w, { signal }) : cache.get(w, { signal }).then((x) => (x === undefined ? [] : [x]))));
+    read.then(() => { cacheOps--; }, () => { cacheOps--; });
+    try { return await abortable(read, signal); } catch (e) {
+      if (expired(op)) throw ended(op);
+      if (signal.aborted) { stats.cacheTimeouts++; return []; }
+      return [];                                          // an erroring cache is just a miss
+    }
+  }
+  /** A verified answer goes to the cache in the background (bounded); a read never waits for or fails on a write. */
+  function cacheWrite(w, result) {
+    if (!cache || closed) return;
+    if (puts.size >= maxCacheOps) { stats.cachePutSkipped++; return; }
+    const put = Promise.resolve().then(() => cache.put(w, result, { signal: life.signal })).then(() => { stats.cachePuts++; }, () => {});
+    puts.add(put); put.finally(() => puts.delete(put));
+  }
   const quarantine = new Set(), accounts = new Map();   // bounded: known-bad cache contents; recent verified account proofs
   const remember = (set, k, v) => { if (set instanceof Map) set.set(k, v); else set.add(k); if (set.size > (set instanceof Map ? 1024 : 4096)) set.delete(set.keys().next().value); };
   let server = null;
   const err = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
   const ok = (id, result) => ({ jsonrpc: '2.0', id: id ?? null, result });
 
-  async function ask(u, body, deadline, maxBytes = maxResponseBytes) {
-    const left = deadline - Date.now();
-    if (left <= 0) throw new Error('request deadline exceeded');
-    return slot(() => call(u, body, fetch, Math.max(1, Math.min(timeoutMs, left)), maxBytes));
+  /** One upstream try for `op`: queued for a slot (removed if `op` aborts while waiting), then timed with what is left
+   *  of the request's deadline WHEN THE SLOT IS GRANTED; nothing is sent once the deadline has passed, or with less than
+   *  minTryMs of it left (a try that cannot finish is not started). */
+  async function ask(u, body, op, maxBytes = maxResponseBytes) {
+    try {
+      return await slot.run(() => {
+        const left = op.deadline - Date.now();
+        if (left < minTryMs || op.signal.aborted) throw new Deadline('request deadline exceeded');
+        return call(u, body, fetch, op.signal, Math.min(timeoutMs, left), maxBytes);
+      }, op.signal);
+    } catch (e) { if (String(e?.message).includes('queue full')) stats.queueFull++; throw e; }
   }
 
   /** An untrusted header for `hash` from the upstreams in order, checked by the helper (bound to `child` when given):
    *  -> {head, header} | null. A header that does not hash to `hash` (or does not link) costs its source the try. */
-  async function headers(hash, child, deadline) {
+  async function headers(hash, child, op) {
     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params: [hash, false] });
     for (const u of upstreams) {
+      if (op.signal.aborted) return null;
       const s = stats.upstream[rpcLabel(u)];
       let j;
-      try { j = await ask(u, body, deadline, maxHeaderBytes); } catch { s.failed++; continue; }
+      try { j = await ask(u, body, op, maxHeaderBytes); } catch { s.failed++; continue; }
       if (j.error || !j.result) { s.failed++; continue; }
-      const v = await proofs.checker.check({ op: 'header', header: j.result, expectHash: hash, child });
+      const v = await proofs.checker.check({ op: 'header', header: j.result, expectHash: hash, child }, { signal: op.signal });
       if (!v.ok) { s.headerInvalid++; continue; }
       s.headerOk++;
       return { head: v, header: j.result };
@@ -176,11 +256,12 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
   }
 
   /** A verified answer for a block-hash-pinned witness request -> {result} | {error}. */
-  async function witness(method, params, deadline) {
+  async function witness(method, params, op) {
     const w = witnessKey(method, params);
     if (!w) return { error: 'witness requests must be pinned by block hash', code: -32602 };
     let root;
-    try { root = await proofs.roots.rootFor(w.blockHash, { headers, deadline }); } catch (e) {
+    try { root = await proofs.roots.rootFor(w.blockHash, { headers, deadline: op.deadline, signal: op.signal }); } catch (e) {
+      if (expired(op)) throw ended(op);
       stats.verifierUnavailable++;
       return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
     }
@@ -189,20 +270,20 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
     let verify;
     if (method === 'eth_getProof') {
       verify = async (result) => {
-        const r = await proofs.checker.check({ op: 'getProof', ...at, params, result });
+        const r = await proofs.checker.check({ op: 'getProof', ...at, params, result }, { signal: op.signal });
         if (r.ok) remember(accounts, who, result);
         return r;
       };
     } else {
       // code is checked against the code hash of a VERIFIED account proof for the same address and block (usually the
       // one Helios just fetched); without one the code cannot be checked, so the request is refused
-      const account = accounts.get(who) ?? (await witness('eth_getProof', [params[0], [], params[1]], deadline)).result;
+      const account = accounts.get(who) ?? (await witness('eth_getProof', [params[0], [], params[1]], op)).result;
       if (account === undefined) return { error: 'no verified account proof for the code hash: refused' };
-      verify = (result) => proofs.checker.check({ op: 'getCode', ...at, params, result, account });
+      verify = (result) => proofs.checker.check({ op: 'getCode', ...at, params, result, account }, { signal: op.signal });
     }
     const reasons = [];
     try {
-      for (const c of cache ? await (cache.candidates ? cache.candidates(w) : cache.get(w).then((x) => (x === undefined ? [] : [x]))) : []) {
+      for (const c of await cacheRead(w, op)) {
         const tag = `${w.key}:${sha256(JSON.stringify(c))}`;
         if (quarantine.has(tag)) continue;
         const v = await verify(c);
@@ -213,15 +294,17 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
       for (const u of upstreams) {
         const s = stats.upstream[rpcLabel(u)];
         let j;
-        try { j = await ask(u, body, deadline); } catch (e) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
+        if (expired(op)) throw ended(op);
+        try { j = await ask(u, body, op); } catch (e) { if (expired(op)) throw ended(op); s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
         if (j.error || !('result' in j)) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(j.error?.message ?? 'no result').slice(0, 80)}`); continue; }
         const v = await verify(j.result);
         if (!v.ok) { s.invalid++; reasons.push(`${rpcLabel(u)}: invalid witness (${String(v.error).slice(0, 80)})`); continue; }
         s.ok++;
-        if (cache) await cache.put(w, j.result).then(() => { stats.cachePuts++; }, () => {});
+        cacheWrite(w, j.result);
         return { result: j.result };
       }
     } catch (e) {
+      if (expired(op)) throw ended(op);
       stats.verifierUnavailable++;
       return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
     }
@@ -233,7 +316,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
    *  pass Helios's OpStack::validate_block. An invalid answer costs its source the try. A hash-only (fullTx=false)
    *  answer is HEADER-verified only. Verified blocks are served as received and never cached or used as roots.
    *  null is returned only when every answering source said null and none answered with an invalid block. */
-  async function blockByHash(params, deadline) {
+  async function blockByHash(params, op) {
     if (!Array.isArray(params) || params.length !== 2 || !HASH.test(params[0]) || typeof params[1] !== 'boolean')
       return { error: 'eth_getBlockByHash needs [blockHash, fullTransactions]', code: -32602 };
     const [hash, fullTx] = params, body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByHash', params });
@@ -242,11 +325,13 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
     for (const u of upstreams) {
       const s = stats.upstream[rpcLabel(u)];
       let j;
-      try { j = await ask(u, body, deadline); } catch (e) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
+      if (expired(op)) throw ended(op);
+      try { j = await ask(u, body, op); } catch (e) { if (expired(op)) throw ended(op); s.failed++; reasons.push(`${rpcLabel(u)}: ${String(e?.message || e).slice(0, 80)}`); continue; }
       if (j.error || !('result' in j)) { s.failed++; reasons.push(`${rpcLabel(u)}: ${String(j.error?.message ?? 'no result').slice(0, 80)}`); continue; }
       if (j.result === null) { s.blockNull++; nulls++; continue; }
       let v;
-      try { v = await proofs.checker.check({ op: 'block', block: j.result, expectHash: hash, fullTx }); } catch (e) {
+      try { v = await proofs.checker.check({ op: 'block', block: j.result, expectHash: hash, fullTx }, { signal: op.signal }); } catch (e) {
+        if (expired(op)) throw ended(op);
         stats.verifierUnavailable++;
         return { error: `witness verifier unavailable (${String(e?.message || e).slice(0, 80)}): refused` };
       }
@@ -259,39 +344,52 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
     return { error: `no verifiable block${reasons.length ? ': ' + reasons.join('; ').slice(0, 400) : ''}` };
   }
 
+  /** One request under one operation context: every queue wait, upstream try, cache read, root recovery and helper
+   *  check is bounded by its deadline, and no success is returned once it has passed. */
   async function handle(req) {
     if (!req || typeof req !== 'object' || req.jsonrpc !== '2.0' || typeof req.method !== 'string') return err(req?.id, -32600, 'invalid request');
     const params = req.params === undefined ? [] : req.params;
     if (!methods.includes(req.method)) { stats.refused[req.method.slice(0, 64)] = (stats.refused[req.method.slice(0, 64)] || 0) + 1; return err(req.id, -32601, 'method not offered by the witness gateway'); }
-    const deadline = Date.now() + deadlineMs;
-    if (req.method === 'eth_getBlockByHash' && proofs) {
-      const r = await blockByHash(params, deadline);
+    if (closed) { stats.closedRefusals++; return err(req.id, -32000, 'witness gateway closed'); }
+    const op = newOp();
+    let sentTo = 0;
+    try {
+      const r = await serve(req.method, params, op, () => { sentTo++; });
+      if (expired(op)) throw ended(op);            // never a success after the deadline (or after close)
       if ('result' in r) return ok(req.id, r.result);
       stats.unavailable++;
       return err(req.id, r.code ?? -32000, r.error);
-    }
-    if (PINNED.has(req.method)) {
-      const r = await witness(req.method, params, deadline);
-      if ('result' in r) return ok(req.id, r.result);
-      stats.unavailable++;
-      return err(req.id, r.code ?? -32000, r.error);
-    }
-    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: req.method, params });
-    const broadcast = req.method === 'eth_sendRawTransaction';
+    } catch (e) {
+      if (!expired(op)) throw e;
+      if (closed) { stats.closedRefusals++; return err(req.id, -32000, 'witness gateway closed: refused'); }
+      stats.deadlineExceeded++;
+      return err(req.id, -32000, req.method === 'eth_sendRawTransaction' && sentTo
+        ? `request deadline exceeded after the transaction reached ${sentTo} upstream(s); no result is returned` : 'request deadline exceeded: refused');
+    } finally { op.done(); }
+  }
+  async function serve(method, params, op, onSent) {
+    if (method === 'eth_getBlockByHash' && proofs) return blockByHash(params, op);
+    if (PINNED.has(method)) return witness(method, params, op);
+    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });
+    const broadcast = method === 'eth_sendRawTransaction';
     let lastError = null, sent = null;
     for (const u of upstreams) {
+      if (expired(op)) throw ended(op);            // no new upstream request (and no new broadcast) after the deadline
       const s = stats.upstream[rpcLabel(u)];
       try {
-        const j = await ask(u, body, deadline);
+        const j = await ask(u, body, op);
+        if (broadcast) onSent();
         if (j.error) { s.failed++; lastError = j.error; continue; }
         s.ok++;
-        if (!broadcast) return ok(req.id, j.result);
+        if (!broadcast) return { result: j.result };
         sent ??= j.result;
-      } catch (e) { s.failed++; lastError = { code: -32000, message: `${rpcLabel(u)}: ${String(e?.message || e).slice(0, 120)}` }; }
+      } catch (e) {
+        if (expired(op)) throw ended(op);
+        s.failed++; lastError = { code: -32000, message: `${rpcLabel(u)}: ${String(e?.message || e).slice(0, 120)}` };
+      }
     }
-    if (sent !== null) return ok(req.id, sent);
-    stats.unavailable++;
-    return err(req.id, lastError?.code ?? -32000, broadcast ? 'no upstream accepted the transaction; nothing was sent' : `no witness source answered${lastError?.message ? ': ' + String(lastError.message).slice(0, 160) : ''}`);
+    if (sent !== null) return { result: sent };
+    return { error: broadcast ? 'no upstream accepted the transaction; nothing was sent' : `no witness source answered${lastError?.message ? ': ' + String(lastError.message).slice(0, 160) : ''}`, code: lastError?.code ?? -32000 };
   }
 
   function onRequest(req, res) {
@@ -310,9 +408,25 @@ export function createWitnessGateway({ upstreams = [], cache = null, proofs = nu
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
     return `http://127.0.0.1:${server.address().port}/`;
   }
-  async function close() { if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; } }
+  /** TERMINAL: every queued and running request is aborted (queued ones never reach an upstream), new requests are
+   *  refused, the HTTP endpoint closes, and background cache writes get at most 1 s to settle. The checker and root
+   *  store are the caller's (they may be shared) and are not closed here. */
+  async function close() {
+    closed = true;
+    life.abort(new Error('witness gateway closed'));
+    if (server) { server.closeAllConnections?.(); await new Promise((r) => server.close(() => r())); server = null; }
+    await Promise.race([settled(), new Promise((r) => setTimeout(r, 1000).unref?.())]);
+  }
+  /** Resolves when the background cache writes started so far have settled. */
+  const settled = () => Promise.allSettled([...puts]).then(() => {});
   /** The authenticated (block hash -> state root) binding the gateway would verify witnesses against, recovering a
    *  missed block by ancestry through the upstreams; null = refused. History for that block, never freshness. */
-  const root = (hash) => (proofs ? proofs.roots.rootFor(hash, { headers, deadline: Date.now() + deadlineMs }) : Promise.resolve(null));
-  return { handle, root, listen, close, stats: () => structuredClone({ ...stats, quarantined: quarantine.size }) };
+  async function root(hash) {
+    if (!proofs || closed) return null;
+    const op = newOp();
+    try { return await proofs.roots.rootFor(hash, { headers, deadline: op.deadline, signal: op.signal }); }
+    catch (e) { if (expired(op)) return null; throw e; } finally { op.done(); }
+  }
+  return { handle, root, listen, close, settled,
+    stats: () => structuredClone({ ...stats, quarantined: quarantine.size, ...slot.stats(), cacheReads: cacheOps, cacheWrites: puts.size, closed }) };
 }
