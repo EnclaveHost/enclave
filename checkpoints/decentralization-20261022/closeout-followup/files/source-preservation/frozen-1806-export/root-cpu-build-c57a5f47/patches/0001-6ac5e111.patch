@@ -1,0 +1,66 @@
+From 6ac5e111b8566d757ecd4e064a242fc50b207c73 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:32:06 -0700
+Subject: [PATCH] Pin the installed Windows launcher used by the CPU guest
+
+---
+ .gitignore               | 1 +
+ launcher-copy.guard.log  | 1 +
+ launcher-pin-2.guard.log | 1 +
+ launcher-pin.json        | 7 +++++++
+ read-launcher-pin.py     | 8 ++++++++
+ 5 files changed, 18 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 launcher-copy.guard.log
+ create mode 100644 launcher-pin-2.guard.log
+ create mode 100644 launcher-pin.json
+ create mode 100644 read-launcher-pin.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..b883f1fdc6d69146f477bba77c117fbbd33714af
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1 @@
++*.exe
+diff --git a/launcher-copy.guard.log b/launcher-copy.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..27e209002bf9f3338a4f0504a2b8e18220ab3e1d
+--- /dev/null
++++ b/launcher-copy.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=36 minHostAvailableMiB=24810
+diff --git a/launcher-pin-2.guard.log b/launcher-pin-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7387134a70b65d4b2577995238d55e59bfc1c5a1
+--- /dev/null
++++ b/launcher-pin-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=24693
+diff --git a/launcher-pin.json b/launcher-pin.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f4ca6f4000e6847e515a27a135c057b601d0197
+--- /dev/null
++++ b/launcher-pin.json
+@@ -0,0 +1,7 @@
++{
++  "expected": "4feb0adffdd412358d3d67437e096ff5001d38d85fbbc79c9ba73f01dd5242a8",
++  "path": "C:\\Program Files\\Enclave\\bin\\shield-host.exe",
++  "actual": "4feb0adffdd412358d3d67437e096ff5001d38d85fbbc79c9ba73f01dd5242a8",
++  "bytes": 1138688,
++  "at": "2026-10-23T17:31:26.1110341Z"
++}
+diff --git a/read-launcher-pin.py b/read-launcher-pin.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f99fcce2c6fa25c082a624db200adb4b3f8a57ea
+--- /dev/null
++++ b/read-launcher-pin.py
+@@ -0,0 +1,8 @@
++"""Read only the configured launcher path, expected digest, and actual binary digest."""
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py')
++m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$cfg=@{};foreach($line in Get-Content -LiteralPath 'C:\ProgramData\Enclave\shield-config.cmd'){if($line -match '^\s*set\s+"?(ENCLAVE_WMISERVE_EXE|ENCLAVE_WMISERVE_EXE_SHA256)=(.*)$'){$cfg[$Matches[1]]=$Matches[2].TrimEnd('"')}};$path=$cfg.ENCLAVE_WMISERVE_EXE;if(-not $path){throw 'Launcher path missing'};$f=Get-Item -LiteralPath $path;@{at=(Get-Date).ToUniversalTime().ToString('o');path=$path;expected=$cfg.ENCLAVE_WMISERVE_EXE_SHA256;actual=(FileSha $path);bytes=$f.Length}|ConvertTo-Json -Compress'''
++r=m.ps(p,30)
++pathlib.Path('work/coupled-cpu-enforcement-20261023/root-validation/launcher-pin.json').write_text(json.dumps(r,indent=2)+'\n')
++print(json.dumps(r))

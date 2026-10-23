@@ -1,0 +1,38 @@
+custody v2 rollout audit: interim progress (READ-ONLY; no live probes, no source/doc edits, no secrets)
+2026-10-23T17:44Z  started. Report repo = this directory only (branch audit/custody-v2).
+- Read: history-checkpoint-transport/tree/docs/security/secret-custody-v2.md (Oct-14 deployment record; claims extracted).
+- In progress, read-only, in parallel:
+  (a) the spec and related security docs: interfaces, migration/deletion, plaintext claims, rollback, admin statements;
+  (b) code paths in frozen sealed-startup-recovery repo 8a0a500c vs current work/enclave (e762a9c5 + dirty; git
+      read-only);
+  (c) historical evidence (outputs/custody*, work/*custody*) and existing real-hardware canary harnesses.
+- Next: RESULT.md with
+  - the claims / source / evidence / production-question map, with scoped read commands for root;
+  - config, book and dashboard prerequisites;
+  - harnesses and gaps;
+  - the production canary sequence;
+  - relay-plaintext-absence evidence design;
+  - migration deletion and retention;
+  - high-water and replay;
+  - the signing steps.
+2026-10-23T17:50Z  (a) docs and (c) evidence done.
+- Last live reads (others' receipts):
+  - the book `secretVaultV2` = 0x0 (10-18/10-19/10-20);
+  - one committee and one policy, the 4e62e60d canary (10-20, no events to block 52864330);
+  - the relay on minipc with CUSTODY_VAULT_V2 = 0xe486 (10-20/10-21);
+  - custodian QEMU start-time unchanged 10-21..10-22.
+- No receipt exists for the Oct-14 hardware verification (doc claim only).
+- Prior work found:
+  - claude-existing-custody-audit (P1/P2/P3 plan; the running image 2530eda0 has no code-approve or host-ban check);
+  - corrected custodian release c635fd68 (quote-only hardware PASS 10-21);
+  - owner-rewrap-v2.
+- (b) code-path map still running.
+2026-10-23T17:58Z  (b) code map done; four suspicions verified in source.
+- F1 persist-before-ack not awaited.
+- F2 20 retained sealed blobs.
+- F3 the supervisor signs the owner-committed vault in direct mode.
+- F6 relay old-copy read and clear race.
+- Running-image closure: memory high-water and no chain checkpoint.
+RESULT.md written: claims map, read commands R1-R6, prerequisites, findings F1-F9, harness gaps, plaintext-absence design,
+high-water and replay, canary runbook S0-S7 / O1-O3, signing table, limits.
+2026-10-23T17:59:41Z  root review 1 + outage isolation applied: exact n/t instead of a badge; independence criteria; qualified single-seat claim; rewrap fix precondition (F rewrap.mjs 0beb576b = fixed; C has none); dedicated canary custodian = isolation only, never copy prod state; shared-outage impact+rollback; timestamps corrected to UTC.

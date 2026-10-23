@@ -32225,6 +32225,538 @@
       "stored": "files/source-preservation/make-frozen-1726-snapshots.py",
       "sha256": "1190c7e8ed19c62b2db3f2f8ef4dd1b24e8d389fdb53a083cf6a0202ca6db827",
       "bytes": 861
+    },
+    {
+      "label": "FROZEN 1806 batch exported from Git objects (never worktrees); every base rebuilt from pushed 6dcde703 material and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + EVIDENCE ONLY: not merged, imaged, activated or deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/INVENTORY.json",
+      "stored": "files/source-preservation/frozen-1806-export/INVENTORY.json",
+      "sha256": "4ad83e5376eac4f777b82d2be01664fccf97d3c7b20f7ca75ae5aaa3edb4c319",
+      "bytes": 23240
+    },
+    {
+      "label": "FROZEN 1806 batch exported from Git objects (never worktrees); every base rebuilt from pushed 6dcde703 material and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + EVIDENCE ONLY: not merged, imaged, activated or deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/REBUILD.md",
+      "stored": "files/source-preservation/frozen-1806-export/REBUILD.md",
+      "sha256": "621abd23fb0c65a0423a926c160afc9277744fca525ba62d03df3296b6a393f3",
+      "bytes": 3195
+    },
+    {
+      "label": "FROZEN 1806 batch exported from Git objects (never worktrees); every base rebuilt from pushed 6dcde703 material and every recorded tree reproduced (REPRODUCE-CHECK.txt). SOURCE + EVIDENCE ONLY: not merged, imaged, activated or deployed by this capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/REPRODUCE-CHECK.txt",
+      "stored": "files/source-preservation/frozen-1806-export/REPRODUCE-CHECK.txt",
+      "sha256": "5ccde9ae0f7611c63a6e89bdad39c06681f9c1aae2f8d9dc8a367d3a60fac740",
+      "bytes": 762
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/patches/0001-6ac5e111.patch",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/patches/0001-6ac5e111.patch",
+      "sha256": "d6f3a94bf3e44cbc433ee28ebe35eb7374030abc29312bd4ef0dd24079bddc76",
+      "bytes": 3165
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/patches/0002-c57a5f47.patch",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/patches/0002-c57a5f47.patch",
+      "sha256": "c9b539da298e69cde91e3365022bdb711742cca315438606b4328825f3998aeb",
+      "bytes": 62107
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/.gitignore",
+      "sha256": "7e88be171fd0f67fdbcc15f82795d6db151f6d8f3335b4c746f176b789fb589d",
+      "bytes": 12
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/NATIVE-LOADER-RESULT.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/NATIVE-LOADER-RESULT.json",
+      "sha256": "1625d7f79fa5a5c0e074c344f137036d210ce8b670fdf47e9239713c00d66e22",
+      "bytes": 1904
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/after-native-build-live.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/after-native-build-live.guard.log",
+      "sha256": "261ced566499f356a4ee806bce2e325d976fd8641ad0e1398640b0ab93926efc",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/after-native-build-live.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/after-native-build-live.json",
+      "sha256": "888ee9a3b00d306b7ab995ff28b4aecbf563a7916ae68f0b065fb84ce9a4ead3",
+      "bytes": 8734
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/launcher-copy.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/launcher-copy.guard.log",
+      "sha256": "64c6ade658a6f85117d405254ce034dab4378d3c1203d44539ce18de97b1cf0c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/launcher-pin-2.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/launcher-pin-2.guard.log",
+      "sha256": "9a4fefe0d0b8551f59d8ce6fb1b7023360cffe05b2372db1e8f3d0fa9c8a8884",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/launcher-pin.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/launcher-pin.json",
+      "sha256": "fcbd3507d76e9d26c54bde6eee8cf0d0e034373fbcf7a6adbbdead609357961b",
+      "bytes": 287
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-scan.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-scan.guard.log",
+      "sha256": "084a542e3941465230de797e6ac932846c79bb149a12a7cd61c2e58b998452b3",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-status.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-status.guard.log",
+      "sha256": "b7557b7438ca0c23c827c5813a929f5ec08730922f1d23b8c92a3cafb5fd4365",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-status.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-status.json",
+      "sha256": "45e71504d019974ba030d099237ff7c1e85eaeb78e0837f606e91069a7116b7a",
+      "bytes": 813
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-status.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-build-status.py",
+      "sha256": "2379eb3da882e8c0ff22139f345b8314aa54a9b3da07b831abf6484f07cd7966",
+      "bytes": 1018
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-linker.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-linker.guard.log",
+      "sha256": "9f8f1634a6ee4e62f528ab55a89a63072f2988a7d014245339dfe7faba13b240",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-linker.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-linker.json",
+      "sha256": "ef3d959e4f00c77985dbafdffd68ae24dee76bd704c468c208ac819858715680",
+      "bytes": 382
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-build.ps1",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-build.ps1",
+      "sha256": "bf966b7d03550ebc6b6bc3d2190588cab4287cd33260a8cd95ee8b9cfea2ecb6",
+      "bytes": 3572
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-build.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-build.py",
+      "sha256": "43a3bec23f904d02d5db941624666bfda26b587b448726c8f1522865f06604eb",
+      "bytes": 3371
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-copy.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-copy.guard.log",
+      "sha256": "f7fc7c351e27d587b6acfbbb1faa3930a0ef505f1d20108280254be2f705e5f0",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-prepare.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-prepare.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read.json",
+      "sha256": "4b7c6ef3622444afa371dda8ec27469058079a177d9e0182bb8f59340cab33b3",
+      "bytes": 1440
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read1.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read1.guard.log",
+      "sha256": "1b3a5f4eaf588f4efe84cfc2a4a927d7a0ed663312a74d28ae98d075a2016bb7",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read2.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read2.guard.log",
+      "sha256": "d536f609ac9f99e35339bf20af6d2b6f46ec6db1ee00d836018fa5d4f8ec3cd4",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read3.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read3.guard.log",
+      "sha256": "0c5f981e9625d68dc00ae8d7fb10d0aeffddd449019f549c76869b4645527cf0",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read4.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-read4.guard.log",
+      "sha256": "56cc819d17107642824f8e51daeb451436b8aa222942559e1842ee20753520fe",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-restage.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-restage.guard.log",
+      "sha256": "593b3e5ff2cb31a498b4768899554a2330f82623449a406a9d5b17a17aaf548c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-restage.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-restage.json",
+      "sha256": "8a57509d5852e5506b275f51e584f59ffb2ed8e08844fa0eee4a900b49bdaa71",
+      "bytes": 140
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-run.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-run.guard.log",
+      "sha256": "c032b055816ac6f55ad3d04f93229388de5b03b818bf48b16a168c1c97fee5eb",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-run.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-run.json",
+      "sha256": "5610753bba383b7e03f931d5bde2a9ff5c9c545ffa50b4c44338f83de0f03720",
+      "bytes": 839
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-run2.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-run2.guard.log",
+      "sha256": "f51eeae63473006eee4e923964a60f4f8686adeac54454389ba3a99d659ea6ec",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-source.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-source.json",
+      "sha256": "f20cfdd789ba85d4211e1a5e7d627162a54ca943a9fdb66b5cd8c05b6cf09b41",
+      "bytes": 2862
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-stage.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-stage.guard.log",
+      "sha256": "e20a1cb94641e0f52f25db4dd4a419af69860cb669867753124cc9359aa3eb1c",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-stage.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-stage.json",
+      "sha256": "950189c1d84752f2f35ca5913b7195d357af2720753fdae45a5a4c95091d35de",
+      "bytes": 140
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-start.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-start.guard.log",
+      "sha256": "edc4bf0703e1e85160ae216a4924fd1a2cec0632413b0d6ab148d9c4ce585566",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-start.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-start.json",
+      "sha256": "69ce56901f4c1caf24e3a6d9b6412e9b66187c8e980ef2218b32d5a67329941e",
+      "bytes": 161
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-summary.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-loader-summary.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-toolchain.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-toolchain.guard.log",
+      "sha256": "1ea700fc15f30e391cbb8f7c9969695a763963f92ac500d75ce78ef1b6f639ea",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-toolchain.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/native-toolchain.json",
+      "sha256": "b18d9900c804cb046a79a1dc1c56c2f1979fb1ac9eee273ddef7fb9e1c49a995",
+      "bytes": 976
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/prepare-native-build.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/prepare-native-build.py",
+      "sha256": "1c5729881e3621d2badcb12e687158ef1758767f9883f18def5282bf2d1393a3",
+      "bytes": 921
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/queue-owners-1740.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/queue-owners-1740.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/queue-owners-1741.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/queue-owners-1741.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/queue-owners-1758.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/queue-owners-1758.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-after-native-build.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-after-native-build.py",
+      "sha256": "955502423f3629bda03d971b8888aa8aa5ca291bc629a8ae4c047ae7bb74f0b9",
+      "bytes": 1224
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-launcher-pin.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-launcher-pin.py",
+      "sha256": "b0b9525010d7b12aea451173d3567ed0a33b5198b61e52117962d1baf2a76884",
+      "bytes": 963
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-native-linker.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-native-linker.py",
+      "sha256": "b6071a897393e0509c87a0702419ef8adeed339078c08bb8410e839ebd9d32eb",
+      "bytes": 1141
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-native-toolchain.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-native-toolchain.py",
+      "sha256": "d4af943f7283796e116c3e0231dbabc4963b0d4930f0633553a77b6b15f66390",
+      "bytes": 1020
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-rollout-before.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/read-rollout-before.py",
+      "sha256": "882d080329b886333a98d8321e007aadebc76c1cd9b7c214d1d173b85a9c9563",
+      "bytes": 1060
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/restage-native-build.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/restage-native-build.py",
+      "sha256": "9180b300ef83f0bf3a7410f7699ab8ab23aa70b41e5bffde92b0bce9fe79209a",
+      "bytes": 1583
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/rollout-before-live.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/rollout-before-live.guard.log",
+      "sha256": "56950392d886c2fb3a05172820a565f6ce02de472a3d1e6516b6085c1f7a38e9",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/rollout-before-live.json",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/rollout-before-live.json",
+      "sha256": "92a9d87ddcbaa72271f90d610eb4987ee994a662366d0dce96eb315aad368081",
+      "bytes": 8734
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/scan.guard.log",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/scan.guard.log",
+      "sha256": "4ae4f8e66ac9a89337e0f99caf7e59f9f8f1c7627ee1caac3757fdaf9e8cf801",
+      "bytes": 66
+    },
+    {
+      "label": "ROOT root-validation on c516049c: 6ac5e111 installed launcher pin; c57a5f47 offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (scripts, source SHA manifest, evidence). Candidate e4eeb994 (1,147,904 B) STAGED ONLY; the .exe files and source .zip are untracked+ignored and NOT captured. Production unchanged (9 apps, same VM IDs, 17:57). The whole CPU fix is INCOMPLETE: guest build and native combined canary pending",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/summarize-native-loader.py",
+      "stored": "files/source-preservation/frozen-1806-export/root-cpu-build-c57a5f47/files/summarize-native-loader.py",
+      "sha256": "8b767ef1085e15cbbbc3d1e9f9b266ec199afa8d28b8eb5237378c9d3cc72cce",
+      "bytes": 2400
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0001-5c263df1.patch",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0001-5c263df1.patch",
+      "sha256": "488b07c22110f8fe832b110ff894a686fa48573e766c5e512d9e1454653d1a99",
+      "bytes": 5711
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0002-8d17bd62.patch",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0002-8d17bd62.patch",
+      "sha256": "816250548309e20ee3f18af39aea6da2b177865dc0a35644fefc7cd9c31a1092",
+      "bytes": 1331
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0003-167ed431.patch",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0003-167ed431.patch",
+      "sha256": "fae1c7cc22f3a96f38a64ab90665fea5c1ee5a6bc180dca0193d25b7daef0ee0",
+      "bytes": 31269
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0004-8df7139d.patch",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/patches/0004-8df7139d.patch",
+      "sha256": "82ae6a07bf3cf42320477804a54711f58e6bfdf801678e3057083a80d53f3ad8",
+      "bytes": 6878
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/.gitignore",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/.gitignore",
+      "sha256": "96731671afe640d782dff36b82a3ad8d1ce0ebe4a7b174f6506f251395941e2f",
+      "bytes": 6
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/AUDIT-PROGRESS.txt",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/AUDIT-PROGRESS.txt",
+      "sha256": "24c0de575a2b80bdb5c38be0eff77a61bf15a7de0e7de985a78bcf6728ef58c9",
+      "bytes": 2636
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/RESULT.md",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/RESULT.md",
+      "sha256": "84d31d3fb7616627d7c49bd945cabe88ad0c2bec960149db44c13955811e7cfa",
+      "bytes": 30909
+    },
+    {
+      "label": "M custody v2 rollout audit (committed report only): SOURCE / HISTORICAL-RECORD audit, NO fresh production probe, rollout or tests. Findings: actual persist-before-ack bug, migration old-copy retention limits, dashboard missing / book historically unset, one seat is NOT decentralized",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/TASK.txt",
+      "stored": "files/source-preservation/frozen-1806-export/custody-audit-8df7139d/files/TASK.txt",
+      "sha256": "cc531a7e6b8d385d4f2550f76b00464b541947e3cd4da21a10952af8d4484418",
+      "bytes": 3518
+    },
+    {
+      "label": "D receipt of the 1726 resource-repair batch (6dcde703, committed 17:33:07Z, pushed by 17:33:41Z; root verified remote): sides, distinctions, attempts incl. the postpush-1 head-check failure",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/RESULT-frozen-1726-checkpoint.md",
+      "stored": "files/source-preservation/RESULT-frozen-1726-checkpoint.md",
+      "sha256": "152f763edcd573aaa020c740ca2b911bb34c2f74e904d9b424611851f8c1eaa1",
+      "bytes": 6871
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T18:07:21Z) of root's journal ROOT-PENDING-LATEST.txt and effective-goal-requirements.txt as coordination evidence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1806/ROOT-PENDING-LATEST.snapshot-1806.txt",
+      "stored": "files/source-preservation/snapshots-1806/ROOT-PENDING-LATEST.snapshot-1806.txt",
+      "sha256": "e241bff32b51ea2654ef373a038c523c097fd0d04ddc69024fa17b3e1d6906dc",
+      "bytes": 39582
+    },
+    {
+      "label": "Dated SNAPSHOTS (taken 2026-10-23T18:07:21Z) of root's journal ROOT-PENDING-LATEST.txt and effective-goal-requirements.txt as coordination evidence",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/snapshots-1806/effective-goal-requirements.snapshot-1806.txt",
+      "stored": "files/source-preservation/snapshots-1806/effective-goal-requirements.snapshot-1806.txt",
+      "sha256": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2",
+      "bytes": 20300
+    },
+    {
+      "label": "ROOT receipt: native Windows CPU launcher build passed (candidate e4eeb994, staged only, not activated); production unchanged",
+      "source": "outputs/decentralization-audit/nucbox-cpu-launcher-built-20261023.json",
+      "stored": "files/outputs/decentralization-audit/nucbox-cpu-launcher-built-20261023.json",
+      "sha256": "1625d7f79fa5a5c0e074c344f137036d210ce8b670fdf47e9239713c00d66e22",
+      "bytes": 1904
+    },
+    {
+      "label": "ROOT published copy of the custody v2 audit report: byte-identical to RESULT.md at 8df7139d (source/historical record; no fresh production verification)",
+      "source": "outputs/decentralization-audit/custody-v2-source-audit-20261023.md",
+      "stored": "files/outputs/decentralization-audit/custody-v2-source-audit-20261023.md",
+      "sha256": "84d31d3fb7616627d7c49bd945cabe88ad0c2bec960149db44c13955811e7cfa",
+      "bytes": 30909
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/export-frozen-1806.py",
+      "stored": "files/source-preservation/export-frozen-1806.py",
+      "sha256": "429ffeabb172f1a796c0d1b2f056bdc6b17d25aed006d81f36880739ec47668d",
+      "bytes": 12351
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/verify-frozen-1806-export.py",
+      "stored": "files/source-preservation/verify-frozen-1806-export.py",
+      "sha256": "9f15241567adc8c2813b72a89ee2aa4a315df8732f652ae52aa4fd9655c6b471",
+      "bytes": 3387
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/capture-frozen-1806.py",
+      "stored": "files/source-preservation/capture-frozen-1806.py",
+      "sha256": "eb36dd2e08cffeeccd73340cb4b8d3ceea6431d8f87069ede77dd1958f660240",
+      "bytes": 7501
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-pins.json",
+      "stored": "files/source-preservation/frozen-1806-pins.json",
+      "sha256": "2dc3b3a0efd40741536ef4c003c8c2fa7088f41fd700386e92f9e78bffde8edf",
+      "bytes": 265
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-q.sh",
+      "stored": "files/source-preservation/frozen-1806-q.sh",
+      "sha256": "cb2deae61dd32ae941b0d19a0754f87895cd06e7d1409c8f379cbeb347f43809",
+      "bytes": 742
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-export.sh",
+      "stored": "files/source-preservation/frozen-1806-export.sh",
+      "sha256": "b414531efade2d5ee9385d429fc9a977b367a2496fec823a54c38d50e720cca4",
+      "bytes": 2770
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-capture.sh",
+      "stored": "files/source-preservation/frozen-1806-capture.sh",
+      "sha256": "cd412484b4cace121c627f1635598f8a205a2550d965fb9b23c6c56a9d5165e1",
+      "bytes": 2427
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/frozen-1806-labels.json",
+      "stored": "files/source-preservation/frozen-1806-labels.json",
+      "sha256": "48487289f6418d9e2966f8899934bb8be9ffd52d0e16ff9812b43dbf622da0ad",
+      "bytes": 2279
+    },
+    {
+      "label": "frozen-1806 checkpoint tooling (\"1806\" = batch start 2026-10-23T18:06Z, an identifier): first-parent Git-object export, offline tree verifier, snapshot script, append-only capture",
+      "source": "work/resume-after-checkpoint-20261022/source-preservation/make-frozen-1806-snapshots.py",
+      "stored": "files/source-preservation/make-frozen-1806-snapshots.py",
+      "sha256": "1187a8f0ecabec810574b76038380219a3812af6c8ac3ec0d54ce9e1e027b29a",
+      "bytes": 861
     }
   ],
   "unchangedAlreadyPreserved": [
@@ -32379,6 +32911,15 @@
       "added": 138,
       "bytes": 2110691,
       "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1726\" is a batch identifier (start 17:26Z), not this time"
+    },
+    {
+      "at": "2026-10-23T18:08:26.913126+00:00",
+      "by": "source-preservation/capture-frozen-1806.py",
+      "onCheckpoint": "6dcde703004dcb34e702ec2aff8309e48ced44ae",
+      "entriesBefore": 4689,
+      "added": 76,
+      "bytes": 354142,
+      "note": "append-only: existing entries were verified against their stored bytes and not recaptured from their (mutable) sources; capturedAt above is the last full capture-latest.py run. \"1806\" is a batch identifier (start 18:06Z), not this time"
     }
   ]
 }

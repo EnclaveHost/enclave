@@ -1,0 +1,46 @@
+{
+  "at": "2026-10-23T17:58:58.663757+00:00",
+  "status": "Native Windows launcher build passed; staged only, not activated",
+  "sourceCommit": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+  "sourceFiles": 18,
+  "sourceZipSha256": "1f1bf99ad3dec3967bc611439115718522175ceebedb9adafb22a0824b44c835",
+  "binarySha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
+  "binaryBytes": 1147904,
+  "nativeBuild": {
+    "mode": "offline, locked, release, one job; existing nightly MSVC and SDK",
+    "exit": 0,
+    "verifiedAt": "2026-10-23T17:56:41.5229876Z",
+    "coldBuildSeconds": 49.09,
+    "coldPeakTreeBytes": 309899264,
+    "coldMinimumFreeBytes": 26454904832,
+    "incrementalConfirmSeconds": 0.27,
+    "incrementalSampling": "Finished before 2-second sample; raw peak0/min1e12 are sentinel values, not observations"
+  },
+  "attempts": [
+    "Detached guard ended with SSH session before build entered; no compiler ran.",
+    "First synchronous Cargo build finished but guard misread null PowerShell Process.ExitCode.",
+    "Corrected command exit receipt confirms exit0; multiline result needed independent compact readback."
+  ],
+  "production": {
+    "checkedAt": "2026-10-23T17:57:20.6904077Z",
+    "runningApps": 9,
+    "sameManagerVMIdsAndStates": true,
+    "availability": {
+      "nodeRamGb": 96,
+      "ramGbFree": 16.3,
+      "ramMbFree": 16711,
+      "cpuShareFree": 0.17,
+      "maxShare": 0.17,
+      "nodeVcpus": 16
+    },
+    "installedLauncherChanged": false,
+    "guestImageChanged": false,
+    "managerChanged": false
+  },
+  "remaining": [
+    "Guest image build and provenance/compatibility review",
+    "Combined native app canary: actual CPU allowance, TLS, secret handling and restart",
+    "Reviewed manager/image/launcher rollout and app recovery"
+  ],
+  "custody": "Preparatory source/record audit only; no new production custody test or activation yet."
+}

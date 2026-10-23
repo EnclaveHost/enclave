@@ -1,0 +1,37 @@
+{
+  "stdout": [],
+  "processes": [],
+  "files": [
+    {
+      "Name": "build-start.json",
+      "Length": 145,
+      "LastWriteTimeUtc": "/Date(1792777806592)/"
+    },
+    {
+      "Name": "guard.err",
+      "Length": 0,
+      "LastWriteTimeUtc": "/Date(1792777806542)/"
+    },
+    {
+      "Name": "guard.out",
+      "Length": 0,
+      "LastWriteTimeUtc": "/Date(1792777806542)/"
+    },
+    {
+      "Name": "native-loader-build.ps1",
+      "Length": 3361,
+      "LastWriteTimeUtc": "/Date(1792777796262)/"
+    },
+    {
+      "Name": "native-loader-source.json",
+      "Length": 2862,
+      "LastWriteTimeUtc": "/Date(1792777795893)/"
+    },
+    {
+      "Name": "native-loader-source.zip",
+      "Length": 61383,
+      "LastWriteTimeUtc": "/Date(1792777795513)/"
+    }
+  ],
+  "at": "2026-10-23T17:51:59.0378854Z"
+}

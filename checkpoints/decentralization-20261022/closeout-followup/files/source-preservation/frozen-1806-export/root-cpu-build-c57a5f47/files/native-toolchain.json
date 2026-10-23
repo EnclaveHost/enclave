@@ -1,0 +1,46 @@
+{
+  "commands": [
+    {
+      "name": "cargo.exe",
+      "path": "C:\\Users\\claude\\.cargo\\bin\\cargo.exe"
+    },
+    {
+      "name": "rustc.exe",
+      "path": "C:\\Users\\claude\\.cargo\\bin\\rustc.exe"
+    }
+  ],
+  "inventory": [
+    {
+      "path": "C:\\Users\\claude\\.cargo\\bin",
+      "children": [
+        "cargo-clippy.exe",
+        "cargo-fmt.exe",
+        "cargo-miri.exe",
+        "cargo.exe",
+        "clippy-driver.exe",
+        "rls.exe",
+        "rust-analyzer.exe",
+        "rust-gdb.exe",
+        "rust-gdbgui.exe",
+        "rust-lldb.exe",
+        "rustc.exe",
+        "rustdoc.exe",
+        "rustfmt.exe",
+        "rustup.exe"
+      ]
+    },
+    {
+      "path": "C:\\Users\\claude\\.rustup\\toolchains",
+      "children": [
+        "nightly-x86_64-pc-windows-msvc"
+      ]
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Windows Kits\\10\\Lib",
+      "children": [
+        "10.0.26100.0"
+      ]
+    }
+  ],
+  "at": "2026-10-23T17:40:58.3039210Z"
+}

@@ -1,0 +1,9 @@
+root-cpu-build base rebuilt from empty + 1 stored patch(es) in 6dcde7030: tree 777366f2b326d8587d0a97d9b3789d21d34bab91 OK
+root-cpu-build 6ac5e111b: tree 8c9fa8e947d2a3dfaa2f41ca858d008fa3bbeb6f OK
+root-cpu-build c57a5f473: tree ec62bb6bc78cf441958cb7f68eb360a0145154dc OK
+custody-audit base rebuilt from empty + 0 stored patch(es) in 6dcde7030: tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904 OK
+custody-audit 5c263df17: tree b318596f87a6e77cc02df198c14d42ca6ae2c5e7 OK
+custody-audit 8d17bd628: tree 6ec9fa1bb0dc115f79b4b2e81973f7af421c8f66 OK
+custody-audit 167ed4318: tree ded5dbed420a9d62a3d7ce33de5db9b25bf4d354 OK
+custody-audit 8df7139db: tree f3aa86acb83fed9f83401fc02c5889a704fbc593 OK
+RESULT root-cpu-build reproduced: True, custody-audit reproduced: True

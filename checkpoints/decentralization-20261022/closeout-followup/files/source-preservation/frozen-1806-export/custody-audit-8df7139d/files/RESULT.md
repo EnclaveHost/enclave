@@ -1,0 +1,405 @@
+# Custody v2 rollout audit (RESULT, 2026-10-23)
+
+**Status.** A READ-ONLY source and record audit. No live SSH, network probe, production, secret, signing, contract,
+chain or funding action. No source or doc in any repo was edited.
+- Every "current state" item below is a QUESTION for root's live inventory, with the scoped read that answers it.
+  Historical receipts are cited with their dates; none of them is live truth today.
+- Nothing here says the rollout is done.
+
+Sources:
+- the Oct-14 record: `history-checkpoint-transport/tree/docs/security/secret-custody-v2.md` and its spec;
+- frozen `sealed-startup-recovery-20261023/repo` @ 8a0a500c (F);
+- current `work/enclave` (C: e762a9c5 + uncommitted; read only);
+- earlier reports: `claude-existing-custody-audit-result.txt` (EXA), `claude-custody-owner-migration-result.txt`,
+  `custody-release/root-canary-review-20261021/REVIEW.txt`;
+- receipts under `outputs/`.
+
+File:line references are in F unless marked. Every custody v2 source file in F is byte-identical to C's working tree;
+in C most of them are uncommitted changes on top of HEAD.
+
+## 0. Ground rules applied
+
+- **Admin authority first.**
+  - Existing Enclave platform/business admin controls take priority over the Oct-14 doc's superseded anti-admin goals:
+    the address-book owner, catalog moderation, bans and migrations. The superseded lines are v2.md 69-70, 304, 311,
+    363; spec 11-12; v1 161/165; the activation docs.
+  - The deployed vault `0xE486…` has no owner, admin or proxy, and is preserved exactly as deployed.
+  - A contract change is in scope only for an actual defect, and then as a separately reviewed proposal. None is proposed
+    here.
+- **Describe custody by its exact n/t, never by a badge** (root review 1).
+  - The live committee, as last read, is `n = 1` seat (Enclave), `t = 1`, `W = 1`, on ONE chip (metal0/warden-host).
+  - **What it gives:** it can keep plaintext from the relay and from other operators only SUBJECT TO the SEV-SNP
+    attestation, the custodian and guest software, and the TEE assumptions.
+  - This is NOT proven for production until a live chain and release audit (§8) shows it. Do not state blanket protection
+    against operators.
+  - It does not survive loss of that chip's sealed state.
+  - **Decentralized custody** needs ALL of:
+    - verified distinct operators AND failure domains (hosts, chips, sites, providers);
+    - the actual threshold, with the availability and privacy guarantees at that threshold;
+    - real join, handover and recovery tests.
+  - More seats on ONE SNP box, or on one operator, are not independence. A `2/2` committee may still need both seats
+    always available.
+- **Production evidence.** No fake SNP, anvil, local fixture or quote-only run counts as production evidence (§5 lists
+  them separately).
+- **The custodian is shared.** No outage, restart or rollback test touches it before its consumers are assessed (§8.1).
+
+## 1. Oct-14 claims vs current source vs evidence vs production question
+
+| # | Oct-14 claim (v2.md) | Source today (F = C) | Last evidence | Question for root's live read |
+|---|---|---|---|---|
+| 1 | Vault `0xE486…EEF5`, no owner, admin or proxy (19) | `contracts/EnclaveSecretVaultV2.sol` 25, 153-157 (immutable book and enclaveOwner) | Runtime equals the source except the immutables (`existing-custody-audit/evidence/original-source-verification.json`, 10-20) | Unchanged code at head? Rerun `verify-original-source.mjs` (§2 R1) |
+| 2 | Book key `secretVaultV2` NOT set (19, 49) | CLI resolution: pins → env `ENCLAVE_SECRET_VAULT_V2` → book → **hard-coded 0xE486** (`cli/enclave.mjs` 3191-3197). Relay and supervisor use env only (`relay/custody-state.mjs` 53-65; `supervisor.js` 2812). Site: no v2 lookup | 0x0 on 10-18 (`outputs/host-runtime-release/contract-pin-observation.json`), 10-19, and block 52849851 (`existing-custody-audit/evidence/live-custody.json`) | Still 0x0? (R1) |
+| 3 | Committee `0x4774…`, epoch 1, one seat, t = 1 (20) | `createCommittee` 263-294; Enclave seat by registry payout (EXA 931-935) | Epoch 1, machines 1 (`outputs/custody-quorum-verification.json`, 10-19 18:41Z); no vault events through block 52864330 (owner-migration result §1) | Any `CommitteeCreated`, `HandoverProposed` or `PolicyUpdated` since block 52864330? (R2) |
+| 4 | Custodian: SNP VM on warden-host, user unit `enclave-custodian-v2`, image `custodian-v2-9d43e63e8`, measurement `c8663742…` (21) | Unit NOT in the repo (named only in docs). Image builder `scripts/build-custodian-v2.mjs`; launcher `custody/v2/host.mjs`. The running closure is `test/fixtures/custodian-9d43e63/` | 10-20: QEMU pid 3817658 runs `/home/steven/enclave-prod/custodian-v2-9d43e63e8`; commit 9d43e63; measurementSha256 `0x2530eda0…` = SNP `c8663742…` (`outputs/custody-existing-contracts/runtime-image-provenance.json`). Start-time unchanged 10-21 21:37Z and 10-22 20:55Z | Same pid and start-time after the NucBox and resource-share work? Same image dir hashes? (R3) |
+| 5 | Key generated and sealed in the VM; host holds only ciphertext (22) | `custody/v2/daemon.mjs` 49 (`snpkey derive`), 70-79 (seal), 92-99 (GET/PUT /state). The host keeps `state.bin` plus **20 history copies** (`host.mjs` 65-72) | none live | How many `state.bin.*` exist, and how old? Names and sizes only (R3) |
+| 6 | Endpoint `https://api.enclave.host/t/custody-metal0` via the relay tunnel (23) | `CUSTODY_SURFACES` `relay/api-relay.js` 1499-1501, gate 1524. Owner-read, host-binding, independent-genesis and shield routes are NOT tunnelled | 10-20: public info lists one machine at custody-metal0 | Does `/v2/custody/info` answer through the tunnel, and with which encKey? (R4) |
+| 7 | Relay `CUSTODY_VAULT_V2` on **nan** (24) | Env only (`custody-state.mjs` 53-65); `api-relay.js` 2585-2590 | Relay moved to **minipc/enclave-control** `enclave-api-relay.service`: `CUSTODY_VAULT_V2=0xe486…`, `CUSTODY_VAULT=0x0807…`, committee envs unset (`production-bindings.json`, 10-20 10:04Z). Journal line 10-21 08:04Z. Relay restarted 10-21 12:55Z (exists fix) | Same values after the 10-21 restart? Is nan's relay data dir gone? (R5) |
+| 8 | Guest CPU release `d84fb52b`; guestd `custody2-568ab660bab4` (25) | Guest unlock `isolation/m2/custody/v2client.go` 137-303; guestd `isolation/m4/guestd/custody.go` | none since 10-14 | Which guest and guestd releases does metal0 serve today? (R3) |
+| 9 | Supervisor `dist-custody-v2-295650320` "signs v2 releases for THIS vault only" (26) | `supervisor.js` 2820-2837. With an owner direct manifest it signs for the **owner-committed** vault (2827, 2890-2893), not only `CUSTODY_VAULT_V2` | none | Which control image runs on metal0? Is `CUSTODY_VAULT_V2` set in its measured config? The claim text is stale (F3) |
+| 10 | CLI `enclave custody set\|migrate\|status\|pause\|resume --v2` (27) | `cli/custody-v2.mjs` 31-95. Pause and resume are `update` with the `paused` flag. Signed by the local owner key, or `--unsigned` | n/a | n/a |
+| 11 | Hardware verification on canary `0x4e62e60d`: release; refusal with the custodian stopped; restart reopen (29-34) | n/a | **No receipt or log exists**; the strings appear only in the doc (evidence search) | Treat as unverified. The canary runbook (§8) re-establishes it with receipts |
+| 12 | High-water marks and VCEK cache only in memory (45-46) | Running closure: `memoryHighWater` and NO chain checkpoint (`test/fixtures/custodian-9d43e63/custody/v2/custodian.mjs` 24, 88-94). Newer source (not deployed): chain checkpoint persisted in sealed state (`daemon.mjs` 122; `quorum.mjs` 72-97); per-deployment marks still memory (`custodian.mjs` 47) | n/a | §7 |
+| 13 | Site "Save to custody" v1 only; book entry not built (49) | Still true: `site/js/core/custody.js` 16-78 is v1; v2 is only a pasted pointer (`deployments.js` 1185-1340). Admin console has a generic book-key input (`admin-console.js` 369) | n/a | §3 |
+| 14 | Live consumers | — | One policy, `0x4e62e60d…` (hello-world canary, owner `0x29479Bf…` agent EOA, policyRev 2, secretRev 2, rules = one image, not paused), through block 52864330. On 10-23 09:14Z that deployment was "refused" in the Windows host queue (needs snp-guest-per-app) | Full consumer set NOW (§8.1) |
+
+## 2. Scoped read commands for root (all read-only; do not run concurrently with mutations)
+
+**R1. Chain identity and book.**
+1. Copy the existing probes to a new evidence dir, so historical receipts are not overwritten.
+2. Run `existing-custody-audit/probes/live-custody.mjs` (agreeing public RPCs; prints lengths, never bundle bytes) and
+   `existing-custody-audit/probes/verify-original-source.mjs`.
+3. Assert:
+   - book `secretVaultV2`: 0x0, or a value root expects;
+   - vault code equals the original source except immutables;
+   - committee `0x4774…`: epoch 1, t 1, W 1, machines 1;
+   - policies listed.
+
+**R2. Events since block 52864330.** Run `custody-owner-migration/inventory/policy-events.mjs` with the start block set to
+52864331 (bounded chunks; a single-source chunk is marked). Assert the exact set of `PolicyUpdated`/`BundlePut` ids and
+the `CommitteeCreated`/`Handover*` events. Any new id is a consumer (§8.1).
+
+**R3. warden-host / metal0 (root SSH, names only):**
+- `systemctl --user status enclave-custodian-v2 --no-pager`
+- `ps -o pid,lstart,args -C qemu-system-x86_64 | grep custodian`
+- `sha256sum` of the image dir files vs its manifest
+- `ls -l --time-style=+%FT%T <custodian stateDir>`: count and age of `state.bin.*`. Never cat or copy the blobs.
+- The control image and guest release in use.
+
+**R4. Public info, one request:** `curl -s https://api.enclave.host/t/custody-metal0/v2/custody/info`. Read the public
+identity fields (vault, committee/epoch, encKey, measurement; field names per `custody/v2/http.mjs` 123-126) and compare
+them with the chain machine record (encKey, endpoint).
+
+**R5. Relay on minipc/enclave-control (root SSH):**
+- `systemctl show enclave-api-relay -p MainPID,ActiveEnterTimestamp`.
+- Public custody keys ONLY: `sudo tr '\0' '\n' < /proc/<pid>/environ | grep -E '^(ADDRESS_BOOK_ADDRESS|CUSTODY_VAULT|CUSTODY_VAULT_V2|CUSTODY_COMMITTEE|CUSTODY_COMMITTEE_V2)='`.
+  NEVER print the whole environ: SECRETS_KEY and other secrets live there.
+- Relay store ids only: `sudo jq -r '.byId | keys[]' "$AUTH_DATA_DIR/secrets.json" | wc -l`. For a given id:
+  `jq '.byId | has("<id>")'`. Values are AES-GCM blobs; never print them.
+
+**R6. Retention inventory (names and dates only):**
+- relay data dir backups and copies (`/root/relay-*`, tmp files);
+- VM snapshots or checkpoints of enclave-control;
+- the retired nan disk or images;
+- DigitalOcean backups/snapshots of hosts that ran the relay.
+
+Feeds §6.
+
+## 3. Configuration, book and dashboard prerequisites
+
+**Relay.** Already has `CUSTODY_VAULT_V2=0xe486` (10-20; re-confirm with R5).
+- The relay never reads the book key: a vault change means an env change plus a relay restart.
+- `/v1/secrets/exists` custody flag: the local-record fast path waits only 1.5 s (`relay/secrets.js` 446-450, live since
+  10-21). The no-record path can still stall (memory: relay-exists stall). This gates the migrate clear (§6).
+
+**Supervisor / control image on metal0.** Must carry `CUSTODY_VAULT_V2` (measured) for relay-mode guests. Direct-manifest
+guests are signed for the owner-committed vault (finding F3).
+
+**Book key `secretVaultV2`.**
+- Optional for function: the CLI falls back to 0xE486; the relay and supervisor ignore it.
+- Needed for:
+  - the independent CLI and MCP (`cli/custody-independent.mjs` 109-117; `mcp/independent-secrets.mjs` 52-59), which
+    require a pin;
+  - any site v2 UI;
+  - removing the CLI's hard-coded default as the only discovery.
+- **Admin decision:** book owner signature (§9).
+- Which value: the original 0xE486 is the vault every live v2 policy uses. The alternate pinned variant 0x56b8… has zero
+  events and is not a book value (evidence search). Setting 0xE486 changes no contract or policy.
+
+**Dashboard / site: missing.**
+1. v2 save/migrate (owner-side `buildBundleV2` in the browser, encrypt to Y, one `update`).
+2. v2 status (policyRev, secretRev, committee, epoch, paused) and pause/resume.
+3. `config.js` lookup of `secretVaultV2`.
+4. Owner read: new image only, AND its routes are not tunnelled (F5).
+5. A "single-seat bootstrap" label wherever custody status is shown.
+
+Smallest honest first step: a read-only v2 status panel from public chain reads. Writes stay CLI-only until reviewed.
+
+**The custodian image.** The running 2530eda0 has:
+- no platform host-ban check on release (EXA 387-394; finding F7);
+- no code-approve;
+- no owner read.
+
+The corrected release `custody-release` @ c635fd68 (measurement `7f033312…`, `0x97b1efbb…`, transport direct) passed only
+a QUOTE-ONLY hardware canary (10-21; `outputs/decentralization-audit/custody-release-hardware-proof.json`). Moving to it
+means:
+- a new committee in the SAME vault (EXA P2);
+- an owner `update` per policy (P3), or, where the owner lacks the plaintext, `owner-rewrap-v2.patch` (82d424de; NOT the
+  superseded a0e56083).
+
+That is a separate reviewed rollout, not a config flip.
+
+**Rewrap precondition** (root review 1). Before ANY canary or real migration uses the measured rewrap path (owners who no
+longer hold their plaintext):
+- confirm the candidate carries the FIXED, attested result checks: frozen 8a0a500c `custody/v2/rewrap.mjs` =
+  `0beb576b`, the result-auth fix of `claude-custody-result-auth-result.txt` (was the vulnerable `ae19d081`);
+  `owner-rewrap-v2.patch` = `82d424de…`;
+- NEVER the original `owner-rewrap.patch` (`a0e56083…`) or `custody-owner-migration/prefix/`;
+- current `work/enclave` has NO `custody/v2/rewrap*.mjs`;
+- the fix has local fixture tests only and no hardware proof.
+
+The §8 canaries do not need rewrap: they hold their own markers.
+
+## 4. Findings (source-verified; not live)
+
+- **F1. Persist-before-ack is not awaited.** `member.mjs` 444 says shares are "persisted BEFORE the ack", but `store.save`
+  is fire-and-forget (`daemon.mjs` 128: `saveNow().catch(log)`). The `ackHandover` and genesis transactions can land
+  before the sealed state is durable on the host. A crash in that window loses the share while the chain counts it.
+  Matters for handovers and genesis, not for single-seat releases.
+- **F2. The host keeps 20 historical sealed blobs** (`host.mjs` 65-72).
+  - This weakens "old shares are erased" (`member.mjs` 399).
+  - It lets the host hand back an older blob: an older chain checkpoint in newer images, or an older epoch's share.
+  - It is documented only in part (v2.md 290-291; activation 409-415).
+- **F3. The supervisor's "this vault only" claim is stale.** In direct-manifest mode it signs for the owner-committed vault
+  (`supervisor.js` 2827, 2890-2893). Probably intended. Needs review of how that manifest is authenticated, and a doc
+  correction.
+- **F4. Per-deployment high-water marks are memory-only.** In the running image there is also no chain checkpoint (§7).
+- **F5. Owner-read routes are not in `CUSTODY_SURFACES`** (`api-relay.js` 1499-1501). A tunnel-hosted custodian cannot
+  serve owner read (503 at 1525).
+- **F6. Migrate depends on the relay plaintext and a raced flag.**
+  - `/v1/secrets/:id/get` serves the relay-held plaintext even when the deployment is custody-held (`secrets.js`
+    461-466). Migrate relies on this.
+  - The clear happens only when `/exists` returns `custody:true` within 1.5 s (`custody-v2.mjs` 87-95). Otherwise the
+    copy stays, and the CLI says so.
+- **F7. Banned hosts can still get a release.** A banned host that still holds a live lease can obtain a release from the
+  running image (EXA 387-394). Closes per policy only via P2+P3.
+- **F8. Defaults and pins.**
+  - The CLI silently defaults to 0xE486 (`enclave.mjs` 3196).
+  - Docs give three different vault references: 0xE486 (book-less), `independent-authorities-base.json`, and 0x56b8 in
+    `network/authority-profile.md` 151.
+  - Root should name ONE production v2 vault in the runbook.
+- **F9. Oct-14 verification has no receipt.** There is no receipt or log for the Oct-14 hardware verification.
+
+## 5. Existing harnesses and gaps
+
+**Real hardware, production SNP:**
+- `custody-release/canary/root-hardware-canary.py` (+ `verify-custodian-quote.mjs`, `headroom-check.sh`): ONE quote-only
+  boot of the corrected image. PASS 10-21 21:37Z.
+  - Ran with no committee and no registry key.
+  - Does not cover release, threshold, migration or recovery (its own limitations, `custody-release-hardware-proof.json`
+    91-97).
+- The 10-14 verification: no receipt (F9).
+- Direct-hardware and native-final canaries only list `enclave-custodian-v2.service` as PROTECTED. They never exercise it.
+
+**Pre-checks only (NOT production):**
+- Anvil + simulated SNP: `test/custody-v2-e2e.test.mjs` (header: attestation SIMULATED), `custody-v2-original-vault-e2e`,
+  `custody-v2-independent-{lifecycle,governance,identity}`, `custody-owner-read`, `custody-relay`.
+- Foundry `EnclaveSecretVaultV2Original.t.sol` (25 tests, against the production source).
+- Unit: `custody-v2-{protocol,chain-quorum,book-vault,…}`; Go `isolation/m2/custody/v2_test.go`.
+- `test/custody-hardware.test.mjs`: a real Genoa report through the verifier only.
+- Relay tests `relay-exists/run-tests.out` ("relay copy cleared only when relay is custody-aware"; "sealed release carries
+  NO secrets even with a relay copy present").
+
+**Gaps (production):**
+- release with receipts;
+- creation through migration;
+- rotation;
+- unauthorized access matrix;
+- outage and restart with receipts;
+- rollback / stale-pointer refusal;
+- relay plaintext absence checks;
+- old-copy deletion and retention;
+- a delivery-proof app.
+  - No existing canary app proves WHICH value arrived without revealing it.
+  - The guest front's log (`secrets revision N … threshold t over n`) proves revision and delivery.
+  - Value equality is proven only indirectly (`configSha256` + decrypt).
+
+A measured canary app that publishes `HMAC(value, challenge)` would be new code: list it as optional.
+
+## 6. Relay plaintext absence: evidence design and limits
+
+**Design audit (source):**
+- **Values never sent to the relay on the v2 paths.** The owner encrypts locally (`buildBundleV2`; `custody-v2.mjs`
+  63-85), and the bundle goes on chain in one `update`.
+- **The release pointer the relay signs** carries the chain bundle (ciphertext), commitments and machines (`custody-state.mjs`
+  114-124; `secrets-release.mjs` 626-632, 706-707). `secrets: {}` when custody applies.
+- **Partials** are HPKE-sealed to the attested guest key (`custodian.mjs` 177-181; `protocol.mjs` 223) and pass through
+  the `custody-*` tunnel only as ciphertext.
+- `/v1/secrets/fetch` is refused for custody-held ids (`secrets.js` 406-411).
+- `/v1/secrets/:id` set is refused (409) once custody-held; only `{"clear":true}` is accepted (476-479).
+- Relay logging: name counts only (427). The custodian logs decisions, not bodies (`custodian.mjs` 279-297); `http.mjs`
+  logs nothing.
+- **Exception:** migrate READS the pre-existing relay plaintext (F6). The relay already held those values; v2 adds no new
+  disclosure.
+
+**Dedicated known-canary checks (production, per canary):**
+1. Values are fresh high-entropy markers generated on root's workstation, for example `CANARY_<run>_<32 random bytes hex>`.
+   Never reused, never real credentials.
+2. Set them ONLY with `enclave custody set --v2` from the workstation.
+3. After each phase, on the relay host, search for the marker, its base64 and its hex encodings:
+   - the relay journal since T0;
+   - `secrets.json` (`has(id)` must stay false for a v2-only canary);
+   - the relay data dir and tmp;
+   - the Caddy/front access logs (no bodies, by design).
+
+   Then do the same on the custodian host: the journal and the state dir (ciphertext only).
+
+   Expect: zero matches.
+4. A control proves the search actually works, on a dedicated `secrets set` canary through the legacy relay path:
+   - the marker IS present in `secrets.json` as ciphertext only, so search for the id;
+   - the plaintext marker must not appear in logs.
+
+**Limits** (stated, not hidden). This is evidence for these channels and these values, not universal absence:
+- process memory, swap and core dumps;
+- other relays, fronts or backups not searched;
+- encodings not tried;
+- a malicious or modified relay;
+- the owner device (v1 L7);
+- an app that prints its own env.
+
+The relay also stays in the integrity path: v1 L3, the pointer can name another committee.
+
+## 7. High-water durability and replay protection
+
+**Running image (9d43e63 closure):**
+- Per-deployment high-water marks are in memory (`custodian.mjs` 88-94) and there is NO persisted chain checkpoint.
+- After a custodian restart, stale-state protection restarts from the next read. It then relies only on the chain quorum
+  (agreeing RPCs, confirmations, freshness).
+
+**Newer source (not deployed):**
+- The chain checkpoint is persisted inside sealed state (`daemon.mjs` 122). The host's 20-blob history (F2) can roll it
+  back.
+- Per-deployment marks are still memory (`custodian.mjs` 47).
+- There is no hardware monotonic counter (spec 176-181: "not hardware anti-rollback").
+
+**Replay:**
+- Challenges are random, single-use, purpose-tagged, held in memory, TTL 120 s (`custodian.mjs` 58-76). A restart drops
+  every outstanding challenge, which is a refusal, not a bypass.
+- The release binding includes chain, vault, id, policyRev, secretRev, epoch, challenge root, runtime, transport SPKI and
+  recipient key (v2.md 260-261). Partials are sealed to the attested recipient key, so a replayed or captured exchange
+  yields nothing usable.
+- What high-water marks protect against: a lagging or malicious RPC set serving an OLDER policy or bundle revision. They
+  do not protect against relay replay of an old pointer: the chain read itself refuses a stale `secretRev` (epoch and
+  revision checks, `custodian.mjs` 113-117).
+
+## 8. Production canary runbook (bounded; root executes after review; nothing done here)
+
+### 8.1 Before anything: the consumer assessment (read-only)
+- R1-R2: every vault id whose policy names committee `0x4774…`; today's known set is {0x4e62e60d}.
+- From root's live deployment inventory: which of those deployments run, or will (re)boot, on metal0/SNP during the
+  window. Only a guest (re)boot needs a release; a running app does not.
+- The owner of each consumer: `0x4e62` is the agent EOA `0x29479Bf…` (Enclave's). Anything else needs that owner's
+  consent before any outage.
+- The v1 committee (DO custodians, `CUSTODY_VAULT=0x0807…`) is a separate system and must not be touched.
+- **Decision rule:**
+  - if any non-Enclave consumer could boot in the window, outage, restart and rollback tests do NOT run against the
+    shared custodian;
+  - they run only against a dedicated canary custodian instance (new committee, §8.4), or in a window those owners have
+    agreed to.
+
+### 8.2 Canary identities
+- Two NEW canary deployments on Base, owned by a dedicated canary owner wallet (not a human treasury):
+  - **C1:** v2-native;
+  - **C2:** relay-to-v2 migration.
+- Rules admit one measured image: the hello-world image used on 10-14, or the current equivalent, admitted under rules.
+- Leased on metal0 (SNP guest).
+- Do not modify the existing `0x4e62` policy.
+- Creating the deployments and funding the canary wallet are root's mutations, and need approval.
+
+### 8.3 Sequence against the EXISTING committee 0x4774 (no outage first)
+
+Each step records before/after receipts:
+- chain reads at an agreed block;
+- the custodian journal decision lines;
+- guest front log lines;
+- the relay `has(id)` result;
+- the §6 marker searches.
+
+| step | action | before | after (assert) |
+|---|---|---|---|
+| S0 | R1-R6 inventory + §8.1 | — | Inventory frozen; consumer set known |
+| S1 creation | `enclave custody set --v2` C1 with marker values (canary owner signs `update`) | C1 has no policy | policyRev 1, secretRev 1, bundle present, committee 0x4774. Relay `has(C1)` = false. Markers absent everywhere (§6) |
+| S2 attestation release | Boot C1 on metal0 | — | Front log `secrets revision 1 from a v2 threshold of 1 over 1`; app runs; custodian `release … OK` with C1's id |
+| S3 rotation | `custody set --v2` new markers; restart C1 | secretRev 1 | secretRev 2; front log revision 2; app runs; old markers never appear |
+| S4 unauthorized | (a) boot a NON-admitted image as C1 (another measured image on the same lease); (b) relay `/v1/secrets/fetch` for C1; (c) relay `/v1/secrets/C1` `set`; (d) relay `/v1/secrets/C1/get` signed by a non-owner; (e) a custody release request with a forged or absent operator signature | — | (a) refused by rules, app not started; (b) refused custody-held; (c) 409 custody_held; (d) owner gate refusal; (e) refused. No partial issued (custodian journal) |
+| S5 migration | C2 starts on the LEGACY path (`enclave secrets set` markers at the relay); boot C2 once (relay release); then `enclave custody migrate --v2` | relay `has(C2)` = true | Bundle secretRev 1; `/exists` custody:true; the CLI prints the copy deleted; relay `has(C2)` = false; the `/v1/secrets/C2/get` env is empty. If the 1.5 s race leaves the copy, `enclave secrets clear` and re-assert. Boot C2 → front log v2 revision 1. Then ROTATE C2's marker values (the old relay plaintext existed) |
+| S6 stale pointer / rollback | Only if root builds a test-only way to serve C1's pre-rotation signed release (relay-side, canary id only): boot C1 with the old pointer | secretRev 2 on chain | Refused (stale revision); app not started. Without such a hook, record "not tested in production; source and unit only" |
+| S7 retention | R6 inventory for C2's id in relay backups and snapshots | — | List every copy that still holds C2's old relay ciphertext. "Deleted" means `secrets.json` only (§6 limits) |
+
+### 8.4 Outage, restart and rollback, per canary (only after §8.1)
+
+**Preferred: a dedicated canary custodian** (root's outage-isolation note). A second custodian VM on metal0 with its own
+fresh state dir and its own new committee (P2 genesis in the SAME vault, Enclave seat, t = 1), serving only C3, a
+v2-native canary on that committee.
+- It is created by its OWN genesis inside its TEE. NEVER copy an existing sealed production share or state blob into it,
+  and never export plaintext.
+- It is OUTAGE ISOLATION only, not independence: it is the same operator and the same chip.
+
+Outage and restart tests then affect no existing consumer:
+- **O1:** stop the canary custodian, then boot C3: refused (`insufficient custodian quorum … need 1`), app not started,
+  the guest retries without a release.
+- **O2:** start it again: the same encKey (R4 info), the sealed state reopened (custodian journal), then boot C3:
+  revision N released.
+- **O3, rollback of the sealed blob:**
+  - with the custodian stopped, hand it an OLDER `state.bin.*` (root, host-side), then start it;
+  - expect: same identity; for one epoch nothing changes (single seat). Record that blob rollback is NOT detected by
+    design (F2, spec 176-181);
+  - a meaningful epoch-rollback test needs a handover, which a single seat cannot do. Record it as untestable in the
+    bootstrap phase.
+
+**If only the shared custodian exists:** O1-O2 only with every consumer's agreement (§8.1) and in a window with no
+expected boots. Never O3 on the shared custodian. If root judges a shared outage strictly necessary, this is the exact
+impact and rollback to decide on:
+- **Impact while it is stopped:**
+  - every deployment whose policy names committee `0x4774…` that (re)boots on any host fails closed (`insufficient
+    custodian quorum`) and does not start its app;
+  - running apps are not affected;
+  - v1 custody (DO custodians) and relay-held deployments are not affected;
+  - the relay's `/v1/secrets/exists` custody flag is a chain read, not a custodian call, so it is unaffected.
+- **Rollback:** restart the same unit with the same image and the same state dir. Before any outage, record the start-time
+  and encKey (R3, R4).
+- **Success criteria:** the same encKey in `/v2/custody/info`, then one canary boot releases.
+- **If the sealed state does not reopen:** every v2 bundle under `0x4774…` is unreadable, and owners must re-enter
+  values. That is why the outage needs consumer consent and is not a routine test.
+
+### 8.5 Rollback of the rollout itself (what "undo" means)
+- **The vault is immutable.** Undo = owner `update`: clear the bundle, pause, or move the committee. A claimed policy is
+  destroyed (`claimPolicy`).
+- **The relay** can be pointed away from v2 only by an env change plus a restart. That would make v2-held deployments 503
+  (custody unknown), not leak anything.
+- **Migrated deployments cannot go back to the relay** without the owner re-entering values, and that would re-expose
+  them. Document it as a ONE-WAY step per deployment.
+
+## 9. Actions that likely need human wallet signatures (prepare unsigned inputs later; no request now)
+
+| action | signer | notes |
+|---|---|---|
+| `EnclaveAddressBook.set("secretVaultV2", 0xE486…)` | book owner (governance/Trezor; ERC-1271 if a contract) | Optional; enables pin-requiring clients. `scripts/deploy-secret-vault-v2.mjs` 110-111 prints the call; no doc gives the steps |
+| metal0 `proposeOwner` TX1 | metal0 registry operator `0xc9d0…e6ab` (host key, root) | Unsigned and simulated in `existing-custody-audit/evidence/metal0-enrollment-unsigned.json` (block 52851092). Needed for the corrected image's ownership checks and handovers, not for genesis in the original vault |
+| `acceptOwner` TX2 | Enclave admin wallet `0x0b2d…eE61` (human) | After TX1; also simulated there |
+| `createCommittee` for a new canary or corrected committee (P2) | any submitter + the custodian identity signature (TEE) + the host operator binding | Permissionless at the contract; Enclave seat by registry payout |
+| Canary policies C1, C2, C3 (`update`/`updateBySig`) | the dedicated canary owner wallet | Not a human treasury; root funds and holds it |
+| Changes to the existing policy `0x4e62` | its owner, agent EOA `0x29479Bf…` | NOT part of this runbook |
+| P3 moves of real owners' policies | each policy owner (EIP-712 `updateBySig`; ERC-1271 for SessionVault owners) | Per owner, later |
+
+## 10. Limits of this audit
+
+- **Not executed:** nothing live was read, probed or changed. Every live statement is a dated historical receipt or a
+  question.
+- **Source map:** covers F and C as they lie today.
+  - The running custodian is the 9d43e63 closure (fixture), per root's 10-20 measurement mapping; that mapping was not
+    re-checked live.
+  - The metal0 control and guest images were not mapped.
+- **Not run:** no tests or builds.
+- **Not given here:**
+  - external cryptographic review (still absent, v2.md 50);
+  - DigitalOcean / nan retention facts (only root can inventory them).

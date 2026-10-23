@@ -1,0 +1,12 @@
+{
+  "registrySource": true,
+  "msvc": [
+    {
+      "linker": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\link.exe",
+      "install": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools",
+      "version": "14.51.36231"
+    }
+  ],
+  "registryCache": true,
+  "at": "2026-10-23T17:44:52.0630991Z"
+}

@@ -39,6 +39,8 @@ Frozen 1639 append (2026-10-23; "1639" = the batch start 16:39Z, an identifier):
 
 Frozen 1726 append (2026-10-23; "1726" = the batch start 17:26Z, an identifier): resource repair only. Node coupled-share fix a5e155ec on the installed baseline 0f1ef848 + ROOT activation report 33ba0fc3; CPU enforcement source 670a753e/bf376363/ea6717d2 (+ retained old-guest-b 15ad0042) + ROOT native Hyper-V canary c516049c; CPU worker FINAL.txt and canary kit runner/manifests; root receipts and journal/requirements snapshots. The whole CPU fix is NOT complete (manager/guest rollout pending; guest cgroup enforcement not yet native); pre-existing fixture failures are not called green. See `MANIFEST.json` `appends`.
 
+Frozen 1806 append (2026-10-23; "1806" = the batch start 18:06Z, an identifier): ROOT native CPU launcher build evidence c57a5f47 (6ac5e111 launcher pin; offline MSVC build from the ea6717d2 source closure; candidate e4eeb994 STAGED ONLY, binaries and source zip not captured; the whole CPU fix is incomplete) and M custody v2 rollout audit 8df7139d (source/historical record, no fresh production verification; one seat is not decentralized); root receipts and journal/requirements snapshots. See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

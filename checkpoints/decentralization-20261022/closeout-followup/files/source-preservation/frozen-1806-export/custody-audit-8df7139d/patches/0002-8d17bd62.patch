@@ -1,0 +1,29 @@
+From 8d17bd6280632dc5285ca8e095bc7024608155e8 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:50:52 -0700
+Subject: [PATCH] progress: docs and evidence mapped
+
+---
+ AUDIT-PROGRESS.txt | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/AUDIT-PROGRESS.txt b/AUDIT-PROGRESS.txt
+index 01dd33a4a11b58b8204909bce9677dce048a223a..11663a4c4c0bb272438644e35a023b34bd593a51 100644
+--- a/AUDIT-PROGRESS.txt
++++ b/AUDIT-PROGRESS.txt
+@@ -15,3 +15,15 @@
+   - migration deletion and retention;
+   - high-water and replay;
+   - the signing steps.
++2026-10-23T11:00Z  (a) docs and (c) evidence done.
++- Last live reads (others' receipts):
++  - the book `secretVaultV2` = 0x0 (10-18/10-19/10-20);
++  - one committee and one policy, the 4e62e60d canary (10-20, no events to block 52864330);
++  - the relay on minipc with CUSTODY_VAULT_V2 = 0xe486 (10-20/10-21);
++  - custodian QEMU start-time unchanged 10-21..10-22.
++- No receipt exists for the Oct-14 hardware verification (doc claim only).
++- Prior work found:
++  - claude-existing-custody-audit (P1/P2/P3 plan; the running image 2530eda0 has no code-approve or host-ban check);
++  - corrected custodian release c635fd68 (quote-only hardware PASS 10-21);
++  - owner-rewrap-v2.
++- (b) code-path map still running.

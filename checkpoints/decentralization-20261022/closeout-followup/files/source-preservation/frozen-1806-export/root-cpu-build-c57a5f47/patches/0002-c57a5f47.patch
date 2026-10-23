@@ -1,0 +1,1463 @@
+From c57a5f4733b672b7079819e0208539a24df642b3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:59:34 -0700
+Subject: [PATCH] Build the CPU allowance launcher natively without changing
+ production
+
+---
+ .gitignore                        |   1 +
+ NATIVE-LOADER-RESULT.json         |  46 ++++
+ after-native-build-live.guard.log |   1 +
+ after-native-build-live.json      | 345 ++++++++++++++++++++++++++++++
+ native-build-scan.guard.log       |   1 +
+ native-build-status.guard.log     |   1 +
+ native-build-status.json          |  37 ++++
+ native-build-status.py            |   4 +
+ native-linker.guard.log           |   1 +
+ native-linker.json                |  12 ++
+ native-loader-build.ps1           |  36 ++++
+ native-loader-build.py            |  24 +++
+ native-loader-copy.guard.log      |   1 +
+ native-loader-prepare.guard.log   |   1 +
+ native-loader-read.json           |  17 ++
+ native-loader-read1.guard.log     |   1 +
+ native-loader-read2.guard.log     |   1 +
+ native-loader-read3.guard.log     |   1 +
+ native-loader-read4.guard.log     |   1 +
+ native-loader-restage.guard.log   |   1 +
+ native-loader-restage.json        |   5 +
+ native-loader-run.guard.log       |   1 +
+ native-loader-run.json            |   5 +
+ native-loader-run2.guard.log      |   1 +
+ native-loader-source.json         |  96 +++++++++
+ native-loader-stage.guard.log     |   1 +
+ native-loader-stage.json          |   5 +
+ native-loader-start.guard.log     |   1 +
+ native-loader-start.json          |   6 +
+ native-loader-summary.guard.log   |   1 +
+ native-toolchain.guard.log        |   1 +
+ native-toolchain.json             |  46 ++++
+ prepare-native-build.py           |   9 +
+ queue-owners-1740.guard.log       |   1 +
+ queue-owners-1741.guard.log       |   1 +
+ queue-owners-1758.guard.log       |   1 +
+ read-after-native-build.py        |   4 +
+ read-native-linker.py             |   4 +
+ read-native-toolchain.py          |   4 +
+ read-rollout-before.py            |   4 +
+ restage-native-build.py           |   7 +
+ rollout-before-live.guard.log     |   1 +
+ rollout-before-live.json          | 345 ++++++++++++++++++++++++++++++
+ scan.guard.log                    |   1 +
+ summarize-native-loader.py        |  11 +
+ 45 files changed, 1095 insertions(+)
+ create mode 100644 NATIVE-LOADER-RESULT.json
+ create mode 100644 after-native-build-live.guard.log
+ create mode 100644 after-native-build-live.json
+ create mode 100644 native-build-scan.guard.log
+ create mode 100644 native-build-status.guard.log
+ create mode 100644 native-build-status.json
+ create mode 100644 native-build-status.py
+ create mode 100644 native-linker.guard.log
+ create mode 100644 native-linker.json
+ create mode 100644 native-loader-build.ps1
+ create mode 100644 native-loader-build.py
+ create mode 100644 native-loader-copy.guard.log
+ create mode 100644 native-loader-prepare.guard.log
+ create mode 100644 native-loader-read.json
+ create mode 100644 native-loader-read1.guard.log
+ create mode 100644 native-loader-read2.guard.log
+ create mode 100644 native-loader-read3.guard.log
+ create mode 100644 native-loader-read4.guard.log
+ create mode 100644 native-loader-restage.guard.log
+ create mode 100644 native-loader-restage.json
+ create mode 100644 native-loader-run.guard.log
+ create mode 100644 native-loader-run.json
+ create mode 100644 native-loader-run2.guard.log
+ create mode 100644 native-loader-source.json
+ create mode 100644 native-loader-stage.guard.log
+ create mode 100644 native-loader-stage.json
+ create mode 100644 native-loader-start.guard.log
+ create mode 100644 native-loader-start.json
+ create mode 100644 native-loader-summary.guard.log
+ create mode 100644 native-toolchain.guard.log
+ create mode 100644 native-toolchain.json
+ create mode 100644 prepare-native-build.py
+ create mode 100644 queue-owners-1740.guard.log
+ create mode 100644 queue-owners-1741.guard.log
+ create mode 100644 queue-owners-1758.guard.log
+ create mode 100644 read-after-native-build.py
+ create mode 100644 read-native-linker.py
+ create mode 100644 read-native-toolchain.py
+ create mode 100644 read-rollout-before.py
+ create mode 100644 restage-native-build.py
+ create mode 100644 rollout-before-live.guard.log
+ create mode 100644 rollout-before-live.json
+ create mode 100644 scan.guard.log
+ create mode 100644 summarize-native-loader.py
+
+diff --git a/.gitignore b/.gitignore
+index b883f1fdc6d69146f477bba77c117fbbd33714af..ec94583b1b045c66bbd4251f379e7d925af3f29a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1 +1,2 @@
+ *.exe
++*.zip
+diff --git a/NATIVE-LOADER-RESULT.json b/NATIVE-LOADER-RESULT.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..88ea8c2af93b0ec2afd58e13dd39ff315c43b297
+--- /dev/null
++++ b/NATIVE-LOADER-RESULT.json
+@@ -0,0 +1,46 @@
++{
++  "at": "2026-10-23T17:58:58.663757+00:00",
++  "status": "Native Windows launcher build passed; staged only, not activated",
++  "sourceCommit": "ea6717d2725b8acd1b19837cdc6355421a94972d",
++  "sourceFiles": 18,
++  "sourceZipSha256": "1f1bf99ad3dec3967bc611439115718522175ceebedb9adafb22a0824b44c835",
++  "binarySha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
++  "binaryBytes": 1147904,
++  "nativeBuild": {
++    "mode": "offline, locked, release, one job; existing nightly MSVC and SDK",
++    "exit": 0,
++    "verifiedAt": "2026-10-23T17:56:41.5229876Z",
++    "coldBuildSeconds": 49.09,
++    "coldPeakTreeBytes": 309899264,
++    "coldMinimumFreeBytes": 26454904832,
++    "incrementalConfirmSeconds": 0.27,
++    "incrementalSampling": "Finished before 2-second sample; raw peak0/min1e12 are sentinel values, not observations"
++  },
++  "attempts": [
++    "Detached guard ended with SSH session before build entered; no compiler ran.",
++    "First synchronous Cargo build finished but guard misread null PowerShell Process.ExitCode.",
++    "Corrected command exit receipt confirms exit0; multiline result needed independent compact readback."
++  ],
++  "production": {
++    "checkedAt": "2026-10-23T17:57:20.6904077Z",
++    "runningApps": 9,
++    "sameManagerVMIdsAndStates": true,
++    "availability": {
++      "nodeRamGb": 96,
++      "ramGbFree": 16.3,
++      "ramMbFree": 16711,
++      "cpuShareFree": 0.17,
++      "maxShare": 0.17,
++      "nodeVcpus": 16
++    },
++    "installedLauncherChanged": false,
++    "guestImageChanged": false,
++    "managerChanged": false
++  },
++  "remaining": [
++    "Guest image build and provenance/compatibility review",
++    "Combined native app canary: actual CPU allowance, TLS, secret handling and restart",
++    "Reviewed manager/image/launcher rollout and app recovery"
++  ],
++  "custody": "Preparatory source/record audit only; no new production custody test or activation yet."
++}
+diff --git a/after-native-build-live.guard.log b/after-native-build-live.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..1a89b5cf45e33e046eba61b932d868ba2b86474b
+--- /dev/null
++++ b/after-native-build-live.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25357
+diff --git a/after-native-build-live.json b/after-native-build-live.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b0f3671c83382efc1ecfbac7c6be144a22943a42
+--- /dev/null
++++ b/after-native-build-live.json
+@@ -0,0 +1,345 @@
++{
++  "at": "2026-10-23T17:57:20.6904077Z",
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 16.3,
++    "ramMbFree": 16711,
++    "cpuShareFree": 0.17,
++    "maxShare": 0.17,
++    "nodeVcpus": 16
++  },
++  "deployments": [
++    {
++      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++      "status": "queued",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "cpuShare": 0.02,
++      "memMb": 1024,
++      "gpuShare": 0,
++      "leaseUntil": 1792778947
++    },
++    {
++      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792779969
++    },
++    {
++      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "cpuShare": 0.25,
++      "memMb": 12288,
++      "gpuShare": 0,
++      "leaseUntil": 1792780027
++    },
++    {
++      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792778587
++    },
++    {
++      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792778865
++    },
++    {
++      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "cpuShare": 0.02,
++      "memMb": 512,
++      "gpuShare": 0,
++      "leaseUntil": 1792778859
++    },
++    {
++      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "cpuShare": 0.04,
++      "memMb": 256,
++      "gpuShare": 0,
++      "leaseUntil": 1792778671
++    },
++    {
++      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "cpuShare": 0.21,
++      "memMb": 2048,
++      "gpuShare": 0,
++      "leaseUntil": 1792779459
++    },
++    {
++      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792779003
++    },
++    {
++      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++      "status": "stopped",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++      "status": "stopped",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    }
++  ],
++  "vms": [
++    {
++      "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++      "name": "shield-readiness-v1",
++      "status": "running",
++      "memory": null,
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 256,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvba429ebb1c40a95c27186168f7669f74",
++      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.02,
++        "appMiB": 1966,
++        "vmMiB": 2606
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 1024,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvdc425d67f2b0e16d83e393766f786d10",
++      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.25,
++        "appMiB": 24576,
++        "vmMiB": 25216
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 12288,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.21,
++        "appMiB": 20643,
++        "vmMiB": 21284
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 2048,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.04,
++        "appMiB": 3932,
++        "vmMiB": 4572
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 256,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv2dd42ee0ca9d667ebb314782286900d0",
++      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.02,
++        "appMiB": 1966,
++        "vmMiB": 2606
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 512,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    }
++  ],
++  "managerMemory": {
++    "rule": "cpu-share",
++    "poolMiB": 98304
++  }
++}
+diff --git a/native-build-scan.guard.log b/native-build-scan.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..35484729a366869f8d2ff5216058e048a433e600
+--- /dev/null
++++ b/native-build-scan.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=57 minHostAvailableMiB=25320
+diff --git a/native-build-status.guard.log b/native-build-status.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..b4163755852ee70a2aed5cedb55ee8d6e8f1e38a
+--- /dev/null
++++ b/native-build-status.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25593
+diff --git a/native-build-status.json b/native-build-status.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8e34a9fb61d04f6a501ada21e2592aef7bd99931
+--- /dev/null
++++ b/native-build-status.json
+@@ -0,0 +1,37 @@
++{
++  "stdout": [],
++  "processes": [],
++  "files": [
++    {
++      "Name": "build-start.json",
++      "Length": 145,
++      "LastWriteTimeUtc": "/Date(1792777806592)/"
++    },
++    {
++      "Name": "guard.err",
++      "Length": 0,
++      "LastWriteTimeUtc": "/Date(1792777806542)/"
++    },
++    {
++      "Name": "guard.out",
++      "Length": 0,
++      "LastWriteTimeUtc": "/Date(1792777806542)/"
++    },
++    {
++      "Name": "native-loader-build.ps1",
++      "Length": 3361,
++      "LastWriteTimeUtc": "/Date(1792777796262)/"
++    },
++    {
++      "Name": "native-loader-source.json",
++      "Length": 2862,
++      "LastWriteTimeUtc": "/Date(1792777795893)/"
++    },
++    {
++      "Name": "native-loader-source.zip",
++      "Length": 61383,
++      "LastWriteTimeUtc": "/Date(1792777795513)/"
++    }
++  ],
++  "at": "2026-10-23T17:51:59.0378854Z"
++}
+diff --git a/native-build-status.py b/native-build-status.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b18a1e9fa571647b07f29cab88da8b6c5594e70
+--- /dev/null
++++ b/native-build-status.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$s='C:\ProgramData\Enclave\hotfix\cpu-loader-build-20261023';$all=@(Get-CimInstance Win32_Process);$ids=@(21900);do{$new=@($all|Where-Object {$_.ParentProcessId -in $ids -and $_.ProcessId -notin $ids}|ForEach-Object {[int]$_.ProcessId});$ids+=$new}while($new.Count);@{at=(Get-Date).ToUniversalTime().ToString('o');processes=@($all|Where-Object {$_.ProcessId -in $ids}|Select-Object ProcessId,ParentProcessId,Name,WorkingSetSize,CreationDate);files=@(Get-ChildItem $s -File|Select-Object Name,Length,LastWriteTimeUtc);stdout=@(Get-Content (Join-Path $s 'build.out') -Tail 15 -ErrorAction SilentlyContinue)}|ConvertTo-Json -Depth 5 -Compress'''
++r=m.ps(p,20);pathlib.Path('work/coupled-cpu-enforcement-20261023/root-validation/native-build-status.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/native-linker.guard.log b/native-linker.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..bbed74286bcd84e33143cf568e7ef8f4517df6d3
+--- /dev/null
++++ b/native-linker.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25273
+diff --git a/native-linker.json b/native-linker.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe397ed1add3fb176febce50811b385398e5736e
+--- /dev/null
++++ b/native-linker.json
+@@ -0,0 +1,12 @@
++{
++  "registrySource": true,
++  "msvc": [
++    {
++      "linker": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\link.exe",
++      "install": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools",
++      "version": "14.51.36231"
++    }
++  ],
++  "registryCache": true,
++  "at": "2026-10-23T17:44:52.0630991Z"
++}
+diff --git a/native-loader-build.ps1 b/native-loader-build.ps1
+new file mode 100644
+index 0000000000000000000000000000000000000000..03c8755cb90c824dc4bd3a3888f163e84a03e2e2
+--- /dev/null
++++ b/native-loader-build.ps1
+@@ -0,0 +1,36 @@
++$ErrorActionPreference='Stop'
++$stage='C:\ProgramData\Enclave\hotfix\cpu-loader-build-20261023'
++$receipt=Join-Path $stage 'build-result.json'
++if(Test-Path $receipt){throw 'Build already has a receipt'}
++$manifest=Get-Content (Join-Path $stage 'native-loader-source.json') -Raw|ConvertFrom-Json
++$source=Join-Path $stage 'source'
++foreach($f in $manifest.files){$actual=(Get-FileHash -Algorithm SHA256 (Join-Path $source $f.path)).Hash.ToLower();if($actual -ne $f.sha256){throw ('Source mismatch '+$f.path)}}
++$vs='C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat'
++if(-not (Test-Path $vs)){throw 'Missing existing vcvars64'}
++$cmd=Join-Path $stage 'build.cmd'
++@('@echo off',('call "'+$vs+'" >nul'),'if errorlevel 1 exit /b %errorlevel%',('cd /d "'+$source+'"'),'set "RUSTUP_TOOLCHAIN=nightly-x86_64-pc-windows-msvc"','set "CARGO_BUILD_JOBS=1"',('set "CARGO_TARGET_DIR='+$stage+'\target"'),('"C:\Users\claude\.cargo\bin\cargo.exe" build --offline --locked --release --target x86_64-pc-windows-msvc --bin vbslike-host'),'set "BUILD_EXIT=%errorlevel%"',('echo %BUILD_EXIT%>"'+$stage+'\build-exit.txt"'),'exit /b %BUILD_EXIT%')|Set-Content -Encoding ASCII $cmd
++$proc=$null;$reason=$null;$peak=0;$minFree=1e12;$start=(Get-Date).ToUniversalTime().ToString('o')
++try {
++ $os=Get-CimInstance Win32_OperatingSystem
++ if($os.FreePhysicalMemory -lt 18*1024*1024){throw 'Native build needs 18 GiB free before start'}
++ $proc=Start-Process cmd.exe -ArgumentList @('/d','/c',('"'+$cmd+'"')) -WorkingDirectory $stage -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stage 'build.out') -RedirectStandardError (Join-Path $stage 'build.err')
++ $started=$proc.StartTime;$deadline=(Get-Date).AddMinutes(15)
++ while(-not $proc.WaitForExit(2000)){
++  $all=@(Get-CimInstance Win32_Process);$owned=@([int]$proc.Id);do{$new=@($all|Where-Object {$_.ParentProcessId -in $owned -and $_.ProcessId -notin $owned}|ForEach-Object {[int]$_.ProcessId});$owned+= $new}while($new.Count)
++  $rss=($all|Where-Object {$_.ProcessId -in $owned}|Measure-Object WorkingSetSize -Sum).Sum
++  $peak=[Math]::Max($peak,$rss);$free=(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory*1024;$minFree=[Math]::Min($minFree,$free)
++  if($rss -gt 1536MB){throw 'Native build tree exceeded 1536 MiB'}
++  if($free -lt 16GB){throw 'Native physical headroom below 16 GiB'}
++  if((Get-Date) -gt $deadline){throw 'Native build exceeded 15 minutes'}
++ }
++ $proc.WaitForExit();$exitFile=Join-Path $stage 'build-exit.txt';if(-not(Test-Path $exitFile)){throw 'Missing command exit receipt'};$exit=[int]([IO.File]::ReadAllText($exitFile).Trim())
++ if($exit -ne 0){throw ('Cargo exited '+$exit)}
++ $bin=Join-Path $stage 'target\x86_64-pc-windows-msvc\release\vbslike-host.exe'
++ if(-not(Test-Path $bin)){throw 'Missing output binary'}
++ @{ok=$true;at=(Get-Date).ToUniversalTime().ToString('o');started=$start;commit=$manifest.commit;binary=$bin;sha256=(Get-FileHash -Algorithm SHA256 $bin).Hash.ToLower();bytes=(Get-Item $bin).Length;peakTreeBytes=$peak;minFreeBytes=$minFree;exit=$exit}|ConvertTo-Json -Depth 4|Set-Content -Encoding UTF8 $receipt
++}catch{
++ $reason=$_.Exception.Message
++ if($proc -and -not $proc.HasExited){$now=Get-Process -Id $proc.Id -ErrorAction SilentlyContinue;if($now -and $now.StartTime -eq $started){& taskkill.exe /PID $proc.Id /T /F|Out-Null}}
++ @{ok=$false;at=(Get-Date).ToUniversalTime().ToString('o');started=$start;commit=$manifest.commit;error=$reason;peakTreeBytes=$peak;minFreeBytes=$minFree}|ConvertTo-Json -Depth 4|Set-Content -Encoding UTF8 $receipt
++ exit 1
++}
+diff --git a/native-loader-build.py b/native-loader-build.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..31ed1901cf35398b3e531a06bcb8fbe2f13411f7
+--- /dev/null
++++ b/native-loader-build.py
+@@ -0,0 +1,24 @@
++import pathlib,hashlib,json,subprocess,importlib.util,argparse
++p=pathlib.Path(__file__).resolve().parent
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++a=argparse.ArgumentParser();a.add_argument('step',choices=['stage','start','run','read']);step=a.parse_args().step
++stage=r'C:\ProgramData\Enclave\hotfix\cpu-loader-build-20261023';manifest=json.loads((p/'native-loader-source.json').read_text())
++sha=hashlib.sha256((p/'native-loader-build.ps1').read_bytes()).hexdigest()
++if step=='stage':
++ r=m.ps("$p='"+stage+"';if(Test-Path (Join-Path $p 'source')){throw 'Existing native build source'};New-Item -ItemType Directory -Force -Path $p|Out-Null;@{ok=$true}|ConvertTo-Json -Compress",20)
++ assert r.get('ok'),r
++ for name in ['native-loader-source.zip','native-loader-source.json','native-loader-build.ps1']:
++  subprocess.run(['scp','-o','BatchMode=yes','-o','ConnectTimeout=10',str(p/name),'minipc:'+stage.replace('\\','/')+'/'+name],check=True,timeout=30,capture_output=True)
++ script="$s='"+stage+"';$z=Join-Path $s 'native-loader-source.zip';$f=Join-Path $s 'native-loader-build.ps1';if((FileSha $z) -ne '"+manifest['zipSha256']+"' -or (FileSha $f) -ne '"+sha+"'){throw 'Staged hash mismatch'};$t=$null;$e=$null;$null=[Management.Automation.Language.Parser]::ParseFile($f,[ref]$t,[ref]$e);if($e.Count){throw ($e|Out-String)};Expand-Archive $z (Join-Path $s 'source');@{ok=$true;at=(Get-Date).ToUniversalTime().ToString('o');scriptSha=(FileSha $f)}|ConvertTo-Json -Compress"
++ r=m.ps(script,35)
++elif step=='start':
++ script="$s='"+stage+"';$f=Join-Path $s 'native-loader-build.ps1';if((FileSha $f) -ne '"+sha+"'){throw 'Build script changed'};if(Test-Path (Join-Path $s 'build-start.json')){throw 'Build already started'};$p=Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$f) -WorkingDirectory $s -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $s 'guard.out') -RedirectStandardError (Join-Path $s 'guard.err');$r=@{ok=$true;at=(Get-Date).ToUniversalTime().ToString('o');guardPid=$p.Id;scriptSha=(FileSha $f)};$r|ConvertTo-Json -Compress|Set-Content (Join-Path $s 'build-start.json');$r|ConvertTo-Json -Compress"
++ r=m.ps(script,20)
++elif step=='run':
++ script="$s='"+stage+"';$f=Join-Path $s 'native-loader-build.ps1';if((FileSha $f) -ne '"+sha+"'){throw 'Build script changed'};if(Test-Path (Join-Path $s 'build.cmd')){throw 'Build previously entered; inspect first'};& ([ScriptBlock]::Create([IO.File]::ReadAllText($f)));Get-Content (Join-Path $s 'build-result.json') -Raw|ConvertFrom-Json|ConvertTo-Json -Compress"
++ r=m.ps(script,950)
++else:
++ script="$s='"+stage+"';$f=Join-Path $s 'build-result.json';$r=$null;if(Test-Path $f){$r=Get-Content $f -Raw|ConvertFrom-Json};@{at=(Get-Date).ToUniversalTime().ToString('o');result=$r;stderr=[string]::Join([Environment]::NewLine,@(Get-Content (Join-Path $s 'build.err') -Tail 30 -ErrorAction SilentlyContinue));guardError=[string]::Join([Environment]::NewLine,@(Get-Content (Join-Path $s 'guard.err') -Tail 15 -ErrorAction SilentlyContinue))}|ConvertTo-Json -Depth 5 -Compress"
++ r=m.ps(script,20)
++(p/('native-loader-'+step+'.json')).write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
++if step!='read' and not r.get('ok'):raise SystemExit(1)
+diff --git a/native-loader-copy.guard.log b/native-loader-copy.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..cc1f7e715371458b17f8c6e3c4fadd343f54de55
+--- /dev/null
++++ b/native-loader-copy.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=17 minHostAvailableMiB=25366
+diff --git a/native-loader-prepare.guard.log b/native-loader-prepare.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/native-loader-prepare.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/native-loader-read.json b/native-loader-read.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..72d91451462c92b7f3d44187b85cc673556d5b41
+--- /dev/null
++++ b/native-loader-read.json
+@@ -0,0 +1,17 @@
++{
++  "result": {
++    "exit": 0,
++    "binary": "C:\\ProgramData\\Enclave\\hotfix\\cpu-loader-build-20261023\\target\\x86_64-pc-windows-msvc\\release\\vbslike-host.exe",
++    "bytes": 1147904,
++    "minFreeBytes": 1000000000000,
++    "at": "2026-10-23T17:56:17.6095691Z",
++    "started": "2026-10-23T17:56:15.7914517Z",
++    "commit": "ea6717d2725b8acd1b19837cdc6355421a94972d",
++    "ok": true,
++    "sha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
++    "peakTreeBytes": 0
++  },
++  "stderr": "  --> src\\hvsock.rs:80:9\r\n   |\r\n78 | pub struct Listener {\r\n   |            -------- fields in this struct\r\n79 |     s: SOCKET,\r\n80 |     pub vm: GUID,\r\n   |         ^^\r\n81 |     pub port: u32,\r\n   |         ^^^^\r\n\r\nwarning: field `app_id` is never read\r\n  --> src\\launcher.rs:41:9\r\n   |\r\n36 | pub struct Domain {\r\n   |            ------ field in this struct\r\n...\r\n41 |     pub app_id: [u8; 32],\r\n   |         ^^^^^^\r\n\r\nwarning: method `ended_reason` is never used\r\n  --> src\\launcher.rs:83:12\r\n   |\r\n65 | impl Domain {\r\n   | ----------- method in this implementation\r\n...\r\n83 |     pub fn ended_reason(&self) -> Option<String> {\r\n   |            ^^^^^^^^^^^^\r\n\r\nwarning: `vbslike-host` (bin \"vbslike-host\") generated 5 warnings\r\n    Finished `release` profile [optimized + debuginfo] target(s) in 0.27s",
++  "guardError": "",
++  "at": "2026-10-23T17:56:41.5229876Z"
++}
+diff --git a/native-loader-read1.guard.log b/native-loader-read1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4004002f073adaa460f1365d2b8c2b0e69b31613
+--- /dev/null
++++ b/native-loader-read1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=25510
+diff --git a/native-loader-read2.guard.log b/native-loader-read2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7644091e5454bbe2c1b35ce0b870d4fa276cc0e5
+--- /dev/null
++++ b/native-loader-read2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=24619
+diff --git a/native-loader-read3.guard.log b/native-loader-read3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..3fd8375a48aeaddc68b9baee69a7e6e74bc6ccaf
+--- /dev/null
++++ b/native-loader-read3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=58 minHostAvailableMiB=25489
+diff --git a/native-loader-read4.guard.log b/native-loader-read4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..6e404923fe457c105df19d324d2edc4a4fb53a25
+--- /dev/null
++++ b/native-loader-read4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=25376
+diff --git a/native-loader-restage.guard.log b/native-loader-restage.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ae009571cc1ea2c92dd0c44c5edfa9dc28f4e83
+--- /dev/null
++++ b/native-loader-restage.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=37 minHostAvailableMiB=25518
+diff --git a/native-loader-restage.json b/native-loader-restage.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd2b518a4549ee92a390c0a720f4047a57bd4b12
+--- /dev/null
++++ b/native-loader-restage.json
+@@ -0,0 +1,5 @@
++{
++  "ok": true,
++  "at": "2026-10-23T17:56:01.5240638Z",
++  "scriptSha": "bf966b7d03550ebc6b6bc3d2190588cab4287cd33260a8cd95ee8b9cfea2ecb6"
++}
+diff --git a/native-loader-run.guard.log b/native-loader-run.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..71e9a73f9d1bcc81973de6162f8e3d7b774d7029
+--- /dev/null
++++ b/native-loader-run.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=40 minHostAvailableMiB=25305
+diff --git a/native-loader-run.json b/native-loader-run.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..3725bdc49e6352fbbe542a67d8a931fe84bac98d
+--- /dev/null
++++ b/native-loader-run.json
+@@ -0,0 +1,5 @@
++{
++  "error": "unparsed (ssh rc 0)",
++  "stdout": "{\n    \"exit\":  0,\n    \"binary\":  \"C:\\\\ProgramData\\\\Enclave\\\\hotfix\\\\cpu-loader-build-20261023\\\\target\\\\x86_64-pc-windows-msvc\\\\release\\\\vbslike-host.exe\",\n    \"bytes\":  1147904,\n    \"minFreeBytes\":  1000000000000,\n    \"at\":  \"2026-10-23T17:56:17.6095691Z\",\n    \"started\":  \"2026-10-23T17:56:15.7914517Z\",\n    \"commit\":  \"ea6717d2725b8acd1b19837cdc6355421a94972d\",\n    \"ok\":  true,\n    \"sha256\":  \"e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2\",\n    \"peakTreeBytes\":  0\n}",
++  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n"
++}
+diff --git a/native-loader-run2.guard.log b/native-loader-run2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..23d604e5928d654725060af4ca2fd3e5c3ca0e22
+--- /dev/null
++++ b/native-loader-run2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=40 minHostAvailableMiB=25503
+diff --git a/native-loader-source.json b/native-loader-source.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3227ade77f4c7928fdeff48974b502df32967a9
+--- /dev/null
++++ b/native-loader-source.json
+@@ -0,0 +1,96 @@
++{
++  "commit": "ea6717d2725b8acd1b19837cdc6355421a94972d",
++  "files": [
++    {
++      "path": "Cargo.lock",
++      "sha256": "5c0ee1b7f9d70d1b9d6973dea54e8d8f9b9563117d1a8f97a8172ce29c96ad3b",
++      "bytes": 10141
++    },
++    {
++      "path": "Cargo.toml",
++      "sha256": "17dec81a9f96def75973b5d9720b7ea0f7b77e6eff9e735bb2406c6b1e0618bf",
++      "bytes": 816
++    },
++    {
++      "path": "src/bin/bridge-auth-check.rs",
++      "sha256": "8097e7314233f82dd4508d8bde713367e8af0e1b3e193558a510bd42842d69b2",
++      "bytes": 7199
++    },
++    {
++      "path": "src/bin/bridge-drain-check.rs",
++      "sha256": "616c62a73baa9371c47cec5a753e669175559aff031957a50fd7f620e8343e65",
++      "bytes": 2705
++    },
++    {
++      "path": "src/bin/shielded-bridge.rs",
++      "sha256": "c073adc569decfdcf3826277b8592b25f7c2db8e55f3f12eff2d6f9091d208ee",
++      "bytes": 11264
++    },
++    {
++      "path": "src/contract.rs",
++      "sha256": "b63f6eeb68eaaf07e67150e3d2fd51e85749d67adcdaa9a814d9b7e65ed6cf88",
++      "bytes": 21981
++    },
++    {
++      "path": "src/hcs.rs",
++      "sha256": "e2940ce2c202577edf61ef88cc698e429fbb7b6bedbe17d976b5a34f215dfc47",
++      "bytes": 18521
++    },
++    {
++      "path": "src/hvdial.rs",
++      "sha256": "8406703e0c59538e14361862b54d8bdd23cb4d65a29cdfadb8993b89f18297ed",
++      "bytes": 3180
++    },
++    {
++      "path": "src/hvsock.rs",
++      "sha256": "9871ed337042b0c8e2a489d6323c96aef2b38ffff610f86a6bdf6a6989fd2b5c",
++      "bytes": 6488
++    },
++    {
++      "path": "src/isoprobe.rs",
++      "sha256": "fe5bdf78e7e16f5235e01dd016f3a9dee3c7122cf82a3e3d0fdf9012bff68a27",
++      "bytes": 23156
++    },
++    {
++      "path": "src/lab.rs",
++      "sha256": "03f53d95e9102568e6dfebc1e34d96981f2d5b55dd2a79a62b78f326398f4a97",
++      "bytes": 5454
++    },
++    {
++      "path": "src/launcher.rs",
++      "sha256": "d2fe773323fa190e13f929482c4591cd4ddea2a94f6c69624521e5b9b5307946",
++      "bytes": 28056
++    },
++    {
++      "path": "src/main.rs",
++      "sha256": "595793efd8211d7404e38b6704bf09012adc62e10a5d5b44208519748114a9d4",
++      "bytes": 3065
++    },
++    {
++      "path": "src/probe.rs",
++      "sha256": "262c9acadefeef03c9abb255d5f4a8a9c9381a01f27c6f17bd7c7c280a61c8ad",
++      "bytes": 2406
++    },
++    {
++      "path": "src/reap.rs",
++      "sha256": "71c50be4a1943420a7d498dc0a2cf7cf61382be7d59be3791ed9f427f0535f6e",
++      "bytes": 3783
++    },
++    {
++      "path": "src/report.rs",
++      "sha256": "4014ec9b50ae42c5996f0bc995c146c36283e7ceb78ae8f482226052b8cf20e5",
++      "bytes": 4101
++    },
++    {
++      "path": "src/util.rs",
++      "sha256": "97d20f583e39831234ed52fc7aa78805d41d93ead123f96313307add88faca06",
++      "bytes": 2461
++    },
++    {
++      "path": "src/wmiserve.rs",
++      "sha256": "8699491da2eaa069910a887e208161ad25c3b465147211cd8ccbb37d9cf599d1",
++      "bytes": 27460
++    }
++  ],
++  "zipSha256": "1f1bf99ad3dec3967bc611439115718522175ceebedb9adafb22a0824b44c835"
++}
+diff --git a/native-loader-stage.guard.log b/native-loader-stage.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..5df20e5a7069cd316155f9cb6669dd178ce82a8f
+--- /dev/null
++++ b/native-loader-stage.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=25566
+diff --git a/native-loader-stage.json b/native-loader-stage.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b78ce40c6372de01cc0e1d068d8c404219086cc6
+--- /dev/null
++++ b/native-loader-stage.json
+@@ -0,0 +1,5 @@
++{
++  "scriptSha": "481c7c06196f5f43311e65364ab6b644c4e09870f7bdd25085316617f14920fe",
++  "ok": true,
++  "at": "2026-10-23T17:49:59.1466254Z"
++}
+diff --git a/native-loader-start.guard.log b/native-loader-start.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..8e48f4a7444e7f694c17ef3e904e3f6eec387f80
+--- /dev/null
++++ b/native-loader-start.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=40 minHostAvailableMiB=25536
+diff --git a/native-loader-start.json b/native-loader-start.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..22b3d678e8040685c29279e4b6fee93edb55cf57
+--- /dev/null
++++ b/native-loader-start.json
+@@ -0,0 +1,6 @@
++{
++  "scriptSha": "481c7c06196f5f43311e65364ab6b644c4e09870f7bdd25085316617f14920fe",
++  "ok": true,
++  "guardPid": 21900,
++  "at": "2026-10-23T17:50:06.5583894Z"
++}
+diff --git a/native-loader-summary.guard.log b/native-loader-summary.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/native-loader-summary.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/native-toolchain.guard.log b/native-toolchain.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..79c08494a52bad6554e6a92f9052614b6e41f856
+--- /dev/null
++++ b/native-toolchain.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25837
+diff --git a/native-toolchain.json b/native-toolchain.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..baee223ac0d4cc495b7ce48231cf7f7cc127736d
+--- /dev/null
++++ b/native-toolchain.json
+@@ -0,0 +1,46 @@
++{
++  "commands": [
++    {
++      "name": "cargo.exe",
++      "path": "C:\\Users\\claude\\.cargo\\bin\\cargo.exe"
++    },
++    {
++      "name": "rustc.exe",
++      "path": "C:\\Users\\claude\\.cargo\\bin\\rustc.exe"
++    }
++  ],
++  "inventory": [
++    {
++      "path": "C:\\Users\\claude\\.cargo\\bin",
++      "children": [
++        "cargo-clippy.exe",
++        "cargo-fmt.exe",
++        "cargo-miri.exe",
++        "cargo.exe",
++        "clippy-driver.exe",
++        "rls.exe",
++        "rust-analyzer.exe",
++        "rust-gdb.exe",
++        "rust-gdbgui.exe",
++        "rust-lldb.exe",
++        "rustc.exe",
++        "rustdoc.exe",
++        "rustfmt.exe",
++        "rustup.exe"
++      ]
++    },
++    {
++      "path": "C:\\Users\\claude\\.rustup\\toolchains",
++      "children": [
++        "nightly-x86_64-pc-windows-msvc"
++      ]
++    },
++    {
++      "path": "C:\\Program Files (x86)\\Windows Kits\\10\\Lib",
++      "children": [
++        "10.0.26100.0"
++      ]
++    }
++  ],
++  "at": "2026-10-23T17:40:58.3039210Z"
++}
+diff --git a/prepare-native-build.py b/prepare-native-build.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..36d9825f9c653364cebbd0d271ca90e8af0f5c8e
+--- /dev/null
++++ b/prepare-native-build.py
+@@ -0,0 +1,9 @@
++import pathlib,subprocess,hashlib,json,zipfile
++p=pathlib.Path(__file__).resolve().parent;repo=p.parent/'repo';rev='ea6717d2725b8acd1b19837cdc6355421a94972d';prefix='windows/vbslike/host/'
++paths=subprocess.check_output(['git','-C',str(repo),'ls-tree','-r','--name-only',rev,'--',prefix],text=True).splitlines();rows=[]
++with zipfile.ZipFile(p/'native-loader-source.zip','w',compression=zipfile.ZIP_DEFLATED) as z:
++ for f in paths:
++  b=subprocess.check_output(['git','-C',str(repo),'show',rev+':'+f]);rel=f[len(prefix):]
++  z.writestr(rel,b);rows.append({'path':rel,'sha256':hashlib.sha256(b).hexdigest(),'bytes':len(b)})
++m={'commit':rev,'files':rows,'zipSha256':hashlib.sha256((p/'native-loader-source.zip').read_bytes()).hexdigest()}
++(p/'native-loader-source.json').write_text(json.dumps(m,indent=2)+'\n');print(json.dumps({'commit':rev,'files':len(rows),'bytes':sum(x['bytes'] for x in rows),'zipSha256':m['zipSha256']}))
+diff --git a/queue-owners-1740.guard.log b/queue-owners-1740.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/queue-owners-1740.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/queue-owners-1741.guard.log b/queue-owners-1741.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/queue-owners-1741.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/queue-owners-1758.guard.log b/queue-owners-1758.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..982761abeadd20d646bff8c1d03fc12bdc034c4e
+--- /dev/null
++++ b/queue-owners-1758.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+diff --git a/read-after-native-build.py b/read-after-native-build.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..5386b36d5783657c650740da9388a07492b0c8b9
+--- /dev/null
++++ b/read-after-native-build.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$h=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/v1/host/state;$a=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;$m=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');availability=$a|Select-Object nodeRamGb,ramGbFree,ramMbFree,cpuShareFree,maxShare,nodeVcpus;deployments=@($h.deployments|Select-Object id,status,cpuShare,memMb,gpuShare,leaseUntil);vms=@($v.vms|Select-Object id,name,status,memory,policy,cpuShare);managerMemory=$m.memory}|ConvertTo-Json -Depth 8 -Compress'''
++r=m.ps(p,35);pathlib.Path('work/coupled-cpu-enforcement-20261023/root-validation/after-native-build-live.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps({'at':r.get('at'),'availability':r.get('availability'),'running':sum(d.get('status')=='running' for d in r.get('deployments',[])),'vmCount':len(r.get('vms',[]))}))
+diff --git a/read-native-linker.py b/read-native-linker.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..037dfbaec54e240f9f9064b72049f0849013a8bf
+--- /dev/null
++++ b/read-native-linker.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$vs='C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe';$install=@();if(Test-Path $vs){$install=@(& $vs -nologo -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)};$tools=@();foreach($i in $install){$d=Join-Path $i 'VC\Tools\MSVC';foreach($v in @(Get-ChildItem $d -Directory -ErrorAction SilentlyContinue)){$l=Join-Path $v.FullName 'bin\Hostx64\x64\link.exe';if(Test-Path $l){$tools+=@{install=$i;version=$v.Name;linker=$l}}}};$reg=Join-Path $env:USERPROFILE '.cargo\registry\src';$cache=Join-Path $env:USERPROFILE '.cargo\registry\cache';@{at=(Get-Date).ToUniversalTime().ToString('o');msvc=$tools;registrySource=(Test-Path $reg);registryCache=(Test-Path $cache)}|ConvertTo-Json -Depth 4 -Compress'''
++r=m.ps(p,20);pathlib.Path('work/coupled-cpu-enforcement-20261023/root-validation/native-linker.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/read-native-toolchain.py b/read-native-toolchain.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7fa73592d00769f6a7afa2739bd712be7935530c
+--- /dev/null
++++ b/read-native-toolchain.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''$names=@('cargo.exe','rustc.exe','clang.exe','cl.exe','link.exe');$found=@();foreach($n in $names){$c=Get-Command $n -ErrorAction SilentlyContinue;if($c){$found+=@{name=$n;path=$c.Source}}};$dirs=@('C:\Users\claude\.cargo\bin','C:\Users\claude\.rustup\toolchains','C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC','C:\Program Files (x86)\Windows Kits\10\Lib');$inventory=@();foreach($d in $dirs){if(Test-Path $d){$inventory+=@{path=$d;children=@(Get-ChildItem $d|Select-Object -ExpandProperty Name)}}};@{at=(Get-Date).ToUniversalTime().ToString('o');commands=$found;inventory=$inventory}|ConvertTo-Json -Depth 5 -Compress'''
++r=m.ps(p,20);pathlib.Path('work/coupled-cpu-enforcement-20261023/root-validation/native-toolchain.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/read-rollout-before.py b/read-rollout-before.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..bf46892b2c5aa2242620b9851858b5686bc7f061
+--- /dev/null
++++ b/read-rollout-before.py
+@@ -0,0 +1,4 @@
++import importlib.util,json,pathlib
++s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++p=r'''[Console]::OutputEncoding=[Text.UTF8Encoding]::new();$h=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:9600/v1/host/state;$a=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:9600/availability;$v=Invoke-RestMethod -TimeoutSec 8 http://127.0.0.1:8091/vms;$m=Invoke-RestMethod -TimeoutSec 5 http://127.0.0.1:8091/health;[ordered]@{at=(Get-Date).ToUniversalTime().ToString('o');availability=$a|Select-Object nodeRamGb,ramGbFree,ramMbFree,cpuShareFree,maxShare,nodeVcpus;deployments=@($h.deployments|Select-Object id,status,cpuShare,memMb,gpuShare,leaseUntil);vms=@($v.vms|Select-Object id,name,status,memory,policy,cpuShare);managerMemory=$m.memory}|ConvertTo-Json -Depth 8 -Compress'''
++r=m.ps(p,35);pathlib.Path('work/coupled-cpu-enforcement-20261023/root-validation/rollout-before-live.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/restage-native-build.py b/restage-native-build.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6175a0c75feb489f9e840a688d26f01d4df8c26e
+--- /dev/null
++++ b/restage-native-build.py
+@@ -0,0 +1,7 @@
++import pathlib,hashlib,json,subprocess,importlib.util
++p=pathlib.Path(__file__).resolve().parent;s=importlib.util.spec_from_file_location('helper','work/nucbox-tls-20261021/root-activate-reviewed.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
++stage=r'C:\ProgramData\Enclave\hotfix\cpu-loader-build-20261023';f=p/'native-loader-build.ps1';sha=hashlib.sha256(f.read_bytes()).hexdigest()
++r=m.ps("$s='"+stage+"';$r=Get-Content (Join-Path $s 'build-result.json') -Raw|ConvertFrom-Json;if($r.error -ne 'Cargo exited '){throw 'Unexpected prior result'};$live=@(Get-CimInstance Win32_Process|Where-Object {$_.CommandLine -like ('*'+$s+'*') -and $_.Name -in @('cargo.exe','rustc.exe','cmd.exe')});if($live.Count){throw 'Build children still running'};foreach($n in @('build-result.json','build.cmd','build.err','build.out')){$f=Join-Path $s $n;if(Test-Path ($f+'.attempt1')){throw 'Prior archive exists'};Move-Item $f ($f+'.attempt1')};@{ok=$true}|ConvertTo-Json -Compress",25);assert r.get('ok'),r
++subprocess.run(['scp','-o','BatchMode=yes',str(f),'minipc:'+stage.replace('\\','/')+'/'+f.name],check=True,timeout=30,capture_output=True)
++r=m.ps("$f='"+stage+"\\native-loader-build.ps1';if((FileSha $f) -ne '"+sha+"'){throw 'SHA changed'};$t=$null;$e=$null;$null=[Management.Automation.Language.Parser]::ParseFile($f,[ref]$t,[ref]$e);if($e.Count){throw ($e|Out-String)};@{ok=$true;scriptSha=(FileSha $f);at=(Get-Date).ToUniversalTime().ToString('o')}|ConvertTo-Json -Compress",25)
++(p/'native-loader-restage.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))
+diff --git a/rollout-before-live.guard.log b/rollout-before-live.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..a62e9a4ab80e49d40e92fa826b7ef4548767cf16
+--- /dev/null
++++ b/rollout-before-live.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=25191
+diff --git a/rollout-before-live.json b/rollout-before-live.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..986f6aaa5517c5f724d42a225e517a432a689635
+--- /dev/null
++++ b/rollout-before-live.json
+@@ -0,0 +1,345 @@
++{
++  "at": "2026-10-23T17:40:11.9755279Z",
++  "availability": {
++    "nodeRamGb": 96,
++    "ramGbFree": 16.3,
++    "ramMbFree": 16711,
++    "cpuShareFree": 0.17,
++    "maxShare": 0.17,
++    "nodeVcpus": 16
++  },
++  "deployments": [
++    {
++      "id": "0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3",
++      "status": "queued",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "cpuShare": 0.02,
++      "memMb": 1024,
++      "gpuShare": 0,
++      "leaseUntil": 1792778947
++    },
++    {
++      "id": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792778437
++    },
++    {
++      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "cpuShare": 0.25,
++      "memMb": 12288,
++      "gpuShare": 0,
++      "leaseUntil": 1792778497
++    },
++    {
++      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792778587
++    },
++    {
++      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792778865
++    },
++    {
++      "id": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "cpuShare": 0.02,
++      "memMb": 512,
++      "gpuShare": 0,
++      "leaseUntil": 1792778859
++    },
++    {
++      "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "cpuShare": 0.04,
++      "memMb": 256,
++      "gpuShare": 0,
++      "leaseUntil": 1792778671
++    },
++    {
++      "id": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "cpuShare": 0.21,
++      "memMb": 2048,
++      "gpuShare": 0,
++      "leaseUntil": 1792777915
++    },
++    {
++      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "cpuShare": 0.01,
++      "memMb": 128,
++      "gpuShare": 0,
++      "leaseUntil": 1792779003
++    },
++    {
++      "id": "0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7",
++      "status": "stopped",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1",
++      "status": "stopped",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    },
++    {
++      "id": "0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef",
++      "status": "refused",
++      "cpuShare": null,
++      "memMb": null,
++      "gpuShare": null,
++      "leaseUntil": null
++    }
++  ],
++  "vms": [
++    {
++      "id": "hvc18d297da5a21bc3cbae5836531b00c2",
++      "name": "shield-readiness-v1",
++      "status": "running",
++      "memory": null,
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 256,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvc6c4073c817dadf1d692f67b6f9222e3",
++      "name": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvba429ebb1c40a95c27186168f7669f74",
++      "name": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.02,
++        "appMiB": 1966,
++        "vmMiB": 2606
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 1024,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvdc425d67f2b0e16d83e393766f786d10",
++      "name": "0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv3c8e73d2d9c235d0e91dcfcccdbee49d",
++      "name": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.25,
++        "appMiB": 24576,
++        "vmMiB": 25216
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 12288,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv5e00a0f0dfae6122912103ad8361ce22",
++      "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hvdd8cb84cf13a4e3a80ec4c3b1e75cc3c",
++      "name": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.01,
++        "appMiB": 983,
++        "vmMiB": 2048
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 128,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv255b5ea98b99cf19c2e420f6a5a271ca",
++      "name": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.21,
++        "appMiB": 20643,
++        "vmMiB": 21284
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 2048,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hve60d223d27d01b8bcacb65a8e46f2e78",
++      "name": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.04,
++        "appMiB": 3932,
++        "vmMiB": 4572
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 256,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    },
++    {
++      "id": "hv2dd42ee0ca9d667ebb314782286900d0",
++      "name": "0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681",
++      "status": "running",
++      "memory": {
++        "rule": "cpu-share",
++        "poolMiB": 98304,
++        "cpuShare": 0.02,
++        "appMiB": 1966,
++        "vmMiB": 2606
++      },
++      "policy": {
++        "cpuPercent": 100,
++        "memMiB": 512,
++        "vcpus": 1
++      },
++      "cpuShare": null
++    }
++  ],
++  "managerMemory": {
++    "rule": "cpu-share",
++    "poolMiB": 98304
++  }
++}
+diff --git a/scan.guard.log b/scan.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..22ec7dbce0b6ad4213ecd9f01b600c5b0d735969
+--- /dev/null
++++ b/scan.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=24748
+diff --git a/summarize-native-loader.py b/summarize-native-loader.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..40a5c494cdbf23034dbf507ff942669881d84473
+--- /dev/null
++++ b/summarize-native-loader.py
+@@ -0,0 +1,11 @@
++import hashlib,json,pathlib,datetime
++p=pathlib.Path(__file__).resolve().parent;r=json.loads((p/'native-loader-read.json').read_text());build=r['result'];b=p/'candidate-shield-host.exe'
++assert build['ok'] and build['exit']==0
++assert hashlib.sha256(b.read_bytes()).hexdigest()==build['sha256']
++before=json.loads((p/'rollout-before-live.json').read_text());after=json.loads((p/'after-native-build-live.json').read_text())
++ids=lambda x:sorted((v['id'],v['status']) for v in x['vms'])
++assert ids(before)==ids(after)
++out={'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'status':'Native Windows launcher build passed; staged only, not activated','sourceCommit':build['commit'],'sourceFiles':18,'sourceZipSha256':json.loads((p/'native-loader-source.json').read_text())['zipSha256'],'binarySha256':build['sha256'],'binaryBytes':build['bytes'],'nativeBuild':{'mode':'offline, locked, release, one job; existing nightly MSVC and SDK','exit':0,'verifiedAt':r['at'],'coldBuildSeconds':49.09,'coldPeakTreeBytes':309899264,'coldMinimumFreeBytes':26454904832,'incrementalConfirmSeconds':0.27,'incrementalSampling':'Finished before 2-second sample; raw peak0/min1e12 are sentinel values, not observations'},'attempts':['Detached guard ended with SSH session before build entered; no compiler ran.','First synchronous Cargo build finished but guard misread null PowerShell Process.ExitCode.','Corrected command exit receipt confirms exit0; multiline result needed independent compact readback.'],'production':{'checkedAt':after['at'],'runningApps':sum(d['status']=='running' for d in after['deployments']),'sameManagerVMIdsAndStates':True,'availability':after['availability'],'installedLauncherChanged':False,'guestImageChanged':False,'managerChanged':False},'remaining':['Guest image build and provenance/compatibility review','Combined native app canary: actual CPU allowance, TLS, secret handling and restart','Reviewed manager/image/launcher rollout and app recovery'],'custody':'Preparatory source/record audit only; no new production custody test or activation yet.'}
++(p/'NATIVE-LOADER-RESULT.json').write_text(json.dumps(out,indent=2)+'\n')
++pathlib.Path('outputs/decentralization-audit/nucbox-cpu-launcher-built-20261023.json').write_text(json.dumps(out,indent=2)+'\n')
++print(json.dumps({'sha256':build['sha256'],'sameManagerVMIdsAndStates':True,'runningApps':out['production']['runningApps']}))

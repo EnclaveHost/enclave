@@ -1,0 +1,5 @@
+{
+  "error": "unparsed (ssh rc 0)",
+  "stdout": "{\n    \"exit\":  0,\n    \"binary\":  \"C:\\\\ProgramData\\\\Enclave\\\\hotfix\\\\cpu-loader-build-20261023\\\\target\\\\x86_64-pc-windows-msvc\\\\release\\\\vbslike-host.exe\",\n    \"bytes\":  1147904,\n    \"minFreeBytes\":  1000000000000,\n    \"at\":  \"2026-10-23T17:56:17.6095691Z\",\n    \"started\":  \"2026-10-23T17:56:15.7914517Z\",\n    \"commit\":  \"ea6717d2725b8acd1b19837cdc6355421a94972d\",\n    \"ok\":  true,\n    \"sha256\":  \"e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2\",\n    \"peakTreeBytes\":  0\n}",
+  "stderr": "** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to \"store now, decrypt later\" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\n"
+}

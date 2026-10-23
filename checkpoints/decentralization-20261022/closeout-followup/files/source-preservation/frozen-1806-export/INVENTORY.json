@@ -1,0 +1,618 @@
+{
+ "format": "enclave-frozen-1806-export/v1",
+ "checkpointHeadAtExport": "6dcde703004dcb34e702ec2aff8309e48ced44ae",
+ "batch": "1806 = the batch start 2026-10-23T18:06Z (date -u): an identifier, not a publication time",
+ "label": "SOURCE + EVIDENCE ONLY; not production completion. ROOT native CPU launcher build evidence c57a5f47 (candidate staged only, binaries not captured; the whole CPU fix is incomplete) and M's custody v2 rollout audit 8df7139d (source/historical record, no fresh production verification; one seat is not decentralized custody).",
+ "sides": {
+  "root-cpu-build": {
+   "repo": "work/coupled-cpu-enforcement-20261023/root-validation",
+   "branch": "master",
+   "headReachableFromBranch": true,
+   "base": "c516049cb763149ad261b32c7eac16524d49b939",
+   "baseProvenance": "c516049c preserved in 6dcde703 (frozen-1726 root-cpu-canary head)",
+   "head": "c57a5f4733b672b7079819e0208539a24df642b3",
+   "headTree": "ec62bb6bc78cf441958cb7f68eb360a0145154dc",
+   "commits": [
+    {
+     "commit": "6ac5e111b8566d757ecd4e064a242fc50b207c73",
+     "tree": "8c9fa8e947d2a3dfaa2f41ca858d008fa3bbeb6f",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:32:06-07:00",
+     "subject": "Pin the installed Windows launcher used by the CPU guest",
+     "parent": "c516049cb763149ad261b32c7eac16524d49b939",
+     "patch": "root-cpu-build-c57a5f47/patches/0001-6ac5e111.patch"
+    },
+    {
+     "commit": "c57a5f4733b672b7079819e0208539a24df642b3",
+     "tree": "ec62bb6bc78cf441958cb7f68eb360a0145154dc",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:59:34-07:00",
+     "subject": "Build the CPU allowance launcher natively without changing production",
+     "parent": "6ac5e111b8566d757ecd4e064a242fc50b207c73",
+     "patch": "root-cpu-build-c57a5f47/patches/0002-c57a5f47.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "ec94583b1b045c66bbd4251f379e7d925af3f29a",
+     "sha256": "7e88be171fd0f67fdbcc15f82795d6db151f6d8f3335b4c746f176b789fb589d",
+     "bytes": 12,
+     "baseBlob": null
+    },
+    {
+     "path": "NATIVE-LOADER-RESULT.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "88ea8c2af93b0ec2afd58e13dd39ff315c43b297",
+     "sha256": "1625d7f79fa5a5c0e074c344f137036d210ce8b670fdf47e9239713c00d66e22",
+     "bytes": 1904,
+     "baseBlob": null
+    },
+    {
+     "path": "after-native-build-live.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1a89b5cf45e33e046eba61b932d868ba2b86474b",
+     "sha256": "261ced566499f356a4ee806bce2e325d976fd8641ad0e1398640b0ab93926efc",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "after-native-build-live.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b0f3671c83382efc1ecfbac7c6be144a22943a42",
+     "sha256": "888ee9a3b00d306b7ab995ff28b4aecbf563a7916ae68f0b065fb84ce9a4ead3",
+     "bytes": 8734,
+     "baseBlob": null
+    },
+    {
+     "path": "launcher-copy.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "27e209002bf9f3338a4f0504a2b8e18220ab3e1d",
+     "sha256": "64c6ade658a6f85117d405254ce034dab4378d3c1203d44539ce18de97b1cf0c",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "launcher-pin-2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7387134a70b65d4b2577995238d55e59bfc1c5a1",
+     "sha256": "9a4fefe0d0b8551f59d8ce6fb1b7023360cffe05b2372db1e8f3d0fa9c8a8884",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "launcher-pin.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7f4ca6f4000e6847e515a27a135c057b601d0197",
+     "sha256": "fcbd3507d76e9d26c54bde6eee8cf0d0e034373fbcf7a6adbbdead609357961b",
+     "bytes": 287,
+     "baseBlob": null
+    },
+    {
+     "path": "native-build-scan.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "35484729a366869f8d2ff5216058e048a433e600",
+     "sha256": "084a542e3941465230de797e6ac932846c79bb149a12a7cd61c2e58b998452b3",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-build-status.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b4163755852ee70a2aed5cedb55ee8d6e8f1e38a",
+     "sha256": "b7557b7438ca0c23c827c5813a929f5ec08730922f1d23b8c92a3cafb5fd4365",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-build-status.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8e34a9fb61d04f6a501ada21e2592aef7bd99931",
+     "sha256": "45e71504d019974ba030d099237ff7c1e85eaeb78e0837f606e91069a7116b7a",
+     "bytes": 813,
+     "baseBlob": null
+    },
+    {
+     "path": "native-build-status.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5b18a1e9fa571647b07f29cab88da8b6c5594e70",
+     "sha256": "2379eb3da882e8c0ff22139f345b8314aa54a9b3da07b831abf6484f07cd7966",
+     "bytes": 1018,
+     "baseBlob": null
+    },
+    {
+     "path": "native-linker.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bbed74286bcd84e33143cf568e7ef8f4517df6d3",
+     "sha256": "9f8f1634a6ee4e62f528ab55a89a63072f2988a7d014245339dfe7faba13b240",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-linker.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "fe397ed1add3fb176febce50811b385398e5736e",
+     "sha256": "ef3d959e4f00c77985dbafdffd68ae24dee76bd704c468c208ac819858715680",
+     "bytes": 382,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-build.ps1",
+     "status": "A",
+     "mode": "100644",
+     "blob": "03c8755cb90c824dc4bd3a3888f163e84a03e2e2",
+     "sha256": "bf966b7d03550ebc6b6bc3d2190588cab4287cd33260a8cd95ee8b9cfea2ecb6",
+     "bytes": 3572,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-build.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "31ed1901cf35398b3e531a06bcb8fbe2f13411f7",
+     "sha256": "43a3bec23f904d02d5db941624666bfda26b587b448726c8f1522865f06604eb",
+     "bytes": 3371,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-copy.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cc1f7e715371458b17f8c6e3c4fadd343f54de55",
+     "sha256": "f7fc7c351e27d587b6acfbbb1faa3930a0ef505f1d20108280254be2f705e5f0",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-prepare.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-read.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "72d91451462c92b7f3d44187b85cc673556d5b41",
+     "sha256": "4b7c6ef3622444afa371dda8ec27469058079a177d9e0182bb8f59340cab33b3",
+     "bytes": 1440,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-read1.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "4004002f073adaa460f1365d2b8c2b0e69b31613",
+     "sha256": "1b3a5f4eaf588f4efe84cfc2a4a927d7a0ed663312a74d28ae98d075a2016bb7",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-read2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7644091e5454bbe2c1b35ce0b870d4fa276cc0e5",
+     "sha256": "d536f609ac9f99e35339bf20af6d2b6f46ec6db1ee00d836018fa5d4f8ec3cd4",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-read3.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3fd8375a48aeaddc68b9baee69a7e6e74bc6ccaf",
+     "sha256": "0c5f981e9625d68dc00ae8d7fb10d0aeffddd449019f549c76869b4645527cf0",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-read4.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6e404923fe457c105df19d324d2edc4a4fb53a25",
+     "sha256": "56cc819d17107642824f8e51daeb451436b8aa222942559e1842ee20753520fe",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-restage.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "1ae009571cc1ea2c92dd0c44c5edfa9dc28f4e83",
+     "sha256": "593b3e5ff2cb31a498b4768899554a2330f82623449a406a9d5b17a17aaf548c",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-restage.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "cd2b518a4549ee92a390c0a720f4047a57bd4b12",
+     "sha256": "8a57509d5852e5506b275f51e584f59ffb2ed8e08844fa0eee4a900b49bdaa71",
+     "bytes": 140,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-run.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "71e9a73f9d1bcc81973de6162f8e3d7b774d7029",
+     "sha256": "c032b055816ac6f55ad3d04f93229388de5b03b818bf48b16a168c1c97fee5eb",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-run.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "3725bdc49e6352fbbe542a67d8a931fe84bac98d",
+     "sha256": "5610753bba383b7e03f931d5bde2a9ff5c9c545ffa50b4c44338f83de0f03720",
+     "bytes": 839,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-run2.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "23d604e5928d654725060af4ca2fd3e5c3ca0e22",
+     "sha256": "f51eeae63473006eee4e923964a60f4f8686adeac54454389ba3a99d659ea6ec",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-source.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a3227ade77f4c7928fdeff48974b502df32967a9",
+     "sha256": "f20cfdd789ba85d4211e1a5e7d627162a54ca943a9fdb66b5cd8c05b6cf09b41",
+     "bytes": 2862,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-stage.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5df20e5a7069cd316155f9cb6669dd178ce82a8f",
+     "sha256": "e20a1cb94641e0f52f25db4dd4a419af69860cb669867753124cc9359aa3eb1c",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-stage.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "b78ce40c6372de01cc0e1d068d8c404219086cc6",
+     "sha256": "950189c1d84752f2f35ca5913b7195d357af2720753fdae45a5a4c95091d35de",
+     "bytes": 140,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-start.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "8e48f4a7444e7f694c17ef3e904e3f6eec387f80",
+     "sha256": "edc4bf0703e1e85160ae216a4924fd1a2cec0632413b0d6ab148d9c4ce585566",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-start.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "22b3d678e8040685c29279e4b6fee93edb55cf57",
+     "sha256": "69ce56901f4c1caf24e3a6d9b6412e9b66187c8e980ef2218b32d5a67329941e",
+     "bytes": 161,
+     "baseBlob": null
+    },
+    {
+     "path": "native-loader-summary.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "native-toolchain.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "79c08494a52bad6554e6a92f9052614b6e41f856",
+     "sha256": "1ea700fc15f30e391cbb8f7c9969695a763963f92ac500d75ce78ef1b6f639ea",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "native-toolchain.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "baee223ac0d4cc495b7ce48231cf7f7cc127736d",
+     "sha256": "b18d9900c804cb046a79a1dc1c56c2f1979fb1ac9eee273ddef7fb9e1c49a995",
+     "bytes": 976,
+     "baseBlob": null
+    },
+    {
+     "path": "prepare-native-build.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "36d9825f9c653364cebbd0d271ca90e8af0f5c8e",
+     "sha256": "1c5729881e3621d2badcb12e687158ef1758767f9883f18def5282bf2d1393a3",
+     "bytes": 921,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-owners-1740.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-owners-1741.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "queue-owners-1758.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "982761abeadd20d646bff8c1d03fc12bdc034c4e",
+     "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+     "bytes": 63,
+     "baseBlob": null
+    },
+    {
+     "path": "read-after-native-build.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5386b36d5783657c650740da9388a07492b0c8b9",
+     "sha256": "955502423f3629bda03d971b8888aa8aa5ca291bc629a8ae4c047ae7bb74f0b9",
+     "bytes": 1224,
+     "baseBlob": null
+    },
+    {
+     "path": "read-launcher-pin.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "f99fcce2c6fa25c082a624db200adb4b3f8a57ea",
+     "sha256": "b0b9525010d7b12aea451173d3567ed0a33b5198b61e52117962d1baf2a76884",
+     "bytes": 963,
+     "baseBlob": null
+    },
+    {
+     "path": "read-native-linker.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "037dfbaec54e240f9f9064b72049f0849013a8bf",
+     "sha256": "b6071a897393e0509c87a0702419ef8adeed339078c08bb8410e839ebd9d32eb",
+     "bytes": 1141,
+     "baseBlob": null
+    },
+    {
+     "path": "read-native-toolchain.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "7fa73592d00769f6a7afa2739bd712be7935530c",
+     "sha256": "d4af943f7283796e116c3e0231dbabc4963b0d4930f0633553a77b6b15f66390",
+     "bytes": 1020,
+     "baseBlob": null
+    },
+    {
+     "path": "read-rollout-before.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "bf46892b2c5aa2242620b9851858b5686bc7f061",
+     "sha256": "882d080329b886333a98d8321e007aadebc76c1cd9b7c214d1d173b85a9c9563",
+     "bytes": 1060,
+     "baseBlob": null
+    },
+    {
+     "path": "restage-native-build.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "6175a0c75feb489f9e840a688d26f01d4df8c26e",
+     "sha256": "9180b300ef83f0bf3a7410f7699ab8ab23aa70b41e5bffde92b0bce9fe79209a",
+     "bytes": 1583,
+     "baseBlob": null
+    },
+    {
+     "path": "rollout-before-live.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "a62e9a4ab80e49d40e92fa826b7ef4548767cf16",
+     "sha256": "56950392d886c2fb3a05172820a565f6ce02de472a3d1e6516b6085c1f7a38e9",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "rollout-before-live.json",
+     "status": "A",
+     "mode": "100644",
+     "blob": "986f6aaa5517c5f724d42a225e517a432a689635",
+     "sha256": "92a9d87ddcbaa72271f90d610eb4987ee994a662366d0dce96eb315aad368081",
+     "bytes": 8734,
+     "baseBlob": null
+    },
+    {
+     "path": "scan.guard.log",
+     "status": "A",
+     "mode": "100644",
+     "blob": "22ec7dbce0b6ad4213ecd9f01b600c5b0d735969",
+     "sha256": "4ae4f8e66ac9a89337e0f99caf7e59f9f8f1c7627ee1caac3757fdaf9e8cf801",
+     "bytes": 66,
+     "baseBlob": null
+    },
+    {
+     "path": "summarize-native-loader.py",
+     "status": "A",
+     "mode": "100644",
+     "blob": "40a5c494cdbf23034dbf507ff942669881d84473",
+     "sha256": "8b767ef1085e15cbbbc3d1e9f9b266ec199afa8d28b8eb5237378c9d3cc72cce",
+     "bytes": 2400,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "root-cpu-build-c57a5f47/patches/0001-6ac5e111.patch",
+     "sha256": "d6f3a94bf3e44cbc433ee28ebe35eb7374030abc29312bd4ef0dd24079bddc76"
+    },
+    {
+     "file": "root-cpu-build-c57a5f47/patches/0002-c57a5f47.patch",
+     "sha256": "c9b539da298e69cde91e3365022bdb711742cca315438606b4328825f3998aeb"
+    }
+   ],
+   "note": "ROOT: 6ac5e111 pins the installed Windows launcher; c57a5f47 records an offline/locked native MSVC build of the CPU allowance launcher from the 18-file ea6717d2 source closure (ea6717d2 captured in frozen-1726 cpu-enforce): build scripts, the 18-file source SHA manifest and evidence. Candidate e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2 (1,147,904 B) is STAGED ONLY; the candidate/installed .exe and the source .zip are untracked+ignored and NOT captured. Guest, manager and live installed files unchanged; 9 apps running at 17:57 with the same 10 manager VM IDs, 17% CPU, 16.3 GiB. Documented: the guard harness's initial detached exit and null ExitCode / multiline parse issues; the corrected command exit file confirms Cargo 0. Cold build 49.09 s, peak 309,899,264 B, min free 26,454,904,832 B; the incremental 0.27 s ran under the memory sampling period, so its raw 0 / 1e12 values are sentinels, not observations. The whole CPU fix is INCOMPLETE: the guest build and the native combined canary are pending"
+  },
+  "custody-audit": {
+   "repo": "work/custody-v2-rollout-audit-20261023",
+   "branch": "audit/custody-v2",
+   "headReachableFromBranch": true,
+   "base": null,
+   "baseProvenance": "root commit (ROOT repo)",
+   "head": "8df7139db235526f33fee658f592c751d266b884",
+   "headTree": "f3aa86acb83fed9f83401fc02c5889a704fbc593",
+   "commits": [
+    {
+     "commit": "5c263df17ca571eb1442608ec871d0e88382f6b6",
+     "tree": "b318596f87a6e77cc02df198c14d42ca6ae2c5e7",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:46:02-07:00",
+     "subject": "custody v2 rollout audit: task and interim progress",
+     "parent": "",
+     "patch": "custody-audit-8df7139d/patches/0001-5c263df1.patch"
+    },
+    {
+     "commit": "8d17bd6280632dc5285ca8e095bc7024608155e8",
+     "tree": "6ec9fa1bb0dc115f79b4b2e81973f7af421c8f66",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:50:52-07:00",
+     "subject": "progress: docs and evidence mapped",
+     "parent": "5c263df17ca571eb1442608ec871d0e88382f6b6",
+     "patch": "custody-audit-8df7139d/patches/0002-8d17bd62.patch"
+    },
+    {
+     "commit": "167ed431871bf016dd90f9a6a8aae8b1369fac2a",
+     "tree": "ded5dbed420a9d62a3d7ce33de5db9b25bf4d354",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:58:52-07:00",
+     "subject": "custody v2 rollout audit: RESULT.md (read-only map, findings, canary runbook, signing steps)",
+     "parent": "8d17bd6280632dc5285ca8e095bc7024608155e8",
+     "patch": "custody-audit-8df7139d/patches/0003-167ed431.patch"
+    },
+    {
+     "commit": "8df7139db235526f33fee658f592c751d266b884",
+     "tree": "f3aa86acb83fed9f83401fc02c5889a704fbc593",
+     "author": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committer": "SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>",
+     "committedAt": "2026-10-23T10:59:49-07:00",
+     "subject": "RESULT: apply root review 1 and outage-isolation note (exact n/t, qualified single-seat claim, rewrap fix precondition, shared-outage impact)",
+     "parent": "167ed431871bf016dd90f9a6a8aae8b1369fac2a",
+     "patch": "custody-audit-8df7139d/patches/0004-8df7139d.patch"
+    }
+   ],
+   "changedFiles": [
+    {
+     "path": ".gitignore",
+     "status": "A",
+     "mode": "100644",
+     "blob": "333c1e910a3e2bef1b9d0d4587392627d8388974",
+     "sha256": "96731671afe640d782dff36b82a3ad8d1ce0ebe4a7b174f6506f251395941e2f",
+     "bytes": 6,
+     "baseBlob": null
+    },
+    {
+     "path": "AUDIT-PROGRESS.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "de1294ecb03db5bc054bc7dce8b22c62956e3af0",
+     "sha256": "24c0de575a2b80bdb5c38be0eff77a61bf15a7de0e7de985a78bcf6728ef58c9",
+     "bytes": 2636,
+     "baseBlob": null
+    },
+    {
+     "path": "RESULT.md",
+     "status": "A",
+     "mode": "100644",
+     "blob": "5adc86fa24f70725b5bd83b88f7d1cee73534dd3",
+     "sha256": "84d31d3fb7616627d7c49bd945cabe88ad0c2bec960149db44c13955811e7cfa",
+     "bytes": 30909,
+     "baseBlob": null
+    },
+    {
+     "path": "TASK.txt",
+     "status": "A",
+     "mode": "100644",
+     "blob": "56fcc9b30e48272ff4cd447779a13d0daf748175",
+     "sha256": "cc531a7e6b8d385d4f2550f76b00464b541947e3cd4da21a10952af8d4484418",
+     "bytes": 3518,
+     "baseBlob": null
+    }
+   ],
+   "patches": [
+    {
+     "file": "custody-audit-8df7139d/patches/0001-5c263df1.patch",
+     "sha256": "488b07c22110f8fe832b110ff894a686fa48573e766c5e512d9e1454653d1a99"
+    },
+    {
+     "file": "custody-audit-8df7139d/patches/0002-8d17bd62.patch",
+     "sha256": "816250548309e20ee3f18af39aea6da2b177865dc0a35644fefc7cd9c31a1092"
+    },
+    {
+     "file": "custody-audit-8df7139d/patches/0003-167ed431.patch",
+     "sha256": "fae1c7cc22f3a96f38a64ab90665fea5c1ee5a6bc180dca0193d25b7daef0ee0"
+    },
+    {
+     "file": "custody-audit-8df7139d/patches/0004-8df7139d.patch",
+     "sha256": "82ae6a07bf3cf42320477804a54711f58e6bfdf801678e3057083a80d53f3ad8"
+    }
+   ],
+   "note": "M custody v2 rollout audit, committed report only: a SOURCE / HISTORICAL-RECORD audit with NO fresh production probe, rollout or tests. Findings include an actual persist-before-ack bug, migration old-copy retention limits, the dashboard missing and the book historically unset, and that one seat is NOT decentralized. Untracked root review notes and progress are not captured"
+  }
+ },
+ "derivatives": {},
+ "lowercaseRewrittenLiteral": {},
+ "frozenSources": {
+  "source-preservation/RESULT-frozen-1726-checkpoint.md": "152f763edcd573aaa020c740ca2b911bb34c2f74e904d9b424611851f8c1eaa1",
+  "source-preservation/snapshots-1806/ROOT-PENDING-LATEST.snapshot-1806.txt": "e241bff32b51ea2654ef373a038c523c097fd0d04ddc69024fa17b3e1d6906dc",
+  "source-preservation/snapshots-1806/effective-goal-requirements.snapshot-1806.txt": "344bfcfe1d48a8af5d6b8dab2416dd5fc51cd78eb4616f37eb2a668a5ad4e8d2"
+ },
+ "rootEvidence": {
+  "../../outputs/decentralization-audit/nucbox-cpu-launcher-built-20261023.json": "1625d7f79fa5a5c0e074c344f137036d210ce8b670fdf47e9239713c00d66e22",
+  "../../outputs/decentralization-audit/custody-v2-source-audit-20261023.md": "84d31d3fb7616627d7c49bd945cabe88ad0c2bec960149db44c13955811e7cfa"
+ },
+ "evidenceVsSource": "Committed logs, receipts, run outputs and RESULT files inside these repositories are EVIDENCE; the rest is source.",
+ "notPreserved": [
+  "root-validation untracked/ignored files: candidate-shield-host.exe, installed-shield-host.exe, native-loader-source.zip, later guard logs",
+  "custody audit untracked ROOT-AUDIT-REVIEW-1.txt, ROOT-OUTAGE-ISOLATION.txt, claude-progress.txt",
+  "the CPU guest/image build WIP (Q/R), M's new durability work, and every other active tree or final (P/S/A/F/C/M/T)"
+ ]
+}

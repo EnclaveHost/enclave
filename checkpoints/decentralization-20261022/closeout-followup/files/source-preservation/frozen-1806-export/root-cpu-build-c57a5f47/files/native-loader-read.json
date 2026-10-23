@@ -1,0 +1,17 @@
+{
+  "result": {
+    "exit": 0,
+    "binary": "C:\\ProgramData\\Enclave\\hotfix\\cpu-loader-build-20261023\\target\\x86_64-pc-windows-msvc\\release\\vbslike-host.exe",
+    "bytes": 1147904,
+    "minFreeBytes": 1000000000000,
+    "at": "2026-10-23T17:56:17.6095691Z",
+    "started": "2026-10-23T17:56:15.7914517Z",
+    "commit": "ea6717d2725b8acd1b19837cdc6355421a94972d",
+    "ok": true,
+    "sha256": "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2",
+    "peakTreeBytes": 0
+  },
+  "stderr": "  --> src\\hvsock.rs:80:9\r\n   |\r\n78 | pub struct Listener {\r\n   |            -------- fields in this struct\r\n79 |     s: SOCKET,\r\n80 |     pub vm: GUID,\r\n   |         ^^\r\n81 |     pub port: u32,\r\n   |         ^^^^\r\n\r\nwarning: field `app_id` is never read\r\n  --> src\\launcher.rs:41:9\r\n   |\r\n36 | pub struct Domain {\r\n   |            ------ field in this struct\r\n...\r\n41 |     pub app_id: [u8; 32],\r\n   |         ^^^^^^\r\n\r\nwarning: method `ended_reason` is never used\r\n  --> src\\launcher.rs:83:12\r\n   |\r\n65 | impl Domain {\r\n   | ----------- method in this implementation\r\n...\r\n83 |     pub fn ended_reason(&self) -> Option<String> {\r\n   |            ^^^^^^^^^^^^\r\n\r\nwarning: `vbslike-host` (bin \"vbslike-host\") generated 5 warnings\r\n    Finished `release` profile [optimized + debuginfo] target(s) in 0.27s",
+  "guardError": "",
+  "at": "2026-10-23T17:56:41.5229876Z"
+}

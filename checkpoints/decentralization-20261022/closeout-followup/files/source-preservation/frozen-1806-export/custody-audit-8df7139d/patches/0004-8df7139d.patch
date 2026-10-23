@@ -1,0 +1,105 @@
+From 8df7139db235526f33fee658f592c751d266b884 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 10:59:49 -0700
+Subject: [PATCH] RESULT: apply root review 1 and outage-isolation note (exact
+ n/t, qualified single-seat claim, rewrap fix precondition, shared-outage
+ impact)
+
+---
+ AUDIT-PROGRESS.txt |  1 +
+ RESULT.md          | 52 +++++++++++++++++++++++++++++++++++++++-------
+ 2 files changed, 45 insertions(+), 8 deletions(-)
+
+diff --git a/AUDIT-PROGRESS.txt b/AUDIT-PROGRESS.txt
+index 4d269b405239a7b37ef11b6d44d5e64913cc9698..de1294ecb03db5bc054bc7dce8b22c62956e3af0 100644
+--- a/AUDIT-PROGRESS.txt
++++ b/AUDIT-PROGRESS.txt
+@@ -35,3 +35,4 @@
+ - Running-image closure: memory high-water and no chain checkpoint.
+ RESULT.md written: claims map, read commands R1-R6, prerequisites, findings F1-F9, harness gaps, plaintext-absence design,
+ high-water and replay, canary runbook S0-S7 / O1-O3, signing table, limits.
++2026-10-23T17:59:41Z  root review 1 + outage isolation applied: exact n/t instead of a badge; independence criteria; qualified single-seat claim; rewrap fix precondition (F rewrap.mjs 0beb576b = fixed; C has none); dedicated canary custodian = isolation only, never copy prod state; shared-outage impact+rollback; timestamps corrected to UTC.
+diff --git a/RESULT.md b/RESULT.md
+index 90644554e088b60c72781132fad9a973b39442dd..5adc86fa24f70725b5bd83b88f7d1cee73534dd3 100644
+--- a/RESULT.md
++++ b/RESULT.md
+@@ -26,11 +26,19 @@
+   - The deployed vault `0xE486…` has no owner, admin or proxy, and is preserved exactly as deployed.
+   - A contract change is in scope only for an actual defect, and then as a separately reviewed proposal. None is proposed
+     here.
+-- **Single-seat bootstrap ≠ decentralized custody.**
+-  - The live committee (as last read) is ONE Enclave seat, `t = 1`, on ONE chip (metal0/warden-host).
+-  - It keeps values away from the relay and other operators.
+-  - It does not survive loss of that chip's sealed state, and it is not independent custody. Report it as "single-seat
+-    v2 bootstrap" until a second independent seat exists.
++- **Describe custody by its exact n/t, never by a badge** (root review 1).
++  - The live committee, as last read, is `n = 1` seat (Enclave), `t = 1`, `W = 1`, on ONE chip (metal0/warden-host).
++  - **What it gives:** it can keep plaintext from the relay and from other operators only SUBJECT TO the SEV-SNP
++    attestation, the custodian and guest software, and the TEE assumptions.
++  - This is NOT proven for production until a live chain and release audit (§8) shows it. Do not state blanket protection
++    against operators.
++  - It does not survive loss of that chip's sealed state.
++  - **Decentralized custody** needs ALL of:
++    - verified distinct operators AND failure domains (hosts, chips, sites, providers);
++    - the actual threshold, with the availability and privacy guarantees at that threshold;
++    - real join, handover and recovery tests.
++  - More seats on ONE SNP box, or on one operator, are not independence. A `2/2` committee may still need both seats
++    always available.
+ - **Production evidence.** No fake SNP, anvil, local fixture or quote-only run counts as production evidence (§5 lists
+   them separately).
+ - **The custodian is shared.** No outage, restart or rollback test touches it before its consumers are assessed (§8.1).
+@@ -140,6 +148,17 @@
+ 
+ That is a separate reviewed rollout, not a config flip.
+ 
++**Rewrap precondition** (root review 1). Before ANY canary or real migration uses the measured rewrap path (owners who no
++longer hold their plaintext):
++- confirm the candidate carries the FIXED, attested result checks: frozen 8a0a500c `custody/v2/rewrap.mjs` =
++  `0beb576b`, the result-auth fix of `claude-custody-result-auth-result.txt` (was the vulnerable `ae19d081`);
++  `owner-rewrap-v2.patch` = `82d424de…`;
++- NEVER the original `owner-rewrap.patch` (`a0e56083…`) or `custody-owner-migration/prefix/`;
++- current `work/enclave` has NO `custody/v2/rewrap*.mjs`;
++- the fix has local fixture tests only and no hardware proof.
++
++The §8 canaries do not need rewrap: they hold their own markers.
++
+ ## 4. Findings (source-verified; not live)
+ 
+ - **F1. Persist-before-ack is not awaited.** `member.mjs` 444 says shares are "persisted BEFORE the ack", but `store.save`
+@@ -318,8 +337,13 @@
+ 
+ ### 8.4 Outage, restart and rollback, per canary (only after §8.1)
+ 
+-**Preferred: a dedicated canary custodian.** A second custodian VM on metal0 with its own state dir and its own new
+-committee (P2 genesis in the SAME vault, Enclave seat, t = 1), serving only C3, a v2-native canary on that committee.
++**Preferred: a dedicated canary custodian** (root's outage-isolation note). A second custodian VM on metal0 with its own
++fresh state dir and its own new committee (P2 genesis in the SAME vault, Enclave seat, t = 1), serving only C3, a
++v2-native canary on that committee.
++- It is created by its OWN genesis inside its TEE. NEVER copy an existing sealed production share or state blob into it,
++  and never export plaintext.
++- It is OUTAGE ISOLATION only, not independence: it is the same operator and the same chip.
++
+ Outage and restart tests then affect no existing consumer:
+ - **O1:** stop the canary custodian, then boot C3: refused (`insufficient custodian quorum … need 1`), app not started,
+   the guest retries without a release.
+@@ -333,7 +357,19 @@
+     bootstrap phase.
+ 
+ **If only the shared custodian exists:** O1-O2 only with every consumer's agreement (§8.1) and in a window with no
+-expected boots. Never O3 on the shared custodian.
++expected boots. Never O3 on the shared custodian. If root judges a shared outage strictly necessary, this is the exact
++impact and rollback to decide on:
++- **Impact while it is stopped:**
++  - every deployment whose policy names committee `0x4774…` that (re)boots on any host fails closed (`insufficient
++    custodian quorum`) and does not start its app;
++  - running apps are not affected;
++  - v1 custody (DO custodians) and relay-held deployments are not affected;
++  - the relay's `/v1/secrets/exists` custody flag is a chain read, not a custodian call, so it is unaffected.
++- **Rollback:** restart the same unit with the same image and the same state dir. Before any outage, record the start-time
++  and encKey (R3, R4).
++- **Success criteria:** the same encKey in `/v2/custody/info`, then one canary boot releases.
++- **If the sealed state does not reopen:** every v2 bundle under `0x4774…` is unreadable, and owners must re-enter
++  values. That is why the outage needs consumer consent and is not a routine test.
+ 
+ ### 8.5 Rollback of the rollout itself (what "undo" means)
+ - **The vault is immutable.** Undo = owner `update`: clear the bundle, pause, or move the committee. A claimed policy is
