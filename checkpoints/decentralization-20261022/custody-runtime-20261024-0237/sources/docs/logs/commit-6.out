@@ -1,0 +1,16 @@
+[queue] START available=23822MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+against-main-68b82926.diff reproduces the final docs from 68b82926968c99503d38ae78dbcb04694cc2c56c
+against-checkpoint-dfb4b55e.diff reproduces the final docs from dfb4b55e627ebd95b647abebf09627296f099862
+0001..0004 chain reproduces the final docs from dfb4b55e
+50f0586 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> patches: append 0004 (recipient-binding conclusions); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926
+ac48ded SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Recipient binding (root-reviewed source review): direct SNP quote gates confidentiality; no value-integrity claim; root 22:56Z facts
+1b3c261 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Status at root's 22:45Z: 7dd3acd candidate built (b007d471), not activated; control still unregistered; renewals 22:39/22:43
+dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c  patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch
+5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3  patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch
+64675f5b2444d6300dff97953e429250c9c3cf4d8681f712cad6116db1172b3e  patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch
+8e7054506d1c110cbc02e1626c09499505c6650246ff49930736f9cd999eec23  patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch
+2548a2d34ac7ba5fbe523d50d5b4b781e45b89df3c680671bbfd40b135d7fce4  patches/against-checkpoint-dfb4b55e.diff
+b5e5dce970ee2f1733d64eb3cc5f4255ad7596aaf77c0f10456f70cff49e18b0  patches/against-main-68b82926.diff
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

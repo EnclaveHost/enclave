@@ -1,0 +1,11 @@
+{
+  "status": "stored-verified",
+  "cid": "bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm",
+  "fetched": {
+    "bytes": 101222,
+    "sha256": "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
+    "at": "2026-10-24T02:19:49.782Z"
+  },
+  "verifiedAt": "2026-10-24T02:19:49.782Z",
+  "scope": "Readback verified exact public canary bytes after gateway 504; catalog publication still requires a separate transaction."
+}

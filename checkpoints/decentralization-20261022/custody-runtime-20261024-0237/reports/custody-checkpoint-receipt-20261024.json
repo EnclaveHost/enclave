@@ -1,0 +1,47 @@
+{
+  "verifiedAt": "2026-10-24T02:25:02.558267+00:00",
+  "repository": "https://github.com/EnclaveHost/enclave",
+  "branch": "checkpoint/decentralization-20261022",
+  "commit": "30a5f867fe2c344845c5d8bed3316ec40a0280b3",
+  "mainUnchanged": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "gitObjectManifestFilesVerified": 207,
+  "previousManifestUnchanged": true,
+  "sourceScan": "Project gitleaks and crypto scanner clean before commit; pre-push hook passed",
+  "productionRollout": "INCOMPLETE; no custody lifecycle test run",
+  "maintenanceApproval": "PENDING; no delegation or funding change",
+  "canaryScaffold": "Explicitly unfinished, not executable; preserved as source only",
+  "temporaryLeaseKeeperExpiresUTC": "2026-10-24T03:53:51Z",
+  "previousManifestsUnchanged": true,
+  "canarySourceCommit": "f9e990489cb337759cb84e0db6ffb1ec5a543d23",
+  "offlineTests": {
+    "pass": 84,
+    "unexpectedFailures": 0,
+    "knownRollbackTodo": 1,
+    "newLaunchMutationControlsDetected": 6,
+    "previousEvidenceMutationControlsDetected": 35,
+    "note": "Previous 35 controls were not rerun in the latest launch-package run."
+  },
+  "temporaryKeeperConfirmedLive": {
+    "at": "2026-10-24T02:06:08Z",
+    "mainPid": 716107,
+    "active": true
+  },
+  "healthEvidence": "custody-protected-health-20261024.json",
+  "hostAuthorityEvidence": "custody-host-authority-20261024.json",
+  "lastObservedLeaseExpiriesUTC": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "2026-10-24T02:37:03+00:00",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "2026-10-24T02:39:25+00:00"
+  },
+  "keeperLimitCaveat": "Eight renewals per app may stop protection before the03:53:51UTC outer cutoff.",
+  "signingFixes": {
+    "factorySource": "8b1357ec8f6039b79ffa0a0cf5f63bf9156c6e44",
+    "factoryTests": 19,
+    "canaryWalletSource": "04d873fdb84ea424a32eb574e254a8ef82fba686",
+    "canaryWalletTests": "14 handoff tests passed after 5xx fix; previous UI suite3 passed before that server-only change",
+    "factoryFreshPreflight": "passed",
+    "factoryJournal": "confirmed; independently verified on two providers",
+    "canaryUpload": "stored-verified at2026-10-24T02:19:49.782Z; exact pinned bytes; publication pending",
+    "factoryTransaction": "0x0ae81187c5dfea7a832202d2e9b613415da66930b753437a3cb9dbefbafd9d65"
+  },
+  "keeperJournalObservedAt": "2026-10-24T02:24:43+00:00"
+}

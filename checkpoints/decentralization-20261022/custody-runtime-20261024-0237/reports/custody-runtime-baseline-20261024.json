@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-24T02:32:49.371Z",
+  "readOnly": true,
+  "memAvailableMiB": 24871,
+  "protectedServices": {
+    "enclave-custodian-v2.service": {
+      "pid": 3817646,
+      "startTicks": "32598967",
+      "invocation": "70a40c6c9f8f4bf4b670ac1012bf0d6a"
+    },
+    "enclave-guestd.service": {
+      "pid": 2223309,
+      "startTicks": "74599959",
+      "invocation": "63a8f6b9c29d490da42dae50d96551c2"
+    },
+    "enclave-metal.service": {
+      "pid": 693760,
+      "startTicks": "110411343",
+      "invocation": "e2061cc565a64efd800503b44b8a3e85"
+    }
+  },
+  "runningQemuCount": 4,
+  "exampleUnitAbsent": true,
+  "scope": "Current host inventory only; no launch, key read or SNP claim."
+}

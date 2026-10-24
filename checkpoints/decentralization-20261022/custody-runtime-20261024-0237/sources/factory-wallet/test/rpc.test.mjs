@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import {rpcClient} from '../rpc.mjs';
+async function fixture(t,reply){let calls=0;const s=http.createServer(async(req,res)=>{let b='';for await(const c of req)b+=c;const q=JSON.parse(b);const out=reply(++calls,q);res.writeHead(out.http??200,{'content-type':'application/json'});res.end(JSON.stringify(out.body??{jsonrpc:'2.0',id:q.id,result:'0x1'}));});await new Promise(r=>s.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>{s.closeAllConnections();s.close(r);}));return {client:rpcClient('http://127.0.0.1:'+s.address().port,{timeoutMs:500,allowLoopback:true}),calls:()=>calls};}
+test('missing result retries once and only accepts a matching envelope',async t=>{const h=await fixture(t,(n,q)=>n===1?{body:{jsonrpc:'2.0',id:q.id}}:{});assert.equal(await h.client.request('eth_call',[]),'0x1');assert.equal(h.calls(),2);});
+test('persistent missing result remains a failure after two attempts',async t=>{const h=await fixture(t,(_n,q)=>({body:{jsonrpc:'2.0',id:q.id}}));await assert.rejects(h.client.request('eth_call'),/no result/);assert.equal(h.calls(),2);});
+test('wrong response identity is never accepted',async t=>{const h=await fixture(t,()=>({body:{jsonrpc:'2.0',id:999,result:'0x1'}}));await assert.rejects(h.client.request('eth_call'),/invalid RPC response envelope/);assert.equal(h.calls(),2);});
+test('HTTP 429 retries even when JSON is not an RPC envelope',async t=>{const h=await fixture(t,n=>n===1?{http:429,body:{message:'limited'}}:{});assert.equal(await h.client.request('eth_chainId'),'0x1');assert.equal(h.calls(),2);});
+test('HTTP failure cannot masquerade as a successful result',async t=>{const h=await fixture(t,()=>({http:503}));await assert.rejects(h.client.request('eth_call'),/HTTP 503/);assert.equal(h.calls(),2);});
+test('contract reverts are not retried or accepted',async t=>{const h=await fixture(t,(_n,q)=>({body:{jsonrpc:'2.0',id:q.id,error:{code:3,message:'execution reverted'}}}));await assert.rejects(h.client.request('eth_call'),/execution reverted/);assert.equal(h.calls(),1);});
+test('null receipt remains pending and signing methods never reach network',async t=>{const h=await fixture(t,(_n,q)=>({body:{jsonrpc:'2.0',id:q.id,result:null}}));assert.equal(await h.client.request('eth_getTransactionReceipt'),null);await assert.rejects(h.client.request('eth_sendRawTransaction'),/only reads/);assert.equal(h.calls(),1);});

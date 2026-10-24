@@ -1,0 +1,14 @@
+{
+  "status": "activation verified: the original book's sessionVaultFactory is the original SessionVault factory",
+  "verifiedAt": "2026-10-24T02:14:21.835Z",
+  "providers": 2,
+  "transactionHash": "0x0ae81187c5dfea7a832202d2e9b613415da66930b753437a3cb9dbefbafd9d65",
+  "minedBlock": "53009213",
+  "minedBlockHash": "0xbfef6488ca0ef34ff9b975afd29981cb3f719adf09fa8c8ef025f3140016da05",
+  "anchorBlock": "53009354",
+  "anchorBlockHash": "0xd28a97ce6e4bccc960941b3bbba65429dd6a8e0d9ec2637e9883c46cbf10d50d",
+  "entry": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+  "bookOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "resolvedToAdministrator": 4,
+  "scope": "Only the sessionVaultFactory key changed. secretVaultV2 and every other book entry are untouched by this transaction."
+}

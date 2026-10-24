@@ -1,0 +1,10 @@
+authority: detected
+reserve: detected
+protected-services: detected
+environment: detected
+exact-qemu: detected
+cgroup-kernel-limit: detected
+loopback: detected
+stop-protected: detected
+restart: detected
+9/9 broken runtime guards detected; fake systemd/process fixtures only

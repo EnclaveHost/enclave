@@ -1,0 +1,45 @@
+From ac4d9da2bc84df97f0b417a3a806b9f7c854743e Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 15:29:45 -0700
+Subject: [PATCH] Correct rollback docs against the actual vault semantics
+ (factory, committee switch-back, site/IPNS) and root's 22:25Z state
+
+Per root's rollback review; source/documentation only:
+- factory: unset only while no policy relies on it (live inventory); once SessionVault-held policies exist do NOT unset -
+  beneficialOwnerOf reads the factory live while the owner is pinned at first write, so updates revert NotOwner and the
+  custodian refuses owner_mismatch; claimPolicy destroys the bundle and is not a routine recovery
+- committee switch-back: one current bundle per deployment; going back needs a new owner update with a FRESH bundle to
+  0x4774 (re-entry or reverse rewrap, untested) while 0x4774 keeps serving; revisions and issuer rotation cannot be undone
+- site rollback: capture and verify the exact pre-cutover front release and IPNS sequence/CID at deployment time; never
+  reset or lower the IPNS sequence; no hardcoded CID; r2 unpublished
+- CURRENT-STATE: root 22:20:34Z read (block 53002331, unchanged vault/committee/zero book entries); 7dd3acd approved,
+  build started 22:25, NOT activated; control NOT restored
+- secret-custody-v2.md 10.2: the factory entry is not symmetric; committee moves are one-way per step
+---
+ docs/security/secret-custody-v2.md | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/docs/security/secret-custody-v2.md b/docs/security/secret-custody-v2.md
+index 76b73bc46c24e95b5e173da037398d29400a0f95..d56f08909cc2a0e8b01440cdbfd2b0bdb83bbe6c 100644
+--- a/docs/security/secret-custody-v2.md
++++ b/docs/security/secret-custody-v2.md
+@@ -491,6 +491,16 @@ The Secrets panel's v2 block (`site/js/core/custody-v2.js`, crypto and reads fro
+     there, so the owner is told to rotate those credentials.
+ - **Activation and rollback.** The book owner sets `secretVaultV2` to 0xE486… (and clears it to roll back). The page re-reads
+   that entry on every action, so a rollback stops v2 actions at once. Stored policies and bundles are unchanged by either.
++- **The factory entry is not symmetric.** The vault reads `sessionVaultFactory` from the book on every ownership check, but a
++  policy's owner is pinned at its first write. So:
++  - Clearing the factory after SessionVault-held policies exist makes those deployments' beneficial owner the SessionVault
++    again. Their owner updates then revert `NotOwner`, releases fail the ownership check, and only `claimPolicy` (which
++    destroys the bundle) follows.
++  - Clear it only while no policy relies on it, confirmed by a live inventory. Afterwards, keep the factory and fix the
++    consumer instead.
++- **Moving a deployment between committees is one-way per step.** The vault keeps only the current bundle. Switching back needs
++  a new owner update with a fresh bundle encrypted to the original committee (re-entry or a reverse rewrap), so that committee
++  must keep serving. Revisions only increase, and rotated credentials stay rotated.
+ - **Not in the panel:**
+   - contract-account owners (Safe or passkey: it refuses and names the EIP-712 `updateBySig` path);
+   - owner read of stored values;
+-- 
+2.56.0
+

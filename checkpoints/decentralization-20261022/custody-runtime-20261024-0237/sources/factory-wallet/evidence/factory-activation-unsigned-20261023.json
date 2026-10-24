@@ -1,0 +1,47 @@
+{
+  "at": "2026-10-23T20:03:39.618Z",
+  "status": "UNSIGNED; consumer impact review required before requesting activation",
+  "readOnly": true,
+  "block": {
+    "number": "52998223",
+    "hash": "0x91fdab803e39c532a75ea9634f02aa0ba366ab0db01e31b2b75d48382b65fd66",
+    "timestamp": "1792785793",
+    "baseFeePerGas": "5000000"
+  },
+  "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+  "factory": "0x1f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+  "implementation": "0x66C76A47209f44612343dbEAb98b8Ef77AD01F65",
+  "codeHashes": {
+    "factory": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+    "implementation": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e"
+  },
+  "sample": {
+    "deployment": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+    "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+    "vaultOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "recognizedByFactory": true,
+    "currentCustodyBeneficialOwner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+    "sampleIsSessionVaultOwned": false
+  },
+  "expectedBefore": {
+    "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
+    "bookOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+  },
+  "transaction": {
+    "chainId": "0x2105",
+    "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+    "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "value": "0x0",
+    "data": "0xba44593c73657373696f6e5661756c74466163746f7279000000000000000000000000000000000000000000000000001f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c"
+  },
+  "simulation": {
+    "adminSucceeded": true,
+    "unauthorizedRejected": [
+      true,
+      true
+    ]
+  },
+  "effect": "Enable the original custody vault to unwrap recognized SessionVault deployments to their wallet owner. Needed before creating policies intended to be owned by that wallet. Existing EOA-owned policies are unaffected.",
+  "risk": "A policy previously pinned to a SessionVault address could require claimPolicy after this change, which destroys its encrypted bundle. Review all v1/v2 consumers of this shared book key before activation. Do not blindly toggle back after creating wallet-owned policies.",
+  "notSent": true
+}

@@ -1,0 +1,134 @@
+{
+  "at": "2026-10-24T02:03:24.301Z",
+  "notSigned": true,
+  "notSent": true,
+  "providers": [
+    "mainnet.base.org",
+    "base.public.blockpi.network"
+  ],
+  "journal": "ready",
+  "observed": {
+    "ready": true,
+    "value": {
+      "anchor": {
+        "number": "53009026",
+        "hash": "0xa58ad996855694e3fe306a5a7f0105508f848d35d2e38202b3ec49f177e0acd5",
+        "baseFee": "5000000"
+      },
+      "chainId": 8453,
+      "codeHashes": {
+        "book": "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
+        "factory": "0xc9b6214babb0126b26e818de8555c98b7e2a284b08a7cfd42f51b121e93d4f6c",
+        "implementation": "0x3dd35d4c4bdf112e2ded90da36a16510bfe938a0c9b8b9ed4414698323efb76e",
+        "v1": "0x0179140ae024eeea5bd0228909532c2c16735b571dd133781c37eee1bcf32a72",
+        "v2": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b"
+      },
+      "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+      "book": {
+        "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+        "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
+        "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
+      },
+      "implementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
+      "admin": {
+        "balance": "849299602426672",
+        "nonce": 1145,
+        "pending": 1145
+      },
+      "bookOwnership": "single-step (setOwner); no pendingOwner getter"
+    }
+  },
+  "activate": {
+    "ready": true,
+    "value": {
+      "format": "enclave-book-session-factory-activation/v1",
+      "status": "prepared; wallet approval required; nothing sent",
+      "purpose": "Set the original address book's sessionVaultFactory entry to the original SessionVault factory",
+      "preparedAt": "2026-10-24T02:03:33.014Z",
+      "expiresAt": "2026-10-24T02:05:26.471Z",
+      "transaction": {
+        "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+        "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
+        "chainId": "0x2105",
+        "type": "0x2",
+        "nonce": "0x479",
+        "data": "0xba44593c73657373696f6e5661756c74466163746f7279000000000000000000000000000000000000000000000000001f5c887c0cdf491b16ab6c449abafdf9b2ec9c9c",
+        "value": "0x0",
+        "gas": "0x1cdbc",
+        "maxFeePerGas": "0xa7d8c0",
+        "maxPriorityFeePerGas": "0xf4240"
+      },
+      "anchor": {
+        "blockNumber": "53009027",
+        "blockHash": "0x115eb20158f72da77fe4798afac8613da2c2ff65fe43021c696723f02a58c02c"
+      },
+      "observed": {
+        "book": {
+          "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+          "sessionVaultFactory": "0x0000000000000000000000000000000000000000",
+          "deployments": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b"
+        },
+        "implementation": "0x66c76a47209f44612343dbeab98b8ef77ad01f65",
+        "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+        "administratorBalanceWei": "849299602426672"
+      },
+      "impact": {
+        "ledgerIds": 98,
+        "distinctOwners": 9,
+        "resolvedToAdministrator": [
+          {
+            "id": "0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9",
+            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+          },
+          {
+            "id": "0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640",
+            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+          },
+          {
+            "id": "0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c",
+            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+          },
+          {
+            "id": "0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538",
+            "sessionVault": "0xb794c4dd0e1c5e6b72281799f282bfde7654345d",
+            "ownerAfter": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+          }
+        ],
+        "existingPolicies": [
+          {
+            "vault": "v1",
+            "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+            "owner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+            "policyRev": "1",
+            "effect": "unchanged"
+          },
+          {
+            "vault": "v2",
+            "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+            "owner": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+            "policyRev": "2",
+            "effect": "unchanged"
+          }
+        ],
+        "stranded": 0
+      },
+      "simulatedGasUsed": "98503",
+      "feeBound": {
+        "l2MaxWei": "1300244000000",
+        "l1DataUpperBoundWei": "338273205",
+        "totalExcludingOperatorFeeWei": "1300582273205",
+        "encodedBytes": {
+          "unsigned": 114,
+          "signedMax": 181,
+          "oracleArgument": 114,
+          "oracleSignatureAllowance": 68
+        },
+        "note": "L2 cap (gas x maxFeePerGas) plus GasPriceOracle.getL1FeeUpperBound for the maximum signed size. Not an all-fee cap: any OP-stack operator fee is not included; MetaMask shows the total."
+      },
+      "notice": "Sets a SHARED resolution rule: both original custody vaults and every unpinned consumer of this book key resolve a deployment held by a SessionVault of this factory to the vault's owner wallet. A simple unset is NOT a safe rollback once policies exist for such deployments."
+    }
+  }
+}
