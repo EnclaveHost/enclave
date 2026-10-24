@@ -1,0 +1,6 @@
+logs/
+node_modules/
+plans/
+*.err
+*-progress.txt
+ROOT-*.txt

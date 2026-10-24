@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-24T04:14:53.422Z",
+  "readOnly": true,
+  "rows": [
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "oldImmediateRead": 1792810941,
+      "hash": "0xec5e1d19f3ee81fc640853519b3e01ad2ee377e5a09c9c1fbeaf690bce2fb8ed",
+      "receiptVerified": true,
+      "leaseUntil": 1792812457,
+      "blockNumber": "53010655"
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "oldImmediateRead": 1792811077,
+      "hash": "0x49769af22e75bd0f6753188e059a33af3505e7a34765ca7e878975b12b01a057",
+      "receiptVerified": true,
+      "leaseUntil": 1792812593,
+      "blockNumber": "53010723"
+    }
+  ]
+}

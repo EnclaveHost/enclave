@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-24T04:16:39.985Z",
+  "humanReply": "do it",
+  "operation": "paired-metal0-expired-claims-20261024",
+  "complete": true,
+  "apps": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "status": "claimed",
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "guest": "gd9d4a391d",
+      "hash": "0x997b51215908fd3d887c5e42c3094d38a325597b143289dc3fce9eb8b5bb50c3",
+      "chargedWei": "1730525127060",
+      "leaseUntil": 1792817129,
+      "operatorEthSpent": false
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "status": "claimed",
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "guest": "gdd0646f2c",
+      "hash": "0x8449f4381787fe9d08711fb218b0645b53d1ca35cd1ac6364314f90881c4341f",
+      "chargedWei": "1703939059344",
+      "leaseUntil": 1792817143,
+      "operatorEthSpent": false
+    }
+  },
+  "lastSponsoredLeaseDeadline": 1792815631,
+  "earliestMaintenanceBlockTimestamp": 1792815692,
+  "combinedAuthorizedCeilingWei": "19000000000000",
+  "originalVmsPreserved": true,
+  "fundingStatus": "not yet submitted"
+}

@@ -1,0 +1,223 @@
+{
+ "SYNTHETIC": "shape only; not for signing",
+ "v": 1,
+ "kind": "enclave-operator-7702-maintenance/unsigned",
+ "status": "UNSIGNED; not approved; nothing signed or sent",
+ "pins": {
+  "chainId": 8453,
+  "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+  "executor": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+  "executorCodeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2",
+  "delegationCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
+  "reserve": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+  "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+  "sponsor": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+  "valueWei": "5000000000000",
+  "feeCapWei": "2000000000000",
+  "keySources": {
+   "operatorAuthorizations": "C9 registry key: root-only /home/steven/Projects/enclave/metal/config.json field registryKey",
+   "sponsorTransactions": "the sponsor 0x29479bf0…647c's signer: root-provided"
+  }
+ },
+ "observed": {
+  "block": "SYNTHETIC",
+  "blockHash": "SYNTHETIC",
+  "blockTimestamp": 1792800000,
+  "rpcs": [
+   "SYNTHETIC"
+  ],
+  "operatorNonce": "23760",
+  "operatorBalanceWei": "145368427115",
+  "sponsorNonce": "0",
+  "sponsorBalanceWei": "61650000000000",
+  "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+  "storage": {
+   "note": "SYNTHETIC: read at the agreed block"
+  },
+  "executorViews": {
+   "note": "SYNTHETIC"
+  },
+  "plainTransferReverts": true,
+  "codelessTransferSimulation": "SYNTHETIC"
+ },
+ "quiesce": {
+  "providedBy": "root",
+  "providedAt": 1792799940,
+  "signersStopped": [
+   "SYNTHETIC: root lists every stopped C9 signer"
+  ],
+  "lastSponsoredLeaseDeadline": 1792799100,
+  "leases": [],
+  "requirement": "Every C9 signer stays stopped until B is verified: the lease client signs a NEW authorization when C9 is not delegated (client/lease-executor-client.mjs 463-464, 573-574), which would race B."
+ },
+ "authorizationsToSign": [
+  {
+   "label": "A: clear (address 0)",
+   "tuple": {
+    "chainId": 8453,
+    "address": "0x0000000000000000000000000000000000000000",
+    "nonce": 23760
+   },
+   "digest": "0xfa87cb500848d4a0907549ec1c75b847c1539ebef62dfc68af31b085c669e781",
+   "signer": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "rule": "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0"
+  },
+  {
+   "label": "B: restore the same executor",
+   "tuple": {
+    "chainId": 8453,
+    "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+    "nonce": 23761
+   },
+   "digest": "0xaf41a75039ec8d92760a2ee6eec74a661fea093d839174cb60a0a52d074ea7dd",
+   "signer": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "rule": "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0"
+  }
+ ],
+ "transactions": [
+  {
+   "label": "A",
+   "sender": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+   "unsigned": {
+    "type": "eip7702",
+    "chainId": 8453,
+    "nonce": 0,
+    "to": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "value": "5000000000000",
+    "data": "0x",
+    "gas": "50000",
+    "maxFeePerGas": "11000000",
+    "maxPriorityFeePerGas": "1000000",
+    "authorizationList": [
+     {
+      "chainId": 8453,
+      "address": "0x0000000000000000000000000000000000000000",
+      "nonce": 23760,
+      "signature": "authorizationsToSign[0]"
+     }
+    ]
+   },
+   "encodedBytes": {
+    "unsigned": 146,
+    "signedMax": 213,
+    "argument": 146,
+    "oracleSignatureAllowance": 68
+   },
+   "fee": {
+    "l2MaxWei": "550000000000",
+    "l1UpperBoundWei": "50000000000",
+    "operatorFeeWei": "0",
+    "totalWei": "600000000000"
+   }
+  },
+  {
+   "label": "B",
+   "sender": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+   "unsigned": {
+    "type": "eip7702",
+    "chainId": 8453,
+    "nonce": 1,
+    "to": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+    "value": "0",
+    "data": "0x",
+    "gas": "47000",
+    "maxFeePerGas": "11000000",
+    "maxPriorityFeePerGas": "1000000",
+    "authorizationList": [
+     {
+      "chainId": 8453,
+      "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+      "nonce": 23761,
+      "signature": "authorizationsToSign[1]"
+     }
+    ]
+   },
+   "encodedBytes": {
+    "unsigned": 140,
+    "signedMax": 207,
+    "argument": 140,
+    "oracleSignatureAllowance": 68
+   },
+   "fee": {
+    "l2MaxWei": "517000000000",
+    "l1UpperBoundWei": "50000000000",
+    "operatorFeeWei": "0",
+    "totalWei": "567000000000"
+   }
+  }
+ ],
+ "fees": {
+  "totalBoundWei": "1167000000000",
+  "capWei": "2000000000000",
+  "note": "per tx: L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 upper bound for the maximum signed size (authorization signature included) + Isthmus operator fee for the gas limit, at the agreed block. Not a guarantee against later changes."
+ },
+ "order": [
+  "Sign A's and B's authorizations (C9 key) and both transactions (sponsor) BEFORE anything is broadcast.",
+  "Write both signed raw transactions to a private 0600 journal (fsynced, exclusive) BEFORE any broadcast; never log them.",
+  "Broadcast A then B immediately (sponsor nonces s, s+1 enforce the order; B can never run before A)."
+ ],
+ "verifyAfterA": {
+  "operatorCode": "0x",
+  "operatorNonce": "23761",
+  "operatorBalanceWei": ">= observed + 5000000000000 (exactly + V unless others pay C9)",
+  "storageUnchanged": {
+   "note": "SYNTHETIC: read at the agreed block"
+  },
+  "receiptStatus": 1
+ },
+ "verifyAfterB": {
+  "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+  "operatorCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
+  "operatorNonce": "23762",
+  "storageUnchanged": {
+   "note": "SYNTHETIC: read at the agreed block"
+  },
+  "executorViewsUnchanged": {
+   "note": "SYNTHETIC"
+  },
+  "reserveBindingUnchanged": {
+   "executor": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+   "delegationCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe"
+  },
+  "confirmations": 2,
+  "providers": 2
+ },
+ "recovery": [
+  {
+   "state": "A's authorization skipped, C9 still delegated (its nonce moved, or it was re-delegated)",
+   "effect": "A's call hits the executor and reverts; V stays with the sponsor; only gas is spent",
+   "action": "stop; re-read; a new plan (new nonces, new signatures)"
+  },
+  {
+   "state": "A's authorization skipped because a third party already applied it (C9 codeless, nonce N+1)",
+   "effect": "A's value call to the CODELESS C9 SUCCEEDS: C9 is funded although our authorization did not apply",
+   "action": "B (nonce N+1) is valid: broadcast it; verify"
+  },
+  {
+   "state": "A mined, B not yet (dropped, delayed, crash)",
+   "effect": "C9 is a funded plain account; the reserve refuses it; relayed lease() calls SUCCEED AS NO-OPS (no renewal)",
+   "action": "re-broadcast the SAME journaled B (valid while C9's nonce is N+1); keep every signer stopped"
+  },
+  {
+   "state": "A mined, then C9's nonce moved (any C9 transaction or a lease client's own authorization)",
+   "effect": "the presigned B is stale; C9 stays codeless (or was re-delegated by that authorization)",
+   "action": "read the code: if it is the exact designator, restoration happened; otherwise a NEW restore authorization (C9 self-sends with nonce = current + 1, or a new sponsored B) after fresh review"
+  },
+  {
+   "state": "a reorg drops A and/or B",
+   "effect": "both can be re-included as the same signed bytes while the nonces are unchanged",
+   "action": "re-broadcast the journaled bytes; verify only after 2 confirmations on 2 providers"
+  },
+  {
+   "state": "B mined",
+   "effect": "C9 restored (code hash e2f1317f), nonce N+2, storage unchanged",
+   "action": "verify, then resume the signers"
+  }
+ ],
+ "limits": [
+  "This unsigned preparation cannot eth_call the real transactions: an authorization signature does not exist yet. The live checks are: the plain transfer to C9 REVERTS today (the premise), and, where a provider supports state overrides, the transfer to a codeless C9 succeeds. The actual EIP-7702 processing is exercised only on anvil (revm, Prague) with throwaway keys (test/protocol.test.mjs).",
+  "The deployed executor runtime (dd893cd4…) and reserve (cc00efe9…) are pinned by hash; the storage-preservation test runs the reviewed executor SOURCE (sha256 dc605ffa…) rebuilt locally, not the deployed bytes.",
+  "Base's sequencer txpool rules for type-4 transactions (e.g. authorities with pending transactions) are not verified here; a refused submission is a no-op, not a partial state.",
+  "Lease expiries and the last sponsored Lease deadline come from root (quiesce.json); this tool does not derive them."
+ ]
+}

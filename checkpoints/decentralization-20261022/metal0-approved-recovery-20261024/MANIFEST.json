@@ -1,0 +1,257 @@
+{
+  "at": "2026-10-24T04:17:55.485530+00:00",
+  "previousCheckpoint": "00ae2f522ce2d1b2d995a77d98e97648c1588264",
+  "entries": [
+    {
+      "path": "sources/reclaim/.gitignore",
+      "sha256": "d7d975e6e05683a2336f635ad618ed2b0ac1ab01cd1480d3c1f6f57b8ac361ce",
+      "bytes": 28
+    },
+    {
+      "path": "sources/reclaim/README.md",
+      "sha256": "244b5d09096fa05cb7892f8fb6612bc2b97b8bf029705d85a189cb11af01346f",
+      "bytes": 7999
+    },
+    {
+      "path": "sources/reclaim/deps.mjs",
+      "sha256": "7bd3d79563b9882bf35165ba41cdfdbb089843f62b81f1b34bc370b578f13036",
+      "bytes": 3997
+    },
+    {
+      "path": "sources/reclaim/guest-health.mjs",
+      "sha256": "ad4ee5cc7859944f4320ff62803eaf2a52902a63480433fe4ee7df66b45ca1c2",
+      "bytes": 3751
+    },
+    {
+      "path": "sources/reclaim/observe-claims.mjs",
+      "sha256": "96ed7dc1e02649ae3d360b9f1ff3b844883d2d4824fa7448c8b881bdde27379d",
+      "bytes": 2888
+    },
+    {
+      "path": "sources/reclaim/preserve.sh",
+      "sha256": "37f06e0be367c6ce1feda24285f52741a86070015cc019e43d255bb774e7218c",
+      "bytes": 824
+    },
+    {
+      "path": "sources/reclaim/reclaim.mjs",
+      "sha256": "ccbd0414fb47a15748dc219c68ac1dbd823460a3ca48bf2114edb54aad1d6585",
+      "bytes": 6815
+    },
+    {
+      "path": "sources/reclaim/run.mjs",
+      "sha256": "763e587555d5e655f2daa27c45c3ce6f0a3416e1d165261faeb8196433281c3d",
+      "bytes": 4594
+    },
+    {
+      "path": "sources/reclaim/runtime-guard.mjs",
+      "sha256": "0802623cfe33db0eb52b68041604180aed1f54d0a12bec9b1ddba00a52698036",
+      "bytes": 1174
+    },
+    {
+      "path": "sources/reclaim/test/mutate.py",
+      "sha256": "cc491c9dcbb485ed1d780c9192e50d8efe9ff553a55cde553084dbb581bd5de5",
+      "bytes": 1529
+    },
+    {
+      "path": "sources/reclaim/test/reclaim.test.mjs",
+      "sha256": "2e016fb967600d0260d521ff1977f314d17fbc56a083acad1ca828ad7f8c80b4",
+      "bytes": 10098
+    },
+    {
+      "path": "sources/reclaim/SOURCE-COMMIT.txt",
+      "sha256": "1f70835ae943eb68e55783b66a8df0ab10a88f9568a9dcf69ccf1e1b34dd7f03",
+      "bytes": 41
+    },
+    {
+      "path": "sources/funding/.gitignore",
+      "sha256": "bfa3f4c38f6445b2654cd77f5d17bfbfc587c9da81f1f040f387f0bdd5f0d9fc",
+      "bytes": 59
+    },
+    {
+      "path": "sources/funding/README.md",
+      "sha256": "a37b0dce643175eae053435c4d6f2fd952693873e0eb49c874801c566fcb7ffb",
+      "bytes": 4189
+    },
+    {
+      "path": "sources/funding/ROOT-OPERATIONS.md",
+      "sha256": "c80a507922f0b2fb2b54f609a576d93016dc9f19122c3211bb14fcf61bc1e25e",
+      "bytes": 4830
+    },
+    {
+      "path": "sources/funding/ROOT-STATUS-20261024.md",
+      "sha256": "e1157f9f234679f8e60f50e63d67509491cc761ebce81b52e6ca7a0d2f2a42af",
+      "bytes": 1861
+    },
+    {
+      "path": "sources/funding/bin/observe.mjs",
+      "sha256": "ee3ef3bb3d46e46542baa3aaba1ce9b80138034417654934572be04e376b9427",
+      "bytes": 797
+    },
+    {
+      "path": "sources/funding/bin/prepare.mjs",
+      "sha256": "6a75c4921116434ada45a3362cc50a17bc6cb73fbd66f228a7acec2289e938d0",
+      "bytes": 1362
+    },
+    {
+      "path": "sources/funding/bin/root-send.mjs",
+      "sha256": "e92fc2ce97780423f2f0cdfe20a389fa81d42bb02a03873ca724559f3e2a6623",
+      "bytes": 3035
+    },
+    {
+      "path": "sources/funding/config/quiesce.example.json",
+      "sha256": "666e4a1befef59548f4d9be534121195a28816886a07d181d9acdc946199e0a3",
+      "bytes": 296
+    },
+    {
+      "path": "sources/funding/evidence/plan-shape-SYNTHETIC.json",
+      "sha256": "93c30aa238027f2151487b391b83e73116d043039a57639537ff0ab946654957",
+      "bytes": 8659
+    },
+    {
+      "path": "sources/funding/lib/maintenance.mjs",
+      "sha256": "5b5f123e394cc661e16ae5718e031d7c0db7ba861c819d1a0ca4b517410986c8",
+      "bytes": 32723
+    },
+    {
+      "path": "sources/funding/lib/protected-inventory.mjs",
+      "sha256": "f72be177730c57b3d946a3c01c6af0254ae07f864aea1a1189a639ed7114565e",
+      "bytes": 908
+    },
+    {
+      "path": "sources/funding/lib/sender.mjs",
+      "sha256": "22ac75f8c058290f1bb9568e695663b5d098e3b9ec4a765902cd570a5cc09234",
+      "bytes": 23557
+    },
+    {
+      "path": "sources/funding/observations/0xb99f2c4d0a976027e4bff2ee4261e94bad43abef3f853fc8279c88c94504fabc.json",
+      "sha256": "b99f2c4d0a976027e4bff2ee4261e94bad43abef3f853fc8279c88c94504fabc",
+      "bytes": 10244
+    },
+    {
+      "path": "sources/funding/package.json",
+      "sha256": "31de166946bb159b4382e9107fea2341d7edfc8d02691dd105cb5c4685fd6863",
+      "bytes": 290
+    },
+    {
+      "path": "sources/funding/q.sh",
+      "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+      "bytes": 904
+    },
+    {
+      "path": "sources/funding/root-scan.sh",
+      "sha256": "cd43937de443458ed2229a15ce1d04f8b86402cd8ec88d80a084ac8bfb5283df",
+      "bytes": 356
+    },
+    {
+      "path": "sources/funding/run-tests.sh",
+      "sha256": "bee5b50784ac124fe73e6bebfad53b8b44baad4133ce6cd15e2f7cd015d12d4a",
+      "bytes": 863
+    },
+    {
+      "path": "sources/funding/test/LedgerStub.sol",
+      "sha256": "2d59cd0e98baf2dfe45a01ca026293e99e5f9cedb22689ad1c8f34cc2e137888",
+      "bytes": 1059
+    },
+    {
+      "path": "sources/funding/test/ReserveStub.sol",
+      "sha256": "d87dd764ab69998cfee4db8eaab4ffa57dafa25a11548c833fe4191144ecf9f7",
+      "bytes": 727
+    },
+    {
+      "path": "sources/funding/test/compile.mjs",
+      "sha256": "c12cb846196164d7fca51f1f63c62d742d9c19cb1f73a34b28b0ca36eebdd9e8",
+      "bytes": 2464
+    },
+    {
+      "path": "sources/funding/test/env.mjs",
+      "sha256": "deca86612a7f51ef07e39c275cfbde20714e2559cc929a535229c5775003a5f4",
+      "bytes": 9700
+    },
+    {
+      "path": "sources/funding/test/example-plan.mjs",
+      "sha256": "c0cd4c366af75776727cc28adc9054a975dbb114fe53a00b50f007c3cf055b83",
+      "bytes": 1843
+    },
+    {
+      "path": "sources/funding/test/fixtures/executor-build.json",
+      "sha256": "873d072365f6860393079033747885f7322bbe1b3c25da42599548037616bfb5",
+      "bytes": 9980
+    },
+    {
+      "path": "sources/funding/test/fixtures/ledger-stub.json",
+      "sha256": "1b48dd913699985510f6a60beec0b5c8a5620d2e49aa47464a267177eae9c7cb",
+      "bytes": 5977
+    },
+    {
+      "path": "sources/funding/test/fixtures/oracle-mock.json",
+      "sha256": "240cef794412fd05d29eefa2b38e991001896b1e8e5375d8f32054adeaa2e939",
+      "bytes": 1570
+    },
+    {
+      "path": "sources/funding/test/fixtures/reserve-stub.json",
+      "sha256": "dd3702277968cab9d9b4cb32f38985a0e2202cfbe4407a382c3532c7a79dfe75",
+      "bytes": 2876
+    },
+    {
+      "path": "sources/funding/test/mutants.sh",
+      "sha256": "76b2b42f38c87585e24b6fd602b825d4513ad40a6096967ea5c84fac0b23d11b",
+      "bytes": 2101
+    },
+    {
+      "path": "sources/funding/test/plan.test.mjs",
+      "sha256": "b306d7eeaed59decbeabfb403116b208e3608b827f1ab0f9bbf77c3b66fd9731",
+      "bytes": 7601
+    },
+    {
+      "path": "sources/funding/test/protected-inventory.test.mjs",
+      "sha256": "0f672c6ddb12939adb49c631db5a37a4debc802bc2deb67e7bcdfc2252a80fc6",
+      "bytes": 1345
+    },
+    {
+      "path": "sources/funding/test/protocol.test.mjs",
+      "sha256": "7460edc0b7ced2a4787c54b1b696886236005d92a50a17958cec56cd0a1d849a",
+      "bytes": 17373
+    },
+    {
+      "path": "sources/funding/test/sender.test.mjs",
+      "sha256": "9a6f94c4cf7b4bbf4ba831262541f3cfd9c631a20d3e95377660d6b38801f49a",
+      "bytes": 5815
+    },
+    {
+      "path": "sources/funding/vendor/publish.mjs",
+      "sha256": "d255587b66acb6afa9aebe14fd2d7bec86083213cdc07242d268a8e21d88cd41",
+      "bytes": 26745
+    },
+    {
+      "path": "sources/funding/SOURCE-COMMIT.txt",
+      "sha256": "c5e194c4ed1900606039d9cb293f622b5638844c33d178e0eaf409fa10eca16c",
+      "bytes": 41
+    },
+    {
+      "path": "reports/metal0-approved-claims-20261024.json",
+      "sha256": "0de05cf671427a67059e308585c833294566d400b43648e3fef7d4372afa7709",
+      "bytes": 1187
+    },
+    {
+      "path": "reports/metal0-original-renewal-reconciliation-20261024.json",
+      "sha256": "60144740ef195f840f7264d55c71099273b4fe3c44e01da39995fbcbf2f8823f",
+      "bytes": 699
+    },
+    {
+      "path": "evidence/approved-reconcile-tests.out",
+      "sha256": "ea95a2cc79b807a819920fe36868aa968b79a60fb2b41c7595e56e8c50bbbcfa",
+      "bytes": 3155
+    },
+    {
+      "path": "evidence/approved-reconcile-mutants.out",
+      "sha256": "8d154926ab997f6de632aae369ad25898fafcbab1b3a3befe2aef88c4aa3bef4",
+      "bytes": 413
+    },
+    {
+      "path": "capture.py",
+      "sha256": "03dbbc6ca4c4109aab1d2d438f66628559554c56519d259b5cc3a90af1ad9c53",
+      "bytes": 2231
+    }
+  ],
+  "status": "Two approved original-app claims confirmed; operator funding and registration still pending. Admin controls preserved."
+}

@@ -1,0 +1,41 @@
+# Metal0 expired-lease recovery
+
+## Approved execution on October 24
+
+The human replied "do it" to the combined 0.000019 ETH proposal. Both original-app claims verified around 04:15 UTC. Image-generator transaction `0x997b51215908fd3d887c5e42c3094d38a325597b143289dc3fce9eb8b5bb50c3` charged 1730525127060 wei and established expiry 1792817129. EyesOff transaction `0x8449f4381787fe9d08711fb218b0645b53d1ca35cd1ac6364314f90881c4341f` charged 1703939059344 wei and established expiry 1792817143. Both original VM IDs, record hashes and local strict-TLS bodies passed. These claims do not establish restored public routing or registration. The operator funding step is still pending as of 04:16 UTC.
+
+The first run refused before creating any signed intent: the old keeper's immediate `leaseUntilAfter` reads lagged their successful transaction blocks. The corrected helper verifies each original 008 transaction through the production receipt verifier, reads its exact expiry at that receipt block through a quorum, and accepts only that original expiry on the current chain. It still rejects any intervening claim. Both original receipts were reconciled live without opening old intents. A verified new claim also sets a block floor so subsequent effect reads cannot precede its receipt. The focused suite passes 13 tests and detects 9 mutations; the two live claims then verified the production wiring.
+
+The sections below describe the original proposal and its unchanged runtime bounds. No repeat claims or reset journals are authorized by this execution record.
+
+This source proposes ONE app-funded re-claim per original image-generator and EyesOff deployment. It does not reset the eight-renewal keeper, renew expired leases, change delegation, register a host, restart a guest, or install a daemon. It expires at 2026-10-24 04:30 UTC (October 23 21:30 Arizona). There is no approval file or private journal yet.
+
+## Live evidence
+
+At 03:35 UTC, three agreeing RPCs at Base block53011777 showed both deployments active, expired, still naming the original metal0 runner/operator and owner. Both reserves returned claim Ready and held enough funds. The quote upper bound was4561601777793wei each. This is advisory eligibility, not a promise a transaction will succeed.
+
+At03:36:38UTC, authenticated guestd returned the two original VM IDs, runtime and deployment-record digests. Both actual app health bodies passed over their loopback guest forwarders using ordinary CA and public-hostname TLS verification. The public route still failed earlier. This narrows the incident to access/lease/control recovery; it is not fresh SNP verification or proof of recovered public service.
+
+## Proposed authorization and bounds
+
+Exactly two claims, one per original deployment, maximum6000000000000wei each from those apps' existing gas reserves (0.000012ETH aggregate). The original owner, enclave ID, operator, guest IDs and record hashes are fixed in reclaim.mjs. No new or replacement deployment is allowed. The two later funding/delegation transactions remain separately approved:5000000000000wei transfer plus2000000000000wei maximum aggregate fees from sponsor29479. Combined ceiling0.000019ETH; source caps do not themselves grant authority.
+
+Human authorization must explicitly cover this expired-lease operation. An old renewal approval cannot authorize it. Root creates one0600approval file with operation=paired-metal0-expired-claims-20261024, actual humanMessage/approvedAt, humanApproved=true, acceptsExpiredLeaseRecovery=true, expiresAt1792816200, maxPerApp1, maxChargeWei6000000000000, and exact APPS. No approval may be fabricated from automatic continuation.
+
+## Operation, only after authorization
+
+1. Confirm current original VMs, record hashes, local strict-TLS application health and no new claimant. Inspect only old intent/result filenames and public result metadata. Do not open old intent contents. Confirm the control remains unregistered, no unexpected adoption and no other operator-key sender. Preserve all VMs and custody state.
+2. Request a clean old keeper stop via its STOP marker; wait for the actual unit to stop, reconcile any incomplete attempt, then stop only enclave-metal.service. Both actual units must remain inactive with MainPID0 for at least360seconds (300-second signed lease TTL plus60-second margin). Do not kill an uncertain send or change an old keeper cap/journal. The independent guestd and tenant VMs remain running.
+3. Root creates only this package's fixed private/ directory, mode0700. Through the unchanged memory queue, run `node run.mjs APPROVAL_FILE SHA256_OF_JSON_STRINGIFY_PARSED_APPROVAL`. No alternate journal, initialization flag, automatic retry or loop exists. Runtime checks actual systemd stop timestamps, exact existing delegation and settled equal account nonces on two providers, and pinned production client source. The helper authenticates and checks both original app endpoints before any spend and immediately before recording each signed intent. Fresh quorum state must still match original expired lease, owner and runner. Claim eligibility must be Ready.
+4. The existing production app-funded claim client verifies the transaction and receipt against its RPC quorum. One0600exclusive fsynced intent is written before transport; one result only after verified receipt and exact fresh lease effect. Any incomplete intent/result pair blocks every future signature. Do not delete, reset or re-sign. A failed response might already have mined; root must reconcile its exact public metadata with the existing verified client before preparing further action. The helper does not automatically reconcile or send replacements.
+5. Both completed result records prevent duplicate claims forever in this journal. A short lease is recorded as a successful claim but maintenanceWindowPossible=false; never treat it as funding readiness. Even maintenanceWindowPossible=true only indicates a possible window. Root must wait out every newly signed deadline+60seconds and separately satisfy the existing funding plan's fresh >=1200seconds lease margin, exact storage/code/nonce checks, existing two-provider receipt protocol and separate human approval. Do NOT pass an empty lease list to evade funding protection.
+6. Resume lease signing only after exact delegation restoration is verified. The old keeper is exhausted and must NOT be reset or presented as ongoing protection. Normal control recovery must register, adopt the original guests and take over proven receipt-backed renewals. A source/image cutover remains separately governed by its1440-second margin, funding for rollback and actual health/watchdog gates. Recovery is not complete until the public apps, live host listing and normal renewals are verified.
+
+## Limits
+
+Tests exercise the one-shot controller with fake chain/transport and actual filesystem journals, plus application-body and stop-time checks. The public local-health and chain probes are real read-only observations. No production claim, registration, funding, delegation or VM mutation has been made. This package does not eliminate public RPC dependency or prove decentralized custody. Administrator controls are preserved.
+
+
+### Completed transient keeper
+
+At 03:56 UTC the exhausted keeper had exited normally and systemd had collected its transient unit (`LoadState=not-found`, inactive, PID0). Its inactive timestamp is therefore unavailable. Runtime preflight accepts this state only for that exact keeper, only after reading the unchanged complete eight-result-per-app inventory, and only after the latest recorded verified lease expiry plus360seconds. A successful renewal mined before that lease expiry, so this bound exceeds the pinned client's300-second signature TTL plus60-second margin for the final and all preceding attempts. No unresolved intent is allowed. The control service still requires its actual monotonic inactive timestamp and the full360seconds. An absent control cannot use this rule.
