@@ -1,0 +1,3 @@
+commit 5db2be3f4d4bed2c543e1e181c976ca9e26aa410
+gsup REVIEWED
+tests test/boot-gpu-price.test.mjs test/operator-fee-path.test.mjs test/registry-advertise-retry.test.mjs

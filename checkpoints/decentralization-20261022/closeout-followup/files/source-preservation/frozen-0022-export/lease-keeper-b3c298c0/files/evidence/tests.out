@@ -1,0 +1,63 @@
+[queue] START available=23329MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: renews ONLY an app in its renew window, journaling the signed intent BEFORE the relay sees it; the verified receipt is the result
+ok 1 - renews ONLY an app in its renew window, journaling the signed intent BEFORE the relay sees it; the verified receipt is the result
+  ---
+  duration_ms: 3.122495
+  type: 'test'
+  ...
+# Subtest: an intent without a result STOPS every later cycle (reconcile, never re-sign)
+ok 2 - an intent without a result STOPS every later cycle (reconcile, never re-sign)
+  ---
+  duration_ms: 1.18471
+  type: 'test'
+  ...
+# Subtest: refused before signing (no intent) is transient; a signed lease outside scope is never journaled or sent
+ok 3 - refused before signing (no intent) is transient; a signed lease outside scope is never journaled or sent
+  ---
+  duration_ms: 1.850655
+  type: 'test'
+  ...
+# Subtest: refuses (never renews) another runner/operator, an inactive lease, or a guest that is not the original one running
+ok 4 - refuses (never renews) another runner/operator, an inactive lease, or a guest that is not the original one running
+  ---
+  duration_ms: 2.077173
+  type: 'test'
+  ...
+# Subtest: finite: the 4 h TTL, root's STOP file and the 8-renewal cap end renewing
+ok 5 - finite: the 4 h TTL, root's STOP file and the 8-renewal cap end renewing
+  ---
+  duration_ms: 1.116991
+  type: 'test'
+  ...
+# Subtest: stops only once the control ADOPTED both original guests AND renewed each itself; mere attachment or adoption is not enough
+ok 6 - stops only once the control ADOPTED both original guests AND renewed each itself; mere attachment or adoption is not enough
+  ---
+  duration_ms: 1.22847
+  type: 'test'
+  ...
+# Subtest: entry + lock: one cycle at a time (a live holder -> 6), a dead holder's lock is stale, nothing runs uninitialized
+ok 7 - entry + lock: one cycle at a time (a live holder -> 6), a dead holder's lock is stale, nothing runs uninitialized
+  ---
+  duration_ms: 79.436392
+  type: 'test'
+  ...
+# Subtest: loop: one instance; 98 retried only boundedly; stops on 3/4/10, continues on 0/5
+ok 8 - loop: one instance; 98 retried only boundedly; stops on 3/4/10, continues on 0/5
+  ---
+  duration_ms: 2946.160814
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3084.796171
+4:50PM INF scanned ~29952 bytes (29.95 KB) in 95.6ms
+4:50PM INF no leaks found
+== RESULT rc=0
+[queue] EXIT 0

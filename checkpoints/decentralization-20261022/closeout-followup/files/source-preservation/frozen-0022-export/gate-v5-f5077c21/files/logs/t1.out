@@ -1,0 +1,91 @@
+[queue] START available=23599MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_the_recording_fetch_answers_exactly_as_apphealth_fetch (tests.test_gate_v5.Classify.test_the_recording_fetch_answers_exactly_as_apphealth_fetch) ... ERROR
+test_transient_is_only_no_http_response_for_a_transport_reason (tests.test_gate_v5.Classify.test_transient_is_only_no_http_response_for_a_transport_reason) ... ERROR
+test_a_second_transient_fails (tests.test_gate_v5.GateV5.test_a_second_transient_fails) ... ok
+test_a_transient_in_warm_up_is_v4_warm_up (tests.test_gate_v5.GateV5.test_a_transient_in_warm_up_is_v4_warm_up) ... FAIL
+test_a_transient_with_any_other_problem_fails (tests.test_gate_v5.GateV5.test_a_transient_with_any_other_problem_fails) ... ok
+test_happy_path_passes_without_a_reset (tests.test_gate_v5.GateV5.test_happy_path_passes_without_a_reset) ... FAIL
+test_hard_faults_after_a_reset_still_fail (tests.test_gate_v5.GateV5.test_hard_faults_after_a_reset_still_fail) ... ok
+test_one_transient_resets_and_needs_a_full_new_window_and_vouches (tests.test_gate_v5.GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches) ... ERROR
+test_real_http_errors_and_bad_payloads_still_fail_at_once (tests.test_gate_v5.GateV5.test_real_http_errors_and_bad_payloads_still_fail_at_once) ... ok
+test_the_deadline_never_extends (tests.test_gate_v5.GateV5.test_the_deadline_never_extends) ... ok
+
+======================================================================
+ERROR: test_the_recording_fetch_answers_exactly_as_apphealth_fetch (tests.test_gate_v5.Classify.test_the_recording_fetch_answers_exactly_as_apphealth_fetch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 131, in test_the_recording_fetch_answers_exactly_as_apphealth_fetch
+    ns = v5_namespace(); rec = ns['_fetch_recording']
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 116, in v5_namespace
+    ns = {'apphealth': apphealth, 'urllib': urllib, 'socket': socket, 'ssl': ssl}
+                                            ^^^^^^
+UnboundLocalError: cannot access local variable 'urllib' where it is not associated with a value
+
+======================================================================
+ERROR: test_transient_is_only_no_http_response_for_a_transport_reason (tests.test_gate_v5.Classify.test_transient_is_only_no_http_response_for_a_transport_reason)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 122, in test_transient_is_only_no_http_response_for_a_transport_reason
+    f = v5_namespace()['is_transient']
+        ~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 116, in v5_namespace
+    ns = {'apphealth': apphealth, 'urllib': urllib, 'socket': socket, 'ssl': ssl}
+                                            ^^^^^^
+UnboundLocalError: cannot access local variable 'urllib' where it is not associated with a value
+
+======================================================================
+ERROR: test_one_transient_resets_and_needs_a_full_new_window_and_vouches (tests.test_gate_v5.GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 77, in test_one_transient_resets_and_needs_a_full_new_window_and_vouches
+    self.assertEqual((rc, g['state'], len(g['resets'])), (0, 'PASS', 1), g.get('why'))
+                                      ~~~^^^^^^^^^^^^^
+TypeError: object of type 'int' has no len()
+
+======================================================================
+FAIL: test_a_transient_in_warm_up_is_v4_warm_up (tests.test_gate_v5.GateV5.test_a_transient_in_warm_up_is_v4_warm_up)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 108, in test_a_transient_in_warm_up_is_v4_warm_up
+    rc, g = self.gate(['drop', 'ok']); self.assertEqual((rc, g['state'], g['resets']), (0, 'PASS', []))
+                                       ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (0, 'PASS', 0) != (0, 'PASS', [])
+
+First differing element 2:
+0
+[]
+
+- (0, 'PASS', 0)
+?             ^
+
++ (0, 'PASS', [])
+?             ^^
+
+
+======================================================================
+FAIL: test_happy_path_passes_without_a_reset (tests.test_gate_v5.GateV5.test_happy_path_passes_without_a_reset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 73, in test_happy_path_passes_without_a_reset
+    rc, g = self.gate(['ok']); self.assertEqual((rc, g['state'], g['resets']), (0, 'PASS', []))
+                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (0, 'PASS', 0) != (0, 'PASS', [])
+
+First differing element 2:
+0
+[]
+
+- (0, 'PASS', 0)
+?             ^
+
++ (0, 'PASS', [])
+?             ^^
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 59.908s
+
+FAILED (failures=2, errors=3)
+[memory-guard] exit=1 peakTreeRssMiB=62 minHostAvailableMiB=23466
+[memory-guard] at peak: python3:32 python3:30
+[queue] EXIT 1

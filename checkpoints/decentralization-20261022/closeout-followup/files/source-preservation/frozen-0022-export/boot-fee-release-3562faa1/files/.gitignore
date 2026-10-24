@@ -1,0 +1,6 @@
+stage/
+tests/.fixture-repo/
+logs/scan-gitleaks.json
+__pycache__/
+tests/__pycache__/
+APPROVED-COMMIT.txt.example

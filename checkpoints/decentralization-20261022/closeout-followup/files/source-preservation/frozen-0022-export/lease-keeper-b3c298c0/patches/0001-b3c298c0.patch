@@ -1,0 +1,642 @@
+From b3c298c0855ea8687e0edd1338f5ad870b25dcb3 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:50:37 -0700
+Subject: [PATCH] metal0 protected-lease keeper: finite, journaled, app-funded
+ renewals of the two original guests until a control adopts and renews them
+ (source only)
+
+One bounded cycle per queue run for exactly two pinned deployments/guests: verified active lease of metal0's runner/operator,
+authenticated original guest running, reserve policy Ready, <= 8 renewals/app, 4 h TTL, durable intent before any relay POST
+(ambiguous intent stops for reconcile, never re-signs), no claims, no operator ETH, no key/signature output; defers to and
+stops after a control that adopted both original guests and renewed them itself. Production I/O = root's renew-protected-2331
+logic with the unchanged lease client. Tests 8/8 on the actual cycle/entry/loop with fakes and a fake clock.
+---
+ .gitignore            |   3 +
+ README.md             |  87 +++++++++++++++++++++++++
+ deps.mjs              |  57 ++++++++++++++++
+ evidence/tests.out    |  63 ++++++++++++++++++
+ keeper-cycle.mjs      |  24 +++++++
+ keeper-loop.sh        |  28 ++++++++
+ lib.mjs               | 139 +++++++++++++++++++++++++++++++++++++++
+ run-tests.sh          |   7 ++
+ tests/keeper.test.mjs | 147 ++++++++++++++++++++++++++++++++++++++++++
+ 9 files changed, 555 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100644 deps.mjs
+ create mode 100644 evidence/tests.out
+ create mode 100755 keeper-cycle.mjs
+ create mode 100755 keeper-loop.sh
+ create mode 100644 lib.mjs
+ create mode 100755 run-tests.sh
+ create mode 100644 tests/keeper.test.mjs
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7a452af3f69d9746bbb839d41a90590099b5c2c
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,3 @@
++state/
++logs/
++__pycache__/
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..503f1ed586ddfd95aa9298a3ae753dba6be2d937
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,87 @@
++# metal0 protected-lease keeper (temporary, finite; SOURCE ONLY - root reviews, root runs; nothing installed or started)
++
++**Why it exists.** The 23:36Z cutover rolled back automatically at 23:43:19. The 5db control had registered (tx 12d7…, nonce
++23759, 7 mwei) and adopted both original guests, but the gate failed on one EyesOff URLError. The old control is unregistered
++again, and the operator's 1.45e11 wei cannot pay another update. The two protected app guests keep running, and someone must
++keep their leases app-renewed until a control adopts them again.
++
++## What one cycle does (`keeper-cycle.mjs`, logic in `lib.mjs`, production I/O in `deps.mjs` = root's renew-protected-2331.mjs)
++It runs for exactly the two pinned deployments and nothing else (no claims, no other id). The pins are:
++
++| Deployment | Guest |
++|---|---|
++| image-generator `0xda09d0f2…` | gd9d4a391d |
++| EyesOff `0x9eb4e600…` | gdd0646f2c |
++
++Pinned for both: runner `0x4dde6d1b…`, operator `0xc9d0…e6ab`, per-op ceiling 31092172031561 wei.
++
++In order; every refusal renews nothing:
++1. **Pins, stop, TTL.** `state/keeper.json` (written once by `--init`) must carry exactly these pins.
++   - A `state/STOP` file (root) ends the keeper.
++   - So does 4 h after `--init`.
++2. **Ambiguous attempts.** Any signed intent without its verified result STOPS the keeper (exit 3): root reconciles. It never
++   re-signs.
++3. **Per app: lease and guest.**
++   - The lease must be active and held by metal0's runner and operator, read through the quorum-verified authority (3 public
++     RPCs, quorum 2, digest-pinned record).
++   - guestd, over the authenticated pairing key, must show the ORIGINAL guest running under the deployment's name.
++   - Anything else means REFUSE (exit 4).
++4. **Adoption by the control.** If public `/availability` shows the control ADOPTED the original guest (exactly one live row,
++   running, owned), the keeper renews nothing for that app, so there is never a second signer.
++   - A later lease extension the keeper did not make is recorded as the control's normal renewal.
++   - **Done (exit 10)** once both apps show it.
++   - Mere attachment, or adoption without a normal renewal, is not done.
++   - A held row with ANOTHER guest means REFUSE.
++5. **Renewal.** Otherwise, renew only when:
++   - the reserve's own `statusOf` is `Ready` (the client's renew window; the unchanged lease client checks it again before
++     signing);
++   - and fewer than 8 keeper renewals exist for the app.
++
++   The renewal goes through the unchanged production lease client:
++   - Its `onSigned` hook checks kind renew, this id, and the ceiling.
++   - It then writes `state/<id>/NNN.intent.json` (0600, O_EXCL, fsync of the file and directory) BEFORE any relay sees the
++     lease.
++   - The verified receipt becomes `NNN.result.json`: hash, charged wei, `operatorEthSpent: false`, lease before and after.
++   - A failure after signing leaves the intent, so the next cycle stops (exit 3).
++   - A refusal before signing is transient (exit 5).
++6. **Key exposure and logging.**
++   - The operator key is read only inside a due renewal; the guestd pair key is zeroed after use.
++   - Output carries ids, statuses, hashes and wei, never a key, signature or raw lease.
++   - There is a hard 240 s per-cycle deadline, and an O_EXCL per-cycle lock (a live holder gives exit 6).
++
++## The loop (`keeper-loop.sh`)
++- **One instance:** `flock` on `state/loop.lock`.
++- **Cadence:** one cycle every 60 s, each through the UNCHANGED queue at 256 MiB.
++- **Not-started cycles:** a queue answer 98 is retried every 15 s, at most 40 times, and only while the lowest known lease
++  (`state/last.json`) is valid.
++- **Stop codes:** it stops on 3, 4 or 10, and continues on 0 or 5.
++- **Hard deadline:** 4 h 10 min, exit 11, even if the queue never starts a cycle.
++- **No retry loop inside a cycle;** the lease client's own timeouts apply.
++
++## Root runs it (after review)
++```
++cd work/custody-protected-lease-keeper-20261023
++node keeper-cycle.mjs --init                     # pins + start time; the 4 h TTL starts here
++systemd-run --user --unit=protected-lease-keeper --collect bash "$PWD/keeper-loop.sh"   # or tmux; nothing is installed
++touch state/STOP                                  # root's explicit stop (takes effect at the next cycle)
++```
++Watch `state/cycles.log` (one JSON line per cycle), `state/last.json`, and `state/<id>/NNN.result.json`.
++
++## Review points for root
++- **Availability unreadable:** if `/availability` cannot be read, the keeper treats the app as not adopted and may renew.
++  During a cutover, either STOP the keeper first or accept that the lease client's policy (window/nonce) arbitrates a
++  simultaneous control renewal.
++- **Gap after adoption:** while the control has adopted an app but has not yet renewed it, the keeper does not renew it either.
++  If that control then fails to renew, root must act, or STOP the control.
++- **Tests: 8/8** (`evidence/tests.out`, queue 256, peak 143 MiB). They run the ACTUAL cycle, entry and loop with fake deps and a
++  fake clock:
++  - window-only renewal, with the intent before the POST;
++  - ambiguous intent stops every later cycle;
++  - pre-sign refusal is transient;
++  - scope checks (kind, id, ceiling);
++  - lease, runner, operator and guest refusals;
++  - TTL, STOP, cap and pins;
++  - adoption, then normal renewal, then done (attach alone is not enough);
++  - lock and stale lock, uninitialized state;
++  - loop single instance, bounded 98 retries, stop codes and loop deadline.
++  `deps.mjs` (the live I/O) is syntax-checked only: it reads production files and the key, so root runs it.
+diff --git a/deps.mjs b/deps.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8956390322796294df088e86a431b9eb9052bbe7
+--- /dev/null
++++ b/deps.mjs
+@@ -0,0 +1,57 @@
++// Production dependencies = root's renew-protected-2331.mjs logic, unchanged in substance: the same unchanged production lease
++// client (restore repo), the same digest-pinned deployment record, the same 3 public RPCs at quorum 2, the same guestd control
++// client and pairing key, the same operator check. Only ROOT runs this (it reads the operator key and the guestd pair key,
++// never logs either). The key is read only inside renew(), i.e. only when the reserve already says Ready.
++import fs from "node:fs";
++import path from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++const W = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const REPO = path.join(W, "custody-recipient-restore-20261023/repo");
++const imp = (p) => import(pathToFileURL(p).href);
++const { createPublicClient, http } = await imp(path.join(REPO, "node_modules/viem/_esm/index.js"));
++const { privateKeyToAccount } = await imp(path.join(REPO, "node_modules/viem/_esm/accounts/index.js"));
++const { parseDeploymentRecord, LEDGER_ABI } = await imp(path.join(REPO, "network/lease-gas-owner.mjs"));
++const { createLeaseClient, policy } = await imp(path.join(REPO, "client/lease-executor-client.mjs"));
++const { verifiedLeaseAuthority } = await imp(path.join(REPO, "client/lease-executor-authority.mjs"));
++const { GuestdControl, parseKey } = await imp(path.join(W, "linux-post-adoption-release/stage/metal-deabf8f90/isolation/m4/guestd/control-client.mjs"));
++import { PINS } from "./lib.mjs";
++
++const CONFIG = "/home/steven/Projects/enclave/metal/config.json";
++const dep = parseDeploymentRecord(fs.readFileSync("/home/steven/enclave-prod/lease-gas/deployment.json"),
++  { expectedDigest: "sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089" });
++const clients = ["https://base-rpc.publicnode.com", "https://mainnet.base.org", "https://base-mainnet.public.blastapi.io"]
++  .map((url) => createPublicClient({ transport: http(url, { timeout: 12000, retryCount: 0 }) }));
++const authority = () => verifiedLeaseAuthority({ clients, deployment: dep, quorum: 2 });
++
++export const deps = {
++  async lease(id) {
++    const a = await authority();
++    const row = await a.client.readContract({ address: a.pins.ledger, abi: LEDGER_ABI, functionName: "get", args: [id] });
++    return { active: row.active, runner: row.runner, runnerOperator: row.runnerOperator, leaseUntil: row.leaseUntil, blockTs: a.block?.timestamp };
++  },
++  async guest(id, vm) {
++    const pair = parseKey(fs.readFileSync("/home/steven/enclave-prod/guestd-pair.key", "utf8"));
++    try {
++      const c = new GuestdControl("http://127.0.0.1:8095", pair, { requestTimeoutMs: 12000, maxResponseBytes: 131072 });
++      const v = await c.request("GET", "/vms/" + vm);
++      return { status: v.status === 200 ? v.body.status : `http ${v.status}`, name: v.body?.name, vm: v.status === 200 ? vm : null };
++    } finally { pair.fill(0); }
++  },
++  async availability() {
++    const r = await fetch("https://api.enclave.host/t/metal0/availability", { signal: AbortSignal.timeout(12000), redirect: "error" });
++    if (r.status !== 200) throw new Error(`availability -> ${r.status}`);
++    return (await r.json())?.instanceSweep?.held ?? null;
++  },
++  async policy(id, lease) {
++    const a = await authority();
++    return policy({ client: a.client, reserve: a.pins.reserve, id, kind: "renew", enclaveId: lease.runner, operator: lease.runnerOperator });
++  },
++  async renew(id, onSigned) {
++    const cfg = JSON.parse(fs.readFileSync(CONFIG, "utf8"));
++    const account = privateKeyToAccount(cfg.registryKey);
++    if (account.address.toLowerCase() !== PINS.operator) throw new Error("operator");
++    const lc = createLeaseClient({ clients, account, reserve: dep.reserve, deployment: dep, relays: cfg.leaseGas.relays, quorum: 2, onSigned, log: () => {} });
++    const r = await lc.renew(id);
++    return { hash: r.hash, chargedWei: String(r.verified.chargedWei) };
++  },
++};
+diff --git a/evidence/tests.out b/evidence/tests.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e87bd34aa7de6a88cf6bdc50294f1562d8cd148c
+--- /dev/null
++++ b/evidence/tests.out
+@@ -0,0 +1,63 @@
++[queue] START available=23329MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++TAP version 13
++# Subtest: renews ONLY an app in its renew window, journaling the signed intent BEFORE the relay sees it; the verified receipt is the result
++ok 1 - renews ONLY an app in its renew window, journaling the signed intent BEFORE the relay sees it; the verified receipt is the result
++  ---
++  duration_ms: 3.122495
++  type: 'test'
++  ...
++# Subtest: an intent without a result STOPS every later cycle (reconcile, never re-sign)
++ok 2 - an intent without a result STOPS every later cycle (reconcile, never re-sign)
++  ---
++  duration_ms: 1.18471
++  type: 'test'
++  ...
++# Subtest: refused before signing (no intent) is transient; a signed lease outside scope is never journaled or sent
++ok 3 - refused before signing (no intent) is transient; a signed lease outside scope is never journaled or sent
++  ---
++  duration_ms: 1.850655
++  type: 'test'
++  ...
++# Subtest: refuses (never renews) another runner/operator, an inactive lease, or a guest that is not the original one running
++ok 4 - refuses (never renews) another runner/operator, an inactive lease, or a guest that is not the original one running
++  ---
++  duration_ms: 2.077173
++  type: 'test'
++  ...
++# Subtest: finite: the 4 h TTL, root's STOP file and the 8-renewal cap end renewing
++ok 5 - finite: the 4 h TTL, root's STOP file and the 8-renewal cap end renewing
++  ---
++  duration_ms: 1.116991
++  type: 'test'
++  ...
++# Subtest: stops only once the control ADOPTED both original guests AND renewed each itself; mere attachment or adoption is not enough
++ok 6 - stops only once the control ADOPTED both original guests AND renewed each itself; mere attachment or adoption is not enough
++  ---
++  duration_ms: 1.22847
++  type: 'test'
++  ...
++# Subtest: entry + lock: one cycle at a time (a live holder -> 6), a dead holder's lock is stale, nothing runs uninitialized
++ok 7 - entry + lock: one cycle at a time (a live holder -> 6), a dead holder's lock is stale, nothing runs uninitialized
++  ---
++  duration_ms: 79.436392
++  type: 'test'
++  ...
++# Subtest: loop: one instance; 98 retried only boundedly; stops on 3/4/10, continues on 0/5
++ok 8 - loop: one instance; 98 retried only boundedly; stops on 3/4/10, continues on 0/5
++  ---
++  duration_ms: 2946.160814
++  type: 'test'
++  ...
++1..8
++# tests 8
++# suites 0
++# pass 8
++# fail 0
++# cancelled 0
++# skipped 0
++# todo 0
++# duration_ms 3084.796171
++4:50PM INF scanned ~29952 bytes (29.95 KB) in 95.6ms
++4:50PM INF no leaks found
++== RESULT rc=0
++[queue] EXIT 0
+diff --git a/keeper-cycle.mjs b/keeper-cycle.mjs
+new file mode 100755
+index 0000000000000000000000000000000000000000..678ccfc21735f440ebdab7b85dba1c84e7a0a62d
+--- /dev/null
++++ b/keeper-cycle.mjs
+@@ -0,0 +1,24 @@
++#!/usr/bin/env node
++// ONE keeper cycle (root runs it through the unchanged queue, 256 MiB; keeper-loop.sh repeats it):
++//   node keeper-cycle.mjs --init          once: writes state/keeper.json (pins + start time; the 4 h TTL counts from here)
++//   node keeper-cycle.mjs                 one cycle; prints one JSON line (no key, no signature, no raw lease); exit code:
++//     0 continue | 3 STOP: reconcile an ambiguous signed attempt | 4 STOP: refused (not metal0's lease / guest / pins)
++//     5 transient (next cycle) | 6 another cycle is running | 10 done (both normal renewals seen, root STOP, or TTL)
++// A hard 240 s deadline ends the process; a renewal it interrupts leaves its intent, so the next cycle stops (exit 3).
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++import { cycle, init, lock, EXIT } from "./lib.mjs";
++const DIR = process.env.KEEPER_STATE || path.join(path.dirname(fileURLToPath(import.meta.url)), "state");
++const now = () => Math.floor(Date.now() / 1000);
++if (process.argv.includes("--init")) { init(DIR, now()); console.log(JSON.stringify({ init: DIR, startedAt: now() })); process.exit(0); }
++const unlock = lock(DIR);
++if (!unlock) { console.log(JSON.stringify({ code: EXIT.BUSY, why: "another keeper cycle holds the lock" })); process.exit(EXIT.BUSY); }
++const t = setTimeout(() => { console.log(JSON.stringify({ code: EXIT.TRANSIENT, why: "240 s cycle deadline" })); unlock(); process.exit(EXIT.TRANSIENT); }, 240_000);
++try {
++  const { deps } = await import(process.env.KEEPER_DEPS || "./deps.mjs");
++  const r = await cycle({ dir: DIR, deps, now, log: (m) => console.error(m) });
++  console.log(JSON.stringify({ at: new Date().toISOString(), ...r }));
++  process.exitCode = r.code;
++} catch (e) {
++  console.log(JSON.stringify({ code: EXIT.TRANSIENT, why: String(e.message).slice(0, 200) })); process.exitCode = EXIT.TRANSIENT;
++} finally { clearTimeout(t); unlock(); }
+diff --git a/keeper-loop.sh b/keeper-loop.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..5c33dd15a4dc03abc84c9d430dc0037f30a228b0
+--- /dev/null
++++ b/keeper-loop.sh
+@@ -0,0 +1,28 @@
++#!/bin/bash
++# The keeper's finite loop (ROOT starts it, e.g. under systemd-run --user or tmux; nothing installs it). One instance only
++# (flock on state/loop.lock). Each cycle runs through the UNCHANGED shared queue at 256 MiB; a queue answer 98 (not started)
++# is retried every 15 s only while the lowest known lease (state/last.json) is still valid, at most 40 times. Stops on any
++# exit code other than 0/5 (3 reconcile, 4 refused, 10 done), at the cycle's own TTL, or - even if the queue never starts a
++# cycle - at the loop's own hard deadline (KEEPER_LOOP_MAX_S, default 4 h 10 min from loop start; exit 11). A cycle every
++# ${KEEPER_INTERVAL:-60} s.
++set -u
++here=$(cd "$(dirname "$0")" && pwd); S=${KEEPER_STATE:-$here/state}
++Q=${KEEPER_QUEUE:-"python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib 256 --log $S/queue.guard.log --"}
++CYCLE=${KEEPER_CYCLE:-"node $here/keeper-cycle.mjs"}
++SLEEP=${KEEPER_SLEEP:-sleep}
++mkdir -p "$S" && chmod 700 "$S"
++exec 9>"$S/loop.lock"; flock -n 9 || { echo "another keeper loop is running"; exit 6; }
++lease_valid() { python3 -c 'import json,sys,time; d=json.load(open(sys.argv[1])); m=d.get("minLeaseUntil"); sys.exit(0 if m is None or m > time.time() else 1)' "$S/last.json" 2>/dev/null || [ ! -e "$S/last.json" ]; }
++END=$(( $(date +%s) + ${KEEPER_LOOP_MAX_S:-15000} ))
++while :; do
++  [ "$(date +%s)" -lt "$END" ] || { echo "keeper loop ends: loop deadline ($(date -u +%FT%TZ))" | tee -a "$S/cycles.err"; exit 11; }
++  tries=0
++  while :; do
++    KEEPER_STATE="$S" $Q $CYCLE >> "$S/cycles.log" 2>> "$S/cycles.err"; rc=$?
++    [ $rc = 98 ] || break
++    tries=$((tries + 1)); if [ $tries -ge 40 ] || ! lease_valid; then echo "queue never started the cycle ($tries tries)" >> "$S/cycles.err"; rc=5; break; fi
++    $SLEEP 15
++  done
++  case $rc in 0|5) ;; *) echo "keeper loop ends: cycle exit $rc ($(date -u +%FT%TZ))" | tee -a "$S/cycles.err"; exit $rc ;; esac
++  $SLEEP "${KEEPER_INTERVAL:-60}"
++done
+diff --git a/lib.mjs b/lib.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc23be9e4754de02e8c73465f4045d0a2124721e
+--- /dev/null
++++ b/lib.mjs
+@@ -0,0 +1,139 @@
++// One bounded keeper CYCLE for metal0's two protected app leases, while metal0's control is not adopting them (root incident
++// 2026-10-23 23:43Z). Pure decision + journal logic; every outside effect (chain reads, guestd, public availability, the
++// renewal itself) is an injected dependency, so tests run THIS code with fakes. Production deps (deps.mjs) are root's
++// renew-protected-2331.mjs logic, unchanged.
++//
++// Per cycle, refusing (never renewing) on anything unexpected:
++//   - keeper.json (written once by --init) must carry exactly these pins; STOP file -> done; past the 4 h TTL -> done;
++//   - ANY renewal intent without its result = an ambiguous earlier attempt -> STOP (exit 3), root reconciles; never re-signs;
++//   - per app: verified active lease held by metal0's runner + operator; guestd (authenticated) shows the ORIGINAL guest running
++//     under this deployment's name; else REFUSE (exit 4);
++//   - if metal0's control has ADOPTED the original guest (public /availability: exactly one live row, the original guest,
++//     running, owned): the keeper renews nothing (one signer per lease); a later lease extension it did not make, read by the
++//     quorum-verified authority, is the control's NORMAL renewal -> recorded; both apps recorded -> done;
++//   - otherwise renew only if the reserve's own policy says Ready (the client's renew window) and fewer than 8 keeper renewals
++//     exist for the app; the signed lease is checked (renew, this id, <= the existing per-op ceiling) and made durable (0600,
++//     O_EXCL, fsync) BEFORE the client sends it to any relay; the verified receipt becomes the result.
++import fs from "node:fs";
++import path from "node:path";
++
++export const PINS = Object.freeze({
++  apps: Object.freeze({ "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "gd9d4a391d",     // image-generator
++                        "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "gdd0646f2c" }),  // EyesOff
++  runner: "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
++  operator: "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  maxChargeWei: "31092172031561",      // the existing per-op ceiling (renew-protected-2331.mjs)
++  ttlSec: 4 * 3600, maxRenewalsPerApp: 8,
++});
++export const EXIT = Object.freeze({ CONTINUE: 0, RECONCILE: 3, REFUSED: 4, TRANSIENT: 5, BUSY: 6, DONE: 10 });
++const lc = (x) => String(x ?? "").toLowerCase();
++const json = (x) => JSON.stringify(x, (_k, v) => (typeof v === "bigint" ? String(v) : v), 2) + "\n";
++
++export function writeOnce(file, obj) {          // durable, never overwritten: 0600, O_EXCL, fsync file + directory
++  const fd = fs.openSync(file, "wx", 0o600);
++  try { fs.writeSync(fd, json(obj)); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
++  const d = fs.openSync(path.dirname(file), "r"); try { fs.fsyncSync(d); } finally { fs.closeSync(d); }
++}
++const read = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
++const appDir = (dir, id) => path.join(dir, id);
++const pad = (n) => String(n).padStart(3, "0");
++export function attempts(dir, id) {             // [{n, intent, result}] for this app
++  const d = appDir(dir, id); if (!fs.existsSync(d)) return [];
++  const ns = [...new Set(fs.readdirSync(d).map((f) => /^(\d{3})\.(intent|result)\.json$/.exec(f)).filter(Boolean).map((m) => Number(m[1])))].sort((a, b) => a - b);
++  return ns.map((n) => ({ n, intent: fs.existsSync(path.join(d, `${pad(n)}.intent.json`)), result: fs.existsSync(path.join(d, `${pad(n)}.result.json`)) }));
++}
++
++export function init(dir, now) {
++  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
++  writeOnce(path.join(dir, "keeper.json"), { v: 1, startedAt: now, ...PINS });
++}
++function pinsOk(k) {
++  return k && k.v === 1 && Number.isInteger(k.startedAt) && JSON.stringify({ ...k, v: undefined, startedAt: undefined }) === JSON.stringify({ ...PINS, v: undefined, startedAt: undefined });
++}
++
++// held rows of /availability -> the control adopted exactly the original guest for this app?
++export function adoption(held, id, guest) {
++  if (!Array.isArray(held)) return { adopted: false, why: "no instanceSweep.held (control not adopting)" };
++  const live = held.filter((r) => lc(r.id) === id && r.status !== "failed");
++  if (live.length === 0) return { adopted: false, why: "not held" };
++  if (live.length !== 1 || live[0].vm !== guest) return { adopted: false, replaced: true, why: `held ${live.map((r) => r.vm).join(",")} is not exactly ${guest}` };
++  return { adopted: live[0].status === "running" && live[0].owned === true, why: `${guest} ${live[0].status} owned=${live[0].owned}` };
++}
++
++/** One cycle. deps: lease(id), guest(id, vm), availability(), policy(id, lease), renew(id, onSigned). now(): unix seconds. */
++export async function cycle({ dir, deps, now, log = () => {} }) {
++  const kf = path.join(dir, "keeper.json");
++  if (!fs.existsSync(kf)) return { code: EXIT.REFUSED, why: "not initialized (keeper.json): root runs --init" };
++  const k = read(kf);
++  if (!pinsOk(k)) return { code: EXIT.REFUSED, why: "keeper.json pins are not this keeper's" };
++  if (fs.existsSync(path.join(dir, "STOP"))) return { code: EXIT.DONE, why: "root STOP" };
++  if (now() >= k.startedAt + PINS.ttlSec) return { code: EXIT.DONE, why: "4 h TTL reached: leases are root's again" };
++  for (const id of Object.keys(PINS.apps))
++    for (const a of attempts(dir, id)) if (a.intent && !a.result) return { code: EXIT.RECONCILE, why: `${id.slice(0, 10)} attempt ${a.n}: signed intent without a verified result - reconcile, never re-sign` };
++
++  let held = null;
++  try { held = await deps.availability(); } catch (e) { log(`availability unreadable: ${String(e.message).slice(0, 120)}`); }
++  let transient = false; const out = { code: EXIT.CONTINUE, apps: {} };
++  for (const [id, guest] of Object.entries(PINS.apps)) {
++    const d = appDir(dir, id); fs.mkdirSync(d, { recursive: true, mode: 0o700 });
++    const st = out.apps[id] = {};
++    let lease;
++    try { lease = await deps.lease(id); } catch (e) { transient = true; st.why = `lease unreadable: ${String(e.message).slice(0, 120)}`; continue; }
++    if (lease.active !== true || lc(lease.runner) !== PINS.runner || lc(lease.runnerOperator) !== PINS.operator)
++      return { code: EXIT.REFUSED, why: `${id.slice(0, 10)}: not metal0's active lease (runner/operator/active)` };
++    st.leaseUntil = Number(lease.leaseUntil);
++    let g;
++    try { g = await deps.guest(id, guest); } catch (e) { transient = true; st.why = `guestd unreadable: ${String(e.message).slice(0, 120)}`; continue; }
++    if (g.status !== "running" || g.name !== id || g.vm !== guest) return { code: EXIT.REFUSED, why: `${id.slice(0, 10)}: guestd does not show the original ${guest} running under this deployment` };
++    const ad = adoption(held, id, guest);
++    if (ad.replaced) return { code: EXIT.REFUSED, why: `${id.slice(0, 10)}: ${ad.why}` };
++    const results = attempts(dir, id).filter((a) => a.result).length;
++    if (ad.adopted) {
++      const af = path.join(d, "adopted.json");
++      if (!fs.existsSync(af)) writeOnce(af, { at: now(), leaseUntil: st.leaseUntil, keeperResults: results });
++      const base = read(af);
++      const nf = path.join(d, "normal.json");
++      if (!fs.existsSync(nf) && results === base.keeperResults && st.leaseUntil > base.leaseUntil)
++        writeOnce(nf, { at: now(), leaseUntilBefore: base.leaseUntil, leaseUntilAfter: st.leaseUntil, by: "the adopted control (not this keeper)" });
++      st.adopted = true; st.normal = fs.existsSync(nf); st.why = "control adopted the original guest: keeper does not renew";
++      continue;
++    }
++    if (results >= PINS.maxRenewalsPerApp) { st.why = `keeper renewal cap ${PINS.maxRenewalsPerApp} reached`; continue; }
++    let pol;
++    try { pol = await deps.policy(id, lease); } catch (e) { transient = true; st.why = `policy unreadable: ${String(e.message).slice(0, 120)}`; continue; }
++    if (pol.status !== "Ready") { st.why = `policy ${pol.status}`; continue; }
++    const n = (attempts(dir, id).at(-1)?.n || 0) + 1, intentFile = path.join(d, `${pad(n)}.intent.json`);
++    const onSigned = async (r) => {      // the client calls this BEFORE any relay sees the signed lease
++      if (r.kind !== "renew" || lc(r.lease?.id) !== id || BigInt(r.lease.maxChargeWei) > BigInt(PINS.maxChargeWei)) throw new Error("intent exceeds this keeper's scope (kind/id/ceiling)");
++      writeOnce(intentFile, r);
++    };
++    try {
++      const r = await deps.renew(id, onSigned);
++      let after = null; try { after = Number((await deps.lease(id)).leaseUntil); } catch {}
++      writeOnce(path.join(d, `${pad(n)}.result.json`), { at: now(), id, guest, hash: r.hash, chargedWei: r.chargedWei, receiptVerified: true, operatorEthSpent: false, leaseUntilBefore: st.leaseUntil, leaseUntilAfter: after });
++      st.renewed = r.hash; if (after) st.leaseUntil = after;
++    } catch (e) {
++      if (fs.existsSync(intentFile)) return { code: EXIT.RECONCILE, why: `${id.slice(0, 10)} attempt ${n}: signed, outcome unknown (${String(e.code || "error")}) - reconcile, never re-sign` };
++      transient = true; st.why = `renew refused before signing: ${String(e.code || e.message).slice(0, 120)}`;
++    }
++  }
++  const exp = Object.values(out.apps).map((a) => a.leaseUntil).filter(Number.isFinite);
++  fs.writeFileSync(path.join(dir, "last.json"), json({ at: now(), minLeaseUntil: exp.length ? Math.min(...exp) : null, apps: out.apps }), { mode: 0o600 });
++  if (Object.keys(PINS.apps).every((id) => fs.existsSync(path.join(appDir(dir, id), "normal.json")))) return { ...out, code: EXIT.DONE, why: "control adopted both original guests and renewed both normally" };
++  return { ...out, code: transient ? EXIT.TRANSIENT : EXIT.CONTINUE };
++}
++
++/** Per-cycle lock: O_EXCL with this pid; a lock whose pid is gone is stale (the journal, not the lock, guards ambiguity). */
++export function lock(dir, pid = process.pid, alive = (p) => { try { process.kill(p, 0); return true; } catch (e) { return e.code === "EPERM"; } }) {
++  const f = path.join(dir, "cycle.lock");
++  for (let i = 0; i < 2; i++) {
++    try { const fd = fs.openSync(f, "wx", 0o600); fs.writeSync(fd, String(pid)); fs.closeSync(fd); return () => { try { fs.unlinkSync(f); } catch {} }; }
++    catch (e) {
++      if (e.code !== "EEXIST") throw e;
++      const other = Number(fs.readFileSync(f, "utf8")) || 0;
++      if (other && alive(other)) return null;
++      fs.unlinkSync(f);
++    }
++  }
++  return null;
++}
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..29fce132dadcfd578e350dca3aa0aace1b6dc389
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++set -u; cd "$(dirname "$0")"; rc=0
++for f in *.mjs tests/*.mjs; do node --check "$f" || rc=1; done; bash -n keeper-loop.sh || rc=1
++timeout -k 5 300 node --test --test-force-exit --test-concurrency=1 tests/keeper.test.mjs || rc=1
++OLD=$(printf '\x54\x69\x6e\x66\x6f\x69\x6c'); grep -rIil "$OLD" --exclude-dir=.git --exclude-dir=state . && { echo "old literal"; rc=1; }
++git ls-files --others --cached --exclude-standard | xargs cat | timeout -k 5 120 gitleaks stdin --no-banner --redact --exit-code 1 || rc=1
++echo "== RESULT rc=$rc"; exit $rc
+diff --git a/tests/keeper.test.mjs b/tests/keeper.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..e07c5a3460332f059e5accee9546c7a4a73647b8
+--- /dev/null
++++ b/tests/keeper.test.mjs
+@@ -0,0 +1,147 @@
++// The keeper's ACTUAL cycle (lib.mjs), entry (keeper-cycle.mjs) and loop (keeper-loop.sh) against fakes: no chain, guestd,
++// relay, key or network. Fake clock; fake deps record the order of signing, journaling and the relay POST.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { spawnSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++import { cycle, init, lock, attempts, adoption, PINS, EXIT } from "../lib.mjs";
++
++const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const [A, B] = Object.keys(PINS.apps), GA = PINS.apps[A], GB = PINS.apps[B];
++const T0 = 1_792_800_000;
++function world(over = {}) {
++  const w = { t: T0, until: { [A]: T0 + 200, [B]: T0 + 1500 }, pol: { [A]: "Ready", [B]: "NotInRenewWindow" }, held: null,
++    guests: { [A]: { status: "running", name: A, vm: GA }, [B]: { status: "running", name: B, vm: GB } }, events: [], renew: null, ...over };
++  w.now = () => w.t;
++  w.deps = {
++    lease: async (id) => ({ active: true, runner: PINS.runner, runnerOperator: "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB", leaseUntil: BigInt(w.until[id]) }),
++    guest: async (id, vm) => ({ ...w.guests[id] }),
++    availability: async () => w.held,
++    policy: async (id) => ({ status: w.pol[id] }),
++    renew: async (id, onSigned) => {
++      if (w.renew) return w.renew(id, onSigned);
++      w.events.push(`sign ${id.slice(0, 6)}`);
++      await onSigned({ kind: "renew", lease: { id, maxChargeWei: 1_000_000n, nonce: 7n }, nonce: 7n, deadline: 1n });
++      w.events.push(`post ${id.slice(0, 6)} intent=${fs.existsSync(path.join(w.dir, id, "001.intent.json"))}`);
++      w.until[id] += 1800;
++      return { hash: "0x" + "ab".repeat(32), chargedWei: "1262773885861" };
++    },
++  };
++  w.dir = fs.mkdtempSync(path.join(os.tmpdir(), "keeper-")); init(w.dir, w.t);
++  w.run = () => cycle({ dir: w.dir, deps: w.deps, now: w.now });
++  return w;
++}
++
++test("renews ONLY an app in its renew window, journaling the signed intent BEFORE the relay sees it; the verified receipt is the result", async () => {
++  const w = world();
++  const r = await w.run();
++  assert.equal(r.code, EXIT.CONTINUE);
++  assert.deepEqual(w.events, [`sign ${A.slice(0, 6)}`, `post ${A.slice(0, 6)} intent=true`]);
++  const intent = JSON.parse(fs.readFileSync(path.join(w.dir, A, "001.intent.json"), "utf8"));
++  assert.equal(intent.lease.id, A); assert.equal((fs.statSync(path.join(w.dir, A, "001.intent.json")).mode & 0o777), 0o600);
++  const res = JSON.parse(fs.readFileSync(path.join(w.dir, A, "001.result.json"), "utf8"));
++  assert.deepEqual([res.hash, res.chargedWei, res.receiptVerified, res.operatorEthSpent, res.leaseUntilAfter], ["0x" + "ab".repeat(32), "1262773885861", true, false, T0 + 2000]);
++  assert.deepEqual(attempts(w.dir, B), [], "B is not in its window: nothing signed");
++  assert.ok(!JSON.stringify(r).match(/key|sig(nature)?"/i));
++});
++
++test("an intent without a result STOPS every later cycle (reconcile, never re-sign)", async () => {
++  const w = world({ renew: async (id, onSigned) => { await onSigned({ kind: "renew", lease: { id, maxChargeWei: 1n } }); throw Object.assign(new Error("relay timeout"), { code: "Unconfirmed" }); } });
++  const r1 = await w.run();
++  assert.equal(r1.code, EXIT.RECONCILE); assert.match(r1.why, /signed, outcome unknown/);
++  let calls = 0; w.renew = async () => { calls++; return {}; };
++  w.t += 600;
++  const r2 = await w.run();
++  assert.equal(r2.code, EXIT.RECONCILE); assert.equal(calls, 0, "nothing re-signed");
++});
++
++test("refused before signing (no intent) is transient; a signed lease outside scope is never journaled or sent", async () => {
++  const w = world({ renew: async () => { throw Object.assign(new Error("Refused: NotInRenewWindow"), { code: "NotInRenewWindow" }); } });
++  assert.equal((await w.run()).code, EXIT.TRANSIENT);
++  assert.deepEqual(attempts(w.dir, A), []);
++  for (const bad of [{ kind: "claim", lease: { id: A, maxChargeWei: 1n } }, { kind: "renew", lease: { id: B, maxChargeWei: 1n } },
++                     { kind: "renew", lease: { id: A, maxChargeWei: BigInt(PINS.maxChargeWei) + 1n } }]) {
++    const v = world(); let sent = false;
++    v.renew = async (id, onSigned) => { await onSigned(bad); sent = true; return {}; };
++    const r = await v.run();
++    assert.equal(sent, false, JSON.stringify(bad, (k, x) => typeof x === "bigint" ? String(x) : x));
++    assert.deepEqual(attempts(v.dir, A), []); assert.equal(r.code, EXIT.TRANSIENT);
++  }
++});
++
++test("refuses (never renews) another runner/operator, an inactive lease, or a guest that is not the original one running", async () => {
++  const cases = [
++    (w) => { w.deps.lease = async () => ({ active: true, runner: "0x" + "11".repeat(32), runnerOperator: PINS.operator, leaseUntil: 1n }); },
++    (w) => { w.deps.lease = async () => ({ active: true, runner: PINS.runner, runnerOperator: "0x" + "22".repeat(20), leaseUntil: 1n }); },
++    (w) => { w.deps.lease = async () => ({ active: false, runner: PINS.runner, runnerOperator: PINS.operator, leaseUntil: 1n }); },
++    (w) => { w.guests[A] = { status: "stopped", name: A, vm: GA }; },
++    (w) => { w.guests[A] = { status: "running", name: B, vm: GA }; },
++    (w) => { w.held = [{ id: A, vm: "gd00000000", status: "running", owned: true }]; }];
++  for (const f of cases) { const w = world(); f(w); const r = await w.run(); assert.equal(r.code, EXIT.REFUSED, r.why); assert.deepEqual(w.events, []); }
++});
++
++test("finite: the 4 h TTL, root's STOP file and the 8-renewal cap end renewing", async () => {
++  const w = world(); w.t = T0 + 4 * 3600;
++  assert.equal((await w.run()).code, EXIT.DONE); assert.deepEqual(w.events, []);
++  const s = world(); fs.writeFileSync(path.join(s.dir, "STOP"), "");
++  assert.match((await s.run()).why, /root STOP/);
++  const c = world();
++  for (let n = 1; n <= 8; n++) { const f = String(n).padStart(3, "0"); fs.mkdirSync(path.join(c.dir, A), { recursive: true }); fs.writeFileSync(path.join(c.dir, A, `${f}.intent.json`), "{}"); fs.writeFileSync(path.join(c.dir, A, `${f}.result.json`), "{}"); }
++  const r = await c.run();
++  assert.equal(r.code, EXIT.CONTINUE); assert.deepEqual(c.events, []); assert.match(r.apps[A].why, /cap 8/);
++  const p = world(); fs.writeFileSync(path.join(p.dir, "keeper.json"), JSON.stringify({ v: 1, startedAt: T0, ...PINS, maxRenewalsPerApp: 99 }));
++  assert.equal((await p.run()).code, EXIT.REFUSED, "pins must be this keeper's");
++});
++
++test("stops only once the control ADOPTED both original guests AND renewed each itself; mere attachment or adoption is not enough", async () => {
++  const w = world({ pol: { [A]: "Ready", [B]: "Ready" } });
++  w.held = null;                                                        // attached but adopting nothing: keeper renews
++  assert.equal((await w.run()).code, EXIT.CONTINUE); assert.equal(attempts(w.dir, A).length, 1);
++  w.held = [{ id: A, vm: GA, status: "running", owned: true }, { id: B, vm: GB, status: "running", owned: true }];
++  w.events.length = 0; w.t += 60;
++  const r1 = await w.run();
++  assert.equal(r1.code, EXIT.CONTINUE, "adopted, no normal renewal yet"); assert.deepEqual(w.events, [], "the keeper does not renew an adopted app");
++  w.until[A] += 1800; w.t += 60;                                         // the control renews A
++  assert.equal((await w.run()).code, EXIT.CONTINUE);
++  w.until[B] += 1800; w.t += 60;                                         // and B
++  const r3 = await w.run();
++  assert.equal(r3.code, EXIT.DONE); assert.match(r3.why, /renewed both normally/);
++  assert.equal(adoption([{ id: A, vm: GA, status: "starting", owned: true }], A, GA).adopted, false);
++});
++
++test("entry + lock: one cycle at a time (a live holder -> 6), a dead holder's lock is stale, nothing runs uninitialized", () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "keeper-")); init(dir, Math.floor(Date.now() / 1000));
++  const fake = path.join(dir, "fake-deps.mjs");
++  fs.writeFileSync(fake, `export const deps = { lease: async () => ({ active: true, runner: "${PINS.runner}", runnerOperator: "${PINS.operator}", leaseUntil: 99999999999n }),
++    guest: async (id, vm) => ({ status: "running", name: id, vm }), availability: async () => null, policy: async () => ({ status: "NotInRenewWindow" }),
++    renew: async () => { throw new Error("must not renew"); } };`);
++  const run = () => spawnSync(process.execPath, [path.join(HERE, "keeper-cycle.mjs")], { env: { ...process.env, KEEPER_STATE: dir, KEEPER_DEPS: fake }, encoding: "utf8", timeout: 30000 });
++  fs.writeFileSync(path.join(dir, "cycle.lock"), String(process.pid));
++  assert.equal(run().status, EXIT.BUSY);
++  assert.equal(lock(dir, 1, () => false) !== null, true, "a dead holder's lock is replaced");
++  fs.rmSync(path.join(dir, "cycle.lock"), { force: true });
++  const ok = run(); assert.equal(ok.status, EXIT.CONTINUE, ok.stdout + ok.stderr);
++  assert.ok(!fs.existsSync(path.join(dir, "cycle.lock")), "released");
++  const empty = fs.mkdtempSync(path.join(os.tmpdir(), "keeper-"));
++  assert.equal(spawnSync(process.execPath, [path.join(HERE, "keeper-cycle.mjs")], { env: { ...process.env, KEEPER_STATE: empty, KEEPER_DEPS: fake }, encoding: "utf8" }).status, EXIT.REFUSED);
++});
++
++test("loop: one instance; 98 retried only boundedly; stops on 3/4/10, continues on 0/5", () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "keeper-loop-"));
++  const script = path.join(dir, "fake-cycle.sh"), seq = path.join(dir, "seq");
++  fs.writeFileSync(script, `#!/bin/bash\nn=$(cat ${seq}.n 2>/dev/null || echo 0); echo $((n+1)) > ${seq}.n\nc=$(sed -n "$((n+1))p" ${seq}); exit \${c:-10}\n`); fs.chmodSync(script, 0o755);
++  const loop = (codes) => { fs.writeFileSync(seq, codes.join("\n") + "\n"); fs.rmSync(seq + ".n", { force: true });
++    return spawnSync("bash", [path.join(HERE, "keeper-loop.sh")], { env: { ...process.env, KEEPER_STATE: dir, KEEPER_QUEUE: "env", KEEPER_CYCLE: script, KEEPER_SLEEP: "true" }, encoding: "utf8", timeout: 30000 }); };
++  let r = loop([0, 5, 98, 0, 3]); assert.equal(r.status, 3); assert.equal(fs.readFileSync(seq + ".n", "utf8").trim(), "5");
++  r = loop([0, 4]); assert.equal(r.status, 4);
++  r = loop([10]); assert.equal(r.status, 10);
++  r = loop(Array(40).fill(98).concat([10])); assert.equal(r.status, 10); assert.equal(fs.readFileSync(seq + ".n", "utf8").trim(), "41", "at most 40 tries of a not-started cycle, then the next cycle");
++  fs.writeFileSync(seq, "98\n".repeat(400)); fs.rmSync(seq + ".n", { force: true });
++  r = spawnSync("bash", [path.join(HERE, "keeper-loop.sh")], { env: { ...process.env, KEEPER_STATE: dir, KEEPER_QUEUE: "env", KEEPER_CYCLE: script, KEEPER_SLEEP: "true", KEEPER_LOOP_MAX_S: "1" }, encoding: "utf8", timeout: 60000 });
++  assert.equal(r.status, 11, "a queue that never starts a cycle still ends at the loop deadline");
++  const held = spawnSync("bash", ["-c", `exec 9>${dir}/loop.lock; flock -n 9; KEEPER_STATE=${dir} KEEPER_QUEUE=env KEEPER_CYCLE=${script} KEEPER_SLEEP=true bash ${path.join(HERE, "keeper-loop.sh")}; rc=$?; exit $rc`], { encoding: "utf8" });   // not exec'd: this shell keeps holding the lock
++  assert.equal(held.status, 6, held.stdout);
++});

@@ -1,0 +1,11 @@
+{
+ "source-preservation/": "frozen-0022 checkpoint tooling (\"0022\" = batch start 2026-10-24T00:21:55Z, an identifier): first-parent Git-object export, offline verifier, append-only capture",
+ "source-preservation/RESULT-frozen-2355-checkpoint.md": "receipt of the 2355 batch (1a69ae56, committed 23:57:03Z, pushed by 23:57:33Z; main 68b82926 unchanged)",
+ "source-preservation/snapshots-0022/": "Exact SNAPSHOT (0022 batch) of ROOT's public keeper receipt outputs/decentralization-audit/custody-temporary-lease-protection-20261023.json as observed 2026-10-24T00:01:40Z (sha256 bb8ab3e2...): unit status, TTL 03:53:51, two verified app-funded renewals, limitations; read and reviewed, no state intents or signatures",
+ "source-preservation/frozen-0022-export/": "FROZEN 0022 batch exported from Git objects; bases rebuilt from pushed 1a69ae56 material and every recorded tree reproduced - REPRODUCE-CHECK.txt. SOURCE + EVIDENCE ONLY: control recovery NOT done",
+ "source-preservation/frozen-0022-export/boot-fee-release-3562faa1/": "boot-fee release build template and root's approved 5db2be3f build record (bc731956) public metadata; no image binaries",
+ "source-preservation/frozen-0022-export/gate-v5-f5077c21/": "operational gate v5 PROPOSAL (one bounded reset on a transient app transport error); source/tests only, NOT activated",
+ "source-preservation/frozen-0022-export/lease-keeper-b3c298c0/": "protected-lease keeper source (finite, journaled, app-funded renewals of the two original apps); root runs it temporarily (TTL 03:53:51); runtime state not captured",
+ "source-preservation/frozen-0022-export/m-funding-fe7e1057/": "operator C9 funding assessment and standard EIP-7702 maintenance unsigned plan builder (read-only prepare, revm test); nothing signed",
+ "source-preservation/frozen-0022-export/current-docs5-cd4f51a3/": "R reconciled custody docs on 155a23f4: temporary keeper TTL, control still unregistered, 00:00 fresh reads; not published"
+}

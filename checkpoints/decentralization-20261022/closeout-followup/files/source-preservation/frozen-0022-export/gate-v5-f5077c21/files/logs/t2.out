@@ -1,0 +1,23 @@
+[queue] START available=23595MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_the_recording_fetch_answers_exactly_as_apphealth_fetch (tests.test_gate_v5.Classify.test_the_recording_fetch_answers_exactly_as_apphealth_fetch) ... /usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 500: 'Internal Server Error'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_transient_is_only_no_http_response_for_a_transport_reason (tests.test_gate_v5.Classify.test_transient_is_only_no_http_response_for_a_transport_reason) ... /usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 500: 'x'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_a_second_transient_fails (tests.test_gate_v5.GateV5.test_a_second_transient_fails) ... ok
+test_a_transient_in_warm_up_is_v4_warm_up (tests.test_gate_v5.GateV5.test_a_transient_in_warm_up_is_v4_warm_up) ... ok
+test_a_transient_with_any_other_problem_fails (tests.test_gate_v5.GateV5.test_a_transient_with_any_other_problem_fails) ... ok
+test_happy_path_passes_without_a_reset (tests.test_gate_v5.GateV5.test_happy_path_passes_without_a_reset) ... ok
+test_hard_faults_after_a_reset_still_fail (tests.test_gate_v5.GateV5.test_hard_faults_after_a_reset_still_fail) ... ok
+test_one_transient_resets_and_needs_a_full_new_window_and_vouches (tests.test_gate_v5.GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches) ... ok
+test_real_http_errors_and_bad_payloads_still_fail_at_once (tests.test_gate_v5.GateV5.test_real_http_errors_and_bad_payloads_still_fail_at_once) ... ok
+test_the_deadline_never_extends (tests.test_gate_v5.GateV5.test_the_deadline_never_extends) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 61.934s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=62 minHostAvailableMiB=22321
+[memory-guard] at peak: python3:32 python3:30
+[queue] EXIT 0

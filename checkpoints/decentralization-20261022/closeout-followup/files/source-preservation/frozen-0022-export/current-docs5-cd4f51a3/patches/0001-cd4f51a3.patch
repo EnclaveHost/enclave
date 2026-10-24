@@ -1,0 +1,233 @@
+From cd4f51a31e1d04ceaf029818a7f1c182747a708b Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 17:21:42 -0700
+Subject: [PATCH] Status 2026-10-24T00:20Z: temporary lease keeper (TTL
+ 03:53:51), control still unregistered, fresh 00:00 reads
+
+PROVISIONAL; control recovery NOT done:
+- root-run TEMPORARY keeper b3c298c0 (unit enclave-custody-protected-leases-20261023) since 23:53:51, 4 h TTL to 03:53:51,
+  max 8 renewals/app; verified renewals 23:57:48 (imagegen 0xc483707a...) and 00:00:15 (EyesOff 0x8b2ad687...), no operator ETH
+- control still the rolled-back ed918e4b, unregistered
+- 00:00:23 read (block 53005325): committee 0x4774 epoch 1 t 1 W 1, book secretVaultV2/secretVault/hostOwnership zero;
+  00:00:27 fresh SNP quote of the original custodian PASS (attestation only, no secret release / lifecycle)
+- M fe7e1057 standard EIP-7702 maintenance plan builder: source only, unsigned, no authority requested; D gate v5 f5077c21
+  source only, not activated
+All earlier limitations and admin rights kept; docs/security and patches unchanged.
+---
+ CURRENT-STATE.md     | 18 ++++++++++++------
+ SIGNING-AUTHORITY.md |  7 ++++---
+ SOURCES.md           |  8 ++++++++
+ TEST-MATRIX.md       |  4 ++++
+ commit9.sh           | 21 +++++++++++++++++++++
+ logs/commit-8.out    |  5 +++++
+ logs/commit-8.rc     |  1 +
+ logs/rangescan-8.out |  8 ++++++++
+ logs/rangescan-8.rc  |  1 +
+ logs/scan-9.out      |  7 +++++++
+ logs/scan-9.rc       |  1 +
+ 11 files changed, 72 insertions(+), 9 deletions(-)
+ create mode 100755 commit9.sh
+ create mode 100644 logs/commit-8.out
+ create mode 100644 logs/commit-8.rc
+ create mode 100644 logs/rangescan-8.out
+ create mode 100644 logs/rangescan-8.rc
+ create mode 100644 logs/scan-9.out
+ create mode 100644 logs/scan-9.rc
+
+diff --git a/CURRENT-STATE.md b/CURRENT-STATE.md
+index c519103c7d32ef8cd451d8d325ede6cbad5657db..630d7b59aacad8b45d8510a0a0fa9c759a31ecb2 100644
+--- a/CURRENT-STATE.md
++++ b/CURRENT-STATE.md
+@@ -1,4 +1,4 @@
+-# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review; 22:47Z from root's 22:45Z state; 22:58Z with root's 22:56Z facts and the root-reviewed recipient-binding review; 23:27Z with the 23:10 failed recovery and the 23:15 rollback; 23:54Z with the 23:36-23:47 attempt: registration succeeded, gate FAILED, rollback)
++# Custody v2: current state (draft for root review, 2026-10-23T22:10Z; refreshed 22:29Z from root's 22:14Z journal and 22:25Z review; 22:47Z from root's 22:45Z state; 22:58Z with root's 22:56Z facts and the root-reviewed recipient-binding review; 23:27Z with the 23:10 failed recovery and the 23:15 rollback; 23:54Z with the 23:36-23:47 attempt: registration succeeded, gate FAILED, rollback; 2026-10-24T00:22Z with the temporary lease keeper and the 00:00 reads)
+ 
+ **Status of this file.** It is a source and documentation draft for root to review; root publishes the final. It changes no
+ production state, and it is not root's public output.
+@@ -8,17 +8,18 @@
+ - It does **not** assert that recovery is done.
+ - Every claim cites an exact source in `SOURCES.md`, as [Sn].
+ 
+-## S. Status matrix (as of 2026-10-23T23:54Z; incident items PROVISIONAL from root [S27])
++## S. Status matrix (as of 2026-10-24T00:22Z; incident items PROVISIONAL from root [S27, S30])
+ 
+ | item | source implemented and tested (inert) | proven on real SNP hardware | executed in production |
+ |---|---|---|---|
+ | corrected custodian `ab589bf8` (r2) | yes (unit, anvil) | **startup / 503 / reopen only** (20:14Z, quote-only) | **no**: not running, no committee |
+-| original custodian `c866` / committee `0x4774` | n/a (deployed 10-14) | fresh quote PASS at 22:12:53 | running, **unchanged**, single seat (n 1, t 1); **code-frozen**, needs a new committee |
++| original custodian `c866` / committee `0x4774` | n/a (deployed 10-14) | fresh quotes PASS at 22:12:53 and 2026-10-24 00:00:27 (exact pinned chain machine; quote-only, NOT a secret release) | running, **unchanged**, single seat (n 1, t 1); **code-frozen**, needs a new committee |
+ | secret lifecycle (save / release / rotate / pause / migrate / delete) | yes (fixture, browser, anvil; rewrap with synthetic attestation) | **no** | **no**; no canary lifecycle has been run |
+ | owner migration and deletion of the old copy | rewrap source (anvil) | no | **no migration completed and no old copy deleted** |
+ | boot-fee control `5db2be3f` (measurement `bc731956…`) | yes (kit `9d75f953`: 49 Python, 16 Node, 89 mutants PASS) | — | **attempted 23:36:51; setProofKey SUCCEEDED; both VMs adopted; operational gate FAILED 23:43:16; automatic rollback 23:43:19. NOT recovered** |
+-| protected lease keeper (H) | source pending, **not installed** | — | no; root renews by hand |
+-| standard maintenance funding (M) | assessment only, no authorization change | — | no |
++| protected lease keeper (H, source `b3c298c0`) | yes (finite, journaled) | — | **TEMPORARY protection only**: root-run unit `enclave-custody-protected-leases-20261023` active since 23:53:51, fixed 4 h TTL to **03:53:51**, at most 8 renewals per app; 2 automatic renewals verified (23:57:48 imagegen, 00:00:15 EyesOff; no operator ETH). It is not indefinite and not control recovery |
++| standard maintenance funding (M, source `fe7e1057`) | standard EIP-7702 maintenance plan builder (unsigned, read-only prepare, revm-processed test); assessment only, no authorization change | — | **no**; nothing signed or sent; no new authority requested |
++| operational gate v5 (D, source `f5077c21`) | proposal: one bounded window reset on a transient app transport error | — | **no**; not activated |
+ | book `secretVaultV2` activation, dashboard publication | plans and release built | — | **no**; only after the canaries |
+ 
+ **Pending human actions (none confirmed):**
+@@ -184,8 +185,13 @@
+ | 23:43:19 | **Automatic rollback** to `deabf8f90` / `ed918e4b`, which is **unregistered again**. [S29] |
+ | 23:44:30 / 23:47:01 | Both original VMs running (23:44:30); public health of both apps PASS (23:47:01; image generator html, EyesOff ok/pong). [S27, S29] |
+ | 23:47 | The operator has 145,368,427,115 wei left at nonce 23760: **not enough for another proof-key update**. No other operator transaction is confirmed. **No restart is planned** without funding and a plan. [S27] |
++| 23:53:51 | Root started the TEMPORARY protected-lease keeper (source `b3c298c0`, unit `enclave-custody-protected-leases-20261023`). It runs a fixed 4 h TTL to 03:53:51 with at most 8 renewals per app, and stops before any control or delegation maintenance. [S30] |
++| 23:57:48 / 00:00:15 | Keeper renewals, receipts verified, no operator ETH: imagegen tx `0xc483707a97c6954a824c97da9812a2cb96d3fe6b07bedfefa7f87fd331cf1d86` (1,262,525,086,906 wei); EyesOff tx `0x8b2ad68747e19f8f786bcd1614c219890e6b325aa13f19871f2e371b8f7b2b12` (1,222,972,309,865 wei). [S30] |
++| 00:00:23 / 00:00:27 | Root's fresh chain read (block 53,005,325): code hash unchanged; committee `0x4774` at epoch 1, t 1, W 1, one machine; book `secretVaultV2`, `secretVault` and `hostOwnership` all zero. A fresh SNP quote of the original custodian PASSED (measurement `c8663742…` = `2530eda0`, source 9d43e63e8, exact pinned chain machine). It is attestation only, NOT a secret release. [S31] |
++| 00:20 | Root: the control is still the rolled-back `ed918e4b`, **unregistered, NOT fixed**. The original 2 VMs are maintained by the temporary keeper. [S30] |
+ 
+-**Not yet recovered (as of 23:47Z; the control is NOT restored; recovery is NOT done):**
++**Not yet recovered (as of 2026-10-24T00:20Z; the control is NOT restored; recovery is NOT done):**
++- Lease protection is TEMPORARY: the keeper's TTL ends at 03:53:51, with at most 8 renewals per app. Control recovery is unresolved.
+ - The 23:36 attempt (`5db2be3f`) registered and adopted the same VMs, but its gate FAILED and it was rolled back at 23:43:19. The control is again the old, unregistered `ed918e4b`. The operator balance (145,368,427,115 wei) cannot pay another update; no restart is planned.
+ - The 23:10 activation of `b007d471` FAILED, and the 23:15 rollback restored the old `ed918e4b` control, which is **unregistered** and adopted nothing.
+ - The apps remain healthy on their original guests, and root keeps their leases maintained.
+diff --git a/SIGNING-AUTHORITY.md b/SIGNING-AUTHORITY.md
+index b920f531d7f79802b9a5f60b65c28bec81637d42..d93fb56320e07a9498dfaa06ace8984d69254449 100644
+--- a/SIGNING-AUTHORITY.md
++++ b/SIGNING-AUTHORITY.md
+@@ -1,4 +1,4 @@
+-# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z, 22:47Z, 22:58Z, 23:27Z and 23:54Z)
++# Custody v2: who signs what (as of 2026-10-23T22:10Z; refreshed 22:20Z, 22:47Z, 22:58Z, 23:27Z, 23:54Z and 2026-10-24T00:22Z)
+ 
+ The agents in this table are:
+ - **admin**: the Enclave admin wallet `0x0b2d009c0c9Af05b12100D77F3c815fea822eE61`. It is the book owner and the vault `enclaveOwner`,
+@@ -7,7 +7,7 @@
+ - **TEE identity**: a custodian machine's key, generated and sealed inside its SNP guest.
+ - **submitter**: any funded EOA. It can drop transactions, but never forge them.
+ 
+-| action | must sign | pays gas | status (23:47Z) |
++| action | must sign | pays gas | status (2026-10-24T00:20Z) |
+ |---|---|---|---|
+ | `book.set("secretVaultV2", 0xE486…)` | admin | admin | unsigned plan; deliberately held |
+ | `book.set("sessionVaultFactory", 0x1f5c887c…)` | admin (MetaMask handoff on localhost:39672) | admin | **pending the human** (22:45Z: no chain write) |
+@@ -22,7 +22,8 @@
+ | owner-authorized rewrap | the policy owner (rules update, EIP-712 Rewrap ≤ 3 d, switch update) | the owner | proven on anvil with synthetic attestation only |
+ | relay copy delete | the owner (signed relay request) | none | per owner |
+ | metal0 control image admission and activation (`ee5df6b8`, H `08d1f838`) | root (relay allowlist and control) | the operator, for boot registration | **PROVISIONAL**: the ee5 activation failed at 21:32 and was rolled back at 21:37. `08d1` was admitted (allowlist 37) at 22:10 but NOT activated. The cutover was stopped before mutation (GPU-price race). The new candidate `7dd3acd` (`b007d471…`) was built twice at 22:29, staged at 22:49 and admitted (allowlist 38) at 22:50. It is NOT activated; its activation kit is under review. At 22:52 the old `ed918e4b` re-attached (no restart), still unregistered. At 22:55:45 root's funding check refused it: the `setProofKey` fee of 303,866,570,907 wei leaves no 25% headroom on 376,132,087,579 wei. **At 23:10 root activated `b007d471`.** Boot self-registration failed with "total cost … exceeds the balance", no app was adopted, and root rolled back at 23:15:29 to `ed918e4b` (unregistered). The 23:10 fee cause is NOT confirmed. **At 23:36:51 root activated `5db2be3f` (`bc731956…`).** Its normal `setProofKey` SUCCEEDED (tx `0x12d7a5a4…`, gas used 38,393 at 6 mwei effective) and both VMs were adopted, but the gate FAILED at 23:43:16 and the control was rolled back at 23:43:19 to the unregistered `ed918e4b`. No restart is planned without funding. |
+-| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18, 21:52:36, 22:10:58, 22:39:27, 22:43:54, 23:31:08 (imagegen, expiry 00:01:07) and 23:34:50 (EyesOff, expiry 00:04:49). Each adds about 30 min; root maintains them until a keeper or a live control exists. The H lease keeper is source-only, NOT installed. |
++| app lease renewals (imagegen, EyesOff) | root (protected renewal) | the app reserve | **PROVISIONAL**: paid at 21:43:18, 21:52:36, 22:10:58, 22:39:27, 22:43:54, 23:31:08 (imagegen, expiry 00:01:07) and 23:34:50 (EyesOff, expiry 00:04:49). Each adds about 30 min. Since 23:53:51 a root-run TEMPORARY keeper (source `b3c298c0`) renews them: 4 h TTL to 03:53:51, at most 8 per app. Verified keeper renewals: 23:57:48 (imagegen) and 00:00:15 (EyesOff). It is NOT indefinite and does not recover the control. |
++| operator funding by standard EIP-7702 maintenance (M, `fe7e1057`) | would need the operator's own signatures, and possibly the human's approval of a temporary delegation change | — | **assessment and unsigned plan builder only**; nothing signed, no authority requested |
+ | canary app upload message + catalog publish (0-ETH tx) | admin (MetaMask handoff on localhost:39675) | admin | **awaiting the human** (22:56Z: no confirmation) |
+ | canary owner top-up, 0.0001 ETH to Base EOA `0x29479Bf…647C` | the human (their wallet) | the human | **requested**; the target was verified at 22:47:45 (code `0x`, balance 61,654,449,641,751 wei); no human confirmation yet |
+ | site r2 delivery (fronts) | root | none | not delivered |
+diff --git a/SOURCES.md b/SOURCES.md
+index e7d6b5beded67b1c4615bd51b5f872ea9053e6ec..ee8a2b41247a6da7efb61ef295030c2b7981321b 100644
+--- a/SOURCES.md
++++ b/SOURCES.md
+@@ -115,6 +115,14 @@
+   the start and attach times, the setProofKey tx and adoption lines, the gate FAIL reason and rollback times, and the post-rollback
+   public health.
+ 
++- **S30:** root's 2026-10-24 00:20Z instruction for this update. Also the root public receipt
++  `outputs/decentralization-audit/custody-temporary-lease-protection-20261023.json` (observedAt 00:01:40Z; sha256 bb8ab3e2…): the
++  keeper unit active since 23:53:51, expiry 03:53:51, at most 8 renewals per app, two verified renewals, `operatorEthSpent` false,
++  and its stated limitations. Keeper source: `work/custody-protected-lease-keeper-20261023` b3c298c0.
++- **S31:** `work/custody-v2-live-20261023` commit 3055ee7 (root, 2026-10-24T00:18:25Z): `evidence/known-state.json` (00:00:23Z,
++  block 53,005,325) and `evidence/fresh-quote.json` (00:00:27Z, verdict ok, `machineMatchesPinnedChain` true; scope "Fresh
++  attestation of existing production custodian only; not a secret release or rollout test").
++
+ ## Document originals
+ 
+ - **Checkpoint:** `work/source-checkpoint-20261022/main-repo` at checkpoint dfb4b55e627ebd95b647abebf09627296f099862 holds
+diff --git a/TEST-MATRIX.md b/TEST-MATRIX.md
+index e1dba98df75caff0aee5aaf617e1dc131b43add8..10738af59b19685aacfeb74ee8a33bd98e35f6be 100644
+--- a/TEST-MATRIX.md
++++ b/TEST-MATRIX.md
+@@ -38,6 +38,10 @@
+ | recipient activation (`custody-recipient-activation-20261023`) | activation, attestation, proof-key and recovery tests | 16/16, 21/21, 5/5, 10/10 | unit | none | `logs/tests-2.out` etc. |
+ | | **root activation of `ee5df6b8`, 21:32Z** | **FAILED adoption; rolled back 21:37** | **prod** | none | `logs/root-activate.out`, `ROOT-REGISTRATION-INCIDENT.txt` |
+ | D activation kit (`custody-boot-price-activation-20261023`, 8bbd0a74) | root-final-tests | Python 47/47, Node 14/14, mutants 78/78 killed (22:59:32-23:01:25Z) | unit | none | `STATUS.txt` L30 |
++| original custodian (`c866…`, running) | fresh SNP quote, root-run, 2026-10-24 | PASS 00:00:27Z | **SNP-hw**, quote-only | **none** | `custody-v2-live-20261023` 3055ee7 `evidence/fresh-quote.json` |
++| protected lease keeper (`custody-protected-lease-keeper-20261023`, b3c298c0) | root-run temporary unit | 2 verified renewals (23:57:48, 00:00:15); TTL 03:53:51 | **prod** (app-funded renewals only) | none | `outputs/decentralization-audit/custody-temporary-lease-protection-20261023.json` |
++| operational gate v5 (`custody-operational-gate-v5-20261023`, f5077c21) | its source tests | per its README (not re-run here) | unit | none | source only, not activated |
++| C9 7702 maintenance (`custody-operator-funding-options-20261023`, fe7e1057) | unsigned plan builder, read-only prepare, revm-processed test | per its README (not re-run here) | unit / read-only | none | source only; nothing signed |
+ | D boot-fee kit (`custody-boot-fee-activation-20261023`, 9d75f953) | t6 rerun | Python 49/49, Node 16/16, mutants 89/89 PASS (about 23:45Z) | unit | none | root journal [S27] |
+ | **control activation of `5db2be3f`, 23:36Z** | root production run | registration SUCCEEDED, adoption of both VMs, **gate FAILED** 23:43:16 (one EyesOff URLError); rolled back 23:43:19 | **prod** | none | D boot-fee kit `result.json`, `gate.json` [S29] |
+ | **control activation of `b007d471`, 23:10Z** | root production run | **FAILED** (no adoption within 300 s; self-registration "exceeds the balance"); rolled back 23:15:29 | **prod** | none | D kit `result.json` |
+diff --git a/commit9.sh b/commit9.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..6b43bef884cf36c4372d4e06aeb56f86f4d86aa4
+--- /dev/null
++++ b/commit9.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")"
++HOOKS=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-dashboard-20261023/repo/.githooks
++[ "$(git rev-parse --short=7 HEAD)" = 155a23f ]
++[ -z "$(git diff --name-only -- docs/security patches)" ]
++git add CURRENT-STATE.md SIGNING-AUTHORITY.md TEST-MATRIX.md SOURCES.md commit9.sh logs/commit-8.out logs/commit-8.rc logs/rangescan-8.out logs/rangescan-8.rc logs/scan-9.out logs/scan-9.rc logs/scan-gitleaks.json
++git -c core.hooksPath=$HOOKS commit -q -F - <<'MSG'
++Status 2026-10-24T00:20Z: temporary lease keeper (TTL 03:53:51), control still unregistered, fresh 00:00 reads
++
++PROVISIONAL; control recovery NOT done:
++- root-run TEMPORARY keeper b3c298c0 (unit enclave-custody-protected-leases-20261023) since 23:53:51, 4 h TTL to 03:53:51,
++  max 8 renewals/app; verified renewals 23:57:48 (imagegen 0xc483707a...) and 00:00:15 (EyesOff 0x8b2ad687...), no operator ETH
++- control still the rolled-back ed918e4b, unregistered
++- 00:00:23 read (block 53005325): committee 0x4774 epoch 1 t 1 W 1, book secretVaultV2/secretVault/hostOwnership zero;
++  00:00:27 fresh SNP quote of the original custodian PASS (attestation only, no secret release / lifecycle)
++- M fe7e1057 standard EIP-7702 maintenance plan builder: source only, unsigned, no authority requested; D gate v5 f5077c21
++  source only, not activated
++All earlier limitations and admin rights kept; docs/security and patches unchanged.
++MSG
++git log --format='%H %s' -1
+diff --git a/logs/commit-8.out b/logs/commit-8.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..f4bfbad9291d50469f002ce9e9369f51a0774081
+--- /dev/null
++++ b/logs/commit-8.out
+@@ -0,0 +1,5 @@
++[queue] START available=23552MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++155a23f450189d26eb045d2fb5f430d595250132 Status matrix; 23:36 boot-fee attempt registered and adopted, gate FAILED, rollback 23:43; payout is not accepted ownership
++[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
++[memory-guard] at peak: 
++[queue] EXIT 0
+diff --git a/logs/commit-8.rc b/logs/commit-8.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-8.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/rangescan-8.out b/logs/rangescan-8.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..28c653a646f816c29e2faa6fe26da4cb328352fa
+--- /dev/null
++++ b/logs/rangescan-8.out
+@@ -0,0 +1,8 @@
++[queue] START available=23538MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
++4:54PM INF 13 commits scanned.
++4:54PM INF scanned ~257866 bytes (257.87 KB) in 129ms
++4:54PM INF no leaks found
++[rangescan] gitleaks-all-commits=0 scan-crypto-keys-tracked=0
++[memory-guard] exit=0 peakTreeRssMiB=70 minHostAvailableMiB=23493
++[memory-guard] at peak: gitleaks:60 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/rangescan-8.rc b/logs/rangescan-8.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/rangescan-8.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/scan-9.out b/logs/scan-9.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..6608b9dd1e0e1381981e1fa28f66e869ffdb21e2
+--- /dev/null
++++ b/logs/scan-9.out
+@@ -0,0 +1,7 @@
++[queue] START available=23107MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++5:21PM INF scanned ~260312 bytes (260.31 KB) in 25.9ms
++5:21PM INF no leaks found
++[scan] gitleaks=0 scan-crypto-keys=0 literal=0
++[memory-guard] exit=0 peakTreeRssMiB=49 minHostAvailableMiB=23085
++[memory-guard] at peak: gitleaks:39 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/scan-9.rc b/logs/scan-9.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/scan-9.rc
+@@ -0,0 +1 @@
++0

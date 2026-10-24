@@ -1,0 +1,60 @@
+{
+  "observedAt": "2026-10-24T00:01:40.446362+00:00",
+  "scope": "Temporary app-funded renewals only; control recovery and custody rollout are not complete",
+  "sourceCommit": "b3c298c0855ea8687e0edd1338f5ad870b25dcb3",
+  "unit": "enclave-custody-protected-leases-20261023.service",
+  "service": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "MainPID": "716107"
+  },
+  "startedAt": "2026-10-23T23:53:51+00:00",
+  "expiresAt": "2026-10-24T03:53:51+00:00",
+  "maxRenewalsPerApp": 8,
+  "lastCycle": {
+    "at": 1792800080,
+    "minLeaseUntil": 1792801667,
+    "apps": {
+      "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+        "leaseUntil": 1792801667,
+        "why": "policy NotInRenewWindow"
+      },
+      "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+        "leaseUntil": 1792801813,
+        "why": "policy NotInRenewWindow"
+      }
+    }
+  },
+  "verifiedRenewals": [
+    {
+      "at": 1792800015,
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "guest": "gdd0646f2c",
+      "hash": "0x8b2ad68747e19f8f786bcd1614c219890e6b325aa13f19871f2e371b8f7b2b12",
+      "chargedWei": "1222972309865",
+      "receiptVerified": true,
+      "operatorEthSpent": false,
+      "leaseUntilBefore": 1792800289,
+      "leaseUntilAfter": 1792800289
+    },
+    {
+      "at": 1792799868,
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "guest": "gd9d4a391d",
+      "hash": "0xc483707a97c6954a824c97da9812a2cb96d3fe6b07bedfefa7f87fd331cf1d86",
+      "chargedWei": "1262525086906",
+      "receiptVerified": true,
+      "operatorEthSpent": false,
+      "leaseUntilBefore": 1792800067,
+      "leaseUntilAfter": 1792800067
+    }
+  ],
+  "operatorEthSpent": false,
+  "stopBeforeAnyControlOrDelegationMaintenance": true,
+  "limitations": [
+    "Not indefinite: fixed four-hour TTL and eight renewals per app",
+    "Unknown signed outcomes stop for reconciliation",
+    "Post-receipt lease reads can lag; later cycle confirms the extension",
+    "Public control adoption alone is not cryptographically authenticated; root stops the keeper before any control cutover"
+  ]
+}

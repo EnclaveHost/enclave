@@ -1,0 +1,207 @@
+From 76ab248dd31c4dda021b598eecea153da2c8a815 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:51:35 -0700
+Subject: [PATCH] Assessment: fund operator C9 via standard EIP-7702 revoke +
+ transfer + exact re-delegation (source only)
+
+Two sponsored type-4 transactions (authorization to address 0 with a value transfer, then
+re-delegation to the same reviewed executor). Semantics from local revm 43 pre-execution and
+viem 2.53.1; storage-preservation from the executor and reserve sources. Covers nonce rules,
+the quiesce requirements (no C9 sender, no outstanding sponsored Lease, live lease expiries),
+interruption cases and a finite approval/preflight/sign/broadcast/verify plan. Distinct from
+the rejected forced-fund route; claims no permission; nothing implemented, signed or sent.
+---
+ .gitignore |   1 +
+ README.md  | 150 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ q.sh       |  17 ++++++
+ 3 files changed, 168 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100755 q.sh
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..333c1e910a3e2bef1b9d0d4587392627d8388974
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1 @@
++logs/
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..e2ae20ad1c59fe5bc1d606913f9d5d4692db4172
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,150 @@
++# Funding metal0's operator C9 through standard EIP-7702 account maintenance: source-only assessment
++
++Written 2026-10-23T23:50Z.
++
++This is an assessment only. There were no keys, RPC calls, SSH, signing, broadcasts or mutations, and no tool is
++implemented. Root reviews it before deciding anything or asking a human. **This document does not claim permission to
++do any of it.**
++
++## Facts this rests on (root evidence, read only)
++
++- **Operator C9.** C9 = `0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab`.
++  - `setProofKey` mined at nonce 23759, block 53004641 (`custody-v2-live-20261023/evidence/registration-receipt-2341.json`).
++  - Now: nonce **23760**, balance **145,368,427,115 wei**.
++  - The gate failed and was rolled back at 23:43:19Z (`custody-boot-fee-activation-20261023/result.json`). The previous
++    `setProofKey` worst case was 271,929,253,610 wei.
++- **Delegation.** C9's code is the 7702 designator `0xef0100‖0x8900baca2167873ba2f8a8bae8b4876e6396d343`, codehash
++  `0xe2f1317f…bbe`; the executor runtime is `0xdd893cd4…`.
++- **Why plain ETH fails.** The executor (`EnclaveLeaseExecutor.sol`) has only nonpayable functions and no
++  `receive`/`fallback`, so a plain ETH send to C9 reverts.
++
++## The option, and how it differs from the rejected route
++
++| | rejected (do not retry) | this option |
++|---|---|---|
++| mechanism | a new helper contract that SELFDESTRUCTs ETH into C9 (forced funding) | the protocol's own 7702 revocation (authorization to address 0), a plain value transfer, then re-delegation to the SAME reviewed executor |
++| new code on chain | yes | **none**; no contract, no admin change, no generic execute path |
++| C9's delegation | untouched | **temporarily removed** (one-block-scale window), then restored byte-exactly |
++| needs C9's key | no | **yes**: two authorization signatures |
++
++It changes C9's account state twice. That needs explicit approval of its own; it is not covered by any earlier approval.
++
++## The two transactions
++
++The sponsor S is an already-funded EOA, not C9. N = C9's nonce at signing (23760 if nothing moves it).
++
++| tx | sender / nonce | authorizationList (signed by C9's key) | call | effect |
++|---|---|---|---|---|
++| A | S / s | `{chainId: 8453, address: 0x0000…0000, nonce: N}` | `to: C9, value: V, data: 0x` | before execution: C9's code is cleared (empty hash) and its nonce goes to N+1. Execution: a plain transfer of V to a codeless account. |
++| B | S / s+1 | `{chainId: 8453, address: 0x8900baca…d343, nonce: N+1}` | `to: S, value: 0, data: 0x` (never into C9) | C9's code is again `0xef0100‖executor` (codehash `e2f1317f`), nonce N+2 |
++
++Why two transactions: every authorization is applied BEFORE execution. Clear-and-restore in ONE transaction would leave
++the executor in place when the value arrives, and the transfer would revert.
++
++## Is it supported? (local sources only)
++
++**EIP-7702 processing** — `revm-handler 43.0.3 src/pre_execution.rs::apply_auth_list`, the EIP's numbered steps
++inline; `revm-context-interface 43.0.2 journaled_state/account.rs::delegate`:
++- **Address 0:** "do not write the designation. Clear the account's code and reset the code hash to the empty hash".
++- **Every applied authorization** bumps the authority's nonce.
++- **`delegate()` writes only code and nonce.** Storage and balance are untouched.
++- **An invalid authorization** (wrong chain id, nonce ≠ the account's nonce, or a bad signature) is skipped with
++  `continue`: the transaction still executes.
++
++**viem 2.53.1** (`actions/wallet/prepareAuthorization.js`; the repo's own lockfile copy):
++- **The address is free:** any address is accepted, including 0.
++- **Nonce rule:** the nonce defaults to the authority's PENDING nonce, plus 1 only when the authority itself sends the
++  transaction. Here the sponsor sends, so A uses N and B uses N+1.
++- **Sending:** `sendTransaction({ authorizationList })` exists.
++- **Precedent in this codebase:** `relay/host-sponsor.mjs` sends a relayer-paid type-4 transaction carrying an
++  operator-signed authorization on Base. It is a different target (Simple7702Account), but the same mechanism.
++
++**Base:** C9 itself is already 7702-delegated on Base, so Base processes type-4 transactions.
++
++**The contracts** (`history-checkpoint-transport/tree/contracts`):
++- **The reserve's check:** `EnclaveLeaseGasReserve.begin` requires `extcodehash(operator) == delegationCodeHash =
++  keccak256(0xef0100‖executor)`. So B must restore exactly `0x8900baca…`; any other target leaves the leases refused.
++- **The executor's state:** it keeps each deployment's lease nonce in C9's own storage under an ERC-7201 namespace.
++  The source says this is so that re-delegation cannot reset them. Its "first authorization charged" flag is in C9's
++  storage, keyed by the executor's address.
++
++**Not verified here:**
++- that the deployed executor runtime `dd893cd4…` equals this source (not rebuilt);
++- the Base sequencer's txpool rules for type-4 transactions (for example, limits on authorities with pending
++  transactions);
++- the exact revm parity of the client version Base runs;
++- whether MetaMask accepts a dapp-supplied `authorizationList`. This was not checked; assume no.
++
++## What is preserved
++
++- **Lease nonces and the executor's flags:** preserved. Storage is never touched, and the same executor reads the same
++  slots after B, so lease nonces continue and the "first authorization" flag stays set (no re-charge).
++- **C9's account nonce:** goes up by 2 (N → N+2). Lease signatures do not use it. Any already-signed C9 EOA
++  transaction at N or N+1 becomes invalid; none may exist.
++- **Balance:** C9 gains exactly V. Nothing else moves.
++- **The reserve's binding:** `delegationCodeHash` is unchanged, so after B the reserve accepts C9 again.
++
++## What must be quiet first
++
++1. **Nothing that can sign as C9 is running.** That means the control unit, boot/funding tools and keepers; root's
++   rollback state already has the new control stopped.
++   - This matters for two reasons. Any C9 transaction moves N and silently invalidates A or B. And a lease client that
++     attaches its own fresh authorization would race B (not verified for metal0's client).
++2. **No outstanding sponsored Lease.** Every C9-signed Lease deadline must have passed on a verified block; the TTL is
++   300 s, as in `safe_rollback`.
++   - This is the main hazard. While C9 has no code, a relayer's `lease()` call to C9 runs against an empty account and
++     **succeeds as a no-op**: no revert, no renewal, no reserve charge. A relayer could record a renewal that never
++     happened.
++3. **Live leases held by C9:** the two guests in `result.json` (holder `0xc9d0…`). They get no renewals while the node
++   is quiet. Their fresh expiries must exceed the quiet period, plus the A→B window, plus a margin; otherwise root
++   accepts or prevents the lapse first.
++4. **Nonces settled:**
++   - C9: latest == pending on two providers, equal to N.
++   - S: settled at s, with balance ≥ V + bounded fees for A and B (type-4 L1 size includes the authorization tuples;
++     reuse the reviewed fee rule).
++
++## Interruption cases
++
++| case | outcome | recovery |
++|---|---|---|
++| A's authorization invalid (N moved, bad signature) | skipped; the call hits the executor and reverts; V stays with S; S pays gas | none needed; re-plan |
++| A mined, B delayed or dropped | C9 is a funded plain EOA (funds safe: only C9's key moves them). The reserve refuses it, and relayed `lease()` calls are silent no-ops. | rebroadcast the same B (valid while C9's nonce = N+1). Or, since C9 is now funded, C9 self-sends a restore (authorization nonce = current + 1), which needs a fresh C9 signature. |
++| C9 sends anything between A and B | the presigned B is invalid | a fresh restore authorization, as above |
++| a third party copies A's authorization into its own transaction | C9 cleared but unfunded; our A reverts (stale authorization) | send B (now valid). This is griefing only, with no loss; Base's sequencer mempool is not a public p2p pool (not verified for this setup). |
++| a chain-id-0 authorization | could be replayed on any chain where C9's nonce matches | **never**: chainId must be 8453 |
++| a reorg | both transactions can be re-included as the same signed bytes | verify only after 2 confirmations on two providers |
++| B leaked early | harmless: valid only at N+1, and it only restores the reviewed executor | — |
++
++## A finite plan (no implementation yet)
++
++**0. Approvals** (root first, then each human role).
++- **C9 key holder.** The key is root-only (`metal/config.json` registryKey). They approve signing exactly two
++  authorizations: `{8453, 0x0, N}` and `{8453, 0x8900baca…, N+1}`.
++- **Funding owner.** They approve V and the sponsor:
++  - V's size is root's decision, for example "the next setProofKey/enrollment worst case plus margin" (271,929,253,610
++    wei was the previous worst case).
++  - S should be a dedicated EOA, funded by a plain transfer, that can sign raw type-4 transactions (not MetaMask).
++- **Leases.** Root accepts the lease plan from item 3 above.
++
++**1. Read-only preflight.** Two providers, one agreed block. It confirms:
++- C9's code equals the designator (codehash `e2f1317f`), with latest = pending = N, and C9's balance;
++- the executor code hash `dd893cd4…` and the reserve's `delegationCodeHash` `e2f1317f`;
++- no live Lease deadline, the live guests' lease expiries, and `nonceOf(id)` for their deployments;
++- S's nonce and balance;
++- an `eth_call` simulation of A and of B with their authorization lists;
++- the fee bounds (L2 cap + L1 upper bound for the signed type-4 size + Isthmus operator fee) against caps.
++
++**2. Sign.**
++- The C9 key holder signs the two authorizations, and S signs A (s) and B (s+1).
++- Both raw transactions are journaled privately (0600, fsynced) before any broadcast, as with the reviewed
++  journal-before-send pattern.
++
++**3. Broadcast** A, then B immediately, from the same sender in nonce order.
++- **After A:** C9's code is empty, nonce N+1, balance + V.
++- **After B:** the designator is back, codehash `e2f1317f`, nonce N+2.
++- **Unchanged throughout:** `nonceOf(id)`, `authorizationCharged()` and the reserve binding, each at 2 confirmations on
++  both providers.
++
++**4. Resume** the control and leases only after B is verified.
++
++There is no rollback for the funds. The only open state is "A done, B not", and its recovery is in the table above.
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..52aa447cdd7d1a2cd6e8b858f0abb754dc2ed154
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,17 @@
++#!/usr/bin/env bash
++# (copied from work/resume-20261021/reconciliation/q.sh, unchanged logic)
++# q.sh <MiB> <name> <command...>: ONE job through work/claude-test-queue.py, retried only while the queue answers 98
++# (NOT STARTED). The 256 lane refuses at once while held, so wait 30 s between tries (up to 120 tries) - same cap, no evasion.
++set -u
++mib="$1"; name="$2"; shift 2
++here="$(cd "$(dirname "$0")" && pwd)"; mkdir -p "$here/logs"; log="$here/logs/$name.log"; : > "$log"
++for i in $(seq 1 120); do
++  echo "[q] $(date -Is) try $i cmd: $*" >> "$log"
++  python3 /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$here/logs/$name.guard.log" -- "$@" >> "$log" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  sleep 30
++done
++echo "[q] $(date -Is) exit=$rc" >> "$log"
++echo "$rc" > "$here/logs/$name.rc"
++grep -E "^\[queue\] (START|EXIT)" "$log" | tail -3
++echo "exit=$rc"; exit $rc

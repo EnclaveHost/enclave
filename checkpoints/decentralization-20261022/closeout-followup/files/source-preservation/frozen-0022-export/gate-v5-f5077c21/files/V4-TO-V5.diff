@@ -1,0 +1,105 @@
+--- verify-operational-v4.py	2026-10-23 16:52:01.538451691 -0700
++++ verify-operational-v5.py	2026-10-23 16:54:42.215359202 -0700
+@@ -1,3 +1,10 @@
++# OPERATIONAL GATE v5 (Claude 2026-10-23; PROPOSAL.md; root reviews before any use) = gate v4 below + ONE rule: after the window has
++# started, a poll whose ONLY problem is a TRANSIENT app transport error (no HTTP response: timeout, connection refused/reset/
++# aborted, remote disconnect, DNS) RESETS the window instead of failing - at most MAX_RESETS (1) times. A reset clears good_since
++# and the vouch cycles: the next clean poll starts a NEW full window that again needs every vouch cycle; elapsed healthy time is
++# never counted. The deadline never extends; every other fault (HTTP status, payload, TLS/certificate, /availability, vouch,
++# guest, journal) fails exactly as in v4, and so does a transient together with any other problem.
++# --- gate v4 (unchanged text follows) ---
+ # OPERATIONAL GATE v3 (prepared by Claude, 2026-10-21; v2 kept in prior-gate2/, the first version in
+ # linux-post-adoption-repair/activation-gate/). activate.py runs it after attach + adoption; root may run it alone.
+ # READ-ONLY: the apps' public endpoints, the control's public /availability, and this host's enclave-metal journal lines
+@@ -18,11 +25,35 @@
+ # Warm-up (<= --warmup s) tolerates only "not yet" states before the window starts: the platform gate's first admit, the
+ # first reconcile pass's `held`. Once every check passes the window starts and EVERY poll must pass. HARD failures end the
+ # gate at any time: a death/reap/release/respawn/new-launch journal line for an app, an app unvouched, another guest id.
+-import argparse, datetime, json, re, subprocess, sys, time, urllib.request
++import argparse, datetime, json, re, socket, ssl, subprocess, sys, time, urllib.error, urllib.request
+ from pathlib import Path
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+ import apphealth, guestrows
+ 
++# v5: the SAME fetch as apphealth.fetch (byte-equivalent request and returns; tests/test_gate_v5.py compares them), except that it
++# keeps the exception apphealth.fetch swallows, so a failed check can be classified. apphealth.check (the health definition) is
++# untouched and calls this through its module global.
++MAX_RESETS = 1
++LAST_ERROR = {}
++def _fetch_recording(url, timeout=12):
++    req = urllib.request.Request(url, headers={'user-agent': 'enclave-activation-health/1', 'cache-control': 'no-cache'})
++    LAST_ERROR[url] = None
++    try:
++        with urllib.request.urlopen(req, timeout=timeout, context=apphealth.CTX) as r:
++            return r.status, (r.headers.get('content-type') or '').lower(), r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, '', b''
++    except Exception as e: LAST_ERROR[url] = e; return None, '', type(e).__name__.encode()
++apphealth.fetch = _fetch_recording
++
++TRANSIENT = (TimeoutError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, socket.gaierror)
++def is_transient(e):
++    """No HTTP response at all, for a transport reason. Never TLS/certificate (ssl.SSLError is an OSError; urllib wraps it in
++    URLError), never an HTTP status (HTTPError is answered by apphealth.fetch as a status, not an exception)."""
++    if isinstance(e, urllib.error.HTTPError) or e is None: return False
++    inner = e.reason if isinstance(e, urllib.error.URLError) else e
++    if isinstance(inner, ssl.SSLError) or isinstance(e, ssl.SSLError): return False
++    return isinstance(inner, TRANSIENT)
++
+ ap = argparse.ArgumentParser()
+ ap.add_argument('--availability', required=True)
+ ap.add_argument('--apps-json', required=True, help='apps-health.json: {deployment id: {url, kind, title?, minBytes?}}')
+@@ -71,18 +102,21 @@
+     t = token.lower()
+     return next((i for i in apps if i == t or (len(t) == 10 and i.startswith(t))), None)
+ 
+-result = {'startedAt': now(), 'gate': 4, 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
++result = {'startedAt': now(), 'gate': 5, 'maxResets': MAX_RESETS, 'resets': [], 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
+           'deadline': deadline, 'minVouches': a.min_vouches, 'polls': [], 'state': 'observing'}
+ def save(): open(a.out, 'w').write(json.dumps(result, indent=2) + '\n')
+ def finish(state, code, **kw):
+     result.update(state=state, at=now(), **kw); save(); print(state, json.dumps(kw)[:2000]); sys.exit(code)
+ t0 = time.monotonic(); good_since = None; vouch_ats = set(); last_vouch = None; last_vouch_change = None
+ while True:
+-    hard, soft = [], []
++    hard, soft, transient = [], [], []
+     p = {'at': now()}; cur_vouch = None
+     for i, spec in apps.items():
+         ok, detail = apphealth.check(spec); p[i[:10]] = detail
+-        if not ok: soft.append(f'{i[:10]}: app not healthy ({detail})')
++        if not ok:
++            e = LAST_ERROR.get(spec['url'])
++            if is_transient(e): transient.append(f'{i[:10]}: no HTTP response ({type(e).__name__}: {str(getattr(e, "reason", e))[:80]})')
++            else: soft.append(f'{i[:10]}: app not healthy ({detail})')
+     st, body = get(a.availability)
+     try: av = json.loads(body) if st == 200 else None
+     except Exception: av = None
+@@ -115,19 +149,23 @@
+         for r in BAD:
+             m = r.match(l)
+             if m and app_of(m.group(1)): hard.append('journal: ' + l[:200])
+-    if good_since is not None and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
++    if (good_since is not None or result['resets']) and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
+         hard.append(f'vouch stale: tenantVouch.at {last_vouch} has not advanced for {int(time.monotonic() - last_vouch_change)} s')
+-    p['hard'], p['soft'] = hard, soft
++    p['hard'], p['soft'], p['transient'] = hard, soft, transient
+     result['polls'].append(p); result['vouchCycles'] = len(vouch_ats); result['guests'] = expect
+     elapsed = time.monotonic() - t0
+     if hard: finish('FAIL', 1, why=hard)
+-    if soft:
+-        if good_since is not None: finish('FAIL', 1, why=['after the window started: '] + soft)
+-        if elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded: '] + soft)
++    if soft or transient:
++        if good_since is not None:
++            if not soft and len(result['resets']) < MAX_RESETS:   # v5: the ONLY problem is a transient app transport error
++                result['resets'].append({'at': now(), 'windowSecondsDiscarded': int(time.monotonic() - good_since), 'vouchCyclesDiscarded': len(vouch_ats), 'why': transient})
++                good_since = None; vouch_ats = set()
++            else: finish('FAIL', 1, why=['after the window started: '] + soft + transient + ([f'transient after {MAX_RESETS} reset(s)'] if transient and not soft else []))
++        elif elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded' + (' (after a reset)' if result['resets'] else '') + ': '] + soft + transient)
+     else:
+         if good_since is None: good_since = time.monotonic(); vouch_ats = {cur_vouch}   # the window starts now
+         if time.monotonic() - good_since >= a.window and len(vouch_ats) >= a.min_vouches:
+-            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats))
++            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats), resetCount=len(result['resets']))
+     if elapsed > deadline:
+         finish('FAIL', 1, why=[f'overall deadline {deadline} s passed: window {"not started" if good_since is None else f"{int(time.monotonic() - good_since)} s of {a.window}"},'
+                                f' vouch cycles {len(vouch_ats)} of {a.min_vouches}'])

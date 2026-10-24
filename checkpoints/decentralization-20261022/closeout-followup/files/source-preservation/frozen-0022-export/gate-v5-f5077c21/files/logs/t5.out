@@ -1,0 +1,16 @@
+[queue] START available=23428MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 11 tests in 75.046s
+
+OK
+control (unmutated copy) passes 6 tests
+KILLED   two-resets
+KILLED   reset-keeps-window
+KILLED   transient-with-other-problem
+KILLED   tls-is-transient
+KILLED   any-error-is-transient
+KILLED   deadline-extends-on-reset
+KILLED   reset-not-recorded
+mutants 7 survived 0
+[memory-guard] exit=0 peakTreeRssMiB=78 minHostAvailableMiB=23338
+[memory-guard] at peak: python3:32 python3:30 python3:16
+[queue] EXIT 0

@@ -1,0 +1,9 @@
+[queue] START available=23316MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+4:50PM INF scanned ~67438 bytes (67.44 KB) in 17.4ms
+4:50PM INF no leaks found
+literal files []
+[scan] files 18 gitleaks=0 scan-crypto-keys=0 literal=0
+efecad2f5a59e5f273741b6dd78581cd24535dc4 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23287
+[memory-guard] at peak: gitleaks:50 bash:6 bash:6 timeout:4
+[queue] EXIT 0

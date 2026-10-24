@@ -1,0 +1,36 @@
+[queue] START available=23376MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Ran 11 tests in 69.009s
+
+FAILED (failures=1)
+CONTROL FAILED: the run is invalid
+/usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 500: 'x'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+...F...
+======================================================================
+FAIL: test_old_vouch_cycles_never_count_after_a_reset (tests.test_gate_v5.GateV5.test_old_vouch_cycles_never_count_after_a_reset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023.mut-control/tests/test_gate_v5.py", line 88, in test_old_vouch_cycles_never_count_after_a_reset
+    self.assertEqual((rc, g['state'], len(g['resets'])), (0, 'PASS', 1), g.get('why'))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (0, 'PASS', 0) != (0, 'PASS', 1)
+
+First differing element 2:
+0
+1
+
+- (0, 'PASS', 0)
+?             ^
+
++ (0, 'PASS', 1)
+?             ^
+
+
+----------------------------------------------------------------------
+Ran 7 tests in 42.633s
+
+FAILED (failures=1)
+
+[memory-guard] exit=2 peakTreeRssMiB=78 minHostAvailableMiB=23085
+[memory-guard] at peak: python3:32 python3:30 python3:16
+[queue] EXIT 2

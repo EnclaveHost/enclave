@@ -1,0 +1,36 @@
+{
+  "commit": "5db2be3f4d4bed2c543e1e181c976ca9e26aa410",
+  "controlImage": "08d1f838 (9f6d37bd, root-built 21:54Z)",
+  "delta": [
+    "metal/guest/gsup.mjs",
+    "supervisor.js",
+    "test/boot-gpu-price.test.mjs",
+    "test/operator-fee-path.test.mjs",
+    "test/registry-advertise-retry.test.mjs"
+  ],
+  "gsupReviewed": true,
+  "imageFiles": [
+    "/app/supervisor.js",
+    "/opt/metal/gsup.mjs"
+  ],
+  "inventory": {
+    "dist-leasegas-5db2be3f4/MEASUREMENT": "fb40dbb58aa105d80db92a5e7d9dac84453d5a9a762e183ec1b72071ba62376f",
+    "dist-leasegas-5db2be3f4/cmdline": "d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8",
+    "dist-leasegas-5db2be3f4/initramfs.cpio.gz": "62361c69cd9ead9b3f5f95f6afdddb608d1e1843d9e13182d5083c4e5dfcafbd",
+    "dist-leasegas-5db2be3f4/manifest.json": "74eef1d1cadb385068803773cf046f67d5a2e91ad98ca023e4efa1a0cfc62456",
+    "dist-leasegas-5db2be3f4/vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "measurement": "bc731956cb425b886386375ac1dcea9dc91a04d7fc50715666c76aba193412c8455548dfbb36d979d8a53922668b896b",
+  "note": "source patch only; parent anchor = 9f6d37bd (prior build record: custody-recipient-restore-20261023 BUILD-APPROVED-RESULT.md)",
+  "parent": "9f6d37bd858ad44be1171b6415353910214c2fa5",
+  "patch": {
+    "file": "patch",
+    "form": "full context",
+    "sha256": "02c2dbe30424eb3e61bfc98986d57dc3c04f31067b2b31fc91c49aa60907f8f3"
+  },
+  "tests": [
+    "test/boot-gpu-price.test.mjs",
+    "test/operator-fee-path.test.mjs",
+    "test/registry-advertise-retry.test.mjs"
+  ]
+}

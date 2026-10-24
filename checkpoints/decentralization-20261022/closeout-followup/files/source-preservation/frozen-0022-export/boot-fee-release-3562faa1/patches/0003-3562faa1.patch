@@ -1,0 +1,74 @@
+From 3562faa1f3a26b331f79c17105e39f6d4cc082a0 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:50:29 -0700
+Subject: [PATCH] boot-fee release: BUILD-RESULT names the real patch file
+ (record field is the template's pre-move name 'patch')
+
+---
+ BUILD-RESULT.md         | 3 ++-
+ commit-result2.sh       | 7 +++++++
+ logs/commit-2.guard.log | 1 +
+ logs/commit-2.out       | 9 +++++++++
+ logs/commit-2.rc        | 1 +
+ 5 files changed, 20 insertions(+), 1 deletion(-)
+ create mode 100755 commit-result2.sh
+ create mode 100644 logs/commit-2.guard.log
+ create mode 100644 logs/commit-2.out
+ create mode 100644 logs/commit-2.rc
+
+diff --git a/BUILD-RESULT.md b/BUILD-RESULT.md
+index 962bce58f6c7f5de6c26a63d27fc4578a159b42a..7f8e49108b94573f19b738cd6889a92eb7f55ed6 100644
+--- a/BUILD-RESULT.md
++++ b/BUILD-RESULT.md
+@@ -9,7 +9,8 @@
+ 
+ **Delta vs 9f6d37bd:** metal/guest/gsup.mjs, supervisor.js, test/boot-gpu-price.test.mjs, test/operator-fee-path.test.mjs, test/registry-advertise-retry.test.mjs. The image files are /app/supervisor.js, /opt/metal/gsup.mjs.
+ 
+-**Source patch:** `stage/patch`, full context, sha256 `02c2dbe30424eb3e61bfc98986d57dc3c04f31067b2b31fc91c49aa60907f8f3`, parent-anchored at 9f6d37bd.
++**Source patch:** `stage/5db2be3f4-on-9f6d37bd.patch` (build-record.json names it `patch`, the pre-move name: a quirk of the
++reviewed template, which build-price.sh renames; the sha256 matches), full context, sha256 `02c2dbe30424eb3e61bfc98986d57dc3c04f31067b2b31fc91c49aa60907f8f3`, parent-anchored at 9f6d37bd.
+ 
+ ## The two build runs
+ 
+diff --git a/commit-result2.sh b/commit-result2.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..1a03978d73a526312a3fad4576c2a8c31200aa92
+--- /dev/null
++++ b/commit-result2.sh
+@@ -0,0 +1,7 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")"
++bash scan.sh BUILD-RESULT.md commit-result2.sh logs/commit-2.out
++git add -- BUILD-RESULT.md commit-result2.sh logs/commit-2.out logs/commit-2.guard.log logs/commit-2.rc
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "boot-fee release: BUILD-RESULT names the real patch file (record field is the template's pre-move name 'patch')"
++git log -1 --format='%H %an <%ae>'
+diff --git a/logs/commit-2.guard.log b/logs/commit-2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b622b9b07b6fa4de2e056a1964e02a51c93cf3
+--- /dev/null
++++ b/logs/commit-2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23287
+diff --git a/logs/commit-2.out b/logs/commit-2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..ad074002d91f7bc1eb1e3a0a65ffe1804de6ebb5
+--- /dev/null
++++ b/logs/commit-2.out
+@@ -0,0 +1,9 @@
++[queue] START available=23316MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
++4:50PM INF scanned ~67438 bytes (67.44 KB) in 17.4ms
++4:50PM INF no leaks found
++literal files []
++[scan] files 18 gitleaks=0 scan-crypto-keys=0 literal=0
++efecad2f5a59e5f273741b6dd78581cd24535dc4 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
++[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23287
++[memory-guard] at peak: gitleaks:50 bash:6 bash:6 timeout:4
++[queue] EXIT 0
+diff --git a/logs/commit-2.rc b/logs/commit-2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/commit-2.rc
+@@ -0,0 +1 @@
++0

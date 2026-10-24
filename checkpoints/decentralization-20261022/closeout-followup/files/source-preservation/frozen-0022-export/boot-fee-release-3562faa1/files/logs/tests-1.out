@@ -1,0 +1,13 @@
+[queue] START available=23690MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+----------------------------------------------------------------------
+Ran 10 tests in 0.638s
+
+OK
+OK   1: REFUSED: no APPROVED-COMMIT.txt from root
+OK   2: REFUSED: APPROVED-COMMIT.txt must be exactly three lines: commit / gsup / tests
+OK   3: REFUSED: 9f6d37bd858ad44be1171b6415353910214c2fa5 parents ['a6b1378cd'] are not exactly 9f6d37bd
+OK   4: REFUSED: 0000000000000000000000000000000000000000 is not in H's repo
+OK   5: REFUSED: a6b1378cdf430217025987d90c040d0e25a9993d parents ['deabf8f90'] are not exactly 9f6d37bd
+[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=23613
+[memory-guard] at peak: python3:22 bash:6 tail:4
+[queue] EXIT 0

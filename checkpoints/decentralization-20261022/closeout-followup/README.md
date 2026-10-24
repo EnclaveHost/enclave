@@ -59,6 +59,8 @@ Frozen 2329 append (2026-10-23; "2329" = the batch start 23:29:30Z, an identifie
 
 Frozen 2355 append (2026-10-23; "2355" = the batch start 23:55:07Z, an identifier): ROOT live records 2b0c975b, R current docs 155a23f4 (status matrix; 23:36 attempt registered and adopted, gate FAILED, rollback 23:43), H explicit-fee source 5db2be3f (PATCH-ONLY, parent-anchored) with its outer docs, D boot-fee kit 9d75f953 (old baseline omitted) with three root-allowed runtime receipts, and the public live-verification output after its 23:54Z correction; the 2329 receipt. Control recovery NOT done. See `MANIFEST.json` `appends`.
 
+Frozen 0022 append (2026-10-24; "0022" = the batch start 00:21:55Z, an identifier): root boot-fee release metadata 3562faa1, gate v5 proposal f5077c21 (not activated), temporary lease keeper source b3c298c0, C9 standard 7702 maintenance assessment and unsigned plan builder fe7e1057, R current docs cd4f51a3; the 2355 receipt and the public keeper receipt snapshot. Source preservation only: control recovery NOT done; lease protection temporary (TTL 03:53:51). See `MANIFEST.json` `appends`.
+
 Excluded: credentials, private runtime configuration, production backups, raw agent transcripts, dependency caches and generated images/binaries. Future source changes require subsequent commits.
 
 ## Work in progress captured at 20:35 UTC

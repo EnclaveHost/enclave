@@ -1,0 +1,5 @@
+[queue] START available=23439MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+REFUSED: no APPROVED-COMMIT.txt from root
+[memory-guard] exit=2 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 2

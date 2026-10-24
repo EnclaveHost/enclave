@@ -1,0 +1,3 @@
+{ "name": "custody-operator-7702-maintenance", "private": true, "type": "module",
+  "description": "Unsigned preparation of the C9 EIP-7702 maintenance (fund + exact re-delegation). Source only; no signer.",
+  "dependencies": { "viem": "2.53.1" }, "devDependencies": { "solc": "0.8.35" } }

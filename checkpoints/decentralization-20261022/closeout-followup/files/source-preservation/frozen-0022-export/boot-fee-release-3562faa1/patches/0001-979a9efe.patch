@@ -1,0 +1,605 @@
+From 979a9efedc3af5d2443165c1eee50a487b960123 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 16:21:48 -0700
+Subject: [PATCH] boot-fee release: build template for H's next sibling child
+ of 9f6d37bd (explicit sender fees), not run
+
+Byte-identical to the reviewed a340762 template (precheck e6f3cb97 unchanged; control 9f6d37bd = 08d1f838); new README only;
+the 7dd-specific commit.sh and every runtime file excluded. Tests 10/10, refusals 5/5.
+---
+ .gitignore             |  6 +++
+ README.md              | 29 +++++++++++++
+ build-price.sh         | 79 ++++++++++++++++++++++++++++++++++++
+ commit-fee.sh          | 12 ++++++
+ entries.py             | 27 +++++++++++++
+ logs/tests-1.guard.log |  1 +
+ logs/tests-1.out       | 13 ++++++
+ logs/tests-1.rc        |  1 +
+ precheck.py            | 73 +++++++++++++++++++++++++++++++++
+ q.sh                   | 11 +++++
+ refusal-tests/run.sh   | 14 +++++++
+ scan.sh                | 17 ++++++++
+ tests/test_precheck.py | 92 ++++++++++++++++++++++++++++++++++++++++++
+ tests/test_verify.py   | 39 ++++++++++++++++++
+ verify.py              | 60 +++++++++++++++++++++++++++
+ 15 files changed, 474 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 README.md
+ create mode 100755 build-price.sh
+ create mode 100755 commit-fee.sh
+ create mode 100644 entries.py
+ create mode 100644 logs/tests-1.guard.log
+ create mode 100644 logs/tests-1.out
+ create mode 100644 logs/tests-1.rc
+ create mode 100644 precheck.py
+ create mode 100755 q.sh
+ create mode 100644 refusal-tests/run.sh
+ create mode 100755 scan.sh
+ create mode 100644 tests/test_precheck.py
+ create mode 100644 tests/test_verify.py
+ create mode 100644 verify.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..30f4d378f6d5babc2ac412602710c3ae726c0577
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,6 @@
++stage/
++tests/.fixture-repo/
++logs/scan-gitleaks.json
++__pycache__/
++tests/__pycache__/
++APPROVED-COMMIT.txt.example
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..e58856536697942255d0939834d62ae83cc519bd
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,29 @@
++# Boot-fee release: build template for the NEXT boot fix (ROOT-FEE-RELEASE-PREP.txt)
++
++This is a source-only template, prepared 2026-10-23. **Nothing was built.** Root reviews H's new commit, then writes
++`APPROVED-COMMIT.txt` here, then runs the build.
++
++**The fix it is for:** H's new sibling child of 9f6d37bd in `work/custody-boot-registration-20261023/repo` (branch
++`boot-normal-fee`). It carries the reviewed 7dd3acd0 delta (pending shielded GPU price; a failed registry read never
++registers) **plus** `sendOperatorTx` stating explicit fresh `estimateFeesPerGas` + `estimateContractGas` inside the existing
++`_txChain`, so that viem's `eth_fillTransaction` path cannot multiply the node's padded fee again. The 7dd image's setProofKey was
++refused: about 13.2 Mwei instead of the modelled 7 Mwei (`custody-boot-price-activation-20261023/FUNDING-MISMATCH-REVIEW.txt`).
++
++**Code reuse:** every file but this README is **byte-identical to a340762**: `build-price.sh`, `precheck.py`, `verify.py`, `entries.py`,
++`q.sh`, `scan.sh`, `refusal-tests/run.sh`, `tests/*`.
++- **Same rules:** a single parent 9f6d37bd; delta exactly `supervisor.js` + the approved tests (+ `metal/guest/gsup.mjs` only with
++  `gsup REVIEWED`); builder unchanged; a parent-anchored source patch free of the rewritten literal; the 9f control is
++  byte-identical to the root-built 08d1f838; the candidate built twice; the exact manifest and entry delta; the image equals the
++  commit; ed918e4b, ee5df6b8 and 08d1f838 reproduced.
++- **Precheck pin:** `precheck.py`'s sha256 (e6f3cb97…) is unchanged, so the activation kit's `PRECHECK_SHA256` pin holds as-is.
++- **Old commit.sh:** a340762's `commit.sh` is NOT copied (its file list and message belong to the 7dd release).
++- **Nothing carried over:** no old `APPROVED-COMMIT.txt`, `stage/` or runtime file.
++
++```
++commit <40 hex of H's new commit>
++gsup REVIEWED
++tests <the exact test files the commit adds or changes, e.g. test/boot-gpu-price.test.mjs test/registry-advertise-retry.test.mjs test/...>
++```
++
++**Run (root, after approval):** `./q.sh 1024 build-price-1 bash ./build-price.sh` (the 7dd build peaked at about 301 MiB).
++The 7dd build (b007d471) is not a control here, because the new commit is its SIBLING: the control is still 9f6d37bd = 08d1f838.
+diff --git a/build-price.sh b/build-price.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..569a19b1281b273a8608def62da14487deca02a2
+--- /dev/null
++++ b/build-price.sh
+@@ -0,0 +1,79 @@
++#!/bin/bash
++# BOUNDED BUILD of ROOT's approved boot-price fix (a single-parent child of 9f6d37bd in work/custody-boot-registration-20261023/repo).
++# Prepared 2026-10-23, NOT run by its author; root runs it only after writing APPROVED-COMMIT.txt here (format: precheck.py).
++# No VM, no production change, no admission change. Refuses on any deviation:
++#   0. precheck.py: approval format; parent exactly 9f6d37bd; delta exactly supervisor.js + the approved tests (+ gsup.mjs only if
++#      root wrote "gsup REVIEWED"); builder unchanged; source patch (parent-anchored, never the whole tree) free of the rewritten
++#      provider literal -> stage/<short>-on-9f6d37bd.patch. Then: the base, production, a6 and root-built 08d1 images unchanged.
++#   1. CONTROL: 9f6d37bd rebuilt from H's repo == the root-built 08d1f838 image byte for byte (restore stage-approved, = the
++#      ~/enclave-prod copy when present).
++#   2. the candidate built TWICE, byte-identical.
++#   3. verify.py: exact manifest/entry delta vs 08d1 and production; the image's changed files and gsup.mjs = the commit's bytes.
++#   4. the measurement recipe reproduces ed918e4b (production), ee5df6b8 (a6) and 08d1f838 (9f) first, then measures the candidate,
++#      which must be none of them.
++# Run (after approval): ./q.sh 1024 build-price-1 bash ./build-price.sh     (the 9f build peaked at 301 MiB)
++set -euo pipefail
++cd "$(dirname "$0")"
++H=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-registration-20261023/repo
++RST=/home/steven/Documents/Codex/2026-10-18/wo/work/custody-recipient-restore-20261023
++S=$PWD/stage; P=/home/steven/enclave-prod
++BASE=$P/dist-sdshield-2857356cd; PROD=$P/dist-leasegas-deabf8f90; A6=$RST/stage/dist-leasegas-a6b1378cd
++N9=$RST/stage-approved/dist-leasegas-9f6d37bd8; N9P=$P/dist-leasegas-9f6d37bd8
++PARENT=9f6d37bd858ad44be1171b6415353910214c2fa5
++OVMF=/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd
++APPEND="console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app"
++MEASURE="$HOME/.local/bin/sev-snp-measure --mode snp --vcpus 4 --vcpu-family 26 --vcpu-model 2 --vcpu-stepping 1 --vmm-type QEMU --ovmf $OVMF --append"
++export GIT_OPTIONAL_LOCKS=0
++[ -f APPROVED-COMMIT.txt ] || { echo "REFUSED: no APPROVED-COMMIT.txt from root"; exit 2; }
++[ ! -e $S ] || { echo "stage exists: inspect before retry"; exit 2; }
++mkdir -p $S.precheck; trap 'rm -rf $S.precheck' EXIT
++PC=$(python3 -I precheck.py $H APPROVED-COMMIT.txt $S.precheck/patch) || { echo "$PC"; exit 2; }
++echo "$PC"
++NEW=$(python3 -I -c 'import json,sys; print(json.loads(sys.argv[1].split(" ",1)[1])["commit"])' "$PC")
++FILES=$(python3 -I -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1].split(" ",1)[1])["imageFiles"]))' "$PC")
++SHORT=${NEW:0:9}
++pin() { [ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] || { echo "REFUSED: $1 is not the pinned file"; exit 2; }; }
++pin $BASE/initramfs.cpio.gz 516d766d9e31f07c02544d16969c34d3d28c2bca0e4032049225635433f10afc
++pin $PROD/initramfs.cpio.gz c190c040485974a840b40e31a6dd068cc103199cf15315ef9c8c7575781b28e3
++pin $PROD/manifest.json c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4
++pin $A6/initramfs.cpio.gz 5ce61b6f590ed6b84f6d463a949234562c4a6fd8646b74b3de69d6e2e442f1de
++pin $A6/MEASUREMENT d99cb42849311fb017b76b35bb200ff847ea2d548b369ddffabf5e6c954660c9
++for d in $N9 $N9P; do
++  [ -d $d ] || { [ $d = $N9P ] && continue; echo "REFUSED: $d missing"; exit 2; }
++  pin $d/initramfs.cpio.gz 02c7280a7020f29395d9e38e361d72aad8b39311218a1dd272dc2893e562dfaf
++  pin $d/manifest.json 64bd025db3ed62b82f016ed25f1bd24ab300dbe7520ca81498d3ccd293e43b16
++  pin $d/MEASUREMENT 6d55c0e2839e5a1aad1258ce80ec112181f155c50be9f5ad1f66f1bb44064537
++  pin $d/vmlinuz 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7
++  pin $d/cmdline d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8
++done
++cmp -s $H/metal/overlay-control-image.py <(git -C $H show $PARENT:metal/overlay-control-image.py) || { echo "REFUSED: H's checked-out builder is not 9f6d37bd's"; exit 2; }
++mkdir $S; mv $S.precheck/patch $S/$SHORT-on-9f6d37bd.patch; date -u +%FT%TZ
++B="python3 $H/metal/overlay-control-image.py"   # reads only git objects of the given commit + the base image
++echo "== 1. control: 9f6d37bd from H's repo == the root-built 08d1f838 image"
++$B $BASE $S/control-9f $PARENT
++for f in initramfs.cpio.gz vmlinuz cmdline manifest.json; do cmp -s $S/control-9f/$f $N9/$f && echo "CONTROL-IDENTICAL $f" || { echo "CONTROL-DIFFERS $f"; exit 1; }; done
++echo "== 2. candidate twice"
++$B $BASE $S/dist-leasegas-$SHORT $NEW; $B $BASE $S/repro-$SHORT $NEW
++for f in initramfs.cpio.gz vmlinuz cmdline manifest.json; do cmp -s $S/repro-$SHORT/$f $S/dist-leasegas-$SHORT/$f && echo "REPRODUCIBLE $f" || { echo "NOT-REPRODUCIBLE $f"; exit 1; }; done
++rm -rf $S/repro-$SHORT $S/control-9f
++OUT=$S/dist-leasegas-$SHORT
++echo "== 3. exact delta"
++python3 -I entries.py $N9/initramfs.cpio.gz $OUT/initramfs.cpio.gz > $S/entries-vs-9f.jsonl
++python3 -I entries.py $PROD/initramfs.cpio.gz $OUT/initramfs.cpio.gz > $S/entries-vs-production.jsonl
++python3 -I verify.py $S $N9/manifest.json $OUT/manifest.json $OUT/initramfs.cpio.gz $H $NEW "$FILES"
++for f in vmlinuz cmdline; do cmp -s $OUT/$f $N9/$f && echo "UNCHANGED $f" || { echo "CHANGED $f"; exit 1; }; done
++echo "== 4. measurement"
++m() { $MEASURE "$APPEND" --kernel $1/vmlinuz --initrd $1/initramfs.cpio.gz --output-format hex; }
++for d in $PROD $A6 $N9; do [ "$(m $d)" = "$(cat $d/MEASUREMENT)" ] && echo "MEASURE-RECIPE-REPRODUCES $(head -c 8 $d/MEASUREMENT)" || { echo "MEASURE-MISMATCH $d"; exit 1; }; done
++M=$(m $OUT)
++for d in $PROD $A6 $N9; do [ "$M" != "$(cat $d/MEASUREMENT)" ] || { echo "CANDIDATE-EQUALS-AN-OLD-IMAGE $d"; exit 1; }; done
++echo "$M" > $OUT/MEASUREMENT; echo "MEASURE-CANDIDATE $M"
++(cd $S && find dist-leasegas-$SHORT -type f | sort | xargs sha256sum) | tee $S/INVENTORY.sha256
++python3 -I - "$PC" "$M" $S <<'PY'
++import hashlib, json, pathlib, sys
++rec = json.loads(sys.argv[1].split(' ', 1)[1]); s = pathlib.Path(sys.argv[3])
++rec.update(measurement=sys.argv[2], inventory=dict(reversed(l.split('  ', 1)) for l in (s/'INVENTORY.sha256').read_text().splitlines()),
++           controlImage='08d1f838 (9f6d37bd, root-built 21:54Z)', note='source patch only; parent anchor = 9f6d37bd (prior build record: custody-recipient-restore-20261023 BUILD-APPROVED-RESULT.md)')
++(s/'build-record.json').write_text(json.dumps(rec, indent=2, sort_keys=True) + '\n'); print('BUILD-RECORD', hashlib.sha256((s/'build-record.json').read_bytes()).hexdigest())
++PY
++date -u +%FT%TZ
+diff --git a/commit-fee.sh b/commit-fee.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..40c7a0fe6bfd5d787344ad70ea84e3da90f8047c
+--- /dev/null
++++ b/commit-fee.sh
+@@ -0,0 +1,12 @@
++#!/bin/bash
++# Scan (unchanged scanners, scan.sh) then commit ONLY the template (never git add -A: root writes runtime files here later).
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES=".gitignore README.md build-price.sh precheck.py verify.py entries.py q.sh scan.sh commit-fee.sh refusal-tests/run.sh tests/test_precheck.py tests/test_verify.py logs/tests-1.out logs/tests-1.guard.log logs/tests-1.rc"
++bash scan.sh $FILES
++git add -- $FILES
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "boot-fee release: build template for H's next sibling child of 9f6d37bd (explicit sender fees), not run
++
++Byte-identical to the reviewed a340762 template (precheck e6f3cb97 unchanged; control 9f6d37bd = 08d1f838); new README only;
++the 7dd-specific commit.sh and every runtime file excluded. Tests 10/10, refusals 5/5."
++git log -1 --format='%H %an <%ae>'
+diff --git a/entries.py b/entries.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7714ea474ed9d62d3cc40f742c3a9d9e9a6821e9
+--- /dev/null
++++ b/entries.py
+@@ -0,0 +1,27 @@
++"""entries.py A.cpio.gz B.cpio.gz : stream BOTH newc archives (64 KiB chunks) and print every entry that differs
++(name, mode, size, sha256) as JSON lines, then a summary. Read-only."""
++import gzip, hashlib, json, sys
++def entries(path):
++    out = {}
++    with gzip.open(path, 'rb') as f:
++        buf = bytearray()
++        def read(n):
++            while len(buf) < n:
++                c = f.read(65536)
++                if not c: raise EOFError(path)
++                buf.extend(c)
++            d = bytes(buf[:n]); del buf[:n]; return d
++        while True:
++            h = read(110); fld = [int(h[6+8*i:14+8*i], 16) for i in range(13)]
++            mode, size, ns = fld[1], fld[6], fld[11]
++            name = read(ns)[:-1].decode('utf-8', 'surrogateescape'); read((-(110+ns)) % 4)
++            if name == 'TRAILER!!!': break
++            hs = hashlib.sha256(); left = size
++            while left: k = min(65536, left); hs.update(read(k)); left -= k
++            read((-size) % 4)
++            out[name] = (oct(mode), size, hs.hexdigest())
++    return out
++a, b = entries(sys.argv[1]), entries(sys.argv[2])
++diff = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
++for k in diff: print(json.dumps({'entry': k, 'a': a.get(k), 'b': b.get(k)}))
++print(json.dumps({'entriesA': len(a), 'entriesB': len(b), 'differing': diff}))
+diff --git a/logs/tests-1.guard.log b/logs/tests-1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbd8f2777e2e1e5f3392712144ad2311deb64906
+--- /dev/null
++++ b/logs/tests-1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=23613
+diff --git a/logs/tests-1.out b/logs/tests-1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..de2f463f236d615b1f447064477719719b09b53f
+--- /dev/null
++++ b/logs/tests-1.out
+@@ -0,0 +1,13 @@
++[queue] START available=23690MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++----------------------------------------------------------------------
++Ran 10 tests in 0.638s
++
++OK
++OK   1: REFUSED: no APPROVED-COMMIT.txt from root
++OK   2: REFUSED: APPROVED-COMMIT.txt must be exactly three lines: commit / gsup / tests
++OK   3: REFUSED: 9f6d37bd858ad44be1171b6415353910214c2fa5 parents ['a6b1378cd'] are not exactly 9f6d37bd
++OK   4: REFUSED: 0000000000000000000000000000000000000000 is not in H's repo
++OK   5: REFUSED: a6b1378cdf430217025987d90c040d0e25a9993d parents ['deabf8f90'] are not exactly 9f6d37bd
++[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=23613
++[memory-guard] at peak: python3:22 bash:6 tail:4
++[queue] EXIT 0
+diff --git a/logs/tests-1.rc b/logs/tests-1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/tests-1.rc
+@@ -0,0 +1 @@
++0
+diff --git a/precheck.py b/precheck.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..d92b350c8811b3248c5ac80782f41a3645b97354
+--- /dev/null
++++ b/precheck.py
+@@ -0,0 +1,73 @@
++"""PRE-BUILD checks for the boot-price release (read-only; no build). Prepared 2026-10-23; root runs it via build-price.sh.
++   python3 precheck.py <H repo> <APPROVED-COMMIT.txt> <patch out>   -> prints one JSON line {commit, delta, gsup, tests, patch...}
++APPROVED-COMMIT.txt, written by ROOT after reviewing the commit, is exactly three lines:
++   commit <40 hex>
++   gsup REVIEWED | gsup UNCHANGED        (REVIEWED only if root reviewed a metal/guest/gsup.mjs change in this commit)
++   tests <space-separated test/ paths>   (the exact test files the commit adds or changes; NONE for none)
++Refuses unless: the commit is a SINGLE-parent child of 9f6d37bd; its delta is EXACTLY supervisor.js + the named tests (+ gsup.mjs
++iff REVIEWED, and then gsup must actually change); the builder file is unchanged; the source patch (parent-anchored, never the
++whole tree) carries no rewritten provider literal (full context, else zero context; refuses if a changed line carries it)."""
++import json, re, subprocess, sys, tempfile
++from pathlib import Path
++PARENT = '9f6d37bd858ad44be1171b6415353910214c2fa5'
++GSUP, SUP, BUILDER = 'metal/guest/gsup.mjs', 'supervisor.js', 'metal/overlay-control-image.py'
++OLD = bytes.fromhex('54696e666f696c')
++
++class Refused(Exception): pass
++
++def git(repo, *a):
++    return subprocess.run(['git', '-C', str(repo), *a], capture_output=True, check=True, timeout=120,
++                          env={'GIT_OPTIONAL_LOCKS': '0', 'PATH': '/usr/bin:/bin'}).stdout
++
++def parse_approval(text):
++    lines = text.splitlines()
++    if len(lines) != 3 or not text.endswith('\n'): raise Refused('APPROVED-COMMIT.txt must be exactly three lines: commit / gsup / tests')
++    m = re.fullmatch(r'commit ([0-9a-f]{40})', lines[0])
++    if not m: raise Refused('line 1 must be "commit <40 hex>"')
++    g = re.fullmatch(r'gsup (REVIEWED|UNCHANGED)', lines[1])
++    if not g: raise Refused('line 2 must be "gsup REVIEWED" or "gsup UNCHANGED"')
++    t = re.fullmatch(r'tests (NONE|test/[A-Za-z0-9._/-]+(?: test/[A-Za-z0-9._/-]+)*)', lines[2])
++    if not t: raise Refused('line 3 must be "tests NONE" or "tests test/<path> ..."')
++    tests = [] if t.group(1) == 'NONE' else t.group(1).split(' ')
++    if len(set(tests)) != len(tests) or any('..' in p for p in tests): raise Refused('duplicate or relative test paths')
++    return m.group(1), g.group(1) == 'REVIEWED', sorted(tests)
++
++def has_old(b): return OLD in b or OLD.lower() in b
++
++def format_patch(repo, commit, *extra):
++    """git format-patch PARENT..commit with hunk-header function context OFF (git would otherwise copy an arbitrary nearby source
++    line into every '@@ ... @@' header, which can be the very line the patch must not carry)."""
++    with tempfile.NamedTemporaryFile('w', suffix='.gitattributes') as attrs:
++        attrs.write('* diff=nofunc\n'); attrs.flush()
++        return git(repo, '-c', f'core.attributesFile={attrs.name}', '-c', 'diff.nofunc.xfuncname=^NOFUNC-NEVER-MATCHES$',
++                   'format-patch', '--stdout', '--no-renames', *extra, f'{PARENT}..{commit}')
++
++def check(repo, approval_text):
++    commit, gsup, tests = parse_approval(approval_text)
++    try: kind = git(repo, 'cat-file', '-t', commit).decode().strip()
++    except subprocess.CalledProcessError: raise Refused(f'{commit} is not in H\'s repo')
++    if kind != 'commit': raise Refused(f'{commit} is not a commit')
++    parents = git(repo, 'rev-list', '--parents', '-n', '1', commit).decode().split()[1:]
++    if parents != [PARENT]: raise Refused(f'{commit} parents {[p[:9] for p in parents]} are not exactly 9f6d37bd')
++    delta = sorted(git(repo, 'diff', '--no-renames', '--name-only', PARENT, commit).decode().split())
++    want = sorted([SUP] + tests + ([GSUP] if gsup else []))
++    if delta != want: raise Refused(f'delta {delta} is not exactly {want}')
++    if git(repo, 'show', f'{PARENT}:{BUILDER}') != git(repo, 'show', f'{commit}:{BUILDER}'): raise Refused('the builder changed')
++    diff = git(repo, 'diff', '--no-renames', PARENT, commit, '--', SUP, *([GSUP] if gsup else []))
++    if any(has_old(l) for l in diff.splitlines() if l[:1] in (b'+', b'-') and not l.startswith((b'+++', b'---'))):
++        raise Refused('a changed line carries the rewritten provider literal: root review')
++    patch = format_patch(repo, commit)
++    form = 'full context'
++    if has_old(patch):
++        patch = format_patch(repo, commit, '-U0'); form = 'zero context (apply with --unidiff-zero)'
++        if has_old(patch): raise Refused('the source patch carries the rewritten provider literal even at zero context')
++    return {'commit': commit, 'parent': PARENT, 'gsupReviewed': gsup, 'tests': tests, 'delta': delta,
++            'imageFiles': sorted(['/app/supervisor.js'] + (['/opt/metal/gsup.mjs'] if gsup else []))}, patch, form
++
++if __name__ == '__main__':
++    try:
++        rec, patch, form = check(Path(sys.argv[1]), Path(sys.argv[2]).read_text())
++    except Refused as e: print('REFUSED:', e); sys.exit(2)
++    out = Path(sys.argv[3]); out.write_bytes(patch)
++    import hashlib; rec.update(patch={'file': out.name, 'form': form, 'sha256': hashlib.sha256(patch).hexdigest()})
++    print('PRECHECK-PASS ' + json.dumps(rec, sort_keys=True))
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/refusal-tests/run.sh b/refusal-tests/run.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce0ae74399597bf7332970ff3d1fe33df7445a3c
+--- /dev/null
++++ b/refusal-tests/run.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++# build-price.sh refusals, each from its own copy (own APPROVED-COMMIT.txt), against H's REAL repo; every case must exit 2
++# before any build (no stage/ dir created).
++cd "$(dirname "$0")"; fail=0
++case_() { n=$1; want=$2; shift 2; mkdir -p c$n; cp ../build-price.sh ../precheck.py ../entries.py ../verify.py c$n/
++  [ $# -gt 0 ] && printf '%s\n' "$@" > c$n/APPROVED-COMMIT.txt
++  out=$(bash c$n/build-price.sh 2>&1); rc=$?
++  if [ $rc = 2 ] && grep -q "$want" <<<"$out" && [ ! -e c$n/stage ]; then echo "OK   $n: $out"; else echo "FAIL $n rc=$rc: $out"; fail=1; fi; rm -rf c$n; }
++case_ 1 'no APPROVED-COMMIT'
++case_ 2 'exactly three lines' 'commit 9f6d37bd858ad44be1171b6415353910214c2fa5' 'gsup UNCHANGED'
++case_ 3 'are not exactly 9f6d37bd' 'commit 9f6d37bd858ad44be1171b6415353910214c2fa5' 'gsup UNCHANGED' 'tests NONE'
++case_ 4 'not in H' 'commit 0000000000000000000000000000000000000000' 'gsup UNCHANGED' 'tests NONE'
++case_ 5 'are not exactly 9f6d37bd' 'commit a6b1378cdf430217025987d90c040d0e25a9993d' 'gsup UNCHANGED' 'tests NONE'
++exit $fail
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b79a8ba45a9eb0d344242244c9b28a08c2a3ad80
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,17 @@
++#!/bin/bash
++# Secret + rewritten-literal scans (checkpoint's own unchanged scanners/config) of every file to be committed.
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d)
++for f in "$@"; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find "$st" -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - "$st" <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] files $(find "$st" -type f | wc -l) gitleaks=$g scan-crypto-keys=$k literal=$l"; rm -rf "$st"
++[ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/tests/test_precheck.py b/tests/test_precheck.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4e7c6c95f2bd84a711dae8418ee35d7bfbbba595
+--- /dev/null
++++ b/tests/test_precheck.py
+@@ -0,0 +1,92 @@
++"""precheck.py against real commits on a SHARED BARE CLONE of H's repo (tests/.fixture-repo, gitignored): H's repo and working tree
++are never written. Fixture commits are made with git plumbing on top of the real 9f6d37bd."""
++import copy, os, subprocess, sys, unittest
++from pathlib import Path
++HERE = Path(__file__).resolve().parent; sys.path.insert(0, str(HERE.parent))
++import precheck as pc
++H = HERE.parent.parent / 'custody-boot-registration-20261023' / 'repo'
++FX = HERE / '.fixture-repo'
++ENV = {**os.environ, 'GIT_AUTHOR_NAME': 'fixture', 'GIT_AUTHOR_EMAIL': 'fixture@invalid', 'GIT_COMMITTER_NAME': 'fixture',
++       'GIT_COMMITTER_EMAIL': 'fixture@invalid', 'GIT_OPTIONAL_LOCKS': '0'}
++
++def g(*a, inp=None, env=None):
++    return subprocess.run(['git', '-C', str(FX), *a], input=inp, capture_output=True, check=True, env={**ENV, **(env or {})}).stdout
++
++def commit(parents, changes, msg='fixture'):
++    """changes: {path: bytes} applied to the FIRST parent's tree -> new commit hash."""
++    idx = FX / f'idx-{os.getpid()}'
++    try:
++        e = {'GIT_INDEX_FILE': str(idx)}
++        g('read-tree', parents[0], env=e)
++        for p, b in changes.items():
++            blob = g('hash-object', '-w', '--stdin', inp=b).decode().strip()
++            g('update-index', '--add', '--cacheinfo', f'100644,{blob},{p}', env=e)
++        tree = g('write-tree', env=e).decode().strip()
++    finally:
++        idx.unlink(missing_ok=True)
++    return g('commit-tree', tree, *sum((['-p', p] for p in parents), []), '-m', msg).decode().strip()
++
++def applies(patch, c, zero=False):
++    """the exported patch applied to 9f6d37bd's tree reproduces EXACTLY the commit's tree (the parent anchor)"""
++    idx = FX / f'idx-a-{os.getpid()}'
++    try:
++        e = {'GIT_INDEX_FILE': str(idx)}; g('read-tree', pc.PARENT, env=e)
++        subprocess.run(['git', '-C', str(FX), 'apply', '--cached', *(['--unidiff-zero'] if zero else []), '-'], input=patch, check=True, capture_output=True, env={**ENV, **e})
++        return g('write-tree', env=e).decode().strip() == g('rev-parse', c + '^{tree}').decode().strip()
++    finally: idx.unlink(missing_ok=True)
++
++def appr(c, gsup='UNCHANGED', tests='test/boot-price.test.mjs'): return f'commit {c}\ngsup {gsup}\ntests {tests}\n'
++
++class Precheck(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        if not FX.exists(): subprocess.run(['git', 'clone', '-q', '--shared', '--bare', str(H), str(FX)], check=True, env=ENV)
++        cls.sup = g('show', f'{pc.PARENT}:supervisor.js'); cls.gsup = g('show', f'{pc.PARENT}:metal/guest/gsup.mjs')
++        cls.T = b'// fixture test\n'
++        cls.good = commit([pc.PARENT], {'supervisor.js': cls.sup + b'// pending-GPU guard (fixture)\n', 'test/boot-price.test.mjs': cls.T})
++    def check(self, text): return pc.check(FX, text)
++
++    def test_good_child_passes_with_parent_anchored_patch(self):
++        rec, patch, form = self.check(appr(self.good))
++        self.assertEqual((rec['parent'], rec['gsupReviewed'], rec['imageFiles']), (pc.PARENT, False, ['/app/supervisor.js']))
++        self.assertEqual(rec['delta'], ['supervisor.js', 'test/boot-price.test.mjs']); self.assertEqual(form, 'full context')
++        self.assertIn(self.good.encode(), patch.splitlines()[0]); self.assertFalse(pc.has_old(patch))
++        self.assertLess(len(patch), 4096)                                           # a patch, never the parent tree
++        self.assertTrue(applies(patch, self.good))
++        self.assertTrue(all(l.rstrip().endswith(b'@@') for l in patch.splitlines() if l.startswith(b'@@')))   # no function context
++    def test_gsup_needs_explicit_review_both_ways(self):
++        c = commit([pc.PARENT], {'supervisor.js': self.sup + b'//x\n', 'metal/guest/gsup.mjs': self.gsup + b'//expect\n', 'test/boot-price.test.mjs': self.T})
++        with self.assertRaisesRegex(pc.Refused, 'is not exactly'): self.check(appr(c))
++        rec, _, _ = self.check(appr(c, gsup='REVIEWED')); self.assertEqual(rec['imageFiles'], ['/app/supervisor.js', '/opt/metal/gsup.mjs'])
++        with self.assertRaisesRegex(pc.Refused, 'is not exactly'): self.check(appr(self.good, gsup='REVIEWED'))   # REVIEWED but unchanged
++    def test_any_other_file_refuses(self):
++        for p in ['metal/guest/agent.mjs', 'client/lease-executor-client.mjs', 'verifier/snp.mjs', 'metal/overlay-control-image.py', 'test-helpers.mjs']:
++            c = commit([pc.PARENT], {'supervisor.js': self.sup + b'//x\n', 'test/boot-price.test.mjs': self.T, p: b'x\n'})
++            with self.assertRaises(pc.Refused, msg=p): self.check(appr(c))
++    def test_tests_must_be_exactly_the_approved_ones(self):
++        with self.assertRaisesRegex(pc.Refused, 'is not exactly'): self.check(appr(self.good, tests='NONE'))
++        with self.assertRaisesRegex(pc.Refused, 'is not exactly'): self.check(appr(self.good, tests='test/boot-price.test.mjs test/other.test.mjs'))
++        c = commit([pc.PARENT], {'test/boot-price.test.mjs': self.T})            # supervisor.js untouched
++        with self.assertRaisesRegex(pc.Refused, 'is not exactly'): self.check(appr(c))
++    def test_parent_must_be_exactly_9f6d37bd(self):
++        grandchild = commit([self.good], {'supervisor.js': self.sup + b'//y\n'})
++        merge = commit([pc.PARENT, g('rev-parse', '9f6d37bd^').decode().strip()], {'supervisor.js': self.sup + b'//z\n', 'test/boot-price.test.mjs': self.T})
++        for c in [grandchild, merge, pc.PARENT]:
++            with self.assertRaisesRegex(pc.Refused, 'parents'): self.check(appr(c))
++        with self.assertRaisesRegex(pc.Refused, 'not in H'): self.check(appr('0' * 40))
++    def test_literal_context_falls_back_to_zero_context_and_a_changed_line_refuses(self):
++        old = pc.OLD; i = self.sup.find(old) if old in self.sup else self.sup.lower().find(old.lower())
++        self.assertGreater(i, 0)                                                   # the parent supervisor.js carries it once
++        eol = self.sup.index(b'\n', i) + 1
++        near = commit([pc.PARENT], {'supervisor.js': self.sup[:eol] + b'// next to it\n' + self.sup[eol:], 'test/boot-price.test.mjs': self.T})
++        rec, patch, form = self.check(appr(near)); self.assertTrue(form.startswith('zero context')); self.assertFalse(pc.has_old(patch))
++        self.assertTrue(applies(patch, near, zero=True))
++        on = commit([pc.PARENT], {'supervisor.js': self.sup + b'// ' + old + b'\n', 'test/boot-price.test.mjs': self.T})
++        with self.assertRaisesRegex(pc.Refused, 'changed line'): self.check(appr(on))
++    def test_approval_format(self):
++        for t in [f'commit {self.good}\ngsup UNCHANGED\n', appr(self.good)[:-1], appr(self.good.upper()), appr(self.good, gsup='yes'),
++                  appr(self.good, tests='test/../supervisor.js'), appr(self.good, tests='lib/x.mjs'), appr(self.good, tests=''),
++                  appr(self.good, tests='test/a.mjs test/a.mjs'), appr(self.good) + 'extra\n']:
++            with self.assertRaises(pc.Refused, msg=repr(t)): self.check(t)
++
++if __name__ == '__main__': unittest.main()
+diff --git a/tests/test_verify.py b/tests/test_verify.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c83b57b6866c90f68663ee8b94423dcba2e63caa
+--- /dev/null
++++ b/tests/test_verify.py
+@@ -0,0 +1,39 @@
++"""verify.py exact-delta rules on the REAL root-built 08d1 manifest, with synthetic candidate edits."""
++import copy, json, sys, unittest
++from pathlib import Path
++HERE = Path(__file__).resolve().parent; sys.path.insert(0, str(HERE.parent))
++import verify as v
++M9 = json.loads((HERE.parent.parent / 'custody-recipient-restore-20261023/stage-approved/dist-leasegas-9f6d37bd8/manifest.json').read_text())
++NEW = 'ab' * 20
++
++def cand(changed=('/app/supervisor.js',), **over):
++    m = copy.deepcopy(M9); m['controlOverlay']['commit'] = NEW; m['initramfs'] = {**m['initramfs'], 'sha256': '11' * 32}
++    for f in m['controlOverlay']['files']:
++        if f['path'] in changed: f['sha256'] = '22' * 32
++    for k, val in over.items(): m[k] = val
++    return m
++
++class Verify(unittest.TestCase):
++    S, G = ['/app/supervisor.js'], ['/app/supervisor.js', '/opt/metal/gsup.mjs']
++    def test_exact_supervisor_and_gsup_deltas_pass(self):
++        self.assertEqual(v.manifest_problems(M9, cand(), NEW, self.S), [])
++        self.assertEqual(v.manifest_problems(M9, cand(self.G), NEW, self.G), [])
++        self.assertEqual(v.entries_problems(['app/supervisor.js', 'opt/metal/manifest.json'], ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json'], self.S), [])
++        self.assertEqual(v.entries_problems(['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json'], ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json'], self.G), [])
++    def test_manifest_deviations_refuse(self):
++        lease = next(f['path'] for f in M9['controlOverlay']['files'] if 'lease' in f['path'])
++        added = cand(); added['controlOverlay']['files'].append({'path': '/app/new.mjs', 'source': 'new.mjs', 'sha256': '33' * 32})
++        removed = cand(); removed['controlOverlay']['files'] = [f for f in removed['controlOverlay']['files'] if f['path'] != lease]
++        builder = cand(); builder['controlOverlay']['builderSha256'] = '44' * 32
++        closure = cand(); closure['controlOverlay']['supervisorClosure'] = {'x': 1}
++        for m, files in [(cand(('/app/supervisor.js', lease)), self.S), (cand(self.G), self.S), (cand(), self.G), (added, self.S), (removed, self.S),
++                         (builder, self.S), (closure, self.S), (cand(kernel={'sha256': '55' * 32}), self.S)]:
++            self.assertTrue(v.manifest_problems(M9, m, NEW, files), files)
++        self.assertTrue(v.manifest_problems(M9, cand(), 'cd' * 20, self.S))       # another commit
++    def test_entry_deviations_refuse(self):
++        ok9, okp = ['app/supervisor.js', 'opt/metal/manifest.json'], ['app/supervisor.js', 'opt/metal/gsup.mjs', 'opt/metal/manifest.json']
++        for a, b in [(ok9 + ['app/verifier/snp.mjs'], okp), (ok9, okp + ['app/network/lease-gas-owner.mjs']), (['opt/metal/manifest.json'], okp),
++                     (ok9, ['app/supervisor.js', 'opt/metal/manifest.json']), (ok9 + ['opt/metal/gsup.mjs'], okp)]:
++            self.assertTrue(v.entries_problems(sorted(a), sorted(b), self.S), (a, b))
++
++if __name__ == '__main__': unittest.main()
+diff --git a/verify.py b/verify.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..30a2d5d4effaea0ca94dae53cc913db16d1f9337
+--- /dev/null
++++ b/verify.py
+@@ -0,0 +1,60 @@
++"""POST-BUILD exact-delta checks for the boot-price release (read-only). build-price.sh runs it after the two builds.
++   python3 verify.py <stage> <old 9f manifest.json> <new manifest.json> <new initramfs.cpio.gz> <H repo> <commit> <image files JSON>
++Against the root-built 08d1f838 image (9f6d37bd): the manifest differs only in controlOverlay.commit, the changed file records
++(exactly the approved image files; no record added or removed; builder, base, supervisorClosure packages and duplicates
++unchanged) and the initramfs record. Image entries differ from 08d1 by exactly those files + opt/metal/manifest.json, and from
++production deabf8f90 by those + opt/metal/gsup.mjs (the a6b1378c vault restore) + manifest; every OTHER entry, including every
++crypto, storage, lease and verifier module, is byte-identical. Every changed file and gsup.mjs in the image = the commit's bytes."""
++import gzip, json, subprocess, sys
++
++def manifest_problems(ma, mb, commit, image_files):
++    out = []
++    top = {k for k in set(ma) | set(mb) if ma.get(k) != mb.get(k)}
++    if top != {'controlOverlay', 'initramfs'}: out.append(f'manifest top-level delta {sorted(top)}')
++    ca, cb = ma.get('controlOverlay', {}), mb.get('controlOverlay', {})
++    co = {k for k in set(ca) | set(cb) if ca.get(k) != cb.get(k)}
++    if co != {'commit', 'files'}: out.append(f'controlOverlay delta {sorted(co)}')
++    if cb.get('commit') != commit: out.append('controlOverlay.commit is not the approved commit')
++    fa, fb = {f['path']: f for f in ca.get('files', [])}, {f['path']: f for f in cb.get('files', [])}
++    if set(fa) != set(fb): out.append(f'file records added/removed: +{sorted(set(fb) - set(fa))} -{sorted(set(fa) - set(fb))}')
++    changed = sorted(p for p in fb if p in fa and fa[p] != fb[p])
++    if changed != sorted(image_files): out.append(f'changed records {changed} are not exactly {sorted(image_files)}')
++    return out
++
++def entries_problems(vs_9f, vs_prod, image_files):
++    out = []
++    want = sorted([p[1:] for p in image_files] + ['opt/metal/manifest.json'])
++    if vs_9f != want: out.append(f'entries vs 08d1 {vs_9f} are not {want}')
++    wp = sorted(set(want) | {'opt/metal/gsup.mjs'})
++    if vs_prod != wp: out.append(f'entries vs production {vs_prod} are not {wp}')
++    return out
++
++def image_bytes(img, names):
++    got = {}
++    with gzip.open(img, 'rb') as f:
++        buf = bytearray()
++        def read(n):
++            while len(buf) < n:
++                c = f.read(65536)
++                if not c: raise EOFError
++                buf.extend(c)
++            d = bytes(buf[:n]); del buf[:n]; return d
++        while True:
++            h = read(110); fld = [int(h[6+8*i:14+8*i], 16) for i in range(13)]
++            name = read(fld[11])[:-1].decode(); read((-(110+fld[11])) % 4)
++            data = read(fld[6]); read((-fld[6]) % 4)
++            if name in names: got[name] = data
++            if name == 'TRAILER!!!': break
++    return got
++
++if __name__ == '__main__':
++    s, ma, mb, img, repo, commit, files = sys.argv[1], json.load(open(sys.argv[2])), json.load(open(sys.argv[3])), sys.argv[4], sys.argv[5], sys.argv[6], json.loads(sys.argv[7])
++    last = lambda n: json.loads(open(f'{s}/{n}').read().splitlines()[-1])['differing']
++    p = manifest_problems(ma, mb, commit, files) + entries_problems(last('entries-vs-9f.jsonl'), last('entries-vs-production.jsonl'), files)
++    src = {f['path'][1:]: f['source'] for f in mb['controlOverlay']['files'] if f['path'] in set(files) | {'/opt/metal/gsup.mjs'}}
++    got = image_bytes(img, set(src))
++    for k, v in src.items():
++        if got.get(k) != subprocess.check_output(['git', '-C', repo, 'show', f'{commit}:{v}']): p.append(f'image {k} is not the commit\'s {v}')
++    if p: print('VERIFY-FAILED: ' + '; '.join(p)); sys.exit(1)
++    print('MANIFEST-DELTA-EXACT', files); print('ENTRY-DELTA-EXACT vs 08d1', last('entries-vs-9f.jsonl'), 'vs production', last('entries-vs-production.jsonl'))
++    print('IMAGE-FILES-ARE-SOURCE', sorted(src))

@@ -1,0 +1,1237 @@
+From f5077c2104ca87f2f1a7eaf60c1dd36ac8373a4c Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 17:05:16 -0700
+Subject: [PATCH] operational gate v5 proposal: one bounded window reset on a
+ transient app transport error (source only, root review)
+
+v4 + one rule: after the window starts, a poll whose ONLY problem is no HTTP response (timeout/refused/reset/disconnect/DNS)
+restarts the full 420 s window with new vouch cycles, at most once; the deadline never extends; HTTP status, payload, TLS,
+availability, vouch, guest and journal faults FAIL as in v4. Real-subprocess fixture tests 11/11, focused mutants 7/7.
+Limits: late transients still FAIL at the deadline; a reset can exceed the 1440 s lease budget; rollback re-registration cost.
+---
+ .gitignore               |   4 +
+ PROPOSAL.md              |  88 ++++++++++++++++++++
+ V4-TO-V5.diff            | 105 ++++++++++++++++++++++++
+ apphealth.py             |  44 ++++++++++
+ commit.sh                |  14 ++++
+ guestrows.py             |  41 ++++++++++
+ logs/t1.guard.log        |   1 +
+ logs/t1.out              |  91 +++++++++++++++++++++
+ logs/t1.rc               |   1 +
+ logs/t2.guard.log        |   1 +
+ logs/t2.out              |  23 ++++++
+ logs/t2.rc               |   1 +
+ logs/t3.guard.log        |   1 +
+ logs/t3.out              |  36 ++++++++
+ logs/t3.rc               |   1 +
+ logs/t4.guard.log        |   1 +
+ logs/t4.out              |  16 ++++
+ logs/t4.rc               |   1 +
+ logs/t5.guard.log        |   1 +
+ logs/t5.out              |  16 ++++
+ logs/t5.rc               |   1 +
+ mutants-v5.py            |  34 ++++++++
+ q.sh                     |  11 +++
+ scan.sh                  |  17 ++++
+ tests/test_gate_v5.py    | 152 ++++++++++++++++++++++++++++++++++
+ verify-operational-v4.py | 134 ++++++++++++++++++++++++++++++
+ verify-operational-v5.py | 172 +++++++++++++++++++++++++++++++++++++++
+ 27 files changed, 1008 insertions(+)
+ create mode 100644 .gitignore
+ create mode 100644 PROPOSAL.md
+ create mode 100644 V4-TO-V5.diff
+ create mode 100644 apphealth.py
+ create mode 100755 commit.sh
+ create mode 100644 guestrows.py
+ create mode 100644 logs/t1.guard.log
+ create mode 100644 logs/t1.out
+ create mode 100644 logs/t1.rc
+ create mode 100644 logs/t2.guard.log
+ create mode 100644 logs/t2.out
+ create mode 100644 logs/t2.rc
+ create mode 100644 logs/t3.guard.log
+ create mode 100644 logs/t3.out
+ create mode 100644 logs/t3.rc
+ create mode 100644 logs/t4.guard.log
+ create mode 100644 logs/t4.out
+ create mode 100644 logs/t4.rc
+ create mode 100644 logs/t5.guard.log
+ create mode 100644 logs/t5.out
+ create mode 100644 logs/t5.rc
+ create mode 100644 mutants-v5.py
+ create mode 100755 q.sh
+ create mode 100755 scan.sh
+ create mode 100644 tests/test_gate_v5.py
+ create mode 100644 verify-operational-v4.py
+ create mode 100644 verify-operational-v5.py
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000000000000000000000000000000000000..02b8a092366b83db85f45697baaef2a8f0f458a2
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,4 @@
++__pycache__/
++tests/__pycache__/
++logs/scan-gitleaks.json
++*.mut-*/
+diff --git a/PROPOSAL.md b/PROPOSAL.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..57f371396672b2c335759282ee4d7b7039d8e819
+--- /dev/null
++++ b/PROPOSAL.md
+@@ -0,0 +1,88 @@
++# Gate v5 proposal: bounded reset on ONE transient app transport error (root review first; nothing is deployed)
++
++## The 23:43:16Z failure
++
++The fee build's cutover succeeded: the normal setProofKey landed and both original VMs were adopted. Then gate v4 FAILED on a
++single EyesOff poll with `HTTP None URLError`, which is no HTTP response at all.
++
++v4 treats ANY problem after its 420 s window has started as a FAIL, so one dropped connection rolled the control back. That
++spent the setProofKey and left the operator at 145368427115 wei (ROOT-RECOVERY-OBSERVED.txt).
++
++## The change (v5 = v4 + one rule; everything else is byte-for-byte v4)
++
++**The rule:** after the window has started, ONE poll whose ONLY problem is a transient app transport error (no HTTP response)
++resets the window, instead of failing.
++- **What counts as transient:** a timeout, connection refused/reset/aborted, a remote disconnect, or a DNS failure.
++- **What a reset does:**
++  - `good_since` and the vouch cycles are cleared;
++  - the next fully clean poll starts a NEW full 420 s window that again needs 3 vouch cycles;
++  - elapsed healthy time and old vouch cycles are never counted.
++- **How often:** at most `MAX_RESETS = 1`. A second transient after the window started, or any problem before the restarted
++  window (past warm-up), FAILs.
++
++**Unchanged:**
++- **Deadline:** the absolute deadline (`warmup + window + 4 × poll + 120` = 900 s by default) is never extended. A reset late
++  in the gate therefore ends in a deadline FAIL.
++- **Still FAIL, as in v4:**
++  - any HTTP status other than 200 (incl. 4xx/5xx);
++  - a bad payload (not ok/pong, wrong title, size, type);
++  - any TLS / certificate error (`ssl.SSLError`, even wrapped in `URLError`);
++  - an `/availability` problem;
++  - a stale or unvouched vouch;
++  - guest id/status/ownership/history faults;
++  - journal death/reap/release/respawn lines;
++  - an unreadable journal;
++  - a transient that coincides with any other problem.
++- **App health definition:** the definition stays `apphealth.check`, unchanged. v5 only records the exception that
++  `apphealth.fetch` would have swallowed, through a byte-for-byte equivalent fetch, so the problem can be classified.
++- **Parent watchdog:** the lease watchdog in the activation kit (600 s floor, 105 s block freshness) still wraps the gate
++  unchanged.
++
++## Is it adequate? (honest limits)
++
++- **It fixes exactly the 23:43 case.** The gate started about 23:40 and the transient came about 3 min in. A reset then needs
++  ≤ 420 s more, well inside the 900 s deadline.
++- **A late transient still fails.** A reset only helps if `reset time + 420 s + one poll ≤ deadline`, i.e. about the first
++  ~465 s of the gate. Later, the deadline FAILs (by design, never extended).
++- **Lease budget.** With a reset the gate may run up to its deadline. The 1440 s cutover bound
++  (600 + 420 + 120 + 300) pre-pays ONE window, so the parent watchdog may stop a reset gate at the 600 s floor (fail closed).
++  Covering a reset needs about 600 + 900 + 120 + 300 = **1920 s** at the cutover. Staggered 30-min leases cannot give both apps
++  that, so a reset may still end in a watchdog stop. That is safe but costly; root decides.
++- **Rollback cost is not addressed here.** A rollback ALSO spends a proof-key registration: the old control must re-register,
++  and today it stays unregistered. A future funding gate must require the balance to afford a fresh setProofKey on BOTH the
++  candidate and the rollback image. This is not implemented (root: no funding-gate change yet).
++- **Ambiguous signal.** A real route withdrawal can also look like "no HTTP response" (a public EOF on a lapse). v5 tolerates
++  it at most once, and it then needs a full new clean window. A persisting lapse therefore still FAILs.
++
++## Files and tests (recorded 2026-10-24T00:05:16Z; source only, nothing deployed)
++
++**Files:**
++- `verify-operational-v4.py`, `apphealth.py` and `guestrows.py` are BYTE copies of the activation kit's
++  (5ef6fa9d…, 3babd979…, 29b7c9da…).
++- `verify-operational-v5.py` is v4 plus the rule. `V4-TO-V5.diff` is the complete change.
++
++**Tests:** `tests/test_gate_v5.py` runs the REAL v5 script as a subprocess against in-process 127.0.0.1 fixtures. The clock is
++real but scaled: window 4 s, poll 1 s, warm-up 3 s. Result: **11/11** (`logs/t5.out`, queue 512). The cases:
++- the happy path;
++- one dropped connection resets and needs a full NEW window, after the reset poll;
++- old vouch cycles never count, with a vouch advancing every 4 polls and 3 cycles required;
++- a second transient FAILs;
++- HTTP 500 and a bad payload FAIL at once;
++- a transient together with an `/availability` 503 FAILs;
++- the deadline never extends;
++- an unvouched app or a frozen vouch after a reset FAILs;
++- a transient in warm-up is v4's warm-up;
++- the classification: timeout / refused / reset / remote-disconnect / DNS are transient; TLS (even a TLS error that is
++  also a reset), HTTPError, IncompleteRead and others are not;
++- the recording fetch returns exactly what `apphealth.fetch` does (200 / 500 / drop / bad payload / refused).
++
++**Focused mutants:** `mutants-v5.py` covers the v5 rule only, with copies beside the folder and a control that must pass.
++Result: **7/7 killed**: two resets allowed, the window kept on a reset, a transient with another problem, TLS counted transient,
++any error counted transient, the deadline extended on a reset, the reset not recorded.
++- **Equivalent, not run:** dropping v5's `vouch_ats = set()`, because v4's window start already resets the vouch cycles. The
++  property is proven end to end instead.
++
++**Not done:**
++- No rerun of the old kit's 89 mutants (its helpers are unchanged).
++- No change to the activation kit or any deployment.
++- No funding-gate change (see "Rollback cost" above).
+diff --git a/V4-TO-V5.diff b/V4-TO-V5.diff
+new file mode 100644
+index 0000000000000000000000000000000000000000..461e355e8c2176718343ef28a6d1349833ad9533
+--- /dev/null
++++ b/V4-TO-V5.diff
+@@ -0,0 +1,105 @@
++--- verify-operational-v4.py	2026-10-23 16:52:01.538451691 -0700
+++++ verify-operational-v5.py	2026-10-23 16:54:42.215359202 -0700
++@@ -1,3 +1,10 @@
+++# OPERATIONAL GATE v5 (Claude 2026-10-23; PROPOSAL.md; root reviews before any use) = gate v4 below + ONE rule: after the window has
+++# started, a poll whose ONLY problem is a TRANSIENT app transport error (no HTTP response: timeout, connection refused/reset/
+++# aborted, remote disconnect, DNS) RESETS the window instead of failing - at most MAX_RESETS (1) times. A reset clears good_since
+++# and the vouch cycles: the next clean poll starts a NEW full window that again needs every vouch cycle; elapsed healthy time is
+++# never counted. The deadline never extends; every other fault (HTTP status, payload, TLS/certificate, /availability, vouch,
+++# guest, journal) fails exactly as in v4, and so does a transient together with any other problem.
+++# --- gate v4 (unchanged text follows) ---
++ # OPERATIONAL GATE v3 (prepared by Claude, 2026-10-21; v2 kept in prior-gate2/, the first version in
++ # linux-post-adoption-repair/activation-gate/). activate.py runs it after attach + adoption; root may run it alone.
++ # READ-ONLY: the apps' public endpoints, the control's public /availability, and this host's enclave-metal journal lines
++@@ -18,11 +25,35 @@
++ # Warm-up (<= --warmup s) tolerates only "not yet" states before the window starts: the platform gate's first admit, the
++ # first reconcile pass's `held`. Once every check passes the window starts and EVERY poll must pass. HARD failures end the
++ # gate at any time: a death/reap/release/respawn/new-launch journal line for an app, an app unvouched, another guest id.
++-import argparse, datetime, json, re, subprocess, sys, time, urllib.request
+++import argparse, datetime, json, re, socket, ssl, subprocess, sys, time, urllib.error, urllib.request
++ from pathlib import Path
++ sys.path.insert(0, str(Path(__file__).resolve().parent))
++ import apphealth, guestrows
++ 
+++# v5: the SAME fetch as apphealth.fetch (byte-equivalent request and returns; tests/test_gate_v5.py compares them), except that it
+++# keeps the exception apphealth.fetch swallows, so a failed check can be classified. apphealth.check (the health definition) is
+++# untouched and calls this through its module global.
+++MAX_RESETS = 1
+++LAST_ERROR = {}
+++def _fetch_recording(url, timeout=12):
+++    req = urllib.request.Request(url, headers={'user-agent': 'enclave-activation-health/1', 'cache-control': 'no-cache'})
+++    LAST_ERROR[url] = None
+++    try:
+++        with urllib.request.urlopen(req, timeout=timeout, context=apphealth.CTX) as r:
+++            return r.status, (r.headers.get('content-type') or '').lower(), r.read(1 << 20)
+++    except urllib.error.HTTPError as e: return e.code, '', b''
+++    except Exception as e: LAST_ERROR[url] = e; return None, '', type(e).__name__.encode()
+++apphealth.fetch = _fetch_recording
+++
+++TRANSIENT = (TimeoutError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, socket.gaierror)
+++def is_transient(e):
+++    """No HTTP response at all, for a transport reason. Never TLS/certificate (ssl.SSLError is an OSError; urllib wraps it in
+++    URLError), never an HTTP status (HTTPError is answered by apphealth.fetch as a status, not an exception)."""
+++    if isinstance(e, urllib.error.HTTPError) or e is None: return False
+++    inner = e.reason if isinstance(e, urllib.error.URLError) else e
+++    if isinstance(inner, ssl.SSLError) or isinstance(e, ssl.SSLError): return False
+++    return isinstance(inner, TRANSIENT)
+++
++ ap = argparse.ArgumentParser()
++ ap.add_argument('--availability', required=True)
++ ap.add_argument('--apps-json', required=True, help='apps-health.json: {deployment id: {url, kind, title?, minBytes?}}')
++@@ -71,18 +102,21 @@
++     t = token.lower()
++     return next((i for i in apps if i == t or (len(t) == 10 and i.startswith(t))), None)
++ 
++-result = {'startedAt': now(), 'gate': 4, 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
+++result = {'startedAt': now(), 'gate': 5, 'maxResets': MAX_RESETS, 'resets': [], 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
++           'deadline': deadline, 'minVouches': a.min_vouches, 'polls': [], 'state': 'observing'}
++ def save(): open(a.out, 'w').write(json.dumps(result, indent=2) + '\n')
++ def finish(state, code, **kw):
++     result.update(state=state, at=now(), **kw); save(); print(state, json.dumps(kw)[:2000]); sys.exit(code)
++ t0 = time.monotonic(); good_since = None; vouch_ats = set(); last_vouch = None; last_vouch_change = None
++ while True:
++-    hard, soft = [], []
+++    hard, soft, transient = [], [], []
++     p = {'at': now()}; cur_vouch = None
++     for i, spec in apps.items():
++         ok, detail = apphealth.check(spec); p[i[:10]] = detail
++-        if not ok: soft.append(f'{i[:10]}: app not healthy ({detail})')
+++        if not ok:
+++            e = LAST_ERROR.get(spec['url'])
+++            if is_transient(e): transient.append(f'{i[:10]}: no HTTP response ({type(e).__name__}: {str(getattr(e, "reason", e))[:80]})')
+++            else: soft.append(f'{i[:10]}: app not healthy ({detail})')
++     st, body = get(a.availability)
++     try: av = json.loads(body) if st == 200 else None
++     except Exception: av = None
++@@ -115,19 +149,23 @@
++         for r in BAD:
++             m = r.match(l)
++             if m and app_of(m.group(1)): hard.append('journal: ' + l[:200])
++-    if good_since is not None and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
+++    if (good_since is not None or result['resets']) and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
++         hard.append(f'vouch stale: tenantVouch.at {last_vouch} has not advanced for {int(time.monotonic() - last_vouch_change)} s')
++-    p['hard'], p['soft'] = hard, soft
+++    p['hard'], p['soft'], p['transient'] = hard, soft, transient
++     result['polls'].append(p); result['vouchCycles'] = len(vouch_ats); result['guests'] = expect
++     elapsed = time.monotonic() - t0
++     if hard: finish('FAIL', 1, why=hard)
++-    if soft:
++-        if good_since is not None: finish('FAIL', 1, why=['after the window started: '] + soft)
++-        if elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded: '] + soft)
+++    if soft or transient:
+++        if good_since is not None:
+++            if not soft and len(result['resets']) < MAX_RESETS:   # v5: the ONLY problem is a transient app transport error
+++                result['resets'].append({'at': now(), 'windowSecondsDiscarded': int(time.monotonic() - good_since), 'vouchCyclesDiscarded': len(vouch_ats), 'why': transient})
+++                good_since = None; vouch_ats = set()
+++            else: finish('FAIL', 1, why=['after the window started: '] + soft + transient + ([f'transient after {MAX_RESETS} reset(s)'] if transient and not soft else []))
+++        elif elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded' + (' (after a reset)' if result['resets'] else '') + ': '] + soft + transient)
++     else:
++         if good_since is None: good_since = time.monotonic(); vouch_ats = {cur_vouch}   # the window starts now
++         if time.monotonic() - good_since >= a.window and len(vouch_ats) >= a.min_vouches:
++-            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats))
+++            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats), resetCount=len(result['resets']))
++     if elapsed > deadline:
++         finish('FAIL', 1, why=[f'overall deadline {deadline} s passed: window {"not started" if good_since is None else f"{int(time.monotonic() - good_since)} s of {a.window}"},'
++                                f' vouch cycles {len(vouch_ats)} of {a.min_vouches}'])
+diff --git a/apphealth.py b/apphealth.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a48dcc024a6896cb8a6931e207852f60a6e2487
+--- /dev/null
++++ b/apphealth.py
+@@ -0,0 +1,44 @@
++# ACTUAL application health, the ONE definition used by activate.py (pre-cutover baseline, renewal phase) and by
++# verify-operational.py (the gate). A status code alone is never health (a 404 or an error page is not the app).
++#   kind "json-ping"  (EyesOff /ping): HTTP 200, JSON body with ok === true AND pong === true;
++#   kind "html"       (image-generator /): HTTP 200, text/html, >= minBytes, and - when the pre-cutover baseline had one -
++#                     the SAME <title> (the app's identity as the previous control served it).
++# Specs live in apps-health.json, which activate.py writes from the pre-cutover baseline.
++import json, re, ssl, urllib.error, urllib.request
++
++CTX = ssl.create_default_context()
++
++def fetch(url, timeout=12):
++    req = urllib.request.Request(url, headers={'user-agent': 'enclave-activation-health/1', 'cache-control': 'no-cache'})
++    try:
++        with urllib.request.urlopen(req, timeout=timeout, context=CTX) as r:
++            return r.status, (r.headers.get('content-type') or '').lower(), r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, '', b''
++    except Exception as e: return None, '', type(e).__name__.encode()
++
++def title_of(body):
++    m = re.search(rb'<title[^>]*>(.*?)</title>', body, re.I | re.S)
++    return re.sub(r'\s+', ' ', m.group(1).decode('utf-8', 'replace')).strip() if m else None
++
++def check(spec, timeout=12):
++    """-> (ok, detail). Fails closed on anything but the app's own healthy answer."""
++    st, ctype, body = fetch(spec['url'], timeout)
++    if st != 200: return False, f"HTTP {st}{'' if st else ' ' + body.decode(errors='replace')[:60]}"
++    if spec['kind'] == 'json-ping':
++        try: j = json.loads(body)
++        except Exception: return False, 'not JSON'
++        return (True, 'ok/pong') if isinstance(j, dict) and j.get('ok') is True and j.get('pong') is True else (False, f'ping body {str(j)[:80]}')
++    if spec['kind'] == 'html':
++        if 'text/html' not in ctype: return False, f'content-type {ctype or "none"}'
++        if len(body) < int(spec.get('minBytes', 1024)): return False, f'{len(body)} bytes'
++        if spec.get('title') is not None and title_of(body) != spec['title']: return False, f'title {title_of(body)!r} is not {spec["title"]!r}'
++        return True, f'html {len(body)}B' + (f' title {spec["title"]!r}' if spec.get('title') is not None else ' (no title in the baseline)')
++    return False, f'unknown health kind {spec.get("kind")}'
++
++def load_specs(path, ids=None):
++    specs = json.loads(open(path).read())
++    for i, s in specs.items():
++        assert re.fullmatch(r'0x[0-9a-f]{64}', i) and s['kind'] in ('json-ping', 'html'), i
++        assert s['url'].startswith(('https://', 'http://127.0.0.1')), s['url']
++    if ids is not None: assert set(specs) == set(ids), 'health specs must cover exactly the apps'
++    return specs
+diff --git a/commit.sh b/commit.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..a137a4582c282aa5954df15842c5bf77de908f78
+--- /dev/null
++++ b/commit.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")"
++FILES=".gitignore PROPOSAL.md V4-TO-V5.diff verify-operational-v4.py verify-operational-v5.py apphealth.py guestrows.py q.sh scan.sh mutants-v5.py commit.sh tests/test_gate_v5.py $(ls logs/t*.out logs/t*.guard.log logs/t*.rc)"
++bash scan.sh $FILES
++git add -- $FILES
++extra=$(comm -23 <(git ls-files | sort) <(printf '%s\n' $FILES | sort)); [ -z "$extra" ] || { echo "unexpected: $extra"; exit 1; }
++git -c user.name=SteveDeFacto -c user.email=5148995+SteveDeFacto@users.noreply.github.com commit -q -m "operational gate v5 proposal: one bounded window reset on a transient app transport error (source only, root review)
++
++v4 + one rule: after the window starts, a poll whose ONLY problem is no HTTP response (timeout/refused/reset/disconnect/DNS)
++restarts the full 420 s window with new vouch cycles, at most once; the deadline never extends; HTTP status, payload, TLS,
++availability, vouch, guest and journal faults FAIL as in v4. Real-subprocess fixture tests 11/11, focused mutants 7/7.
++Limits: late transients still FAIL at the deadline; a reset can exceed the 1440 s lease budget; rollback re-registration cost."
++git log -1 --format='%H %an <%ae>'
+diff --git a/guestrows.py b/guestrows.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f70d73ee98163b9cad165b88b41fded2a675a34
+--- /dev/null
++++ b/guestrows.py
+@@ -0,0 +1,41 @@
++# The ONE reading of /availability instanceSweep.held per app, used by activate.py (pre-cutover baseline) and by
++# verify-operational.py (the gate). guestd's own vm status enum (isolation/m4/guestd/server.go) is exactly:
++#   "starting" -> "running" -> (ended: removed from the map) | "failed" (kept until the supervisor deletes it).
++# held rows carry {id (deployment), vm, status (v.status or null), owned}. guestd RETAINS failed guests as tombstones beside
++# the live one (metal0 07:51Z: image-generator held gd491817b2 running plus 3 failed rows), so per app:
++#   - "failed" rows are terminal HISTORY: recorded as evidence, never deleted here, never counted as the live guest;
++#   - every other row is a NONTERMINAL candidate ("starting", "running", null or any status this code does not know -
++#     unknown fails closed); there must be exactly ONE, it must be "running" and owned, with a well-formed guest id.
++import re
++TERMINAL = {'failed'}
++VM = re.compile(r'[A-Za-z0-9-]{1,64}')
++
++def rows_of(held, app):
++    return [r for r in (held or []) if str(r.get('id', '')).lower() == app]
++
++def classify(held, app):
++    """-> (live_rows, history_vms): every non-failed row of the app, and the failed rows' guest ids."""
++    rows = rows_of(held, app)
++    return [r for r in rows if r.get('status') not in TERMINAL], sorted(str(r.get('vm')) for r in rows if r.get('status') in TERMINAL)
++
++def the_live_guest(held, app):
++    """-> (vm, None) for exactly one running, owned, well-formed live guest; else (None, why)."""
++    live, _ = classify(held, app)
++    if not live: return None, 'no live guest (only failed history, or none)'
++    if len(live) > 1: return None, 'more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live)
++    r = live[0]
++    if r.get('status') != 'running': return None, f"its only nonterminal guest {r.get('vm')} is {r.get('status')!r}, not running"
++    if r.get('owned') is not True: return None, f"its running guest {r.get('vm')} is not owned"
++    if not VM.fullmatch(str(r.get('vm'))): return None, f"malformed guest id {r.get('vm')!r}"
++    return str(r['vm']), None
++
++def baseline(held, apps):
++    """Pre-cutover baseline: {app: {'guest': vm, 'history': [failed vms]}}; raises naming every app that does not have
++    exactly one running owned guest."""
++    out, bad = {}, []
++    for app in apps:
++        vm, why = the_live_guest(held, app)
++        if why: bad.append(f'{app[:10]}: {why}')
++        else: out[app] = {'guest': vm, 'history': classify(held, app)[1]}
++    if bad: raise AssertionError('pre-cutover baseline refused: ' + '; '.join(bad))
++    return out
+diff --git a/logs/t1.guard.log b/logs/t1.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..81044e1c89e263e3831ae7b40f6b179034cbcd4f
+--- /dev/null
++++ b/logs/t1.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=62 minHostAvailableMiB=23466
+diff --git a/logs/t1.out b/logs/t1.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..70216e1a78eade64f0710b41b953cdd57da7d95f
+--- /dev/null
++++ b/logs/t1.out
+@@ -0,0 +1,91 @@
++[queue] START available=23599MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++test_the_recording_fetch_answers_exactly_as_apphealth_fetch (tests.test_gate_v5.Classify.test_the_recording_fetch_answers_exactly_as_apphealth_fetch) ... ERROR
++test_transient_is_only_no_http_response_for_a_transport_reason (tests.test_gate_v5.Classify.test_transient_is_only_no_http_response_for_a_transport_reason) ... ERROR
++test_a_second_transient_fails (tests.test_gate_v5.GateV5.test_a_second_transient_fails) ... ok
++test_a_transient_in_warm_up_is_v4_warm_up (tests.test_gate_v5.GateV5.test_a_transient_in_warm_up_is_v4_warm_up) ... FAIL
++test_a_transient_with_any_other_problem_fails (tests.test_gate_v5.GateV5.test_a_transient_with_any_other_problem_fails) ... ok
++test_happy_path_passes_without_a_reset (tests.test_gate_v5.GateV5.test_happy_path_passes_without_a_reset) ... FAIL
++test_hard_faults_after_a_reset_still_fail (tests.test_gate_v5.GateV5.test_hard_faults_after_a_reset_still_fail) ... ok
++test_one_transient_resets_and_needs_a_full_new_window_and_vouches (tests.test_gate_v5.GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches) ... ERROR
++test_real_http_errors_and_bad_payloads_still_fail_at_once (tests.test_gate_v5.GateV5.test_real_http_errors_and_bad_payloads_still_fail_at_once) ... ok
++test_the_deadline_never_extends (tests.test_gate_v5.GateV5.test_the_deadline_never_extends) ... ok
++
++======================================================================
++ERROR: test_the_recording_fetch_answers_exactly_as_apphealth_fetch (tests.test_gate_v5.Classify.test_the_recording_fetch_answers_exactly_as_apphealth_fetch)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 131, in test_the_recording_fetch_answers_exactly_as_apphealth_fetch
++    ns = v5_namespace(); rec = ns['_fetch_recording']
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 116, in v5_namespace
++    ns = {'apphealth': apphealth, 'urllib': urllib, 'socket': socket, 'ssl': ssl}
++                                            ^^^^^^
++UnboundLocalError: cannot access local variable 'urllib' where it is not associated with a value
++
++======================================================================
++ERROR: test_transient_is_only_no_http_response_for_a_transport_reason (tests.test_gate_v5.Classify.test_transient_is_only_no_http_response_for_a_transport_reason)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 122, in test_transient_is_only_no_http_response_for_a_transport_reason
++    f = v5_namespace()['is_transient']
++        ~~~~~~~~~~~~^^
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 116, in v5_namespace
++    ns = {'apphealth': apphealth, 'urllib': urllib, 'socket': socket, 'ssl': ssl}
++                                            ^^^^^^
++UnboundLocalError: cannot access local variable 'urllib' where it is not associated with a value
++
++======================================================================
++ERROR: test_one_transient_resets_and_needs_a_full_new_window_and_vouches (tests.test_gate_v5.GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 77, in test_one_transient_resets_and_needs_a_full_new_window_and_vouches
++    self.assertEqual((rc, g['state'], len(g['resets'])), (0, 'PASS', 1), g.get('why'))
++                                      ~~~^^^^^^^^^^^^^
++TypeError: object of type 'int' has no len()
++
++======================================================================
++FAIL: test_a_transient_in_warm_up_is_v4_warm_up (tests.test_gate_v5.GateV5.test_a_transient_in_warm_up_is_v4_warm_up)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 108, in test_a_transient_in_warm_up_is_v4_warm_up
++    rc, g = self.gate(['drop', 'ok']); self.assertEqual((rc, g['state'], g['resets']), (0, 'PASS', []))
++                                       ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++AssertionError: Tuples differ: (0, 'PASS', 0) != (0, 'PASS', [])
++
++First differing element 2:
++0
++[]
++
++- (0, 'PASS', 0)
++?             ^
++
+++ (0, 'PASS', [])
++?             ^^
++
++
++======================================================================
++FAIL: test_happy_path_passes_without_a_reset (tests.test_gate_v5.GateV5.test_happy_path_passes_without_a_reset)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023/tests/test_gate_v5.py", line 73, in test_happy_path_passes_without_a_reset
++    rc, g = self.gate(['ok']); self.assertEqual((rc, g['state'], g['resets']), (0, 'PASS', []))
++                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++AssertionError: Tuples differ: (0, 'PASS', 0) != (0, 'PASS', [])
++
++First differing element 2:
++0
++[]
++
++- (0, 'PASS', 0)
++?             ^
++
+++ (0, 'PASS', [])
++?             ^^
++
++
++----------------------------------------------------------------------
++Ran 10 tests in 59.908s
++
++FAILED (failures=2, errors=3)
++[memory-guard] exit=1 peakTreeRssMiB=62 minHostAvailableMiB=23466
++[memory-guard] at peak: python3:32 python3:30
++[queue] EXIT 1
+diff --git a/logs/t1.rc b/logs/t1.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/t1.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/t2.guard.log b/logs/t2.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7fb5695ffbffee3d5ef7c8cb022a9ae5727ba5e8
+--- /dev/null
++++ b/logs/t2.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=62 minHostAvailableMiB=22321
+diff --git a/logs/t2.out b/logs/t2.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc3c502a62fe947fbfd9e2bde6d1da983e61bc3a
+--- /dev/null
++++ b/logs/t2.out
+@@ -0,0 +1,23 @@
++[queue] START available=23595MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++test_the_recording_fetch_answers_exactly_as_apphealth_fetch (tests.test_gate_v5.Classify.test_the_recording_fetch_answers_exactly_as_apphealth_fetch) ... /usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 500: 'Internal Server Error'>
++  _warnings.warn(self.warn_message, ResourceWarning)
++ok
++test_transient_is_only_no_http_response_for_a_transport_reason (tests.test_gate_v5.Classify.test_transient_is_only_no_http_response_for_a_transport_reason) ... /usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 500: 'x'>
++  _warnings.warn(self.warn_message, ResourceWarning)
++ok
++test_a_second_transient_fails (tests.test_gate_v5.GateV5.test_a_second_transient_fails) ... ok
++test_a_transient_in_warm_up_is_v4_warm_up (tests.test_gate_v5.GateV5.test_a_transient_in_warm_up_is_v4_warm_up) ... ok
++test_a_transient_with_any_other_problem_fails (tests.test_gate_v5.GateV5.test_a_transient_with_any_other_problem_fails) ... ok
++test_happy_path_passes_without_a_reset (tests.test_gate_v5.GateV5.test_happy_path_passes_without_a_reset) ... ok
++test_hard_faults_after_a_reset_still_fail (tests.test_gate_v5.GateV5.test_hard_faults_after_a_reset_still_fail) ... ok
++test_one_transient_resets_and_needs_a_full_new_window_and_vouches (tests.test_gate_v5.GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches) ... ok
++test_real_http_errors_and_bad_payloads_still_fail_at_once (tests.test_gate_v5.GateV5.test_real_http_errors_and_bad_payloads_still_fail_at_once) ... ok
++test_the_deadline_never_extends (tests.test_gate_v5.GateV5.test_the_deadline_never_extends) ... ok
++
++----------------------------------------------------------------------
++Ran 10 tests in 61.934s
++
++OK
++[memory-guard] exit=0 peakTreeRssMiB=62 minHostAvailableMiB=22321
++[memory-guard] at peak: python3:32 python3:30
++[queue] EXIT 0
+diff --git a/logs/t2.rc b/logs/t2.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/t2.rc
+@@ -0,0 +1 @@
++0
+diff --git a/logs/t3.guard.log b/logs/t3.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c756116e6bb10181220bec3e9c9d97c416f8686
+--- /dev/null
++++ b/logs/t3.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=2 peakTreeRssMiB=78 minHostAvailableMiB=23085
+diff --git a/logs/t3.out b/logs/t3.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..e40a85fe4966857153af423d56fdb4efe4e57db9
+--- /dev/null
++++ b/logs/t3.out
+@@ -0,0 +1,36 @@
++[queue] START available=23376MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++Ran 11 tests in 69.009s
++
++FAILED (failures=1)
++CONTROL FAILED: the run is invalid
++/usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 500: 'x'>
++  _warnings.warn(self.warn_message, ResourceWarning)
++...F...
++======================================================================
++FAIL: test_old_vouch_cycles_never_count_after_a_reset (tests.test_gate_v5.GateV5.test_old_vouch_cycles_never_count_after_a_reset)
++----------------------------------------------------------------------
++Traceback (most recent call last):
++  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-operational-gate-v5-20261023.mut-control/tests/test_gate_v5.py", line 88, in test_old_vouch_cycles_never_count_after_a_reset
++    self.assertEqual((rc, g['state'], len(g['resets'])), (0, 'PASS', 1), g.get('why'))
++    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++AssertionError: Tuples differ: (0, 'PASS', 0) != (0, 'PASS', 1)
++
++First differing element 2:
++0
++1
++
++- (0, 'PASS', 0)
++?             ^
++
+++ (0, 'PASS', 1)
++?             ^
++
++
++----------------------------------------------------------------------
++Ran 7 tests in 42.633s
++
++FAILED (failures=1)
++
++[memory-guard] exit=2 peakTreeRssMiB=78 minHostAvailableMiB=23085
++[memory-guard] at peak: python3:32 python3:30 python3:16
++[queue] EXIT 2
+diff --git a/logs/t3.rc b/logs/t3.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..0cfbf08886fca9a91cb753ec8734c84fcbe52c9f
+--- /dev/null
++++ b/logs/t3.rc
+@@ -0,0 +1 @@
++2
+diff --git a/logs/t4.guard.log b/logs/t4.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..fced5dde92a7689fcd0c1bef96ca7e4db1cd17a4
+--- /dev/null
++++ b/logs/t4.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=1 peakTreeRssMiB=78 minHostAvailableMiB=23291
+diff --git a/logs/t4.out b/logs/t4.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..95127e1db45aa4dd9160d310e3892808a1abd9c8
+--- /dev/null
++++ b/logs/t4.out
+@@ -0,0 +1,16 @@
++[queue] START available=23532MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++Ran 11 tests in 75.055s
++
++OK
++control (unmutated copy) passes 6 tests
++KILLED   two-resets
++KILLED   reset-keeps-window
++KILLED   transient-with-other-problem
++SURVIVED tls-is-transient
++KILLED   any-error-is-transient
++KILLED   deadline-extends-on-reset
++KILLED   reset-not-recorded
++mutants 7 survived 1
++[memory-guard] exit=1 peakTreeRssMiB=78 minHostAvailableMiB=23291
++[memory-guard] at peak: python3:32 python3:30 python3:16
++[queue] EXIT 1
+diff --git a/logs/t4.rc b/logs/t4.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..d00491fd7e5bb6fa28c517a0bb32b8b506539d4d
+--- /dev/null
++++ b/logs/t4.rc
+@@ -0,0 +1 @@
++1
+diff --git a/logs/t5.guard.log b/logs/t5.guard.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7d3805716b8188717395400cd68cbfeddf0d4150
+--- /dev/null
++++ b/logs/t5.guard.log
+@@ -0,0 +1 @@
++[memory-guard] exit=0 peakTreeRssMiB=78 minHostAvailableMiB=23338
+diff --git a/logs/t5.out b/logs/t5.out
+new file mode 100644
+index 0000000000000000000000000000000000000000..8e49da29a4a00854db626a774f5a755591f237c0
+--- /dev/null
++++ b/logs/t5.out
+@@ -0,0 +1,16 @@
++[queue] START available=23428MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
++Ran 11 tests in 75.046s
++
++OK
++control (unmutated copy) passes 6 tests
++KILLED   two-resets
++KILLED   reset-keeps-window
++KILLED   transient-with-other-problem
++KILLED   tls-is-transient
++KILLED   any-error-is-transient
++KILLED   deadline-extends-on-reset
++KILLED   reset-not-recorded
++mutants 7 survived 0
++[memory-guard] exit=0 peakTreeRssMiB=78 minHostAvailableMiB=23338
++[memory-guard] at peak: python3:32 python3:30 python3:16
++[queue] EXIT 0
+diff --git a/logs/t5.rc b/logs/t5.rc
+new file mode 100644
+index 0000000000000000000000000000000000000000..573541ac9702dd3969c9bc859d2b91ec1f7e6e56
+--- /dev/null
++++ b/logs/t5.rc
+@@ -0,0 +1 @@
++0
+diff --git a/mutants-v5.py b/mutants-v5.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b6ad92e52defcd2ab6be1d692b44bb3a53c8c1e2
+--- /dev/null
++++ b/mutants-v5.py
+@@ -0,0 +1,34 @@
++"""Mutation check of ONLY the v5 rule: each mutant weakens one v5 guard of verify-operational-v5.py; the tests named for it must FAIL.
++Copies live BESIDE this folder (paths stay valid); an UNMUTATED control copy must pass first, else the run is invalid."""
++import shutil, subprocess, sys
++from pathlib import Path
++A = Path(__file__).resolve().parent; F = 'verify-operational-v5.py'; SRC = (A/F).read_text()
++T = 'tests.test_gate_v5.'
++MUT = {   # name: (from, to, tests that must catch it)
++ 'two-resets': ("MAX_RESETS = 1", "MAX_RESETS = 2", ['GateV5.test_a_second_transient_fails']),
++ 'reset-keeps-window': ("                good_since = None; vouch_ats = set()", "                vouch_ats = set()", ['GateV5.test_one_transient_resets_and_needs_a_full_new_window_and_vouches']),
++# NOT a mutant: dropping v5's own `vouch_ats = set()` on a reset is EQUIVALENT - v4's window start (`vouch_ats = {cur_vouch}`) already
++# discards every earlier cycle; test_old_vouch_cycles_never_count_after_a_reset proves the property end to end instead.
++ 'transient-with-other-problem': ("            if not soft and len(result['resets']) < MAX_RESETS:", "            if len(result['resets']) < MAX_RESETS:", ['GateV5.test_a_transient_with_any_other_problem_fails', 'GateV5.test_real_http_errors_and_bad_payloads_still_fail_at_once']),
++ 'tls-is-transient': ("    if isinstance(inner, ssl.SSLError) or isinstance(e, ssl.SSLError): return False\n", "", ['Classify.test_transient_is_only_no_http_response_for_a_transport_reason']),
++ 'any-error-is-transient': ("    return isinstance(inner, TRANSIENT)", "    return True", ['Classify.test_transient_is_only_no_http_response_for_a_transport_reason', 'GateV5.test_real_http_errors_and_bad_payloads_still_fail_at_once']),
++ 'deadline-extends-on-reset': ("                good_since = None; vouch_ats = set()", "                good_since = None; vouch_ats = set(); t0 = time.monotonic()", ['GateV5.test_the_deadline_never_extends']),
++ 'reset-not-recorded': ("                result['resets'].append(", "                (lambda *x: None)(", ['GateV5.test_a_second_transient_fails']),
++}
++def run(name, src, tests):
++    d = A.parent / f'{A.name}.mut-{name}'
++    if d.exists(): shutil.rmtree(d)
++    shutil.copytree(A, d, ignore=shutil.ignore_patterns('.git', 'logs', '__pycache__', '*.mut-*'))
++    (d/F).write_text(src)
++    r = subprocess.run([sys.executable, '-m', 'unittest', *[T + t for t in tests]], cwd=d, capture_output=True, text=True, timeout=600)
++    shutil.rmtree(d); return r
++allt = sorted({t for _, _, ts in MUT.values() for t in ts})
++c = run('control', SRC, allt)
++if c.returncode != 0: print('CONTROL FAILED: the run is invalid\n' + c.stderr[-2000:]); sys.exit(2)
++print('control (unmutated copy) passes', len(allt), 'tests')
++bad = 0
++for name, (a, b, tests) in MUT.items():
++    assert SRC.count(a) == 1, (name, a[:70])
++    r = run(name, SRC.replace(a, b), tests); killed = r.returncode != 0; bad += not killed
++    print(('KILLED  ' if killed else 'SURVIVED'), name, flush=True)
++print(f'mutants {len(MUT)} survived {bad}'); sys.exit(1 if bad else 0)
+diff --git a/q.sh b/q.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..f69b7de1730e7634fb481a8924488479d2eeeeba
+--- /dev/null
++++ b/q.sh
+@@ -0,0 +1,11 @@
++#!/bin/bash
++# q.sh MIB NAME CMD... : run CMD through the unchanged shared queue, retrying only on exit 98 (NOT STARTED); keeps every try.
++mib=$1; name=$2; shift 2
++d=$(cd "$(dirname "$0")" && pwd)/logs
++[ ! -e "$d/$name.rc" ] || { echo "$name.rc exists"; exit 2; }
++for i in $(seq 2 200); do
++  python3 -u /home/steven/Documents/Codex/2026-10-18/wo/work/claude-test-queue.py --mib "$mib" --log "$d/$name.guard.log" -- "$@" > "$d/$name.out" 2>&1
++  rc=$?; [ $rc -ne 98 ] && break
++  mv "$d/$name.out" "$d/$name.try$i.out"; sleep 10
++done
++echo $rc > "$d/$name.rc"; exit $rc
+diff --git a/scan.sh b/scan.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..b79a8ba45a9eb0d344242244c9b28a08c2a3ad80
+--- /dev/null
++++ b/scan.sh
+@@ -0,0 +1,17 @@
++#!/bin/bash
++# Secret + rewritten-literal scans (checkpoint's own unchanged scanners/config) of every file to be committed.
++set -uo pipefail
++cd "$(dirname "$0")"
++CKR=/home/steven/Documents/Codex/2026-10-18/wo/work/source-checkpoint-20261022/main-repo
++st=$(mktemp -d)
++for f in "$@"; do mkdir -p "$st/$(dirname $f)"; cp "$f" "$st/$f"; done
++cfg=$(mktemp); git -C "$CKR" show HEAD:.gitleaks.toml > "$cfg"
++timeout -k 5 120 /home/steven/.local/bin/gitleaks dir "$st" --config "$cfg" --no-banner --redact --exit-code 1 --report-format json --report-path logs/scan-gitleaks.json; g=$?; rm -f "$cfg"
++find "$st" -type f -print0 | xargs -0 timeout -k 5 120 python3 "$CKR/.githooks/scan-crypto-keys.py" --files; k=$?
++python3 - "$st" <<'PY'; l=$?
++import pathlib, sys
++OLD = bytes.fromhex('54696e666f696c'); bad = [str(p) for p in pathlib.Path(sys.argv[1]).rglob('*') if p.is_file() and (OLD in p.read_bytes() or OLD.lower() in p.read_bytes())]
++print('literal files', bad); sys.exit(1 if bad else 0)
++PY
++echo "[scan] files $(find "$st" -type f | wc -l) gitleaks=$g scan-crypto-keys=$k literal=$l"; rm -rf "$st"
++[ $g -eq 0 ] && [ $k -eq 0 ] && [ $l -eq 0 ]
+diff --git a/tests/test_gate_v5.py b/tests/test_gate_v5.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c3ad4ddf0f2e43615e594d6ee5d588a64cffd38
+--- /dev/null
++++ b/tests/test_gate_v5.py
+@@ -0,0 +1,152 @@
++"""Gate v5 run for REAL (a subprocess, the unchanged v4 loop + the v5 rule) against in-process HTTP fixtures on 127.0.0.1, with a
++scaled clock (window 4 s, poll 1 s, warm-up 3 s): the app servers answer per request from a script, so a transient (a dropped
++connection: no HTTP response), an HTTP 500, a bad payload, an /availability fault or a frozen vouch lands on an exact poll."""
++import ast, http.server, json, socket, ssl, subprocess, sys, tempfile, threading, time, unittest, urllib.error, urllib.request
++from pathlib import Path
++HERE = Path(__file__).resolve().parent; ROOT = HERE.parent
++sys.path.insert(0, str(ROOT))
++import apphealth
++IG, EO = '0x' + 'da' * 32, '0x' + '9e' * 32
++TITLE = 'Image generator'
++
++class Server:
++    """One fixture endpoint; script[k] decides the k-th request (the last entry repeats)."""
++    def __init__(self, answer):
++        self.n, self.answer = 0, answer
++        outer = self
++        class H(http.server.BaseHTTPRequestHandler):
++            def log_message(self, *a): pass
++            def do_GET(self):
++                k = outer.n; outer.n += 1
++                mode, body, ctype = outer.answer(k)
++                if mode == 'drop': self.close_connection = True; return            # no HTTP response at all
++                self.send_response(mode); self.send_header('content-type', ctype); self.send_header('content-length', str(len(body)))
++                self.end_headers(); self.wfile.write(body)
++        self.httpd = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
++        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
++        self.url = f'http://127.0.0.1:{self.httpd.server_address[1]}'
++    def close(self): self.httpd.shutdown(); self.httpd.server_close()
++
++def pick(script, k): return script[min(k, len(script) - 1)]
++def eyes(script):
++    def a(k):
++        m = pick(script, k)
++        if m == 'ok': return 200, b'{"ok": true, "pong": true}', 'application/json'
++        if m == 'badpong': return 200, b'{"ok": true, "pong": false}', 'application/json'
++        if m == '500': return 500, b'err', 'text/plain'
++        return 'drop', b'', ''
++    return a
++def img(k): return 200, f'<html><head><title>{TITLE}</title></head><body>{"x" * 2000}</body></html>'.encode(), 'text/html; charset=utf-8'
++def avail(script, every=1):
++    def a(k):
++        m = pick(script, k)
++        if m == '503': return 503, b'', 'application/json'
++        at = 'frozen' if m == 'frozen' else f'2026-10-23T23:{k // every:02d}:00Z'
++        held = [{'id': IG, 'vm': 'gimg', 'status': 'running', 'owned': True}, {'id': EO, 'vm': 'geyes', 'status': 'running', 'owned': True}]
++        v = {'ok': True, 'at': at, 'unvouched': [{'id': EO, 'expiresIn': 5}] if m == 'unvouched' else []}
++        return 200, json.dumps({'tenantVouch': v, 'instanceSweep': {'held': held}}).encode(), 'application/json'
++    return a
++
++class GateV5(unittest.TestCase):
++    def gate(self, eyes_script, avail_script=('ok',), deadline=None, extra=(), every=1):
++        d = Path(tempfile.mkdtemp()); e, i, v = Server(eyes(list(eyes_script))), Server(img), Server(avail(list(avail_script), every))
++        try:
++            (d/'apps.json').write_text(json.dumps({IG: {'url': i.url + '/', 'kind': 'html', 'title': TITLE, 'minBytes': 1024},
++                                                   EO: {'url': e.url + '/ping', 'kind': 'json-ping'}}))
++            (d/'journal.txt').write_text(f'[claim] {IG} adopted: gimg\n[claim] {EO} adopted: geyes\n')
++            cmd = [sys.executable, str(ROOT/'verify-operational-v5.py'), '--availability', v.url + '/availability', '--apps-json', str(d/'apps.json'),
++                   '--expect-guest', f'{IG}=gimg', '--expect-guest', f'{EO}=geyes', '--since', 'x', '--window', '4', '--warmup', '3',
++                   '--min-vouches', '2', '--poll', '1', '--vouch-stale', '2', '--out', str(d/'gate.json'), '--journal-cmd', f'cat {d/"journal.txt"}', *extra]
++            if deadline is not None: cmd += ['--deadline', str(deadline)]
++            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
++            return r.returncode, json.loads((d/'gate.json').read_text())
++        finally:
++            for s in (e, i, v): s.close()
++
++    def window_polls(self, g):   # polls from the last (re)start of the window to the PASS
++        polls = g['polls']; clean = [not (p['hard'] or p['soft'] or p['transient']) for p in polls]
++        k = len(polls) - 1
++        while k > 0 and clean[k - 1]: k -= 1
++        return polls[k:]
++
++    def test_happy_path_passes_without_a_reset(self):
++        rc, g = self.gate(['ok']); self.assertEqual((rc, g['state'], g['resets'], g['resetCount']), (0, 'PASS', [], 0))
++
++    def test_one_transient_resets_and_needs_a_full_new_window_and_vouches(self):
++        rc, g = self.gate(['ok', 'ok', 'ok', 'drop', 'ok'])
++        self.assertEqual((rc, g['state'], len(g['resets']), g['resetCount']), (0, 'PASS', 1, 1), g.get('why'))
++        r = g['resets'][0]; self.assertGreater(r['windowSecondsDiscarded'], 0); self.assertGreaterEqual(r['vouchCyclesDiscarded'], 2)
++        self.assertRegex(' '.join(r['why']), 'no HTTP response')
++        w = self.window_polls(g)                                     # the PASS window started AFTER the reset poll, and spans >= 4 s
++        reset_poll = next(k for k, p in enumerate(g['polls']) if p['transient'])
++        self.assertGreater(g['polls'].index(w[0]), reset_poll); self.assertGreaterEqual(len(w), 4)
++
++    def test_old_vouch_cycles_never_count_after_a_reset(self):
++        # the vouch advances every 4 polls and 3 cycles are required. The drop lands at poll 4 (window running, 2 cycles seen). The
++        # restarted window needs 3 NEW vouch values (polls 5, 8, 12: >= 7 polls); counting the 2 old ones would pass at ~poll 9.
++        rc, g = self.gate(['ok'] * 4 + ['drop', 'ok'], every=4, extra=('--min-vouches', '3', '--vouch-stale', '30'), deadline=60)
++        self.assertEqual((rc, g['state'], len(g['resets'])), (0, 'PASS', 1), g.get('why'))
++        self.assertEqual(g['resets'][0]['vouchCyclesDiscarded'], 2)
++        self.assertGreaterEqual(len(self.window_polls(g)), 7, 'the restarted window counted vouch cycles from before the reset')
++
++    def test_a_second_transient_fails(self):
++        rc, g = self.gate(['ok', 'ok', 'ok', 'drop', 'ok', 'ok', 'drop', 'ok'])
++        self.assertEqual((rc, g['state'], len(g['resets'])), (1, 'FAIL', 1)); self.assertRegex(' '.join(g['why']), 'transient after 1 reset')
++
++    def test_real_http_errors_and_bad_payloads_still_fail_at_once(self):
++        for bad in ('500', 'badpong'):
++            rc, g = self.gate(['ok', 'ok', 'ok', bad, 'ok'])
++            self.assertEqual((rc, g['state'], g['resets']), (1, 'FAIL', []), bad); self.assertRegex(' '.join(g['why']), 'after the window started')
++
++    def test_a_transient_with_any_other_problem_fails(self):
++        rc, g = self.gate(['ok', 'ok', 'ok', 'drop', 'ok'], avail_script=['ok', 'ok', 'ok', '503', 'ok'])
++        self.assertEqual((rc, g['state'], g['resets']), (1, 'FAIL', [])); self.assertRegex(' '.join(g['why']), 'availability')
++
++    def test_the_deadline_never_extends(self):
++        rc, g = self.gate(['ok', 'ok', 'ok', 'drop', 'ok'], deadline=6)
++        self.assertEqual((rc, g['state'], len(g['resets'])), (1, 'FAIL', 1)); self.assertRegex(' '.join(g['why']), 'overall deadline 6 s')
++
++    def test_hard_faults_after_a_reset_still_fail(self):
++        rc, g = self.gate(['ok', 'ok', 'ok', 'drop', 'ok'], avail_script=['ok', 'ok', 'ok', 'ok', 'ok', 'unvouched'])
++        self.assertEqual((rc, g['state'], len(g['resets'])), (1, 'FAIL', 1)); self.assertRegex(' '.join(g['why']), 'UNVOUCHED')
++        rc, g = self.gate(['ok', 'ok', 'ok', 'drop', 'ok'], avail_script=['ok', 'ok', 'ok', 'ok', 'frozen'])
++        self.assertEqual((rc, g['state'], len(g['resets'])), (1, 'FAIL', 1)); self.assertRegex(' '.join(g['why']), 'vouch stale')
++
++    def test_a_transient_in_warm_up_is_v4_warm_up(self):
++        rc, g = self.gate(['drop', 'ok']); self.assertEqual((rc, g['state'], g['resets'], g['resetCount']), (0, 'PASS', [], 0))
++
++def v5_namespace():
++    """The v5 helper definitions, exec'd from the gate source (the script parses arguments at import)."""
++    src = (ROOT/'verify-operational-v5.py').read_text(); t = ast.parse(src)
++    want = {'MAX_RESETS', 'LAST_ERROR', '_fetch_recording', 'TRANSIENT', 'is_transient'}
++    seg = [ast.get_source_segment(src, n) for n in t.body if (isinstance(n, ast.FunctionDef) and n.name in want)
++           or (isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name) and n.targets[0].id in want)]
++    ns = {'apphealth': apphealth, 'urllib': urllib, 'socket': socket, 'ssl': ssl}
++    exec('\n'.join(seg), ns); return ns
++
++class Classify(unittest.TestCase):
++    def test_transient_is_only_no_http_response_for_a_transport_reason(self):
++        f = v5_namespace()['is_transient']
++        for e in [urllib.error.URLError(ConnectionRefusedError()), urllib.error.URLError(TimeoutError()), urllib.error.URLError(socket.timeout()),
++                  urllib.error.URLError(socket.gaierror()), TimeoutError(), ConnectionResetError(), __import__('http.client').client.RemoteDisconnected()]:
++            self.assertTrue(f(e), repr(e))
++        for e in [None, urllib.error.URLError(ssl.SSLCertVerificationError()), urllib.error.URLError(ssl.SSLError()), ssl.SSLError(),
++                  urllib.error.HTTPError('u', 500, 'x', {}, None), ValueError(), urllib.error.URLError('bad url'), __import__('http.client').client.IncompleteRead(b'')]:
++            self.assertFalse(f(e), repr(e))
++        class TLSReset(ssl.SSLError, ConnectionResetError): pass        # TLS is never transient, even when it is ALSO a reset
++        self.assertFalse(f(TLSReset())); self.assertFalse(f(urllib.error.URLError(TLSReset())))
++
++    def test_the_recording_fetch_answers_exactly_as_apphealth_fetch(self):
++        ns = v5_namespace(); rec = ns['_fetch_recording']
++        for script in (['ok'], ['500'], ['drop'], ['badpong']):
++            s = Server(eyes(script))
++            try:
++                a = apphealth.fetch(s.url + '/ping', 3); b = rec(s.url + '/ping', 3)
++                self.assertEqual(a, b, script)
++                self.assertEqual(ns['LAST_ERROR'][s.url + '/ping'] is not None, script == ['drop'])
++            finally: s.close()
++        p = socket.socket(); p.bind(('127.0.0.1', 0)); port = p.getsockname()[1]; p.close()      # nothing listening: refused
++        url = f'http://127.0.0.1:{port}/ping'
++        self.assertEqual(apphealth.fetch(url, 3), rec(url, 3)); self.assertTrue(ns['is_transient'](ns['LAST_ERROR'][url]))
++
++if __name__ == '__main__': unittest.main()
+diff --git a/verify-operational-v4.py b/verify-operational-v4.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2d68a59f892b04c262cc73983a624ad82821419
+--- /dev/null
++++ b/verify-operational-v4.py
+@@ -0,0 +1,134 @@
++# OPERATIONAL GATE v3 (prepared by Claude, 2026-10-21; v2 kept in prior-gate2/, the first version in
++# linux-post-adoption-repair/activation-gate/). activate.py runs it after attach + adoption; root may run it alone.
++# READ-ONLY: the apps' public endpoints, the control's public /availability, and this host's enclave-metal journal lines
++# (journalctl -o cat; only the prefixes below are kept, nothing else read or stored).
++#
++# v3 closes root's review holes (ROOT-GATE-REVIEW.txt):
++#  - ACTUAL app health (apphealth.py, the same definition activate.py uses): EyesOff /ping JSON ok+pong, image-generator
++#    200 text/html with the pre-cutover <title>; a 404 or error page is never healthy;
++#  - the journal FAILS CLOSED: a non-zero journalctl exit, or a journal that does not show both apps' adoption lines
++#    (the run's own anchor), is no evidence of "no error lines" - that poll is not clean;
++#  - FINITE: a hard overall deadline (default warmup + window + 4 polls + 120 s); missing it fails, naming what was
++#    missing (e.g. vouch cycles); a vouch timestamp that stops advancing for --vouch-stale s inside the window fails;
++#  - guest ids are MANDATORY inputs (--expect-guest for every app, from the pre-cutover baseline); never inferred.
++# v4 (root, metal0 07:51Z: guestd RETAINS failed guests beside the live one) reads held rows through guestrows.py: per app
++# exactly ONE nonterminal row (guestd's enum: starting/running; null or unknown fails closed) and it must be the expected
++# guest, running and owned; "failed" rows are terminal history, allowed only if the baseline recorded them
++# (--known-failed); a guest failing during the gate, a second nonterminal guest, or a replacement fails at once.
++# Warm-up (<= --warmup s) tolerates only "not yet" states before the window starts: the platform gate's first admit, the
++# first reconcile pass's `held`. Once every check passes the window starts and EVERY poll must pass. HARD failures end the
++# gate at any time: a death/reap/release/respawn/new-launch journal line for an app, an app unvouched, another guest id.
++import argparse, datetime, json, re, subprocess, sys, time, urllib.request
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import apphealth, guestrows
++
++ap = argparse.ArgumentParser()
++ap.add_argument('--availability', required=True)
++ap.add_argument('--apps-json', required=True, help='apps-health.json: {deployment id: {url, kind, title?, minBytes?}}')
++ap.add_argument('--expect-guest', action='append', required=True, metavar='DEPLOYMENT_ID=VM_ID')
++ap.add_argument('--known-failed', action='append', default=[], metavar='DEPLOYMENT_ID=VM_ID', help='baseline failed (history) rows')
++ap.add_argument('--since', required=True)
++ap.add_argument('--window', type=int, default=420)
++ap.add_argument('--warmup', type=int, default=300)
++ap.add_argument('--min-vouches', type=int, default=3)   # the vouch in effect at the window's start + 2 completed cycles
++ap.add_argument('--vouch-stale', type=int, default=180)  # three missed 60 s passes
++ap.add_argument('--poll', type=int, default=15)
++ap.add_argument('--deadline', type=int, default=None)
++ap.add_argument('--journal-cmd', default='journalctl --user -u enclave-metal.service --since {since} -o cat --no-pager',
++                help=argparse.SUPPRESS)   # the gate's own test substitutes a fixture
++ap.add_argument('--out', required=True)
++a = ap.parse_args()
++apps = apphealth.load_specs(a.apps_json)
++expect = {}
++for s in a.expect_guest:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and re.fullmatch(r'[A-Za-z0-9-]{1,64}', v), s; expect[i] = v
++assert set(expect) == set(apps), 'an expected (pre-cutover) guest id is required for every app'
++known_failed = {i: set() for i in apps}
++for s in a.known_failed:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and guestrows.VM.fullmatch(v) and v != expect[i], s; known_failed[i].add(v)
++deadline = a.deadline if a.deadline is not None else a.warmup + a.window + 4 * a.poll + 120
++now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++
++def get(url, timeout=12):
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'enclave-activation-gate/3'}), timeout=timeout,
++                                    context=apphealth.CTX) as r: return r.status, r.read(1 << 20)
++    except Exception as e: return None, type(e).__name__.encode()
++
++def journal():
++    """-> (lines, problem). Fails closed: an unreadable journal, or one without the run's adoption anchor, is a problem."""
++    cmd = [x.replace('{since}', a.since) for x in a.journal_cmd.split(' ')]
++    try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
++    except Exception as e: return [], f'journal unreadable: {type(e).__name__}'
++    if r.returncode != 0: return [], f'journal unreadable: exit {r.returncode} {r.stderr.strip()[:120]}'
++    lines = [l for l in r.stdout.splitlines() if l.startswith(('[claim] ', '[release] ', '[bill] ', '[instance] ', '[isolation] '))]
++    missing = [i[:10] for i in apps if not any(l.startswith(f'[claim] {i} adopted:') for l in lines)]
++    return lines, (f'journal shows no adoption line for {missing}: not this run\'s journal' if missing else None)
++BAD = [re.compile(p) for p in (r'^\[bill\] (\S+) (instance respawned|respawn failed)', r'^\[claim\] (\S+) (app instance died|app died|lease lost|lease looks lost)',
++                               r'^\[instance\] reaped orphan (\S+)', r'^\[release\] (\S+) ', r'^\[isolation\] (0x[0-9a-f]{8}): guest \S+ app ')]
++def app_of(token):
++    t = token.lower()
++    return next((i for i in apps if i == t or (len(t) == 10 and i.startswith(t))), None)
++
++result = {'startedAt': now(), 'gate': 4, 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
++          'deadline': deadline, 'minVouches': a.min_vouches, 'polls': [], 'state': 'observing'}
++def save(): open(a.out, 'w').write(json.dumps(result, indent=2) + '\n')
++def finish(state, code, **kw):
++    result.update(state=state, at=now(), **kw); save(); print(state, json.dumps(kw)[:2000]); sys.exit(code)
++t0 = time.monotonic(); good_since = None; vouch_ats = set(); last_vouch = None; last_vouch_change = None
++while True:
++    hard, soft = [], []
++    p = {'at': now()}; cur_vouch = None
++    for i, spec in apps.items():
++        ok, detail = apphealth.check(spec); p[i[:10]] = detail
++        if not ok: soft.append(f'{i[:10]}: app not healthy ({detail})')
++    st, body = get(a.availability)
++    try: av = json.loads(body) if st == 200 else None
++    except Exception: av = None
++    if not isinstance(av, dict): soft.append(f'/availability -> {st}')
++    else:
++        v, held = av.get('tenantVouch') or {}, (av.get('instanceSweep') or {}).get('held')
++        if v.get('ok') is True and v.get('at'):
++            cur_vouch = v['at']; vouch_ats.add(cur_vouch)
++            if cur_vouch != last_vouch: last_vouch, last_vouch_change = cur_vouch, time.monotonic()
++        else: soft.append(f"tenantVouch not ok: {str(v.get('reason'))[:120]}")
++        for u in v.get('unvouched') or []:
++            if app_of(str(u.get('id', ''))): hard.append(f"{str(u.get('id'))[:10]} UNVOUCHED ({u.get('expiresIn')}s)")
++        if held is None: soft.append('instanceSweep.held not published')
++        else:
++            for i in apps:
++                live, history = guestrows.classify(held, i); p.setdefault('history', {})[i[:10]] = history
++                new_failed = sorted(set(history) - known_failed[i])
++                if new_failed: hard.append(f'{i[:10]}: guest(s) {new_failed} failed since the baseline')
++                if len(live) > 1:
++                    hard.append(f'{i[:10]}: more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live))
++                elif live and live[0].get('vm') != expect[i]:
++                    hard.append(f'{i[:10]}: its nonterminal guest {live[0].get("vm")}={live[0].get("status")} is not the pre-cutover {expect[i]} (relaunched/replaced)')
++                elif live and live[0].get('status') != 'running':
++                    hard.append(f'{i[:10]}: the expected guest {expect[i]} is {live[0].get("status")!r}, not running')
++                elif not live: soft.append(f'{i[:10]}: no live guest held')
++                elif live[0].get('owned') is not True: soft.append(f'{i[:10]}: the expected guest {expect[i]} is not owned (yet)')
++    lines, jproblem = journal()
++    if jproblem: soft.append(jproblem)
++    for l in lines:
++        for r in BAD:
++            m = r.match(l)
++            if m and app_of(m.group(1)): hard.append('journal: ' + l[:200])
++    if good_since is not None and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
++        hard.append(f'vouch stale: tenantVouch.at {last_vouch} has not advanced for {int(time.monotonic() - last_vouch_change)} s')
++    p['hard'], p['soft'] = hard, soft
++    result['polls'].append(p); result['vouchCycles'] = len(vouch_ats); result['guests'] = expect
++    elapsed = time.monotonic() - t0
++    if hard: finish('FAIL', 1, why=hard)
++    if soft:
++        if good_since is not None: finish('FAIL', 1, why=['after the window started: '] + soft)
++        if elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded: '] + soft)
++    else:
++        if good_since is None: good_since = time.monotonic(); vouch_ats = {cur_vouch}   # the window starts now
++        if time.monotonic() - good_since >= a.window and len(vouch_ats) >= a.min_vouches:
++            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats))
++    if elapsed > deadline:
++        finish('FAIL', 1, why=[f'overall deadline {deadline} s passed: window {"not started" if good_since is None else f"{int(time.monotonic() - good_since)} s of {a.window}"},'
++                               f' vouch cycles {len(vouch_ats)} of {a.min_vouches}'])
++    save(); time.sleep(a.poll)
+diff --git a/verify-operational-v5.py b/verify-operational-v5.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..d753f5ac8fd8ab34546fbb28cf9ad0f9a26b5cac
+--- /dev/null
++++ b/verify-operational-v5.py
+@@ -0,0 +1,172 @@
++# OPERATIONAL GATE v5 (Claude 2026-10-23; PROPOSAL.md; root reviews before any use) = gate v4 below + ONE rule: after the window has
++# started, a poll whose ONLY problem is a TRANSIENT app transport error (no HTTP response: timeout, connection refused/reset/
++# aborted, remote disconnect, DNS) RESETS the window instead of failing - at most MAX_RESETS (1) times. A reset clears good_since
++# and the vouch cycles: the next clean poll starts a NEW full window that again needs every vouch cycle; elapsed healthy time is
++# never counted. The deadline never extends; every other fault (HTTP status, payload, TLS/certificate, /availability, vouch,
++# guest, journal) fails exactly as in v4, and so does a transient together with any other problem.
++# --- gate v4 (unchanged text follows) ---
++# OPERATIONAL GATE v3 (prepared by Claude, 2026-10-21; v2 kept in prior-gate2/, the first version in
++# linux-post-adoption-repair/activation-gate/). activate.py runs it after attach + adoption; root may run it alone.
++# READ-ONLY: the apps' public endpoints, the control's public /availability, and this host's enclave-metal journal lines
++# (journalctl -o cat; only the prefixes below are kept, nothing else read or stored).
++#
++# v3 closes root's review holes (ROOT-GATE-REVIEW.txt):
++#  - ACTUAL app health (apphealth.py, the same definition activate.py uses): EyesOff /ping JSON ok+pong, image-generator
++#    200 text/html with the pre-cutover <title>; a 404 or error page is never healthy;
++#  - the journal FAILS CLOSED: a non-zero journalctl exit, or a journal that does not show both apps' adoption lines
++#    (the run's own anchor), is no evidence of "no error lines" - that poll is not clean;
++#  - FINITE: a hard overall deadline (default warmup + window + 4 polls + 120 s); missing it fails, naming what was
++#    missing (e.g. vouch cycles); a vouch timestamp that stops advancing for --vouch-stale s inside the window fails;
++#  - guest ids are MANDATORY inputs (--expect-guest for every app, from the pre-cutover baseline); never inferred.
++# v4 (root, metal0 07:51Z: guestd RETAINS failed guests beside the live one) reads held rows through guestrows.py: per app
++# exactly ONE nonterminal row (guestd's enum: starting/running; null or unknown fails closed) and it must be the expected
++# guest, running and owned; "failed" rows are terminal history, allowed only if the baseline recorded them
++# (--known-failed); a guest failing during the gate, a second nonterminal guest, or a replacement fails at once.
++# Warm-up (<= --warmup s) tolerates only "not yet" states before the window starts: the platform gate's first admit, the
++# first reconcile pass's `held`. Once every check passes the window starts and EVERY poll must pass. HARD failures end the
++# gate at any time: a death/reap/release/respawn/new-launch journal line for an app, an app unvouched, another guest id.
++import argparse, datetime, json, re, socket, ssl, subprocess, sys, time, urllib.error, urllib.request
++from pathlib import Path
++sys.path.insert(0, str(Path(__file__).resolve().parent))
++import apphealth, guestrows
++
++# v5: the SAME fetch as apphealth.fetch (byte-equivalent request and returns; tests/test_gate_v5.py compares them), except that it
++# keeps the exception apphealth.fetch swallows, so a failed check can be classified. apphealth.check (the health definition) is
++# untouched and calls this through its module global.
++MAX_RESETS = 1
++LAST_ERROR = {}
++def _fetch_recording(url, timeout=12):
++    req = urllib.request.Request(url, headers={'user-agent': 'enclave-activation-health/1', 'cache-control': 'no-cache'})
++    LAST_ERROR[url] = None
++    try:
++        with urllib.request.urlopen(req, timeout=timeout, context=apphealth.CTX) as r:
++            return r.status, (r.headers.get('content-type') or '').lower(), r.read(1 << 20)
++    except urllib.error.HTTPError as e: return e.code, '', b''
++    except Exception as e: LAST_ERROR[url] = e; return None, '', type(e).__name__.encode()
++apphealth.fetch = _fetch_recording
++
++TRANSIENT = (TimeoutError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, socket.gaierror)
++def is_transient(e):
++    """No HTTP response at all, for a transport reason. Never TLS/certificate (ssl.SSLError is an OSError; urllib wraps it in
++    URLError), never an HTTP status (HTTPError is answered by apphealth.fetch as a status, not an exception)."""
++    if isinstance(e, urllib.error.HTTPError) or e is None: return False
++    inner = e.reason if isinstance(e, urllib.error.URLError) else e
++    if isinstance(inner, ssl.SSLError) or isinstance(e, ssl.SSLError): return False
++    return isinstance(inner, TRANSIENT)
++
++ap = argparse.ArgumentParser()
++ap.add_argument('--availability', required=True)
++ap.add_argument('--apps-json', required=True, help='apps-health.json: {deployment id: {url, kind, title?, minBytes?}}')
++ap.add_argument('--expect-guest', action='append', required=True, metavar='DEPLOYMENT_ID=VM_ID')
++ap.add_argument('--known-failed', action='append', default=[], metavar='DEPLOYMENT_ID=VM_ID', help='baseline failed (history) rows')
++ap.add_argument('--since', required=True)
++ap.add_argument('--window', type=int, default=420)
++ap.add_argument('--warmup', type=int, default=300)
++ap.add_argument('--min-vouches', type=int, default=3)   # the vouch in effect at the window's start + 2 completed cycles
++ap.add_argument('--vouch-stale', type=int, default=180)  # three missed 60 s passes
++ap.add_argument('--poll', type=int, default=15)
++ap.add_argument('--deadline', type=int, default=None)
++ap.add_argument('--journal-cmd', default='journalctl --user -u enclave-metal.service --since {since} -o cat --no-pager',
++                help=argparse.SUPPRESS)   # the gate's own test substitutes a fixture
++ap.add_argument('--out', required=True)
++a = ap.parse_args()
++apps = apphealth.load_specs(a.apps_json)
++expect = {}
++for s in a.expect_guest:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and re.fullmatch(r'[A-Za-z0-9-]{1,64}', v), s; expect[i] = v
++assert set(expect) == set(apps), 'an expected (pre-cutover) guest id is required for every app'
++known_failed = {i: set() for i in apps}
++for s in a.known_failed:
++    i, v = s.split('=', 1); i = i.lower(); assert i in apps and guestrows.VM.fullmatch(v) and v != expect[i], s; known_failed[i].add(v)
++deadline = a.deadline if a.deadline is not None else a.warmup + a.window + 4 * a.poll + 120
++now = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
++
++def get(url, timeout=12):
++    try:
++        with urllib.request.urlopen(urllib.request.Request(url, headers={'user-agent': 'enclave-activation-gate/3'}), timeout=timeout,
++                                    context=apphealth.CTX) as r: return r.status, r.read(1 << 20)
++    except Exception as e: return None, type(e).__name__.encode()
++
++def journal():
++    """-> (lines, problem). Fails closed: an unreadable journal, or one without the run's adoption anchor, is a problem."""
++    cmd = [x.replace('{since}', a.since) for x in a.journal_cmd.split(' ')]
++    try: r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
++    except Exception as e: return [], f'journal unreadable: {type(e).__name__}'
++    if r.returncode != 0: return [], f'journal unreadable: exit {r.returncode} {r.stderr.strip()[:120]}'
++    lines = [l for l in r.stdout.splitlines() if l.startswith(('[claim] ', '[release] ', '[bill] ', '[instance] ', '[isolation] '))]
++    missing = [i[:10] for i in apps if not any(l.startswith(f'[claim] {i} adopted:') for l in lines)]
++    return lines, (f'journal shows no adoption line for {missing}: not this run\'s journal' if missing else None)
++BAD = [re.compile(p) for p in (r'^\[bill\] (\S+) (instance respawned|respawn failed)', r'^\[claim\] (\S+) (app instance died|app died|lease lost|lease looks lost)',
++                               r'^\[instance\] reaped orphan (\S+)', r'^\[release\] (\S+) ', r'^\[isolation\] (0x[0-9a-f]{8}): guest \S+ app ')]
++def app_of(token):
++    t = token.lower()
++    return next((i for i in apps if i == t or (len(t) == 10 and i.startswith(t))), None)
++
++result = {'startedAt': now(), 'gate': 5, 'maxResets': MAX_RESETS, 'resets': [], 'apps': apps, 'expectGuests': expect, 'knownFailed': {i: sorted(v) for i, v in known_failed.items()}, 'window': a.window, 'warmup': a.warmup,
++          'deadline': deadline, 'minVouches': a.min_vouches, 'polls': [], 'state': 'observing'}
++def save(): open(a.out, 'w').write(json.dumps(result, indent=2) + '\n')
++def finish(state, code, **kw):
++    result.update(state=state, at=now(), **kw); save(); print(state, json.dumps(kw)[:2000]); sys.exit(code)
++t0 = time.monotonic(); good_since = None; vouch_ats = set(); last_vouch = None; last_vouch_change = None
++while True:
++    hard, soft, transient = [], [], []
++    p = {'at': now()}; cur_vouch = None
++    for i, spec in apps.items():
++        ok, detail = apphealth.check(spec); p[i[:10]] = detail
++        if not ok:
++            e = LAST_ERROR.get(spec['url'])
++            if is_transient(e): transient.append(f'{i[:10]}: no HTTP response ({type(e).__name__}: {str(getattr(e, "reason", e))[:80]})')
++            else: soft.append(f'{i[:10]}: app not healthy ({detail})')
++    st, body = get(a.availability)
++    try: av = json.loads(body) if st == 200 else None
++    except Exception: av = None
++    if not isinstance(av, dict): soft.append(f'/availability -> {st}')
++    else:
++        v, held = av.get('tenantVouch') or {}, (av.get('instanceSweep') or {}).get('held')
++        if v.get('ok') is True and v.get('at'):
++            cur_vouch = v['at']; vouch_ats.add(cur_vouch)
++            if cur_vouch != last_vouch: last_vouch, last_vouch_change = cur_vouch, time.monotonic()
++        else: soft.append(f"tenantVouch not ok: {str(v.get('reason'))[:120]}")
++        for u in v.get('unvouched') or []:
++            if app_of(str(u.get('id', ''))): hard.append(f"{str(u.get('id'))[:10]} UNVOUCHED ({u.get('expiresIn')}s)")
++        if held is None: soft.append('instanceSweep.held not published')
++        else:
++            for i in apps:
++                live, history = guestrows.classify(held, i); p.setdefault('history', {})[i[:10]] = history
++                new_failed = sorted(set(history) - known_failed[i])
++                if new_failed: hard.append(f'{i[:10]}: guest(s) {new_failed} failed since the baseline')
++                if len(live) > 1:
++                    hard.append(f'{i[:10]}: more than one nonterminal guest: ' + ', '.join(f"{r.get('vm')}={r.get('status')}" for r in live))
++                elif live and live[0].get('vm') != expect[i]:
++                    hard.append(f'{i[:10]}: its nonterminal guest {live[0].get("vm")}={live[0].get("status")} is not the pre-cutover {expect[i]} (relaunched/replaced)')
++                elif live and live[0].get('status') != 'running':
++                    hard.append(f'{i[:10]}: the expected guest {expect[i]} is {live[0].get("status")!r}, not running')
++                elif not live: soft.append(f'{i[:10]}: no live guest held')
++                elif live[0].get('owned') is not True: soft.append(f'{i[:10]}: the expected guest {expect[i]} is not owned (yet)')
++    lines, jproblem = journal()
++    if jproblem: soft.append(jproblem)
++    for l in lines:
++        for r in BAD:
++            m = r.match(l)
++            if m and app_of(m.group(1)): hard.append('journal: ' + l[:200])
++    if (good_since is not None or result['resets']) and last_vouch_change is not None and time.monotonic() - last_vouch_change > a.vouch_stale:
++        hard.append(f'vouch stale: tenantVouch.at {last_vouch} has not advanced for {int(time.monotonic() - last_vouch_change)} s')
++    p['hard'], p['soft'], p['transient'] = hard, soft, transient
++    result['polls'].append(p); result['vouchCycles'] = len(vouch_ats); result['guests'] = expect
++    elapsed = time.monotonic() - t0
++    if hard: finish('FAIL', 1, why=hard)
++    if soft or transient:
++        if good_since is not None:
++            if not soft and len(result['resets']) < MAX_RESETS:   # v5: the ONLY problem is a transient app transport error
++                result['resets'].append({'at': now(), 'windowSecondsDiscarded': int(time.monotonic() - good_since), 'vouchCyclesDiscarded': len(vouch_ats), 'why': transient})
++                good_since = None; vouch_ats = set()
++            else: finish('FAIL', 1, why=['after the window started: '] + soft + transient + ([f'transient after {MAX_RESETS} reset(s)'] if transient and not soft else []))
++        elif elapsed > a.warmup: finish('FAIL', 1, why=['warm-up exceeded' + (' (after a reset)' if result['resets'] else '') + ': '] + soft + transient)
++    else:
++        if good_since is None: good_since = time.monotonic(); vouch_ats = {cur_vouch}   # the window starts now
++        if time.monotonic() - good_since >= a.window and len(vouch_ats) >= a.min_vouches:
++            finish('PASS', 0, stableFor=a.window, guests=expect, vouchCycles=len(vouch_ats), resetCount=len(result['resets']))
++    if elapsed > deadline:
++        finish('FAIL', 1, why=[f'overall deadline {deadline} s passed: window {"not started" if good_since is None else f"{int(time.monotonic() - good_since)} s of {a.window}"},'
++                               f' vouch cycles {len(vouch_ats)} of {a.min_vouches}'])
++    save(); time.sleep(a.poll)

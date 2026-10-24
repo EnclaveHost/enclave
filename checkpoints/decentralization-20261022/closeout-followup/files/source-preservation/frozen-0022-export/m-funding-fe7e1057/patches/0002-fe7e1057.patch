@@ -1,0 +1,1818 @@
+From fe7e105750fc0e26b009f580c21fea410f339935 Mon Sep 17 00:00:00 2001
+From: SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com>
+Date: Fri, 23 Oct 2026 17:08:08 -0700
+Subject: [PATCH] C9 7702 maintenance: unsigned plan builder, read-only
+ prepare, revm-processed tests (source only)
+
+Corrections: a front-run A still funds a codeless C9 (no revert); the lease client signs its
+own authorization when not delegated (client/lease-executor-client.mjs 463-464, 573-574), so
+every C9 signer and pending Lease TTL must quiesce (root quiesce.json required).
+lib/maintenance.mjs: production pins (C9, executor 0x8900, reserve, sponsor 0x29479, V 5e12,
+aggregate fee cap 2e12 refuse-not-raise, gas 50000/47000), exact tuples/digests/nonce rules,
+worst-case signed sizes, verify/recovery/limits; read-only two-provider prepare (raw ERC-7201
+storage + views, premise, quiesce, fees). No signer, sender or key read.
+Tests (throwaway keys, anvil prague): protocol 12/12 incl. happy/hazard/order/reorg/stale/
+front-run/client re-delegation/interrupted B/self-restore/wrong chain/gas; plan 6/6;
+mutants 11/11.
+---
+ .gitignore                         |   5 +
+ README.md                          | 319 +++++++++++++++------------
+ bin/prepare.mjs                    |  19 ++
+ config/quiesce.example.json        |   7 +
+ evidence/plan-shape-SYNTHETIC.json | 223 +++++++++++++++++++
+ lib/maintenance.mjs                | 242 +++++++++++++++++++++
+ package.json                       |   3 +
+ run-tests.sh                       |   9 +
+ test/ReserveStub.sol               |  11 +
+ test/compile.mjs                   |  26 +++
+ test/env.mjs                       | 100 +++++++++
+ test/example-plan.mjs              |  15 ++
+ test/fixtures/executor-build.json  |   1 +
+ test/fixtures/oracle-mock.json     |   1 +
+ test/fixtures/reserve-stub.json    |   1 +
+ test/mutants.sh                    |  24 +++
+ test/plan.test.mjs                 |  81 +++++++
+ test/protocol.test.mjs             | 219 +++++++++++++++++++
+ vendor/publish.mjs                 | 336 +++++++++++++++++++++++++++++
+ 19 files changed, 1500 insertions(+), 142 deletions(-)
+ create mode 100644 bin/prepare.mjs
+ create mode 100644 config/quiesce.example.json
+ create mode 100644 evidence/plan-shape-SYNTHETIC.json
+ create mode 100644 lib/maintenance.mjs
+ create mode 100644 package.json
+ create mode 100755 run-tests.sh
+ create mode 100644 test/ReserveStub.sol
+ create mode 100644 test/compile.mjs
+ create mode 100644 test/env.mjs
+ create mode 100644 test/example-plan.mjs
+ create mode 100644 test/fixtures/executor-build.json
+ create mode 100644 test/fixtures/oracle-mock.json
+ create mode 100644 test/fixtures/reserve-stub.json
+ create mode 100755 test/mutants.sh
+ create mode 100644 test/plan.test.mjs
+ create mode 100644 test/protocol.test.mjs
+ create mode 100644 vendor/publish.mjs
+
+diff --git a/.gitignore b/.gitignore
+index 333c1e910a3e2bef1b9d0d4587392627d8388974..9cd4a35ab09823f566fbf843e5bf3ad1589c9200 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1 +1,6 @@
+ logs/
++node_modules/
++plans/
++*.err
++*-progress.txt
++ROOT-*.txt
+diff --git a/README.md b/README.md
+index e2ae20ad1c59fe5bc1d606913f9d5d4692db4172..182bf2edaaf63d3675ac5f8f3bb21caa389f5758 100644
+--- a/README.md
++++ b/README.md
+@@ -1,150 +1,185 @@
+-# Funding metal0's operator C9 through standard EIP-7702 account maintenance: source-only assessment
++# Funding metal0's operator C9 through standard EIP-7702 account maintenance: source-only preparation
+ 
+-Written 2026-10-23T23:50Z.
++Written 2026-10-23.
+ 
+-This is an assessment only. There were no keys, RPC calls, SSH, signing, broadcasts or mutations, and no tool is
+-implemented. Root reviews it before deciding anything or asking a human. **This document does not claim permission to
+-do any of it.**
++Root reviewed the first assessment (76ab248) and authorized SOURCE-ONLY preparation and tests. This is that
++preparation:
++- an unsigned plan builder, a read-only prepare that root runs, and tests on real EIP-7702 processing with throwaway
++  keys;
++- **no signer, no sender, no key read, no delegation change, no network send.**
+ 
+-## Facts this rests on (root evidence, read only)
++The actual change, and the use of the canary sponsor's funds, need human approval after root's review and a fresh
++read-only prepare. Nothing here asks for or claims that approval.
+ 
+-- **Operator C9.** C9 = `0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab`.
+-  - `setProofKey` mined at nonce 23759, block 53004641 (`custody-v2-live-20261023/evidence/registration-receipt-2341.json`).
+-  - Now: nonce **23760**, balance **145,368,427,115 wei**.
+-  - The gate failed and was rolled back at 23:43:19Z (`custody-boot-fee-activation-20261023/result.json`). The previous
+-    `setProofKey` worst case was 271,929,253,610 wei.
+-- **Delegation.** C9's code is the 7702 designator `0xef0100‖0x8900baca2167873ba2f8a8bae8b4876e6396d343`, codehash
+-  `0xe2f1317f…bbe`; the executor runtime is `0xdd893cd4…`.
+-- **Why plain ETH fails.** The executor (`EnclaveLeaseExecutor.sol`) has only nonpayable functions and no
+-  `receive`/`fallback`, so a plain ETH send to C9 reverts.
++It is NOT the rejected route: there is no new contract, no SELFDESTRUCT or forced-funding helper, no manual proof-key
++helper, no generic execute path, and no contract or admin change.
+ 
+-## The option, and how it differs from the rejected route
++## The maintenance (C9 and the same executor only)
+ 
+-| | rejected (do not retry) | this option |
+-|---|---|---|
+-| mechanism | a new helper contract that SELFDESTRUCTs ETH into C9 (forced funding) | the protocol's own 7702 revocation (authorization to address 0), a plain value transfer, then re-delegation to the SAME reviewed executor |
+-| new code on chain | yes | **none**; no contract, no admin change, no generic execute path |
+-| C9's delegation | untouched | **temporarily removed** (one-block-scale window), then restored byte-exactly |
+-| needs C9's key | no | **yes**: two authorization signatures |
+-
+-It changes C9's account state twice. That needs explicit approval of its own; it is not covered by any earlier approval.
+-
+-## The two transactions
+-
+-The sponsor S is an already-funded EOA, not C9. N = C9's nonce at signing (23760 if nothing moves it).
+-
+-| tx | sender / nonce | authorizationList (signed by C9's key) | call | effect |
++| tx | sponsor S `0x29479bf0…647c`, nonce | authorization (C9's key signs) | call | after |
+ |---|---|---|---|---|
+-| A | S / s | `{chainId: 8453, address: 0x0000…0000, nonce: N}` | `to: C9, value: V, data: 0x` | before execution: C9's code is cleared (empty hash) and its nonce goes to N+1. Execution: a plain transfer of V to a codeless account. |
+-| B | S / s+1 | `{chainId: 8453, address: 0x8900baca…d343, nonce: N+1}` | `to: S, value: 0, data: 0x` (never into C9) | C9's code is again `0xef0100‖executor` (codehash `e2f1317f`), nonce N+2 |
+-
+-Why two transactions: every authorization is applied BEFORE execution. Clear-and-restore in ONE transaction would leave
+-the executor in place when the value arrives, and the transfer would revert.
+-
+-## Is it supported? (local sources only)
+-
+-**EIP-7702 processing** — `revm-handler 43.0.3 src/pre_execution.rs::apply_auth_list`, the EIP's numbered steps
+-inline; `revm-context-interface 43.0.2 journaled_state/account.rs::delegate`:
+-- **Address 0:** "do not write the designation. Clear the account's code and reset the code hash to the empty hash".
+-- **Every applied authorization** bumps the authority's nonce.
+-- **`delegate()` writes only code and nonce.** Storage and balance are untouched.
+-- **An invalid authorization** (wrong chain id, nonce ≠ the account's nonce, or a bad signature) is skipped with
+-  `continue`: the transaction still executes.
+-
+-**viem 2.53.1** (`actions/wallet/prepareAuthorization.js`; the repo's own lockfile copy):
+-- **The address is free:** any address is accepted, including 0.
+-- **Nonce rule:** the nonce defaults to the authority's PENDING nonce, plus 1 only when the authority itself sends the
+-  transaction. Here the sponsor sends, so A uses N and B uses N+1.
+-- **Sending:** `sendTransaction({ authorizationList })` exists.
+-- **Precedent in this codebase:** `relay/host-sponsor.mjs` sends a relayer-paid type-4 transaction carrying an
+-  operator-signed authorization on Base. It is a different target (Simple7702Account), but the same mechanism.
+-
+-**Base:** C9 itself is already 7702-delegated on Base, so Base processes type-4 transactions.
+-
+-**The contracts** (`history-checkpoint-transport/tree/contracts`):
+-- **The reserve's check:** `EnclaveLeaseGasReserve.begin` requires `extcodehash(operator) == delegationCodeHash =
+-  keccak256(0xef0100‖executor)`. So B must restore exactly `0x8900baca…`; any other target leaves the leases refused.
+-- **The executor's state:** it keeps each deployment's lease nonce in C9's own storage under an ERC-7201 namespace.
+-  The source says this is so that re-delegation cannot reset them. Its "first authorization charged" flag is in C9's
+-  storage, keyed by the executor's address.
+-
+-**Not verified here:**
+-- that the deployed executor runtime `dd893cd4…` equals this source (not rebuilt);
+-- the Base sequencer's txpool rules for type-4 transactions (for example, limits on authorities with pending
+-  transactions);
+-- the exact revm parity of the client version Base runs;
+-- whether MetaMask accepts a dapp-supplied `authorizationList`. This was not checked; assume no.
+-
+-## What is preserved
+-
+-- **Lease nonces and the executor's flags:** preserved. Storage is never touched, and the same executor reads the same
+-  slots after B, so lease nonces continue and the "first authorization" flag stays set (no re-charge).
+-- **C9's account nonce:** goes up by 2 (N → N+2). Lease signatures do not use it. Any already-signed C9 EOA
+-  transaction at N or N+1 becomes invalid; none may exist.
+-- **Balance:** C9 gains exactly V. Nothing else moves.
+-- **The reserve's binding:** `delegationCodeHash` is unchanged, so after B the reserve accepts C9 again.
+-
+-## What must be quiet first
+-
+-1. **Nothing that can sign as C9 is running.** That means the control unit, boot/funding tools and keepers; root's
+-   rollback state already has the new control stopped.
+-   - This matters for two reasons. Any C9 transaction moves N and silently invalidates A or B. And a lease client that
+-     attaches its own fresh authorization would race B (not verified for metal0's client).
+-2. **No outstanding sponsored Lease.** Every C9-signed Lease deadline must have passed on a verified block; the TTL is
+-   300 s, as in `safe_rollback`.
+-   - This is the main hazard. While C9 has no code, a relayer's `lease()` call to C9 runs against an empty account and
+-     **succeeds as a no-op**: no revert, no renewal, no reserve charge. A relayer could record a renewal that never
+-     happened.
+-3. **Live leases held by C9:** the two guests in `result.json` (holder `0xc9d0…`). They get no renewals while the node
+-   is quiet. Their fresh expiries must exceed the quiet period, plus the A→B window, plus a margin; otherwise root
+-   accepts or prevents the lapse first.
+-4. **Nonces settled:**
+-   - C9: latest == pending on two providers, equal to N.
+-   - S: settled at s, with balance ≥ V + bounded fees for A and B (type-4 L1 size includes the authorization tuples;
+-     reuse the reviewed fee rule).
+-
+-## Interruption cases
+-
+-| case | outcome | recovery |
++| A | s | `{8453, 0x0, N}` | `to C9, value 5,000,000,000,000 wei, data 0x`, gas 50,000 | code empty, nonce N+1, balance + V; storage untouched |
++| B | s+1 | `{8453, 0x8900baca…d343, N+1}` | `to S, value 0`, gas 47,000 (never into C9) | code `0xef0100‖executor` (hash `e2f1317f…`), nonce N+2 |
++
++- N is C9's nonce, which must be settled (agreed = latest = pending on both providers). s is the sponsor's.
++- The nonce rule for a separate sponsor: an authorization's nonce is the authority's CURRENT nonce, and each applied
++  authorization bumps it. B therefore carries N+1. It would be +1 only if C9 sent the transaction itself.
++- Fees: the aggregate outer fees of A + B (L2 cap + L1 upper bound for the maximum signed size + Isthmus operator fee)
++  are capped at **2,000,000,000,000 wei**. Over the cap, the plan **refuses**; nothing is raised.
++  - With 0 L1/operator fee, the cap holds up to a base fee of 9,809,278 wei at a 0.001 gwei tip. That is computed in
++    `test/plan.test.mjs`. Base was about 0.005 gwei.
++  - The synthetic example bounds A + B at 1.167e12 wei.
++
++## Corrections to the assessment (root review)
++
++1. **Front-running is not always a revert.** If a third party applied A's authorization first, C9 is codeless at N+1.
++   Our A's authorization is then skipped as stale, but **its value call to the codeless C9 succeeds**, so C9 is funded
++   anyway, and B (N+1) restores it.
++   - If the lease client re-delegated C9 in between, our A reverts and our B is skipped: C9 ends delegated and
++     unfunded, and a new plan is needed.
++   - All of these run on revm (`test/protocol.test.mjs`).
++2. **The lease client signs its own authorization when C9 is not delegated.** Verified in
++   `client/lease-executor-client.mjs`: lines 463-464 on the signing path and 573-574 on the preflight. So **every C9
++   signer (control, lease keepers and relays, boot/funding tools) and every pending sponsored Lease TTL must quiesce**
++   before A, until B is verified. The prepare requires root's `quiesce.json` and refuses without it.
++
++## Files
++
++- **`lib/maintenance.mjs`**:
++  - the production pins: C9, executor and code hashes, reserve and code hash, sponsor, V, cap, gas, ERC-7201 slots,
++    quiesce margins;
++  - `buildPlan`, which is pure, plus `checkQuiesce`, `RECOVERY` and `LIMITS`;
++  - a read-only `createPreparer`: two providers at one agreed block, using the vendored reviewed paced transport
++    (`vendor/publish.mjs` = custody-proof-app ad81dd5, sha256 `d255587b…`).
++  - The CLI path accepts only the production pins; test fixtures must say so explicitly.
++- **`bin/prepare.mjs`**, which root runs: `node bin/prepare.mjs --quiesce <root quiesce.json>` writes `plans/<sha256>.json`
++  (unsigned). Exit 3 means a refusal, and it gives the code.
++- **`config/quiesce.example.json`**, the shape of root's facts. Lease expiries, the last outstanding sponsored Lease
++  deadline and the stopped signers are root-provided; nothing is assumed.
++- **`evidence/plan-shape-SYNTHETIC.json`**: the exact plan shape with production pins and SYNTHETIC facts. It is NOT
++  for signing.
++- **Tests:** `test/protocol.test.mjs` (anvil, revm), `test/plan.test.mjs` (pure), `test/mutants.sh`.
++- **Builds and fixtures:**
++  - `test/compile.mjs` builds the reviewed `EnclaveLeaseExecutor.sol` (sha256 `dc605ffa…`) plus `test/ReserveStub.sol`
++    offline (solc 0.8.35);
++  - `test/env.mjs` holds the fixtures. All keys there are generated per run and thrown away.
++
++## What the read-only prepare reads (two providers, one agreed block)
++
++- **Chain and codes:** the chain id; C9's code = `0xef0100‖0x8900baca…`; the executor runtime `dd893cd4…`; the reserve
++  runtime `cc00efe9…`, with `reserve.executor()` and `delegationCodeHash()` matching.
++- **Sponsor:** has no code, and it is not C9.
++- **Accounts:** C9's and S's nonces (agreed = latest = pending), and both balances.
++- **Executor state:**
++  - C9's executor storage read RAW (the authorized slot, and each listed lease id's nonce slot), so it is comparable
++    even while C9 is codeless;
++  - the same through the executor's views (`authorizationCharged()`, `nonceOf(id)`).
++- **The premise:** a plain transfer of V to C9 reverts today. Where providers allow state overrides, it also records
++  that the transfer to a codeless C9 succeeds.
++- **Fees:** base fee, tips, and the GasPriceOracle values (`isIsthmus`, `getL1FeeUpperBound(size)`,
++  `getOperatorFee(gas)`).
++
++**Refusals:**
++- `operator_code` (C9 not delegated, or delegated elsewhere);
++- `sponsor_code`, `executor_code`, `reserve_code`, `reserve_binding`;
++- `nonce` (anything in flight);
++- `premise`;
++- `quiesce`: not from root, no signers listed, stale, or a Lease deadline not yet past on chain plus 60 s;
++- `lease_window` (a listed lease has under 1,800 s left);
++- `operator_fee` (not Isthmus);
++- `fee_cap`, `sponsor_balance` (below V plus bounded fees);
++- `rpc_disagree`, `rpc_budget`, `rpc_rate_limited`.
++
++## The plan's own requirements (in the JSON)
++
++- **Before broadcasting:**
++  - both authorizations and both transactions are signed;
++  - both raw transactions are written to a private 0600 journal (fsynced, exclusive) and never logged.
++- **Order:** broadcast A, then B immediately; the sponsor's nonces s, s+1 enforce the order.
++- **`verifyAfterA`:** code `0x`, nonce N+1, balance + V, raw storage unchanged.
++- **`verifyAfterB`:**
++  - the designator and its code hash `e2f1317f`, nonce N+2;
++  - raw storage and the executor's views unchanged, and the reserve's binding unchanged;
++  - 2 confirmations on 2 providers.
++- **`recovery`:** one row per state (below).
++
++## Tests (unchanged queue; throwaway keys only)
++
++| suite | lane | result |
++|---|---|---|
++| `./q.sh 512 protocol-N ./run-tests.sh protocol` (anvil, `--hardfork prague`: real revm 7702 processing) | 512 | 12/12, peak 194 MiB |
++| `./q.sh 256 plan-N ./run-tests.sh plan` | 256 | 6/6 |
++| `./q.sh 512 mutants-N test/mutants.sh` | 512 | 11/11 killed, peak 203 MiB |
++
++**Protocol paths, each actually processed on anvil:**
++- **Prepare:** exact tuples, nonces and digests; the throwaway signature recovers to O; storage and views observed; the
++  premise; fees within the cap.
++- **Happy path:** after A, code `0x`, N+1, exactly + V, every storage slot (lease nonces, authorized flag, an unrelated
++  slot) unchanged. After B, the designator and its hash, N+2, `nonceOf` 7/3, `authorizationCharged` true, and the
++  reserve binding.
++- **The hazard:** between A and B, a relayed `lease()` call to the codeless C9 returns **status 1 with no logs and no
++  storage change**. The same B then restores.
++- **Order:** B submitted before A still runs after A in the same block.
++- **Reorg:** after a revert, the same signed bytes give the same hashes and the same final state.
++- **Stale A** (C9's nonce moved, still delegated): A reverts, not out of gas, and V stays with S. B, now valid, only
++  re-delegates the same executor.
++- **Front-run:** our stale A still funds the codeless C9, and B restores.
++- **Front-run + the lease client's authorization:** A reverts, B is skipped; C9 ends delegated and unfunded.
++- **A mined, then C9's nonce moves:** B is stale and C9 stays codeless. Recovery: C9 self-sends a restore with
++  authorization nonce = current + 1, and everything is preserved.
++- **Wrong-chain authorization:** skipped; A reverts and nothing moves. Chain id 0 is refused by config.
++- **Prepare refusals** on the live local chain.
++- **Gas measured:**
++
++| path | gas used | limit |
++|---|---|---|
++| A valid (transfer) | 36,800 (46,000 before refund) | 50,000 |
++| A skipped, delegated (revert) | 46,043 | 50,000 |
++| A skipped, codeless (transfer) | 46,000 | 50,000 |
++| B (restore) | 36,800 (46,000 before refund) | 47,000 |
++
++**Mutants killed:**
++- B at nonce N;
++- chain id 0;
++- no fee cap, no sponsor-balance check;
++- no operator-code or sponsor-code check;
++- unsettled nonce;
++- Lease deadline ignored, lease window ignored;
++- L1 sized from the unsigned bytes;
++- restore to another address.
++
++## Recovery and restore (no interrupted state left implicit)
++
++| observed | meaning | action |
+ |---|---|---|
+-| A's authorization invalid (N moved, bad signature) | skipped; the call hits the executor and reverts; V stays with S; S pays gas | none needed; re-plan |
+-| A mined, B delayed or dropped | C9 is a funded plain EOA (funds safe: only C9's key moves them). The reserve refuses it, and relayed `lease()` calls are silent no-ops. | rebroadcast the same B (valid while C9's nonce = N+1). Or, since C9 is now funded, C9 self-sends a restore (authorization nonce = current + 1), which needs a fresh C9 signature. |
+-| C9 sends anything between A and B | the presigned B is invalid | a fresh restore authorization, as above |
+-| a third party copies A's authorization into its own transaction | C9 cleared but unfunded; our A reverts (stale authorization) | send B (now valid). This is griefing only, with no loss; Base's sequencer mempool is not a public p2p pool (not verified for this setup). |
+-| a chain-id-0 authorization | could be replayed on any chain where C9's nonce matches | **never**: chainId must be 8453 |
+-| a reorg | both transactions can be re-included as the same signed bytes | verify only after 2 confirmations on two providers |
+-| B leaked early | harmless: valid only at N+1, and it only restores the reviewed executor | — |
+-
+-## A finite plan (no implementation yet)
+-
+-**0. Approvals** (root first, then each human role).
+-- **C9 key holder.** The key is root-only (`metal/config.json` registryKey). They approve signing exactly two
+-  authorizations: `{8453, 0x0, N}` and `{8453, 0x8900baca…, N+1}`.
+-- **Funding owner.** They approve V and the sponsor:
+-  - V's size is root's decision, for example "the next setProofKey/enrollment worst case plus margin" (271,929,253,610
+-    wei was the previous worst case).
+-  - S should be a dedicated EOA, funded by a plain transfer, that can sign raw type-4 transactions (not MetaMask).
+-- **Leases.** Root accepts the lease plan from item 3 above.
+-
+-**1. Read-only preflight.** Two providers, one agreed block. It confirms:
+-- C9's code equals the designator (codehash `e2f1317f`), with latest = pending = N, and C9's balance;
+-- the executor code hash `dd893cd4…` and the reserve's `delegationCodeHash` `e2f1317f`;
+-- no live Lease deadline, the live guests' lease expiries, and `nonceOf(id)` for their deployments;
+-- S's nonce and balance;
+-- an `eth_call` simulation of A and of B with their authorization lists;
+-- the fee bounds (L2 cap + L1 upper bound for the signed type-4 size + Isthmus operator fee) against caps.
+-
+-**2. Sign.**
+-- The C9 key holder signs the two authorizations, and S signs A (s) and B (s+1).
+-- Both raw transactions are journaled privately (0600, fsynced) before any broadcast, as with the reviewed
+-  journal-before-send pattern.
+-
+-**3. Broadcast** A, then B immediately, from the same sender in nonce order.
+-- **After A:** C9's code is empty, nonce N+1, balance + V.
+-- **After B:** the designator is back, codehash `e2f1317f`, nonce N+2.
+-- **Unchanged throughout:** `nonceOf(id)`, `authorizationCharged()` and the reserve binding, each at 2 confirmations on
+-  both providers.
+-
+-**4. Resume** the control and leases only after B is verified.
+-
+-There is no rollback for the funds. The only open state is "A done, B not", and its recovery is in the table above.
++| A reverted, C9 delegated | A's authorization was stale and V never moved | stop; re-read; new plan (new nonces and signatures) |
++| A succeeded, but C9's nonce is still N+1 and the authorization was not ours | a third party cleared C9 first; C9 is funded anyway | broadcast B (valid at N+1) |
++| A mined, B pending, dropped or crashed | C9 is a funded plain account. The reserve refuses it, and `lease()` calls are SILENT no-ops. | re-broadcast the SAME journaled B while C9's nonce is N+1; keep every signer stopped |
++| A mined, C9's nonce moved | B is stale | read the code. The exact designator means a restore already happened (verify the storage). Otherwise a NEW restore (C9 self-sends with nonce = current + 1, or a new sponsored B) after fresh review. |
++| a reorg | both transactions are re-includable as the same bytes | re-broadcast the journaled bytes; verify only at 2 confirmations on 2 providers |
++| B verified | done | resume the signers |
++
++There is no "rollback" of the funds: V is C9's, movable only by C9's key.
++
++## Limits (also in the plan JSON)
++
++- **No live simulation of the signed transactions:** an unsigned prepare cannot eth_call them, because no
++  authorization signature exists yet.
++  - Its live checks are the plain-transfer revert (the premise) and, where supported, a state-override simulation of
++    the codeless transfer.
++  - The actual 7702 processing is exercised only on anvil (revm, Prague) with throwaway keys.
++- **Source, not deployed bytes:** the storage-preservation test runs the reviewed executor SOURCE rebuilt locally. The
++  deployed runtime `dd893cd4…` is pinned by hash but not rebuilt.
++- **Txpool rules unverified:** Base's sequencer txpool rules for type-4 transactions are not verified. A refused
++  submission is a no-op, not a partial state.
++- **Root-provided facts:** lease expiries and the last sponsored Lease deadline come only from root.
++- **Sponsor key path:** not named here; the sponsor's signer is root-provided. C9's authorizations need the root-only
++  registry key (`metal/config.json` `registryKey`); this tool reads neither.
++
++## Approvals the real change would need (stated, not requested)
++
++1. Root: review this preparation, then run `node bin/prepare.mjs --quiesce <quiesce.json>` at a fresh, quiesced moment.
++2. The C9 key holder: two authorizations exactly as in the plan.
++3. The owner of the canary sponsor `0x29479bf0…647c`: V = 5,000,000,000,000 wei plus at most 2,000,000,000,000 wei of
++   fees, and the two sponsor transactions.
++4. A separately reviewed signer/sender. It is not written here.
+diff --git a/bin/prepare.mjs b/bin/prepare.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a477fbc91e893ff8a3b00c479ccc2fdde0f1eae3
+--- /dev/null
++++ b/bin/prepare.mjs
+@@ -0,0 +1,19 @@
++#!/usr/bin/env node
++// READ-ONLY preparation of the unsigned C9 maintenance plan (root runs it). Never reads a key, signs or sends.
++//   node bin/prepare.mjs --quiesce <root quiesce.json>   -> plans/<sha256>.json (public, unsigned), exit 3 on a refusal
++import fs from "node:fs";
++import path from "node:path";
++import { createPreparer, Refusal } from "../lib/maintenance.mjs";
++const a = process.argv.slice(2);
++if (a.length !== 2 || a[0] !== "--quiesce") { console.error("usage: node bin/prepare.mjs --quiesce <root quiesce.json>"); process.exit(2); }
++const quiesce = JSON.parse(fs.readFileSync(a[1], "utf8"));
++try {
++  const out = await createPreparer().prepare({ quiesce });
++  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "plans");
++  fs.mkdirSync(dir, { recursive: true });
++  fs.writeFileSync(path.join(dir, `${out.planHash}.json`), out.text, { flag: "wx", mode: 0o644 });
++  console.log(JSON.stringify({ status: out.plan.status, planHash: out.planHash, requests: out.requests, fees: out.plan.fees }, null, 1));
++} catch (e) {
++  if (e instanceof Refusal) { console.error(`REFUSED ${e.code}: ${e.message}`); process.exit(3); }
++  console.error(`FAILED (not retried): ${String(e.message).slice(0, 300)}`); process.exit(1);
++}
+diff --git a/config/quiesce.example.json b/config/quiesce.example.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..d76010c62d09574ccd97297f6c22e1728bd9c816
+--- /dev/null
++++ b/config/quiesce.example.json
+@@ -0,0 +1,7 @@
++{
++ "providedBy": "root",
++ "providedAt": 0,
++ "signersStopped": ["metal0 control (all units holding the C9 registry key)", "lease keepers / relays signing for C9", "boot/funding tools"],
++ "lastSponsoredLeaseDeadline": 0,
++ "leases": [{ "id": "0x<32-byte deployment id held by C9>", "expiry": 0 }]
++}
+diff --git a/evidence/plan-shape-SYNTHETIC.json b/evidence/plan-shape-SYNTHETIC.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..d696ac333276ee8cc72e42a845980f5cac94eda4
+--- /dev/null
++++ b/evidence/plan-shape-SYNTHETIC.json
+@@ -0,0 +1,223 @@
++{
++ "SYNTHETIC": "shape only; not for signing",
++ "v": 1,
++ "kind": "enclave-operator-7702-maintenance/unsigned",
++ "status": "UNSIGNED; not approved; nothing signed or sent",
++ "pins": {
++  "chainId": 8453,
++  "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++  "executor": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++  "executorCodeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2",
++  "delegationCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
++  "reserve": "0x12a3f873041dec436daa0085b766a399a6fa3639",
++  "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
++  "sponsor": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++  "valueWei": "5000000000000",
++  "feeCapWei": "2000000000000",
++  "keySources": {
++   "operatorAuthorizations": "C9 registry key: root-only /home/steven/Projects/enclave/metal/config.json field registryKey",
++   "sponsorTransactions": "the sponsor 0x29479bf0…647c's signer: root-provided"
++  }
++ },
++ "observed": {
++  "block": "SYNTHETIC",
++  "blockHash": "SYNTHETIC",
++  "blockTimestamp": 1792800000,
++  "rpcs": [
++   "SYNTHETIC"
++  ],
++  "operatorNonce": "23760",
++  "operatorBalanceWei": "145368427115",
++  "sponsorNonce": "0",
++  "sponsorBalanceWei": "61650000000000",
++  "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
++  "storage": {
++   "note": "SYNTHETIC: read at the agreed block"
++  },
++  "executorViews": {
++   "note": "SYNTHETIC"
++  },
++  "plainTransferReverts": true,
++  "codelessTransferSimulation": "SYNTHETIC"
++ },
++ "quiesce": {
++  "providedBy": "root",
++  "providedAt": 1792799940,
++  "signersStopped": [
++   "SYNTHETIC: root lists every stopped C9 signer"
++  ],
++  "lastSponsoredLeaseDeadline": 1792799100,
++  "leases": [],
++  "requirement": "Every C9 signer stays stopped until B is verified: the lease client signs a NEW authorization when C9 is not delegated (client/lease-executor-client.mjs 463-464, 573-574), which would race B."
++ },
++ "authorizationsToSign": [
++  {
++   "label": "A: clear (address 0)",
++   "tuple": {
++    "chainId": 8453,
++    "address": "0x0000000000000000000000000000000000000000",
++    "nonce": 23760
++   },
++   "digest": "0xfa87cb500848d4a0907549ec1c75b847c1539ebef62dfc68af31b085c669e781",
++   "signer": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++   "rule": "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0"
++  },
++  {
++   "label": "B: restore the same executor",
++   "tuple": {
++    "chainId": 8453,
++    "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++    "nonce": 23761
++   },
++   "digest": "0xaf41a75039ec8d92760a2ee6eec74a661fea093d839174cb60a0a52d074ea7dd",
++   "signer": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++   "rule": "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0"
++  }
++ ],
++ "transactions": [
++  {
++   "label": "A",
++   "sender": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "unsigned": {
++    "type": "eip7702",
++    "chainId": 8453,
++    "nonce": 0,
++    "to": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
++    "value": "5000000000000",
++    "data": "0x",
++    "gas": "50000",
++    "maxFeePerGas": "11000000",
++    "maxPriorityFeePerGas": "1000000",
++    "authorizationList": [
++     {
++      "chainId": 8453,
++      "address": "0x0000000000000000000000000000000000000000",
++      "nonce": 23760,
++      "signature": "authorizationsToSign[0]"
++     }
++    ]
++   },
++   "encodedBytes": {
++    "unsigned": 146,
++    "signedMax": 213,
++    "argument": 146,
++    "oracleSignatureAllowance": 68
++   },
++   "fee": {
++    "l2MaxWei": "550000000000",
++    "l1UpperBoundWei": "50000000000",
++    "operatorFeeWei": "0",
++    "totalWei": "600000000000"
++   }
++  },
++  {
++   "label": "B",
++   "sender": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++   "unsigned": {
++    "type": "eip7702",
++    "chainId": 8453,
++    "nonce": 1,
++    "to": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
++    "value": "0",
++    "data": "0x",
++    "gas": "47000",
++    "maxFeePerGas": "11000000",
++    "maxPriorityFeePerGas": "1000000",
++    "authorizationList": [
++     {
++      "chainId": 8453,
++      "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++      "nonce": 23761,
++      "signature": "authorizationsToSign[1]"
++     }
++    ]
++   },
++   "encodedBytes": {
++    "unsigned": 140,
++    "signedMax": 207,
++    "argument": 140,
++    "oracleSignatureAllowance": 68
++   },
++   "fee": {
++    "l2MaxWei": "517000000000",
++    "l1UpperBoundWei": "50000000000",
++    "operatorFeeWei": "0",
++    "totalWei": "567000000000"
++   }
++  }
++ ],
++ "fees": {
++  "totalBoundWei": "1167000000000",
++  "capWei": "2000000000000",
++  "note": "per tx: L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 upper bound for the maximum signed size (authorization signature included) + Isthmus operator fee for the gas limit, at the agreed block. Not a guarantee against later changes."
++ },
++ "order": [
++  "Sign A's and B's authorizations (C9 key) and both transactions (sponsor) BEFORE anything is broadcast.",
++  "Write both signed raw transactions to a private 0600 journal (fsynced, exclusive) BEFORE any broadcast; never log them.",
++  "Broadcast A then B immediately (sponsor nonces s, s+1 enforce the order; B can never run before A)."
++ ],
++ "verifyAfterA": {
++  "operatorCode": "0x",
++  "operatorNonce": "23761",
++  "operatorBalanceWei": ">= observed + 5000000000000 (exactly + V unless others pay C9)",
++  "storageUnchanged": {
++   "note": "SYNTHETIC: read at the agreed block"
++  },
++  "receiptStatus": 1
++ },
++ "verifyAfterB": {
++  "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
++  "operatorCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
++  "operatorNonce": "23762",
++  "storageUnchanged": {
++   "note": "SYNTHETIC: read at the agreed block"
++  },
++  "executorViewsUnchanged": {
++   "note": "SYNTHETIC"
++  },
++  "reserveBindingUnchanged": {
++   "executor": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
++   "delegationCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe"
++  },
++  "confirmations": 2,
++  "providers": 2
++ },
++ "recovery": [
++  {
++   "state": "A's authorization skipped, C9 still delegated (its nonce moved, or it was re-delegated)",
++   "effect": "A's call hits the executor and reverts; V stays with the sponsor; only gas is spent",
++   "action": "stop; re-read; a new plan (new nonces, new signatures)"
++  },
++  {
++   "state": "A's authorization skipped because a third party already applied it (C9 codeless, nonce N+1)",
++   "effect": "A's value call to the CODELESS C9 SUCCEEDS: C9 is funded although our authorization did not apply",
++   "action": "B (nonce N+1) is valid: broadcast it; verify"
++  },
++  {
++   "state": "A mined, B not yet (dropped, delayed, crash)",
++   "effect": "C9 is a funded plain account; the reserve refuses it; relayed lease() calls SUCCEED AS NO-OPS (no renewal)",
++   "action": "re-broadcast the SAME journaled B (valid while C9's nonce is N+1); keep every signer stopped"
++  },
++  {
++   "state": "A mined, then C9's nonce moved (any C9 transaction or a lease client's own authorization)",
++   "effect": "the presigned B is stale; C9 stays codeless (or was re-delegated by that authorization)",
++   "action": "read the code: if it is the exact designator, restoration happened; otherwise a NEW restore authorization (C9 self-sends with nonce = current + 1, or a new sponsored B) after fresh review"
++  },
++  {
++   "state": "a reorg drops A and/or B",
++   "effect": "both can be re-included as the same signed bytes while the nonces are unchanged",
++   "action": "re-broadcast the journaled bytes; verify only after 2 confirmations on 2 providers"
++  },
++  {
++   "state": "B mined",
++   "effect": "C9 restored (code hash e2f1317f), nonce N+2, storage unchanged",
++   "action": "verify, then resume the signers"
++  }
++ ],
++ "limits": [
++  "This unsigned preparation cannot eth_call the real transactions: an authorization signature does not exist yet. The live checks are: the plain transfer to C9 REVERTS today (the premise), and, where a provider supports state overrides, the transfer to a codeless C9 succeeds. The actual EIP-7702 processing is exercised only on anvil (revm, Prague) with throwaway keys (test/protocol.test.mjs).",
++  "The deployed executor runtime (dd893cd4…) and reserve (cc00efe9…) are pinned by hash; the storage-preservation test runs the reviewed executor SOURCE (sha256 dc605ffa…) rebuilt locally, not the deployed bytes.",
++  "Base's sequencer txpool rules for type-4 transactions (e.g. authorities with pending transactions) are not verified here; a refused submission is a no-op, not a partial state.",
++  "Lease expiries and the last sponsored Lease deadline come from root (quiesce.json); this tool does not derive them."
++ ]
++}
+diff --git a/lib/maintenance.mjs b/lib/maintenance.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b51051364708feeeba30907b1da77a56fb95247
+--- /dev/null
++++ b/lib/maintenance.mjs
+@@ -0,0 +1,242 @@
++// Standard EIP-7702 account maintenance for ONE account: fund metal0's registry operator C9 (whose delegate, the
++// reviewed EnclaveLeaseExecutor 0x8900baca…, has no payable entry) by
++//   A  sponsor S, type-4: authorization {8453, 0x0, N} (C9 cleared)  +  call C9 with value V (plain transfer)
++//   B  sponsor S, type-4: authorization {8453, executor, N+1} (C9 restored byte-exactly)  +  call S, value 0
++// UNSIGNED PREPARATION ONLY. This module never reads a key, never signs, never sends: it has no wallet, no account and
++// no broadcast method. It builds a reviewable plan; signing and sending need separate approval and are not implemented.
++//
++// Everything here is specific to C9 and the same executor; createPreparer refuses any other operator, executor, value,
++// cap or sponsor unless the caller passes an explicit TEST fixture (the CLI never does).
++import { createHash } from "node:crypto";
++import { encodeFunctionData, decodeFunctionResult, encodeAbiParameters, keccak256, serializeTransaction, parseAbi } from "viem";
++import { hashAuthorization } from "viem/utils";
++import { pacedTransport, httpRpc, PACING, realClock, Refusal } from "../vendor/publish.mjs";
++
++export { Refusal };
++const lc = (x) => String(x ?? "").toLowerCase();
++const hex = (n) => "0x" + BigInt(n).toString(16);
++const sha256 = (s) => createHash("sha256").update(s).digest("hex");
++const refuse = (code, message) => { throw new Refusal(code, message); };
++export const ZERO = "0x0000000000000000000000000000000000000000";
++
++export const PRODUCTION = Object.freeze({
++  chainId: 8453,
++  operator: "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",           // metal0's registry operator (C9)
++  executor: "0x8900baca2167873ba2f8a8bae8b4876e6396d343",           // EnclaveLeaseExecutor: the ONLY restore target
++  executorCodeHash: "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2",
++  delegationCodeHash: "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",   // keccak(0xef0100||executor)
++  reserve: "0x12a3f873041dec436daa0085b766a399a6fa3639",            // EnclaveLeaseGasReserve (begin() checks the code hash)
++  reserveCodeHash: "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
++  sponsor: "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",            // the canary agent EOA (proposed; root re-checks)
++  valueWei: 5_000_000_000_000n,                                      // V = 0.000005 ETH, exactly
++  feeCapWei: 2_000_000_000_000n,                                     // aggregate outer fees of A + B (L2 + L1 + operator)
++  gas: Object.freeze({ A: 50_000n, B: 47_000n }),                    // fixed limits; every path measured on anvil (tests)
++  oracle: "0x420000000000000000000000000000000000000f",
++  rpcs: Object.freeze(["https://mainnet.base.org", "https://base.public.blockpi.network/v1/rpc/public"]),
++  readDepth: 2,
++  slots: Object.freeze({                                             // EnclaveLeaseExecutor ERC-7201 namespaces
++    nonces: "0xd4303515233e7d5d6aff53061198d268e21693bbe46ee8802da444a318c9fa00",
++    authorized: "0xa56564ef639f1ba7b44970246267b2ab8c83a9eb9d0bde5c2e8a5ec36c96cb00",
++  }),
++  quiesce: Object.freeze({ deadlineMarginSec: 60, minLeaseRemainingSec: 1800, maxQuiesceAgeSec: 3600 }),
++  // documentation only: this tool reads neither (a later, separately approved signer would)
++  keySources: Object.freeze({
++    operatorAuthorizations: "C9 registry key: root-only /home/steven/Projects/enclave/metal/config.json field registryKey",
++    sponsorTransactions: "the sponsor 0x29479bf0…647c's signer: root-provided",
++  }),
++});
++
++const EXECUTOR_ABI = parseAbi(["function nonceOf(bytes32 id) view returns (uint64)", "function authorizationCharged() view returns (bool)",
++  "function reserve() view returns (address)"]);
++const RESERVE_ABI = parseAbi(["function executor() view returns (address)", "function delegationCodeHash() view returns (bytes32)"]);
++const ORACLE_ABI = parseAbi(["function getL1FeeUpperBound(uint256) view returns (uint256)", "function isIsthmus() view returns (bool)",
++  "function getOperatorFee(uint256) view returns (uint256)"]);
++export const ORACLE_SIGNATURE_ALLOWANCE = 68;
++
++export const designatorOf = (executor) => "0xef0100" + lc(executor).slice(2);
++export const nonceSlot = (cfg, id) => keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "bytes32" }], [id, cfg.slots.nonces]));
++export const authorizedSlot = (cfg) => keccak256(encodeAbiParameters([{ type: "address" }, { type: "bytes32" }], [cfg.executor, cfg.slots.authorized]));
++
++/** Pins are production unless an explicit test fixture is passed; any fixture must keep the same shape and rules. */
++export function checkConfig(cfg) {
++  if (cfg.chainId === 0 || !Number.isSafeInteger(cfg.chainId)) refuse("config", "chain id must be a real chain (never 0: a chain-0 authorization replays on every chain)");
++  if (lc(cfg.sponsor) === lc(cfg.operator)) refuse("config", "the sponsor must be a separate account (the nonce rules below assume it)");
++  if (lc(designatorOf(cfg.executor)) === "0xef0100" + ZERO.slice(2)) refuse("config", "the restore target cannot be the zero address");
++  if (keccak256(designatorOf(cfg.executor)) !== cfg.delegationCodeHash) refuse("config", "delegationCodeHash is not keccak(0xef0100||executor)");
++  if (!(cfg.valueWei > 0n) || !(cfg.feeCapWei > 0n)) refuse("config", "value and fee cap must be positive");
++  return cfg;
++}
++
++/** The two authorization tuples C9's key would sign, and the exact digests (keccak(0x05 || rlp([chainId, address, nonce]))). */
++export function authorizations(cfg, N) {
++  const n = BigInt(N);
++  const A = { chainId: cfg.chainId, address: ZERO, nonce: Number(n) };
++  const B = { chainId: cfg.chainId, address: lc(cfg.executor), nonce: Number(n + 1n) };
++  return [A, B].map((t, i) => ({ label: i === 0 ? "A: clear (address 0)" : "B: restore the same executor", tuple: t,
++    digest: hashAuthorization({ chainId: t.chainId, address: t.address, nonce: t.nonce }), signer: lc(cfg.operator) }));
++}
++
++const MAXSIG = { r: "0x" + "ff".repeat(32), s: "0x" + "ff".repeat(32), yParity: 1 };
++/** The unsigned type-4 transaction (authorization signatures as placeholders), and its worst-case encoded sizes. */
++export function transaction(cfg, which, { s, N, maxFeePerGas, maxPriorityFeePerGas }) {
++  const [authA, authB] = authorizations(cfg, N);
++  const auth = which === "A" ? authA : authB;
++  const tx = { type: "eip7702", chainId: cfg.chainId, nonce: Number(BigInt(s) + (which === "A" ? 0n : 1n)),
++    to: which === "A" ? lc(cfg.operator) : lc(cfg.sponsor), value: which === "A" ? cfg.valueWei : 0n, data: "0x",
++    gas: cfg.gas[which], maxFeePerGas: BigInt(maxFeePerGas), maxPriorityFeePerGas: BigInt(maxPriorityFeePerGas) };
++  const withMax = { ...tx, authorizationList: [{ ...auth.tuple, ...MAXSIG }] };
++  const unsigned = (serializeTransaction(withMax).length - 2) / 2;
++  const signedMax = (serializeTransaction(withMax, MAXSIG).length - 2) / 2;
++  const argument = Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE);
++  if (argument + ORACLE_SIGNATURE_ALLOWANCE < signedMax) refuse("l1_size", "the L1 size undercounts the signed transaction");
++  return { tx, auth, sizes: { unsigned, signedMax, argument } };
++}
++
++/**
++ * The reviewable plan from facts read at ONE agreed block. `oracle` = { l1UpperBound(size), isIsthmus(), operatorFee(gas) }
++ * at that block. Refuses (never raises a cap, never changes V) when anything does not fit.
++ */
++export async function buildPlan({ cfg = PRODUCTION, facts, quiesce, oracle }) {
++  checkConfig(cfg);
++  const f = facts;
++  // the account states this plan is for
++  if (lc(f.operatorCode) !== designatorOf(cfg.executor)) refuse("operator_code", "C9 is not delegated to exactly the reviewed executor; this plan applies only to that state");
++  if (f.plainTransferReverts !== true) refuse("premise", "a plain transfer to C9 does not revert: this maintenance is not needed (fund it directly after review)");
++  if (lc(f.sponsorCode) !== "0x") refuse("sponsor_code", "the sponsor must be a plain EOA with no code (no delegation)");
++  if (f.executorCodeHash !== cfg.executorCodeHash) refuse("executor_code", "the executor's runtime is not the reviewed one");
++  if (f.reserveCodeHash !== cfg.reserveCodeHash) refuse("reserve_code", "the reserve's runtime is not the reviewed one");
++  if (lc(f.reserveExecutor) !== lc(cfg.executor) || f.reserveDelegationCodeHash !== cfg.delegationCodeHash) refuse("reserve_binding", "the reserve is not bound to this executor");
++  for (const [who, n] of [["operator", f.operatorNonce], ["sponsor", f.sponsorNonce]])
++    if (!(n.atBlock === n.latest && n.latest === n.pending)) refuse("nonce", `the ${who}'s nonce is not settled (agreed ${n.atBlock}, latest ${n.latest}, pending ${n.pending}): a transaction may be in flight`);
++  // quiescence (root-provided; nothing assumed)
++  const q = checkQuiesce(cfg, quiesce, f.blockTimestamp);
++  // fees: L2 cap + L1 bound for the maximum signed size + Isthmus operator fee, per transaction; aggregate cap
++  if ((await oracle.isIsthmus()) !== true) refuse("operator_fee", "the GasPriceOracle reports no Isthmus operator fee: undetermined, not bounded");
++  const fees = { maxFeePerGas: 2n * BigInt(f.baseFeePerGas) + BigInt(f.maxPriorityFeePerGas), maxPriorityFeePerGas: BigInt(f.maxPriorityFeePerGas) };
++  const out = {};
++  let total = 0n;
++  for (const which of ["A", "B"]) {
++    const t = transaction(cfg, which, { s: f.sponsorNonce.latest, N: f.operatorNonce.latest, ...fees });
++    const l2 = t.tx.gas * fees.maxFeePerGas, l1 = BigInt(await oracle.l1UpperBound(t.sizes.argument)), op = BigInt(await oracle.operatorFee(t.tx.gas));
++    out[which] = { ...t, fee: { l2MaxWei: l2, l1UpperBoundWei: l1, operatorFeeWei: op, totalWei: l2 + l1 + op } };
++    total += l2 + l1 + op;
++  }
++  if (total > cfg.feeCapWei) refuse("fee_cap", `the bounded outer fees ${total} wei exceed the cap ${cfg.feeCapWei} wei; refused (the cap is not raised)`);
++  if (BigInt(f.sponsorBalance) < cfg.valueWei + total) refuse("sponsor_balance", `the sponsor holds ${f.sponsorBalance} wei, less than V + bounded fees (${cfg.valueWei + total})`);
++  const N = BigInt(f.operatorNonce.latest), s = BigInt(f.sponsorNonce.latest), str = (x) => (typeof x === "bigint" ? x.toString() : x);
++  const ser = (o) => JSON.parse(JSON.stringify(o, (_k, v) => str(v)));
++  const plan = {
++    v: 1, kind: "enclave-operator-7702-maintenance/unsigned", status: "UNSIGNED; not approved; nothing signed or sent",
++    pins: ser({ chainId: cfg.chainId, operator: cfg.operator, executor: cfg.executor, executorCodeHash: cfg.executorCodeHash, delegationCodeHash: cfg.delegationCodeHash,
++      reserve: cfg.reserve, reserveCodeHash: cfg.reserveCodeHash, sponsor: cfg.sponsor, valueWei: cfg.valueWei, feeCapWei: cfg.feeCapWei, keySources: cfg.keySources }),
++    observed: ser({ block: f.block, blockHash: f.blockHash, blockTimestamp: f.blockTimestamp, rpcs: f.rpcs, operatorNonce: N, operatorBalanceWei: f.operatorBalance,
++      sponsorNonce: s, sponsorBalanceWei: f.sponsorBalance, operatorCode: f.operatorCode, storage: f.storage, executorViews: f.executorViews,
++      plainTransferReverts: f.plainTransferReverts, codelessTransferSimulation: f.codelessTransferSimulation }),
++    quiesce: q,
++    authorizationsToSign: authorizations(cfg, N).map((a) => ser({ ...a, signer: cfg.operator, rule: "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0" })),
++    transactions: ["A", "B"].map((w) => ser({ label: w, sender: cfg.sponsor, unsigned: { ...out[w].tx, authorizationList: [{ ...out[w].auth.tuple, signature: `authorizationsToSign[${w === "A" ? 0 : 1}]` }] },
++      encodedBytes: { ...out[w].sizes, oracleSignatureAllowance: ORACLE_SIGNATURE_ALLOWANCE }, fee: out[w].fee })),
++    fees: ser({ totalBoundWei: total, capWei: cfg.feeCapWei, note: "per tx: L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 upper bound for the maximum signed size (authorization signature included) + Isthmus operator fee for the gas limit, at the agreed block. Not a guarantee against later changes." }),
++    order: ["Sign A's and B's authorizations (C9 key) and both transactions (sponsor) BEFORE anything is broadcast.",
++      "Write both signed raw transactions to a private 0600 journal (fsynced, exclusive) BEFORE any broadcast; never log them.",
++      "Broadcast A then B immediately (sponsor nonces s, s+1 enforce the order; B can never run before A)."],
++    verifyAfterA: ser({ operatorCode: "0x", operatorNonce: N + 1n, operatorBalanceWei: `>= observed + ${cfg.valueWei} (exactly + V unless others pay C9)`,
++      storageUnchanged: f.storage, receiptStatus: 1 }),
++    verifyAfterB: ser({ operatorCode: designatorOf(cfg.executor), operatorCodeHash: cfg.delegationCodeHash, operatorNonce: N + 2n, storageUnchanged: f.storage,
++      executorViewsUnchanged: f.executorViews, reserveBindingUnchanged: { executor: cfg.executor, delegationCodeHash: cfg.delegationCodeHash },
++      confirmations: 2, providers: 2 }),
++    recovery: RECOVERY,
++    limits: LIMITS,
++  };
++  const text = JSON.stringify(plan, null, 1) + "\n";
++  return { plan, text, planHash: "0x" + sha256(text) };
++}
++
++export function checkQuiesce(cfg, q, blockTs) {
++  if (!q || q.providedBy !== "root") refuse("quiesce", "the quiescence facts must be provided by root (quiesce.json)");
++  if (!Array.isArray(q.signersStopped) || q.signersStopped.length === 0) refuse("quiesce", "root must list every stopped C9 signer (control, lease keepers, boot/funding tools)");
++  if (!Number.isSafeInteger(q.providedAt) || blockTs - q.providedAt > cfg.quiesce.maxQuiesceAgeSec || q.providedAt > blockTs + 120) refuse("quiesce", "the quiescence facts are stale or from the future");
++  if (!Number.isSafeInteger(q.lastSponsoredLeaseDeadline)) refuse("quiesce", "the last outstanding sponsored Lease deadline is required (0 if none was ever signed)");
++  if (!(blockTs > q.lastSponsoredLeaseDeadline + cfg.quiesce.deadlineMarginSec)) refuse("quiesce", "a sponsored Lease signed by C9 may still be valid at the agreed block: wait until its deadline has passed on chain");
++  if (!Array.isArray(q.leases)) refuse("quiesce", "the live leases held by C9 must be listed (empty if none)");
++  const leases = q.leases.map((l) => {
++    if (!/^0x[0-9a-f]{64}$/.test(lc(l.id)) || !Number.isSafeInteger(l.expiry)) refuse("quiesce", "each lease needs a 32-byte id and an expiry");
++    const remaining = l.expiry - blockTs;
++    if (remaining < cfg.quiesce.minLeaseRemainingSec) refuse("lease_window", `lease ${l.id} has ${remaining} s left, under the required ${cfg.quiesce.minLeaseRemainingSec} s: renew it first or accept its lapse explicitly (outside this tool)`);
++    return { id: lc(l.id), expiry: l.expiry, remainingSec: remaining };
++  });
++  return { providedBy: q.providedBy, providedAt: q.providedAt, signersStopped: q.signersStopped, lastSponsoredLeaseDeadline: q.lastSponsoredLeaseDeadline, leases,
++    requirement: "Every C9 signer stays stopped until B is verified: the lease client signs a NEW authorization when C9 is not delegated (client/lease-executor-client.mjs 463-464, 573-574), which would race B." };
++}
++
++export const RECOVERY = Object.freeze([
++  { state: "A's authorization skipped, C9 still delegated (its nonce moved, or it was re-delegated)", effect: "A's call hits the executor and reverts; V stays with the sponsor; only gas is spent", action: "stop; re-read; a new plan (new nonces, new signatures)" },
++  { state: "A's authorization skipped because a third party already applied it (C9 codeless, nonce N+1)", effect: "A's value call to the CODELESS C9 SUCCEEDS: C9 is funded although our authorization did not apply", action: "B (nonce N+1) is valid: broadcast it; verify" },
++  { state: "A mined, B not yet (dropped, delayed, crash)", effect: "C9 is a funded plain account; the reserve refuses it; relayed lease() calls SUCCEED AS NO-OPS (no renewal)", action: "re-broadcast the SAME journaled B (valid while C9's nonce is N+1); keep every signer stopped" },
++  { state: "A mined, then C9's nonce moved (any C9 transaction or a lease client's own authorization)", effect: "the presigned B is stale; C9 stays codeless (or was re-delegated by that authorization)", action: "read the code: if it is the exact designator, restoration happened; otherwise a NEW restore authorization (C9 self-sends with nonce = current + 1, or a new sponsored B) after fresh review" },
++  { state: "a reorg drops A and/or B", effect: "both can be re-included as the same signed bytes while the nonces are unchanged", action: "re-broadcast the journaled bytes; verify only after 2 confirmations on 2 providers" },
++  { state: "B mined", effect: "C9 restored (code hash e2f1317f), nonce N+2, storage unchanged", action: "verify, then resume the signers" },
++]);
++export const LIMITS = Object.freeze([
++  "This unsigned preparation cannot eth_call the real transactions: an authorization signature does not exist yet. The live checks are: the plain transfer to C9 REVERTS today (the premise), and, where a provider supports state overrides, the transfer to a codeless C9 succeeds. The actual EIP-7702 processing is exercised only on anvil (revm, Prague) with throwaway keys (test/protocol.test.mjs).",
++  "The deployed executor runtime (dd893cd4…) and reserve (cc00efe9…) are pinned by hash; the storage-preservation test runs the reviewed executor SOURCE (sha256 dc605ffa…) rebuilt locally, not the deployed bytes.",
++  "Base's sequencer txpool rules for type-4 transactions (e.g. authorities with pending transactions) are not verified here; a refused submission is a no-op, not a partial state.",
++  "Lease expiries and the last sponsored Lease deadline come from root (quiesce.json); this tool does not derive them.",
++]);
++
++/** Read-only facts at one agreed block on two providers (paced, budgeted; the vendored reviewed transport). */
++export function createPreparer({ cfg = PRODUCTION, rpc = httpRpc(15_000), clock = realClock, pacing = PACING, fixture = false } = {}) {
++  checkConfig(cfg);
++  if (!fixture) for (const k of Object.keys(PRODUCTION)) if (JSON.stringify(cfg[k], (_k, v) => (typeof v === "bigint" ? v.toString() : v)) !== JSON.stringify(PRODUCTION[k], (_k, v) => (typeof v === "bigint" ? v.toString() : v))) throw Error(`config ${k} must be the production value`);
++  const rpcs = [...cfg.rpcs];
++  if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw Error("exactly two distinct RPCs");
++  let transport;
++  const both = (m, p) => Promise.all(rpcs.map((u) => transport.send(u, m, p)));
++  const agree = async (what, m, p) => { const r = await both(m, p); if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) refuse("rpc_disagree", `the providers disagree on ${what}`); return r[0]; };
++  async function prepare({ quiesce }) {
++    transport = pacedTransport({ rpc, pacing, clock });
++    const ids = await both("eth_chainId", []);
++    if (ids.some((x) => Number(x) !== cfg.chainId)) refuse("chain", "a provider is not on the pinned chain");
++    const heads = (await both("eth_blockNumber", [])).map(BigInt);
++    const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - BigInt(cfg.readDepth);
++    const blocks = await both("eth_getBlockByNumber", [hex(n), false]);
++    if (!blocks[0] || lc(blocks[0].hash) !== lc(blocks[1]?.hash)) refuse("rpc_disagree", `the providers disagree on block ${n}`);
++    const latest = await both("eth_getBlockByNumber", ["latest", false]);
++    const baseFee = latest.map((b) => BigInt(b.baseFeePerGas)).reduce((a, x) => (x > a ? x : a), BigInt(blocks[0].baseFeePerGas));
++    const at = { blockHash: lc(blocks[0].hash), requireCanonical: true };
++    const code = (a) => agree(`code of ${a}`, "eth_getCode", [a, at]);
++    const call = async (to, abi, fn, args = []) => decodeFunctionResult({ abi, functionName: fn, data: await agree(`${to} ${fn}`, "eth_call", [{ to, data: encodeFunctionData({ abi, functionName: fn, args }) }, at]) });
++    const operatorCode = lc(await code(cfg.operator)), sponsorCode = lc(await code(cfg.sponsor));
++    const executorCodeHash = keccak256(await code(cfg.executor)), reserveCodeHash = keccak256(await code(cfg.reserve));
++    const reserveExecutor = lc(await call(cfg.reserve, RESERVE_ABI, "executor")), reserveDelegationCodeHash = await call(cfg.reserve, RESERVE_ABI, "delegationCodeHash");
++    const nonce = async (a) => ({ atBlock: Number(BigInt(await agree("nonce", "eth_getTransactionCount", [a, at]))),
++      latest: Number((await both("eth_getTransactionCount", [a, "latest"])).map(BigInt).reduce((x, y) => (x === y ? x : -1n))),
++      pending: Number((await both("eth_getTransactionCount", [a, "pending"])).map(BigInt).reduce((x, y) => (x === y ? x : -1n))) });
++    const operatorNonce = await nonce(cfg.operator), sponsorNonce = await nonce(cfg.sponsor);
++    const operatorBalance = BigInt(await agree("balance", "eth_getBalance", [cfg.operator, at])).toString();
++    const sponsorBalance = BigInt(await agree("balance", "eth_getBalance", [cfg.sponsor, at])).toString();
++    // the executor's state in C9's storage, raw (readable even while C9 is codeless) and through the executor's views
++    const leaseIds = (quiesce?.leases || []).map((l) => lc(l.id)).filter((x) => /^0x[0-9a-f]{64}$/.test(x));
++    const storage = { authorized: await agree("authorized slot", "eth_getStorageAt", [cfg.operator, authorizedSlot(cfg), at]), nonces: {} };
++    for (const id of leaseIds) storage.nonces[id] = await agree("nonce slot", "eth_getStorageAt", [cfg.operator, nonceSlot(cfg, id), at]);
++    const executorViews = { authorizationCharged: operatorCode === designatorOf(cfg.executor) ? await call(cfg.operator, EXECUTOR_ABI, "authorizationCharged") : null, nonceOf: {} };
++    if (operatorCode === designatorOf(cfg.executor)) for (const id of leaseIds) executorViews.nonceOf[id] = (await call(cfg.operator, EXECUTOR_ABI, "nonceOf", [id])).toString();
++    // the premise, live: a plain transfer of V to C9 reverts today
++    let plainTransferReverts;
++    try { await both("eth_call", [{ from: cfg.sponsor, to: cfg.operator, value: hex(cfg.valueWei) }, at]); plainTransferReverts = false; }
++    catch (e) { if (e instanceof Refusal) throw e; plainTransferReverts = true; }
++    // optional: the codeless transfer under a state override (not every provider supports overrides; unsupported is recorded)
++    let codelessTransferSimulation;
++    try { await both("eth_call", [{ from: cfg.sponsor, to: cfg.operator, value: hex(cfg.valueWei) }, at, { [cfg.operator]: { code: "0x" } }]); codelessTransferSimulation = "succeeds with C9 codeless (state override)"; }
++    catch (e) { if (e instanceof Refusal) throw e; codelessTransferSimulation = "not available from these providers (state override unsupported or refused)"; }
++    const tips = (await both("eth_maxPriorityFeePerGas", [])).map(BigInt);
++    const oracleCall = (fn, args = []) => call(cfg.oracle, ORACLE_ABI, fn, args);
++    const facts = { block: n.toString(), blockHash: at.blockHash, blockTimestamp: Number(BigInt(blocks[0].timestamp)), rpcs: rpcs.map((u) => new URL(u).host),
++      operatorCode, sponsorCode, executorCodeHash, reserveCodeHash, reserveExecutor, reserveDelegationCodeHash, operatorNonce, sponsorNonce,
++      operatorBalance, sponsorBalance, storage, executorViews, plainTransferReverts, codelessTransferSimulation,
++      baseFeePerGas: baseFee, maxPriorityFeePerGas: tips[0] > tips[1] ? tips[0] : tips[1] };
++    const built = await buildPlan({ cfg, facts, quiesce, oracle: { isIsthmus: () => oracleCall("isIsthmus"), l1UpperBound: (size) => oracleCall("getL1FeeUpperBound", [BigInt(size)]), operatorFee: (g) => oracleCall("getOperatorFee", [g]) } });
++    return { ...built, requests: transport.stats.requests };
++  }
++  return { prepare };
++}
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a91161a0b98595f75a8e426a9f0d13465202cbe
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,3 @@
++{ "name": "custody-operator-7702-maintenance", "private": true, "type": "module",
++  "description": "Unsigned preparation of the C9 EIP-7702 maintenance (fund + exact re-delegation). Source only; no signer.",
++  "dependencies": { "viem": "2.53.1" }, "devDependencies": { "solc": "0.8.35" } }
+diff --git a/run-tests.sh b/run-tests.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..fa6c4a068d96870b1e3c9c6ca33b10730679227c
+--- /dev/null
++++ b/run-tests.sh
+@@ -0,0 +1,9 @@
++#!/usr/bin/env bash
++# Local tests only (anvil + loopback; throwaway keys). Through the queue: ./q.sh 512 protocol-N ./run-tests.sh protocol
++set -u
++cd "$(dirname "$0")" && TMPDIR=$(mktemp -d) && trap 'rm -rf "$TMPDIR"' EXIT && export TMPDIR
++case "${1:-}" in
++  protocol) exec timeout -k 5 300 node --test --test-concurrency=1 --test-force-exit --test-reporter=tap test/protocol.test.mjs ;;
++  plan) exec timeout -k 5 120 node --test --test-concurrency=1 --test-reporter=tap test/plan.test.mjs ;;
++  *) echo "usage: run-tests.sh protocol|plan" >&2; exit 2 ;;
++esac
+diff --git a/test/ReserveStub.sol b/test/ReserveStub.sol
+new file mode 100644
+index 0000000000000000000000000000000000000000..a752cf29f338db6db6d5e0c9e3a1a6cafac2a7b7
+--- /dev/null
++++ b/test/ReserveStub.sol
+@@ -0,0 +1,11 @@
++// SPDX-License-Identifier: MIT
++// TEST ONLY: the parts of EnclaveLeaseGasReserve the executor and this preparation read (ledger, executor binding and
++// delegationCodeHash = keccak256(0xef0100 || executor), as bindExecutor sets them). begin/finish accept anything.
++pragma solidity ^0.8.24;
++contract ReserveStub {
++    address public ledger; address public executor; bytes32 public delegationCodeHash;
++    constructor(address _ledger) { ledger = _ledger; }
++    function bind(address e) external { executor = e; delegationCodeHash = keccak256(abi.encodePacked(hex"ef0100", e)); }
++    function begin(bytes32, uint8, bytes32) external {}
++    function finish(bytes32, address payable, uint256, uint256, uint256, bool) external {}
++}
+diff --git a/test/compile.mjs b/test/compile.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f15463177cb7c47dcfeb47899bad8a030848650
+--- /dev/null
++++ b/test/compile.mjs
+@@ -0,0 +1,26 @@
++// Offline build of the test fixtures (no network): the REAL EnclaveLeaseExecutor source (history-checkpoint-transport
++// tree, sha256 dc605ffa…; its deployed runtime embeds other immutables, so tests compare behaviour, not the production
++// hash) and the reserve stub. solc 0.8.35 (soljson sha256 fa4345d6…), optimizer 200.
++import fs from "node:fs";
++import { createHash } from "node:crypto";
++import { createRequire } from "node:module";
++const require = createRequire(import.meta.url);
++const sha = (b) => createHash("sha256").update(b).digest("hex");
++const EXEC = "/home/steven/Documents/Codex/2026-10-18/wo/work/history-checkpoint-transport/tree/contracts/EnclaveLeaseExecutor.sol";
++const src = fs.readFileSync(EXEC);
++if (sha(src) !== "dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033") throw Error("executor source differs from the reviewed one");
++if (sha(fs.readFileSync(require.resolve("solc/soljson.js"))) !== "fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b") throw Error("soljson differs");
++const solc = require("solc");
++function build(name, file, content) {
++  const out = JSON.parse(solc.compile(JSON.stringify({ language: "Solidity", sources: { [file]: { content } },
++    settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: "cancun", outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } } } })));
++  const errs = (out.errors || []).filter((e) => e.severity === "error");
++  if (errs.length) throw Error(errs.map((e) => e.formattedMessage).join("\n"));
++  const c = out.contracts[file][name];
++  return { abi: c.abi, creation: "0x" + c.evm.bytecode.object };
++}
++const ex = build("EnclaveLeaseExecutor", "EnclaveLeaseExecutor.sol", src.toString("utf8"));
++const st = build("ReserveStub", "ReserveStub.sol", fs.readFileSync(new URL("./ReserveStub.sol", import.meta.url), "utf8"));
++fs.writeFileSync(new URL("./fixtures/executor-build.json", import.meta.url), JSON.stringify({ sourceSha256: sha(src), solc: solc.version(), ...ex }) + "\n");
++fs.writeFileSync(new URL("./fixtures/reserve-stub.json", import.meta.url), JSON.stringify(st) + "\n");
++console.log(JSON.stringify({ solc: solc.version(), executorAbi: ex.abi.length, stubAbi: st.abi.length }));
+diff --git a/test/env.mjs b/test/env.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..15cd19b35faf1fbf92269ee497190b09cad9c4d1
+--- /dev/null
++++ b/test/env.mjs
+@@ -0,0 +1,100 @@
++// Local fixtures ONLY (loopback; THROWAWAY keys generated per run; nothing production): anvil (chain 8453, hardfork
++// prague = real revm EIP-7702 processing, manual mining), two "providers" on 127.0.0.1/127.0.0.2, the reviewed
++// EnclaveLeaseExecutor source rebuilt locally, a reserve stub bound to it, the mock GasPriceOracle, and an operator O
++// (stands for C9) delegated to the executor with pre-existing lease state in its storage.
++import fs from "node:fs";
++import http from "node:http";
++import net from "node:net";
++import { spawn } from "node:child_process";
++import { encodeFunctionData, encodeDeployData, keccak256, getContractAddress } from "viem";
++import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
++import { PRODUCTION, designatorOf, nonceSlot, authorizedSlot } from "../lib/maintenance.mjs";
++
++const fx = (f) => JSON.parse(fs.readFileSync(new URL("./fixtures/" + f, import.meta.url), "utf8"));
++export const EXEC = fx("executor-build.json"), STUB = fx("reserve-stub.json"), ORACLE = fx("oracle-mock.json");
++export const pad32 = (n) => "0x" + BigInt(n).toString(16).padStart(64, "0");
++export const ID1 = "0x" + "d1".repeat(32), ID2 = "0x" + "d2".repeat(32);
++const freePort = () => new Promise((ok) => { const t = net.createServer(); t.listen(0, "127.0.0.1", () => { const p = t.address().port; t.close(() => ok(p)); }); });
++const listen = (s, host) => new Promise((ok) => s.listen(0, host, () => ok(s.address().port)));
++
++export async function startWorld({ tip = "0xf4240" } = {}) {
++  const port = await freePort(), URL0 = `http://127.0.0.1:${port}`;
++  const proc = spawn("anvil", ["--chain-id", "8453", "--hardfork", "prague", "--port", String(port), "--block-base-fee-per-gas", "5000000", "--no-mining", "--silent"], { stdio: "ignore" });
++  let id = 0;
++  const raw = async (method, params = []) => {
++    const r = await fetch(URL0, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }) });
++    const j = await r.json(); if (j.error) throw Object.assign(new Error(`${method}: ${j.error.message}`), { rpcError: j.error }); return j.result;
++  };
++  for (let i = 0; i < 100; i++) { try { await raw("eth_chainId"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
++  const mine = async (n = 1) => { for (let i = 0; i < n; i++) await raw("evm_mine"); };
++  const keys = Object.fromEntries(["O", "S", "T", "R"].map((k) => [k, privateKeyToAccount(generatePrivateKey())]));
++  for (const k of Object.values(keys)) await raw("anvil_setBalance", [k.address, "0x" + (10n ** 17n).toString(16)]);
++  const fees = { maxFeePerGas: 20_000_000n, maxPriorityFeePerGas: 1_000_000n };
++  const nonceOf = async (a, tag = "pending") => Number(BigInt(await raw("eth_getTransactionCount", [a, tag])));
++  /** test-only signer: sign with a throwaway key and send raw */
++  const sendRaw = async (account, tx) => raw("eth_sendRawTransaction", [await account.signTransaction({ chainId: 8453, ...fees, ...tx })]);
++  // deploy the reserve stub and the REAL executor from S, bind, then delegate O to the executor (S sponsors O's authorization)
++  const S = keys.S;
++  const ledger = "0x00000000000000000000000000000000000000aa";
++  let sn = await nonceOf(S.address);
++  const stub = getContractAddress({ from: S.address, nonce: BigInt(sn) });
++  await sendRaw(S, { type: "eip1559", nonce: sn++, gas: 1_000_000n, data: encodeDeployData({ abi: STUB.abi, bytecode: STUB.creation, args: [ledger] }) });
++  const executor = getContractAddress({ from: S.address, nonce: BigInt(sn) });
++  await sendRaw(S, { type: "eip1559", nonce: sn++, gas: 3_000_000n, data: encodeDeployData({ abi: EXEC.abi, bytecode: EXEC.creation, args: [stub] }) });
++  await mine();
++  await sendRaw(S, { type: "eip1559", nonce: sn++, to: stub, gas: 200_000n, data: encodeFunctionData({ abi: STUB.abi, functionName: "bind", args: [executor] }) });
++  const auth0 = await keys.O.signAuthorization({ chainId: 8453, contractAddress: executor, nonce: await nonceOf(keys.O.address) });
++  await sendRaw(S, { type: "eip7702", nonce: sn++, to: S.address, gas: 100_000n, authorizationList: [auth0] });
++  await raw("anvil_setCode", [PRODUCTION.oracle, ORACLE.runtime]);
++  await mine();
++  if ((await raw("eth_getCode", [keys.O.address, "latest"])).toLowerCase() !== designatorOf(executor)) throw Error("setup: O not delegated");
++  const cfg = Object.freeze({ ...PRODUCTION, operator: keys.O.address.toLowerCase(), executor: executor.toLowerCase(), reserve: stub.toLowerCase(), sponsor: S.address.toLowerCase(),
++    executorCodeHash: keccak256(await raw("eth_getCode", [executor, "latest"])), reserveCodeHash: keccak256(await raw("eth_getCode", [stub, "latest"])),
++    delegationCodeHash: keccak256(designatorOf(executor)) });
++  // pre-existing lease state in O's storage (as earlier leases through the executor would have left it) + an unrelated slot
++  const slots = { [nonceSlot(cfg, ID1)]: pad32(7), [nonceSlot(cfg, ID2)]: pad32(3), [authorizedSlot(cfg)]: pad32(1), [pad32(12345)]: pad32(0xabcdef) };
++  for (const [k, v] of Object.entries(slots)) await raw("anvil_setStorageAt", [keys.O.address, k, v]);
++  // the sponsor's known balance (root's figure, 61.65e12 wei), set after it paid for the fixture deployments
++  await raw("anvil_setBalance", [S.address, "0x" + (61_650_000_000_000n).toString(16)]);
++  await mine(3);
++  // two providers on two loopback hosts (tip answered Base-like unless overridden)
++  const proxies = [];
++  const state = { tip };
++  for (const host of ["127.0.0.1", "127.0.0.2"]) {
++    const s = http.createServer(async (req, res) => {
++      let b = ""; for await (const c of req) b += c;
++      const j = JSON.parse(b);
++      if (j.method === "eth_maxPriorityFeePerGas") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ jsonrpc: "2.0", id: j.id, result: state.tip })); }
++      const r = await fetch(URL0, { method: "POST", headers: { "content-type": "application/json" }, body: b });
++      res.writeHead(r.status, { "content-type": "application/json" }); res.end(await r.text());
++    });
++    proxies.push({ s, url: `http://${host}:${await listen(s, host)}/` });
++  }
++  const fixtureCfg = Object.freeze({ ...cfg, rpcs: Object.freeze(proxies.map((p) => p.url)) });
++  const snap = { id: await raw("evm_snapshot") };
++  const reset = async () => { await raw("anvil_dropAllTransactions"); await raw("evm_revert", [snap.id]); snap.id = await raw("evm_snapshot"); state.tip = tip; };
++  return { raw, mine, keys, cfg: fixtureCfg, executor, stub, slots, nonceOf, sendRaw, reset, state,
++    close: async () => { for (const p of proxies) { p.s.closeAllConnections(); await new Promise((r) => p.s.close(r)); } proc.kill(); } };
++}
++
++export const instantClock = () => { const c = { t: Date.now(), now: () => c.t, sleepUntil: async (at) => { c.t = Math.max(c.t, at); } }; return c; };
++
++/** root's quiesce facts for the local chain (all deadlines past, leases with ample time) */
++export async function quiesceFor(w, patch = {}) {
++  const ts = Number(BigInt((await w.raw("eth_getBlockByNumber", ["latest", false])).timestamp));
++  return { providedBy: "root", providedAt: ts, signersStopped: ["test: no signer running"], lastSponsoredLeaseDeadline: ts - 600,
++    leases: [{ id: ID1, expiry: ts + 7200 }, { id: ID2, expiry: ts + 7200 }], ...patch };
++}
++
++/** TEST-ONLY signing of an unsigned plan with throwaway keys (production has no signer). -> { rawA, rawB, auths } */
++export async function signPlanForTest(plan, O, S) {
++  const auths = [];
++  for (const a of plan.authorizationsToSign) auths.push(await O.signAuthorization({ chainId: a.tuple.chainId, contractAddress: a.tuple.address, nonce: a.tuple.nonce }));
++  const raw = [];
++  for (const [i, t] of plan.transactions.entries()) {
++    const u = t.unsigned;
++    raw.push(await S.signTransaction({ type: "eip7702", chainId: u.chainId, nonce: Number(u.nonce), to: u.to, value: BigInt(u.value), data: u.data, gas: BigInt(u.gas),
++      maxFeePerGas: BigInt(u.maxFeePerGas), maxPriorityFeePerGas: BigInt(u.maxPriorityFeePerGas), authorizationList: [auths[i]] }));
++  }
++  return { rawA: raw[0], rawB: raw[1], auths };
++}
+diff --git a/test/example-plan.mjs b/test/example-plan.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a23e638bbf16bf50ca42ea7f9ea8865c6e327fa
+--- /dev/null
++++ b/test/example-plan.mjs
+@@ -0,0 +1,15 @@
++// Writes evidence/plan-shape-SYNTHETIC.json: the plan's exact shape with PRODUCTION pins and SYNTHETIC facts (C9 nonce
++// 23760 and balance from root's receipt evidence; sponsor nonce 0 is a placeholder; fees and L1 bound are stand-ins).
++// It is NOT a plan to sign: only bin/prepare.mjs at a fresh agreed block produces one.
++import fs from "node:fs";
++import { PRODUCTION as P, buildPlan, designatorOf } from "../lib/maintenance.mjs";
++const TS = 1792800000;
++const facts = { block: "SYNTHETIC", blockHash: "SYNTHETIC", blockTimestamp: TS, rpcs: ["SYNTHETIC"], operatorCode: designatorOf(P.executor), sponsorCode: "0x",
++  executorCodeHash: P.executorCodeHash, reserveCodeHash: P.reserveCodeHash, reserveExecutor: P.executor, reserveDelegationCodeHash: P.delegationCodeHash,
++  operatorNonce: { atBlock: 23760, latest: 23760, pending: 23760 }, sponsorNonce: { atBlock: 0, latest: 0, pending: 0 },
++  operatorBalance: "145368427115", sponsorBalance: "61650000000000", storage: { note: "SYNTHETIC: read at the agreed block" }, executorViews: { note: "SYNTHETIC" },
++  plainTransferReverts: true, codelessTransferSimulation: "SYNTHETIC", baseFeePerGas: 5_000_000n, maxPriorityFeePerGas: 1_000_000n };
++const quiesce = { providedBy: "root", providedAt: TS - 60, signersStopped: ["SYNTHETIC: root lists every stopped C9 signer"], lastSponsoredLeaseDeadline: TS - 900, leases: [] };
++const { plan } = await buildPlan({ cfg: P, facts, quiesce, oracle: { isIsthmus: async () => true, l1UpperBound: async () => 50_000_000_000n, operatorFee: async () => 0n } });
++fs.writeFileSync(new URL("../evidence/plan-shape-SYNTHETIC.json", import.meta.url), JSON.stringify({ SYNTHETIC: "shape only; not for signing", ...plan }, null, 1) + "\n");
++console.log(JSON.stringify({ fees: plan.fees.totalBoundWei, authDigests: plan.authorizationsToSign.map((a) => a.digest) }));
+diff --git a/test/fixtures/executor-build.json b/test/fixtures/executor-build.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..45c4420e2843dec690d326f543f80ba4dc4a083d
+--- /dev/null
++++ b/test/fixtures/executor-build.json
+@@ -0,0 +1 @@
++{"sourceSha256":"dc605ffa6e2e2252760f417cd9f4f0a75a2f26399e0a837163da2108dda10033","solc":"0.8.35+commit.47b9dedd.Emscripten.clang","abi":[{"inputs":[{"internalType":"contract IEnclaveLeaseGasReserve","name":"_reserve","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"BadKind","type":"error"},{"inputs":[{"internalType":"uint64","name":"expected","type":"uint64"}],"name":"BadNonce","type":"error"},{"inputs":[],"name":"BadSignature","type":"error"},{"inputs":[],"name":"Expired","type":"error"},{"inputs":[],"name":"NotCanonical","type":"error"},{"inputs":[],"name":"CANONICAL_LENGTH","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"LEASE_TYPEHASH","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"authorizationCharged","outputs":[{"internalType":"bool","name":"done","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"domainSeparator","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[{"components":[{"internalType":"bytes32","name":"id","type":"bytes32"},{"internalType":"uint8","name":"kind","type":"uint8"},{"internalType":"bytes32","name":"enclaveId","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"},{"internalType":"uint64","name":"deadline","type":"uint64"},{"internalType":"address","name":"payee","type":"address"},{"internalType":"uint256","name":"maxChargeWei","type":"uint256"}],"internalType":"struct EnclaveLeaseExecutor.Lease","name":"l","type":"tuple"},{"internalType":"bytes","name":"signature","type":"bytes"}],"name":"lease","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"components":[{"internalType":"bytes32","name":"id","type":"bytes32"},{"internalType":"uint8","name":"kind","type":"uint8"},{"internalType":"bytes32","name":"enclaveId","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"},{"internalType":"uint64","name":"deadline","type":"uint64"},{"internalType":"address","name":"payee","type":"address"},{"internalType":"uint256","name":"maxChargeWei","type":"uint256"}],"internalType":"struct EnclaveLeaseExecutor.Lease","name":"l","type":"tuple"}],"name":"leaseDigest","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"ledger","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"id","type":"bytes32"}],"name":"nonceOf","outputs":[{"internalType":"uint64","name":"n","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"reserve","outputs":[{"internalType":"contract IEnclaveLeaseGasReserve","name":"","type":"address"}],"stateMutability":"view","type":"function"}],"creation":"0x60e060405234801561000f575f5ffd5b50604051610d9c380380610d9c83398101604081905261002e916100c7565b6001600160a01b0381166080819052604080516356397c3560e01b815290516356397c35916004808201926020929091908290030181865afa158015610076573d5f5f3e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061009a91906100c7565b6001600160a01b031660a052503060c0526100e9565b6001600160a01b03811681146100c4575f5ffd5b50565b5f602082840312156100d7575f5ffd5b81516100e2816100b0565b9392505050565b60805160a05160c051610c5a6101425f395f818160de015261052801525f818160990152818161067e01528181610713015261077a01525f81816101ef015281816102a5015281816105ac01526107d40152610c5a5ff3fe608060405234801561000f575f5ffd5b5060043610610090575f3560e01c806395b10b2d1161006357806395b10b2d146101a55780639c1ac6c0146101ae578063c4da27ee146101c3578063cd3293de146101ea578063f698da2514610211575f5ffd5b806356397c351461009457806357054106146100d857806359f3ec16146101585780636ca25b7d14610184575b5f5ffd5b6100bb7f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b0390911681526020015b60405180910390f35b604080517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166020808301919091527fa56564ef639f1ba7b44970246267b2ab8c83a9eb9d0bde5c2e8a5ec36c96cb0082840152825180830384018152606083019384905280519101205415159091526080016100cf565b61016b610166366004610a52565b610219565b60405167ffffffffffffffff90911681526020016100cf565b610197610192366004610a7f565b610279565b6040519081526020016100cf565b61019761018481565b6101c16101bc366004610a99565b6103cb565b005b6101977fbfcc5e793fcf936e66cbdadc2766418c7d955f6435bd46a342f51f51bc881b5a81565b6100bb7f000000000000000000000000000000000000000000000000000000000000000081565b61019761089b565b5f5f827fd4303515233e7d5d6aff53061198d268e21693bbe46ee8802da444a318c9fa005f1b604051602001610259929190918252602082015260400190565b60408051601f198184030181529190528051602090910120549392505050565b5f61028261089b565b7fbfcc5e793fcf936e66cbdadc2766418c7d955f6435bd46a342f51f51bc881b5a7f000000000000000000000000000000000000000000000000000000000000000084356102d66040870160208801610b19565b60408701356102eb6080890160608a01610b39565b6102fb60a08a0160808b01610b39565b61030b60c08b0160a08c01610b60565b6040805160208101999099526001600160a01b0397881690890152606088019590955260ff909316608087015260a086019190915267ffffffffffffffff90811660c086810191909152911660e0850152911661010083015284013561012082015261014001604051602081830303815290604052805190602001206040516020016103ae92919061190160f01b81526002810192909252602282015260420190565b604051602081830303815290604052805190602001209050919050565b5f5a9050366101841415806103e1575060418214155b156103ff5760405163d7c7beeb60e01b815260040160405180910390fd5b61040f60a0850160808601610b39565b67ffffffffffffffff1642111561043957604051630407b05b60e31b815260040160405180910390fd5b3061044d61044686610279565b858561093f565b6001600160a01b03161461047457604051635cd5d23360e01b815260040160405180910390fd5b60408051853560208201527fd4303515233e7d5d6aff53061198d268e21693bbe46ee8802da444a318c9fa00918101919091525f9060600160408051601f198184030181529190528051602090910120805490915067ffffffffffffffff81166104e46080880160608901610b39565b67ffffffffffffffff161461051c57604051635d7416d760e11b815267ffffffffffffffff8216600482015260240160405180910390fd5b600181018255604080517f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166020808301919091527fa56564ef639f1ba7b44970246267b2ab8c83a9eb9d0bde5c2e8a5ec36c96cb00828401528251808303840181526060909201909252805191012080541580156105a257600182555b6001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016639c7dcf6289356105e360408c0160208d01610b19565b604080516001600160e01b031960e086901b168152600481019390935260ff90911660248301528b013560448201526064015f604051808303815f87803b15801561062c575f5ffd5b505af115801561063e573d5f5f3e3d5ffd5b506001925061065691505060408a0160208b01610b19565b60ff16036106e357604080516384cc9dfb60e01b8152893560048201529089013560248201527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316906384cc9dfb906044015b5f604051808303815f87803b1580156106c8575f5ffd5b505af11580156106da573d5f5f3e3d5ffd5b505050506107ca565b60026106f560408a0160208b01610b19565b60ff160361074a57604051638e32762d60e01b8152883560048201527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b031690638e32762d906024016106b1565b600361075c60408a0160208b01610b19565b60ff16036107b1576040516367d42a8b60e01b8152883560048201527f00000000000000000000000000000000000000000000000000000000000000006001600160a01b0316906367d42a8b906024016106b1565b60405163015a1a6160e51b815260040160405180910390fd5b6001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016639e5945dc893561080b60c08c0160a08d01610b60565b5a610816908a610b9a565b6040516001600160e01b031960e086901b16815260048101939093526001600160a01b0390911660248301526044820152610184606482015260c08b0135608482015283151560a482015260c4015f604051808303815f87803b15801561087b575f5ffd5b505af115801561088d573d5f5f3e3d5ffd5b505050505050505050505050565b604080517f8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f60208201527f147a4d8d3abc2e5ab39d045725f629bcd94083f8e1919b4cd76afbd415098f4e918101919091527fc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc660608201524660808201523060a08201525f9060c00160405160208183030381529060405280519060200120905090565b5f6041821461094f57505f610a4b565b5f61095d6020828587610bb3565b61096691610bda565b90505f610977604060208688610bb3565b61098091610bda565b90505f8585604081811061099657610996610bf7565b919091013560f81c915050601b8110156109b8576109b5601b82610c0b565b90505b7f7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a08211156109eb575f9350505050610a4b565b604080515f81526020810180835289905260ff831691810191909152606081018490526080810183905260019060a0016020604051602081039080840390855afa158015610a3b573d5f5f3e3d5ffd5b5050506020604051035193505050505b9392505050565b5f60208284031215610a62575f5ffd5b5035919050565b5f60e08284031215610a79575f5ffd5b50919050565b5f60e08284031215610a8f575f5ffd5b610a4b8383610a69565b5f5f5f6101008486031215610aac575f5ffd5b610ab68585610a69565b925060e084013567ffffffffffffffff811115610ad1575f5ffd5b8401601f81018613610ae1575f5ffd5b803567ffffffffffffffff811115610af7575f5ffd5b866020828401011115610b08575f5ffd5b939660209190910195509293505050565b5f60208284031215610b29575f5ffd5b813560ff81168114610a4b575f5ffd5b5f60208284031215610b49575f5ffd5b813567ffffffffffffffff81168114610a4b575f5ffd5b5f60208284031215610b70575f5ffd5b81356001600160a01b0381168114610a4b575f5ffd5b634e487b7160e01b5f52601160045260245ffd5b81810381811115610bad57610bad610b86565b92915050565b5f5f85851115610bc1575f5ffd5b83861115610bcd575f5ffd5b5050820193919092039150565b80356020831015610bad575f19602084900360031b1b1692915050565b634e487b7160e01b5f52603260045260245ffd5b60ff8181168382160190811115610bad57610bad610b8656fea2646970667358221220ba240f3fc466504fd25acd582982e0b89ebf4d8ca09cd2ba20d211fb2fe9cf3864736f6c63430008230033"}
+diff --git a/test/fixtures/oracle-mock.json b/test/fixtures/oracle-mock.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..a4d4526d108b5abb3b5c63d21cf34edc5cd73b5a
+--- /dev/null
++++ b/test/fixtures/oracle-mock.json
+@@ -0,0 +1 @@
++{"test":"mock, not the predeploy","abi":[{"inputs":[{"internalType":"uint256","name":"size","type":"uint256"}],"name":"getL1FeeUpperBound","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"pure","type":"function"},{"inputs":[{"internalType":"uint256","name":"gasUsed","type":"uint256"}],"name":"getOperatorFee","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"isIsthmus","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"mode","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}],"runtime":"0x608060405234801561000f575f5ffd5b506004361061004a575f3560e01c8063275aedd21461004e578063295a521214610074578063b54501bc1461007c578063f1c7a58b14610091575b5f5ffd5b61006161005c366004610111565b6100a4565b6040519081526020015b60405180910390f35b6100615f5481565b5f54604051600190911415815260200161006b565b61006161009f366004610111565b6100f9565b5f5f546002036100e85760405162461bcd60e51b815260206004820152600b60248201526a1b5bd8dac81c995d995c9d60aa1b604482015260640160405180910390fd5b6100f382600761013c565b92915050565b5f610105826044610153565b6100f3906103e861013c565b5f60208284031215610121575f5ffd5b5035919050565b634e487b7160e01b5f52601160045260245ffd5b80820281158282048414176100f3576100f3610128565b808201808211156100f3576100f361012856fea26469706673582212206bf8435fa09f6de4a0f2d758a622bb964d26036e975d8c5b07e23517dc80362064736f6c63430008230033"}
+diff --git a/test/fixtures/reserve-stub.json b/test/fixtures/reserve-stub.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2aba15fb6687aa50f08f95caed80be83ec8845cb
+--- /dev/null
++++ b/test/fixtures/reserve-stub.json
+@@ -0,0 +1 @@
++{"abi":[{"inputs":[{"internalType":"address","name":"_ledger","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"bytes32","name":"","type":"bytes32"},{"internalType":"uint8","name":"","type":"uint8"},{"internalType":"bytes32","name":"","type":"bytes32"}],"name":"begin","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"e","type":"address"}],"name":"bind","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"delegationCodeHash","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"executor","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"","type":"bytes32"},{"internalType":"address payable","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"bool","name":"","type":"bool"}],"name":"finish","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"ledger","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}],"creation":"0x6080604052348015600e575f5ffd5b506040516102e63803806102e6833981016040819052602b91604e565b5f80546001600160a01b0319166001600160a01b03929092169190911790556079565b5f60208284031215605d575f5ffd5b81516001600160a01b03811681146072575f5ffd5b9392505050565b610260806100865f395ff3fe608060405234801561000f575f5ffd5b5060043610610060575f3560e01c806356397c351461006457806381bac14f146100935780639c7dcf62146101065780639e5945dc14610119578063a3105abe1461012f578063c34c08e514610146575b5f5ffd5b5f54610076906001600160a01b031681565b6040516001600160a01b0390911681526020015b60405180910390f35b6101046100a1366004610170565b600180546001600160a01b0319166001600160a01b03831617905560405161ef0160f01b60208201526bffffffffffffffffffffffff19606083901b16602382015260370160408051601f19818403018152919052805160209091012060025550565b005b610104610114366004610192565b505050565b6101046101273660046101cc565b505050505050565b61013860025481565b60405190815260200161008a565b600154610076906001600160a01b031681565b6001600160a01b038116811461016d575f5ffd5b50565b5f60208284031215610180575f5ffd5b813561018b81610159565b9392505050565b5f5f5f606084860312156101a4575f5ffd5b83359250602084013560ff811681146101bb575f5ffd5b929592945050506040919091013590565b5f5f5f5f5f5f60c087890312156101e1575f5ffd5b8635955060208701356101f381610159565b945060408701359350606087013592506080870135915060a0870135801515811461021c575f5ffd5b80915050929550929550929556fea2646970667358221220c059b4ddfada004560b0cf582fcba6324d8db0a2da3eff33eec5efa9b50b58ca64736f6c63430008230033"}
+diff --git a/test/mutants.sh b/test/mutants.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..36c86c7f7713b7d3a2280a75a7f16c5d157e795f
+--- /dev/null
++++ b/test/mutants.sh
+@@ -0,0 +1,24 @@
++#!/bin/bash
++# Each mutant removes one rule from lib/maintenance.mjs; the plan + protocol suites must FAIL on every one.
++set -u
++here=$(cd "$(dirname "$0")/.." && pwd); killed=0; total=0
++mutant() {
++  total=$((total+1)); local m; m=$(mktemp -d); cp -r "$here/lib" "$here/test" "$here/vendor" "$here/package.json" "$m/" 2>/dev/null; ln -s "$here/node_modules" "$m/node_modules"
++  perl -0pi -e "$2" "$m/lib/maintenance.mjs"
++  if cmp -s "$here/lib/maintenance.mjs" "$m/lib/maintenance.mjs"; then echo "MUTANT NOT APPLIED: $1"; rm -rf "$m"; return; fi
++  if (cd "$m" && timeout -k 5 300 node --test --test-concurrency=1 --test-force-exit test/plan.test.mjs test/protocol.test.mjs >/dev/null 2>&1); then echo "SURVIVED: $1"; else echo "killed: $1"; killed=$((killed+1)); fi
++  rm -rf "$m"
++}
++mutant "B uses nonce N (not N+1)"          's/nonce: Number\(n \+ 1n\)/nonce: Number(n)/'
++mutant "chain id 0 allowed"                's/if \(cfg\.chainId === 0 \|\| /if (/'
++mutant "aggregate fee cap not enforced"    's/if \(total > cfg\.feeCapWei\) refuse/if (false) refuse/'
++mutant "operator code not checked"         's/if \(lc\(f\.operatorCode\) !== designatorOf\(cfg\.executor\)\) refuse/if (false) refuse/'
++mutant "sponsor code not checked"          's/if \(lc\(f\.sponsorCode\) !== "0x"\) refuse/if (false) refuse/'
++mutant "unsettled nonce accepted"          's/if \(!\(n\.atBlock === n\.latest && n\.latest === n\.pending\)\) refuse/if (false) refuse/'
++mutant "sponsored Lease deadline ignored"  's/if \(!\(blockTs > q\.lastSponsoredLeaseDeadline \+ cfg\.quiesce\.deadlineMarginSec\)\) refuse/if (false) refuse/'
++mutant "lease window ignored"              's/if \(remaining < cfg\.quiesce\.minLeaseRemainingSec\) refuse/if (false) refuse/'
++mutant "L1 sized from the unsigned bytes"  's/const argument = Math\.max\(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE\);/const argument = unsigned - 80;/'
++mutant "restore target is another address" 's/address: lc\(cfg\.executor\), nonce: Number/address: lc(cfg.reserve), nonce: Number/'
++mutant "sponsor balance not checked"       's/if \(BigInt\(f\.sponsorBalance\) < cfg\.valueWei \+ total\) refuse/if (false) refuse/'
++echo "MUTANTS killed $killed/$total"
++[ "$killed" = "$total" ]
+diff --git a/test/plan.test.mjs b/test/plan.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9981b55527b52324cfb71e9bc616d68c217ae50f
+--- /dev/null
++++ b/test/plan.test.mjs
+@@ -0,0 +1,81 @@
++// The pure plan builder with PRODUCTION pins and synthetic facts (no chain, no key): nonce rules, the exact V, the
++// aggregate fee cap (refuse, never raise), the sponsor's balance, quiesce and config refusals, determinism.
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { hashAuthorization } from "viem/utils";
++import { PRODUCTION, buildPlan, checkConfig, createPreparer, designatorOf, authorizations, Refusal, RECOVERY, LIMITS } from "../lib/maintenance.mjs";
++
++const P = PRODUCTION, TS = 1_792_800_000;
++const facts = (patch = {}) => ({ block: "53005000", blockHash: "0x" + "ab".repeat(32), blockTimestamp: TS, rpcs: ["a", "b"],
++  operatorCode: designatorOf(P.executor), sponsorCode: "0x", executorCodeHash: P.executorCodeHash, reserveCodeHash: P.reserveCodeHash,
++  reserveExecutor: P.executor, reserveDelegationCodeHash: P.delegationCodeHash,
++  operatorNonce: { atBlock: 23760, latest: 23760, pending: 23760 }, sponsorNonce: { atBlock: 41, latest: 41, pending: 41 },
++  operatorBalance: "145368427115", sponsorBalance: "61650000000000", storage: {}, executorViews: {}, plainTransferReverts: true,
++  codelessTransferSimulation: "n/a", baseFeePerGas: 5_000_000n, maxPriorityFeePerGas: 1_000_000n, ...patch });
++const quiesce = (patch = {}) => ({ providedBy: "root", providedAt: TS - 60, signersStopped: ["metal0 control", "lease keeper"], lastSponsoredLeaseDeadline: TS - 900,
++  leases: [{ id: "0x" + "da".repeat(32), expiry: TS + 7200 }], ...patch });
++const oracle = (l1 = 50_000_000_000n, isthmus = true) => ({ isIsthmus: async () => isthmus, l1UpperBound: async () => l1, operatorFee: async (g) => BigInt(g) * 0n });
++const refuses = (code, args) => assert.rejects(buildPlan({ cfg: P, facts: facts(), quiesce: quiesce(), oracle: oracle(), ...args }), (e) => (e instanceof Refusal && e.code === code) || assert.fail(`${code}: ${e.code} ${e.message}`));
++
++test("production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor", () => {
++  assert.equal(P.operator, "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab"); assert.equal(P.executor, "0x8900baca2167873ba2f8a8bae8b4876e6396d343");
++  assert.equal(P.sponsor, "0x29479bf04ed889d46a7afb7f292b9bb26e12647c"); assert.equal(P.valueWei, 5_000_000_000_000n); assert.equal(P.feeCapWei, 2_000_000_000_000n);
++  assert.equal(P.chainId, 8453); assert.doesNotThrow(() => checkConfig(P));
++  for (const bad of [{ chainId: 0 }, { sponsor: P.operator }, { delegationCodeHash: "0x" + "00".repeat(32) }]) assert.throws(() => checkConfig({ ...P, ...bad }), Refusal);
++  assert.throws(() => createPreparer({ cfg: { ...P, valueWei: 6_000_000_000_000n } }), /production value/);
++  assert.throws(() => createPreparer({ cfg: { ...P, feeCapWei: 3_000_000_000_000n } }), /production value/);
++  assert.throws(() => createPreparer({ cfg: { ...P, executor: "0x" + "11".repeat(20) } }));
++});
++
++test("the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap", async () => {
++  const { plan, planHash, text } = await buildPlan({ cfg: P, facts: facts(), quiesce: quiesce(), oracle: oracle() });
++  const [a, b] = plan.authorizationsToSign;
++  assert.deepEqual(a.tuple, { chainId: 8453, address: "0x0000000000000000000000000000000000000000", nonce: 23760 });
++  assert.deepEqual(b.tuple, { chainId: 8453, address: P.executor, nonce: 23761 });
++  assert.equal(a.digest, hashAuthorization({ chainId: 8453, address: "0x0000000000000000000000000000000000000000", nonce: 23760 }));
++  assert.deepEqual(plan.transactions.map((t) => [t.unsigned.nonce, t.unsigned.to, t.unsigned.value, t.unsigned.gas]), [[41, P.operator, "5000000000000", "50000"], [42, P.sponsor, "0", "47000"]]);
++  assert.equal(plan.verifyAfterA.operatorNonce, "23761"); assert.equal(plan.verifyAfterB.operatorNonce, "23762"); assert.equal(plan.verifyAfterB.operatorCodeHash, P.delegationCodeHash);
++  assert.ok(BigInt(plan.fees.totalBoundWei) <= P.feeCapWei);
++  assert.match(plan.status, /UNSIGNED/); assert.ok(plan.recovery.length === RECOVERY.length && plan.limits.length === LIMITS.length);
++  assert.match(JSON.stringify(plan.quiesce), /463-464, 573-574/);
++  assert.equal(planHash, (await buildPlan({ cfg: P, facts: facts(), quiesce: quiesce(), oracle: oracle() })).planHash, "deterministic");
++  assert.ok(!/privateKey|registryKey":\s*"0x/.test(text), "no key material");
++});
++
++test("fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed", async () => {
++  // L2 = (50000 + 47000) * (2 * base + tip); with L1 0 and operator 0 the cap allows maxFeePerGas <= 2e12 / 97000
++  const maxFee = 2_000_000_000_000n / 97_000n, tip = 1_000_000n, edgeBase = (maxFee - tip) / 2n;
++  await assert.doesNotReject(buildPlan({ cfg: P, facts: facts({ baseFeePerGas: edgeBase }), quiesce: quiesce(), oracle: oracle(0n) }));
++  await refuses("fee_cap", { facts: facts({ baseFeePerGas: edgeBase + 1n }), oracle: oracle(0n) });
++  await refuses("fee_cap", { oracle: oracle(1_500_000_000_000n) });                         // a large L1 bound alone
++  await refuses("operator_fee", { oracle: oracle(0n, false) });
++  await refuses("sponsor_balance", { facts: facts({ sponsorBalance: "6000000000000" }) });  // < V + fees
++});
++
++test("state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise", async () => {
++  await refuses("operator_code", { facts: facts({ operatorCode: "0x" }) });
++  await refuses("operator_code", { facts: facts({ operatorCode: designatorOf("0x" + "11".repeat(20)) }) });
++  await refuses("sponsor_code", { facts: facts({ sponsorCode: designatorOf(P.executor) }) });
++  await refuses("reserve_binding", { facts: facts({ reserveExecutor: "0x" + "22".repeat(20) }) });
++  await refuses("executor_code", { facts: facts({ executorCodeHash: "0x" + "33".repeat(32) }) });
++  await refuses("reserve_code", { facts: facts({ reserveCodeHash: "0x" + "44".repeat(32) }) });
++  await refuses("nonce", { facts: facts({ operatorNonce: { atBlock: 23760, latest: 23760, pending: 23761 } }) });
++  await refuses("nonce", { facts: facts({ sponsorNonce: { atBlock: 40, latest: 41, pending: 41 } }) });
++  await refuses("premise", { facts: facts({ plainTransferReverts: false }) });
++});
++
++test("quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time", async () => {
++  await refuses("quiesce", { quiesce: null });
++  await refuses("quiesce", { quiesce: quiesce({ providedBy: "worker" }) });
++  await refuses("quiesce", { quiesce: quiesce({ signersStopped: [] }) });
++  await refuses("quiesce", { quiesce: quiesce({ providedAt: TS - 7200 }) });
++  await refuses("quiesce", { quiesce: quiesce({ lastSponsoredLeaseDeadline: TS - 30 }) });
++  await refuses("lease_window", { quiesce: quiesce({ leases: [{ id: "0x" + "da".repeat(32), expiry: TS + 1799 }] }) });
++  await assert.doesNotReject(buildPlan({ cfg: P, facts: facts(), quiesce: quiesce({ leases: [] }), oracle: oracle() }));
++});
++
++test("authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule", () => {
++  const a = authorizations(P, 100);
++  assert.equal(a.length, 2); assert.ok(a.every((x) => x.signer === P.operator));
++  assert.deepEqual(a.map((x) => x.tuple.nonce), [100, 101]); assert.deepEqual(a.map((x) => x.tuple.chainId), [8453, 8453]);
++});
+diff --git a/test/protocol.test.mjs b/test/protocol.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..443e7f2ae3c5adad6a93dd9d42abd19dc2111c14
+--- /dev/null
++++ b/test/protocol.test.mjs
+@@ -0,0 +1,219 @@
++// The ACTUAL EIP-7702 processing (anvil = revm, hardfork prague) for every path of the plan, with THROWAWAY keys only.
++// O stands for C9, S for the sponsor, T for a third party, R for a lease relayer. Nothing here touches production.
++import { test, before, after, beforeEach } from "node:test";
++import assert from "node:assert/strict";
++import { keccak256, encodeFunctionData, decodeFunctionResult, parseAbi, toFunctionSelector } from "viem";
++import { startWorld, instantClock, quiesceFor, signPlanForTest, ID1, ID2, pad32 } from "./env.mjs";
++import { createPreparer, designatorOf, nonceSlot, authorizedSlot, Refusal } from "../lib/maintenance.mjs";
++
++let w;
++before(async () => { w = await startWorld(); });
++after(async () => { await w?.close(); });
++beforeEach(async () => { await w.reset(); });
++
++const VIEW = parseAbi(["function nonceOf(bytes32) view returns (uint64)", "function authorizationCharged() view returns (bool)"]);
++const RES = parseAbi(["function delegationCodeHash() view returns (bytes32)"]);
++const O = () => w.keys.O.address, S = () => w.keys.S.address;
++const code = async () => (await w.raw("eth_getCode", [O(), "latest"])).toLowerCase();
++const bal = async (a) => BigInt(await w.raw("eth_getBalance", [a, "latest"]));
++const nonce = async () => Number(BigInt(await w.raw("eth_getTransactionCount", [O(), "latest"])));
++const slotsNow = async () => Object.fromEntries(await Promise.all(Object.keys(w.slots).map(async (k) => [k, await w.raw("eth_getStorageAt", [O(), k, "latest"])])));
++const view = async (fn, args = []) => decodeFunctionResult({ abi: VIEW, functionName: fn, data: await w.raw("eth_call", [{ to: O(), data: encodeFunctionData({ abi: VIEW, functionName: fn, args }) }, "latest"]) });
++const receipt = (h) => w.raw("eth_getTransactionReceipt", [h]);
++const send = (rawTx) => w.raw("eth_sendRawTransaction", [rawTx]);
++async function plan(patch) { return (await createPreparer({ cfg: w.cfg, fixture: true, clock: instantClock() }).prepare({ quiesce: await quiesceFor(w, patch) })).plan; }
++async function restoredAndPreserved() {
++  assert.equal(await code(), designatorOf(w.executor)); assert.equal(keccak256(await code()), w.cfg.delegationCodeHash);
++  assert.deepEqual(await slotsNow(), w.slots, "every storage slot unchanged");
++  assert.equal(await view("nonceOf", [ID1]), 7n); assert.equal(await view("nonceOf", [ID2]), 3n); assert.equal(await view("authorizationCharged"), true);
++  assert.equal(decodeFunctionResult({ abi: RES, functionName: "delegationCodeHash", data: await w.raw("eth_call", [{ to: w.stub, data: encodeFunctionData({ abi: RES, functionName: "delegationCodeHash" }) }, "latest"]) }), w.cfg.delegationCodeHash);
++}
++
++test("the read-only prepare: exact tuples, nonce rules, digests, observed storage, premise, fees within the cap", async () => {
++  const p = await plan();
++  const N = p.observed.operatorNonce, s = p.observed.sponsorNonce;
++  assert.deepEqual(p.authorizationsToSign.map((a) => a.tuple), [{ chainId: 8453, address: "0x0000000000000000000000000000000000000000", nonce: Number(N) },
++    { chainId: 8453, address: w.executor.toLowerCase(), nonce: Number(N) + 1 }]);
++  assert.deepEqual(p.transactions.map((t) => [t.unsigned.nonce, t.unsigned.to, t.unsigned.value]), [[Number(s), O().toLowerCase(), "5000000000000"], [Number(s) + 1, S().toLowerCase(), "0"]]);
++  assert.equal(p.observed.plainTransferReverts, true, "the premise: a plain transfer to the delegated operator reverts");
++  assert.match(p.observed.codelessTransferSimulation, /succeeds/);
++  assert.equal(p.observed.storage.nonces[ID1], pad32(7)); assert.equal(p.observed.executorViews.nonceOf[ID1], "7"); assert.equal(p.observed.executorViews.authorizationCharged, true);
++  assert.ok(BigInt(p.fees.totalBoundWei) <= 2_000_000_000_000n);
++  for (const t of p.transactions) assert.ok(t.encodedBytes.argument + 68 >= t.encodedBytes.signedMax);
++  // what the operator's key would sign is exactly the plan's digest
++  const { auths } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  const { recoverAuthorizationAddress } = await import("viem/utils");
++  for (const [i, a] of auths.entries()) assert.equal((await recoverAuthorizationAddress({ authorization: a })).toLowerCase(), O().toLowerCase(), `auth ${i}`);
++});
++
++test("happy path, actual processing: after A C9 is codeless and funded with storage intact; after B restored byte-exactly", async () => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const { rawA, rawB } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  const b0 = await bal(O()), s0 = await bal(S());
++  const hA = await send(rawA); await w.mine();
++  const rA = await receipt(hA);
++  assert.equal(rA.status, "0x1"); assert.equal(await code(), "0x"); assert.equal(await nonce(), N + 1);
++  assert.equal(await bal(O()), b0 + 5_000_000_000_000n, "exactly V arrived");
++  assert.deepEqual(await slotsNow(), w.slots, "storage untouched while codeless");
++  const hB = await send(rawB); await w.mine();
++  const rB = await receipt(hB);
++  assert.equal(rB.status, "0x1"); assert.equal(await nonce(), N + 2);
++  await restoredAndPreserved();
++  const paid = s0 - (await bal(S()));
++  assert.ok(paid - 5_000_000_000_000n <= BigInt(p.fees.totalBoundWei), "the sponsor paid V + at most the bounded fees");
++  assert.ok(BigInt(rA.gasUsed) < BigInt(p.transactions[0].unsigned.gas) && BigInt(rB.gasUsed) < BigInt(p.transactions[1].unsigned.gas));
++});
++
++test("hazard between A and B: a relayed lease() call to the codeless C9 SUCCEEDS as a silent no-op; the same B then restores", async () => {
++  const p = await plan();
++  const { rawA, rawB } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  await send(rawA); await w.mine();
++  const leaseSel = toFunctionSelector("lease((bytes32,uint8,bytes32,uint64,uint64,address,uint256),bytes)");
++  const h = await w.sendRaw(w.keys.R, { type: "eip1559", nonce: await w.nonceOf(w.keys.R.address), to: O(), gas: 200_000n, data: leaseSel + "00".repeat(300) });
++  await w.mine();
++  const r = await receipt(h);
++  assert.equal(r.status, "0x1", "no revert: a relayer would see success"); assert.equal(r.logs.length, 0, "nothing happened");
++  assert.deepEqual(await slotsNow(), w.slots, "no nonce consumed, no renewal");
++  await send(rawB); await w.mine();
++  await restoredAndPreserved();
++});
++
++test("order is enforced by the sponsor's nonces: B submitted first still runs after A", async () => {
++  const p = await plan();
++  const { rawA, rawB } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  const hB = await send(rawB); const hA = await send(rawA); await w.mine();
++  const [rA, rB] = [await receipt(hA), await receipt(hB)];
++  assert.equal(rA.blockNumber, rB.blockNumber); assert.ok(BigInt(rA.transactionIndex) < BigInt(rB.transactionIndex));
++  assert.equal(rA.status, "0x1"); assert.equal(rB.status, "0x1");
++  await restoredAndPreserved();
++});
++
++test("reorg: the same signed bytes re-include to the same hashes and the same final state", async () => {
++  const p = await plan();
++  const { rawA, rawB } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  const snap = await w.raw("evm_snapshot");
++  const h1 = [await send(rawA), await send(rawB)]; await w.mine();
++  const end1 = { code: await code(), nonce: await nonce(), bal: await bal(O()) };
++  await w.raw("anvil_dropAllTransactions"); await w.raw("evm_revert", [snap]);              // the blocks are gone
++  assert.equal(await code(), designatorOf(w.executor));
++  const h2 = [await send(rawA), await send(rawB)]; await w.mine();
++  assert.deepEqual(h2, h1);
++  assert.deepEqual({ code: await code(), nonce: await nonce(), bal: await bal(O()) }, end1);
++  await restoredAndPreserved();
++});
++
++test("stale A (C9's nonce moved, still delegated): A reverts and V stays with the sponsor; B (now valid) only re-delegates", async () => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const { rawA, rawB } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  await w.raw("anvil_setBalance", [O(), "0x" + (10n ** 16n).toString(16)]);
++  await w.sendRaw(w.keys.O, { type: "eip1559", nonce: N, to: w.keys.T.address, gas: 21_000n, value: 0n }); await w.mine();   // C9 sends something
++  const b0 = await bal(O()), s0 = await bal(S());
++  const hA = await send(rawA); await w.mine();
++  const rA = await receipt(hA);
++  assert.equal(rA.status, "0x0", "the call hit the executor (no receive/fallback) and reverted");
++  assert.ok(BigInt(rA.gasUsed) < BigInt(p.transactions[0].unsigned.gas), "a revert, not out-of-gas");
++  assert.equal(await bal(O()), b0, "V did not move"); assert.ok(s0 - (await bal(S())) < 5_000_000_000_000n, "the sponsor lost only gas");
++  assert.equal(await code(), designatorOf(w.executor));
++  const hB = await send(rawB); await w.mine();
++  assert.equal((await receipt(hB)).status, "0x1"); assert.equal(await nonce(), N + 2, "B's authorization (N+1) applied: the same executor again");
++  await restoredAndPreserved();
++});
++
++test("front-run: a third party applies A's authorization first; our A's authorization is skipped but its value call to the CODELESS C9 succeeds", async () => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const { rawA, rawB, auths } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  await w.sendRaw(w.keys.T, { type: "eip7702", nonce: await w.nonceOf(w.keys.T.address), to: w.keys.T.address, gas: 100_000n, authorizationList: [auths[0]] });
++  await w.mine();
++  assert.equal(await code(), "0x"); assert.equal(await nonce(), N + 1);
++  const b0 = await bal(O());
++  const hA = await send(rawA); await w.mine();
++  assert.equal((await receipt(hA)).status, "0x1", "NOT a revert: the account is already codeless");
++  assert.equal(await bal(O()), b0 + 5_000_000_000_000n, "C9 funded although our authorization did not apply");
++  assert.equal(await nonce(), N + 1, "our stale authorization did not bump the nonce");
++  await send(rawB); await w.mine();
++  await restoredAndPreserved();
++});
++
++test("front-run + the lease client's own authorization: our A reverts, our B is skipped; C9 ends delegated and unfunded (re-plan)", async () => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const { rawA, rawB, auths } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  await w.sendRaw(w.keys.T, { type: "eip7702", nonce: await w.nonceOf(w.keys.T.address), to: w.keys.T.address, gas: 100_000n, authorizationList: [auths[0]] });
++  await w.mine();
++  // client/lease-executor-client.mjs 463/573: a not-delegated operator signs a NEW authorization to the executor; a relay includes it
++  const clientAuth = await w.keys.O.signAuthorization({ chainId: 8453, contractAddress: w.executor, nonce: N + 1 });
++  await w.sendRaw(w.keys.R, { type: "eip7702", nonce: await w.nonceOf(w.keys.R.address), to: w.keys.R.address, gas: 100_000n, authorizationList: [clientAuth] });
++  await w.mine();
++  assert.equal(await code(), designatorOf(w.executor)); assert.equal(await nonce(), N + 2);
++  const b0 = await bal(O());
++  const hA = await send(rawA), hB = await send(rawB); await w.mine();
++  assert.equal((await receipt(hA)).status, "0x0"); assert.equal((await receipt(hB)).status, "0x1");
++  assert.equal(await bal(O()), b0, "unfunded"); assert.equal(await nonce(), N + 2, "B's stale authorization was skipped");
++  await restoredAndPreserved();
++});
++
++test("interruption: A mined, then C9's nonce moves (it is codeless and funded): B is stale; recovery = C9 self-restores (nonce = current + 1)", async () => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const { rawA, rawB } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  await send(rawA); await w.mine();
++  await w.raw("anvil_setBalance", [O(), "0x" + (10n ** 16n).toString(16)]);                     // pays for its own transactions here
++  await w.sendRaw(w.keys.O, { type: "eip1559", nonce: N + 1, to: w.keys.T.address, gas: 21_000n, value: 0n }); await w.mine();
++  const hB = await send(rawB); await w.mine();
++  assert.equal((await receipt(hB)).status, "0x1"); assert.equal(await code(), "0x", "B's authorization (N+1) was stale: still codeless");
++  // the documented recovery: a self-executed type-4 transaction, authorization nonce = the account's nonce + 1
++  const n = await nonce();
++  const selfAuth = await w.keys.O.signAuthorization({ chainId: 8453, contractAddress: w.executor, nonce: n + 1 });
++  const h = await w.sendRaw(w.keys.O, { type: "eip7702", nonce: n, to: O(), gas: 100_000n, authorizationList: [selfAuth] });
++  await w.mine();
++  assert.equal(await code(), designatorOf(w.executor)); assert.equal(await nonce(), n + 2);
++  await restoredAndPreserved();
++  void h;
++});
++
++test("an authorization for another chain is skipped: A reverts, nothing moves (and the plan refuses chain id 0)", async () => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const wrong = await w.keys.O.signAuthorization({ chainId: 1, contractAddress: "0x0000000000000000000000000000000000000000", nonce: N });
++  const u = p.transactions[0].unsigned;
++  const b0 = await bal(O());
++  const h = await w.sendRaw(w.keys.S, { type: "eip7702", nonce: Number(u.nonce), to: u.to, value: BigInt(u.value), gas: BigInt(u.gas), authorizationList: [wrong] });
++  await w.mine();
++  assert.equal((await receipt(h)).status, "0x0"); assert.equal(await bal(O()), b0); assert.equal(await code(), designatorOf(w.executor)); assert.equal(await nonce(), N);
++  const { checkConfig } = await import("../lib/maintenance.mjs");
++  assert.throws(() => checkConfig({ ...w.cfg, chainId: 0 }), /never 0/);
++});
++
++test("prepare refusals against the live local chain: not delegated, other target, pending nonce, sponsor with code, fee cap, quiesce, lease window", async () => {
++  const refuses = async (code_, fn, patch) => { await w.reset(); await fn?.(); await assert.rejects(plan(patch), (e) => (e instanceof Refusal && e.code === code_) || assert.fail(`${code_}: ${e.code} ${e.message}`)); };
++  await refuses("operator_code", async () => { await w.raw("anvil_setCode", [O(), "0x"]); await w.mine(3); });
++  await refuses("operator_code", async () => { await w.raw("anvil_setCode", [O(), designatorOf(w.stub)]); await w.mine(3); });
++  await refuses("nonce", async () => { await w.mine(3); await w.raw("anvil_setBalance", [O(), "0x" + (10n ** 16n).toString(16)]); await w.sendRaw(w.keys.O, { type: "eip1559", nonce: await w.nonceOf(O()), to: w.keys.T.address, gas: 21_000n }); });
++  await refuses("sponsor_code", async () => { await w.raw("anvil_setCode", [S(), designatorOf(w.executor)]); await w.mine(3); });
++  await refuses("fee_cap", async () => { w.state.tip = "0x" + (25_000_000n).toString(16); });
++  await refuses("quiesce", null, { lastSponsoredLeaseDeadline: Math.floor(Date.now() / 1000) + 600 });
++  await refuses("quiesce", null, { signersStopped: [] });
++  await refuses("lease_window", null, { leases: [{ id: ID1, expiry: Math.floor(Date.now() / 1000) + 600 }] });
++  await w.reset();
++  assert.throws(() => createPreparer({ cfg: w.cfg }), /production value/, "the CLI path only ever accepts production pins");
++});
++
++test("gas limits cover every path with margin (measured on revm, not modelled)", async (t) => {
++  const p = await plan(); const N = Number(p.observed.operatorNonce);
++  const gA = BigInt(p.transactions[0].unsigned.gas), gB = BigInt(p.transactions[1].unsigned.gas);
++  const { rawA, rawB, auths } = await signPlanForTest(p, w.keys.O, w.keys.S);
++  const used = {};
++  const hA = await send(rawA); await w.mine(); used.A_valid_transfer = BigInt((await receipt(hA)).gasUsed);
++  const hB = await send(rawB); await w.mine(); used.B_valid_restore = BigInt((await receipt(hB)).gasUsed);
++  // A with its authorization skipped and C9 delegated (the revert path), with a generous limit to see its true cost
++  await w.reset();
++  await w.raw("anvil_setBalance", [O(), "0x" + (10n ** 16n).toString(16)]);
++  await w.sendRaw(w.keys.O, { type: "eip1559", nonce: N, to: w.keys.T.address, gas: 21_000n }); await w.mine();
++  const u = p.transactions[0].unsigned;
++  const h1 = await w.sendRaw(w.keys.S, { type: "eip7702", nonce: Number(u.nonce), to: u.to, value: BigInt(u.value), gas: 300_000n, authorizationList: [auths[0]] });
++  await w.mine(); used.A_skipped_delegated_revert = BigInt((await receipt(h1)).gasUsed);
++  // A with its authorization skipped and C9 codeless (the front-run path)
++  await w.reset();
++  await w.sendRaw(w.keys.T, { type: "eip7702", nonce: await w.nonceOf(w.keys.T.address), to: w.keys.T.address, gas: 100_000n, authorizationList: [auths[0]] }); await w.mine();
++  const h2 = await w.sendRaw(w.keys.S, { type: "eip7702", nonce: Number(u.nonce), to: u.to, value: BigInt(u.value), gas: 300_000n, authorizationList: [auths[0]] });
++  await w.mine(); used.A_skipped_codeless_transfer = BigInt((await receipt(h2)).gasUsed);
++  for (const [k, v] of Object.entries(used)) assert.ok(v > 0n && v < (k.startsWith("A") ? gA : gB), `${k} used ${v}`);
++  t.diagnostic("gas used " + JSON.stringify(Object.fromEntries(Object.entries(used).map(([k, v]) => [k, v.toString()]))) + ` limits A ${gA} B ${gB}`);
++});
+diff --git a/vendor/publish.mjs b/vendor/publish.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..16a9a5446ceab620f1fdcd6ba7212c01262950b0
+--- /dev/null
++++ b/vendor/publish.mjs
+@@ -0,0 +1,336 @@
++// The custody-canary-proof catalog publication: ONE transaction, EnclaveAppCatalog(0x18419…).publishVersion(...) from the
++// catalog owner/admin 0x0b2d…, read-only PREPARE only. This module never reads a key, never signs, never uploads and
++// never sends: it has no broadcast method, no wallet and no upload code at all (a test greps for them).
++//
++//   offline (`request()`): the exact arguments, calldata, appId and selector, from pins alone (no network).
++//   prepare: two RPCs, one agreed block. Pins the book (code hash; appCatalog and deployments keys), the ledger code
++//     hash, the catalog code hash, its owner (= the publisher, pendingOwner 0), schema 9 and fee cap; proves the slug is
++//     NEW for this publisher (numVersions 0, no transfer redirect) and the CID unlisted; simulates the exact call from
++//     the publisher (decoded appId/index must be the expected new listing); estimates gas; prices L2 + the GasPriceOracle
++//     L1 data-fee upper bound for the maximum signed size of the exact tx (real nonce) + the oracle's operator fee for
++//     the gas limit (Isthmus, else refuse); checks the caps; reports the publisher's balance. Writes a public plan.
++// Every chain fact needs both RPCs to agree; an RPC error is an error, never "absent".
++import { createHash } from "node:crypto";
++import { encodeFunctionData, decodeFunctionResult, encodePacked, keccak256, serializeTransaction, stringToHex, toFunctionSelector } from "viem";
++
++const lc = (a) => String(a).toLowerCase();
++const sha256 = (b) => createHash("sha256").update(b).digest("hex");
++const hexN = (n) => "0x" + BigInt(n).toString(16);
++const ZERO = "0x0000000000000000000000000000000000000000";
++const key32 = (s) => stringToHex(s, { size: 32 });           // EnclaveAddressBook keys: ASCII, right-padded
++
++export const COMPONENT = Object.freeze({
++  file: "out/custody_canary_proof.wasm",
++  sha256: "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
++  size: 101222,
++  cid: "bafkreid44murqsilsg4hy772jt3jo2ogo223qnokchkvsbfrkeppspxiqm",   // CIDv1 raw sha2-256: one block (< 256 KiB)
++});
++
++export const PRODUCTION = Object.freeze({
++  chainId: 8453,
++  book: "0xab214342d5a490150a4a977063a2f88e21f80907",
++  bookCodeHash: "0xe4f570e99f2ac708b35539fe5906889d8cb99189e6c9075f5e46d3b6921ac152",
++  catalog: "0x18419ca2b502d423a8de6269aeee171a378626e3",
++  catalogCodeHash: "0x3f3c4cc028abd3e117465362e196243cafaaffa7508dc6297d78a6b709dcc79f",   // f2e9a71d0, rebuilt offline
++  catalogSchema: 9n,
++  ledger: "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",                                     // EnclaveDeployments rev 16d
++  ledgerCodeHash: "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
++  publisher: "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",                                  // catalog owner = Enclave admin
++  oracle: "0x420000000000000000000000000000000000000f",
++  rpcs: Object.freeze(["https://mainnet.base.org", "https://base.public.blockpi.network/v1/rpc/public"]),
++  // the request: a NEW dedicated slug and version; nothing existing is replaced
++  request: Object.freeze({
++    slug: "custody-canary-proof",
++    name: "Custody canary proof",
++    description: "Custody canary use ONLY: answers HMAC-SHA256 proofs for dedicated CANARY_ test markers (32 fresh CSPRNG bytes each). Never stage real or user secrets.",
++    version: "0.1.0",
++    cid: COMPONENT.cid,
++    res: Object.freeze([0, 0, 128, 10]),        // [vramMb, gpuGflops, memMb, cpuGflops]: hello-world v4's policy {100,128,1}
++    ports: "",
++    config: '{"wasi":"0.2"}',                   // exactly what `enclave publish` stamps for this binary (no other key)
++    feePerSec6: 0n,                             // free; nothing is paid to the publisher
++  }),
++  caps: Object.freeze({ gas: 1_500_000n, maxFeePerGas: 100_000_000n /* 0.1 gwei */, totalWei: 50_000_000_000_000n /* 0.00005 ETH */ }),
++  readDepth: 2,
++});
++
++export const CATALOG_ABI = [
++  { type: "function", name: "publishVersion", stateMutability: "nonpayable",
++    inputs: [{ type: "string", name: "slug" }, { type: "string", name: "name" }, { type: "string", name: "description" }, { type: "string", name: "version" },
++             { type: "string", name: "cid" }, { type: "uint32[4]", name: "res" }, { type: "string", name: "ports" }, { type: "string", name: "config" },
++             { type: "uint256", name: "feePerSec6" }],
++    outputs: [{ type: "bytes32", name: "appId" }, { type: "uint256", name: "index" }] },
++  { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
++  { type: "function", name: "pendingOwner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
++  { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "maxFeePerSec6", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "appIdOf", stateMutability: "view", inputs: [{ type: "address" }, { type: "string" }], outputs: [{ type: "bytes32" }] },
++  { type: "function", name: "numVersions", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "cidStatus", stateMutability: "view", inputs: [{ type: "string" }],
++    outputs: [{ type: "bool", name: "listed" }, { type: "bytes32", name: "appId" }, { type: "uint256", name: "index" }, { type: "uint8", name: "approval" },
++              { type: "bool", name: "yanked" }, { type: "bool", name: "appActive" }, { type: "uint32[4]", name: "res" }] },
++];
++const BOOK_ABI = [{ type: "function", name: "addr", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] }];
++const ORACLE_ABI = [
++  { type: "function", name: "getL1FeeUpperBound", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++  { type: "function", name: "isIsthmus", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
++  { type: "function", name: "getOperatorFee", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
++];
++export const ORACLE_SIGNATURE_ALLOWANCE = 68;
++export const SELECTOR = toFunctionSelector("publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)");
++
++export class Refusal extends Error { constructor(code, message) { super(message); this.code = code; } }
++const refuse = (code, message) => { throw new Refusal(code, message); };
++
++// the contract's own limits (EnclaveAppCatalog f2e9a71d0) and the CLI's slug rule, checked before anything is sent
++export function checkRequest(r) {
++  const len = (s) => Buffer.byteLength(s, "utf8");
++  if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(r.slug)) refuse("request", "slug: the CLI rule ^[a-z0-9][a-z0-9-]{0,39}$");
++  if (len(r.name) < 1 || len(r.name) > 80) refuse("request", "name: 1..80 bytes");
++  if (len(r.description) > 500) refuse("request", "description: at most 500 bytes");
++  if (len(r.version) < 1 || len(r.version) > 32) refuse("request", "version: 1..32 bytes");
++  if (len(r.cid) < 1 || len(r.cid) > 100) refuse("request", "cid: 1..100 bytes");
++  if (len(r.ports) > 96) refuse("request", "ports: at most 96 bytes");
++  if (len(r.config) > 4096) refuse("request", "config: at most 4096 bytes inline");
++  const [vram, gpu, mem, cpu] = r.res;
++  if (r.res.length !== 4 || r.res.some((x) => !Number.isInteger(x) || x < 0)) refuse("request", "res: four non-negative integers");
++  if (vram > 1048576 || mem < 1 || mem > 1048576 || gpu > 10_000_000 || cpu > 10_000_000) refuse("request", "res: outside the catalog's bounds");
++  if (r.feePerSec6 !== 0n) refuse("request", "the canary listing is free (feePerSec6 0)");
++  return r;
++}
++
++/** The exact call, offline: arguments, calldata, the expected appId (no transfer redirect for a new slug). */
++export function request(cfg = PRODUCTION) {
++  const r = checkRequest(cfg.request);
++  const args = [r.slug, r.name, r.description, r.version, r.cid, [...r.res], r.ports, r.config, r.feePerSec6];
++  const data = encodeFunctionData({ abi: CATALOG_ABI, functionName: "publishVersion", args });
++  if (data.slice(0, 10) !== SELECTOR) refuse("request", "selector mismatch");
++  const appId = keccak256(encodePacked(["address", "string"], [cfg.publisher, r.slug]));
++  return { args, data, appId, selector: SELECTOR, dataSha256: sha256(Buffer.from(data.slice(2), "hex")) };
++}
++
++export function txSizes(tx) {
++  const unsigned = (serializeTransaction(tx).length - 2) / 2;
++  const signedMax = (serializeTransaction(tx, { r: "0x" + "ff".repeat(32), s: "0x" + "ff".repeat(32), yParity: 1 }).length - 2) / 2;
++  return { unsigned, signedMax, argument: Math.max(unsigned, signedMax - ORACLE_SIGNATURE_ALLOWANCE) };
++}
++export function assertCoversSigned({ argument, signedMax }) {
++  if (!(Number.isSafeInteger(argument) && argument + ORACLE_SIGNATURE_ALLOWANCE >= signedMax))
++    refuse("l1_size", `the L1 fee size ${argument} (+${ORACLE_SIGNATURE_ALLOWANCE}) undercounts the signed transaction (${signedMax} bytes)`);
++}
++
++/** JSON-RPC over fetch, ONE attempt with a deadline; an error answer throws. Counts requests. An HTTP error carries its
++ *  status, and a 429 its Retry-After header, for the pacing layer; nothing here retries. */
++export const httpRpc = (timeoutMs = 15_000, counter = { n: 0 }) => async (url, method, params) => {
++  counter.n++;
++  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
++    signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
++  if (!r.ok) throw Object.assign(new Error(`${new URL(url).host} ${method}: HTTP ${r.status}`), { status: r.status, retryAfter: r.headers.get("retry-after") });
++  const j = await r.json();
++  if (j.error) throw Object.assign(new Error(`${new URL(url).host} ${method}: ${String(j.error.message || j.error.code).slice(0, 200)}`), { rpcError: j.error });
++  return j.result;
++};
++
++// READ pacing (root 2026-10-23: a live prepare died on mainnet.base.org eth_maxPriorityFeePerGas HTTP 429). Every request
++// of one prepare goes through one paced transport:
++//   - per provider, at most one request starts per minIntervalMs (the two providers are paced independently);
++//   - HTTP 429 ONLY is retried, at most max429Retries times per request: after Retry-After when the provider sends one
++//     (seconds or an HTTP date) and it is <= retryAfterCapMs, else after the short backoff for that attempt; a
++//     Retry-After beyond the cap is not waited out (the read fails). Nothing else is retried: other HTTP statuses,
++//     JSON-RPC errors (no transient class is documented for them here), timeouts and network errors fail at once;
++//   - finite overall budgets: maxRequests (attempts, retries included) and timeBudgetMs from the start of prepare; a
++//     wait that would cross the deadline is not started;
++//   - freshness: the agreed block may be at most freshnessMs old (measured from when it was selected) when the plan is
++//     written, and the time budget may never exceed the freshness window (refused at construction, never relaxed).
++// Exhausted budgets and exhausted 429 retries are Refusals ("rpc_budget", "rpc_rate_limited"; a late plan "stale").
++export const PACING = Object.freeze({ minIntervalMs: 250, max429Retries: 3, retryAfterCapMs: 5_000, backoffMs: Object.freeze([500, 1_000, 2_000]),
++  maxRequests: 80, timeBudgetMs: 60_000, freshnessMs: 60_000 });
++export const realClock = Object.freeze({ now: () => Date.now(), sleepUntil: (at) => new Promise((r) => setTimeout(r, Math.max(0, at - Date.now()))) });
++
++export function checkPacing(p) {
++  const int = (x, lo, hi) => Number.isSafeInteger(x) && x >= lo && x <= hi;
++  if (!int(p.minIntervalMs, 0, 5_000) || !int(p.max429Retries, 0, 5) || !int(p.retryAfterCapMs, 0, 10_000) || !int(p.maxRequests, 1, 100)
++      || !int(p.timeBudgetMs, 1, 120_000) || !int(p.freshnessMs, 1, 120_000) || !Array.isArray(p.backoffMs) || p.backoffMs.length < p.max429Retries
++      || p.backoffMs.some((b) => !int(b, 0, 10_000)))
++    throw new Error("pacing: out of bounds");
++  if (p.timeBudgetMs > p.freshnessMs) throw new Error("pacing: the time budget may not exceed the block freshness window");
++  return p;
++}
++
++/** Retry-After in ms (delta seconds or an HTTP date), or null when absent/unparseable. */
++export function retryAfterMs(v, nowMs) {
++  if (v == null || v === "") return null;
++  if (/^\d+$/.test(String(v).trim())) return Number(String(v).trim()) * 1000;
++  const t = Date.parse(String(v));
++  return Number.isFinite(t) ? Math.max(0, t - nowMs) : null;
++}
++
++/** The paced, budgeted transport over a single-attempt rpc(url, method, params). */
++export function pacedTransport({ rpc, pacing = PACING, clock = realClock, start = clock.now() }) {
++  checkPacing(pacing);
++  const next = new Map(), stats = { requests: 0, retries429: 0, waitedMs: 0 };
++  const deadline = start + pacing.timeBudgetMs;
++  async function waitUntil(at, why) {
++    if (at > deadline) refuse("rpc_budget", `${why}: waiting until +${at - start} ms would cross the ${pacing.timeBudgetMs} ms budget`);
++    const t = clock.now();
++    if (at > t) { stats.waitedMs += at - t; await clock.sleepUntil(at); }
++  }
++  async function send(url, method, params) {
++    for (let attempt = 0; ; attempt++) {
++      // per-provider pacing: reserve this provider's next slot before waiting, so concurrent callers queue up
++      const slot = Math.max(clock.now(), next.get(url) ?? -Infinity);
++      next.set(url, slot + pacing.minIntervalMs);
++      await waitUntil(slot, `${new URL(url).host} ${method}`);
++      if (stats.requests >= pacing.maxRequests) refuse("rpc_budget", `the ${pacing.maxRequests}-request budget is exhausted (at ${method})`);
++      stats.requests++;
++      try { return await rpc(url, method, params); } catch (e) {
++        if (e instanceof Refusal || e?.status !== 429) throw e;                   // only HTTP 429 is transient here
++        if (attempt >= pacing.max429Retries) refuse("rpc_rate_limited", `${e.message} after ${attempt} retries`);
++        const ra = retryAfterMs(e.retryAfter, clock.now());
++        if (ra !== null && ra > pacing.retryAfterCapMs) refuse("rpc_rate_limited", `${e.message}: Retry-After ${ra} ms is beyond the ${pacing.retryAfterCapMs} ms cap`);
++        stats.retries429++;
++        await waitUntil(clock.now() + (ra ?? pacing.backoffMs[attempt]), `${new URL(url).host} ${method} 429 retry`);
++      }
++    }
++  }
++  return { send, stats, start, deadline };
++}
++
++// ledgerCodeHashOf: a TEST seam only, for the ledger alone (its deployed runtime embeds immutables and a library address
++// that are not rebuilt here; the book and catalog are rebuilt byte-exact and always hashed with keccak256). The CLI never
++// passes it.
++export function createPreparer({ cfg = PRODUCTION, rpc = httpRpc(), clock = realClock, pacing = PACING, ledgerCodeHashOf = keccak256 } = {}) {
++  // nothing that names the transaction may differ from production; tests change only the RPC URLs
++  for (const k of ["chainId", "book", "bookCodeHash", "catalog", "catalogCodeHash", "catalogSchema", "ledger", "ledgerCodeHash", "publisher", "oracle", "readDepth"])
++    if (cfg[k] !== PRODUCTION[k]) throw new Error(`config ${k} must be the production value`);
++  if (cfg.request !== PRODUCTION.request || cfg.caps !== PRODUCTION.caps) throw new Error("the request and caps must be the production values");
++  const rpcs = [...cfg.rpcs];
++  if (rpcs.length !== 2 || rpcs[0] === rpcs[1]) throw new Error("exactly two distinct RPCs");
++  checkPacing(pacing);
++  let transport = null;                                                  // one paced, budgeted transport per prepare
++  const both = (method, params) => Promise.all(rpcs.map((u) => transport.send(u, method, params)));
++  const agree = async (what, method, params) => {
++    const r = await both(method, params);
++    if (JSON.stringify(r[0]) !== JSON.stringify(r[1])) refuse("rpc_disagree", `the RPCs disagree on ${what}`);
++    return r[0];
++  };
++  const req = request(cfg);
++
++  async function agreedBlock() {
++    const ids = await both("eth_chainId", []);
++    if (ids.some((x) => Number(x) !== cfg.chainId)) refuse("chain", "an RPC is not on Base");
++    const heads = (await both("eth_blockNumber", [])).map((x) => BigInt(x));
++    const n = (heads[0] < heads[1] ? heads[0] : heads[1]) - BigInt(cfg.readDepth);
++    const blocks = await both("eth_getBlockByNumber", [hexN(n), false]);
++    if (!blocks[0] || !blocks[1] || lc(blocks[0].hash) !== lc(blocks[1].hash)) refuse("rpc_disagree", `the RPCs disagree on block ${n}`);
++    const latest = await both("eth_getBlockByNumber", ["latest", false]);
++    const base = latest.map((b) => BigInt(b.baseFeePerGas)).reduce((a, x) => (x > a ? x : a), BigInt(blocks[0].baseFeePerGas));
++    return { number: n, hash: lc(blocks[0].hash), baseFee: base, timestamp: Number(blocks[0].timestamp) };
++  }
++
++  async function prepare() {
++    transport = pacedTransport({ rpc, pacing, clock });
++    const blk = await agreedBlock();
++    const selectedAt = clock.now();
++    const at = { blockHash: blk.hash, requireCanonical: true };
++    const call = (to, abi, functionName, args = [], from) => agree(`${to} ${functionName}`, "eth_call",
++      [{ to, data: encodeFunctionData({ abi, functionName, args }), ...(from ? { from } : {}) }, at]).then((data) => decodeFunctionResult({ abi, functionName, data }));
++    const codeHash = async (a, what, hashOf = keccak256) => hashOf(await agree(`${what} code`, "eth_getCode", [a, at]));
++
++    // the deployed addresses, from the actual book (not any CLI default)
++    if (await codeHash(cfg.book, "book") !== cfg.bookCodeHash) refuse("book", "the address book's code hash differs from the reviewed one");
++    const bookCatalog = lc(await call(cfg.book, BOOK_ABI, "addr", [key32("appCatalog")]));
++    const bookLedger = lc(await call(cfg.book, BOOK_ABI, "addr", [key32("deployments")]));
++    if (bookCatalog !== cfg.catalog) refuse("book", `the book's appCatalog is ${bookCatalog}, not the pinned catalog`);
++    if (bookLedger !== cfg.ledger) refuse("book", `the book's deployments ledger is ${bookLedger}, not the pinned ledger`);
++    if (await codeHash(cfg.ledger, "ledger", ledgerCodeHashOf) !== cfg.ledgerCodeHash) refuse("ledger", "the ledger's code hash differs from the reviewed rev 16d");
++    if (await codeHash(cfg.catalog, "catalog") !== cfg.catalogCodeHash) refuse("catalog", "the catalog's code hash differs from the reviewed f2e9a71d0 build");
++
++    // the catalog's authority and limits
++    const owner = lc(await call(cfg.catalog, CATALOG_ABI, "owner")), pending = lc(await call(cfg.catalog, CATALOG_ABI, "pendingOwner"));
++    if (owner !== cfg.publisher) refuse("authority", `the catalog owner is ${owner}: the publish would NOT be approved on publish`);
++    if (pending !== ZERO) refuse("authority", `an ownership handoff to ${pending} is pending`);
++    const schema = await call(cfg.catalog, CATALOG_ABI, "catalogSchema");
++    if (schema !== cfg.catalogSchema) refuse("catalog", `catalog schema ${schema}, expected ${cfg.catalogSchema}`);
++    const maxFee = await call(cfg.catalog, CATALOG_ABI, "maxFeePerSec6");
++
++    // a NEW dedicated listing: no transfer redirect, no version under this slug, the CID unlisted
++    const appId = lc(await call(cfg.catalog, CATALOG_ABI, "appIdOf", [cfg.publisher, cfg.request.slug]));
++    if (appId !== lc(req.appId)) refuse("listing", "the slug resolves through a transfer redirect: not a new listing");
++    const versions = await call(cfg.catalog, CATALOG_ABI, "numVersions", [req.appId]);
++    if (versions !== 0n) refuse("listing", `the slug already has ${versions} version(s): this tool never adds to or replaces an existing listing`);
++    const cs = await call(cfg.catalog, CATALOG_ABI, "cidStatus", [cfg.request.cid]);
++    if (cs[0]) refuse("listing", `the component CID is already listed (app ${cs[1]} index ${cs[2]})`);
++
++    // the publisher: settled nonce, balance, code (an EOA or a delegation is reported, not changed)
++    const pubCode = lc(await agree("publisher code", "eth_getCode", [cfg.publisher, at]));
++    const nonceAt = BigInt(await agree("nonce at block", "eth_getTransactionCount", [cfg.publisher, at]));
++    const nl = (await both("eth_getTransactionCount", [cfg.publisher, "latest"])).map(BigInt), np = (await both("eth_getTransactionCount", [cfg.publisher, "pending"])).map(BigInt);
++    if ([...nl, ...np].some((x) => x !== nonceAt)) refuse("nonce", "the publisher's nonce is not settled (latest/pending/agreed differ): a transaction may be in flight");
++    const balance = BigInt(await agree("balance", "eth_getBalance", [cfg.publisher, at]));
++
++    // the exact call, simulated from the publisher at the agreed block
++    const P = { from: cfg.publisher, to: cfg.catalog, data: req.data, value: "0x0" };
++    const ret = decodeFunctionResult({ abi: CATALOG_ABI, functionName: "publishVersion", data: await agree("simulation", "eth_call", [P, at]) });
++    if (lc(ret[0]) !== lc(req.appId) || ret[1] !== 0n) refuse("simulation", `the simulation returned app ${ret[0]} index ${ret[1]}, not the new listing at index 0`);
++    const est = (await both("eth_estimateGas", [P, hexN(blk.number)])).map(BigInt);
++    const estMax = est[0] > est[1] ? est[0] : est[1];
++    const gas = (estMax * 5n + 3n) / 4n;                                                   // +25 %
++    if (gas > cfg.caps.gas) refuse("gas", `gas ${gas} exceeds the cap ${cfg.caps.gas}`);
++    const tips = (await both("eth_maxPriorityFeePerGas", [])).map(BigInt);
++    const prio = tips[0] > tips[1] ? tips[0] : tips[1];
++    const maxFeePerGas = 2n * blk.baseFee + prio;
++    if (maxFeePerGas > cfg.caps.maxFeePerGas) refuse("fees", `maxFeePerGas ${maxFeePerGas} exceeds the cap ${cfg.caps.maxFeePerGas}`);
++    const tx = { type: "eip1559", chainId: cfg.chainId, nonce: Number(nonceAt), to: cfg.catalog, value: 0n, data: req.data, gas, maxFeePerGas, maxPriorityFeePerGas: prio };
++    const sizes = txSizes(tx);
++    assertCoversSigned(sizes);
++    const l1 = await call(cfg.oracle, ORACLE_ABI, "getL1FeeUpperBound", [BigInt(sizes.argument)]);
++    let isthmus;
++    try { isthmus = await call(cfg.oracle, ORACLE_ABI, "isIsthmus"); } catch (e) {
++      if (e instanceof Refusal) throw e;
++      refuse("operator_fee", `the GasPriceOracle cannot report the operator fee (${String(e.message).slice(0, 120)}): undetermined, not bounded`);
++    }
++    if (isthmus !== true) refuse("operator_fee", "the GasPriceOracle reports no Isthmus operator-fee support: the operator fee is undetermined");
++    let operatorFee;
++    try { operatorFee = await call(cfg.oracle, ORACLE_ABI, "getOperatorFee", [gas]); } catch (e) {
++      if (e instanceof Refusal) throw e;
++      refuse("operator_fee", `getOperatorFee(${gas}) failed (${String(e.message).slice(0, 120)}): undetermined, not bounded`);
++    }
++    const l2 = gas * maxFeePerGas, total = l2 + l1 + operatorFee;
++    if (total > cfg.caps.totalWei) refuse("cap", `the worst-case cost ${total} wei (L2 ${l2} + L1 ${l1} + operator ${operatorFee}) exceeds the cap ${cfg.caps.totalWei}`);
++
++    // freshness: never write a plan from a block selected longer ago than the window allows
++    const age = clock.now() - selectedAt;
++    if (age > pacing.freshnessMs) refuse("stale", `the agreed block was selected ${age} ms ago (window ${pacing.freshnessMs} ms): prepare again`);
++    const plan = {
++      v: 1, tool: "custody-canary-publish-prepare", readOnly: true, preparedAt: new Date(clock.now()).toISOString(),
++      component: COMPONENT,
++      call: { function: "publishVersion(string,string,string,string,string,uint32[4],string,string,uint256)", selector: SELECTOR,
++              args: { slug: cfg.request.slug, name: cfg.request.name, description: cfg.request.description, version: cfg.request.version, cid: cfg.request.cid,
++                      res: { vramMb: cfg.request.res[0], gpuGflops: cfg.request.res[1], memMb: cfg.request.res[2], cpuGflops: cfg.request.res[3] },
++                      ports: cfg.request.ports, config: cfg.request.config, feePerSec6: "0" },
++              dataSha256: req.dataSha256 },
++      unsignedTx: { type: "eip1559", chainId: cfg.chainId, from: cfg.publisher, to: cfg.catalog, value: "0", data: req.data, nonce: nonceAt.toString(),
++                    gas: gas.toString(), maxFeePerGas: maxFeePerGas.toString(), maxPriorityFeePerGas: prio.toString() },
++      expected: { appId: lc(req.appId), index: "0", approvalOnPublish: "approved (catalog owner; VersionApprovalSet(appId, 0, 1) in the same receipt)" },
++      caps: { gas: cfg.caps.gas.toString(), maxFeePerGas: cfg.caps.maxFeePerGas.toString(), totalWei: cfg.caps.totalWei.toString() },
++      observed: { block: blk.number.toString(), blockHash: blk.hash, rpcs: rpcs.map((u) => new URL(u).host),
++                  book: { address: cfg.book, codeHash: cfg.bookCodeHash, appCatalog: bookCatalog, deployments: bookLedger },
++                  ledger: { address: cfg.ledger, codeHash: cfg.ledgerCodeHash },
++                  catalog: { address: cfg.catalog, codeHash: cfg.catalogCodeHash, owner, pendingOwner: pending, schema: schema.toString(), maxFeePerSec6: maxFee.toString() },
++                  listing: { appIdOf: appId, numVersions: "0", cidListed: false },
++                  simulation: { appId: lc(ret[0]), index: ret[1].toString() },
++                  publisher: { address: cfg.publisher, code: pubCode === "0x" ? "none (EOA)" : pubCode, nonce: nonceAt.toString(), balanceWei: balance.toString() },
++                  estimates: est.map(String), baseFeePerGas: blk.baseFee.toString(),
++                  fees: { l2MaxWei: l2.toString(), l1DataUpperBoundWei: l1.toString(), operatorFeeUpperBoundWei: operatorFee.toString(), totalAtBlockWei: total.toString(),
++                          encodedBytes: { unsigned: sizes.unsigned, signedMax: sizes.signedMax, oracleArgument: sizes.argument, oracleSignatureAllowance: ORACLE_SIGNATURE_ALLOWANCE },
++                          note: "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's parameters. Not a guarantee against later changes; the signer must re-check before signing." },
++                  balanceSufficient: balance >= total, fundingNeededWei: (balance >= total ? 0n : total - balance).toString() },
++      transport: { requests: transport.stats.requests, retries429: transport.stats.retries429, waitedMs: transport.stats.waitedMs,
++                   elapsedMs: clock.now() - transport.start, blockAgeMs: age, pacing },
++    };
++    const text = JSON.stringify(plan, null, 1) + "\n";
++    return { status: "prepared", planHash: "0x" + sha256(text), text, plan };
++  }
++  return { prepare, request: () => req, stats: () => transport?.stats ?? null };
++}
