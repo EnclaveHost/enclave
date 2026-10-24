@@ -1,0 +1,17 @@
+[queue] START available=23675MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+6:07PM INF scanned ~242540 bytes (242.54 KB) in 23.6ms
+6:07PM INF no leaks found
+[main 285f2b5] Bind custody canary proofs to values and committees; reject incomplete evidence
+ 16 files changed, 517 insertions(+), 35 deletions(-)
+ create mode 100644 driver/proof.mjs
+ create mode 100644 proposals/cli-ledger-write-guard.patch
+ create mode 100644 test/assert.test.mjs
+ create mode 100644 test/mutate-evidence.py
+ create mode 100644 test/prepare.test.mjs
+ create mode 100644 test/proof.test.mjs
+ create mode 100755 test/run-evidence-tests.sh
+ create mode 100755 test/run-tests.sh
+285f2b5cc736f3600f73b357696f22e9d4235404
+[memory-guard] exit=0 peakTreeRssMiB=63 minHostAvailableMiB=23639
+[memory-guard] at peak: gitleaks:57 bash:6
+[queue] EXIT 0

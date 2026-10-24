@@ -1,0 +1,3 @@
+# Custody evidence-gate continuation
+
+Exact source and evidence snapshots in MANIFEST.json. 43 offline tests pass, one rollback-protection TODO remains,12 mutation controls detected. The first full run failure (missing copied proposal) is retained alongside the repaired run. No production custody rollout is claimed. Original service/policies are untouched; two tenants passed fresh HTTPS health. Operator maintenance approval remains pending; temporary lease keeper expiry remains03:53:51UTC. Read sources/canary/STATUS.md before attempting anything: this driver is not yet executable against production.

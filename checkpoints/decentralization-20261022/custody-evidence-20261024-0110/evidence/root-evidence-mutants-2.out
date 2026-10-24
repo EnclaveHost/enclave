@@ -1,0 +1,17 @@
+[queue] START available=23636MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+journal-order: killed
+current-hmac: killed
+reject-old: killed
+exact-shape: killed
+empty-sets: killed
+typed-control: killed
+observed-rollback: killed
+missing-protected-fields: killed
+release-recipient: killed
+refusal-recipient: killed
+committee-binding: killed
+old-committee-guard: killed
+12/12 mutants killed; no production access
+[memory-guard] exit=0 peakTreeRssMiB=154 minHostAvailableMiB=23415
+[memory-guard] at peak: node:79 node:58 python3:17
+[queue] EXIT 0

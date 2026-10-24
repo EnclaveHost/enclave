@@ -1,0 +1,757 @@
+{
+  "at": "2026-10-24T01:09:36.099938+00:00",
+  "previousCheckpoint": "05f5de1ad4980fe5797947ccfcaa05869e4080d1",
+  "sources": [
+    {
+      "name": "canary",
+      "head": "285f2b5cc736f3600f73b357696f22e9d4235404",
+      "repo": "work/custody-v2-r2-production-canary-20261024"
+    },
+    {
+      "name": "docs",
+      "head": "b913520d538ca206791ccb346005a1a5d439b396",
+      "repo": "work/custody-v2-current-docs-20261023"
+    }
+  ],
+  "entries": [
+    {
+      "path": "sources/canary/.gitignore",
+      "sha256": "a00ee4f41bd47de5071b9b314564ecc626e799c91eb4292a45ebc5c8f7e2d21a",
+      "bytes": 41,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:.gitignore"
+    },
+    {
+      "path": "sources/canary/.gitleaksignore",
+      "sha256": "990ab2fa0c10faf15f150c48432010b301d6c7d3d8172886feb462df2fd4f8fc",
+      "bytes": 1126,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:.gitleaksignore"
+    },
+    {
+      "path": "sources/canary/ORIGIN-0152520.json",
+      "sha256": "239b4f9135e92e6409d72d1697c3a6ea6f11241a7929d1b6a6de49bad878a2c1",
+      "bytes": 2216,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:ORIGIN-0152520.json"
+    },
+    {
+      "path": "sources/canary/STATUS.md",
+      "sha256": "e54157af4e0bde05073e47138b708f892bdd6aeac424b86896c9f9dc47fa3dd5",
+      "bytes": 3119,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:STATUS.md"
+    },
+    {
+      "path": "sources/canary/cli-pins/canary-contract-pins.json",
+      "sha256": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
+      "bytes": 589,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:cli-pins/canary-contract-pins.json"
+    },
+    {
+      "path": "sources/canary/driver/assert.mjs",
+      "sha256": "24350790df1d6ea0a0a28a85a414e96887959901ede36851b1f0a8d155461e06",
+      "bytes": 12613,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/assert.mjs"
+    },
+    {
+      "path": "sources/canary/driver/budget.mjs",
+      "sha256": "ff4438cdd1abd0441c50516009720dfee9f0e96984e3531348df01154def7cfd",
+      "bytes": 4184,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/budget.mjs"
+    },
+    {
+      "path": "sources/canary/driver/canonical.mjs",
+      "sha256": "c1dc48ba8331fd7b3522e47c8c91a9a78e822d601e06c26b709f3326b63d960f",
+      "bytes": 1195,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/canonical.mjs"
+    },
+    {
+      "path": "sources/canary/driver/cli.mjs",
+      "sha256": "000a814ad92dbf52109274b392bcf5c48ca52a2ef9a856cf967f44597f9cd86f",
+      "bytes": 33069,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/cli.mjs"
+    },
+    {
+      "path": "sources/canary/driver/clipins.mjs",
+      "sha256": "7d3d4a8010b8ac7c3cb69e970c64fb02fab1a037d8e51bcfc3f6976467f9b7d3",
+      "bytes": 6658,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/clipins.mjs"
+    },
+    {
+      "path": "sources/canary/driver/guard.mjs",
+      "sha256": "9ce217ab0f2a82beeecf9b08e67cb10f8cd8d84097aff3c19b1be67a726e409b",
+      "bytes": 2582,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/guard.mjs"
+    },
+    {
+      "path": "sources/canary/driver/journal.mjs",
+      "sha256": "b5285ba3b4d2c4240537b1dbb71ea513b2af2f7b67d8b2fd059cb784a0230283",
+      "bytes": 4541,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/journal.mjs"
+    },
+    {
+      "path": "sources/canary/driver/markers.mjs",
+      "sha256": "01039cff80f6a4d6bd35e6db042958b6c9c0993a89b49f9f53f06dc48602cbdd",
+      "bytes": 2793,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/markers.mjs"
+    },
+    {
+      "path": "sources/canary/driver/plan.mjs",
+      "sha256": "be32c577d255c4c0377fcd16e38de14982548a24087720a0622d2b32f253166a",
+      "bytes": 38426,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/plan.mjs"
+    },
+    {
+      "path": "sources/canary/driver/prepare.mjs",
+      "sha256": "722dfdc3e4c1a75bf89c1e2ee6f91e0c1deaea6893362fb90de5ca57672928da",
+      "bytes": 7409,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/prepare.mjs"
+    },
+    {
+      "path": "sources/canary/driver/probe.mjs",
+      "sha256": "ecfc4e915eeca4b05e85e48a35fb85914c57fde6d03865d4a3be3a07253f7ed8",
+      "bytes": 4675,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/probe.mjs"
+    },
+    {
+      "path": "sources/canary/driver/proof.mjs",
+      "sha256": "e0d6e76c54f096a9f2c8300710fa15685efd2abfbcdb735f9c005763bd794dd5",
+      "bytes": 4934,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/proof.mjs"
+    },
+    {
+      "path": "sources/canary/driver/relay.mjs",
+      "sha256": "e0d2b4a40102d24066bf07ee8a2de62e61cf85f6ce5d4cd9231da801b9bc5c21",
+      "bytes": 5248,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/relay.mjs"
+    },
+    {
+      "path": "sources/canary/driver/sender.mjs",
+      "sha256": "45bec80da4eb2100d66ed2d7522800f254e896b67ae5f54caf3ce180c678dce2",
+      "bytes": 24214,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/sender.mjs"
+    },
+    {
+      "path": "sources/canary/driver/tx.mjs",
+      "sha256": "f7a473773a5d4e8feb572d2de50dba4f03c89b88bbaa8b82367ded30f8e523ce",
+      "bytes": 3132,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:driver/tx.mjs"
+    },
+    {
+      "path": "sources/canary/pins.base.json",
+      "sha256": "3fb4f099d7ad56a863f1fdab6ad2774eb795f82aabd2b14fffcd311c5786e2d3",
+      "bytes": 4668,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:pins.base.json"
+    },
+    {
+      "path": "sources/canary/proposals/cli-ledger-write-guard.patch",
+      "sha256": "0688c3e4935683084858054f086a719050cd0642fab0844c73f9ca145a2313de",
+      "bytes": 2916,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:proposals/cli-ledger-write-guard.patch"
+    },
+    {
+      "path": "sources/canary/q.sh",
+      "sha256": "3ccf0f03253bff7356cd9ab284f0405aba1afaa45e1ba252c51b201a61ccdbf3",
+      "bytes": 619,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:q.sh"
+    },
+    {
+      "path": "sources/canary/test/assert.test.mjs",
+      "sha256": "94bf8288f858349b89b038f42e3171c5184cc911c8b878811502dd7b0bc5dae3",
+      "bytes": 11451,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/assert.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/clipins.test.mjs",
+      "sha256": "5fc363fa02c71fc68fa955e3dd5396066e0678245db1b2df3638da56966c2149",
+      "bytes": 6255,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/clipins.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/core.test.mjs",
+      "sha256": "8604ddc3b6ecf9e22ae089396a7efab68584af6cb5549088db9516964178ae3a",
+      "bytes": 10601,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/core.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/limitations.test.mjs",
+      "sha256": "e109ff4240b776c671200f28cb9c8ce1d47e48bd69fe0a93091c98dd1d253916",
+      "bytes": 1935,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/limitations.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/mutate-evidence.py",
+      "sha256": "01dde6d873c8f32a66341717191c9e916f852b0604d17a5f3986748c5c4d0256",
+      "bytes": 2838,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/mutate-evidence.py"
+    },
+    {
+      "path": "sources/canary/test/net.test.mjs",
+      "sha256": "dc93dc950e3e37097619cd5bbec4afaa461b3de188abd1c212d4918451267413",
+      "bytes": 7161,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/net.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/prepare.test.mjs",
+      "sha256": "d546ccf2b9a4d93050a704f58bbce17e1f87b873f9dd1e7333908b429a046624",
+      "bytes": 8386,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/prepare.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/proof.test.mjs",
+      "sha256": "02134b701253be8cc71823459ece10eda1b5322913196f5dcec2cc1b4a498f35",
+      "bytes": 3757,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/proof.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/run-evidence-tests.sh",
+      "sha256": "a287758ed26235c488b18dd36a32e998156bbcef94b615a3c61c6b86bd8055fd",
+      "bytes": 269,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/run-evidence-tests.sh"
+    },
+    {
+      "path": "sources/canary/test/run-tests.sh",
+      "sha256": "877f73125dadd031ace8eb9594c560c4ba44cae3a9cff995e74d5212c2aa6eb1",
+      "bytes": 411,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/run-tests.sh"
+    },
+    {
+      "path": "sources/canary/test/sender.test.mjs",
+      "sha256": "929edecb73f0ddbf9afd35651f7de81924b04e172dfb6bd8ff32ffe7fc367818",
+      "bytes": 18509,
+      "origin": "custody-v2-r2-production-canary-20261024@285f2b5cc736f3600f73b357696f22e9d4235404:test/sender.test.mjs"
+    },
+    {
+      "path": "sources/docs/.gitignore",
+      "sha256": "e39307c27b78706b0a36f8ae32134b7b15339f036d4f275ed98c84470eba2beb",
+      "bytes": 17,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:.gitignore"
+    },
+    {
+      "path": "sources/docs/CURRENT-STATE.md",
+      "sha256": "b430994bf4dc95bdde9ac7708d1bc7c53e4fc20671d2aade1f538619244c6f3b",
+      "bytes": 11529,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:CURRENT-STATE.md"
+    },
+    {
+      "path": "sources/docs/README.md",
+      "sha256": "d505099ce87c42ed0378af5df518ec18734cd4f724d94320368efeb96e7faacd",
+      "bytes": 1182,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:README.md"
+    },
+    {
+      "path": "sources/docs/RECIPIENT-BINDING-REVIEW.txt",
+      "sha256": "5872e1b7dc1a67a151b59084d9b45c7cdd4eeb908936ff1ada0b182219fb980d",
+      "bytes": 7226,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:RECIPIENT-BINDING-REVIEW.txt"
+    },
+    {
+      "path": "sources/docs/ROLLBACK.md",
+      "sha256": "fd1c562e653990ccd89c17097251cc47fccd166f9913e3e926d64dd5d714b59f",
+      "bytes": 6876,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:ROLLBACK.md"
+    },
+    {
+      "path": "sources/docs/SIGNING-AUTHORITY.md",
+      "sha256": "e73fab8792e0f14c6918f8fd24c3f2f5837c8bf6b9531a56c08adc6f2210c71d",
+      "bytes": 6186,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:SIGNING-AUTHORITY.md"
+    },
+    {
+      "path": "sources/docs/SOURCES.md",
+      "sha256": "cf6bc83883849af6f872f38a245422f4c97e2d49ed7ae501a7ce68d230e5b583",
+      "bytes": 11938,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:SOURCES.md"
+    },
+    {
+      "path": "sources/docs/TEST-MATRIX.md",
+      "sha256": "09108663eb6e8bf9ef9f40a94f8dc3cb212782fbaf588d8fd1737b06213f5f19",
+      "bytes": 7444,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:TEST-MATRIX.md"
+    },
+    {
+      "path": "sources/docs/commit.sh",
+      "sha256": "ad01e8335a948f8bcee3c01f1f8091fe69a7cefca257bfcbf69f063fca8be347",
+      "bytes": 5220,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit.sh"
+    },
+    {
+      "path": "sources/docs/commit2.sh",
+      "sha256": "318ae8eac7653bedc6c338a5e073749a9173a258ad2aa231003d7951a5148efe",
+      "bytes": 1591,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit2.sh"
+    },
+    {
+      "path": "sources/docs/commit3.sh",
+      "sha256": "fdb4ad2b6944bb5c2058cc35b31feb8d7eccb1e2b7a102de30f8118137e7c423",
+      "bytes": 4462,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit3.sh"
+    },
+    {
+      "path": "sources/docs/commit4.sh",
+      "sha256": "abae8ed84d47468bbb98da715aabe248b994d32e143792665cd818ebc2ba4203",
+      "bytes": 574,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit4.sh"
+    },
+    {
+      "path": "sources/docs/commit5.sh",
+      "sha256": "4973d7a2be1cbf68e65253e919384436c2bf4162cdd4d5683e1d7c341387a8fe",
+      "bytes": 1299,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit5.sh"
+    },
+    {
+      "path": "sources/docs/commit6.sh",
+      "sha256": "484fdabf7c9975216bb3bcd7ad2a3bb54b74d78a28a6bde6171cc66fe3f2f6f3",
+      "bytes": 4666,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit6.sh"
+    },
+    {
+      "path": "sources/docs/commit7.sh",
+      "sha256": "7f0b62b1e9c16f73c8092f748401dff7aedcd2f5cc231741630b6efe861acb1f",
+      "bytes": 1616,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit7.sh"
+    },
+    {
+      "path": "sources/docs/commit8.sh",
+      "sha256": "8eaabaa02e3dc0883be6bba536885aa87152d9d83dbabdb7307fa490575bdf18",
+      "bytes": 1733,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit8.sh"
+    },
+    {
+      "path": "sources/docs/commit9.sh",
+      "sha256": "d385a766ba89b9af90b765806dd3ebf20b4e9a1048a24e0236466a61e1a7372d",
+      "bytes": 1475,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:commit9.sh"
+    },
+    {
+      "path": "sources/docs/docs/ORIGINS.md",
+      "sha256": "36d24b7bea7557af776c50375315a097099521a3403a0f0d0791d1d3951fd483",
+      "bytes": 1163,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:docs/ORIGINS.md"
+    },
+    {
+      "path": "sources/docs/docs/security/secret-custody-v2-spec.md",
+      "sha256": "b4a537b1fee8ca65ed2032d5764b1f7f56a267d460ab61237686bab784b27974",
+      "bytes": 14442,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:docs/security/secret-custody-v2-spec.md"
+    },
+    {
+      "path": "sources/docs/docs/security/secret-custody-v2.md",
+      "sha256": "f9be78fab23f8b122b8b8bf841cc016a1f4eef8d2744b0c3a4e692b3cf75f5a5",
+      "bytes": 41069,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:docs/security/secret-custody-v2.md"
+    },
+    {
+      "path": "sources/docs/logs/commit-1.out",
+      "sha256": "64065a1aec7c8acdc19a8027c48071f67e0d800d82ff0bfe0c6d13aa3548c9c3",
+      "bytes": 1848,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-1.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-1.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-2.out",
+      "sha256": "b583f327333ca7fde97f06fc4c1fa75f2c1e4541b3681c6be9ede2c5fbefb3be",
+      "bytes": 433,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-2.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-2.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-3.out",
+      "sha256": "2526fc0481ab07bdd6d4151252b5c43f503dd6de8e63cd78aa2c51fb5b18dd3c",
+      "bytes": 1672,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-3.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-3.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-4.out",
+      "sha256": "69e7a7c6bf320e328518a1b1029605ef635ef1f4c2de0453aadf62ba881974f4",
+      "bytes": 366,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-4.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-4.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-5.out",
+      "sha256": "5b55c4f8bccae5447ebf7db1d667c7f9fd4744955b1c49057fc9c0e10ae321a8",
+      "bytes": 367,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-5.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-5.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-5.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-6.out",
+      "sha256": "fa13284fd9410d410c3df2e450f2e98835f67663339cbea9c1620e66666b5710",
+      "bytes": 1815,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-6.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-6.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-6.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-7.out",
+      "sha256": "2e0c114780a43d04102dfd958f7127712ee40ff64224927626817cfd3e3d86e5",
+      "bytes": 381,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-7.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-7.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-7.rc"
+    },
+    {
+      "path": "sources/docs/logs/commit-8.out",
+      "sha256": "c65ed81051a4abef2e061e1d7d427cabea505934fae6a861e115cbd98d90bb4b",
+      "bytes": 376,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-8.out"
+    },
+    {
+      "path": "sources/docs/logs/commit-8.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/commit-8.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-1.out",
+      "sha256": "e0ed8ea1176b308ffea04b09827087284c7009e9f77e655c189a77ce01714301",
+      "bytes": 404,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-1.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-1.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-2.out",
+      "sha256": "b45b2b7e9cc9bacef9e49685f5d93560f8fa6b4002e510069f5df30853bbd353",
+      "bytes": 414,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-2.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-2.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-3.out",
+      "sha256": "f40fc18290b2122efbad79917db1d7f2a91ffd940982b1813b75513b5093f9a1",
+      "bytes": 414,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-3.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-3.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-4.out",
+      "sha256": "477c45a6997f90ff9ad7f2c0baa68479a82baa25ca5816ba123445b3f7387b70",
+      "bytes": 414,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-4.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-4.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-5.out",
+      "sha256": "c0007b3658f2f1ecf676f110fb4426ca37b2ef1ab7bb9b632e952450397aa2bc",
+      "bytes": 404,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-5.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-5.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-5.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-6.out",
+      "sha256": "4e927d03eadc30d18ed0452079be160acb8adf38ab71d8af3c514d7b1033d921",
+      "bytes": 405,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-6.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-6.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-6.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-7.out",
+      "sha256": "2b6582786969942377f343d005c1ecf204e6fb9294d5b622927b8a7c2d1f7bfd",
+      "bytes": 415,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-7.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-7.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-7.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-8.out",
+      "sha256": "9829cbad0acefcd0d3bfa1d14c9bf7a7e6f35a93d6385e757f2fbfb24c76dab2",
+      "bytes": 415,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-8.out"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-8.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-8.rc"
+    },
+    {
+      "path": "sources/docs/logs/rangescan-gitleaks.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/rangescan-gitleaks.json"
+    },
+    {
+      "path": "sources/docs/logs/scan-1.out",
+      "sha256": "adf7e97a2318405434bd49a1268927b9da8e94b650388ec6fbd8e933b4198652",
+      "bytes": 358,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-1.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-1.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-2.out",
+      "sha256": "5d37c0e33969a951b44fbdda6b9531815dd752c6e6844c4db05c6f9d5ed71b04",
+      "bytes": 360,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-2.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-2.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-3.out",
+      "sha256": "09bfc04bd6f74934837a2c359e99cfa87d9cb5424f6d8a393b7cabe9d4ff9c4e",
+      "bytes": 370,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-3.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-3.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-4.out",
+      "sha256": "0e14d68db172c08bfe8003f839ee46fa8f3f1846d8346631c25c47d60805150b",
+      "bytes": 370,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-4.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-4.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-5.out",
+      "sha256": "3e8d10586a757c4965085914f8521665f0bc9abf382a355b00a114b9fd70e3bf",
+      "bytes": 360,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-5.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-5.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-5.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-6.out",
+      "sha256": "c9fa9a726b36455a27d6107b309bc212689c8c26ff601a3db56f3e0c3f88d167",
+      "bytes": 358,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-6.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-6.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-6.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-7.out",
+      "sha256": "6fe810f096ed85bf2a74a44e305bf884a3dd8c1797a9dc0898bd8514ab6bcd35",
+      "bytes": 360,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-7.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-7.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-7.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-8.out",
+      "sha256": "e732a86cb50444929812014ce876ec7f8058c2d7e67536e193788edf40a11949",
+      "bytes": 370,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-8.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-8.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-8.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-9.out",
+      "sha256": "db1126acdf5188bb3a5894e22b31e18a130c6dd75fa51c0c1b15effef6fecb73",
+      "bytes": 360,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-9.out"
+    },
+    {
+      "path": "sources/docs/logs/scan-9.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-9.rc"
+    },
+    {
+      "path": "sources/docs/logs/scan-gitleaks.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:logs/scan-gitleaks.json"
+    },
+    {
+      "path": "sources/docs/patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch",
+      "sha256": "dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c",
+      "bytes": 13156,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch"
+    },
+    {
+      "path": "sources/docs/patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch",
+      "sha256": "5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3",
+      "bytes": 12621,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch"
+    },
+    {
+      "path": "sources/docs/patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch",
+      "sha256": "64675f5b2444d6300dff97953e429250c9c3cf4d8681f712cad6116db1172b3e",
+      "bytes": 3313,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch"
+    },
+    {
+      "path": "sources/docs/patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch",
+      "sha256": "8e7054506d1c110cbc02e1626c09499505c6650246ff49930736f9cd999eec23",
+      "bytes": 5157,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:patches/0004-Recipient-binding-root-reviewed-source-review-direct.patch"
+    },
+    {
+      "path": "sources/docs/patches/against-checkpoint-dfb4b55e.diff",
+      "sha256": "2548a2d34ac7ba5fbe523d50d5b4b781e45b89df3c680671bbfd40b135d7fce4",
+      "bytes": 23867,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:patches/against-checkpoint-dfb4b55e.diff"
+    },
+    {
+      "path": "sources/docs/patches/against-main-68b82926.diff",
+      "sha256": "b5e5dce970ee2f1733d64eb3cc5f4255ad7596aaf77c0f10456f70cff49e18b0",
+      "bytes": 30936,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:patches/against-main-68b82926.diff"
+    },
+    {
+      "path": "sources/docs/q.sh",
+      "sha256": "78551a365337b9e89c93fcef4ecdcbb5fa0186e799a4272391a2c871f815e1fe",
+      "bytes": 631,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:q.sh"
+    },
+    {
+      "path": "sources/docs/rangescan.sh",
+      "sha256": "f09003c8f98fe0b194290e1dae9e01eab970e59729b31fd728d6d68c65c72a65",
+      "bytes": 796,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:rangescan.sh"
+    },
+    {
+      "path": "sources/docs/scan.sh",
+      "sha256": "3196b67722e8d77c243ff0553d192f3626d19ed15045d044d52dd129c7577507",
+      "bytes": 1056,
+      "origin": "custody-v2-current-docs-20261023@b913520d538ca206791ccb346005a1a5d439b396:scan.sh"
+    },
+    {
+      "path": "reports/custody-v2-live-verification-20261023.md",
+      "sha256": "b430994bf4dc95bdde9ac7708d1bc7c53e4fc20671d2aade1f538619244c6f3b",
+      "bytes": 11529,
+      "origin": "outputs/decentralization-audit/custody-v2-live-verification-20261023.md"
+    },
+    {
+      "path": "reports/custody-protected-health-20261024.json",
+      "sha256": "e85e6cd346baf198b0e427291014adfecc6d9c9502de9e63988402dd381e5dd1",
+      "bytes": 604,
+      "origin": "outputs/decentralization-audit/custody-protected-health-20261024.json"
+    },
+    {
+      "path": "reports/custody-checkpoint-receipt-20261024.json",
+      "sha256": "247d195a697d0d94e8ccc9a0b9f8ba475a49b0d2623e73896723b1dee87bba19",
+      "bytes": 712,
+      "origin": "outputs/decentralization-audit/custody-checkpoint-receipt-20261024.json"
+    },
+    {
+      "path": "evidence/root-full-1.out",
+      "sha256": "198f96d41044f939073880d1e3bb3fb828cd8447d8babce74151abd441a3376a",
+      "bytes": 13323,
+      "origin": "work/custody-v2-r2-production-canary-20261024/logs/root-full-1.out"
+    },
+    {
+      "path": "evidence/root-full-2.out",
+      "sha256": "e9b03260806bea98ef20c9fe6ed258dd09e0c540c102541ab8dadaa284f94d58",
+      "bytes": 12290,
+      "origin": "work/custody-v2-r2-production-canary-20261024/logs/root-full-2.out"
+    },
+    {
+      "path": "evidence/root-evidence-mutants-2.out",
+      "sha256": "b0bd8fc4ff61dd7f7962e4794c7d5bc2ba36507527e8e005f35bd57a6a79215b",
+      "bytes": 562,
+      "origin": "work/custody-v2-r2-production-canary-20261024/logs/root-evidence-mutants-2.out"
+    },
+    {
+      "path": "evidence/root-preserve-1.out",
+      "sha256": "518a7b81081eb2f6b3ab7ee5af133e06da2cb072c2a6524ca345ae38a24bf2b9",
+      "bytes": 841,
+      "origin": "work/custody-v2-r2-production-canary-20261024/logs/root-preserve-1.out"
+    },
+    {
+      "path": "capture.py",
+      "sha256": "78a3fb27f35aeac3838a27c6e3d809b63174f2465e2e644634a6eefa6ed1d538",
+      "bytes": 3288,
+      "origin": "work/resume-after-checkpoint-20261022/source-preservation/capture-root-0110.py"
+    }
+  ],
+  "status": "Source-only continuation; driver still unfinished; production custody lifecycle not run; pending maintenance approval; admin rights preserved"
+}

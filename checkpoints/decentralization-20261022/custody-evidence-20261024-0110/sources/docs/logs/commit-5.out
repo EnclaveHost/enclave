@@ -1,0 +1,5 @@
+[queue] START available=23722MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+1b3c26117d2ca4bb6488ea51f9180c6004abe2bd Status at root's 22:45Z: 7dd3acd candidate built (b007d471), not activated; control still unregistered; renewals 22:39/22:43
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

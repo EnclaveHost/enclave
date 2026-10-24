@@ -1,0 +1,14 @@
+{
+  "verifiedAt": "2026-10-24T00:57:35.118591+00:00",
+  "repository": "https://github.com/EnclaveHost/enclave",
+  "branch": "checkpoint/decentralization-20261022",
+  "commit": "05f5de1ad4980fe5797947ccfcaa05869e4080d1",
+  "mainUnchanged": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "gitObjectManifestFilesVerified": 302,
+  "previousManifestUnchanged": true,
+  "sourceScan": "Project gitleaks and crypto scanner clean before commit; pre-push hook passed",
+  "productionRollout": "INCOMPLETE",
+  "maintenanceApproval": "PENDING; no delegation or funding change",
+  "canaryScaffold": "Explicitly unfinished, not executable; preserved as source only",
+  "temporaryLeaseKeeperExpiresUTC": "2026-10-24T03:53:51Z"
+}
