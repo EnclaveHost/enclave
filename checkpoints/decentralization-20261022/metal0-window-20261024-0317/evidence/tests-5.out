@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: one renewal per app preserves original journal and replay only returns existing results
+ok 1 - one renewal per app preserves original journal and replay only returns existing results
+  ---
+  duration_ms: 6.925015
+  type: 'test'
+  ...
+# Subtest: missing approval, expired window, changed scope, running signers and missing old results prevent signing
+ok 2 - missing approval, expired window, changed scope, running signers and missing old results prevent signing
+  ---
+  duration_ms: 8.187835
+  type: 'test'
+  ...
+# Subtest: wrong guest, wrong lease and unreadable chain prevent any signature; stopped control availability is not required
+ok 3 - wrong guest, wrong lease and unreadable chain prevent any signature; stopped control availability is not required
+  ---
+  duration_ms: 4.660593
+  type: 'test'
+  ...
+# Subtest: not-ready apps remain waiting; a later call may renew each only once
+ok 4 - not-ready apps remain waiting; a later call may renew each only once
+  ---
+  duration_ms: 1.886575
+  type: 'test'
+  ...
+# Subtest: uncertain send or post-send verification never re-signs
+ok 5 - uncertain send or post-send verification never re-signs
+  ---
+  duration_ms: 2.707499
+  type: 'test'
+  ...
+# Subtest: wrong signed scope, high charges, changed signer state and expired authorization refuse before send
+ok 6 - wrong signed scope, high charges, changed signer state and expired authorization refuse before send
+  ---
+  duration_ms: 6.855846
+  type: 'test'
+  ...
+# Subtest: a signer restarting immediately before journaling blocks transmission, and orphaned results refuse
+ok 7 - a signer restarting immediately before journaling blocks transmission, and orphaned results refuse
+  ---
+  duration_ms: 2.301632
+  type: 'test'
+  ...
+# Subtest: approval validator rejects an authentic digest of an unauthorized or expanded scope, before operational checks
+ok 8 - approval validator rejects an authentic digest of an unauthorized or expanded scope, before operational checks
+  ---
+  duration_ms: 0.991072
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 82.207317

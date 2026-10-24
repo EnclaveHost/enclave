@@ -1,0 +1,92 @@
+{
+  "at": "2026-10-24T03:18:17.936324+00:00",
+  "previousCheckpoint": "5671ab8ca4e75836d7be8e6d7f8525f9e0ce9dac",
+  "source": "8e3e64bcbab362f3716a2fb509efea29c60164ac",
+  "entries": [
+    {
+      "path": "source/.gitignore",
+      "sha256": "422296a260c40773143fe4e5d0cbde5459e8c6d6f70fb4f6824645a9690cdaf8",
+      "bytes": 23,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:.gitignore"
+    },
+    {
+      "path": "source/README.md",
+      "sha256": "a7c076314165001919c6d255f89fe3bf51e4f764bcc4fdd89cbf9d5ff8187e80",
+      "bytes": 4815,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:README.md"
+    },
+    {
+      "path": "source/observe.mjs",
+      "sha256": "8cba78093fec525fb36b1c89d345964d08f668e63a5a8f6d70fa229a352085e7",
+      "bytes": 2284,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:observe.mjs"
+    },
+    {
+      "path": "source/run.mjs",
+      "sha256": "719a5e17cd3d73b58664d32c0433fd8d19ba7a796d8556742bfe0c626fb65f9f",
+      "bytes": 4294,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:run.mjs"
+    },
+    {
+      "path": "source/test/mutate.py",
+      "sha256": "75733e0109f828919559391cfdcd3a0e4abae459a67eeae24932b2266919522b",
+      "bytes": 1350,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:test/mutate.py"
+    },
+    {
+      "path": "source/test/window.test.mjs",
+      "sha256": "b7346a55a7db4b0e64fd437ca3e3fd5e6210b58d4111e3e50e071d62c42c015b",
+      "bytes": 6264,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:test/window.test.mjs"
+    },
+    {
+      "path": "source/window.mjs",
+      "sha256": "6c8e4535654cd1483cf6f334c5e532ab0281362b6bade22177edaebfc83cd494",
+      "bytes": 6603,
+      "origin": "work/custody-maintenance-window-20261024@8e3e64bcbab362f3716a2fb509efea29c60164ac:window.mjs"
+    },
+    {
+      "path": "evidence/tests-5.out",
+      "sha256": "4b232192400648a574bdcd8d0897310ecff5e7549c6e2a6f37f8ab9b3191b6b6",
+      "bytes": 2154,
+      "origin": "work/custody-maintenance-window-20261024/logs/tests-5.out"
+    },
+    {
+      "path": "evidence/mutants-2.out",
+      "sha256": "d3ccf3e93012b355ced2e217b035cc248e4270ffd450c2d57244f7be902ba9a2",
+      "bytes": 169,
+      "origin": "work/custody-maintenance-window-20261024/logs/mutants-2.out"
+    },
+    {
+      "path": "evidence/observe-1.out",
+      "sha256": "ed2562ebff265522229fc064560afef71eb1b4ffb99dc4137ff24a5e83a69c77",
+      "bytes": 790,
+      "origin": "work/custody-maintenance-window-20261024/logs/observe-1.out"
+    },
+    {
+      "path": "reports/metal0-recovery-window-proposal-20261024.md",
+      "sha256": "a7c076314165001919c6d255f89fe3bf51e4f764bcc4fdd89cbf9d5ff8187e80",
+      "bytes": 4815,
+      "origin": "outputs/decentralization-audit/metal0-recovery-window-proposal-20261024.md"
+    },
+    {
+      "path": "reports/metal0-keeper-cap-20261024.json",
+      "sha256": "fcd51dc226fbfbb01d9889eeb924d7eef48bf7888a4708761df51dcd872db31b",
+      "bytes": 584,
+      "origin": "outputs/decentralization-audit/metal0-keeper-cap-20261024.json"
+    },
+    {
+      "path": "reports/operator-maintenance-proposal-20261024.md",
+      "sha256": "07ba326fe6aadc7b17f5c7830f66246d1de40a43959d57eede9918c3d4b19805",
+      "bytes": 3076,
+      "origin": "outputs/decentralization-audit/operator-maintenance-proposal-20261024.md"
+    },
+    {
+      "path": "capture.py",
+      "sha256": "7e0090a5067be5de3ad5eccced17744bebeec74c0ee81e48790cec194e64dab9",
+      "bytes": 2313,
+      "origin": "work/resume-after-checkpoint-20261022/source-preservation/capture-window-0317.py"
+    }
+  ],
+  "status": "Prepared source only; human approval pending. No additional renewal or funding/delegation action performed. Original keeper cap and journal unchanged; no private approval file exists."
+}
