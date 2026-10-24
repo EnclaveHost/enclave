@@ -1,0 +1,26 @@
+EXAMPLE ONLY - CANARY, NOT FINAL ROUTING. Not applied anywhere by this repository. Placeholders in <angle brackets>.
+
+<R>    control VM loopback port (Caddy's reverse_proxy target)
+<F>    metal0 forwarder port (forwarder.canary.json listen.port)
+<MGMT> the canary custodian's management port (custody/v2/host.mjs mgmtPort; forwarder.canary.json upstreamPort).
+       This must be the CANARY instance's port, never the original custodian's.
+
+1. metal0: the forwarder (loopback only; it refuses any other listen address)
+   node forwarder.mjs examples/forwarder.canary.json
+
+2. metal0 -> control VM: a reverse tunnel whose only effect is "control VM 127.0.0.1:<R> -> metal0 127.0.0.1:<F>"
+   ssh -N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+       -i <dedicated canary key> -R 127.0.0.1:<R>:127.0.0.1:<F> <canary user>@<control VM>
+   The -R target is the FORWARDER (<F>), never <MGMT>: anything on the control VM's loopback can reach <R>.
+
+3. control VM: the canary key's authorized_keys line (one dedicated key, nothing else allowed)
+   restrict,port-forwarding,permitopen="none",permitlisten="127.0.0.1:<R>",command="/bin/false" <public key> custody-v2-canary-metal0
+   and sshd keeps GatewayPorts no (the default), so <R> binds loopback only.
+
+4. control VM: examples/Caddyfile.canary-snippet inside the api.enclave.host site, then a reviewed reload.
+
+5. Negative checks before any lifecycle use (both layers must 404): host-binding, /health, /, every %2e/%2f/backslash/
+   double-slash/case/query/trailing-slash spelling (test/forwarder.test.mjs lists them), HEAD/OPTIONS/PUT, and a GET body.
+
+Teardown: remove the Caddy snippet, stop the tunnel, remove the key line, stop the forwarder. The original custodian
+(/t/custody-metal0 via the relay tunnel) and every app are not touched by any of these steps.

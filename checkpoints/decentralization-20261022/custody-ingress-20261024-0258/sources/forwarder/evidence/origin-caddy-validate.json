@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-24T02:43:30.898672+00:00",
+  "scope": "Dedicated-origin generated config syntax/provisioning validation only; no live route, listener, DNS, config write or reload",
+  "inputSha256": "e27d43ff52943e4d996a5acc4a57d1e77456120938088f771dcf01aa61955ed1",
+  "exit": 0,
+  "diagnostics": "{\"level\":\"warn\",\"ts\":1792809810.8867295,\"logger\":\"caddyfile\",\"msg\":\"Caddyfile input is not formatted; run 'caddy fmt --overwrite' to fix inconsistencies\",\"file\":\"/dev/stdin\",\"line\":2}\n{\"level\":\"info\",\"ts\":1792809810.8872747,\"logger\":\"http.auto_https\",\"msg\":\"server is listening only on the HTTPS port but has no TLS connection policies; adding one to enable TLS\",\"server_name\":\"srv0\",\"https_port\":443}\n{\"level\":\"info\",\"ts\":1792809810.8873117,\"logger\":\"http.auto_https\",\"msg\":\"enabling automatic HTTP->HTTPS redirects\",\"server_name\":\"srv0\"}\n{\"level\":\"info\",\"ts\":1792809810.887418,\"logger\":\"tls.cache.maintenance\",\"msg\":\"started background certificate maintenance\",\"cache\":\"0x2cd701e89e00\"}\n{\"level\":\"info\",\"ts\":1792809810.8877888,\"logger\":\"http\",\"msg\":\"servers shutting down with eternal grace period\"}\n{\"level\":\"info\",\"ts\":1792809810.8878534,\"logger\":\"tls.cache.maintenance\",\"msg\":\"stopped background certificate maintenance\",\"cache\":\"0x2cd701e89e00\"}\n",
+  "adaptedSha256": "6456a4f338e811e960ea80c1db2af64d960afc89a5672d8d58b6f07a146df296",
+  "servers": [
+    "srv0"
+  ]
+}

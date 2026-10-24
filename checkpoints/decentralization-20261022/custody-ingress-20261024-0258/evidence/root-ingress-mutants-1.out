@@ -1,0 +1,9 @@
+public-refusal: detected
+tls-verification: detected
+raw-target: detected
+environment: detected
+loopback: detected
+route-race: detected
+kernel-oom: detected
+fresh-remote: detected
+8/8 broken ingress guards detected; fixture evidence only, no production routes changed

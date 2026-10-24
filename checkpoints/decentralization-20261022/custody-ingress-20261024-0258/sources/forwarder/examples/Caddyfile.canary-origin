@@ -1,0 +1,30 @@
+https://custody-canary.enclave.host {
+  @public_info {
+    method GET
+    path /v2/custody/info
+  }
+  @public_protocol {
+    method POST
+    path /v2/custody/evidence /v2/custody/challenge /v2/custody/release /v2/custody/join /v2/custody/approve /v2/custody/independent-genesis /v2/custody/code-approve /v2/custody/owner-read/challenge /v2/custody/owner-read /v2/custody/shield-session/challenge /v2/custody/shield-session/attest
+  }
+  handle @public_info {
+    reverse_proxy 127.0.0.1:18972 {
+      transport http {
+        response_header_timeout 35s
+      }
+    }
+  }
+  handle @public_protocol {
+    request_body {
+      max_size 262144
+    }
+    reverse_proxy 127.0.0.1:18972 {
+      transport http {
+        response_header_timeout 35s
+      }
+    }
+  }
+  handle {
+    respond "Not found" 404
+  }
+}

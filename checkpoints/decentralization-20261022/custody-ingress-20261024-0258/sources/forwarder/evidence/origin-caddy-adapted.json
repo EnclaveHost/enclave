@@ -1,0 +1,137 @@
+{
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [
+            ":443"
+          ],
+          "routes": [
+            {
+              "match": [
+                {
+                  "host": [
+                    "custody-canary.enclave.host"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "group": "group3",
+                      "handle": [
+                        {
+                          "handler": "subroute",
+                          "routes": [
+                            {
+                              "handle": [
+                                {
+                                  "handler": "reverse_proxy",
+                                  "transport": {
+                                    "protocol": "http",
+                                    "response_header_timeout": 35000000000
+                                  },
+                                  "upstreams": [
+                                    {
+                                      "dial": "127.0.0.1:18972"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "match": [
+                        {
+                          "method": [
+                            "GET"
+                          ],
+                          "path": [
+                            "/v2/custody/info"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "group": "group3",
+                      "handle": [
+                        {
+                          "handler": "subroute",
+                          "routes": [
+                            {
+                              "handle": [
+                                {
+                                  "handler": "request_body",
+                                  "max_size": 262144
+                                },
+                                {
+                                  "handler": "reverse_proxy",
+                                  "transport": {
+                                    "protocol": "http",
+                                    "response_header_timeout": 35000000000
+                                  },
+                                  "upstreams": [
+                                    {
+                                      "dial": "127.0.0.1:18972"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "match": [
+                        {
+                          "method": [
+                            "POST"
+                          ],
+                          "path": [
+                            "/v2/custody/evidence",
+                            "/v2/custody/challenge",
+                            "/v2/custody/release",
+                            "/v2/custody/join",
+                            "/v2/custody/approve",
+                            "/v2/custody/independent-genesis",
+                            "/v2/custody/code-approve",
+                            "/v2/custody/owner-read/challenge",
+                            "/v2/custody/owner-read",
+                            "/v2/custody/shield-session/challenge",
+                            "/v2/custody/shield-session/attest"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "group": "group3",
+                      "handle": [
+                        {
+                          "handler": "subroute",
+                          "routes": [
+                            {
+                              "handle": [
+                                {
+                                  "body": "Not found",
+                                  "handler": "static_response",
+                                  "status_code": 404
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "terminal": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}
