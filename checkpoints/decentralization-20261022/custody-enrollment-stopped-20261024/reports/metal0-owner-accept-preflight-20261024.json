@@ -1,0 +1,99 @@
+{
+  "at": "2026-10-24T04:55:01.332Z",
+  "notSigned": true,
+  "notSent": true,
+  "providers": [
+    "mainnet.base.org",
+    "base.public.blockpi.network"
+  ],
+  "journals": {
+    "fund": "ready",
+    "accept": "ready"
+  },
+  "observed": {
+    "ready": true,
+    "request": {
+      "anchor": {
+        "number": "53014175",
+        "hash": "0xe6c75eb32ff919ee83fa96e3af0d293993a89adab17d7c318e434054ca54d01f",
+        "baseFee": "5000000"
+      },
+      "chainId": 8453,
+      "ownershipCodeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
+      "registryCodeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
+      "ownershipRegistry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+      "authority": {
+        "owner": "0x0000000000000000000000000000000000000000",
+        "pendingOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+        "revision": "0",
+        "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "host": {
+        "endpoint": "https://api.enclave.host/t/metal0",
+        "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+        "active": true,
+        "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+      },
+      "admin": {
+        "balance": "844989286171394",
+        "nonce": 1148,
+        "pending": 1148
+      },
+      "operator": {
+        "balance": "2244730507464",
+        "nonce": 23768,
+        "pending": 23768,
+        "code": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343"
+      }
+    }
+  },
+  "fund": {
+    "ready": false,
+    "reason": "a proposal already exists (pending owner 0x0b2d009c0c9af05b12100d77f3c815fea822ee61); the operator needs no funding for it"
+  },
+  "accept": {
+    "ready": true,
+    "request": {
+      "format": "enclave-metal0-owner-enrollment/v1",
+      "stage": "accept",
+      "status": "prepared; wallet approval required; nothing sent",
+      "purpose": "Accept ownership of host metal0 as the Enclave administrator; zero ETH",
+      "preparedAt": "2026-10-24T04:55:05.176Z",
+      "expiresAt": "2026-10-24T04:57:03.363Z",
+      "transaction": {
+        "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+        "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+        "chainId": "0x2105",
+        "type": "0x2",
+        "nonce": "0x47c",
+        "data": "0x0d85eb494dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+        "value": "0x0",
+        "gas": "0xff4a",
+        "maxFeePerGas": "0xa7d8c0",
+        "maxPriorityFeePerGas": "0xf4240"
+      },
+      "anchor": {
+        "blockNumber": "53014176",
+        "blockHash": "0xe999280a31e247f68f01207a94b0f868c1a9d33348dbef0a7e3356af71ebe03d"
+      },
+      "observed": {
+        "authority": {
+          "owner": "0x0000000000000000000000000000000000000000",
+          "pendingOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+          "revision": "0",
+          "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "host": {
+          "endpoint": "https://api.enclave.host/t/metal0",
+          "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+          "active": true,
+          "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+        },
+        "administratorBalanceWei": "844989286171394",
+        "operatorBalanceWei": "2244730507464"
+      },
+      "estimatedFeeLimitWei": "719205347623",
+      "simulatedGasUsed": "54461"
+    }
+  }
+}

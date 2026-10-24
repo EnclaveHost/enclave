@@ -1,0 +1,12 @@
+generation-absence: detected
+group-absence: detected
+port-absence: detected
+replacement-unit: detected
+sealed-private-mode: detected
+sealed-hardlink: detected
+sealed-stability: detected
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/mutate-stopped.py", line 19, in <module>
+    assert r.returncode==1 and 'ERR_ASSERTION' in r.stdout and 'ERR_MODULE_NOT_FOUND' not in r.stdout and 'SyntaxError' not in r.stdout,(name,r.returncode,r.stdout[-1500:])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('later-recipient-runtime', 0, "ing runtime inspection and counted as protected\n  ---\n  duration_ms: 2.26257\n  type: 'test'\n  ...\n# Subtest: recipient loss during runtime inspection refuses instead of overlooking a later VM\nok 15 - recipient loss during runtime inspection refuses instead of overlooking a later VM\n  ---\n  duration_ms: 1.273969\n  type: 'test'\n  ...\n# Subtest: stopped inspection checks actual absence and retained ciphertext without completing an outage test\nok 16 - stopped inspection checks actual absence and retained ciphertext without completing an outage test\n  ---\n  duration_ms: 3.450499\n  type: 'test'\n  ...\n# Subtest: stopped inspection refuses a still-live generation, member, listener, replacement unit or changed tenant\nok 17 - stopped inspection refuses a still-live generation, member, listener, replacement unit or changed tenant\n  ---\n  duration_ms: 8.804042\n  type: 'test'\n  ...\n# Subtest: stopped inspection cannot bless missing, linked, public, truncated or changing sealed state\nok 18 - stopped inspection cannot bless missing, linked, public, truncated or changing sealed state\n  ---\n  duration_ms: 9.488436\n  type: 'test'\n  ...\n# Subtest: stopped inspection requires a prior verified generation and preserves later recipient census\nok 19 - stopped inspection requires a prior verified generation and preserves later recipient census\n  ---\n  duration_ms: 11.638167\n  type: 'test'\n  ...\n1..19\n# tests 19\n# suites 0\n# pass 19\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 162.207502\n")

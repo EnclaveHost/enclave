@@ -1,0 +1,9 @@
+generation-absence: detected
+group-absence: detected
+port-absence: detected
+replacement-unit: detected
+sealed-private-mode: detected
+sealed-hardlink: detected
+sealed-stability: detected
+later-recipient-runtime: detected
+8/8 stopped-state and recipient-preservation mutations detected; synthetic systemd/VM fixtures only

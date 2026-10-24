@@ -1,0 +1,8 @@
+{
+  "name": "custody-operator-proposal",
+  "private": true,
+  "type": "module",
+  "description": "metal0 operator proposeOwner(hostId, Enclave wallet): prepare (default) and explicit, journaled send for root",
+  "scripts": { "test": "node --test --test-concurrency=1 test/proposer.test.mjs" },
+  "dependencies": { "viem": "2.53.1" }
+}

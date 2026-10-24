@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: one launch is journaled before effect and actual process/cgroup/socket checks preserve existing VMs
+ok 1 - one launch is journaled before effect and actual process/cgroup/socket checks preserve existing VMs
+  ---
+  duration_ms: 8.312817
+  type: 'test'
+  ...
+# Subtest: accepted authority, memory, ports, original services and unchanged census gate the first launch
+ok 2 - accepted authority, memory, ports, original services and unchanged census gate the first launch
+  ---
+  duration_ms: 4.56189
+  type: 'test'
+  ...
+# Subtest: uncertain start is never repeated; exact live invocation can be reconciled
+ok 3 - uncertain start is never repeated; exact live invocation can be reconciled
+  ---
+  duration_ms: 2.796006
+  type: 'test'
+  ...
+# Subtest: unit replacement, escaped or substituted process, unexpected environment and changed tenant all refuse
+ok 4 - unit replacement, escaped or substituted process, unexpected environment and changed tenant all refuse
+  ---
+  duration_ms: 17.118409
+  type: 'test'
+  ...
+# Subtest: kernel-enforced cgroup, OOM, available memory and exact loopback socket ownership are required
+ok 5 - kernel-enforced cgroup, OOM, available memory and exact loopback socket ownership are required
+  ---
+  duration_ms: 19.619766
+  type: 'test'
+  ...
+# Subtest: stop works on our unhealthy invocation but refuses replacement or protected process in its cgroup
+ok 6 - stop works on our unhealthy invocation but refuses replacement or protected process in its cgroup
+  ---
+  duration_ms: 3.011484
+  type: 'test'
+  ...
+# Subtest: file recheck failure and tampered record cannot authorize start or stop
+ok 7 - file recheck failure and tampered record cannot authorize start or stop
+  ---
+  duration_ms: 1.680845
+  type: 'test'
+  ...
+# Subtest: reused PID or restarted VM cannot inherit a previous verified observation
+ok 8 - reused PID or restarted VM cannot inherit a previous verified observation
+  ---
+  duration_ms: 2.2027
+  type: 'test'
+  ...
+# Subtest: stop is still attempted when a protected service is unhealthy; it never claims preservation without evidence
+ok 9 - stop is still attempted when a protected service is unhealthy; it never claims preservation without evidence
+  ---
+  duration_ms: 1.336778
+  type: 'test'
+  ...
+# Subtest: stopping the custodian preserves a later-launched recipient VM, even outside the initial baseline
+ok 10 - stopping the custodian preserves a later-launched recipient VM, even outside the initial baseline
+  ---
+  duration_ms: 1.868624
+  type: 'test'
+  ...
+# Subtest: stop refuses a recipient or unknown process accidentally sharing the custodian cgroup
+ok 11 - stop refuses a recipient or unknown process accidentally sharing the custodian cgroup
+  ---
+  duration_ms: 1.900334
+  type: 'test'
+  ...
+# Subtest: a later recipient disappearing during stop cannot be reported as preserved
+ok 12 - a later recipient disappearing during stop cannot be reported as preserved
+  ---
+  duration_ms: 1.1118
+  type: 'test'
+  ...
+# Subtest: runtime verification includes private guest-log provenance and rejects substituted capture
+ok 13 - runtime verification includes private guest-log provenance and rejects substituted capture
+  ---
+  duration_ms: 2.170301
+  type: 'test'
+  ...
+# Subtest: a separately owned recipient is allowed during runtime inspection and counted as protected
+ok 14 - a separately owned recipient is allowed during runtime inspection and counted as protected
+  ---
+  duration_ms: 1.847743
+  type: 'test'
+  ...
+# Subtest: recipient loss during runtime inspection refuses instead of overlooking a later VM
+ok 15 - recipient loss during runtime inspection refuses instead of overlooking a later VM
+  ---
+  duration_ms: 1.482037
+  type: 'test'
+  ...
+# Subtest: stopped inspection checks actual absence and retained ciphertext without completing an outage test
+ok 16 - stopped inspection checks actual absence and retained ciphertext without completing an outage test
+  ---
+  duration_ms: 3.281501
+  type: 'test'
+  ...
+# Subtest: stopped inspection refuses a still-live generation, member, listener, replacement unit or changed tenant
+ok 17 - stopped inspection refuses a still-live generation, member, listener, replacement unit or changed tenant
+  ---
+  duration_ms: 8.771972
+  type: 'test'
+  ...
+# Subtest: stopped inspection cannot bless missing, linked, public, truncated or changing sealed state
+ok 18 - stopped inspection cannot bless missing, linked, public, truncated or changing sealed state
+  ---
+  duration_ms: 9.387277
+  type: 'test'
+  ...
+# Subtest: stopped inspection requires a prior verified generation and preserves later recipient census
+ok 19 - stopped inspection requires a prior verified generation and preserves later recipient census
+  ---
+  duration_ms: 17.417076
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 167.833051

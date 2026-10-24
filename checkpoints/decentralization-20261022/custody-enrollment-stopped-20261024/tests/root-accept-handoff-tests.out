@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: fund: nothing is asked of MetaMask before clicks; Connect, Review sends exactly the journaled transaction; pending then confirmed
+ok 1 - fund: nothing is asked of MetaMask before clicks; Connect, Review sends exactly the journaled transaction; pending then confirmed
+  ---
+  duration_ms: 6589.682421
+  type: 'test'
+  ...
+# Subtest: accept: NOT READY before the proposal (MetaMask never asked to send); a 4001 rejection resets; then exact acceptance confirmed
+ok 2 - accept: NOT READY before the proposal (MetaMask never asked to send); a 4001 rejection resets; then exact acceptance confirmed
+  ---
+  duration_ms: 5364.652278
+  type: 'test'
+  ...
+# Subtest: lost wallet response: after reload the open attempt cannot be re-sent; a wrong hash is refused; the real hash is checked to confirmation
+ok 3 - lost wallet response: after reload the open attempt cannot be re-sent; a wrong hash is refused; the real hash is checked to confirmation
+  ---
+  duration_ms: 492.261848
+  type: 'test'
+  ...
+# Subtest: frozen targets/calldata/values equal the public evidence; no stage can target the book or vault; transport unchanged
+ok 4 - frozen targets/calldata/values equal the public evidence; no stage can target the book or vault; transport unchanged
+  ---
+  duration_ms: 5.818028
+  type: 'test'
+  ...
+# Subtest: the RPC layer only reads, only https in production, bounded, and needs two different hosts
+ok 5 - the RPC layer only reads, only https in production, bounded, and needs two different hosts
+  ---
+  duration_ms: 1.22657
+  type: 'test'
+  ...
+# Subtest: fund: prepares exactly the fixed transfer from fresh two-provider state
+ok 6 - fund: prepares exactly the fixed transfer from fresh two-provider state
+  ---
+  duration_ms: 105.715583
+  type: 'test'
+  ...
+# Subtest: fund: refused on every state that makes it unnecessary, duplicate, unsafe or unverifiable
+ok 7 - fund: refused on every state that makes it unnecessary, duplicate, unsafe or unverifiable
+  ---
+  duration_ms: 406.047562
+  type: 'test'
+  ...
+# Subtest: fund: provider disagreement, wrong chain and a hanging provider are refused within the bound
+ok 8 - fund: provider disagreement, wrong chain and a hanging provider are refused within the bound
+  ---
+  duration_ms: 2142.382355
+  type: 'test'
+  ...
+# Subtest: accept: NOT READY until the operator's proposal of exactly this administrator is two blocks deep
+ok 9 - accept: NOT READY until the operator's proposal of exactly this administrator is two blocks deep
+  ---
+  duration_ms: 116.480208
+  type: 'test'
+  ...
+# Subtest: fund end to end on the reviewed transport: journal before wallet, exact hash recording, two-deep verification, no second funding after restart or lost journal
+ok 10 - fund end to end on the reviewed transport: journal before wallet, exact hash recording, two-deep verification, no second funding after restart or lost journal
+  ---
+  duration_ms: 103.85132
+  type: 'test'
+  ...
+# Subtest: lost wallet response and restarts never duplicate: open attempt kept, interrupted preparation recovered, pending tx blocks a fresh journal
+ok 11 - lost wallet response and restarts never duplicate: open attempt kept, interrupted preparation recovered, pending tx blocks a fresh journal
+  ---
+  duration_ms: 74.908276
+  type: 'test'
+  ...
+# Subtest: accept end to end: refused early, exact acceptOwner verified with one OwnerAccepted at revision 1; the other stage's hash is refused
+ok 12 - accept end to end: refused early, exact acceptOwner verified with one OwnerAccepted at revision 1; the other stage's hash is refused
+  ---
+  duration_ms: 66.436261
+  type: 'test'
+  ...
+# Subtest: verification rejects a reverted, re-gassed, fee-raised or wrong-nonce transaction and a non-canonical receipt
+ok 13 - verification rejects a reverted, re-gassed, fee-raised or wrong-nonce transaction and a non-canonical receipt
+  ---
+  duration_ms: 146.508082
+  type: 'test'
+  ...
+# Subtest: read-only preflight reports both stages without writing a journal; serve.mjs refuses to start without the explicit stage
+ok 14 - read-only preflight reports both stages without writing a journal; serve.mjs refuses to start without the explicit stage
+  ---
+  duration_ms: 507.055196
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17519.106314
