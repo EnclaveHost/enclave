@@ -1,0 +1,113 @@
+[queue] START available=23802MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
+ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
+  ---
+  duration_ms: 4.98861
+  type: 'test'
+  ...
+# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
+ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
+  ---
+  duration_ms: 1.505785
+  type: 'test'
+  ...
+# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+  ---
+  duration_ms: 0.924861
+  type: 'test'
+  ...
+# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+not ok 4 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+  ---
+  duration_ms: 19.482634
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - '/v2/custody/info'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '/v2/custody/info'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:31:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+ok 5 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+  ---
+  duration_ms: 232.221787
+  type: 'test'
+  ...
+# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+ok 6 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+  ---
+  duration_ms: 10.212467
+  type: 'test'
+  ...
+# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+not ok 7 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+  ---
+  duration_ms: 904.146609
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:97:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    4095 !== 4096
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 4096
+  actual: 4095
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:118:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+ok 8 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+  ---
+  duration_ms: 1272.028893
+  type: 'test'
+  ...
+# Subtest: a client that goes away aborts the upstream request
+ok 9 - a client that goes away aborts the upstream request
+  ---
+  duration_ms: 352.554755
+  type: 'test'
+  ...
+# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
+ok 10 - in-flight limit: excess requests get 503 without reaching the upstream
+  ---
+  duration_ms: 504.215118
+  type: 'test'
+  ...
+# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
+ok 11 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
+  ---
+  duration_ms: 2.226248
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 9
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3417.93408
+[memory-guard] exit=1 peakTreeRssMiB=132 minHostAvailableMiB=23733
+[memory-guard] at peak: node:73 node:59
+[queue] EXIT 1

@@ -1,0 +1,9 @@
+same-machine: detected
+independent-challenges: detected
+quote-age: detected
+vcek: detected
+ingress-race: detected
+host-race: detected
+process-race: detected
+transport-scope: detected
+8/8 broken combined-launch guards detected; synthetic evidence only

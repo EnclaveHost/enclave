@@ -1,0 +1,30 @@
+[queue] START available=24057MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+control (unmutated): exit 0
+KILLED   unsafe-wildcard: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream | unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+KILLED   case-insensitive: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+SURVIVED percent-decode: exit 0; failing tests: -
+KILLED   whatwg-normalize: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+KILLED   ignore-query: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+KILLED   strip-trailing-slash: exit 1; failing tests: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+KILLED   method-agnostic: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+KILLED   forward-client-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+KILLED   pass-upstream-headers: exit 1; failing tests: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers | upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+KILLED   no-declared-size-check: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+KILLED   no-streamed-size-cap: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+SURVIVED no-body-deadline: exit 0; failing tests: -
+KILLED   get-body-allowed: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+KILLED   no-upstream-deadline: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+KILLED   pass-redirects: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+KILLED   no-json-check: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+KILLED   no-response-cap: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+KILLED   accept-truncated: exit 1; failing tests: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+KILLED   no-abort-on-client-gone: exit 1; failing tests: a client that goes away aborts the upstream request
+KILLED   no-in-flight-limit: exit 1; failing tests: in-flight limit: excess requests get 503 without reaching the upstream
+KILLED   non-loopback-listen: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+KILLED   prefix-under-relay-tunnels: exit 1; failing tests: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+KILLED   no-upgrade-guard: exit 1; failing tests: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+KILLED   expect-continue-before-checks: exit 1; failing tests: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+mutants 24, killed 22, survived 2; control passed
+[memory-guard] exit=1 peakTreeRssMiB=190 minHostAvailableMiB=22632
+[memory-guard] at peak: node:74 node:59 node:58
+[queue] EXIT 1
