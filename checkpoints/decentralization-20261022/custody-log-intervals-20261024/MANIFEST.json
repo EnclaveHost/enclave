@@ -1,0 +1,92 @@
+{
+  "at": "2026-10-24T05:32:51.886880+00:00",
+  "previousCheckpoint": "e5df789afd10ad02068ae951a460d8fe0223d549",
+  "entries": [
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/LAUNCH-PACKAGE.md",
+      "sha256": "9a82c3fc8bc6138dc926885cda3ef74c5289e5c76f0560b954a3d993981a515a",
+      "bytes": 18198
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/STATUS.md",
+      "sha256": "605c1495f5f60c121af72d45e01cd3216296c01e539002f80c83d94f0f50a28d",
+      "bytes": 27430
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/assert.mjs",
+      "sha256": "a370960cbb9f900e2d3fb2bab3cb702f35defba6bd92ad6fbf7c9e6067602846",
+      "bytes": 15145
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/cli.mjs",
+      "sha256": "78802275a5f4c52b4ca47f9fa2be63fa2eb938db1f3ebe9c5f15fe608ab56a47",
+      "bytes": 49948
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/custodian-window.mjs",
+      "sha256": "a69ce9cf820d9731305e0b4c21ca09dcfce6ddf5052890958f61d88394095488",
+      "bytes": 9147
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/custodian-window.test.mjs",
+      "sha256": "2352d27d40d453922c3c66ffcd9bd53b877f5c149830a26141df1473afef46be",
+      "bytes": 9344
+    },
+    {
+      "path": "SOURCE-DELTA.json",
+      "sha256": "659fb5b9bdadf77d4ec5fdc8ee1ddf09172c9f3fd8426d7d9dd5439feaae47b3",
+      "bytes": 815
+    },
+    {
+      "path": "docs/CURRENT-STATE.md",
+      "sha256": "0291907e3edf95bde1b97299f7f5d43e146d1076add1b9e90fde52d4533815aa",
+      "bytes": 23897
+    },
+    {
+      "path": "docs/SOURCE-COMMIT.txt",
+      "sha256": "1435186099f27260b4c06aec9373f063497e9ed2b619714cc0dc4e2f1cabe271",
+      "bytes": 41
+    },
+    {
+      "path": "tests/root-full-25.out",
+      "sha256": "97de08eb5a6010e5dbf6eeb348611cb75cbd2a457166d4e90c42f7878ddb100a",
+      "bytes": 40610
+    },
+    {
+      "path": "tests/root-log-window-full-2.guard",
+      "sha256": "58858ddfcfc325de96255410109a57269748843b123a5933c16ce3fa5515320b",
+      "bytes": 67
+    },
+    {
+      "path": "tests/root-window-source-scan.guard",
+      "sha256": "f6b5425a56fea256e9c86ef24cb43fcf707a26d9155295b34c9489993d099f23",
+      "bytes": 66
+    },
+    {
+      "path": "tests/root-window-doc-scan.guard",
+      "sha256": "a57484a0882b82922e5aa9e96db557bd95dab25e2c52a0720f624bf8477681cf",
+      "bytes": 66
+    },
+    {
+      "path": "reports/runtime-0531.json",
+      "sha256": "dffa15e04910bda4e69679ea0d2f8781b65b2131b3dec4e3220c9ee6ba5d0e4d",
+      "bytes": 697
+    },
+    {
+      "path": "reports/host-0531.json",
+      "sha256": "591fc8cd17c226828ebc1d4719e95cbffbe19a90c46e2f0fa827dfd8ab706636",
+      "bytes": 676
+    },
+    {
+      "path": "reports/health-0531.json",
+      "sha256": "be7a6dec6de762bc5b347c293784ca973ce00769eb91545b92716c28584a28b0",
+      "bytes": 965
+    },
+    {
+      "path": "capture.py",
+      "sha256": "8f6de30a462f547b28c5798523cee7ad592bfd8daad1746dd359877c83406e25",
+      "bytes": 2746
+    }
+  ],
+  "status": "Tested local custodian log intervals wired to the new committee release/refusal recorder. 156 Node/3 Python pass; known rollback TODO. Original apps healthy, host acceptance pending, insufficient free RAM for guarded canary launch. No production secret matrix or recipient lifecycle pass."
+}

@@ -1,0 +1,32 @@
+{
+  "baseSnapshot": "../custody-recovery-generations-20261024/sources/custody-v2-r2-production-canary-20261024",
+  "baseCommit": "5b44759ebb5e71fc042559b586d18e4f50eea3a5",
+  "commit": "195fe975279f365a1c06d13da686adae41bbcb3a",
+  "changes": [
+    {
+      "status": "M",
+      "path": "LAUNCH-PACKAGE.md"
+    },
+    {
+      "status": "M",
+      "path": "STATUS.md"
+    },
+    {
+      "status": "M",
+      "path": "driver/assert.mjs"
+    },
+    {
+      "status": "M",
+      "path": "driver/cli.mjs"
+    },
+    {
+      "status": "A",
+      "path": "driver/custodian-window.mjs"
+    },
+    {
+      "status": "A",
+      "path": "test/custodian-window.test.mjs"
+    }
+  ],
+  "restore": "Copy the full base snapshot, then overlay every sources/custody-v2-r2-production-canary-20261024 file here. No tracked deletions."
+}
