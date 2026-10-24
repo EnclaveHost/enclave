@@ -1,0 +1,57 @@
+{
+  "at": "2026-10-24T03:45:13.081679+00:00",
+  "previousCheckpoint": "abaf31cf280ce7a73c2444fb3976ccc3b14e44d8",
+  "source": "7000b6725791faa1abaa5bbb7a71c0c0d570045e",
+  "subset": true,
+  "entries": [
+    {
+      "path": "source/lib/protected-inventory.mjs",
+      "sha256": "f72be177730c57b3d946a3c01c6af0254ae07f864aea1a1189a639ed7114565e",
+      "bytes": 908,
+      "origin": "work/custody-operator-funding-options-20261023@7000b6725791faa1abaa5bbb7a71c0c0d570045e:lib/protected-inventory.mjs"
+    },
+    {
+      "path": "source/bin/prepare.mjs",
+      "sha256": "6a75c4921116434ada45a3362cc50a17bc6cb73fbd66f228a7acec2289e938d0",
+      "bytes": 1362,
+      "origin": "work/custody-operator-funding-options-20261023@7000b6725791faa1abaa5bbb7a71c0c0d570045e:bin/prepare.mjs"
+    },
+    {
+      "path": "source/bin/root-send.mjs",
+      "sha256": "e92fc2ce97780423f2f0cdfe20a389fa81d42bb02a03873ca724559f3e2a6623",
+      "bytes": 3035,
+      "origin": "work/custody-operator-funding-options-20261023@7000b6725791faa1abaa5bbb7a71c0c0d570045e:bin/root-send.mjs"
+    },
+    {
+      "path": "source/test/protected-inventory.test.mjs",
+      "sha256": "0f672c6ddb12939adb49c631db5a37a4debc802bc2deb67e7bcdfc2252a80fc6",
+      "bytes": 1345,
+      "origin": "work/custody-operator-funding-options-20261023@7000b6725791faa1abaa5bbb7a71c0c0d570045e:test/protected-inventory.test.mjs"
+    },
+    {
+      "path": "source/ROOT-OPERATIONS.md",
+      "sha256": "f52e63e090c7348a865bb00a21acc6a31c66838147aca51ddf6d608905d4b52a",
+      "bytes": 4284,
+      "origin": "work/custody-operator-funding-options-20261023@7000b6725791faa1abaa5bbb7a71c0c0d570045e:ROOT-OPERATIONS.md"
+    },
+    {
+      "path": "evidence/protected-inventory-1.out",
+      "sha256": "f92e460d153da157541db1b7deb10d087acc72b19928b5114507b60772459ffa",
+      "bytes": 2204,
+      "origin": "work/custody-operator-funding-options-20261023/logs/protected-inventory-1.out"
+    },
+    {
+      "path": "preserve-funding.sh",
+      "sha256": "94dbbc75973e0e99cda1d8c606b8138f3cd5c3b9df80b19a3868053b77ff0928",
+      "bytes": 808,
+      "origin": "work/metal0-expired-recovery-20261024/preserve-funding.sh"
+    },
+    {
+      "path": "capture.py",
+      "sha256": "b1de9014bc5913b1d4d57b8ec81451cbcdaad16f224ba20280ec89ef25861802",
+      "bytes": 2149,
+      "origin": "work/resume-after-checkpoint-20261022/source-preservation/capture-funding-inventory-0345.py"
+    }
+  ],
+  "status": "Source guard correction only. Both protected IDs mandatory for preparation and NEW signing; existing journal resume unaffected. No production funding or delegation change."
+}

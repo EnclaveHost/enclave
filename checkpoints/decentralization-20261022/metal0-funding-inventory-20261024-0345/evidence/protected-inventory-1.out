@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor
+ok 1 - production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor
+  ---
+  duration_ms: 2.894038
+  type: 'test'
+  ...
+# Subtest: the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap
+ok 2 - the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap
+  ---
+  duration_ms: 8.785192
+  type: 'test'
+  ...
+# Subtest: fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed
+ok 3 - fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed
+  ---
+  duration_ms: 2.927867
+  type: 'test'
+  ...
+# Subtest: state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise
+ok 4 - state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise
+  ---
+  duration_ms: 1.028383
+  type: 'test'
+  ...
+# Subtest: quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time
+ok 5 - quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time
+  ---
+  duration_ms: 1.29148
+  type: 'test'
+  ...
+# Subtest: authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule
+ok 6 - authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule
+  ---
+  duration_ms: 0.265788
+  type: 'test'
+  ...
+# Subtest: production incident cannot omit either original deployment, including expired ones
+ok 7 - production incident cannot omit either original deployment, including expired ones
+  ---
+  duration_ms: 0.847834
+  type: 'test'
+  ...
+# Subtest: actual preparation CLI refuses empty inventory before issuing any RPC
+ok 8 - actual preparation CLI refuses empty inventory before issuing any RPC
+  ---
+  duration_ms: 125.529006
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 188.464338
