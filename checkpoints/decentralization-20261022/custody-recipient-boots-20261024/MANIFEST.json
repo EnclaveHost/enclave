@@ -1,0 +1,148 @@
+{
+  "at": "2026-10-24T09:43:13.114860+00:00",
+  "previousCheckpoint": "356765d39dd4335120bdf986e90a6730865f0ac3",
+  "lastValidatedSourceCommit": "63c06f1111acd8c56527ed34746c3e0ed6881155",
+  "entries": [
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/LAUNCH-PACKAGE.md",
+      "sha256": "912ac444bb255d39f61406706ddb7b1d9bea93274769190c7089f97c5e9041a4",
+      "bytes": 21713
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/RECIPIENT-ATTESTATION-DRAFT.md",
+      "sha256": "283f3d4b222ed6bf03506ca3be03a69d810296c2bc489e7881fcd75765ec20dd",
+      "bytes": 3770
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/STATUS.md",
+      "sha256": "a97231b560e0bbd60c31bf60fd86f3e5ba4f5fe5e92cc9f1f800cd0bd00f58ba",
+      "bytes": 32966
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/assert.mjs",
+      "sha256": "ad2fb9872f60117d1bd5867323e72e9224fff6bab24c56054b996f0c6f483876",
+      "bytes": 17100
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/cli.mjs",
+      "sha256": "42229696aa4e736c6a91a003a442f8808f717d19bc41b9d2141d0ea12a66c554",
+      "bytes": 54410
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recipient-attestation.mjs",
+      "sha256": "d99b3c9047954420def30dde8b4da68aa5e8dcdd48c5c9b79e39c6ae9d63a0eb",
+      "bytes": 8216
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recipient-client.mjs",
+      "sha256": "10cb5f4b79a9721e6f5f7d117cf10c46a0344b51a05910c1e5513b641993cee8",
+      "bytes": 2227
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recipient-observer.mjs",
+      "sha256": "3cc2fa1baf238c2d922408a4453c9884cf97429bdb37c42edd2b7fe09d1b828b",
+      "bytes": 11553
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recipient-proof.mjs",
+      "sha256": "0a2b05bf42cdb072f90e9ce3eda1c33b2df1d6d926e3fdc914eb639c13981abd",
+      "bytes": 3374
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/pins.base.json",
+      "sha256": "df8efccdb98fb10e721e3581a89a81d38c7ac6757a13d662271ed6a813e14690",
+      "bytes": 5988
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recipient-attestation.test.mjs",
+      "sha256": "5392a94c344e86c9f009901a4406a5110679284021bca54a1fa904b3c386145e",
+      "bytes": 6984
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recipient-observer.test.mjs",
+      "sha256": "ee31e7b681b446942cc1a0840ed3ce74feb845f4162ee92f0dd06b930fcc7bee",
+      "bytes": 9620
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recipient-proof.test.mjs",
+      "sha256": "f935a86f6327096052a03e13fd877222ddf89fca9f2247ea0e34639b58222760",
+      "bytes": 4404
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/tools/read-recipient-manager.mjs",
+      "sha256": "074dcd82ebd27ac22c664e807b67435ea91bcb8f9035b31f087c2c16aced82b6",
+      "bytes": 1128
+    },
+    {
+      "path": "SOURCE-DELTA.json",
+      "sha256": "53c40045f42ad6ae2547402d2d671ef114abb80e08b7a9b2f310908574a47cf0",
+      "bytes": 1443
+    },
+    {
+      "path": "docs/CURRENT-STATE.md",
+      "sha256": "56a87c6cadcb6121cb1d878a0195d2d2ce40941b60bbf885fa8c829bc990579b",
+      "bytes": 26118
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "bf96dd527428517ebe9b45666a4740e090346d5515fb60d6566b2c39d1506b85",
+      "bytes": 1680
+    },
+    {
+      "path": "docs/SIGNING-AUTHORITY.md",
+      "sha256": "c740c645388533fb839f961dbee45f28e75bead9b203b3a841fb25a1f5338f1a",
+      "bytes": 5941
+    },
+    {
+      "path": "docs/SOURCE-COMMIT.txt",
+      "sha256": "db53806a9d1d62efa530904f2b4a70c2abaa95a899bcaf47d40983b44f142ead",
+      "bytes": 41
+    },
+    {
+      "path": "tests/root-full-29.out",
+      "sha256": "99f16d2705c4200634042005646f8121c235a1b29d024b0bcae88fc1d1807ed3",
+      "bytes": 44286
+    },
+    {
+      "path": "tests/root-full-30.out",
+      "sha256": "886a12d26665b9f4a3c3f03edcfd379503212e3e514e1eb30f2ef76084c6e9f2",
+      "bytes": 45000
+    },
+    {
+      "path": "tests/root-recipient-attestation-full-2.guard",
+      "sha256": "6a481d90ff3b5fbfba9386329bd092d03e752558ab5fad18adb0aaa52cb29887",
+      "bytes": 67
+    },
+    {
+      "path": "tests/root-recipient-proof-full-1.guard",
+      "sha256": "e27e99cc3d2d4c25e40fc720dc4e52f542d762104219dda5aa5ff1f0667fd7a9",
+      "bytes": 67
+    },
+    {
+      "path": "tests/root-recipient-integrated-scan.guard",
+      "sha256": "649798035151679a3fedde8cc032106820a47251f2bbf3a1884c17cbc0ef80d3",
+      "bytes": 66
+    },
+    {
+      "path": "reports/runtime-resume-0940.json",
+      "sha256": "869920d5b98a098bce0341ee8bd1a26c492c1bf21a959996ee3993d499f6c636",
+      "bytes": 697
+    },
+    {
+      "path": "reports/host-resume-0940.json",
+      "sha256": "7d563414704c4f541491cf8c07c0bdb5b66ef9f9184f8109e94c632de4c0e220",
+      "bytes": 676
+    },
+    {
+      "path": "reports/recipient-manager-resume-0940.json",
+      "sha256": "b3ed52e74a0982851a7146852375f18f56e4693a2ab1e1911e047edf001955a7",
+      "bytes": 397
+    },
+    {
+      "path": "capture.py",
+      "sha256": "1b54fbed287538dd40d7817b438457a2c1d957790903b4b104aa9165c6913913",
+      "bytes": 3283
+    }
+  ],
+  "status": "Fresh recipient SNP verification and TLS-pinned HMAC consumption integrated for new-committee releases. 173 Node/3 Python pass, known rollback TODO; real TLS transport fixtures but synthetic SNP/VM evidence. No production canary matrix executed. Metal0 acceptance remains pending at block53022685. Astra resource window coordinated, not taken; original apps and services preserved. Original source-committee and failed-boot/outage paths retain documented limitations. No decentralized custody or rollback-protection claim."
+}

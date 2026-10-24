@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-24T09:38:40.416Z",
+  "readOnly": true,
+  "authenticated": true,
+  "vmCount": 1,
+  "originals": [
+    {
+      "id": "gd9d4a391d",
+      "present": false,
+      "running": false
+    },
+    {
+      "id": "gdd0646f2c",
+      "present": true,
+      "running": true
+    }
+  ],
+  "scope": "Authenticated local guestd metadata only; no canary boot, SNP quote or secret-release test."
+}

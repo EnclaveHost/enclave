@@ -1,0 +1,64 @@
+{
+  "baseSnapshot": "../custody-log-intervals-20261024/SOURCE-DELTA.json",
+  "baseCommit": "195fe975279f365a1c06d13da686adae41bbcb3a",
+  "commit": "63c06f1111acd8c56527ed34746c3e0ed6881155",
+  "changes": [
+    {
+      "status": "M",
+      "path": "LAUNCH-PACKAGE.md"
+    },
+    {
+      "status": "A",
+      "path": "RECIPIENT-ATTESTATION-DRAFT.md"
+    },
+    {
+      "status": "M",
+      "path": "STATUS.md"
+    },
+    {
+      "status": "M",
+      "path": "driver/assert.mjs"
+    },
+    {
+      "status": "M",
+      "path": "driver/cli.mjs"
+    },
+    {
+      "status": "A",
+      "path": "driver/recipient-attestation.mjs"
+    },
+    {
+      "status": "A",
+      "path": "driver/recipient-client.mjs"
+    },
+    {
+      "status": "A",
+      "path": "driver/recipient-observer.mjs"
+    },
+    {
+      "status": "A",
+      "path": "driver/recipient-proof.mjs"
+    },
+    {
+      "status": "M",
+      "path": "pins.base.json"
+    },
+    {
+      "status": "A",
+      "path": "test/recipient-attestation.test.mjs"
+    },
+    {
+      "status": "A",
+      "path": "test/recipient-observer.test.mjs"
+    },
+    {
+      "status": "A",
+      "path": "test/recipient-proof.test.mjs"
+    },
+    {
+      "status": "A",
+      "path": "tools/read-recipient-manager.mjs"
+    }
+  ],
+  "restore": "Reconstruct the previous delta via its SOURCE-DELTA.json, then overlay every sources/custody-v2-r2-production-canary-20261024 file here. No tracked deletions."
+}
