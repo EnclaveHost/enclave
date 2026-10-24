@@ -1,0 +1,92 @@
+[queue] START available=23968MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked
+ok 1 - prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked
+  ---
+  duration_ms: 20.463744
+  type: 'test'
+  ...
+# Subtest: prepare refuses another vault code, an unsettled nonce, or non-Base
+ok 2 - prepare refuses another vault code, an unsettled nonce, or non-Base
+  ---
+  duration_ms: 0.884502
+  type: 'test'
+  ...
+# Subtest: send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice
+ok 3 - send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice
+  ---
+  duration_ms: 11.959033
+  type: 'test'
+  ...
+# Subtest: a failed intent write broadcasts nothing
+ok 4 - a failed intent write broadcasts nothing
+  ---
+  duration_ms: 5.609294
+  type: 'test'
+  ...
+# Subtest: unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict
+ok 5 - unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict
+  ---
+  duration_ms: 12.516818
+  type: 'test'
+  ...
+# Subtest: receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse
+ok 6 - receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse
+  ---
+  duration_ms: 3.041685
+  type: 'test'
+  ...
+# Subtest: budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)
+ok 7 - budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)
+  ---
+  duration_ms: 0.749334
+  type: 'test'
+  ...
+# Subtest: L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused
+ok 8 - L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused
+  ---
+  duration_ms: 1.776335
+  type: 'test'
+  ...
+# Subtest: two-provider receipt status, fee and canonical inclusion must agree before verification or accounting
+ok 9 - two-provider receipt status, fee and canonical inclusion must agree before verification or accounting
+  ---
+  duration_ms: 28.615487
+  type: 'test'
+  ...
+# Subtest: unknown broadcast errors do not leak raw signed bytes in public status
+ok 10 - unknown broadcast errors do not leak raw signed bytes in public status
+  ---
+  duration_ms: 4.688011
+  type: 'test'
+  ...
+# Subtest: stale, future, malformed and wrong-height chain views refuse before signing
+ok 11 - stale, future, malformed and wrong-height chain views refuse before signing
+  ---
+  duration_ms: 0.937192
+  type: 'test'
+  ...
+# Subtest: signed gas, fees and recovered signer must equal prepared fields before intent or broadcast
+ok 12 - signed gas, fees and recovered signer must equal prepared fields before intent or broadcast
+  ---
+  duration_ms: 16.412006
+  type: 'test'
+  ...
+# Subtest: malicious broadcast success payload is not exposed as a returned hash
+ok 13 - malicious broadcast success payload is not exposed as a returned hash
+  ---
+  duration_ms: 4.174386
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 277.054663
+[memory-guard] exit=0 peakTreeRssMiB=125 minHostAvailableMiB=23919
+[memory-guard] at peak: node:73 node:52
+[queue] EXIT 0

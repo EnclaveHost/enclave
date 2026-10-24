@@ -1,0 +1,12 @@
+[queue] START available=23945MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+6:36PM INF scanned ~288831 bytes (288.83 KB) in 26.1ms
+6:36PM INF no leaks found
+[main 6c9ad6b] Capture canary genesis without automatic signing and tighten bounded sender
+ 9 files changed, 301 insertions(+), 21 deletions(-)
+ create mode 100644 driver/capture-host-copy.mjs
+ create mode 100644 driver/genesis-capture.mjs
+ create mode 100644 test/capture.test.mjs
+6c9ad6b20ab99253b0545a4452b9f6d22d5fa844
+[memory-guard] exit=0 peakTreeRssMiB=64 minHostAvailableMiB=23882
+[memory-guard] at peak: gitleaks:58 bash:6
+[queue] EXIT 0

@@ -1,0 +1,16 @@
+[queue] START available=23318MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+against-main-68b82926.diff reproduces the final docs from 68b82926968c99503d38ae78dbcb04694cc2c56c
+against-checkpoint-dfb4b55e.diff reproduces the final docs from dfb4b55e627ebd95b647abebf09627296f099862
+dfca5f0 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> patches: the custody doc changes as git format-patch (A..C) and cumulative diffs against checkpoint dfb4b55e and main 68b82926
+9d58a8b SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Reconcile custody v2 docs with the deployed state: code-frozen original committee, proven vs not, rollback and relay limits
+42015b1 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Apply the reviewed dashboard doc commits 2d3839c54 and 9d97b4b00 unchanged (current state, corrected image, who holds x, goals vs current)
+dd9cc62 SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Import custody v2 docs exactly as on checkpoint dfb4b55e (= dashboard base ff13ebe08)
+b4a537b1fee8ca65ed2032d5764b1f7f56a267d460ab61237686bab784b27974  docs/security/secret-custody-v2-spec.md
+b9b02a869c97c853614e6a9a99f0a9e1598446a65675d2f09c5089cddd13ba91  docs/security/secret-custody-v2.md
+dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c  patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch
+5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3  patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch
+0f370ae1f11957f0aa8a97dd086812a36dd5513e634d2d17b32a4b09c75205db  patches/against-checkpoint-dfb4b55e.diff
+25b1a8fc5ae5233d1811665f3617c0a0305ce6eba7d108fc4f6bb6c7c0ebfd69  patches/against-main-68b82926.diff
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

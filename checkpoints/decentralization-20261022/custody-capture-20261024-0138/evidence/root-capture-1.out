@@ -1,0 +1,44 @@
+[queue] START available=23933MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: one private durable request, same-intent retry, different intent refused, no success acknowledgement
+ok 1 - one private durable request, same-intent retry, different intent refused, no success acknowledgement
+  ---
+  duration_ms: 5.165088
+  type: 'test'
+  ...
+# Subtest: rejects any other operation, shape, machine, code set, endpoint, signature or oversized request
+ok 2 - rejects any other operation, shape, machine, code set, endpoint, signature or oversized request
+  ---
+  duration_ms: 1.14565
+  type: 'test'
+  ...
+# Subtest: refuses symlinked/unsafe directories and records; no existing capture is overwritten
+ok 3 - refuses symlinked/unsafe directories and records; no existing capture is overwritten
+  ---
+  duration_ms: 0.870213
+  type: 'test'
+  ...
+# Subtest: storage failure never acknowledges submission or exposes an intent or error payload
+ok 4 - storage failure never acknowledges submission or exposes an intent or error payload
+  ---
+  duration_ms: 1.052952
+  type: 'test'
+  ...
+# Subtest: exact host transformation removes automatic wallet submission, parses, and refuses changed source
+ok 5 - exact host transformation removes automatic wallet submission, parses, and refuses changed source
+  ---
+  duration_ms: 21.650683
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 86.497764
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

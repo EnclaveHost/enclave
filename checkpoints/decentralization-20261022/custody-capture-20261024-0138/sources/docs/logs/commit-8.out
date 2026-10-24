@@ -1,0 +1,5 @@
+[queue] START available=23552MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+155a23f450189d26eb045d2fb5f430d595250132 Status matrix; 23:36 boot-fee attempt registered and adopted, gate FAILED, rollback 23:43; payout is not accepted ownership
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
