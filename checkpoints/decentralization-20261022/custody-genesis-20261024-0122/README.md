@@ -1,0 +1,3 @@
+# Custody evidence-gate continuation
+
+Exact source and evidence snapshots in MANIFEST.json. 52 offline tests pass, one rollback-protection TODO remains,20 mutation controls detected. Host authority observed accepted owner zero. Production launch still blocked pending bounded genesis submission and fresh quote integration. No production custody rollout is claimed. Original service/policies are untouched; two tenants passed fresh HTTPS health. Operator maintenance approval remains pending; temporary lease keeper expiry remains03:53:51UTC. Read sources/canary/STATUS.md before attempting anything: this driver is not yet executable against production.

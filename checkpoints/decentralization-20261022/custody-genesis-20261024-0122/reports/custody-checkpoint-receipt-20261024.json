@@ -1,0 +1,28 @@
+{
+  "verifiedAt": "2026-10-24T01:11:13.498722+00:00",
+  "repository": "https://github.com/EnclaveHost/enclave",
+  "branch": "checkpoint/decentralization-20261022",
+  "commit": "707972b12a1995f0326a28fd106e01f2ce9f0e89",
+  "mainUnchanged": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "gitObjectManifestFilesVerified": 123,
+  "previousManifestUnchanged": true,
+  "sourceScan": "Project gitleaks and crypto scanner clean before commit; pre-push hook passed",
+  "productionRollout": "INCOMPLETE; no custody lifecycle test run",
+  "maintenanceApproval": "PENDING; no delegation or funding change",
+  "canaryScaffold": "Explicitly unfinished, not executable; preserved as source only",
+  "temporaryLeaseKeeperExpiresUTC": "2026-10-24T03:53:51Z",
+  "previousManifestsUnchanged": true,
+  "canarySourceCommit": "285f2b5cc736f3600f73b357696f22e9d4235404",
+  "offlineTests": {
+    "pass": 43,
+    "unexpectedFailures": 0,
+    "knownRollbackTodo": 1,
+    "mutationControlsDetected": 12
+  },
+  "temporaryKeeperConfirmedLive": {
+    "at": "2026-10-24T01:11:13.498722+00:00",
+    "mainPid": 716107,
+    "active": true
+  },
+  "healthEvidence": "custody-protected-health-20261024.json"
+}

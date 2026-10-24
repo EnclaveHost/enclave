@@ -1,0 +1,12 @@
+[queue] START available=23965MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+6:20PM INF scanned ~266362 bytes (266.36 KB) in 28.3ms
+6:20PM INF no leaks found
+[main e00cb68] Verify custody genesis receipts, machine binding and accepted host authority
+ 6 files changed, 244 insertions(+), 2 deletions(-)
+ create mode 100644 driver/genesis.mjs
+ create mode 100644 test/genesis.test.mjs
+ create mode 100644 tools/read-host.mjs
+e00cb682612d86abac93ddbf9fded2cd266eb3dc
+[memory-guard] exit=0 peakTreeRssMiB=65 minHostAvailableMiB=23919
+[memory-guard] at peak: gitleaks:59 bash:6
+[queue] EXIT 0

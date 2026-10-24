@@ -1,0 +1,343 @@
+[queue] START available=23968MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: filterLines keeps only this deployment's custodian lines and the front custody lines
+ok 1 - filterLines keeps only this deployment's custodian lines and the front custody lines
+  ---
+  duration_ms: 1.16251
+  type: 'test'
+  ...
+# Subtest: release: passes only with the front revision line, a real-roots OK of the pinned image, no refusal, app answering
+ok 2 - release: passes only with the front revision line, a real-roots OK of the pinned image, no refusal, app answering
+  ---
+  duration_ms: 1.543418
+  type: 'test'
+  ...
+# Subtest: refusal: the expected code, no OK, a front custody error, and the app NOT started
+ok 3 - refusal: the expected code, no OK, a front custody error, and the app NOT started
+  ---
+  duration_ms: 0.515906
+  type: 'test'
+  ...
+# Subtest: marker search: zero hits AND a working control at every location; missing counts fail
+ok 4 - marker search: zero hits AND a working control at every location; missing counts fail
+  ---
+  duration_ms: 0.386167
+  type: 'test'
+  ...
+# Subtest: rollback: an older valid sealed blob is EXPECTED-FAIL; an old-secret refusal is labelled chain-revision only
+ok 5 - rollback: an older valid sealed blob is EXPECTED-FAIL; an old-secret refusal is labelled chain-revision only
+  ---
+  duration_ms: 0.211379
+  type: 'test'
+  ...
+# Subtest: policy check, inventory and the protected-policy comparison
+ok 6 - policy check, inventory and the protected-policy comparison
+  ---
+  duration_ms: 0.919373
+  type: 'test'
+  ...
+# Subtest: empty or malformed evidence never becomes a pass or observed rollback failure
+ok 7 - empty or malformed evidence never becomes a pass or observed rollback failure
+  ---
+  duration_ms: 0.205898
+  type: 'test'
+  ...
+# Subtest: release and refusal observations bind the full deployment, recipient endpoint and custodian key prefix
+ok 8 - release and refusal observations bind the full deployment, recipient endpoint and custodian key prefix
+  ---
+  duration_ms: 0.455516
+  type: 'test'
+  ...
+# Subtest: the canary pins file is the pinned bytes and reconciles with the book, the original vault and the reviewed code
+ok 9 - the canary pins file is the pinned bytes and reconciles with the book, the original vault and the reviewed code
+  ---
+  duration_ms: 1.501497
+  type: 'test'
+  ...
+# Subtest: refused: the CLI's retired baked ledger, the modified vault, other pin files, book or code mismatches
+ok 10 - refused: the CLI's retired baked ledger, the modified vault, other pin files, book or code mismatches
+  ---
+  duration_ms: 0.957022
+  type: 'test'
+  ...
+# Subtest: every CLI transaction must target its step's contract: the pinned ledger, or the lease-gas reserve for lease steps
+ok 11 - every CLI transaction must target its step's contract: the pinned ledger, or the lease-gas reserve for lease steps
+  ---
+  duration_ms: 0.369697
+  type: 'test'
+  ...
+# Subtest: proposal patch (not applied to work/enclave): applies cleanly to the reviewed cli/enclave.mjs bytes and parses
+ok 12 - proposal patch (not applied to work/enclave): applies cleanly to the reviewed cli/enclave.mjs bytes and parses
+  ---
+  duration_ms: 31.178874
+  type: 'test'
+  ...
+# Subtest: canonical: key order independent, bigints tagged, undefined and bytes refused
+ok 13 - canonical: key order independent, bigints tagged, undefined and bytes refused
+  ---
+  duration_ms: 1.1974
+  type: 'test'
+  ...
+# Subtest: guard: refuses forbidden field names and every encoding of a registered secret
+ok 14 - guard: refuses forbidden field names and every encoding of a registered secret
+  ---
+  duration_ms: 1.335779
+  type: 'test'
+  ...
+# Subtest: markers: O_EXCL 0600 file in a 0700 dir, commitments only, never reused
+ok 15 - markers: O_EXCL 0600 file in a 0700 dir, commitments only, never reused
+  ---
+  duration_ms: 2.289742
+  type: 'test'
+  ...
+# Subtest: journal: hash chain, learned ids, one record per step, order and blocked steps enforced
+ok 16 - journal: hash chain, learned ids, one record per step, order and blocked steps enforced
+  ---
+  duration_ms: 3.149954
+  type: 'test'
+  ...
+# Subtest: tx: every pin is enforced before anything is sent
+ok 17 - tx: every pin is enforced before anything is sent
+  ---
+  duration_ms: 0.631485
+  type: 'test'
+  ...
+# Subtest: simulateRefusal: pass only on the expected revert; a succeeding call fails the step
+ok 18 - simulateRefusal: pass only on the expected revert; a succeeding call fails the step
+  ---
+  duration_ms: 0.356417
+  type: 'test'
+  ...
+# Subtest: journal replay rejects successful steps recorded out of order, blocked steps and undeclared expected-fails
+ok 19 - journal replay rejects successful steps recorded out of order, blocked steps and undeclared expected-fails
+  ---
+  duration_ms: 0.313227
+  type: 'test'
+  ...
+# Subtest: learns committee only from confirmed matching calldata/events and current r2 machine/owner/code state
+ok 20 - learns committee only from confirmed matching calldata/events and current r2 machine/owner/code state
+  ---
+  duration_ms: 9.673151
+  type: 'test'
+  ...
+# Subtest: rejects wrong network, sender, destination, receipt status, transaction value and unconfirmed inclusion
+ok 21 - rejects wrong network, sender, destination, receipt status, transaction value and unconfirmed inclusion
+  ---
+  duration_ms: 6.352168
+  type: 'test'
+  ...
+# Subtest: rejects conflicting providers even when both return success
+ok 22 - rejects conflicting providers even when both return success
+  ---
+  duration_ms: 1.013952
+  type: 'test'
+  ...
+# Subtest: independent machine and exact code set checks refuse validly encoded wrong creations
+ok 23 - independent machine and exact code set checks refuse validly encoded wrong creations
+  ---
+  duration_ms: 4.667571
+  type: 'test'
+  ...
+# Subtest: payout declaration never substitutes for accepted host ownership or active authority
+ok 24 - payout declaration never substitutes for accepted host ownership or active authority
+  ---
+  duration_ms: 6.888903
+  type: 'test'
+  ...
+# Subtest: rejects stale state, wrong current committee/key, activation time and old admitted code
+ok 25 - rejects stale state, wrong current committee/key, activation time and old admitted code
+  ---
+  duration_ms: 8.974866
+  type: 'test'
+  ...
+# Subtest: rechecks canonical block after authorization and sanitizes provider errors
+ok 26 - rechecks canonical block after authorization and sanitizes provider errors
+  ---
+  duration_ms: 1.734176
+  type: 'test'
+  ...
+# Subtest: pins original vault code/book and rejects aliased receipt providers
+ok 27 - pins original vault code/book and rejects aliased receipt providers
+  ---
+  duration_ms: 3.017795
+  type: 'test'
+  ...
+# Subtest: agreement on success with forged receipt events still fails derivation
+ok 28 - agreement on success with forged receipt events still fails derivation
+  ---
+  duration_ms: 3.425612
+  type: 'test'
+  ...
+# Subtest: LIMITATION (recorded): an older valid sealed blob opens under the same identity
+ok 29 - LIMITATION (recorded): an older valid sealed blob opens under the same identity
+  ---
+  duration_ms: 0.704294
+  type: 'test'
+  ...
+# Subtest: EXPECTED FAIL: a custodian detects a rolled-back sealed state (needs a monotonic anchor that does not exist)
+not ok 30 - EXPECTED FAIL: a custodian detects a rolled-back sealed state (needs a monotonic anchor that does not exist) # TODO no monotonic anchor; spec 176-181; host keeps 20 blobs
+  ---
+  duration_ms: 0.594145
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/limitations.test.mjs:24:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: an older blob after a newer one must be refused'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/limitations.test.mjs:26:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: relay messages are byte-identical to the pinned relay/secrets.js formats
+ok 31 - relay messages are byte-identical to the pinned relay/secrets.js formats
+  ---
+  duration_ms: 1.13187
+  type: 'test'
+  ...
+# Subtest: getMeta returns names, rev and an equality verdict — never the values
+ok 32 - getMeta returns names, rev and an equality verdict — never the values
+  ---
+  duration_ms: 1.937924
+  type: 'test'
+  ...
+# Subtest: relay evaluations: legacy check, refusals for a held id, and the clear proof
+ok 33 - relay evaluations: legacy check, refusals for a held id, and the clear proof
+  ---
+  duration_ms: 0.347467
+  type: 'test'
+  ...
+# Subtest: nonce probe: the burnt nonce and the expired nonce are both bad_challenge; no partial anywhere
+ok 34 - nonce probe: the burnt nonce and the expired nonce are both bad_challenge; no partial anywhere
+  ---
+  duration_ms: 1.758765
+  type: 'test'
+  ...
+# Subtest: stale probe: older revisions, another committee and a future epoch are refused with their exact codes
+ok 35 - stale probe: older revisions, another committee and a future epoch are refused with their exact codes
+  ---
+  duration_ms: 0.798793
+  type: 'test'
+  ...
+# Subtest: decoys are well-formed and differ from the real image; every variant passes the pinned validateRules
+ok 36 - decoys are well-formed and differ from the real image; every variant passes the pinned validateRules
+  ---
+  duration_ms: 118.680062
+  type: 'test'
+  ...
+# Subtest: C1.create: the calldata decodes to update(C1, {expectPolicyRev 0, policy NEW unpaused, rules(image), bundle}) and passes the tx pins
+ok 37 - C1.create: the calldata decodes to update(C1, {expectPolicyRev 0, policy NEW unpaused, rules(image), bundle}) and passes the tx pins
+  ---
+  duration_ms: 32.329763
+  type: 'test'
+  ...
+# Subtest: prepare refuses: policyRev out of step, a foreign policy owner, no Y, no values, no config text, a blocked step
+ok 38 - prepare refuses: policyRev out of step, a foreign policy owner, no Y, no values, no config text, a blocked step
+  ---
+  duration_ms: 2.45779
+  type: 'test'
+  ...
+# Subtest: policy-only steps carry no bundle; pause carries paused:true; the decoy rules are what is written
+ok 39 - policy-only steps carry no bundle; pause carries paused:true; the decoy rules are what is written
+  ---
+  duration_ms: 3.860028
+  type: 'test'
+  ...
+# Subtest: simulations: NotOwner from a key-less decoy sender; StaleRevision from the owner one revision back
+ok 40 - simulations: NotOwner from a key-less decoy sender; StaleRevision from the owner one revision back
+  ---
+  duration_ms: 0.869233
+  type: 'test'
+  ...
+# Subtest: new policies cannot silently fall back to the old committee key
+ok 41 - new policies cannot silently fall back to the old committee key
+  ---
+  duration_ms: 5.335496
+  type: 'test'
+  ...
+# Subtest: consumption requires all expected current values and exact names
+ok 42 - consumption requires all expected current values and exact names
+  ---
+  duration_ms: 2.451659
+  type: 'test'
+  ...
+# Subtest: rejects ambiguity, real secret formats, old revisions, and malformed challenges
+ok 43 - rejects ambiguity, real secret formats, old revisions, and malformed challenges
+  ---
+  duration_ms: 0.612765
+  type: 'test'
+  ...
+# Subtest: fresh challenge GET sends no markers or expected proofs; output contains no peer data
+ok 44 - fresh challenge GET sends no markers or expected proofs; output contains no peer data
+  ---
+  duration_ms: 17.049259
+  type: 'test'
+  ...
+# Subtest: transport/status/cache/shape failures cannot become consumption evidence
+ok 45 - transport/status/cache/shape failures cannot become consumption evidence
+  ---
+  duration_ms: 2.246882
+  type: 'test'
+  ...
+# Subtest: prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked
+ok 46 - prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked
+  ---
+  duration_ms: 19.755708
+  type: 'test'
+  ...
+# Subtest: prepare refuses another vault code, an unsettled nonce, or non-Base
+ok 47 - prepare refuses another vault code, an unsettled nonce, or non-Base
+  ---
+  duration_ms: 0.842863
+  type: 'test'
+  ...
+# Subtest: send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice
+ok 48 - send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice
+  ---
+  duration_ms: 9.027906
+  type: 'test'
+  ...
+# Subtest: a failed intent write broadcasts nothing
+ok 49 - a failed intent write broadcasts nothing
+  ---
+  duration_ms: 3.432331
+  type: 'test'
+  ...
+# Subtest: unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict
+ok 50 - unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict
+  ---
+  duration_ms: 8.574999
+  type: 'test'
+  ...
+# Subtest: receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse
+ok 51 - receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse
+  ---
+  duration_ms: 3.436922
+  type: 'test'
+  ...
+# Subtest: budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)
+ok 52 - budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)
+  ---
+  duration_ms: 0.798224
+  type: 'test'
+  ...
+# Subtest: L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused
+ok 53 - L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused
+  ---
+  duration_ms: 1.611787
+  type: 'test'
+  ...
+1..53
+# tests 53
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 1
+# duration_ms 925.293389
+[memory-guard] exit=0 peakTreeRssMiB=130 minHostAvailableMiB=23783
+[memory-guard] at peak: node:61 node:60 bash:6 timeout:4
+[queue] EXIT 0

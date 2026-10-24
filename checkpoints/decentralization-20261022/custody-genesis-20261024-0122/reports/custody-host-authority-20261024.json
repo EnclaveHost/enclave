@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-24T01:17:10.060Z",
+  "readOnly": true,
+  "blockNumber": "53007638",
+  "blockHash": "0x0aac34e10185983ec1ea126a1cc25dfeb3f41733d84ae6f23e6afea831af478f",
+  "blockTimestamp": 1792804623,
+  "entry": {
+    "active": true,
+    "endpoint": "https://api.enclave.host/t/metal0",
+    "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "acceptedOwner": "0x0000000000000000000000000000000000000000",
+    "payout": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+    "vaultEnclave": true,
+    "ownerConflict": false
+  },
+  "ready": false,
+  "note": "Accepted ownership/active registry/operator binding missing or conflicting; payout alone is not ownership."
+}

@@ -1,0 +1,15 @@
+[queue] START available=23646MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+against-main-68b82926.diff reproduces the final docs from 68b82926968c99503d38ae78dbcb04694cc2c56c
+against-checkpoint-dfb4b55e.diff reproduces the final docs from dfb4b55e627ebd95b647abebf09627296f099862
+0001..0003 chain reproduces the final docs from dfb4b55e
+c571a3f SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> patches: append 0003 (rollback-review corrections); regenerate cumulative diffs against checkpoint dfb4b55e and main 68b82926
+ac4d9da SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Correct rollback docs against the actual vault semantics (factory, committee switch-back, site/IPNS) and root's 22:25Z state
+a257c0e SteveDeFacto <5148995+SteveDeFacto@users.noreply.github.com> Refresh status from root's 22:14Z journal: control still old/unregistered, 08d1 admitted not activated, cutover stopped
+dfe0f182967cc86fbeff3c7d17d75ce692d53c336bff10d177cc01d33835cf9c  patches/0001-Apply-the-reviewed-dashboard-doc-commits-2d3839c54-a.patch
+5b3a985267ef3785a797b7f630aff89ebe5c1f48c5cc38031aa2c9c59edd0cc3  patches/0002-Reconcile-custody-v2-docs-with-the-deployed-state-co.patch
+64675f5b2444d6300dff97953e429250c9c3cf4d8681f712cad6116db1172b3e  patches/0003-Correct-rollback-docs-against-the-actual-vault-seman.patch
+ed913328449d48d0a33606f6ee7c30ac2b39b789391dda75182330c7f25e9503  patches/against-checkpoint-dfb4b55e.diff
+d411635919a1472c85e21553d84ba388a3efd6d1e46c1f3963238272aefd541e  patches/against-main-68b82926.diff
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

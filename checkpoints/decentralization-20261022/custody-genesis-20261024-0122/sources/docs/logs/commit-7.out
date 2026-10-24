@@ -1,0 +1,5 @@
+[queue] START available=23318MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+967eeb96dfaf7df7ca2f9db334c9f3b8b3d743f2 Status: 23:10 control recovery FAILED, 23:15 rollback to ed918e4b; apps healthy; actual fee NOT measured (13.2 mwei = suspected)
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

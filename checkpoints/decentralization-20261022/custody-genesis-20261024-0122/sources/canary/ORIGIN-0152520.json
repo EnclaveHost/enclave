@@ -1,0 +1,28 @@
+{
+ "source": "work/custody-v2-production-canary-20261023 commit 0152520 (git show, exact bytes)",
+ "files": {
+  ".gitleaksignore": "29d26773cfe3e267556573f328f7df879e4017f7e96c184cf6dad1408fb079f6",
+  "cli-pins/canary-contract-pins.json": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
+  "driver/assert.mjs": "f8b203af45b2b10fcd8fa9ed8e5c41a73ad77634c51fbac2fc8b7bbe7c170748",
+  "driver/budget.mjs": "ff4438cdd1abd0441c50516009720dfee9f0e96984e3531348df01154def7cfd",
+  "driver/canonical.mjs": "c1dc48ba8331fd7b3522e47c8c91a9a78e822d601e06c26b709f3326b63d960f",
+  "driver/cli.mjs": "0004515a83ddd68351a77e2ec1268fb1ffd5d75d0007a799da618f90b6791a9d",
+  "driver/clipins.mjs": "7d3d4a8010b8ac7c3cb69e970c64fb02fab1a037d8e51bcfc3f6976467f9b7d3",
+  "driver/guard.mjs": "9ce217ab0f2a82beeecf9b08e67cb10f8cd8d84097aff3c19b1be67a726e409b",
+  "driver/journal.mjs": "f398d5bc03048604b71ad6a8276c64f8f3066c8aa6266988425027d56fda23a5",
+  "driver/markers.mjs": "01039cff80f6a4d6bd35e6db042958b6c9c0993a89b49f9f53f06dc48602cbdd",
+  "driver/plan.mjs": "703523192bb74cb80cf0aed17615e385df0e9477355c51136a4722f2081daf5a",
+  "driver/prepare.mjs": "fd4c8ab56e51494d8b193197a97e9bdb2ba3d6d98a956257d65e959b005f685d",
+  "driver/probe.mjs": "ecfc4e915eeca4b05e85e48a35fb85914c57fde6d03865d4a3be3a07253f7ed8",
+  "driver/relay.mjs": "e0d2b4a40102d24066bf07ee8a2de62e61cf85f6ce5d4cd9231da801b9bc5c21",
+  "driver/sender.mjs": "45bec80da4eb2100d66ed2d7522800f254e896b67ae5f54caf3ce180c678dce2",
+  "driver/tx.mjs": "f7a473773a5d4e8feb572d2de50dba4f03c89b88bbaa8b82367ded30f8e523ce",
+  "pins.base.json": "3fb4f099d7ad56a863f1fdab6ad2774eb795f82aabd2b14fffcd311c5786e2d3",
+  "q.sh": "3ccf0f03253bff7356cd9ab284f0405aba1afaa45e1ba252c51b201a61ccdbf3",
+  "test/clipins.test.mjs": "74e7777f949eb770f6279cb59792cf23977f886fad59546b630500b8e24330f9",
+  "test/core.test.mjs": "ab754b26c25617f239b281d9fe9e1480285a233e61a5860abdc5aea051157300",
+  "test/limitations.test.mjs": "e109ff4240b776c671200f28cb9c8ce1d47e48bd69fe0a93091c98dd1d253916",
+  "test/net.test.mjs": "dc93dc950e3e37097619cd5bbec4afaa461b3de188abd1c212d4918451267413",
+  "test/sender.test.mjs": "929edecb73f0ddbf9afd35651f7de81924b04e172dfb6bd8ff32ffe7fc367818"
+ }
+}
