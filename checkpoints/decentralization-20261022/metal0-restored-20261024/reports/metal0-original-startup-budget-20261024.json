@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-24T04:26:13.976Z",
+  "readOnly": true,
+  "scope": "Original control register + setPrices restart only; not a candidate cutover approval",
+  "originalCommit": "deabf8f90f64902d20d48620fd911d34c445859d",
+  "senderSha256": "63572e71795f4f0f2e57e8523cc3260fb2242adaf61fdface549330809992792",
+  "rpcTransport": "Original viem fallback, unchanged ordered pool",
+  "pool": [
+    "https://mainnet.base.org",
+    "https://base-rpc.publicnode.com",
+    "https://base.drpc.org",
+    "https://1rpc.io/base"
+  ],
+  "independentFeeAndBalanceReads": [
+    "https://mainnet.base.org",
+    "https://base-rpc.publicnode.com"
+  ],
+  "rows": [
+    {
+      "functionName": "register",
+      "gas": "50330",
+      "maxFeePerGas": "13200000",
+      "l1FeeUpperBoundWei": "1114409582",
+      "operatorFeeWei": "0",
+      "worstCaseWei": "665470409582"
+    },
+    {
+      "functionName": "setPrices",
+      "gas": "34083",
+      "maxFeePerGas": "13200000",
+      "l1FeeUpperBoundWei": "454061378",
+      "operatorFeeWei": "0",
+      "worstCaseWei": "450349661378"
+    }
+  ],
+  "balanceWei": "5145368427115",
+  "requiredWith25PercentHeadroomWei": "1394775088700",
+  "fits": true
+}

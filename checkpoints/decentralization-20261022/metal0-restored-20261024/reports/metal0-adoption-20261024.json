@@ -1,0 +1,88 @@
+{
+  "at": "2026-10-24T04:29:22.020464+00:00",
+  "lines": [
+    "[claim] sweep skips 0xb9528fd33555c826f0a88a9bbb6e891c16d7924023438a9e9ee3c338c7bcd97a: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1: recovering existing leases before accepting new work",
+    "[claim] sweep skips 0xfe63875d23aa1586d991b3ae4e98ecdf3fe7fdf65d6167164a999d04721e3da7: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x791d078e3d105ee1926fbf39a9e2de7084b44c04cb7698c6370d1332e648abd6: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0xcab8fb59882d976bf4005448701149d734b0dab536d9bf46f2b5159b0b0819e9: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0xa62e13de22559ee9a6ce1798891ab3506ac8e1b1eca296ff749cfcd7ab4fc640: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x8a0c1dc0d336a90ece9a52bc1633178b940f5fabbd2781b5b8202d843bb6091a: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef: recovering existing leases before accepting new work",
+    "[claim] sweep skips 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c: recovering existing leases before accepting new work",
+    "[claim] sweep skips 0x5b0c79e8604f1e799e91469854cc716339ec46933378aeac390c06cdb233bb85: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x8c96fc23aea107c9f99b17f462d4a5ec693e5730ed0016fa9c1c2cc542be0417: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x2902da20d7f51cd04f4de13e6d5729391ad541d96d22b930dbb55ded71d92ace: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x87508b958c4d14381b58fe05a781efbd3f185a36d5239abdf37e8f242f944538: deployment is deactivated (owner setActive(false))",
+    "[claim] sweep skips 0x8b9e4cca08f9518ce7a6b9ec8977660d42e03f86a0030a6edf76c0f53d6bdfb7: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x16f99ddbb20f8fce09ba53b221646bc40aa7d89c8f3bf723d90408e099c07ac3: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x985d9b3cff4d94be6853181de99d92b1ded3fc517c637309187c7f7f71ac5ffe: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33: another enclave holds a live lease",
+    "[claim] sweep skips 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a: another enclave holds a live lease",
+    "[claim] sweep skips 0x157cf55b533e8e565a4fd8e9fa78db822d195767997c01bfa2732aa5d9b3aecf: out of funded time - fund it and retry",
+    "[claim] sweep skips 0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8: no free capacity for those shares here right now",
+    "[claim] sweep skips 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371: another enclave holds a live lease",
+    "[claim] sweep skips 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77: another enclave holds a live lease",
+    "[claim] sweep skips 0xc34499ee0e252ef82a97b219f941b54732113c9d0b7ced1d1503604d3fe152d8: no free capacity for those shares here right now",
+    "[isolation] 0xda09d0f2: guest gd9d4a391d already serves a valid certificate for da09d0f2.app.enclave.host on its key 244d45a8edec53a3\u2026 (serial 6C6B85A0EF3ABA118B0A301D778B3DD1, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z); nothing issued until 2026-12-22T15:59:59.333Z",
+    "[claim] sweep skips 0x7c4149ee08e14b76cc1fe3f417cc844cfed19b987c81f79425009e6a7279810b: no free capacity for those shares here right now",
+    "[claim] sweep skips 0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f: app not deployable: enclave-hello:0.1.0 is awaiting catalog-owner approval; until then it can only be deployed PRIVATE (owner-only data path) for testing.",
+    "[claim] sweep skips 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e: out of funded time - fund it and retry",
+    "[isolation] 0x9eb4e600: guest gdd0646f2c already serves a valid certificate for 9eb4e600.app.enclave.host on its key e1c2264413716abe\u2026 (serial 484037974C9251634F08C6981B9ED168, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z); nothing issued until 2026-12-22T15:59:59.333Z",
+    "[isolation] 0x9eb4e600: guest gdd0646f2c already serves a valid certificate for eyesoff.ai on its key e1c2264413716abe\u2026 (serial 0916F3FC650033E72310E86F00FC95B7, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2027-01-21T23:59:59.000Z); nothing issued until 2026-12-22T15:59:59.333Z",
+    "[claim] sweep skips 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595: out of funded time at this enclave's price ($0.30/hr) - fund it and retry",
+    "[claim] sweep skips 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76: out of funded time at this enclave's price ($0.30/hr) - fund it and retry",
+    "[claim] sweep skips 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c: another enclave holds a live lease",
+    "[claim] sweep skips 0xc13d4b6a613ba277e9a8559adb76b2f60394ef16649f7a623e8a7a6c4f097681: another enclave holds a live lease",
+    "[claim] sweep skips 0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238: another enclave holds a live lease",
+    "[claim] sweep skips 0x0f19412d70d19e50c054f72d8cc2d4c9a8d9da41d45a056e6b436040450e0bc1: out of funded time - fund it and retry",
+    "[claim] sweep skips 0xaf9fbf3ecb9adc6736aac19c4a1690db1f9dafe427d1b06985737943cde065ef: out of funded time - fund it and retry",
+    "[claim] sweep skips 0x59f1273d3633117fb1a5314f627ed1e6977cf901336d3c24f6e86e45d9ac778c: another enclave holds a live lease"
+  ],
+  "availability": {
+    "claimEnabled": true,
+    "instanceSweep": {
+      "at": "2026-10-24T04:28:38.715Z",
+      "ok": true,
+      "seen": 2,
+      "orphans": 0,
+      "reaped": 0,
+      "reason": "clean",
+      "held": [
+        {
+          "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+          "vm": "gd9d4a391d",
+          "status": "running",
+          "owned": true
+        },
+        {
+          "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+          "vm": "gdd0646f2c",
+          "status": "running",
+          "owned": true
+        }
+      ]
+    },
+    "ledgerSync": {
+      "at": 1792816118775,
+      "mode": "delta",
+      "why": "30 blocks",
+      "rows": 98,
+      "dirty": 2,
+      "logs": 0,
+      "error": null,
+      "cursor": 53013384,
+      "lastFullAt": 1792816061014
+    },
+    "tenantVouch": {
+      "at": "2026-10-24T04:28:38.711Z",
+      "ok": true,
+      "vouched": 2,
+      "reason": "ok"
+    },
+    "fullService": false
+  }
+}

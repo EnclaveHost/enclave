@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-24T04:27:09.728Z",
+  "readOnly": true,
+  "endpoint": "https://api.enclave.host/t/metal0",
+  "currentProof": "0x65A1AdaF4DC4A814D6B4C1455Bef840C0F50ebc1",
+  "rows": [
+    {
+      "provider": "https://mainnet.base.org",
+      "block": "53013341",
+      "active": true,
+      "lastSeen": "1792816009",
+      "proofKey": "0x65A1AdaF4DC4A814D6B4C1455Bef840C0F50ebc1",
+      "currentProofMatches": true,
+      "balanceWei": "4226101999503",
+      "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+      "nonce": 23766
+    },
+    {
+      "provider": "https://base-rpc.publicnode.com",
+      "block": "53013341",
+      "active": true,
+      "lastSeen": "1792816009",
+      "proofKey": "0x65A1AdaF4DC4A814D6B4C1455Bef840C0F50ebc1",
+      "currentProofMatches": true,
+      "balanceWei": "4226101999503",
+      "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+      "nonce": 23766
+    }
+  ]
+}

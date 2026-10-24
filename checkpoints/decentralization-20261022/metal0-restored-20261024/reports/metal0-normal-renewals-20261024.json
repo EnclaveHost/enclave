@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-24T04:32:14.291Z",
+  "startedAt": "2026-10-24T04:30:44.182Z",
+  "status": "awaiting-normal-renewals",
+  "readOnly": true,
+  "source": "enclave-metal.service journal since original control restart, independently verified renewal receipts",
+  "apps": {},
+  "errors": {}
+}

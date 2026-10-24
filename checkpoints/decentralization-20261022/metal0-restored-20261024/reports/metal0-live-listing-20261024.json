@@ -1,0 +1,213 @@
+{
+  "at": "2026-10-24T04:29:48.394904+00:00",
+  "endpoint": "https://api.enclave.host/enclaves",
+  "present": true,
+  "rows": [
+    {
+      "name": "metal0",
+      "endpoint": "tunnel://metal0",
+      "active": null,
+      "online": null,
+      "status": null,
+      "attested": null,
+      "proofKey": null,
+      "availability": {
+        "gpu": true,
+        "type": "gpu",
+        "teeCpu": "amd-sev-snp",
+        "gpuShareFree": 0.1,
+        "cpuShareFree": 0,
+        "usedGpuShare": 0.9,
+        "usedCpuShare": 1,
+        "maxShare": 0.1,
+        "vcpusFree": 0,
+        "ramGbFree": 0,
+        "cpuGflopsFree": 0,
+        "nodeVcpus": 24,
+        "nodeRamGb": 96,
+        "nodeGflops": 546,
+        "smFree": 15,
+        "smTotal": 152,
+        "vramFreeGb": 6.2,
+        "gpuTflopsFree": 21.5,
+        "cardVramGb": 62,
+        "cardTflops": 214.7,
+        "cards": 1,
+        "gpuPool": "layers",
+        "physicalGpuCount": 2,
+        "cardVramSource": "shielded-probe",
+        "shielded": {
+          "pooled": true,
+          "mode": "layers",
+          "card": "GPU",
+          "cardCount": 2,
+          "vramGb": 62,
+          "vramBudgetGb": 62,
+          "vramFreeGb": 6.199999999999989,
+          "vramReservedGb": 55.8,
+          "cardTflops": 214.7,
+          "smCount": 152,
+          "pricePerSec6": 1667,
+          "pricing": {
+            "tflopUsdHr": 0,
+            "vramGiBUsdHr": 0.09679354838709678
+          },
+          "endpoint": "10.0.2.2:9501",
+          "available": true
+        },
+        "shieldedCards": [
+          {
+            "id": 0,
+            "deviceUuid": "",
+            "card": "Tesla PG500-216",
+            "vramGb": 31.73,
+            "vramFreeGb": 3.1,
+            "vramBudgetGb": 31,
+            "vramReservedGb": 27.9,
+            "gmacPerSec": 2811.6,
+            "cardTflops": 101.7,
+            "smCount": 72,
+            "computeShare": 1,
+            "capability": "7.0",
+            "roundTripMs": 0.365,
+            "verifiedAt": "2026-10-24T04:29:38.298Z",
+            "endpoint": "10.0.2.2:9501",
+            "vsockPort": 9501,
+            "pricePerSec6": 0,
+            "tenantEnv": {},
+            "gpuShareFree": 0.1
+          },
+          {
+            "id": 1,
+            "deviceUuid": "",
+            "card": "Tesla V100-PCIE-32GB",
+            "vramGb": 31.73,
+            "vramFreeGb": 3.1,
+            "vramBudgetGb": 31,
+            "vramReservedGb": 27.9,
+            "gmacPerSec": 2556.8,
+            "cardTflops": 113,
+            "smCount": 80,
+            "computeShare": 1,
+            "capability": "7.0",
+            "roundTripMs": 0.202,
+            "verifiedAt": "2026-10-24T04:29:38.298Z",
+            "endpoint": "10.0.2.2:9502",
+            "vsockPort": 9502,
+            "pricePerSec6": 0,
+            "tenantEnv": {},
+            "gpuShareFree": 0.1
+          }
+        ],
+        "askShieldedPricePerSec6": 1667,
+        "networkOptions": true,
+        "waf": false,
+        "configOverride": false,
+        "configEdit": false,
+        "shareResize": false,
+        "cpuFallback": true,
+        "gpuOptional": false,
+        "secrets": false,
+        "secretsInConfig": false,
+        "customDomains": false,
+        "devDeploy": false,
+        "rateCap": true,
+        "selfHostFree": true,
+        "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "proofOfTime": true,
+        "askCpuPricePerSec6": 834,
+        "askGpuPricePerSec6": 1667,
+        "claimEnabled": true,
+        "isolation": "snp-guest-per-app",
+        "fullService": false,
+        "guestPool": {
+          "heard": true,
+          "budget": {
+            "memMiB": 98304,
+            "cpuPct": 2400
+          },
+          "allocated": {
+            "memMiB": 71961,
+            "cpuPct": 2400
+          },
+          "free": {
+            "memMiB": 26343,
+            "cpuPct": 0
+          },
+          "guests": 2,
+          "overcommitted": false,
+          "perGuest": {
+            "floorMiB": 1024,
+            "runtimeMiB": 384,
+            "unitOverheadMiB": 768
+          },
+          "host": {
+            "floorMiB": 16384,
+            "admitsSmallestGuest": false
+          },
+          "basis": "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+          "pricing": "CPU share bounds app RAM as a fraction of this pool; platform overhead is reserved separately"
+        },
+        "source": "vmmanager",
+        "updatedAt": "2026-10-24T04:29:38.948Z",
+        "set": true,
+        "mem64": true,
+        "configCid": true,
+        "configCidOverride": true,
+        "volumes": [
+          {
+            "backend": "ggml",
+            "bytes": 17559178144,
+            "minimumGpuMilli": 500,
+            "name": "qwen3.8-27b-mtp-q4-vl-gguf"
+          },
+          {
+            "backend": "sd",
+            "bytes": 7814118248,
+            "minimumGpuMilli": 200,
+            "name": "z-image-turbo-q4km-sd"
+          }
+        ],
+        "instanceSweep": {
+          "at": "2026-10-24T04:29:38.713Z",
+          "ok": true,
+          "seen": 2,
+          "orphans": 0,
+          "reaped": 0,
+          "reason": "clean",
+          "held": [
+            {
+              "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+              "vm": "gd9d4a391d",
+              "status": "running",
+              "owned": true
+            },
+            {
+              "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+              "vm": "gdd0646f2c",
+              "status": "running",
+              "owned": true
+            }
+          ]
+        },
+        "ledgerSync": {
+          "at": 1792816118775,
+          "mode": "delta",
+          "why": "30 blocks",
+          "rows": 98,
+          "dirty": 2,
+          "logs": 0,
+          "error": null,
+          "cursor": 53013384,
+          "lastFullAt": 1792816061014
+        },
+        "tenantVouch": {
+          "at": "2026-10-24T04:29:38.712Z",
+          "ok": true,
+          "vouched": 2,
+          "reason": "ok"
+        }
+      }
+    }
+  ]
+}

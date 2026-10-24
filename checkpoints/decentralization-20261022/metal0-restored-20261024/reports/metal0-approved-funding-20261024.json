@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-24T04:24:05.726618+00:00",
+  "humanReply": "do it",
+  "planHash": "0x0bf69bf0b0c115c88a4c5669ab37df15b3b4e5d591cc5f9fb7391c065827aa8b",
+  "status": "verified",
+  "transactions": {
+    "A": "0x0fa029b735dec660d22ca26b2a18d06a112ca0c232be0cd8541c0de0ed474fc3",
+    "B": "0x3595c6120c68b2f03a5b6ad4abf50f7449e05ab47b4aa30a6a0b62e8f20a9911"
+  },
+  "outcome": {
+    "state": "verified",
+    "cutoff": false,
+    "problems": [],
+    "receipts": {
+      "A": {
+        "status": "0x1",
+        "block": "53013229",
+        "blockHash": "0x45d33140249868b2baff2ce5ac26fb02a9e95592b8d1b2e30d8b419a594a8081"
+      },
+      "B": {
+        "status": "0x1",
+        "block": "53013229",
+        "blockHash": "0x45d33140249868b2baff2ce5ac26fb02a9e95592b8d1b2e30d8b419a594a8081"
+      }
+    },
+    "code": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+    "nonce": "23762",
+    "balance": "5145368427115",
+    "recovery": {
+      "state": "verified",
+      "when": "B mined and every post-condition re-read on both providers",
+      "effect": "C9 restored (code hash e2f1317f), nonce N+2, storage unchanged, funded",
+      "action": "resume the keepers and signers"
+    }
+  },
+  "transferWei": "5000000000000",
+  "aggregateFeeCapWei": "2000000000000",
+  "controlResumed": true,
+  "note": "Exact original delegation restored; original control image/config resumed, both original VMs retained and vouched. Candidate upgrade not performed.",
+  "controlStartedAt": "2026-10-24T04:26:27Z",
+  "publicAppsHealthyAt": "2026-10-24T04:27:19Z",
+  "liveListingPresentAt": "2026-10-24T04:29:48Z",
+  "originalGuestsAdopted": true,
+  "normalRenewals": "Observer running; not yet verified"
+}

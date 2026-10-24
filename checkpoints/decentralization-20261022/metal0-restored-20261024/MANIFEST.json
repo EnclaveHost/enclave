@@ -1,0 +1,82 @@
+{
+  "at": "2026-10-24T04:32:40.149598+00:00",
+  "previousCheckpoint": "80f07aea22f40db77ff0182673b259251b659ac9",
+  "entries": [
+    {
+      "path": "sources/metal0-expired-recovery-20261024/original-startup-fees.mjs",
+      "sha256": "25fce4a258d7c14a2894eefa29700b3cf2f06e4e9d5813e11e12da483d092c1d",
+      "bytes": 4151
+    },
+    {
+      "path": "sources/metal0-expired-recovery-20261024/watch-normal-renewals.mjs",
+      "sha256": "5e8929e2ae9c050ee36631f03363a90055f698922875fd4f6d8e7735b5d52b2e",
+      "bytes": 2588
+    },
+    {
+      "path": "sources/metal0-expired-recovery-20261024/SOURCE-COMMIT.txt",
+      "sha256": "61770db633d2900d5a612d3ff4d2af6755939765a0f4e50d4240a204790bc115",
+      "bytes": 41
+    },
+    {
+      "path": "sources/custody-operator-funding-options-20261023/README.md",
+      "sha256": "d2c24fc80794b187b5e60838d0e9efd04383a4a8468f956c68a966c717b0fce5",
+      "bytes": 5239
+    },
+    {
+      "path": "sources/custody-operator-funding-options-20261023/SOURCE-COMMIT.txt",
+      "sha256": "5098f768e0423d5ed1060f4a873d276b6735be193f2e728d40622f52bd499709",
+      "bytes": 41
+    },
+    {
+      "path": "reports/metal0-approved-claims-20261024.json",
+      "sha256": "0de05cf671427a67059e308585c833294566d400b43648e3fef7d4372afa7709",
+      "bytes": 1187
+    },
+    {
+      "path": "reports/metal0-approved-funding-20261024.json",
+      "sha256": "a08462ca9298b25f950f5acf18b4deecb8f57b4b8f4f9833e6b8e10374a96759",
+      "bytes": 1686
+    },
+    {
+      "path": "reports/metal0-original-startup-budget-20261024.json",
+      "sha256": "72a5b70b8dd7eba138353dc6200ab37cded6c9bc3c8df74a0bf8ccf75772aaf8",
+      "bytes": 1174
+    },
+    {
+      "path": "reports/metal0-public-recovery-20261024.json",
+      "sha256": "404c884a3a70744dd1f5a70ca829a0b6c9888ae0aaf2227556abc295d4261892",
+      "bytes": 591
+    },
+    {
+      "path": "reports/metal0-adoption-20261024.json",
+      "sha256": "9a18cea3085af693e0c2294048f038c7573604a594776bcd3908ac8094c08cdd",
+      "bytes": 7323
+    },
+    {
+      "path": "reports/metal0-live-listing-20261024.json",
+      "sha256": "d23591b6447df4638ae0fe7bbcfdca22a472a9e631fbf57447d8ca8fc0ea3308",
+      "bytes": 6109
+    },
+    {
+      "path": "reports/metal0-normal-renewals-20261024.json",
+      "sha256": "899cad15aa83efb27b409a5dfee239d63fd764d980c2cf531a46e74fa83e8658",
+      "bytes": 289
+    },
+    {
+      "path": "reports/metal0-listing-status-20261024.json",
+      "sha256": "7aea396d5d165cdf3b33ada58f5d5891c4ba3f77232e7045680dda18e266163f",
+      "bytes": 939
+    },
+    {
+      "path": "reports/metal0-expired-recovery-proposal-20261024.md",
+      "sha256": "f9c3437bf4c6f859d03132fbff6141bb6dc8dd7e0555798889e9db2ffed664eb",
+      "bytes": 5160
+    },
+    {
+      "path": "capture.py",
+      "sha256": "4a16b54d28272820c0d2922bfb0ba6f4ba50bc1541c08b643780103d7e1985b2",
+      "bytes": 2112
+    }
+  ],
+  "status": "Approved funding/restoration verified; original control running, public apps healthy, original VMs adopted, Metal0 listed. Normal renewals still under observation. No custody activation or candidate cutover."
+}
