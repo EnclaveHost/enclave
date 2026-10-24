@@ -1,0 +1,110 @@
+{
+  "at": "2026-10-24T03:43:11.402416+00:00",
+  "previousCheckpoint": "c30f23b23033e934a8fd7673db6a25ea170c1f9c",
+  "source": "70004c8b81340233371f603667e4c31c4239839b",
+  "entries": [
+    {
+      "path": "source/.gitignore",
+      "sha256": "d7d975e6e05683a2336f635ad618ed2b0ac1ab01cd1480d3c1f6f57b8ac361ce",
+      "bytes": 28,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:.gitignore"
+    },
+    {
+      "path": "source/README.md",
+      "sha256": "4cda1783103f12a4a177f6cb697cdb06ea21e7b76204c1aae0694cbd8b11de71",
+      "bytes": 5704,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:README.md"
+    },
+    {
+      "path": "source/deps.mjs",
+      "sha256": "8d399870cb1198677bb6f7378b0beba988dd934422b2a3e8248e7445dbcc8869",
+      "bytes": 2416,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:deps.mjs"
+    },
+    {
+      "path": "source/guest-health.mjs",
+      "sha256": "ad4ee5cc7859944f4320ff62803eaf2a52902a63480433fe4ee7df66b45ca1c2",
+      "bytes": 3751,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:guest-health.mjs"
+    },
+    {
+      "path": "source/observe-claims.mjs",
+      "sha256": "96ed7dc1e02649ae3d360b9f1ff3b844883d2d4824fa7448c8b881bdde27379d",
+      "bytes": 2888,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:observe-claims.mjs"
+    },
+    {
+      "path": "source/preserve.sh",
+      "sha256": "c60ad93c7d031ce8a0ff9205a8a186c5f1a26c9b09752504063639e6e28f7e01",
+      "bytes": 808,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:preserve.sh"
+    },
+    {
+      "path": "source/reclaim.mjs",
+      "sha256": "4500ed75153bb6c453bc1a5ce6ea4004cd55d71893d247640d1fcf466b6abeae",
+      "bytes": 6328,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:reclaim.mjs"
+    },
+    {
+      "path": "source/run.mjs",
+      "sha256": "316057e74fd205be51e20ed39d3831f78cc016fd44846868e0237339b4d5f83a",
+      "bytes": 4219,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:run.mjs"
+    },
+    {
+      "path": "source/runtime-guard.mjs",
+      "sha256": "4703ec2ec775825aa73e1d6138affcf05fde6fffcb046f0aefa7dfab52f6d14f",
+      "bytes": 427,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:runtime-guard.mjs"
+    },
+    {
+      "path": "source/test/mutate.py",
+      "sha256": "b527adc95f33505e4ecc3a0623ef8be6d88f192e4d1b79d0cdd6257f813688cb",
+      "bytes": 1299,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:test/mutate.py"
+    },
+    {
+      "path": "source/test/reclaim.test.mjs",
+      "sha256": "720401025a08ee4e403e6e8558fa24e128ac71e48eac9a1e2c69e8963d17e3ce",
+      "bytes": 8501,
+      "origin": "work/metal0-expired-recovery-20261024@70004c8b81340233371f603667e4c31c4239839b:test/reclaim.test.mjs"
+    },
+    {
+      "path": "evidence/test-3.out",
+      "sha256": "50065c8b04e91a94c4d0de77ab04e7fcd0e46a8587e0069746f5de6b60390274",
+      "bytes": 2623,
+      "origin": "work/metal0-expired-recovery-20261024/logs/test-3.out"
+    },
+    {
+      "path": "evidence/mutations-2.out",
+      "sha256": "1382b880b32d76cbbeda23a34a13d20f29afc0384eac7cbd184b0b761f0b9c79",
+      "bytes": 309,
+      "origin": "work/metal0-expired-recovery-20261024/logs/mutations-2.out"
+    },
+    {
+      "path": "reports/metal0-expired-recovery-proposal-20261024.md",
+      "sha256": "7b22aa0212870cf49dc1eabd2984a64b481d055f9dfe039572649b9a1363f60a",
+      "bytes": 2914,
+      "origin": "outputs/decentralization-audit/metal0-expired-recovery-proposal-20261024.md"
+    },
+    {
+      "path": "reports/metal0-expired-claim-status-20261024.json",
+      "sha256": "968b177572b090b224bd981756e0761f14f923140266e3d7ac3abd6fdd262849",
+      "bytes": 1773,
+      "origin": "outputs/decentralization-audit/metal0-expired-claim-status-20261024.json"
+    },
+    {
+      "path": "reports/metal0-local-app-health-20261024.json",
+      "sha256": "c2c6e91ca37bac7183dfbc75715eeb78e403016e214440715726c6f349cdf1a0",
+      "bytes": 965,
+      "origin": "outputs/decentralization-audit/metal0-local-app-health-20261024.json"
+    },
+    {
+      "path": "capture.py",
+      "sha256": "4791e8cc3d6e575ea2bd83932dfd476967e9a7733ae5e74bd470bc4e186ed0d4",
+      "bytes": 2401,
+      "origin": "work/resume-after-checkpoint-20261022/source-preservation/capture-reclaim-0343.py"
+    }
+  ],
+  "status": "Prepared finite expired-lease reclaims; human approval pending. No claims, signing, funding, delegation or service changes. Original keeper cap and journal unchanged; no private approval exists. Live original app health passed over strict loopback TLS; public recovery still incomplete."
+}

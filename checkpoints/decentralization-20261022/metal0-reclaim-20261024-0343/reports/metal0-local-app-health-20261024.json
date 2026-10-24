@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-24T03:36:38.858Z",
+  "readOnly": true,
+  "scope": "Original guest identity and application body over hostname-verified loopback TLS; not SNP attestation or public routing proof",
+  "rows": [
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "guest": "gd9d4a391d",
+      "status": "running",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "recordSha256": "507be9a521c8e856c4a456ec79babaa32363fde930d5faa763dcc43f4033b7e9",
+      "healthy": true,
+      "strictTls": true
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "guest": "gdd0646f2c",
+      "status": "running",
+      "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+      "recordSha256": "4c6a3075a5b41248c23b3f14a1c3c39fec5f9841952faf3ab2a9d37ce3fb29c8",
+      "healthy": true,
+      "strictTls": true
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: one app-paid claim per app, verified effect, bounded scope and original journal unchanged
+ok 1 - one app-paid claim per app, verified effect, bounded scope and original journal unchanged
+  ---
+  duration_ms: 7.244034
+  type: 'test'
+  ...
+# Subtest: approval of a renewal or expanded/unapproved/expired claim scope cannot authorize recovery
+ok 2 - approval of a renewal or expanded/unapproved/expired claim scope cannot authorize recovery
+  ---
+  duration_ms: 1.38085
+  type: 'test'
+  ...
+# Subtest: missing old receipts or STOP and active signer prevent spending
+ok 3 - missing old receipts or STOP and active signer prevent spending
+  ---
+  duration_ms: 3.706462
+  type: 'test'
+  ...
+# Subtest: both original healthy VMs and unchanged expired leases must pass before either claim
+ok 4 - both original healthy VMs and unchanged expired leases must pass before either claim
+  ---
+  duration_ms: 11.603351
+  type: 'test'
+  ...
+# Subtest: policy refusal, signed scope changes and excessive charge never reach relay
+ok 5 - policy refusal, signed scope changes and excessive charge never reach relay
+  ---
+  duration_ms: 10.201352
+  type: 'test'
+  ...
+# Subtest: state or signer change immediately before journaling refuses transport
+ok 6 - state or signer change immediately before journaling refuses transport
+  ---
+  duration_ms: 2.261663
+  type: 'test'
+  ...
+# Subtest: uncertain claim and failed receipt verification never cause a second signature
+ok 7 - uncertain claim and failed receipt verification never cause a second signature
+  ---
+  duration_ms: 3.91422
+  type: 'test'
+  ...
+# Subtest: completed first claim is retained if second fails; no retry or cap reset
+ok 8 - completed first claim is retained if second fails; no retry or cap reset
+  ---
+  duration_ms: 1.424099
+  type: 'test'
+  ...
+# Subtest: confirmed short lease never reports the maintenance window ready
+ok 9 - confirmed short lease never reports the maintenance window ready
+  ---
+  duration_ms: 1.831746
+  type: 'test'
+  ...
+# Subtest: application checks reject error/redirect/wrong app bodies and require the actual ping
+ok 10 - application checks reject error/redirect/wrong app bodies and require the actual ping
+  ---
+  duration_ms: 0.774334
+  type: 'test'
+  ...
+# Subtest: actual monotonic stop timestamp must exceed all 300 seconds of TTL plus 60 seconds margin
+ok 11 - actual monotonic stop timestamp must exceed all 300 seconds of TTL plus 60 seconds margin
+  ---
+  duration_ms: 0.411317
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 103.733432
