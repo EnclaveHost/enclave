@@ -1,0 +1,8 @@
+[queue] START available=24072MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+control (unmutated): exit 0
+KILLED   no-gone-check-before-upstream: exit 1; failing tests: a client gone after its body completed but before upstream creation never starts upstream work (ROOT-FOLLOWUP)
+KILLED   no-abort-on-client-gone: exit 1; failing tests: a client that goes away aborts the upstream request
+mutants 2, killed 2, survived 0; control passed
+[memory-guard] exit=0 peakTreeRssMiB=184 minHostAvailableMiB=23912
+[memory-guard] at peak: node:73 node:59 node:51
+[queue] EXIT 0

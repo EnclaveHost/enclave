@@ -1,0 +1,17 @@
+{
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 18973
+  },
+  "mount": "origin",
+  "prefix": "",
+  "upstreamPort": 18971,
+  "maxBodyBytes": 262144,
+  "maxResponseBytes": 1048576,
+  "bodyTimeoutMs": 10000,
+  "upstreamTimeoutMs": 30000,
+  "headersTimeoutMs": 10000,
+  "requestTimeoutMs": 45000,
+  "maxInFlight": 16,
+  "maxHeaderBytes": 8192
+}

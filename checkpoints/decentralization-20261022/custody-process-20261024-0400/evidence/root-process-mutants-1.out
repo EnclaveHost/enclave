@@ -1,0 +1,7 @@
+host-exit: detected
+spawn-error: detected
+graceful-stop: detected
+manual-restart: detected
+owned-group: detected
+recipient-preservation: detected
+6/6 process and lifecycle recording mutations detected; real local child processes, synthetic systemd/VM fixtures; no production VM launched

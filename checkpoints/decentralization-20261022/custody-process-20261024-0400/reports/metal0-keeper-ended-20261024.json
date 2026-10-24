@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-10-24T03:56:12.455237+00:00",
+  "timestampBasis": "completed queue guard log modification time",
+  "readOnly": true,
+  "keeper": {
+    "unit": "enclave-custody-protected-leases-20261023.service",
+    "LoadState": "not-found",
+    "ActiveState": "inactive",
+    "SubState": "dead",
+    "MainPID": 0,
+    "InactiveEnterTimestampMonotonic": 0,
+    "Result": "success"
+  },
+  "control": {
+    "unit": "enclave-metal.service",
+    "LoadState": "loaded",
+    "ActiveState": "active",
+    "SubState": "running",
+    "MainPID": 693760
+  },
+  "scope": "Actual systemctl observation. No service stop/restart was requested. The keeper was exhausted before its natural exit."
+}

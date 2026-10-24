@@ -1,0 +1,120 @@
+{
+  "v": 1,
+  "runLabel": "20261023T000000Z",
+  "chainId": 8453,
+  "vaultV2": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+  "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
+  "custodian": {
+    "measurementSha256": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
+    "manifestFile": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/out-r2/A-custodian/manifest.json"
+  },
+  "owner": {
+    "address": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+    "keyEnv": "CANARY_OWNER_KEY",
+    "reuseScope": {
+      "statedBy": "ROOT-FILLS",
+      "at": "ROOT-FILLS",
+      "onlyPlanCreatedDeployments": false
+    }
+  },
+  "rpcs": [
+    "https://mainnet.base.org",
+    "https://base.public.blockpi.network/v1/rpc/public",
+    "https://base-rpc.publicnode.com"
+  ],
+  "relay": {
+    "api": "https://api.enclave.host"
+  },
+  "recipient": {
+    "endpoint": "https://api.enclave.host/t/metal0"
+  },
+  "repo": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-release-20261023/repo-r2",
+    "commit": "ab589bf80b669c9671b53573d489b6c6c45779ea",
+    "files": {
+      "custody/v2/owner.mjs": "706fd42d5d23842c177ccae2267f1919814c788e3208a786b789f7d3649c148c",
+      "custody/rules.mjs": "f35635aa4103f8075e3fcccc0be95b6c50f2d66240e95041509feeb17c7d694d",
+      "custody/protocol.mjs": "9afb78e3a313c19446539c5797ca744564b904985ca894987cc9207879a023fc",
+      "custody/v2/protocol.mjs": "d30852c2b227760f95a900b2240355c507173e81f221b38219e34a3f8def38e4",
+      "custody/v2/chain.mjs": "c85d3d820fd91613422580857c12477ec211c10c6af6a9d233543edb447fead9",
+      "custody/v2/quorum.mjs": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd",
+      "network/custody-vaults.mjs": "8939a32af3ee41f4a9f172c74234f21ce0ae97ad7b97ed86856af3187c2c0da6",
+      "network/platform-host-policy.mjs": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
+      "relay/secrets.js": "6f3d8c7633510b5a0c6e4a230aa8b0dad78eff585ad59f8b1fc381f3ef138ea5",
+      "cli/custody-v2.mjs": "5e3b4e22dd497882c0150475c292def3c2a6fa7fedbb6d43bae3ca455729345f",
+      "custody/v2/startup-state.mjs": "086b28c3bddb912cdf95a3a96a4514eaada25b9be8851fce07f18e9458395a35",
+      "node_modules/viem/package.json": "e949a8d53708d253df522476d1ff2face4b05beee8099a90ed81934793455dfb",
+      "relay/snp-verify.mjs": "10520dd25d6a7a40225a7076521c383fc3eb296b1f290ac6b9e9fbbd1697de91",
+      "custody/v2/member.mjs": "1925b289405b7e083f630b0d70cceb8a73f23c09ebabdbddf6a2b3ef1d39e8ab",
+      "custody/v2/digests.mjs": "76d8091d0995cccec4450c174408df2c0bf326b07e7b74ce05c2aa373993b23d"
+    }
+  },
+  "fees": {
+    "maxFeePerGasWei": "10000000",
+    "l1FeeWei": "300000000000",
+    "operatorFeeWei": "100000000000",
+    "referenceUnsignedSize": "1700"
+  },
+  "gas": {
+    "create": "900000",
+    "rotate": "300000",
+    "rules": "250000"
+  },
+  "sendRpcs": [
+    "https://mainnet.base.org",
+    "https://base.public.blockpi.network/v1/rpc/public"
+  ],
+  "budget": {
+    "totalWei": "55000000000000",
+    "usdcUnits": "189740",
+    "usdcFundUnits": "90000",
+    "leaseDepositWei": "8000000000000",
+    "cliWei": {
+      "create": "7000000000000",
+      "stop": "1500000000000",
+      "leaseConfigure": "2000000000000",
+      "leaseDeposit": "1500000000000",
+      "genesis": "10000000000000"
+    },
+    "note": "ROOT-FILLS from live reads: totalWei must be <= the owner's agreed balance (61654449641751 wei at 2026-10-23T19:59Z); usdcFundUnits per deployment from the runner's rate; leaseDepositWei from `lease-gas plan --days` quotes"
+  },
+  "cases": {
+    "disabled": [
+      "migration"
+    ],
+    "note": "profile A (fits the aggregate worst case); migration alone needs a second run with its own budget"
+  },
+  "cli": {
+    "pinsFile": "cli-pins/canary-contract-pins.json",
+    "pinsSha256": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
+    "note": "the ONLY pins file for the canary's CLI steps (enclave --independent --contract-pins <this>). Never contracts/deployments/contract-pins-base.json or the reviewed network profile: both name secretVaultV2 0x56b81b39 (modified vault)"
+  },
+  "genesis": {
+    "submitter": "owner",
+    "gasCap": "900000"
+  },
+  "proofAppCandidate": {
+    "source": "Proof app ad81dd59f1559dfea74629d4133d75b168047c55, component7ce32918. Re-derive against the current production runner release and verify catalog publication before copying to image. These candidate pins do not authorize deployment.",
+    "catalogAppId": "0x85c5ed4ce282f8c1f434dd600d902d8738a6d8a54b71497dfaa95a1f635813a0",
+    "catalogVersion": 0,
+    "appId": "4f700c921576c417da0e1c7b98a6ef0ae5726f86d096c7f25ea278d4e4116a17",
+    "measurement": "e5febd103f8cabbad0a439e4daac47aa1caef213867026c442d04976df0a350777d198668c8f0add4f8f141b024cff12",
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+    "minTcb": {
+      "Genoa": {
+        "bootloader": 10,
+        "microcode": 84,
+        "snp": 23,
+        "tee": 0
+      },
+      "Turin": {
+        "bootloader": 3,
+        "fmc": 1,
+        "microcode": 117,
+        "snp": 5,
+        "tee": 2
+      }
+    }
+  },
+  "templateStatus": "Non-executable: root must supply fresh runLabel, actual owner reuse authorization, verified image, dedicated endpoint, launch and ingress configuration, capture directory, current balances and per-operation fees. Committee and deployment IDs are learned from receipts. No approvals are supplied by this template."
+}
