@@ -14,13 +14,14 @@ export function leaseAvailable(d) {
 export async function resizeAfterStop({ expected, target, read, apply, resume, progress = () => {},
   saved = () => {}, sleep = ms => new Promise(r => setTimeout(r, ms)), now = Date.now, timeoutMs }) {
   expected = { ...expected };
-  const identity = d => {
-    if (!d || String(d.owner).toLowerCase() !== String(expected.owner).toLowerCase() || d.appRef !== expected.appRef)
-      throw new Error("The deployment owner or version changed. Reopen Resources before trying again.");
+  target = { ...target, appRef: target.appRef ?? expected.appRef };
+  const identity = (d, refs = [expected.appRef]) => {
+    if (!d || String(d.owner).toLowerCase() !== String(expected.owner).toLowerCase() || !refs.includes(d.appRef))
+      throw new Error("The deployment owner or version changed. Reopen the panel before trying again.");
   };
-  const matches = (d, s) => Number(d.gpuMilli) === Number(s.gpuMilli) && Number(d.cpuMilli) === Number(s.cpuMilli);
+  const matches = (d, s) => Number(d.gpuMilli) === Number(s.gpuMilli) && Number(d.cpuMilli) === Number(s.cpuMilli) && d.appRef === s.appRef;
   let d = await read(); identity(d);
-  if (!matches(d, expected)) throw new Error("The deployment's shares changed. Reopen Resources before trying again.");
+  if (!matches(d, expected)) throw new Error("The deployment's shares changed. Reopen the panel before trying again.");
   if (!Number.isSafeInteger(Number(d.leaseUntil)) || Number(d.leaseUntil) < 0
     || !Number.isSafeInteger(Number(d.blockTimestamp)) || Number(d.blockTimestamp) <= 0)
     throw new Error("Unable to verify the current lease. Nothing changed; try again.");
@@ -36,7 +37,7 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
     await apply({ active: false });
     committed = true;
     saved({ active: false });
-    progress("New shares saved. Waiting for the old host lease to clear before re-queuing…");
+    progress("New allocation saved. Waiting for the old host lease to clear before re-queuing…");
     // Leases can outlive the old fixed three-minute UI timeout. Allow the
     // current lease's remaining lifetime plus settlement/read propagation.
     const remainingMs = Math.max(0, Number(d.leaseUntil) - Number(d.blockTimestamp)) * 1000;
@@ -52,7 +53,7 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
       // stale pre-transaction row as someone resuming or changing our shares.
       const block = Number(d?.blockNumber);
       if (!Number.isSafeInteger(block) || block >= lastBlock) {
-        identity(d);
+        identity(d, [expected.appRef, target.appRef]);
         if (matches(d, target) && d.active === false) {
           observed = true;
           if (Number.isSafeInteger(block)) lastBlock = block;
@@ -64,11 +65,11 @@ export async function resizeAfterStop({ expected, target, read, apply, resume, p
       if (now() >= deadline) throw new Error("The old lease has not cleared yet.");
       await sleep(3000);
     }
-    progress("New shares saved. Confirm re-queue in your wallet to start the resized app.");
+    progress("New allocation saved. Confirm re-queue in your wallet to start the resized app.");
     await resume();
     return { resumed: true };
   } catch (e) {
-    if (committed) e.message += " Your new shares are saved. Use Resume to start the app with the saved allocation; no need to enter it again.";
+    if (committed) e.message += (target.appRef !== expected.appRef ? " Your new version and allocation are saved." : " Your new shares are saved.") + " Use Resume to start the app with the saved allocation; no need to enter it again.";
     throw e;
   }
 }

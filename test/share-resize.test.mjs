@@ -89,3 +89,24 @@ test('retry after cancelled requeue can use already-saved shares unchanged', asy
   await resizeAfterStop(r.options);
   assert.deepEqual(r.events, ['read', ['save-shares', true], 'saved']);
 });
+test('version and allocation commit together; old RPC snapshots are tolerated until observed', async () => {
+  const next = { ...target, appRef: 'catalog://app/3' };
+  const changed = { ...saved, ...next }, cleared = { ...released, ...next };
+  const r = rig([held, held, changed, held, cleared], { target: next, timeoutMs: 15000 });
+  await resizeAfterStop(r.options);
+  assert.equal(r.events.filter(x => Array.isArray(x)).length, 1);
+  assert.equal(r.events.at(-1), 'resume');
+});
+test('version change during restart is refused, including reverting to the original version', async () => {
+  const next = { ...target, appRef: 'catalog://app/3' };
+  for (const appRef of ['catalog://app/4', held.appRef]) {
+    const r = rig([held, { ...saved, ...next }, { ...released, appRef }], { target: next });
+    await assert.rejects(resizeAfterStop(r.options), /changed.*new version and allocation are saved/);
+    assert.equal(r.events.includes('resume'), false);
+  }
+});
+test('cancelled upgrade requeue explains that both version and allocation persisted', async () => {
+  const next = { ...target, appRef: 'catalog://app/3' };
+  const r = rig([held, { ...released, ...next }], { target: next, resume: async () => { throw Error('Rejected'); } });
+  await assert.rejects(resizeAfterStop(r.options), /new version and allocation are saved.*Use Resume/);
+});

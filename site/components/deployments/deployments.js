@@ -39,6 +39,7 @@ import { payForRuntime } from "../../js/core/fund.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
 import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements, hostsTakeConfig } from "../../js/core/isolation-options.js";
 import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
+import { versionAllocation } from "../../js/core/version-allocation.js";
 import { resizeAfterStop } from "../../js/core/share-resize.js";
 import { depSnapshot } from "../../js/core/chain.js";
 import { custodyAvailable, custodyStatus, saveToCustody, rulesFromPredictionPreview } from "../../js/core/custody.js";
@@ -1216,7 +1217,8 @@ class Deployments extends EnclaveElement {
     });
   }
 
-  /* Version and Shares have separate panels and transactions. Shared ledger,
+  /* Version and Shares have separate panels. Version includes any necessary
+     allocation increase in its restart transaction. Shared ledger,
      pricing and minimum checks keep their validation consistent. Shares pins
      the CURRENT version; opening it must never propose an upgrade/downgrade. */
   async _upgrade(id, btn, panel = "version") {
@@ -1276,11 +1278,11 @@ class Deployments extends EnclaveElement {
     // shares with suspension atomically; never leave a failed resize stopped
     // with the old allocation or pretend the existing VM resized live.
     const restartResize = sharesOnly;
-    let resizable = sharesOnly && rev >= 6, prices = null, maxGpu = 1000;
+    let resizable = rev >= 6, prices = null, maxGpu = 1000;
     let resizeReason = rev < 6 ? "This ledger does not support changing shares." : "";
     if (resizable){
       try { [prices, maxGpu] = await Promise.all([depPrices6(), depMaxGpuMilli()]); }
-      catch(e){ resizable = false; resizeReason = "Current prices could not be loaded. Close and reopen Resources to retry."; }
+      catch(e){ resizable = false; resizeReason = "Current prices could not be loaded. Close and reopen the panel to retry."; }
     }
     if (sharesOnly && (currentVersion.yanked || currentVersion.approval !== APPROVAL.approved)) {
       resizable = false; resizeReason = 'This app version is not approved for a new launch. Select an approved version before changing its allocation.';
@@ -1352,7 +1354,12 @@ class Deployments extends EnclaveElement {
       .map(r => ({ ...r,
         shareFit: r.mins.gpuPct * 10 <= bought.gpuMilli && cpuNeedOf(r) * 10 <= bought.cpuMilli,
         feeFit: (verFees[r.i] || 0n) <= snapFee }))
-      .map(r => ({ ...r, fits: (r.shareFit || resizable) && r.feeFit }))
+      .map(r => {
+        const plan = versionAllocation({ bought, gpuPct: r.mins.gpuPct,
+          cpuMinimum: gpu => cpuNeedOf(r, gpu), rev, maxGpu, availability: hostAvail });
+        return { ...r, plan, fits: r.feeFit && (sharesOnly ? resizable || r.shareFit
+          : r.shareFit || (resizable && !!hw && !plan.reason)) };
+      })
       .reverse();
     const others = rows.filter(r => r.i !== cr.index);
     // Version may suggest a newer fitting release. Shares always keeps the
@@ -1368,12 +1375,13 @@ class Deployments extends EnclaveElement {
       + '<div class="' + (sharesOnly ? 'enc-share-content' : 'enc-upg-body') + '">'
       + (sharesOnly ? '' : '<label for="' + selId + '">Switch ' + esc(app.slug) + ' to</label>'
       +   '<select class="eu-sel" id="' + selId + '">'
-      +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index && !resizable) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
+      +     rows.map(r => '<option value="' + r.i + '"' + (((r.i === cr.index) || !r.fits) ? " disabled" : "") + (pick && r.i === pick.i ? " selected" : (!pick && r.i === cr.index ? " selected" : "")) + '>'
       +       esc(app.slug + ":" + r.v.version)
       +       (r.i === cr.index ? " · current" : "")
       +       (!r.shareFit && r.i !== cr.index ? " · needs ≥ " + (r.mins.gpuPct ? r.mins.gpuPct + "% GPU / " : "") + cpuNeedOf(r) + "% CPU"
                                                  + (hw ? " on " + hw.name : "") : "")
-      +       (r.shareFit && !r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
+      +       (!r.shareFit && !r.fits && r.plan.reason && r.i !== cr.index ? " · " + esc(r.plan.reason) : "")
+      +       (!r.feeFit && r.i !== cr.index ? " · charges $" + (Number(verFees[r.i]) * 3600 / 1e6).toFixed(2) + "/hr publisher fee (above this deployment’s snapshot)" : "")
       +     '</option>').join("")
       +   '</select>')
       +   (sharesOnly ? '' : '<button class="btn btn-sm btn-primary eu-go" type="button">Change version</button>')
@@ -1414,31 +1422,19 @@ class Deployments extends EnclaveElement {
         if (restartResize && resizable) paint("dimln", "Pricing is an estimate. The new instance must fit an eligible host and your hourly rate cap.");
         return;
       }
-      if (sharesOnly && resizable && restartResize)
-        paint("info", "// resizing stops this instance, waits for its lease to be released, then starts a fresh instance with the new shares. The URL and balance carry over; in-memory state is lost. Wallet confirmations are required for suspension and the resize/restart.");
-      else if (!sharesOnly || resizable) paint("info", "// paid time carries over: the runner restarts the app in place (~a minute); the endpoint and balance don’t change, app state is ephemeral");
-      if (restartResize && resizable) paint("dimln", "// pricing below is an estimate at the current host’s rates; the fresh instance must fit an eligible host and your rate cap");
-      if (resizable && freeHere)
-        paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - " + hw.name
-          + " pays out to this deployment’s owner, so the bigger slice is re-bought at $0.00/h too"
-          + (snapFee > 0n ? " (the app’s publisher fee is never waived)" : " and no balance is needed"));
-      else if (resizable)
-        paint("dimln", "// the dials re-buy this deployment’s shares in the same transaction - the hourly rate is recalculated at "
-          + (rev >= 8 ? (hw ? hw.name + "’s posted price" : "the price of whichever enclave claims it") : "the CURRENT list prices")
-          + ", and a live lease settles at the old rate first");
-      if (sharesOnly && cap6 > 0n)
-        paint("dimln", "// rate cap $" + (Number(cap6) * 3600 / 1e6).toFixed(2) + "/h: enclaves dearer than this can’t run this deployment - "
-          + "it is also what decides where the app goes if its enclave dies"
-          + (capEditable ? "" : " (this fleet can’t change it yet)"));
-      if (hw)
-        paint("dimln", "// minimum shares are measured on " + hw.name + " (" + hw.spec.nodeRamGb + " GB / " + hw.spec.nodeVcpus + " vCPU node"
-          + (bought.gpuMilli ? ", " + hw.spec.cardVramGb + " GB card" : "") + "), the enclave holding this deployment’s lease - it restarts the app in place and checks the new version against its own hardware");
-      if (!sharesOnly && others.some(r => !r.shareFit))
-        paint("dimln", "// disabled entries need more than this deployment’s " + (bought.gpuMilli ? (bought.gpuMilli / 10) + "% GPU / " : "") + (bought.cpuMilli / 10) + "% CPU - " + "adjust the allocation in Resources before switching to one of those versions");
-      if (!sharesOnly && others.some(r => r.shareFit && !r.feeFit))
+      paint("info", "Your URL and balance carry over. Changing version restarts the app and resets in-memory state.");
+      if (hw) paint("dimln", "Version requirements are checked against " + hw.name + "’s hardware and available capacity.");
+      if (others.some(r => !r.shareFit))
+        paint("dimln", "Version changes include the minimum allocation increase when this host has capacity. Existing allocations are preserved; unavailable capacity and higher publisher fees keep versions disabled.");
+      if (others.some(r => !r.feeFit))
         paint("dimln", "// entries charging a higher publisher fee than this deployment snapshotted at create need a fresh deploy - the fee snapshot is immutable");
     };
-    const dials = () => editor ? editor.values() : { ...bought };
+    const dials = () => {
+      if (editor) return editor.values();
+      const r = rows.find(r => String(r.i) === sel.value);
+      return !sharesOnly && r ? versionAllocation({ bought, gpuPct: r.mins.gpuPct,
+        cpuMinimum: gpu => cpuNeedOf(r, gpu), rev, maxGpu, availability: hostAvail }).target : { ...bought };
+    };
     // the rate this size would run at, priced at the box that will serve it:
     // its lease holder's posted price (rev 8), else the fleet/list price - and
     // zero for the host half when that box hosts this owner for free, leaving
@@ -1449,8 +1445,13 @@ class Deployments extends EnclaveElement {
     // Sliders enforce resource floors; Save also validates pricing, capacity
     // and ledger rules, both while editing and immediately before signing.
     const problem = (r, t, resized) => {
-      if (!editor) return "";
-      if (editor.problem()) return editor.problem();
+      if (!editor && !resized) return "";
+      if (editor?.problem()) return editor.problem();
+      if (!sharesOnly) {
+        const plan = versionAllocation({ bought, gpuPct: r.mins.gpuPct,
+          cpuMinimum: gpu => cpuNeedOf(r, gpu), rev, maxGpu, availability: hostAvail });
+        if (plan.reason) return plan.reason;
+      }
       if (t.gpuMilli < 0 || t.cpuMilli < 0) return "// shares can’t be negative";
       const ver = app.slug + ":" + r.v.version;
       if (t.gpuMilli < r.mins.gpuPct * 10)
@@ -1484,15 +1485,17 @@ class Deployments extends EnclaveElement {
       const r = rows.find(x => String(x.i) === sel.value);
       st.innerHTML = ""; intro();
       if (!r || !r.fits){ go.disabled = true; return; }
-      if (resizable && editor){
+      if (resizable && (editor || !sharesOnly)){
         const t = dials();
         const resized = t.gpuMilli !== bought.gpuMilli || t.cpuMilli !== bought.cpuMilli;
         const verChange = r.i !== cr.index;
-        go.textContent = 'Save';
+        go.textContent = sharesOnly ? 'Save' : 'Change version';
         go.disabled = !verChange && !resized && !(restartResize && d.active === false);
         const bad = problem(r, t, resized);
         if (bad){ go.disabled = true; paint("warn", bad); return; }
         if (resized){
+          if (!sharesOnly) paint("info", "This version needs " + (t.gpuMilli / 10) + "% GPU / " + (t.cpuMilli / 10)
+            + "% CPU. Confirm version + allocation together, then confirm restart after the old lease clears. URL and balance stay the same; in-memory state resets.");
           const newRate = rateOf(t), oldRate = Math.round(Number(d.rate) || 0), bal = Number(d.balance6 || 0);
           paint("dimln", "// rate $" + (oldRate * 3600 / 1e6).toFixed(2)
             + "/h -> $" + (Number(newRate) * 3600 / 1e6).toFixed(2) + "/h"
@@ -1515,7 +1518,7 @@ class Deployments extends EnclaveElement {
       const verChange = !sharesOnly && r.i !== cr.index;
       if (!verChange && !resized && !(restartResize && d.active === false)) return;
       // Recheck the complete draft before asking for a signature.
-      if (resizable && editor){
+      if (resizable && (editor || !sharesOnly)){
         const bad = problem(r, t, resized);
         if (bad){ st.innerHTML = ""; intro(); paint("warn", bad); return; }
       }
@@ -1528,32 +1531,41 @@ class Deployments extends EnclaveElement {
       try {
         box.dataset.busy = "true";
         locked.forEach(([el]) => { el.disabled = true; });
-        if (sharesOnly) {
-          const latest = await depGet(id), current = leaseHostOf(latest, fleet);
+        if (sharesOnly || resized) {
+          const [latest, liveFleet] = await Promise.all([depGet(id), Enclave.getEnclaves()]);
+          const current = leaseHostOf(latest, liveFleet);
           if (latest.active === false || !current || current.row.id !== hw.row.id)
-            throw new Error('The app’s host changed. Reopen Resources to size its current allocation.');
+            throw new Error('The app’s host changed. Reopen the panel to retry.');
+          if (!sharesOnly) {
+            const livePlan = versionAllocation({ bought, gpuPct: r.mins.gpuPct,
+              cpuMinimum: gpu => cpuNeedOf(r, gpu), rev, maxGpu, availability: current.row.availability });
+            if (livePlan.reason) throw new Error(livePlan.reason);
+          }
         }
-        if (restartResize && (resized || d.active === false)) {
+        if (resizable && (restartResize || resized) && (resized || d.active === false)) {
           if (!via && !Enclave.provider) await connectWallet();
           if (!via) await ensureBaseChain();
           const walletTx = async data => { const hash = await sendTx(DEPLOYMENTS_ADDRESS, data); await waitReceipt(hash); };
           const activeCall = active => encCall(DEP_SEL.setActive, [{ t: "bytes32", v: id }, { t: "bool", v: active }]);
           const sharesCall = encCall(DEP_SEL.setShares, [{ t: "bytes32", v: id }, { t: "uint", v: t.gpuMilli }, { t: "uint", v: t.cpuMilli }]);
+          const nextRef = verChange ? catalogRef(cr.appId, r.i) : d.appRef;
+          const versionCalls = verChange ? [encCall(DEP_SEL.setAppRef, [{ t: "bytes32", v: id }, { t: "str", v: nextRef }])] : [];
           const vault = via ? (await import("../../js/core/vault.js")).vaultOp : null;
           const result = await resizeAfterStop({
-            expected: d, target: t, read: () => depSnapshot(id),
+            expected: d, target: { ...t, appRef: nextRef }, read: () => depSnapshot(id),
             saved: ({ active }) => {
               // Keep the same panel retryable after cancellation/RPC trouble.
               // The chain already retains these shares across reloads.
-              Object.assign(bought, t); Object.assign(d, t, { active });
+              Object.assign(bought, t); Object.assign(d, t, { active, appRef: nextRef });
+              if (verChange) saved = true; // a partial upgrade continues through Resume, never a second version write
             },
             resume: () => via ? vault("control", { id, action: "resume" }) : walletTx(activeCall(true)),
             progress: message => paint("info", message),
             apply: async ({ active }) => {
               if (via) {
-                await vault("control", { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli, active });
+                await vault("control", { id, action: "resize", gpuMilli: t.gpuMilli, cpuMilli: t.cpuMilli, active, ...(verChange ? { ref: nextRef } : {}) });
               } else {
-                await walletTx(encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: [sharesCall, activeCall(active)] }]));
+                await walletTx(encCall(DEP_SEL.multicall, [{ t: "bytes[]", v: [...versionCalls, sharesCall, activeCall(active)] }]));
               }
             },
           });
@@ -1601,7 +1613,7 @@ class Deployments extends EnclaveElement {
         setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; btn.setAttribute("aria-expanded", "false"); } this.refresh(); }, 3500);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
-        paint("warn", restartResize ? "[x] " + (e.message || String(e))
+        paint("warn", (restartResize || resized) ? "[x] " + (e.message || String(e))
           : rejected ? (via ? "[x] cancelled - nothing changed" : "[x] rejected in wallet - nothing changed") : "[x] " + (e.message || String(e)));
         go.disabled = false;
       } finally { delete box.dataset.busy; locked.forEach(([el, disabled]) => { el.disabled = disabled; }); if (saved) go.disabled = true; if (!via) refreshWallet(); }
