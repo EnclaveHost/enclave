@@ -1,0 +1,160 @@
+{
+  "at": "2026-10-24T09:46:09.007247+00:00",
+  "complete": false,
+  "productionCanaryRun": false,
+  "administratorControls": "preserved",
+  "sourceCommit": "63c06f1111acd8c56527ed34746c3e0ed6881155",
+  "checkpointCommit": "dfd3e15b77a882fcbab16301212b166af3a08415",
+  "tests": {
+    "nodePassed": 173,
+    "pythonPassed": 3,
+    "unexpectedFailures": 0,
+    "knownRollbackTodo": 1,
+    "log": "root-full-30.out",
+    "scope": "Local filesystem/TLS fixtures and synthetic quote/VM/chain tests, not production SNP lifecycle evidence"
+  },
+  "coordination": {
+    "threadTitle": "Explore KVM for enclave performance",
+    "threadId": "01a16bce-1169-7862-aea9-98b457e17a4a",
+    "desktopUnit": "kvm-box-desktop-9e7ffec7.service",
+    "desktopMiB": 8192,
+    "moonlightUnit": "kvm-box-moonlight-client.service",
+    "window": "offered, not claimed; request explicitly after authority and launch gates pass",
+    "leaveUntouched": [
+      "kvm-box-controller-9e7ffec7.service",
+      "kvm-box-native-worker.service",
+      "original custody and production GPU workers"
+    ],
+    "appsStopped": []
+  },
+  "hostAuthority": {
+    "at": "2026-10-24T09:38:44.053Z",
+    "readOnly": true,
+    "blockNumber": "53022685",
+    "blockHash": "0xe78e60752895c8389c7e976335fe88fcd3f7e74a8b70c9bf4a230c2d10362131",
+    "blockTimestamp": 1792834717,
+    "entry": {
+      "active": true,
+      "endpoint": "https://api.enclave.host/t/metal0",
+      "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+      "acceptedOwner": "0x0000000000000000000000000000000000000000",
+      "payout": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+      "vaultEnclave": true,
+      "ownerConflict": false
+    },
+    "ready": false,
+    "note": "Accepted ownership/active registry/operator binding missing or conflicting; payout alone is not ownership."
+  },
+  "originalServices": {
+    "at": "2026-10-24T09:38:40.315Z",
+    "readOnly": true,
+    "memAvailableMiB": 23880,
+    "protectedServices": {
+      "enclave-custodian-v2.service": {
+        "pid": 3817646,
+        "startTicks": "32598967",
+        "invocation": "70a40c6c9f8f4bf4b670ac1012bf0d6a"
+      },
+      "enclave-guestd.service": {
+        "pid": 2223309,
+        "startTicks": "74599959",
+        "invocation": "63a8f6b9c29d490da42dae50d96551c2"
+      },
+      "enclave-metal.service": {
+        "pid": 1034366,
+        "startTicks": "112110123",
+        "invocation": "daa2b427481d49c9bbbfedab3ee24c0d"
+      }
+    },
+    "runningQemuCount": 5,
+    "exampleUnitAbsent": true,
+    "scope": "Current host inventory only; no launch, key read or SNP claim."
+  },
+  "recipientManager": {
+    "at": "2026-10-24T09:38:40.416Z",
+    "readOnly": true,
+    "authenticated": true,
+    "vmCount": 1,
+    "originals": [
+      {
+        "id": "gd9d4a391d",
+        "present": false,
+        "running": false
+      },
+      {
+        "id": "gdd0646f2c",
+        "present": true,
+        "running": true
+      }
+    ],
+    "scope": "Authenticated local guestd metadata only; no canary boot, SNP quote or secret-release test."
+  },
+  "publicationPreflight": {
+    "status": "prepared",
+    "planHash": "0x38df1cb8a881ea336102d90440c4f22937b24fcbb4f46500cfeeb231a7d47b9f",
+    "requests": 54,
+    "transport": {
+      "requests": 54,
+      "retries429": 0,
+      "waitedMs": 1768,
+      "elapsedMs": 6866,
+      "blockAgeMs": 5857,
+      "pacing": {
+        "minIntervalMs": 250,
+        "max429Retries": 3,
+        "retryAfterCapMs": 5000,
+        "backoffMs": [
+          500,
+          1000,
+          2000
+        ],
+        "maxRequests": 80,
+        "timeBudgetMs": 60000,
+        "freshnessMs": 60000
+      }
+    },
+    "fees": {
+      "l2MaxWei": "8221477000000",
+      "l1DataUpperBoundWei": "6536139080",
+      "operatorFeeUpperBoundWei": "0",
+      "totalAtBlockWei": "8228013139080",
+      "encodedBytes": {
+        "unsigned": 1012,
+        "signedMax": 1079,
+        "oracleArgument": 1012,
+        "oracleSignatureAllowance": 68
+      },
+      "note": "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's parameters. Not a guarantee against later changes; the signer must re-check before signing."
+    },
+    "balanceSufficient": true
+  },
+  "storageReadback": {
+    "at": "2026-10-24T09:45:16.940Z",
+    "sha256": "7ce32918490b91b87c7ffa4cf69769c676b5b835ca11d55904b1511ef93ee883",
+    "bytes": 101222,
+    "verified": true
+  },
+  "walletActions": [
+    {
+      "action": "acceptOwner(metal0)",
+      "url": "http://127.0.0.1:39671/",
+      "status": "ready, no submitted hash at09:45:21UTC"
+    },
+    {
+      "action": "Publish custody-canary-proof0.1.0",
+      "url": "http://127.0.0.1:39675/",
+      "status": "ready, no submitted hash at09:45:21UTC",
+      "uploadRepeatRequired": false
+    }
+  ],
+  "limits": [
+    "single Enclave-operated custody seat",
+    "production secret lifecycle matrix not run",
+    "same-epoch sealed-state rollback protection absent",
+    "recipient custody-pointer chain binding incomplete",
+    "relay plaintext exclusion and legacy-copy deletion unproven",
+    "failed-boot/outage/restart integration incomplete",
+    "secretVaultV2 activation and dashboard publication pending",
+    "executable launch pins, ingress, funding and offline collateral must be reconciled before launch"
+  ]
+}

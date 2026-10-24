@@ -1,0 +1,9 @@
+{
+  "docsCommit": "f92c6dbf1214bd1acf8391be4e730ba1304bc7aa",
+  "sourceCheckpoint": "dfd3e15b77a882fcbab16301212b166af3a08415",
+  "files": {
+    "coordination.json": "e9ff49073a96306a6c4b7ba371e2c378194111abe222408fe0e8543211f2841a",
+    "CURRENT-STATE.md": "b9fbd2e8e68d1798b5514ce398892048b21c54e5f19315fec5549db9dba7d1ac",
+    "SIGNING-AUTHORITY.md": "293a3c43572321e1b5303779919ad274ac40f2ee6d03b57a126a911440bbd59e"
+  }
+}
