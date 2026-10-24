@@ -1,0 +1,895 @@
+{
+  "at": "2026-10-24T03:32:30.529732+00:00",
+  "previousCheckpoint": "a118395ef15003fba20ce3e09173f655e7761001",
+  "sources": [
+    {
+      "name": "canary",
+      "head": "4b74f559e87e6620d266d995d1d29d0666dec2e3",
+      "repo": "work/custody-v2-r2-production-canary-20261024"
+    },
+    {
+      "name": "forwarder",
+      "head": "5f364d4f9bd387370e79690df6d622e402d36645",
+      "repo": "work/custody-v2-ingress-forwarder-20261023"
+    },
+    {
+      "name": "diagnostic",
+      "head": "c4084c93ca70bc7a758f53abf803f076fe85cf00",
+      "repo": "work/custody-v2-live-20261023",
+      "subset": true
+    }
+  ],
+  "entries": [
+    {
+      "path": "sources/canary/.gitignore",
+      "sha256": "a00ee4f41bd47de5071b9b314564ecc626e799c91eb4292a45ebc5c8f7e2d21a",
+      "bytes": 41,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:.gitignore"
+    },
+    {
+      "path": "sources/canary/.gitleaksignore",
+      "sha256": "990ab2fa0c10faf15f150c48432010b301d6c7d3d8172886feb462df2fd4f8fc",
+      "bytes": 1126,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:.gitleaksignore"
+    },
+    {
+      "path": "sources/canary/LAUNCH-PACKAGE.md",
+      "sha256": "f9b8e92b937fff19d4507ab8cc209f995ae055896fcf789b101eba95e135e862",
+      "bytes": 7467,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:LAUNCH-PACKAGE.md"
+    },
+    {
+      "path": "sources/canary/ORIGIN-0152520.json",
+      "sha256": "239b4f9135e92e6409d72d1697c3a6ea6f11241a7929d1b6a6de49bad878a2c1",
+      "bytes": 2216,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:ORIGIN-0152520.json"
+    },
+    {
+      "path": "sources/canary/STATUS.md",
+      "sha256": "f3fcad805f9c04116d1a5e79f92776e69165e5f139a4ac3799387b99c11a0a63",
+      "bytes": 16881,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:STATUS.md"
+    },
+    {
+      "path": "sources/canary/cli-pins/canary-contract-pins.json",
+      "sha256": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
+      "bytes": 589,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:cli-pins/canary-contract-pins.json"
+    },
+    {
+      "path": "sources/canary/driver/assert.mjs",
+      "sha256": "24350790df1d6ea0a0a28a85a414e96887959901ede36851b1f0a8d155461e06",
+      "bytes": 12613,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/assert.mjs"
+    },
+    {
+      "path": "sources/canary/driver/attestation.mjs",
+      "sha256": "2710a3dd803895949978c7c957475cbf3b4672a20d83e23635bfbd08bc46ee65",
+      "bytes": 6071,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/attestation.mjs"
+    },
+    {
+      "path": "sources/canary/driver/budget.mjs",
+      "sha256": "ff4438cdd1abd0441c50516009720dfee9f0e96984e3531348df01154def7cfd",
+      "bytes": 4184,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/budget.mjs"
+    },
+    {
+      "path": "sources/canary/driver/canonical.mjs",
+      "sha256": "c1dc48ba8331fd7b3522e47c8c91a9a78e822d601e06c26b709f3326b63d960f",
+      "bytes": 1195,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/canonical.mjs"
+    },
+    {
+      "path": "sources/canary/driver/capture-host-copy.mjs",
+      "sha256": "d91bb2beffbda1f7b62e3de3b9edcd7259f45c438e2a862ccf68d151eacd0639",
+      "bytes": 2388,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/capture-host-copy.mjs"
+    },
+    {
+      "path": "sources/canary/driver/cli.mjs",
+      "sha256": "b9d50711023bc288bea78cd25870a6e9ed203d0ecf7b000e51aa6a07d2a98070",
+      "bytes": 41582,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/cli.mjs"
+    },
+    {
+      "path": "sources/canary/driver/clipins.mjs",
+      "sha256": "7d3d4a8010b8ac7c3cb69e970c64fb02fab1a037d8e51bcfc3f6976467f9b7d3",
+      "bytes": 6658,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/clipins.mjs"
+    },
+    {
+      "path": "sources/canary/driver/genesis-capture.mjs",
+      "sha256": "12c2336a6238c013b470fdfe3f787a35a5d4796c479e35b41a208d3d5892e9fd",
+      "bytes": 4004,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/genesis-capture.mjs"
+    },
+    {
+      "path": "sources/canary/driver/genesis-submit.mjs",
+      "sha256": "7ad6c3ea229396d4fc61e06c6cbf04ae55898ddd85a1cba8c82a9835b7efbe11",
+      "bytes": 2628,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/genesis-submit.mjs"
+    },
+    {
+      "path": "sources/canary/driver/genesis.mjs",
+      "sha256": "e6f140cd43a56482d32a38b520c875d5d810c06c691bd2694674f382d1282918",
+      "bytes": 10882,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/genesis.mjs"
+    },
+    {
+      "path": "sources/canary/driver/guard.mjs",
+      "sha256": "44c0774817f3801482313df734926033fbba759c32025d0d000991407cd13f98",
+      "bytes": 2644,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/guard.mjs"
+    },
+    {
+      "path": "sources/canary/driver/inspect-caddy.py",
+      "sha256": "d997c3addb4de22a1d1200e5f736ee75584c4b89391ce4e74328dc7ab82c94a2",
+      "bytes": 4336,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/inspect-caddy.py"
+    },
+    {
+      "path": "sources/canary/driver/journal.mjs",
+      "sha256": "b5285ba3b4d2c4240537b1dbb71ea513b2af2f7b67d8b2fd059cb784a0230283",
+      "bytes": 4541,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/journal.mjs"
+    },
+    {
+      "path": "sources/canary/driver/launch-bundle.mjs",
+      "sha256": "6e8735455e9d6429f6bee5bd06e50343d2724b129238edf9a7025b9ef7ad1bb5",
+      "bytes": 9128,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/launch-bundle.mjs"
+    },
+    {
+      "path": "sources/canary/driver/launch-ingress.mjs",
+      "sha256": "3642b1e698442e04ab7cbfe451c71621d9d39f9118362268f70735bf9b150ab8",
+      "bytes": 9350,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/launch-ingress.mjs"
+    },
+    {
+      "path": "sources/canary/driver/launch-runtime.mjs",
+      "sha256": "811ba3e87579489aea1b59ddf8e72f04b6e08475f685853465b59a4c374f4134",
+      "bytes": 17712,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/launch-runtime.mjs"
+    },
+    {
+      "path": "sources/canary/driver/launch-verify.mjs",
+      "sha256": "e7cfd11fe2ec40e0d3171e6dc1c8f1ff71be99924274b4bd4a99f485807c1579",
+      "bytes": 6105,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/launch-verify.mjs"
+    },
+    {
+      "path": "sources/canary/driver/launch/resolve-as-original.mjs",
+      "sha256": "30cd9f2cd53ecc82509bc8ade157a934c16dcd0dead7e717480f85c9dc353fe7",
+      "bytes": 741,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/launch/resolve-as-original.mjs"
+    },
+    {
+      "path": "sources/canary/driver/launch/resolve-register.mjs",
+      "sha256": "16deae35e7f1ccbb53969c762288e043c879e394c3018785c21f8ec0d475c29a",
+      "bytes": 1259,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/launch/resolve-register.mjs"
+    },
+    {
+      "path": "sources/canary/driver/markers.mjs",
+      "sha256": "01039cff80f6a4d6bd35e6db042958b6c9c0993a89b49f9f53f06dc48602cbdd",
+      "bytes": 2793,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/markers.mjs"
+    },
+    {
+      "path": "sources/canary/driver/plan.mjs",
+      "sha256": "fe03bff36097b231469ce510cbcd6e54016c014c2ffc8de81064fed3ad9419e9",
+      "bytes": 38634,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/plan.mjs"
+    },
+    {
+      "path": "sources/canary/driver/prepare.mjs",
+      "sha256": "722dfdc3e4c1a75bf89c1e2ee6f91e0c1deaea6893362fb90de5ca57672928da",
+      "bytes": 7409,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/prepare.mjs"
+    },
+    {
+      "path": "sources/canary/driver/probe-old-committee.mjs",
+      "sha256": "be0275fec93f9384abc670d27e9f868877ec5c0e71cd46cee4f2aa56caae6d6e",
+      "bytes": 4065,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/probe-old-committee.mjs"
+    },
+    {
+      "path": "sources/canary/driver/probe.mjs",
+      "sha256": "f479408e53717fde62dec118f7e8b7acafdb24b8f8657fef9a75450ad796d306",
+      "bytes": 5815,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/probe.mjs"
+    },
+    {
+      "path": "sources/canary/driver/proof.mjs",
+      "sha256": "e0d6e76c54f096a9f2c8300710fa15685efd2abfbcdb735f9c005763bd794dd5",
+      "bytes": 4934,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/proof.mjs"
+    },
+    {
+      "path": "sources/canary/driver/r2-attestor.mjs",
+      "sha256": "bbdb53be229822b94bf6df543d7f04c073f012a2ce0898508c5993dcec38727f",
+      "bytes": 1713,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/r2-attestor.mjs"
+    },
+    {
+      "path": "sources/canary/driver/read-steps.mjs",
+      "sha256": "b43f3d1b8c5f2b2f9100fb22557634a8234f38b8314af0a6d8179469290d2bbe",
+      "bytes": 2518,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/read-steps.mjs"
+    },
+    {
+      "path": "sources/canary/driver/relay.mjs",
+      "sha256": "e0d2b4a40102d24066bf07ee8a2de62e61cf85f6ce5d4cd9231da801b9bc5c21",
+      "bytes": 5248,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/relay.mjs"
+    },
+    {
+      "path": "sources/canary/driver/sender.mjs",
+      "sha256": "6e34a22a6704483d3fdb25914b7d05ee4c02db37c5120323620447053f6dec46",
+      "bytes": 27393,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/sender.mjs"
+    },
+    {
+      "path": "sources/canary/driver/tx.mjs",
+      "sha256": "f7a473773a5d4e8feb572d2de50dba4f03c89b88bbaa8b82367ded30f8e523ce",
+      "bytes": 3132,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:driver/tx.mjs"
+    },
+    {
+      "path": "sources/canary/pins.base.json",
+      "sha256": "4f97aa7945f095c50f417e8fab1cdffb93656fbebad35ad15e5bc82af2ff09a1",
+      "bytes": 5537,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:pins.base.json"
+    },
+    {
+      "path": "sources/canary/proposals/cli-ledger-write-guard.patch",
+      "sha256": "0688c3e4935683084858054f086a719050cd0642fab0844c73f9ca145a2313de",
+      "bytes": 2916,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:proposals/cli-ledger-write-guard.patch"
+    },
+    {
+      "path": "sources/canary/q.sh",
+      "sha256": "3ccf0f03253bff7356cd9ab284f0405aba1afaa45e1ba252c51b201a61ccdbf3",
+      "bytes": 619,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:q.sh"
+    },
+    {
+      "path": "sources/canary/test/assert.test.mjs",
+      "sha256": "94bf8288f858349b89b038f42e3171c5184cc911c8b878811502dd7b0bc5dae3",
+      "bytes": 11451,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/assert.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/attestation.test.mjs",
+      "sha256": "a28b9507b7c2607c05d909da9861be07bceab2a109226fd559332ca320ea012b",
+      "bytes": 7191,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/attestation.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/capture.test.mjs",
+      "sha256": "b533828ab57e936d120ce1fae4ce62dbb2c215f631b8de6fed460f04c7382093",
+      "bytes": 5118,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/capture.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/clipins.test.mjs",
+      "sha256": "5fc363fa02c71fc68fa955e3dd5396066e0678245db1b2df3638da56966c2149",
+      "bytes": 6255,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/clipins.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/core.test.mjs",
+      "sha256": "1c6d6daa5082121fe8d0535f4e2d13f60d3a5218b8f05b442cb724cf607747b4",
+      "bytes": 10731,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/core.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/genesis-submit.test.mjs",
+      "sha256": "5a0ba6824070c4203d86d4ba191d71d728dd7b6f9d722d14922fc8b7876ff634",
+      "bytes": 4804,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/genesis-submit.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/genesis.test.mjs",
+      "sha256": "700eb231aa385d9963c645f002f398e50ac73d9967adaaabda921a06d1b62b13",
+      "bytes": 8976,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/genesis.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/inspect-caddy.test.py",
+      "sha256": "e15260df5ed6417c753252ae2cb8024989f8b79bf6de55a3ec9d2cdeb6ce33bc",
+      "bytes": 2640,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/inspect-caddy.test.py"
+    },
+    {
+      "path": "sources/canary/test/launch-bundle.test.mjs",
+      "sha256": "9e98ec335cc68ceaafda20763f09141253c4dbb28e91d37a642b43d134022b71",
+      "bytes": 5105,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/launch-bundle.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/launch-ingress.test.mjs",
+      "sha256": "34caaaa80ad7aacd60796ff56d2af455e8ddde91ec7abf72df4f965a4ac779ad",
+      "bytes": 6180,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/launch-ingress.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/launch-runtime.test.mjs",
+      "sha256": "da274e8bdee5065ab294cb56352ddc77257fdf255a776e5f4f2b8caeacb9a906",
+      "bytes": 10130,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/launch-runtime.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/launch-verify.test.mjs",
+      "sha256": "66e3c87683f85381ac8bae37110b5952ef7cdfd96c251a7670d9e28673deb2ac",
+      "bytes": 6353,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/launch-verify.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/limitations.test.mjs",
+      "sha256": "e109ff4240b776c671200f28cb9c8ce1d47e48bd69fe0a93091c98dd1d253916",
+      "bytes": 1935,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/limitations.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/mutate-evidence.py",
+      "sha256": "eed84a5af6884f9676e66a01725341afc4b383790f43c8a035ac7a1c52264950",
+      "bytes": 5182,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/mutate-evidence.py"
+    },
+    {
+      "path": "sources/canary/test/mutate-ingress.py",
+      "sha256": "36d26cbc312853054a2850c2dda0c736ea80c19ca678159356a1f1c2a3ccdf50",
+      "bytes": 1602,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/mutate-ingress.py"
+    },
+    {
+      "path": "sources/canary/test/mutate-launch-verify.py",
+      "sha256": "d420fda99ebee5df9a65445f7ca3ba01ba8d430a1c9225589bd2e1ceb0d902c3",
+      "bytes": 1624,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/mutate-launch-verify.py"
+    },
+    {
+      "path": "sources/canary/test/mutate-launch.py",
+      "sha256": "b2b3d0abaf3dcc217800f98838c220d4903b70f0027debc2c164c07c9afb2aa2",
+      "bytes": 1941,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/mutate-launch.py"
+    },
+    {
+      "path": "sources/canary/test/mutate-old-probe.py",
+      "sha256": "d09a601c68196cb4258b3684d39db735f0ac275f6357808342649db23c0e09e9",
+      "bytes": 1688,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/mutate-old-probe.py"
+    },
+    {
+      "path": "sources/canary/test/mutate-runtime.py",
+      "sha256": "de6ed17745bd77ca4d6054bdcec20909ad273cedbf9a927bc95522196d186e19",
+      "bytes": 2243,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/mutate-runtime.py"
+    },
+    {
+      "path": "sources/canary/test/net.test.mjs",
+      "sha256": "92673c078cae847cd0c34e8d6f7544a9fccde3abbc83307ccfa47b7a0a7176d5",
+      "bytes": 7212,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/net.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/old-committee.test.mjs",
+      "sha256": "0e5d2955d48c09e1e20c31698a1da60c517b939afdb20391d7a7c7e1e3388382",
+      "bytes": 5945,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/old-committee.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/prepare.test.mjs",
+      "sha256": "eab95ac13a3538af6359b0c5caca526ec1e3d41c460e80d46c26e964472db2df",
+      "bytes": 8693,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/prepare.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/proof.test.mjs",
+      "sha256": "02134b701253be8cc71823459ece10eda1b5322913196f5dcec2cc1b4a498f35",
+      "bytes": 3757,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/proof.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/read-steps.test.mjs",
+      "sha256": "24cdd4dbed0a1b2ce0e6289c0ce7e88b765f6fc7da991e475d794cc0c0fd5f35",
+      "bytes": 4625,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/read-steps.test.mjs"
+    },
+    {
+      "path": "sources/canary/test/run-evidence-tests.sh",
+      "sha256": "a287758ed26235c488b18dd36a32e998156bbcef94b615a3c61c6b86bd8055fd",
+      "bytes": 269,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/run-evidence-tests.sh"
+    },
+    {
+      "path": "sources/canary/test/run-tests.sh",
+      "sha256": "544494f71aa8ce1973ac4eb9ca6543e0ccbf43043cd76d5b45fd8d46adff9295",
+      "bytes": 478,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/run-tests.sh"
+    },
+    {
+      "path": "sources/canary/test/sender.test.mjs",
+      "sha256": "89d979026744949de9c6d1e4fc0e3c96c2c516e258571ce6de05972d0ff25c95",
+      "bytes": 23344,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:test/sender.test.mjs"
+    },
+    {
+      "path": "sources/canary/tools/read-host.mjs",
+      "sha256": "398dd00b284ea78bbc848bf55417f48d14af4fa63d01448bd1339a73969e46fc",
+      "bytes": 1697,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:tools/read-host.mjs"
+    },
+    {
+      "path": "sources/canary/tools/read-runtime-baseline.mjs",
+      "sha256": "b0e23a915ae89b6af9fa76f99ebcf07f46d733b2980246f283d22f92a28e9766",
+      "bytes": 705,
+      "origin": "custody-v2-r2-production-canary-20261024@4b74f559e87e6620d266d995d1d29d0666dec2e3:tools/read-runtime-baseline.mjs"
+    },
+    {
+      "path": "sources/forwarder/RESULT.md",
+      "sha256": "0899f535de7b9b98dd8cdf73117f1f9449b7c353f147ddc0584f03b8ee72d8e8",
+      "bytes": 13504,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:RESULT.md"
+    },
+    {
+      "path": "sources/forwarder/ROOT-FOLLOWUP.txt",
+      "sha256": "f29bfa0a2876b25d1456772ea2d9242e7e9a0433c7520924010d186a256f4c2a",
+      "bytes": 715,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:ROOT-FOLLOWUP.txt"
+    },
+    {
+      "path": "sources/forwarder/evidence/origin-caddy-adapted.json",
+      "sha256": "6f4defa62d88791b29f1879fa052f8faabb4273de628aa881230a54307eee3a1",
+      "bytes": 4711,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:evidence/origin-caddy-adapted.json"
+    },
+    {
+      "path": "sources/forwarder/evidence/origin-caddy-validate.json",
+      "sha256": "bf02c7e61c4761b6df185b07dcb081e9147b52ce31003f5fc30d3e9b83f556a7",
+      "bytes": 1488,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:evidence/origin-caddy-validate.json"
+    },
+    {
+      "path": "sources/forwarder/examples/Caddyfile.canary-origin",
+      "sha256": "2546d465c93d981482a55d2aad2c24f9799801d6905a33131ec07a28b4db2411",
+      "bytes": 804,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:examples/Caddyfile.canary-origin"
+    },
+    {
+      "path": "sources/forwarder/examples/Caddyfile.canary-snippet",
+      "sha256": "28352d301e612ee73019b9eb130c46792388b9c5468726556d0408be37ec9cac",
+      "bytes": 1521,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:examples/Caddyfile.canary-snippet"
+    },
+    {
+      "path": "sources/forwarder/examples/forwarder.canary.json",
+      "sha256": "63fbcb0b7d8f1f97d3c04e72d7fb579690eba549e78f53aa66d7cb7da8aa60f4",
+      "bytes": 313,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:examples/forwarder.canary.json"
+    },
+    {
+      "path": "sources/forwarder/examples/forwarder.origin.json",
+      "sha256": "208c921dd9dcb2349b0ae014142f62bbbc2192b10cdee68ff584651a1e059ceb",
+      "bytes": 345,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:examples/forwarder.origin.json"
+    },
+    {
+      "path": "sources/forwarder/examples/reverse-tunnel.canary.txt",
+      "sha256": "2da29c604db70a959c23846b632b2cc4760e474c0c61ff9a9703f837e267aae1",
+      "bytes": 1850,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:examples/reverse-tunnel.canary.txt"
+    },
+    {
+      "path": "sources/forwarder/forwarder.mjs",
+      "sha256": "f22aec697118908c49070119dd4ebfebca4f7763dfe5fe728450b10d469bd97a",
+      "bytes": 15488,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:forwarder.mjs"
+    },
+    {
+      "path": "sources/forwarder/logs/debug-1.guard.log",
+      "sha256": "474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1",
+      "bytes": 63,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/debug-1.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/debug-1.out",
+      "sha256": "baf47602003a63d156b6222b8816e7e217a0ebbc1d7ebce2ca7acef8cf5fd71f",
+      "bytes": 621,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/debug-1.out"
+    },
+    {
+      "path": "sources/forwarder/logs/debug-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/debug-1.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-1.guard.log",
+      "sha256": "bc86f9937b71365c2d3c5f90673d5fbb351c75534a89fcb193fab1c8c6d1a068",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-1.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-1.out",
+      "sha256": "f587d04b53fced577470dc2190037192425566bf65b3b0e06a3a7d64ed42f78a",
+      "bytes": 3761,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-1.out"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-1.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-1.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-2.guard.log",
+      "sha256": "787da5063b097a57c66a93c7b9e8597360c4d271af3cddb746ff49b37687af85",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-2.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-2.out",
+      "sha256": "d231f91e36c8d5b830702e01ef66c52228e531cef3442fd78341386aca1724c4",
+      "bytes": 3964,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-2.out"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-2.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-3.guard.log",
+      "sha256": "170af3432186709655eff324f013a5271f5b9df2276e84a3602bab0b62f6ffd7",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-3.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-3.out",
+      "sha256": "8dc9fccb642d7e43c2530bfa915be5a0c503d72c50a94929af52a18889c8bf2b",
+      "bytes": 3964,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-3.out"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-3.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-3.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-4.guard.log",
+      "sha256": "0b15c3373bb01e3f0a8e8d955e969211e00767be43b79c551b8feff4a88af5f5",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-4.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-4.out",
+      "sha256": "4400b31e86a07c2a23b35b558bd58e201c026620e5d7eb525a62d8391c0ea74f",
+      "bytes": 587,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-4.out"
+    },
+    {
+      "path": "sources/forwarder/logs/mutants-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/mutants-4.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-1.guard.log",
+      "sha256": "d65ff1c16265c4f264ef59dec3b4057bd3c5518fe0fdde8b33ecbd4cb32f9be3",
+      "bytes": 66,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-1.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-1.out",
+      "sha256": "21f85b00fcbc97694d6d9cb2a6f438faeeb75cd9fa60f9cb6946b07928ddb90e",
+      "bytes": 373,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-1.out"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-1.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-2.guard.log",
+      "sha256": "7c1f12e81a005d9274cee706970430606c706436854bd35bc866b899f780e5ca",
+      "bytes": 66,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-2.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-2.out",
+      "sha256": "5609cc3308a11b577c7db7fb8fa0e3b1b6d6ecd13810234fbeb3731d2c3b6087",
+      "bytes": 377,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-2.out"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-2.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-2.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/scan-gitleaks.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/scan-gitleaks.json"
+    },
+    {
+      "path": "sources/forwarder/logs/test-1.guard.log",
+      "sha256": "3007577fa0c3291ae5bf028d21d5fa8fa47297e415b3f2c26646c2c326272b2d",
+      "bytes": 63,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-1.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-1.out",
+      "sha256": "893f914c8a439355bcdea37234b8c8d32df8e51302e15651e329cf60917a0e7a",
+      "bytes": 1388,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-1.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-1.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-1.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/test-2.guard.log",
+      "sha256": "98c315d72942fccd3f4812cffb97d52c8fc5659d23e1c0f0a348b28c70404031",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-2.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-2.out",
+      "sha256": "71d11b64daa8485b1152dc23527e15bba604d4df7aae5f118187d7daa8ca0a69",
+      "bytes": 5966,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-2.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-2.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-2.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/test-3.guard.log",
+      "sha256": "16f17cf4ff3442d9532af8beb2d81d353e6f95b4151e840ff70b8b575a764750",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-3.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-3.out",
+      "sha256": "244eede6634009064a85a8c1ff06af453c9c62f6f9823ad67a30d437ccd20679",
+      "bytes": 4309,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-3.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-3.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-3.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/test-4.guard.log",
+      "sha256": "823afb1e4ea504ed255e718be74b5632ae5913099939addfc82c75fd44289d27",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-4.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-4.out",
+      "sha256": "e1d0bc5492aff75cf3ca42fddd396819c55e4d720e7b3fa440119a7c8352ce43",
+      "bytes": 2952,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-4.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-4.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-4.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/test-5.guard.log",
+      "sha256": "79d1b88ed33598a94f278fbbbd37fde329b8b41bed66cd10a3db155ce5304043",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-5.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-5.out",
+      "sha256": "f27f535c052e3db1cf46d2ab6671d63364e130dad010c9f1f7012aa76906266f",
+      "bytes": 2951,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-5.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-5.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-5.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/test-6.guard.log",
+      "sha256": "c809f82596252c6e46a497f20faa43854f84e1ad5cc2c610bf33ece3c9cdb43f",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-6.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-6.out",
+      "sha256": "9876115826ddd6947d313909bf0a13851187447db5c29a2f297724059d627bed",
+      "bytes": 3227,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-6.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-6.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-6.rc"
+    },
+    {
+      "path": "sources/forwarder/logs/test-6.try2.out",
+      "sha256": "027a07664cbeb2c323e09deb8743990efb0a9a709e30764a7429bb2f462b6e2a",
+      "bytes": 43,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-6.try2.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-7.guard.log",
+      "sha256": "901992e1d5da1793b42479ab6d41d82b5c318466b084dce1c1dbaccf3d2dd0b3",
+      "bytes": 67,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-7.guard.log"
+    },
+    {
+      "path": "sources/forwarder/logs/test-7.out",
+      "sha256": "0b3edddc496efe757a1a771216556dd3099a000f83e66c30a83ff1f7ae05be0f",
+      "bytes": 3521,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-7.out"
+    },
+    {
+      "path": "sources/forwarder/logs/test-7.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:logs/test-7.rc"
+    },
+    {
+      "path": "sources/forwarder/origin-config.mjs",
+      "sha256": "5ea3050803859b8c5360f97a1ea16a5e0e578dc843e72bbc7d7d3792c6202adb",
+      "bytes": 1889,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:origin-config.mjs"
+    },
+    {
+      "path": "sources/forwarder/pinned/PROVENANCE.json",
+      "sha256": "2bda1b531974a23ed27a57b12b09c0794622f14fe6c29f908727dc0a642beb47",
+      "bytes": 427,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:pinned/PROVENANCE.json"
+    },
+    {
+      "path": "sources/forwarder/pinned/ingress.mjs",
+      "sha256": "dd5d74d0d6875c379b8cd90cc1ae119a2a5cbc778c47745a6639c1dc391b5460",
+      "bytes": 1614,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:pinned/ingress.mjs"
+    },
+    {
+      "path": "sources/forwarder/q.sh",
+      "sha256": "b25ca78d460a5a8e3dc553867270b825d09b5d1e640490e26755fd01fd43e196",
+      "bytes": 565,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:q.sh"
+    },
+    {
+      "path": "sources/forwarder/scan.sh",
+      "sha256": "2f73b0aab96917501f3d616b7e47fea89369264b12195ce0c2ec228ab1b0fb4e",
+      "bytes": 1054,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:scan.sh"
+    },
+    {
+      "path": "sources/forwarder/test/allowlist.test.mjs",
+      "sha256": "00006416b5f69a9154fa56a2c2689de087e569bfb9f68988b1f0cb30c95fefef",
+      "bytes": 4441,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:test/allowlist.test.mjs"
+    },
+    {
+      "path": "sources/forwarder/test/forwarder.test.mjs",
+      "sha256": "692c911a5c8f5649b7b8ba23b8e9f638b57dbe9755b49274fe12ef6612d21fb7",
+      "bytes": 15766,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:test/forwarder.test.mjs"
+    },
+    {
+      "path": "sources/forwarder/test/helpers.mjs",
+      "sha256": "c1c9a6d22ccd89f8b508017a819db4f1b28cc9226c72eebcddda9a11a52c7bbe",
+      "bytes": 4491,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:test/helpers.mjs"
+    },
+    {
+      "path": "sources/forwarder/test/origin.test.mjs",
+      "sha256": "766ad1b68b72c8cf0d78ff0d01541553ca3f0c2ba23464c3da480a71076be591",
+      "bytes": 3529,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:test/origin.test.mjs"
+    },
+    {
+      "path": "sources/forwarder/test/run-mutants.mjs",
+      "sha256": "6d3d479e802fd77ea84afc8eee52aec3e6d5467ef4c2363352dd7e003f530fb4",
+      "bytes": 6586,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:test/run-mutants.mjs"
+    },
+    {
+      "path": "sources/forwarder/tools-validate-origin.py",
+      "sha256": "f28ca9562bddcd8f81fb1ccd5f420ae69ff686cd97a58736884a4a04f4d76b30",
+      "bytes": 1818,
+      "origin": "custody-v2-ingress-forwarder-20261023@5f364d4f9bd387370e79690df6d622e402d36645:tools-validate-origin.py"
+    },
+    {
+      "path": "sources/diagnostic/probes/metal0-listing-status.mjs",
+      "sha256": "cf2641477d4737b24c3eb12cf19437885a6a9cb753c58dd19f04b327615bf2d5",
+      "bytes": 1898,
+      "origin": "custody-v2-live-20261023@c4084c93ca70bc7a758f53abf803f076fe85cf00:probes/metal0-listing-status.mjs"
+    },
+    {
+      "path": "sources/diagnostic/evidence/boot-public-state.json",
+      "sha256": "c0663612dc858cb9123c2535aaee623883c1fd9624cada0de3c1ea0f77ac5512",
+      "bytes": 1360,
+      "origin": "custody-v2-live-20261023@c4084c93ca70bc7a758f53abf803f076fe85cf00:evidence/boot-public-state.json"
+    },
+    {
+      "path": "reports/metal0-listing-status-20261024.json",
+      "sha256": "fe60a8ae894aa8ebc099a7141c8afe9b5d3d9fc6ea289f37bda82fefa4fc93be",
+      "bytes": 939,
+      "origin": "outputs/decentralization-audit/metal0-listing-status-20261024.json"
+    },
+    {
+      "path": "reports/metal0-status-20261024-0334.md",
+      "sha256": "8364c7c8eb390bfe1d09626c47d0212c45dc413027064ea1ab049abc5fa03128",
+      "bytes": 2457,
+      "origin": "outputs/decentralization-audit/metal0-status-20261024-0334.md"
+    },
+    {
+      "path": "reports/metal0-transport-20261024-0334.json",
+      "sha256": "8c47da8524ed63031943bd9ed05622006519e3747962997f0fc959477bca135b",
+      "bytes": 550,
+      "origin": "outputs/decentralization-audit/metal0-transport-20261024-0334.json"
+    },
+    {
+      "path": "reports/custody-legacy-challenge-20261024.json",
+      "sha256": "4457505c9c4177bbca90a1aa250ac2c898f917db09735f0db9f0018bd862cdaf",
+      "bytes": 606,
+      "origin": "outputs/decentralization-audit/custody-legacy-challenge-20261024.json"
+    },
+    {
+      "path": "evidence/root-full-15.out",
+      "sha256": "86730445edc514562284e307cc161390e77338377a5a074dd85e1cc3a558dadc",
+      "bytes": 28876,
+      "origin": "work/custody-v2-r2-production-canary-20261024/logs/root-full-15.out"
+    },
+    {
+      "path": "evidence/root-old-probe-mutants-1.out",
+      "sha256": "be7591ff3d6d72092559c5be5c2c00cb93b37c924872bfb33fc4058555b86552",
+      "bytes": 281,
+      "origin": "work/custody-v2-r2-production-canary-20261024/logs/root-old-probe-mutants-1.out"
+    },
+    {
+      "path": "evidence/root-origin-mutants-2.out",
+      "sha256": "2a7a61228ce636aafe50daf80a71f4f830b8c0f0cfec5152a568ad7e474fb426",
+      "bytes": 2910,
+      "origin": "work/custody-v2-ingress-forwarder-20261023/logs/root-origin-mutants-2.out"
+    },
+    {
+      "path": "sources/diagnostic/probes/legacy-challenge-shape.mjs",
+      "sha256": "fb82eb19b86674557d8178216d17bf0bd9971637477d680eeb5d61e774ec4c8a",
+      "bytes": 1960,
+      "origin": "work/custody-v2-live-20261023/probes/legacy-challenge-shape.mjs"
+    },
+    {
+      "path": "evidence/protected-guest-health.json",
+      "sha256": "00a5c34d7359c297ad78dd28dcb41e434e5e9b97466742c25c1bec2874754e94",
+      "bytes": 707,
+      "origin": "work/custody-v2-live-20261023/evidence/protected-guest-health.json"
+    },
+    {
+      "path": "capture.py",
+      "sha256": "d74679f9e9a650e17dfd1266bac8640c993373c41bc1c62177c24ef3d8584f8f",
+      "bytes": 3552,
+      "origin": "work/resume-after-checkpoint-20261022/source-preservation/capture-metal0-0334.py"
+    }
+  ],
+  "status": "Source-only custody probe fixes; live metal0 proof mismatch, exhausted lease window and transport failures; no production mutations; admin rights preserved"
+}

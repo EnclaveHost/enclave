@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-24T03:25:28.235Z",
+  "endpoint": "https://api.enclave.host/t/custody-metal0",
+  "block": "53011477",
+  "committee": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+  "epoch": 1,
+  "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
+  "challengeSha256": "c8393a934e829c9e94bdff7b5bbd81ca0080e46ace2697f2e0046a2d59f5466e",
+  "expiresAt": 1792812452,
+  "scope": "Live challenge shape and public committee-key match only. One challenge expires unused; no deployment named, no secret release requested, no AMD hardware or lifecycle claim."
+}

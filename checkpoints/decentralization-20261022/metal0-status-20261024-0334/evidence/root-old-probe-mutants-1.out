@@ -1,0 +1,8 @@
+owner: detected
+policy-committee: detected
+exact-refusal: detected
+no-extra-payload: detected
+state-race: detected
+stream-bound: detected
+challenge-format: detected
+7/7 broken migration-probe controls detected; real custodian module with synthetic chain data, no hardware evidence

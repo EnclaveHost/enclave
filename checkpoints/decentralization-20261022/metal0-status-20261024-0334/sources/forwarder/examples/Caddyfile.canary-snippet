@@ -1,0 +1,33 @@
+# EXAMPLE ONLY - CANARY, NOT FINAL ROUTING, NOT DECENTRALIZED CUSTODY. Not applied anywhere by this repository.
+# Goes INSIDE the existing api.enclave.host site block on the control VM, before the relay's catch-all handle.
+# <R> = the control VM loopback port the metal0 reverse tunnel listens on (placeholder).
+# The metal0 forwarder re-checks every request on the RAW target; this layer is the first of the two allowlists.
+@custody_canary_info {
+	method GET
+	path /custody-v2-canary/metal0/v2/custody/info
+}
+@custody_canary_protocol {
+	method POST
+	path /custody-v2-canary/metal0/v2/custody/evidence /custody-v2-canary/metal0/v2/custody/challenge /custody-v2-canary/metal0/v2/custody/release /custody-v2-canary/metal0/v2/custody/join /custody-v2-canary/metal0/v2/custody/approve /custody-v2-canary/metal0/v2/custody/independent-genesis /custody-v2-canary/metal0/v2/custody/code-approve /custody-v2-canary/metal0/v2/custody/owner-read/challenge /custody-v2-canary/metal0/v2/custody/owner-read /custody-v2-canary/metal0/v2/custody/shield-session/challenge /custody-v2-canary/metal0/v2/custody/shield-session/attest
+}
+@custody_canary_rest path /custody-v2-canary /custody-v2-canary/*
+handle @custody_canary_info {
+	reverse_proxy 127.0.0.1:<R> {
+		transport http {
+			response_header_timeout 35s
+		}
+	}
+}
+handle @custody_canary_protocol {
+	request_body {
+		max_size 262144
+	}
+	reverse_proxy 127.0.0.1:<R> {
+		transport http {
+			response_header_timeout 35s
+		}
+	}
+}
+handle @custody_canary_rest {
+	respond "Not found" 404
+}

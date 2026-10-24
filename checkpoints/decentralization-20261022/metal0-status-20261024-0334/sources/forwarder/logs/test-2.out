@@ -1,0 +1,164 @@
+[queue] START available=23611MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: pinned/ingress.mjs is the reviewed ab589bf8 blob
+ok 1 - pinned/ingress.mjs is the reviewed ab589bf8 blob
+  ---
+  duration_ms: 5.84822
+  type: 'test'
+  ...
+# Subtest: the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
+not ok 2 - the forwarder allowlist equals the reviewed ingress allowlist exactly (method + path)
+  ---
+  duration_ms: 2.424945
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/allowlist.test.mjs:36:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'public_info',
+    -   'public_info',
+        'public_protocol',
+    -   'public_protocol'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'public_info'
+    1: 'public_info'
+    2: 'public_protocol'
+    3: 'public_protocol'
+  actual:
+    0: 'public_info'
+    1: 'public_protocol'
+  operator: 'deepStrictEqual'
+  stack: |-
+    allowlistOf (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/allowlist.test.mjs:31:10)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/allowlist.test.mjs:37:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+ok 3 - config validation: loopback only, fixed upstream, a dedicated prefix, bounded limits
+  ---
+  duration_ms: 1.04823
+  type: 'test'
+  ...
+# Subtest: every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+not ok 4 - every allowlisted route is forwarded with its own method, exact path, the body, and no client headers
+  ---
+  duration_ms: 29.199864
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'cache-control',
+        'connection',
+        'content-length',
+        'content-type',
+    +   'date',
+        'x-content-type-options'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'cache-control'
+    1: 'connection'
+    2: 'content-length'
+    3: 'content-type'
+    4: 'x-content-type-options'
+  actual:
+    0: 'cache-control'
+    1: 'connection'
+    2: 'content-length'
+    3: 'content-type'
+    4: 'date'
+    5: 'x-content-type-options'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:30:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+ok 5 - private routes, every encoding and every ambiguous spelling fail closed and never reach the upstream
+  ---
+  duration_ms: 286.539182
+  type: 'test'
+  ...
+# Subtest: unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+ok 6 - unknown or wrong methods, CONNECT and Upgrade never reach the upstream
+  ---
+  duration_ms: 12.84119
+  type: 'test'
+  ...
+# Subtest: request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+not ok 7 - request limits: declared and streamed size, GET bodies, conflicting framing, slow bodies and slow headers
+  ---
+  duration_ms: 5.492994
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:97:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    400 !== 431
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 431
+  actual: 400
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-ingress-forwarder-20261023/test/forwarder.test.mjs:107:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+ok 8 - upstream failures: refused, hung, redirect, non-JSON, oversize, slow and truncated responses
+  ---
+  duration_ms: 1277.185322
+  type: 'test'
+  ...
+# Subtest: a client that goes away aborts the upstream request
+ok 9 - a client that goes away aborts the upstream request
+  ---
+  duration_ms: 350.449955
+  type: 'test'
+  ...
+# Subtest: in-flight limit: excess requests get 503 without reaching the upstream
+ok 10 - in-flight limit: excess requests get 503 without reaching the upstream
+  ---
+  duration_ms: 504.677251
+  type: 'test'
+  ...
+# Subtest: the module never opens a listener outside loopback and only ever connects to the fixed upstream port
+ok 11 - the module never opens a listener outside loopback and only ever connects to the fixed upstream port
+  ---
+  duration_ms: 2.617864
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 8
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2637.323394
+[memory-guard] exit=1 peakTreeRssMiB=132 minHostAvailableMiB=23119
+[memory-guard] at peak: node:73 node:59
+[queue] EXIT 1

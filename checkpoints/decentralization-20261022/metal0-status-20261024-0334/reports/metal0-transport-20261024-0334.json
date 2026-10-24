@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-24T03:31:48.511507+00:00",
+  "readOnly": true,
+  "scope": "Strict TLS transport, no health/body claim",
+  "rows": [
+    {
+      "url": "https://da09d0f2.app.enclave.host/",
+      "errorType": "SSLEOFError",
+      "error": "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)"
+    },
+    {
+      "url": "https://9eb4e600.app.enclave.host/ping",
+      "errorType": "SSLEOFError",
+      "error": "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)"
+    }
+  ]
+}
