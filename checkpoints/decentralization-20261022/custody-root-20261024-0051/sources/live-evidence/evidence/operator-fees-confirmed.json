@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-23T21:16:25.332Z",
+  "readOnly": true,
+  "notSigned": true,
+  "notSent": true,
+  "planHash": "0xd0cd987515b3637716b817cb19e7b1bf10733a95b33e0c678014b470d7b734a7",
+  "block": "53000414",
+  "blockHash": "0xb57a14e2dc384460cb199dc1550681e263d06cfd30741a4d8eeb5895e18235c8",
+  "rpcs": [
+    "https://mainnet.base.org",
+    "https://base.public.blockpi.network/v1/rpc/public"
+  ],
+  "balanceWei": "376132087579",
+  "fees": {
+    "l2MaxWei": "1037542000000",
+    "l1DataUpperBoundWei": "744650790",
+    "operatorFeeUpperBoundWei": "0",
+    "totalAtBlockWei": "1038286650790",
+    "encodedBytes": {
+      "unsigned": 114,
+      "signedMax": 181,
+      "oracleArgument": 114,
+      "oracleSignatureAllowance": 68
+    },
+    "note": "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's oracle parameters; --send re-reads them. Not a guarantee against later L1-fee or operator-parameter changes."
+  },
+  "balanceSufficient": false,
+  "fundingNeededWei": "662154563211"
+}

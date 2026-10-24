@@ -1,0 +1,93 @@
+{
+  "at": "2026-10-23T20:48:16.4658658Z",
+  "readOnly": true,
+  "vm": {
+    "id": "hv5b5a5d531625082f44fadd70092072c6",
+    "name": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+    "status": "running",
+    "instanceId": "hv5b5a5d53162508-3dfcbff8",
+    "cpu": {
+      "rule": "cpu-share",
+      "poolVcpus": 16,
+      "cpuShare": 0.01,
+      "entitlementUnits": 16000,
+      "vcpus": 1,
+      "limit": 16000,
+      "reservation": 16000,
+      "grantedUnits": 16000,
+      "policy": {
+        "vcpus": 1,
+        "cpuPercent": 100
+      },
+      "appCpuPercent": 16,
+      "readback": {
+        "reservation": 16000,
+        "weight": 100,
+        "count": 1,
+        "maximum": 16,
+        "limit": 16000,
+        "vcpus": 1,
+        "reserve": 16,
+        "units": "percent / 1000"
+      },
+      "guestOnlineVcpus": 1,
+      "enforcement": "guest-app-cgroup",
+      "enforcedUnits": 16000,
+      "blocker": null
+    },
+    "memory": {
+      "rule": "cpu-share",
+      "poolMiB": 98304,
+      "cpuShare": 0.01,
+      "appMiB": 983,
+      "vmMiB": 2048
+    }
+  },
+  "fields": [
+    "derivation",
+    "secretDeployment",
+    "launching",
+    "inference",
+    "gpuMilli",
+    "id",
+    "name",
+    "instanceId",
+    "appId",
+    "recordSha256",
+    "componentSha256",
+    "policy",
+    "memory",
+    "cpu",
+    "catalog",
+    "cid",
+    "runtimeId",
+    "status",
+    "startedAt",
+    "reason",
+    "boundary",
+    "tier",
+    "hostExcluded",
+    "verdict",
+    "image",
+    "transportKeySha256",
+    "relay",
+    "domainId",
+    "guestPort",
+    "appReady",
+    "guest",
+    "vmName",
+    "launcherKey",
+    "launcherVmId",
+    "guestIdentity",
+    "readyChecks",
+    "managerEpoch"
+  ],
+  "logs": [
+    {
+      "path": "C:\\ProgramData\\Enclave\\logs\\partitions\\enclave-app-hv5b5a5d53162508-3dfcbff8.log",
+      "messages": [],
+      "bytes": 0,
+      "modified": "2026-10-23T19:27:41.5405677Z"
+    }
+  ]
+}

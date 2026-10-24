@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-23T18:16:57.431711+00:00",
+  "readOnly": true,
+  "unitReturnCode": 0,
+  "unit": {
+    "ActiveState": "active",
+    "SubState": "running",
+    "FragmentPath": "/home/steven/.config/systemd/user/enclave-custodian-v2.service",
+    "MainPID": "3817646",
+    "ExecMainStartTimestamp": "Wed 2026-10-14 16:34:35 MST"
+  },
+  "unitError": "",
+  "vms": [
+    {
+      "pid": 3817658,
+      "startTicks": "32598976",
+      "selectedArguments": {
+        "-kernel": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/vmlinuz",
+        "-initrd": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/initramfs.cpio.gz",
+        "-m": "3072",
+        "-smp": "2"
+      }
+    }
+  ],
+  "imageFiles": [
+    {
+      "path": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/vmlinuz",
+      "bytes": 17232384,
+      "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+      "matchesManifest": true
+    },
+    {
+      "path": "/home/steven/enclave-prod/custodian-v2-9d43e63e8/initramfs.cpio.gz",
+      "bytes": 280038092,
+      "sha256": "691400ca954c0807725ef7c0ee7ba7b28e7be5c298bb9c1ea8294dd23685e650",
+      "matchesManifest": true
+    }
+  ],
+  "manifestMeasurement": "c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b",
+  "manifestCommit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5",
+  "limits": [
+    "No sealed state or private configuration was read.",
+    "File pins and running VM arguments are host observations; separate fresh SNP quote binds the measured guest."
+  ]
+}

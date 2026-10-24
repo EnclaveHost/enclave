@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-23T19:43:23.957Z",
+  "readOnly": true,
+  "options": {
+    "rpcs": [
+      "https://mainnet.base.org",
+      "https://base.public.blockpi.network/v1/rpc/public"
+    ],
+    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "vaultKind": "book",
+    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "hostOwnership": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+    "chainId": 8453,
+    "minAgree": 2,
+    "confirmations": 2
+  },
+  "identity": {
+    "codeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b",
+    "runtimeBytes": 19719,
+    "book": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "enclaveOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+    "blockNumber": "52997624",
+    "blockHash": "0x0335d725941d1dce18e43690987855736714b7924563902ae93715168b3dc1fb",
+    "blockTimestamp": 1792784595
+  },
+  "entry": {
+    "entry": {
+      "endpoint": "https://api.enclave.host/t/metal0",
+      "active": true,
+      "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+      "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+      "owner": "0x0000000000000000000000000000000000000000",
+      "vaultEnclave": true,
+      "ownerConflict": false
+    },
+    "blockNumber": "52997625",
+    "blockHash": "0x658b1fd26a73480b299fa9b319493ba3bea5eea7926d3246912abf7685560e71",
+    "blockTimestamp": 1792784597
+  }
+}

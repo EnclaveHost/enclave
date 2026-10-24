@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-23T20:59:20.243398+00:00",
+  "readOnly": true,
+  "observations": [
+    {
+      "name": "relayAttestation",
+      "url": "https://api.enclave.host/v1/enclaves/metal0/attestation?nonce=65169d4d6f06c8eac9d145ed1bcf8f784e0c34afb365329d049e0176fb06849d",
+      "status": 200,
+      "sha256": "914eadb15253ef001bc10ab5c5afc12d3b6e97f7f10e8f7c541f39b3d4f16ac9",
+      "fields": [
+        "document",
+        "fetchedAt",
+        "name",
+        "nonce",
+        "operatorAllowlist"
+      ],
+      "admittedAtAttach": "ed918e4b393699b3f6251853d2d34317869d7d9e3150b41ffa917df3d392012c682f376a799494d01e6a6dd5bedd2ac2",
+      "allowedMeasurementCount": 35,
+      "measurementFields": {},
+      "nonceRequested": "65169d4d6f06c8eac9d145ed1bcf8f784e0c34afb365329d049e0176fb06849d"
+    },
+    {
+      "name": "guestd",
+      "url": "http://127.0.0.1:8095/health",
+      "error": "HTTP Error 401: Unauthorized"
+    }
+  ],
+  "limits": [
+    "Relay-admitted measurement and public guestd capability observations only; not an independent fresh SNP quote verification or a custody release test. No raw quotes, chip IDs, keys or service changes."
+  ]
+}

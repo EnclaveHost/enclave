@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-24T00:00:27.436Z",
+  "scope": "Fresh attestation of existing production custodian only; not a secret release or rollout test",
+  "chainBlock": {
+    "number": "53005325",
+    "hash": "0x0b798781b17f3c70250e35d8bedac532890b52d040528ff35e49d3d3fd3d6dd9",
+    "timestamp": "1792799997",
+    "baseFeePerGas": "5000000"
+  },
+  "nonce": "84eeece9557b5b275f1c965e87285e532f2d7b86b62a8c2c4984921079df6754",
+  "evidenceSha256": "d5f590099150a210eb74fbef0caf922d29c7a3e3b68dd390e05d81e847528667",
+  "machineMatchesPinnedChain": true,
+  "verdict": {
+    "ok": true,
+    "reasons": [],
+    "expected": {
+      "measurement": "c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b",
+      "measurementSha256": "0x2530eda0796a9d16eac8e2bb3b1f02abb58a816d4a54ebbbcbfb738a9cf966cf",
+      "commit": "9d43e63e84e1799467a0202c0cf1cdc5a8aabca5"
+    },
+    "verifier": {
+      "ok": true,
+      "reasons": [
+        "report is from VMPL0 (full privilege inside the CVM)",
+        "guest policy 0x30000: DEBUG off, MIGRATE_MA off",
+        "measurement on Metal release allowlist",
+        "report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)",
+        "AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin)",
+        "VCEK chip ID and TCB extensions match the report",
+        "reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)"
+      ]
+    },
+    "observed": {
+      "measurement": "c8663742359ae1895dee9c8c18e801c524fc7e9e028663e9eca9cb73ac7aa0831bd6610cfc6bd7c22c50e1ad27da396b",
+      "hostData": "0000000000000000000000000000000000000000000000000000000000000000",
+      "policy": "0x30000",
+      "vmpl": 0,
+      "chipIdSha256": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+      "machine": {
+        "identity": "0xf0f8078459c051a89197fac73ff689c6df96506a",
+        "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
+        "endpoint": "https://api.enclave.host/t/custody-metal0",
+        "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+        "registryId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+        "measurement": "0x2530eda0796a9d16eac8e2bb3b1f02abb58a816d4a54ebbbcbfb738a9cf966cf"
+      }
+    }
+  }
+}

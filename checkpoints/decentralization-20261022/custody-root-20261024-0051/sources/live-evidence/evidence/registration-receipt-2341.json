@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-23T23:41:12.385Z",
+  "readOnly": true,
+  "receiptVerified": true,
+  "rows": [
+    {
+      "url": "https://mainnet.base.org",
+      "hash": "0x12d7a5a4fc67bc49b8035ad8ec41fd808b4e24008df0d05efee2da7f1c7ab880",
+      "blockHash": "0x23964fee6819979b0d7e9767233fb577b234c13622363b6fb7fa8a87ff10132d",
+      "blockNumber": "53004641",
+      "status": "success",
+      "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+      "to": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+      "nonce": 23759,
+      "gas": "38760",
+      "gasUsed": "38393",
+      "maxFeePerGas": "7000000",
+      "maxPriorityFeePerGas": "1000000",
+      "effectiveGasPrice": "6000000",
+      "functionName": "setProofKey",
+      "host": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+      "registryProofAddress": "0x0e44E766c1d300E062bcE274d12396d797AbC8B3",
+      "currentBalanceWei": "145368427115",
+      "currentNonce": 23760
+    },
+    {
+      "url": "https://base-rpc.publicnode.com",
+      "hash": "0x12d7a5a4fc67bc49b8035ad8ec41fd808b4e24008df0d05efee2da7f1c7ab880",
+      "blockHash": "0x23964fee6819979b0d7e9767233fb577b234c13622363b6fb7fa8a87ff10132d",
+      "blockNumber": "53004641",
+      "status": "success",
+      "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+      "to": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+      "nonce": 23759,
+      "gas": "38760",
+      "gasUsed": "38393",
+      "maxFeePerGas": "7000000",
+      "maxPriorityFeePerGas": "1000000",
+      "effectiveGasPrice": "6000000",
+      "functionName": "setProofKey",
+      "host": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+      "registryProofAddress": "0x0e44E766c1d300E062bcE274d12396d797AbC8B3",
+      "currentBalanceWei": "145368427115",
+      "currentNonce": 23760
+    }
+  ],
+  "publicProjection": "On-chain proofKey fields are recorded as registryProofAddress (public Ethereum addresses)."
+}

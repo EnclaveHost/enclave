@@ -1,0 +1,18 @@
+[q] 2026-10-23T17:35:50-07:00 try 1 cmd: bash work/custody-operator-funding-options-20261023/test/mutants.sh
+[queue] START available=23865MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+killed: B uses nonce N (not N+1)
+killed: chain id 0 allowed
+killed: aggregate fee cap not enforced
+killed: operator code not checked
+killed: sponsor code not checked
+killed: unsettled nonce accepted
+killed: sponsored Lease deadline ignored
+killed: lease window ignored
+killed: L1 sized from the unsigned bytes
+killed: restore target is another address
+killed: sponsor balance not checked
+MUTANTS killed 11/11
+[memory-guard] exit=0 peakTreeRssMiB=205 minHostAvailableMiB=23711
+[memory-guard] at peak: node:101 node:58 anvil:33 bash:6 timeout:4 bash:2
+[queue] EXIT 0
+[q] 2026-10-23T17:36:13-07:00 exit=0

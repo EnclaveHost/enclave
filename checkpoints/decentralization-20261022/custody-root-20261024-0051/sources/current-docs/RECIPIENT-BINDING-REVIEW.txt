@@ -1,0 +1,85 @@
+RECIPIENT BINDING REVIEW (bounded, source-only; Claude). Written 2026-10-23T22:54:44Z (date -u). No source, doc, test, live, SSH or key action.
+Sources:
+  custodian repo work/custody-v2-durability-20261023/repo @ ab589bf8;
+  recipient candidate work/custody-boot-registration-20261023/repo @ 7dd3acd (git show).
+Line numbers are at those commits.
+
+ANSWER
+The r2 (custody v2) release to an SNP app guest is gated by a DIRECT QUOTE at every custodian. The recipient encryption key,
+the deployment, the policy/secret revisions, the committee/epoch, every custodian challenge, the runtime and the transport key
+are hashed into one 32-byte binding. That binding must appear as report_data[0:32] of a VCEK-signed SEV-SNP report:
+  - for an owner-admitted measurement;
+  - with report_data[32:64] = the owner's appId;
+  - with HOST_DATA = the deployment id.
+The registry proofKey is NOT an input anywhere in this path.
+
+A host operator or non-TEE control CANNOT forge a release by registering an arbitrary proofKey:
+  - custody/v2/custodian.mjs never reads it; the only mention in custody/ is the registry ABI tuple at chain.mjs:71.
+  - The operator's own key only AUTHORIZES (step 7). It can withhold a release, never make one.
+The "control proofKey is in-enclave but not SNP-bound in the public verifier" limitation therefore does not weaken custody
+release. It concerns checkpoint/metering trust and what a browser is shown.
+
+TRACE (custodian side, custody/v2/custodian.mjs decide())
+  - :164 binding = v2.releaseBinding({chainId, vault, id, policyRev, secretRev, committeeId, epoch, challenges, runtimeId,
+    transportSpki, recipientKey}).
+    protocol.mjs:173-177 = sha256(domain || ctx || id || revs || committee || epoch || challengeRoot || runtimeId ||
+    sha256(SPKI) || recipientKey).
+  - :92 + :71-76: one of the challenges must be THIS custodian's, unexpired, unused, purpose "release". This gives freshness
+    and prevents replay.
+  - :128 lease runner = the registered endpoint and the lease is live.
+    :166-167 the operator message (protocol.mjs:197) over the binding must recover to the registry operator of the lease
+    holder.
+  - :146-161 rules from the ON-CHAIN policy (owner-written): parseRules (rules.mjs:45-59) requires appId, the
+    (measurement, runtimeId) pairs, minTcb (no default floor) and vmpl, and admits only platform sev-snp. Shield, TDX and AVF
+    are refused by name; the optional Shield adapter applies only to Shield-format evidence under owner Shield rules, :145-149.
+  - :169-173 verify(): verifiers.mjs:26-53 (production table :55, the only entry):
+      - VCEK -> ASK -> pinned AMD ARK plus the required CRL (via verifier/consumer.mjs);
+      - then re-read: VCEK-signed, DEBUG off, VMPL = rules, measurement admitted, report_data[0:32] = binding,
+        [32:64] = appId, HOST_DATA = id, CHIP_ID not masked.
+    The synthetic-roots hook (:28, :34) is unreachable from either daemon: custodian-daemon.mjs:23-24,90 and
+    v2/daemon.mjs:174 both build productionVerifiers.
+  - :178-180 partials are DLEQ-proved and HPKE-sealed to recipientKey with the binding as AAD. Only the holder of the private
+    key of the key bound in the report can open them.
+
+TRACE (recipient side, the measured guest front)
+  - isolation/m2/custody/v2client.go:205-231: NewRecipientKey() is minted IN the guest; BindingV2 is computed over it;
+    Evidence(binding) is called, then AuthorizeV2 (the operator signature). The private key never leaves the guest.
+  - isolation/m2/front/custody.go:245-258: report_data = binding || appSha. appSha comes from the code the front loaded
+    (/app.wasm, refused otherwise at :224-226). The front calls p.report in exactly two places (custody.go:249, provision.go:112),
+    both over bindings the front computed itself. No path exists for a host to obtain a report over chosen data.
+  - Recipient candidate 7dd3acd supervisor.js:2767-2785 authorizeCustody signs the v2 operator message only for the measured
+    CUSTODY_VAULT_V2, or an owner-committed vault (:2774-2776, :2838). It signs the binding as given. That is correct: the
+    signature is authorization, and the binding's TEE meaning comes from the report. The signing key is REGISTRY_PK
+    (host-supplied fw_cfg), so the operator signature proves "the lease holder agreed", never "a TEE asked".
+
+THREE TRUST PATHS, distinguished
+  1. DIRECT QUOTE GATE: custody v2, above. Confidentiality of the owner's secret values rests on SNP hardware evidence for
+     owner-admitted images, checked independently by each custodian. Nothing the relay, operator or registry proofKey says can
+     substitute for it.
+  2. TICKET CHAIN: relay release. provision.go:101-113 binds a relay ticket + seal key into report_data. The relay (platform,
+     non-TEE) verifies the report and delivers config / relay-held secrets / the custody POINTER (release/release.go:100-108).
+     For custody deployments the relay holds no values (Secrets empty). It does choose the pointer; see caveat A.
+  3. BROWSER TRUST: verifier/web/snp-app.mjs and relay-routed attestation display. This is what a user is SHOWN. It is not an
+     input to release authorization.
+
+BLOCKERS / CAVEATS for an honest "attestation-gated canary release" claim
+  A. INTEGRITY, not confidentiality: the guest does not chain-verify the custody pointer.
+     - front/custody.go:116-134 builds the committee (machine encKeys, endpoints, commitments, threshold, bundle) from the
+       relay-delivered pointer. No quorum or chain read appears in front/custody.go or custody/v2client.go for the SNP path.
+     - So a malicious relay cannot obtain the REAL values (custodians gate them as in path 1, and they only seal to a bound
+       recipient key).
+     - It COULD point the guest at a fabricated committee and bundle, plus a matching config. The app would then run with
+       attacker-chosen "secrets" and config. The config check (custody.go:283-285) compares relay config with a relay-pointed
+       bundle.
+     - Claim wording should say "values released only to attested owner-admitted guests". Not "the guest provably received
+       the owner's committed values" unless the pointer is verified against chain.
+  B. Out of this bounded scope, and an assumption the claim depends on: that the committee's custodian machines (their encKeys
+     in the chain committee) are themselves attested SNP custodians. That is admission/governance, not the release path.
+  C. The gate is exactly as strong as the owner's on-chain rules (measurement/runtime pairs, appId, minTcb, vmpl 0..3). A
+     permissive rule (e.g. an image that serves arbitrary report_data, or vmpl > 0) weakens it by the owner's own choice.
+     The canary's rules should be stated: vmpl 0, the exact canary image, appId.
+  D. Availability, not safety: the host (operator key, lease, relay ticket/pointer, guestd) can deny or stall any release.
+
+No blocker found to the claim "an r2 release reaches only an SEV-SNP guest running an owner-admitted image, verified by each
+custodian from AMD-rooted evidence binding the recipient key; registering a proofKey or holding the operator key cannot
+forge one". Caveat A must be stated, or closed by a pointer check, before claiming value INTEGRITY.

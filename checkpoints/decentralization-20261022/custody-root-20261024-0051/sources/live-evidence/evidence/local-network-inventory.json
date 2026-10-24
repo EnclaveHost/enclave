@@ -1,0 +1,350 @@
+{
+  "at": "2026-10-23T19:54:42.655947+00:00",
+  "readOnly": true,
+  "units": [
+    {
+      "unit": "enclave-storage-multipart-review-20261020.scope",
+      "load": "loaded",
+      "active": "failed",
+      "sub": "failed"
+    },
+    {
+      "unit": "enclave-capacity-audit-shield.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-capacity-audit.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-custodian-v2.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-guestd.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-metal-iso.service",
+      "load": "loaded",
+      "active": "inactive",
+      "sub": "dead"
+    },
+    {
+      "unit": "enclave-metal.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-metal0-shield-v100-0.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-metal0-shield-v100-1.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-network-agent.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-network-checker.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-network-reconcile.service",
+      "load": "loaded",
+      "active": "inactive",
+      "sub": "dead"
+    },
+    {
+      "unit": "enclave-release-bootstrap-direct.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-risc-moonlight-refresh.service",
+      "load": "loaded",
+      "active": "inactive",
+      "sub": "dead"
+    },
+    {
+      "unit": "enclave-risc-moonlight.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-risc-nucbox-tunnel.service",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    },
+    {
+      "unit": "enclave-risc-viewer-refresh.service",
+      "load": "loaded",
+      "active": "activating",
+      "sub": "start"
+    },
+    {
+      "unit": "enclave-network-reconcile.timer",
+      "load": "loaded",
+      "active": "active",
+      "sub": "waiting"
+    },
+    {
+      "unit": "enclave-risc-moonlight-refresh.timer",
+      "load": "loaded",
+      "active": "active",
+      "sub": "waiting"
+    },
+    {
+      "unit": "enclave-risc-viewer-refresh.timer",
+      "load": "loaded",
+      "active": "active",
+      "sub": "running"
+    }
+  ],
+  "listenerAddresses": [
+    "127.0.0.1:40557",
+    "127.0.0.1:40655",
+    "127.0.0.1:40847",
+    "127.0.0.1:40353",
+    "127.0.0.1:39487",
+    "127.0.0.1:39655",
+    "127.0.0.1:39599",
+    "127.0.0.1:39719",
+    "127.0.0.1:39693",
+    "127.0.0.1:39691",
+    "127.0.0.1:39681",
+    "127.0.0.1:39825",
+    "127.0.0.1:39013",
+    "127.0.0.1:39349",
+    "127.0.0.1:38313",
+    "127.0.0.1:37697",
+    "127.0.0.1:37801",
+    "127.0.0.1:36907",
+    "127.0.0.1:37093",
+    "127.0.0.1:37233",
+    "127.0.0.1:35439",
+    "127.0.0.1:35673",
+    "127.0.0.1:35777",
+    "127.0.0.1:35761",
+    "127.0.0.1:34877",
+    "127.0.0.1:35255",
+    "127.0.0.1:34445",
+    "127.0.0.1:34459",
+    "127.0.0.1:34681",
+    "127.0.0.1:32811",
+    "127.0.0.1:32903",
+    "127.0.0.1:32899",
+    "127.0.0.1:33031",
+    "127.0.0.1:47989",
+    "127.0.0.1:47984",
+    "127.0.0.1:48010",
+    "127.0.0.1:46827",
+    "127.0.0.1:46309",
+    "127.0.0.1:46279",
+    "127.0.0.1:46255",
+    "127.0.0.1:46571",
+    "127.0.0.1:45679",
+    "127.0.0.1:45581",
+    "127.0.0.1:45715",
+    "127.0.0.1:45933",
+    "127.0.0.1:46001",
+    "127.0.0.1:45367",
+    "127.0.0.1:44695",
+    "127.0.0.1:44805",
+    "127.0.0.1:44819",
+    "127.0.0.1:44043",
+    "127.0.0.1:44506",
+    "127.0.0.1:43263",
+    "127.0.0.1:43303",
+    "127.0.0.1:43461",
+    "127.0.0.1:42571",
+    "127.0.0.1:42169",
+    "127.0.0.1:42349",
+    "127.0.0.1:42243",
+    "127.0.0.1:41851",
+    "127.0.0.1:41919",
+    "127.0.0.1:41327",
+    "127.0.0.1:41397",
+    "127.0.0.1:55432",
+    "10.0.100.1:53",
+    "127.0.0.1:7784",
+    "127.0.0.1:8096",
+    "127.0.0.1:8095",
+    "127.0.0.1:8081",
+    "127.0.0.1:5300",
+    "127.0.0.1:5037",
+    "127.0.0.1:5001",
+    "127.0.0.1:53",
+    "192.168.122.1:53",
+    "127.0.0.1:9502",
+    "127.0.0.1:9501",
+    "127.0.0.1:9611",
+    "127.0.0.1:8781",
+    "127.0.0.1:8777",
+    "127.0.0.1:8796",
+    "127.0.0.1:8791",
+    "127.0.0.1:8931",
+    "127.0.0.1:8530",
+    "127.0.0.1:8611",
+    "127.0.0.3:80",
+    "127.0.0.3:443",
+    "127.0.0.3:5380",
+    "127.0.0.1:18553",
+    "127.0.0.1:18658",
+    "127.0.0.1:18683",
+    "127.0.0.1:18635",
+    "0.0.0.0:22",
+    "127.0.0.1:18603",
+    "127.0.0.1:18610",
+    "127.0.0.1:18586",
+    "127.0.0.1:18787",
+    "127.0.0.1:18815",
+    "127.0.0.1:18776",
+    "127.0.0.1:18771",
+    "127.0.0.1:18722",
+    "127.0.0.1:18705",
+    "127.0.0.1:18934",
+    "127.0.0.1:18887",
+    "127.0.0.1:18841",
+    "127.0.0.1:18080",
+    "0.0.0.0:4001",
+    "127.0.0.1:32423",
+    "0.0.0.0:9993",
+    "[::1]:53",
+    "[::]:22",
+    "[::]:4001",
+    "*:9993"
+  ],
+  "selectedProcessPaths": [
+    {
+      "unit": "enclave-capacity-audit-shield.service",
+      "pid": 2921403,
+      "program": "node",
+      "paths": [
+        "/home/steven/enclave-prod/capacity-audit/src/scripts/availability/service.mjs",
+        "/home/steven/enclave-prod/capacity-audit-shield/config.json"
+      ],
+      "cwd": "/home/steven/enclave-prod/capacity-audit/src"
+    },
+    {
+      "unit": "enclave-capacity-audit.service",
+      "pid": 2762173,
+      "program": "node",
+      "paths": [
+        "/home/steven/enclave-prod/capacity-audit/src/scripts/availability/service.mjs",
+        "/home/steven/enclave-prod/capacity-audit/config.json"
+      ],
+      "cwd": "/home/steven/enclave-prod/capacity-audit/src"
+    },
+    {
+      "unit": "enclave-custodian-v2.service",
+      "pid": 3817646,
+      "program": "node",
+      "paths": [
+        "/home/steven/enclave-prod/custodian-v2/host.mjs",
+        "/home/steven/enclave-prod/custodian-v2/config.json"
+      ],
+      "cwd": "/home/steven/enclave-prod/custodian-v2"
+    },
+    {
+      "unit": "enclave-guestd.service",
+      "pid": 2223309,
+      "program": "guestd.sdshield-9d1562738cde",
+      "paths": [
+        "/home/steven/enclave-prod/enclave-network/metal0/state/egress-routes.json",
+        "/home/steven/enclave-prod/enclave-network/metal0/state/release-bootstrap-routes.json"
+      ],
+      "cwd": "/home/steven"
+    },
+    {
+      "unit": "enclave-metal.service",
+      "pid": 3480942,
+      "program": "node",
+      "paths": [
+        "/home/steven/Projects/enclave/metal/config.json"
+      ],
+      "cwd": "/home/steven/enclave-prod/metal-deabf8f90"
+    },
+    {
+      "unit": "enclave-metal0-shield-v100-0.service",
+      "pid": 5685,
+      "program": "shielded-worker",
+      "paths": [],
+      "cwd": "/home/steven"
+    },
+    {
+      "unit": "enclave-metal0-shield-v100-1.service",
+      "pid": 5683,
+      "program": "shielded-worker",
+      "paths": [],
+      "cwd": "/home/steven"
+    },
+    {
+      "unit": "enclave-network-agent.service",
+      "pid": 2276329,
+      "program": "node",
+      "paths": [
+        "/home/steven/enclave-prod/enclave-network/relay-free-0b326889/privacy-agent.mjs",
+        "/home/steven/enclave-prod/enclave-network/metal0/config.json"
+      ],
+      "cwd": "/home/steven/enclave-prod/enclave-network"
+    },
+    {
+      "unit": "enclave-network-checker.service",
+      "pid": 3934626,
+      "program": "node",
+      "paths": [
+        "/home/steven/enclave-prod/network-checker/nan-retirement-2d848c8/wg-qualify.mjs"
+      ],
+      "cwd": "/home/steven/enclave-prod/network-checker"
+    },
+    {
+      "unit": "enclave-release-bootstrap-direct.service",
+      "pid": 1766513,
+      "program": "node",
+      "paths": [
+        "/home/steven/enclave-prod/enclave-network/bootstrap/release-bootstrap-direct.mjs"
+      ],
+      "cwd": "/home/steven"
+    },
+    {
+      "unit": "enclave-risc-moonlight.service",
+      "pid": 225377,
+      "program": "enclave-risc-gs-bridge",
+      "paths": [],
+      "cwd": "/home/steven"
+    },
+    {
+      "unit": "enclave-risc-nucbox-tunnel.service",
+      "pid": 225346,
+      "program": "ssh",
+      "paths": [],
+      "cwd": "/home/steven"
+    }
+  ],
+  "limits": [
+    "Metadata only, no secret/config/environment values or full argv. No service changed."
+  ]
+}

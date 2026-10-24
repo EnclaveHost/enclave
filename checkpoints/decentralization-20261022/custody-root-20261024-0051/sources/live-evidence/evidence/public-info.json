@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-23T18:10:44.667842+00:00",
+  "url": "https://api.enclave.host/t/custody-metal0/v2/custody/info",
+  "readOnly": true,
+  "status": 200,
+  "fields": [
+    "chainId",
+    "encKey",
+    "epochs",
+    "hostSig",
+    "identity",
+    "machine",
+    "v",
+    "vault"
+  ],
+  "publicInfo": {
+    "identity": "0xf0f8078459c051a89197fac73ff689c6df96506a",
+    "encKey": "0x3f3d0595ca94db5e5062c98fa0c16a037374598db8525e271e01321580252034",
+    "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5"
+  }
+}

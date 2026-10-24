@@ -1,0 +1,259 @@
+{
+ "v": 2,
+ "kind": "enclave-operator-7702-maintenance/observation",
+ "executable": false,
+ "banner": "NOT EXECUTABLE: observation only. Quiescence is NOT asserted; no signer may use this file.",
+ "pins": {
+  "chainId": 8453,
+  "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+  "executor": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+  "executorCodeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2",
+  "delegationCodeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
+  "reserve": "0x12a3f873041dec436daa0085b766a399a6fa3639",
+  "reserveCodeHash": "0xcc00efe9c79c17b34ef9edc2720939030834bf168abc52cea14dcb224304a979",
+  "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+  "ledgerCodeHash": "0x71d50076336283e774ba2ef8d5cbf7602e9cdc5dd918a7e7390c743367766682",
+  "sponsor": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+  "valueWei": "5000000000000",
+  "feeCapWei": "2000000000000",
+  "gas": {
+   "A": "50000",
+   "B": "47000"
+  },
+  "keySources": {
+   "operatorAuthorizations": "C9 registry key: root-only /home/steven/Projects/enclave/metal/config.json field registryKey",
+   "sponsorTransactions": "the sponsor 0x29479bf0…647c's signer: root-provided"
+  }
+ },
+ "timing": {
+  "status": "PROPOSED: requires root approval (the approval file binds this profile's sha256)",
+  "minLeaseRemainingSec": 1200,
+  "maxPlanAgeSec": 120,
+  "maintenanceCutoffSec": 120,
+  "deadlineMarginSec": 60,
+  "maxQuiesceAgeSec": 3600,
+  "derivation": {
+   "leaseSec": 1800,
+   "renewLeadSec": 285,
+   "leaseTtlSec": 300,
+   "keeperResumeMarginSec": 360,
+   "recoveryMarginSec": 480,
+   "sumSec": 1080,
+   "sources": [
+    "client/lease-executor-client.mjs:428,567",
+    "network/lease-gas-owner.mjs:342-345 (production a3163e38)",
+    "custody-boot-fee-activation-20261023/common.py:271"
+   ]
+  },
+  "keeperResume": "the keepers and every C9 signer resume ONLY after the sender reports `verified` (B mined, 2 confirmations on 2 providers, C9 code/nonce/storage/views/binding re-read)",
+  "sha256": "0x122a43152f3318ec91a0971738ca6c7ec07b7fcebfd5ecd0cd03a4d4acc78606"
+ },
+ "observed": {
+  "block": "53006144",
+  "blockHash": "0xf8911751b5b8ce137f339f6073a8a373920000dae8f5dc3b4640fb2f5c9c039e",
+  "blockTimestamp": 1792801635,
+  "rpcs": [
+   "mainnet.base.org",
+   "base.public.blockpi.network"
+  ],
+  "operatorNonce": "23760",
+  "operatorBalanceWei": "145368427115",
+  "sponsorNonce": "437",
+  "sponsorBalanceWei": "61654449641751",
+  "operatorCode": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+  "storage": {
+   "authorized": "0x0000000000000000000000000000000000000000000000000000000000000001",
+   "nonces": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "0x0000000000000000000000000000000000000000000000000000000000000088",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "0x000000000000000000000000000000000000000000000000000000000000008a"
+   }
+  },
+  "executorViews": {
+   "authorizationCharged": true,
+   "nonceOf": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "136",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "138"
+   }
+  },
+  "leaseSec": "1800",
+  "plainTransferReverts": true,
+  "codelessTransferSimulation": "succeeds with C9 codeless (state override)",
+  "baseFeePerGas": "5007321",
+  "maxPriorityFeePerGas": "1000000"
+ },
+ "authorizationsToSign": [
+  {
+   "label": "A: clear (address 0)",
+   "tuple": {
+    "chainId": 8453,
+    "address": "0x0000000000000000000000000000000000000000",
+    "nonce": 23760
+   },
+   "digest": "0xfa87cb500848d4a0907549ec1c75b847c1539ebef62dfc68af31b085c669e781",
+   "signer": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "rule": "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0"
+  },
+  {
+   "label": "B: restore the same executor",
+   "tuple": {
+    "chainId": 8453,
+    "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+    "nonce": 23761
+   },
+   "digest": "0xaf41a75039ec8d92760a2ee6eec74a661fea093d839174cb60a0a52d074ea7dd",
+   "signer": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "rule": "sponsor-executed: nonce = C9's current nonce (A) and +1 (B); chainId 8453, never 0"
+  }
+ ],
+ "transactions": [
+  {
+   "label": "A",
+   "sender": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+   "unsigned": {
+    "type": "eip7702",
+    "chainId": 8453,
+    "nonce": 437,
+    "to": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "value": "5000000000000",
+    "data": "0x",
+    "gas": "50000",
+    "maxFeePerGas": "11014642",
+    "maxPriorityFeePerGas": "1000000",
+    "authorizationList": [
+     {
+      "chainId": 8453,
+      "address": "0x0000000000000000000000000000000000000000",
+      "nonce": 23760,
+      "signature": "authorizationsToSign[0]"
+     }
+    ]
+   },
+   "encodedBytes": {
+    "unsigned": 148,
+    "signedMax": 215,
+    "argument": 148,
+    "oracleSignatureAllowance": 68
+   },
+   "fee": {
+    "l2MaxWei": "550732100000",
+    "l1UpperBoundWei": "638636230",
+    "operatorFeeWei": "0",
+    "totalWei": "551370736230"
+   }
+  },
+  {
+   "label": "B",
+   "sender": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+   "unsigned": {
+    "type": "eip7702",
+    "chainId": 8453,
+    "nonce": 438,
+    "to": "0x29479bf04ed889d46a7afb7f292b9bb26e12647c",
+    "value": "0",
+    "data": "0x",
+    "gas": "47000",
+    "maxFeePerGas": "11014642",
+    "maxPriorityFeePerGas": "1000000",
+    "authorizationList": [
+     {
+      "chainId": 8453,
+      "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+      "nonce": 23761,
+      "signature": "authorizationsToSign[1]"
+     }
+    ]
+   },
+   "encodedBytes": {
+    "unsigned": 142,
+    "signedMax": 209,
+    "argument": 142,
+    "oracleSignatureAllowance": 68
+   },
+   "fee": {
+    "l2MaxWei": "517688174000",
+    "l1UpperBoundWei": "617476575",
+    "operatorFeeWei": "0",
+    "totalWei": "518305650575"
+   }
+  }
+ ],
+ "fees": {
+  "totalBoundWei": "1069676386805",
+  "capWei": "2000000000000",
+  "capExceeded": false,
+  "sponsorShort": false,
+  "note": "per tx: L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 upper bound for the maximum signed size (authorization signature included) + Isthmus operator fee for the gas limit, at the agreed block."
+ },
+ "recovery": [
+  {
+   "state": "a-reverted",
+   "when": "A's authorization skipped, C9 still delegated (its nonce moved, or it was re-delegated)",
+   "effect": "A's call hits the executor and reverts; V stays with the sponsor; only gas is spent",
+   "action": "stop; re-read; a new plan (new nonces, new signatures, new approval)"
+  },
+  {
+   "state": "a-frontrun-funded",
+   "when": "A's authorization skipped because a third party already applied it (C9 codeless, nonce N+1)",
+   "effect": "A's value call to the CODELESS C9 SUCCEEDS: C9 is funded although our authorization did not apply",
+   "action": "B (nonce N+1) is valid: rebroadcast the SAME journaled B"
+  },
+  {
+   "state": "a-mined-b-missing",
+   "when": "A mined, B not (dropped, delayed, crash, cutoff)",
+   "effect": "C9 is a funded plain account; the reserve refuses it; relayed lease() calls SUCCEED AS NO-OPS (no renewal)",
+   "action": "sender resume --rebroadcast: the SAME journaled B while C9's nonce is N+1; keep every signer stopped"
+  },
+  {
+   "state": "b-stale",
+   "when": "A mined, then C9's nonce moved (any C9 transaction or a lease client's own authorization)",
+   "effect": "the journaled B is stale; C9 stays codeless (or was re-delegated by that authorization)",
+   "action": "read the code: exact designator = restored (verify storage); otherwise a NEW restore (C9 self-sends, nonce = current + 1, or a new sponsored B) after fresh review and approval"
+  },
+  {
+   "state": "reorg",
+   "when": "a reorg drops A and/or B",
+   "effect": "both can be re-included as the same signed bytes while the nonces are unchanged",
+   "action": "resume --rebroadcast (identical bytes only); verify only after 2 confirmations on 2 providers"
+  },
+  {
+   "state": "verified",
+   "when": "B mined and every post-condition re-read on both providers",
+   "effect": "C9 restored (code hash e2f1317f), nonce N+2, storage unchanged, funded",
+   "action": "resume the keepers and signers"
+  }
+ ],
+ "limits": [
+  "An unsigned prepare cannot eth_call the real transactions (no authorization signature exists yet). Its live checks are the plain-transfer revert (the premise) and, where a provider supports state overrides, the transfer to a codeless C9. The actual EIP-7702 processing is exercised only on anvil (revm, Prague) with throwaway keys.",
+  "The deployed executor runtime (dd893cd4…), reserve (cc00efe9…) and ledger (71d50076…) are pinned by hash; the storage-preservation test runs the reviewed executor SOURCE (sha256 dc605ffa…) rebuilt locally, not the deployed bytes.",
+  "Base's sequencer txpool rules for type-4 transactions are not verified here; a refused submission is a no-op, not a partial state.",
+  "The last sponsored Lease deadline and the stopped signers come from root (quiesce.json); lease expiries are read from the chain and must equal root's list."
+ ],
+ "leases": [
+  {
+   "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+   "active": true,
+   "runnerOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "leaseUntil": 1792803181,
+   "rate": "0",
+   "remainingSec": 1546,
+   "headroomSec": 346,
+   "latestPrepareAt": 1792801981
+  },
+  {
+   "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+   "active": true,
+   "runnerOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "leaseUntil": 1792803387,
+   "rate": "0",
+   "remainingSec": 1752,
+   "headroomSec": 552,
+   "latestPrepareAt": 1792802187
+  }
+ ],
+ "window": {
+  "latestPrepareAt": 1792801981,
+  "secondsLeftForAPrepare": 346
+ },
+ "findings": [],
+ "feasibility": "An executable prepare needs, at its agreed block: root's quiesce.json (all C9 signers stopped, last sponsored Lease deadline + 60 s passed) and every listed lease >= minLeaseRemainingSec. With renewals at <= 285 s left and leases of ~1800 s, that requires the listed leases' last renewals to lie within leaseSec - minLeaseRemainingSec - (300 + 60) s of each other (240 s at 1800/1200)."
+}

@@ -1,0 +1,153 @@
+{
+  "at": "2026-10-23T19:01:15.445641+00:00",
+  "readOnly": true,
+  "pid": 3817646,
+  "configPath": "/home/steven/enclave-prod/custodian-v2/config.json",
+  "publicConfig": {
+    "dist": "/home/steven/enclave-prod/custodian-v2-9d43e63e8",
+    "stateDir": "/home/steven/enclave-prod/custodian-v2/state",
+    "endpoint": "https://api.enclave.host/t/custody-metal0",
+    "registryEndpoint": "https://api.enclave.host/t/metal0",
+    "vault": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
+    "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+    "genesis": false,
+    "cpus": 2,
+    "memMiB": 3072,
+    "hostPort": 8796,
+    "mgmtPort": 18787,
+    "tunnelName": "custody-metal0"
+  },
+  "sealedBlobMetadata": [
+    {
+      "name": "state.bin",
+      "bytes": 540,
+      "modified": "2026-10-23T19:00:31.031853+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792780872334",
+      "bytes": 540,
+      "modified": "2026-10-23T18:41:12.334815+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792780932901",
+      "bytes": 540,
+      "modified": "2026-10-23T18:42:12.901696+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792780993531",
+      "bytes": 540,
+      "modified": "2026-10-23T18:43:13.531859+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781054666",
+      "bytes": 540,
+      "modified": "2026-10-23T18:44:14.666448+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781115838",
+      "bytes": 540,
+      "modified": "2026-10-23T18:45:15.838085+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781176915",
+      "bytes": 540,
+      "modified": "2026-10-23T18:46:16.915590+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781237679",
+      "bytes": 540,
+      "modified": "2026-10-23T18:47:17.679582+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781298280",
+      "bytes": 540,
+      "modified": "2026-10-23T18:48:18.280976+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781359432",
+      "bytes": 540,
+      "modified": "2026-10-23T18:49:19.432230+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781420904",
+      "bytes": 540,
+      "modified": "2026-10-23T18:50:20.904499+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781482331",
+      "bytes": 540,
+      "modified": "2026-10-23T18:51:22.331196+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781542952",
+      "bytes": 540,
+      "modified": "2026-10-23T18:52:22.952501+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781603530",
+      "bytes": 540,
+      "modified": "2026-10-23T18:53:23.531000+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781664396",
+      "bytes": 540,
+      "modified": "2026-10-23T18:54:24.396591+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781725818",
+      "bytes": 540,
+      "modified": "2026-10-23T18:55:25.818670+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781786963",
+      "bytes": 540,
+      "modified": "2026-10-23T18:56:26.963501+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781847662",
+      "bytes": 540,
+      "modified": "2026-10-23T18:57:27.662169+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781908890",
+      "bytes": 540,
+      "modified": "2026-10-23T18:58:28.890518+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792781969557",
+      "bytes": 540,
+      "modified": "2026-10-23T18:59:29.558075+00:00",
+      "mode": "0o600"
+    },
+    {
+      "name": "state.bin.1792782031031",
+      "bytes": 540,
+      "modified": "2026-10-23T19:00:31.031853+00:00",
+      "mode": "0o600"
+    }
+  ],
+  "limits": [
+    "No state blob bytes or signer environment values read.",
+    "File count is current directory metadata, not an exhaustive backup inventory.",
+    "No service or VM changed."
+  ]
+}

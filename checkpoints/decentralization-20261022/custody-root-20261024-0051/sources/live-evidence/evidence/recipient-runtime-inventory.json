@@ -1,0 +1,54 @@
+{
+  "at": "2026-10-23T20:40:33.083637+00:00",
+  "readOnly": true,
+  "publicConfiguration": {
+    "dist": "/home/steven/enclave-prod/dist-leasegas-deabf8f90",
+    "mode": "snp",
+    "name": "metal0",
+    "cpus": 4,
+    "memMiB": 4096,
+    "publicUrl": "https://api.enclave.host/t/metal0",
+    "wasmtimeBin": "/usr/bin/wasmtime",
+    "isolation": {}
+  },
+  "manifest": {
+    "path": "/home/steven/enclave-prod/dist-leasegas-deabf8f90/manifest.json",
+    "sha256": "c7cb436db609f361a07d5f32a8a0d71f4fc399f329d244ff2512da8ca34dfca4",
+    "fields": [
+      "builtWith",
+      "cmdlineTemplate",
+      "controlOverlay",
+      "controlOverlayHistory",
+      "flavor",
+      "images",
+      "initramfs",
+      "isolation",
+      "isolationMinTcb",
+      "kernel",
+      "modules",
+      "note",
+      "reproducible",
+      "shielded",
+      "shieldedBuild",
+      "supervisorOverlay",
+      "volumeBinding"
+    ]
+  },
+  "http": [
+    {
+      "url": "https://api.enclave.host/t/metal0/info",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://api.enclave.host/t/metal0/health",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://api.enclave.host/t/metal0/api/status",
+      "error": "HTTP Error 404: Not Found"
+    }
+  ],
+  "limits": [
+    "Public configuration/HTTP metadata only; no secret keys, raw environment, sealed state or secret records read or emitted. No service or configuration changed."
+  ]
+}

@@ -1,0 +1,148 @@
+[queue] START available=23649MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: viem default max fee = ceil(base x 1.2) + tip
+ok 1 - viem default max fee = ceil(base x 1.2) + tip
+  ---
+  duration_ms: 0.663944
+  type: 'test'
+  ...
+# Subtest: root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+ok 2 - root's numbers: register 50354 gas at 11 mwei does not fit 376132087579 wei
+  ---
+  duration_ms: 0.188848
+  type: 'test'
+  ...
+# Subtest: L1 and operator fees count; the size argument must cover the signed maximum
+ok 3 - L1 and operator fees count; the size argument must cover the signed maximum
+  ---
+  duration_ms: 0.197428
+  type: 'test'
+  ...
+# Subtest: frozen helpers are the pinned bytes
+ok 4 - frozen helpers are the pinned bytes
+  ---
+  duration_ms: 0.822754
+  type: 'test'
+  ...
+# Subtest: the target is only a root-approved build.json, never a prior or malformed measurement
+ok 5 - the target is only a root-approved build.json, never a prior or malformed measurement
+  ---
+  duration_ms: 6.037932
+  type: 'test'
+  ...
+# Subtest: image pins: every present location must match build.json; a differing production copy refuses
+ok 6 - image pins: every present location must match build.json; a differing production copy refuses
+  ---
+  duration_ms: 4.98127
+  type: 'test'
+  ...
+# Subtest: attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+ok 7 - attest pins the frozen probe to the approved measurement; acceptance is strict; proofkey runs the frozen checks
+  ---
+  duration_ms: 14.042358
+  type: 'test'
+  ...
+# Subtest: RPC transport rejects HTTP failures and missing results before numeric conversion
+ok 8 - RPC transport rejects HTTP failures and missing results before numeric conversion
+  ---
+  duration_ms: 50.14359
+  type: 'test'
+  ...
+# Subtest: the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+ok 9 - the pinned delegation is root's: keccak(0xef0100 || executor) = the delegation code hash of ROOT-FUNDING-REVIEW
+  ---
+  duration_ms: 2.639499
+  type: 'test'
+  ...
+# Subtest: the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+ok 10 - the decision is the approved commit's bootRegistrationAction, file AND function hash-checked; anything else is refused
+  ---
+  duration_ms: 13.75997
+  type: 'test'
+  ...
+# Subtest: 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+ok 11 - 9f6d37bd's decision (the 22:13Z counterexample) registers while the GPU price is pending: the gate refuses it
+  ---
+  duration_ms: 88.220867
+  type: 'test'
+  ...
+# Subtest: a funded operator (5e12 fixture), exact fields, old key, nonce = pending: setProofKey + rollback reserve fit; the gate passes
+ok 12 - a funded operator (5e12 fixture), exact fields, old key, nonce = pending: setProofKey + rollback reserve fit; the gate passes
+  ---
+  duration_ms: 62.044816
+  type: 'test'
+  ...
+# Subtest: refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+ok 13 - refused by the gate: a changed field (full register), a deactivated row, an operator tx in flight, a short balance, a re-delegation
+  ---
+  duration_ms: 480.642617
+  type: 'test'
+  ...
+# Subtest: RPC disagreement or a non-Base RPC refuses before any decision
+ok 14 - RPC disagreement or a non-Base RPC refuses before any decision
+  ---
+  duration_ms: 1.27567
+  type: 'test'
+  ...
+# Subtest: SDK FAILURE SCENARIO (suspected 23:15 cause): where the node fills, the 7dd plain writeContract is re-priced to 13.2 mwei; the gate refuses it
+ok 15 - SDK FAILURE SCENARIO (suspected 23:15 cause): where the node fills, the 7dd plain writeContract is re-priced to 13.2 mwei; the gate refuses it
+  ---
+  duration_ms: 119.334148
+  type: 'test'
+  ...
+# Subtest: the ROLLBACK is priced through deabf8f90's own plain sender (full register with gpu 0 + setPrices) on every pool member
+ok 16 - the ROLLBACK is priced through deabf8f90's own plain sender (full register with gpu 0 + setPrices) on every pool member
+  ---
+  duration_ms: 1084.381332
+  type: 'test'
+  ...
+# Subtest: inert: no signer and no broadcast - a sender that tries to sign or send fails closed
+not ok 17 - inert: no signer and no broadcast - a sender that tries to sign or send fails closed
+  ---
+  duration_ms: 13.80811
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-final-recovery-20261024/tests/boot-funding.test.mjs:196:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /no signing/. Input:
+    
+    'Error: mainnet.base.org setProofKey fee read failed: Error'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'mainnet.base.org setProofKey fee read failed: Error'
+  stack: |-
+    priceOn (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-final-recovery-20261024/boot-funding.mjs:161:22)
+    async priceWrite (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-final-recovery-20261024/boot-funding.mjs:177:39)
+    async collect (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-final-recovery-20261024/boot-funding.mjs:180:26)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-final-recovery-20261024/tests/boot-funding.test.mjs:200:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-boot-final-recovery-20261024/tests/boot-funding.test.mjs:200:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+ok 18 - block agreement is canonical (number/hash/parentHash/timestamp): provider field ORDER and metadata are ignored (root 22:07/22:08)
+  ---
+  duration_ms: 55.17876
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 17
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2369.168497
+[memory-guard] exit=1 peakTreeRssMiB=170 minHostAvailableMiB=23461
+[memory-guard] at peak: node:97 node:54 python3:19
+[queue] EXIT 1

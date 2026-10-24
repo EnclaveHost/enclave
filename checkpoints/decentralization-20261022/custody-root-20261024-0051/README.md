@@ -1,0 +1,3 @@
+# Custody root continuation, October24
+
+Source and public evidence preservation only. See MANIFEST.json for exact Git object provenance and per-file SHA256. Production rollout is incomplete; the new committee, lifecycle canaries, book activation and dashboard publication have not occurred. The r2 canary scaffold is explicitly unfinished and must not run. Maintenance approval is pending. Temporary keeper ends03:53:51UTC; original tenant VMs and custody remain preserved. No keys, signatures, private journals, raw quotes, sealed state or binaries are included. Prior checkpoint entries and their manifest are unchanged.

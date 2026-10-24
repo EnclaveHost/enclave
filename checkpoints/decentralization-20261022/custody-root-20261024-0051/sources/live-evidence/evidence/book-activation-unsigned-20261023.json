@@ -1,0 +1,43 @@
+{
+  "at": "2026-10-23T19:40:40.929Z",
+  "status": "UNSIGNED — do not activate until lifecycle canaries and dashboard integration pass",
+  "block": {
+    "number": "52997534",
+    "hash": "0x64c93bcdea1fc0dca91922a4fc12acfeb78daf274ec230170d18015c70f96818",
+    "timestamp": "1792784415",
+    "baseFeePerGas": "5000000"
+  },
+  "providers": [
+    "https://mainnet.base.org",
+    "https://base.public.blockpi.network/v1/rpc/public"
+  ],
+  "expectedBefore": {
+    "owner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+    "secretVaultV2": "0x0000000000000000000000000000000000000000",
+    "vaultCodeHash": "0x4b949b378382d7fa862e7bc1552b58547ce811527c9746f4d9a0d39a8b4f716b"
+  },
+  "effect": "Publish the existing original custody v2 vault through the administrator-controlled address book. No contract replacement, committee migration, secret transfer or change to administrator rights.",
+  "transaction": {
+    "chainId": "0x2105",
+    "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+    "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "value": "0x0",
+    "data": "0xba44593c7365637265745661756c74563200000000000000000000000000000000000000000000000000000000000000e48699b8401564aace7a814ae4569b67a3f7eef5"
+  },
+  "simulation": {
+    "adminSetSucceeded": true,
+    "unauthorizedSetRejected": [
+      true,
+      true
+    ]
+  },
+  "rollback": {
+    "chainId": "0x2105",
+    "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+    "to": "0xab214342d5a490150a4a977063a2f88e21f80907",
+    "value": "0x0",
+    "data": "0xba44593c7365637265745661756c745632000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rollbackLimit": "Removing discovery does not undo policies or encrypted bundles already stored, and older clients with hardcoded vault defaults can still resolve it.",
+  "signing": "Administrator wallet signature and gas required; nonce, fees, simulation and current authority must be refreshed immediately before signing."
+}

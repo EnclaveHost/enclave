@@ -1,0 +1,173 @@
+[q] 2026-10-23T17:35:20-07:00 try 1 cmd: node --test --test-concurrency=1 --test-force-exit work/custody-operator-funding-options-20261023/test/plan.test.mjs work/custody-operator-funding-options-20261023/test/protocol.test.mjs work/custody-operator-funding-options-20261023/test/sender.test.mjs
+[queue] START available=23790MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+TAP version 13
+# Subtest: production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor
+ok 1 - production pins: C9 and ONLY the same executor; V exact; aggregate cap; chain 8453; separate sponsor
+  ---
+  duration_ms: 4.053057
+  type: 'test'
+  ...
+# Subtest: the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap
+ok 2 - the unsigned plan at today's numbers: nonces N/N+1 and s/s+1, digests, worst-case sizes, fees within the cap
+  ---
+  duration_ms: 6.491447
+  type: 'test'
+  ...
+# Subtest: fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed
+ok 3 - fees: the aggregate cap refuses (never raises); the base-fee edge is computed, not guessed
+  ---
+  duration_ms: 2.946966
+  type: 'test'
+  ...
+# Subtest: state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise
+ok 4 - state refusals: not delegated, another target, sponsor code, unbound reserve, other runtimes, unsettled nonces, premise
+  ---
+  duration_ms: 0.841984
+  type: 'test'
+  ...
+# Subtest: quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time
+ok 5 - quiesce refusals: root-provided only, signers listed, fresh, deadlines past on chain, leases with enough time
+  ---
+  duration_ms: 0.953752
+  type: 'test'
+  ...
+# Subtest: authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule
+ok 6 - authorizations are exactly two, for C9 only, with the sponsor-executed nonce rule
+  ---
+  duration_ms: 0.248648
+  type: 'test'
+  ...
+# Subtest: the read-only prepare: exact tuples, nonce rules, digests, observed storage, premise, fees within the cap
+ok 7 - the read-only prepare: exact tuples, nonce rules, digests, observed storage, premise, fees within the cap
+  ---
+  duration_ms: 341.534812
+  type: 'test'
+  ...
+# Subtest: happy path, actual processing: after A C9 is codeless and funded with storage intact; after B restored byte-exactly
+ok 8 - happy path, actual processing: after A C9 is codeless and funded with storage intact; after B restored byte-exactly
+  ---
+  duration_ms: 132.467925
+  type: 'test'
+  ...
+# Subtest: hazard between A and B: a relayed lease() call to the codeless C9 SUCCEEDS as a silent no-op; the same B then restores
+ok 9 - hazard between A and B: a relayed lease() call to the codeless C9 SUCCEEDS as a silent no-op; the same B then restores
+  ---
+  duration_ms: 116.889513
+  type: 'test'
+  ...
+# Subtest: order is enforced by the sponsor's nonces: B submitted first still runs after A
+ok 10 - order is enforced by the sponsor's nonces: B submitted first still runs after A
+  ---
+  duration_ms: 104.464424
+  type: 'test'
+  ...
+# Subtest: reorg: the same signed bytes re-include to the same hashes and the same final state
+ok 11 - reorg: the same signed bytes re-include to the same hashes and the same final state
+  ---
+  duration_ms: 113.953326
+  type: 'test'
+  ...
+# Subtest: stale A (C9's nonce moved, still delegated): A reverts and V stays with the sponsor; B (now valid) only re-delegates
+ok 12 - stale A (C9's nonce moved, still delegated): A reverts and V stays with the sponsor; B (now valid) only re-delegates
+  ---
+  duration_ms: 106.304059
+  type: 'test'
+  ...
+# Subtest: front-run: a third party applies A's authorization first; our A's authorization is skipped but its value call to the CODELESS C9 succeeds
+ok 13 - front-run: a third party applies A's authorization first; our A's authorization is skipped but its value call to the CODELESS C9 succeeds
+  ---
+  duration_ms: 95.389959
+  type: 'test'
+  ...
+# Subtest: front-run + the lease client's own authorization: our A reverts, our B is skipped; C9 ends delegated and unfunded (re-plan)
+ok 14 - front-run + the lease client's own authorization: our A reverts, our B is skipped; C9 ends delegated and unfunded (re-plan)
+  ---
+  duration_ms: 89.694175
+  type: 'test'
+  ...
+# Subtest: interruption: A mined, then C9's nonce moves (it is codeless and funded): B is stale; recovery = C9 self-restores (nonce = current + 1)
+ok 15 - interruption: A mined, then C9's nonce moves (it is codeless and funded): B is stale; recovery = C9 self-restores (nonce = current + 1)
+  ---
+  duration_ms: 89.02204
+  type: 'test'
+  ...
+# Subtest: an authorization for another chain is skipped: A reverts, nothing moves (and the plan refuses chain id 0)
+ok 16 - an authorization for another chain is skipped: A reverts, nothing moves (and the plan refuses chain id 0)
+  ---
+  duration_ms: 73.835675
+  type: 'test'
+  ...
+# Subtest: prepare refusals against the live local chain: not delegated, other target, pending nonce, sponsor with code, fee cap, quiesce, lease window
+ok 17 - prepare refusals against the live local chain: not delegated, other target, pending nonce, sponsor with code, fee cap, quiesce, lease window
+  ---
+  duration_ms: 578.356011
+  type: 'test'
+  ...
+# Subtest: gas limits cover every path with margin (measured on revm, not modelled)
+ok 18 - gas limits cover every path with margin (measured on revm, not modelled)
+  ---
+  duration_ms: 84.078422
+  type: 'test'
+  ...
+# gas used {"A_valid_transfer":"36800","B_valid_restore":"36800","A_skipped_delegated_revert":"46043","A_skipped_codeless_transfer":"46000"} limits A 50000 B 47000
+# Subtest: happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state
+ok 19 - happy path verifies both transactions, exact delegation, funded balance, and unchanged lease state
+  ---
+  duration_ms: 513.73367
+  type: 'test'
+  ...
+# Subtest: first transaction mined, second unavailable: resume sends identical bytes without signing
+ok 20 - first transaction mined, second unavailable: resume sends identical bytes without signing
+  ---
+  duration_ms: 1593.399765
+  type: 'test'
+  ...
+# Subtest: missing approval and executable observation refuse before signing or broadcasting
+ok 21 - missing approval and executable observation refuse before signing or broadcasting
+  ---
+  duration_ms: 104.288126
+  type: 'test'
+  ...
+# Subtest: stale operator nonce refuses without signing
+ok 22 - stale operator nonce refuses without signing
+  ---
+  duration_ms: 107.833277
+  type: 'test'
+  ...
+# Subtest: changed fee quote refuses without signing
+ok 23 - changed fee quote refuses without signing
+  ---
+  duration_ms: 98.379764
+  type: 'test'
+  ...
+# Subtest: provider receipt status disagreement cannot produce success
+ok 24 - provider receipt status disagreement cannot produce success
+  ---
+  duration_ms: 288.03379
+  type: 'test'
+  ...
+# Subtest: no broadcast can occur before a durable journal exists
+ok 25 - no broadcast can occur before a durable journal exists
+  ---
+  duration_ms: 115.362645
+  type: 'test'
+  ...
+# Subtest: expired plan refuses without signing
+ok 26 - expired plan refuses without signing
+  ---
+  duration_ms: 50.163849
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5244.48199
+[memory-guard] exit=0 peakTreeRssMiB=193 minHostAvailableMiB=23708
+[memory-guard] at peak: node:101 node:59 anvil:33
+[queue] EXIT 0
+[q] 2026-10-23T17:35:26-07:00 exit=0

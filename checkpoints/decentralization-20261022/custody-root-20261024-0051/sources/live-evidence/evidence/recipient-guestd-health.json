@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-23T21:03:09.777Z",
+  "readOnly": true,
+  "authenticatedResponse": true,
+  "status": 200,
+  "fields": [
+    "backend",
+    "catalog",
+    "firmware",
+    "guests",
+    "inference",
+    "mem64",
+    "mem64RequiresRelease",
+    "ok",
+    "pool",
+    "set",
+    "setRequiresRelease",
+    "shieldedPool",
+    "supports",
+    "volumes"
+  ],
+  "supports": {
+    "config": false,
+    "configCid": false,
+    "egress": false,
+    "gpu": true,
+    "legacyImage": true,
+    "ports": false,
+    "protectedPorts": true,
+    "release": true,
+    "secrets": false
+  },
+  "catalog": {
+    "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8"
+  },
+  "limits": [
+    "Authenticated host-side capability observation, not guest attestation or a custody release. No key/session material or full response emitted."
+  ]
+}

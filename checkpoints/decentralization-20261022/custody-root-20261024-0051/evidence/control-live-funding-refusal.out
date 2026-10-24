@@ -1,0 +1,11 @@
+[queue] START available=23662MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "at": "2026-10-24T00:49:03.465456+00:00",
+  "ok": false,
+  "problems": [
+    "boot-funding.mjs failed (1): Error: mainnet.base.org setProofKey fee read failed: eth_estimateGas: mainnet.base.org eth_estimateGas: out of gas: gas required exceeds: 24228"
+  ]
+}
+[memory-guard] exit=1 peakTreeRssMiB=121 minHostAvailableMiB=23556
+[memory-guard] at peak: node:94 python3:27
+[queue] EXIT 1

@@ -1,0 +1,10 @@
+node_modules/
+evidence/fresh-quote-raw.json
+node_modules
+*.out
+*.err
+*.guard.log
+claude-*-progress.txt
+
+claude-*-task.txt
+staged-gitleaks.json

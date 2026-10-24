@@ -1,0 +1,130 @@
+{
+  "at": "2026-10-23T23:32:04.967Z",
+  "readOnly": true,
+  "rpcs": [
+    "https://mainnet.base.org",
+    "https://base-rpc.publicnode.com"
+  ],
+  "chainIds": [
+    8453,
+    8453
+  ],
+  "block": {
+    "number": "53004484",
+    "hash": "0xb424a75d73d456f57bd2431e69220b084f5b0e3541e05744647e8c048ba9ac9b",
+    "timestamp": "1792798315"
+  },
+  "source": {
+    "commit": "5db2be3f4d4bed2c543e1e181c976ca9e26aa410",
+    "supervisorSha256": "e7f07b5336319bca9289d1a184b3d001a108fa67e54a636bb7862ed2ac2b84f3",
+    "bootDecisionSha256": "fe25be11f5ad5a8af438cdc3117e8a2060e4346af3328d15fa5fdc179f4c1120",
+    "senderSha256": "5a14810f960187579bd44ca4f318cea5722f682ae4e51bd1dc8a4006f0f9b3f3"
+  },
+  "registry": {
+    "address": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "codeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518"
+  },
+  "operator": {
+    "address": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "code": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+    "nonceAtBlock": "23759",
+    "latest": [
+      "23759",
+      "23759"
+    ],
+    "pending": [
+      "23759",
+      "23759"
+    ],
+    "balanceWei": "376132087579"
+  },
+  "executor": {
+    "address": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+    "codeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2"
+  },
+  "id": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+  "row": {
+    "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB",
+    "active": true,
+    "endpoint": "https://api.enclave.host/t/metal0",
+    "repo": "EnclaveHost/enclave",
+    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "cpu": "834",
+    "gpu": "1667",
+    "registryProofAddress": "0x8604ce59f394daf05b235122E5Dc054F5C2bB453"
+  },
+  "desired": {
+    "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "endpoint": "https://api.enclave.host/t/metal0",
+    "repo": "EnclaveHost/enclave",
+    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "cpuPricePerSec6": "834",
+    "gpuPricePerSec6": "1667",
+    "registryProofAddress": "0xffffffffffffffffffffffffffffffffffffffff"
+  },
+  "desiredPending": {
+    "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+    "endpoint": "https://api.enclave.host/t/metal0",
+    "repo": "EnclaveHost/enclave",
+    "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "cpuPricePerSec6": "834",
+    "gpuPricePerSec6": null,
+    "registryProofAddress": "0xffffffffffffffffffffffffffffffffffffffff"
+  },
+  "testProofKey": "0xffffffffffffffffffffffffffffffffffffffff",
+  "actions": {
+    "pending": {
+      "action": "setProofKey",
+      "reason": "only the proof key differs"
+    },
+    "discovered": {
+      "action": "setProofKey",
+      "reason": "only the proof key differs"
+    }
+  },
+  "fees": {
+    "isthmus": true,
+    "pricedBy": "the approved sendOperatorTx + viem prepareTransactionRequest (inert, no signer)"
+  },
+  "setProofKey": {
+    "perRpc": [
+      {
+        "rpc": "https://mainnet.base.org",
+        "senderGas": "38772",
+        "senderMaxFeePerGas": "7000000",
+        "senderMaxPriorityFeePerGas": "1000000",
+        "gas": "38772",
+        "maxFeePerGas": "7000000",
+        "maxPriorityFeePerGas": "1000000",
+        "nonce": "23759",
+        "sizes": {
+          "unsigned": 113,
+          "signedMax": 180
+        },
+        "l1FeeUpperBoundWei": "507960515",
+        "operatorFeeWei": "0",
+        "worstCaseWei": "271911960515"
+      },
+      {
+        "rpc": "https://base-rpc.publicnode.com",
+        "senderGas": "38772",
+        "senderMaxFeePerGas": "7000000",
+        "senderMaxPriorityFeePerGas": "1000000",
+        "gas": "38772",
+        "maxFeePerGas": "7000000",
+        "maxPriorityFeePerGas": "1000000",
+        "nonce": "23759",
+        "sizes": {
+          "unsigned": 113,
+          "signedMax": 180
+        },
+        "l1FeeUpperBoundWei": "507960515",
+        "operatorFeeWei": "0",
+        "worstCaseWei": "271911960515"
+      }
+    ],
+    "worstCaseWei": "271911960515"
+  },
+  "note": "bounds at this block only; the larger per-RPC worst case of the approved sender's own prepared setProofKey (worst-case test key) is what the gate checks",
+  "publicProjection": "On-chain proofKey fields are recorded as registryProofAddress (public Ethereum addresses)."
+}

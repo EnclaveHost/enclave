@@ -1,0 +1,32 @@
+// Prepare only. Reads the local operator key to verify its public account; never signs or sends.
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {createPublicClient,http,parseAbi,keccak256} from 'viem';
+import {privateKeyToAccount} from 'viem/accounts';
+import {pinBlock,readMany,LIVE} from '../lib/live.mjs';
+const checked=JSON.parse(fs.readFileSync(new URL('../evidence/metal0-enrollment-unsigned-20261023.json',import.meta.url)));
+const tx=checked.unsigned[0], p=checked.preconditions;
+const cfg=JSON.parse(fs.readFileSync('/home/steven/Projects/enclave/metal/config.json','utf8'));
+assert.equal(typeof cfg.registryKey,'string');
+const account=privateKeyToAccount(cfg.registryKey.startsWith('0x')?cfg.registryKey:'0x'+cfg.registryKey);
+assert.equal(account.address.toLowerCase(),tx.from);
+const block=await pinBlock();
+const abi=parseAbi(['function authority(bytes32) view returns(address,address,uint64,bytes32)']);
+const [state]=await readMany(block,[{address:tx.to,abi,functionName:'authority',args:[p.hostId]}]);assert.equal(state.value[0],'0x'+'00'.repeat(20));assert.equal(state.value[1],'0x'+'00'.repeat(20));
+const clients=LIVE.state.map(url=>createPublicClient({transport:http(url,{timeout:12000,retryCount:0})}));
+const views=await Promise.all(clients.map(async c=>{
+ assert.equal(await c.getChainId(),8453);
+ assert.equal(keccak256(await c.getCode({address:tx.to,blockNumber:block.number})),p.ownershipCodeHash);
+ const nonce=await c.getTransactionCount({address:account.address});
+ assert.equal(await c.getTransactionCount({address:account.address,blockTag:'pending'}),nonce,'pending operator transaction');
+ const gas=await c.estimateGas({account:account.address,to:tx.to,data:tx.data,value:0n});
+ assert.ok(gas<150000n);
+ const balance=await c.getBalance({address:account.address});
+ const fee=await c.estimateFeesPerGas();assert.ok(fee.maxFeePerGas<=100000000n,'fee above budget');
+ return {nonce,gas,balance,maxFeePerGas:fee.maxFeePerGas,maxPriorityFeePerGas:fee.maxPriorityFeePerGas};
+}));assert.equal(views[0].nonce,views[1].nonce);
+const max=k=>views.reduce((a,b)=>a>b[k]?a:b[k],0n);const gas=max('gas')*125n/100n;const fee=max('maxFeePerGas');const funded=views.every(v=>v.balance>=gas*fee);
+console.log(JSON.stringify({at:new Date().toISOString(),from:tx.from,notSigned:true,notSent:true,funded,balancesWei:views.map(v=>String(v.balance)),gas:String(gas),maximumNetworkCostWei:String(gas*fee),maxFeePerGas:String(fee)}));
+assert.ok(funded,'operator balance below estimated maximum network cost');
+const out={at:new Date().toISOString(),notSigned:true,notSent:true,block,action:'Only propose the existing Enclave admin as accepted owner of metal0; admin must separately accept. No committee/policy/book changes.',transaction:{chainId:8453,from:tx.from,to:tx.to,data:tx.data,value:'0',nonce:views[0].nonce,gas:String(gas),maxFeePerGas:String(fee),maxPriorityFeePerGas:String(max('maxPriorityFeePerGas'))},maximumNetworkCostWei:String(gas*fee),views};
+fs.writeFileSync(new URL('../evidence/operator-proposal-prepared.json',import.meta.url),JSON.stringify(out,(_,v)=>typeof v==='bigint'?v.toString():v,2)+'\n');console.log(JSON.stringify({at:out.at,from:tx.from,gas:String(gas),maximumNetworkCostWei:out.maximumNetworkCostWei,nonce:views[0].nonce}));

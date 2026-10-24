@@ -1,0 +1,7 @@
+{
+ "providedBy": "root",
+ "providedAt": 0,
+ "signersStopped": ["metal0 control (all units holding the C9 registry key)", "lease keepers / relays signing for C9", "boot/funding tools"],
+ "lastSponsoredLeaseDeadline": 0,
+ "leases": [{ "id": "0x<32-byte deployment id held by C9>", "expiry": 0 }]
+}

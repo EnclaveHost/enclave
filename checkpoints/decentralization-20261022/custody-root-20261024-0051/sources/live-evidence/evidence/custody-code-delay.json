@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-23T21:23:51.832Z",
+  "readOnly": true,
+  "block": {
+    "number": "53000630",
+    "hash": "0xac6fd7b35b6ad12a51acaf6e7e07f6cb3e6b7ad9499d098b5fb686db50c238b9",
+    "timestamp": "1792790607",
+    "baseFeePerGas": "5000000"
+  },
+  "vault": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+  "committee": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+  "measurement": "0xfbe2f581cd8da409856adcff75a149c3797111cb0c7030b824f015867b9cb8d7",
+  "delaySeconds": "604800",
+  "correctedCodeActiveAt": "0",
+  "limits": [
+    "Existing committee code-admission state only. No code proposal, new committee, machine handover or policy migration was submitted. A new committee does not upgrade or migrate existing policies."
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "at": "2026-10-23T20:08:11.510Z",
+  "readOnly": true,
+  "block": {
+    "number": "52998338",
+    "hash": "0xca2a1d4332b410d656ca1484d5261ae5e66ffc878f1f7773e3abe57905b2541f",
+    "timestamp": "1792786023",
+    "baseFeePerGas": "5000602"
+  },
+  "results": [
+    {
+      "vault": "0x08074300F75e78212Ae10eBd14984f78e17811A6",
+      "fromBlock": 52605914,
+      "toBlock": "52998338",
+      "byProvider": [
+        {
+          "provider": "mainnet.base.org",
+          "complete": false,
+          "error": "mainnet.base.org eth_getLogs: request limit reached",
+          "events": []
+        },
+        {
+          "provider": "base.public.blockpi.network",
+          "complete": false,
+          "error": "base.public.blockpi.network eth_getLogs: Due to the high consumption or frequency of RPC requests, you have exceeded the rate limit. To increase it, please consider purchasing a more advanced RU package at https://dashboard.blockpi.io",
+          "events": [
+            {
+              "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+              "block": "0x322bf02",
+              "tx": "0xa3ab30132c17412832e825bc97b94a208b0ebae5b9eb3278e613e12e1f3eed97",
+              "index": "0x12a",
+              "event": "PolicyUpdated"
+            }
+          ]
+        }
+      ],
+      "discoveryAgreed": false,
+      "policies": [
+        {
+          "id": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+          "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+          "policyRev": "1",
+          "secretRev": "1",
+          "committeeId": "0xf14080496fbb6f12aee6577fd3f0fdc2ba1226a159b727dbfc8bf0de07fe4f9c",
+          "paused": false,
+          "beneficialOwner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C"
+        }
+      ]
+    },
+    {
+      "vault": "0xE48699B8401564aaCe7A814AE4569b67a3F7eEF5",
+      "fromBlock": 52613511,
+      "toBlock": "52998338",
+      "byProvider": [
+        {
+          "provider": "mainnet.base.org",
+          "complete": false,
+          "error": "mainnet.base.org eth_getLogs: request limit reached",
+          "events": []
+        },
+        {
+          "provider": "base.public.blockpi.network",
+          "complete": false,
+          "error": "base.public.blockpi.network eth_getLogs: Due to the high consumption or frequency of RPC requests, you have exceeded the rate limit. To increase it, please consider purchasing a more advanced RU package at https://dashboard.blockpi.io",
+          "events": []
+        }
+      ],
+      "discoveryAgreed": false,
+      "policies": []
+    }
+  ],
+  "limits": [
+    "Log completeness remains dependent on RPC providers even when two agree. Current policy state is independently quorum-read. No bundle/rule values emitted or chain state changed."
+  ]
+}

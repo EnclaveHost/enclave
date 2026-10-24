@@ -1,0 +1,41 @@
+{
+  "at": "2026-10-23T20:35:16.121674+00:00",
+  "readOnly": true,
+  "pid": 22148,
+  "publicEnvironment": {
+    "CUSTODY_VAULT_V2": "0xe48699b8401564aace7a814ae4569b67a3f7eef5",
+    "SESSIONS_FACTORY": "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
+    "ADDRESS_BOOK_ADDRESS": "0xab214342d5A490150A4A977063A2f88E21F80907",
+    "CUSTODY_VAULT": "0x08074300f75e78212ae10ebd14984f78e17811a6"
+  },
+  "sourceHashes": [
+    {
+      "path": "api-relay.js",
+      "exists": true,
+      "sha256": "481f00410b87f30ee467183db7121175d37c010be5b2c23891a0a19e63b4579d"
+    },
+    {
+      "path": "sessions.js",
+      "exists": false,
+      "sha256": null
+    },
+    {
+      "path": "network-api.js",
+      "exists": false,
+      "sha256": null
+    },
+    {
+      "path": "relay/sessions.mjs",
+      "exists": false,
+      "sha256": null
+    },
+    {
+      "path": "network/owner-signature.mjs",
+      "exists": false,
+      "sha256": null
+    }
+  ],
+  "limits": [
+    "Only public address settings emitted; no secret values, raw environment or private configuration printed. No restart or configuration change."
+  ]
+}

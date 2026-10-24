@@ -1,0 +1,5 @@
+[queue] START available=23561MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+8fda71f2edc036bf49b223e082e330a18f9dadd5 Timestamps: rollback-review headers to the measured 22:29Z (were estimated 22:35Z); known-state read time ~22:28Z
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
