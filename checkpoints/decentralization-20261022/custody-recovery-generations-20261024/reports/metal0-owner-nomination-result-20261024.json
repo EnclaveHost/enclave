@@ -1,0 +1,33 @@
+{
+ "planHash": "0xe8a6ba4008887199402105c1644fe853ad6e13738d925ed79c8d06f08affcf7c",
+ "txHash": "0x6f9a8249303fa7185af3c618d1b7108b2ef36bef951b94924490e003f1c1ceb2",
+ "nonce": "23767",
+ "status": "verified",
+ "broadcasts": [
+  {
+   "rpc": "mainnet.base.org",
+   "at": "2026-10-24T04:53:41.133Z",
+   "result": "0x6f9a8249303fa7185af3c618d1b7108b2ef36bef951b94924490e003f1c1ceb2"
+  },
+  {
+   "rpc": "base.public.blockpi.network",
+   "at": "2026-10-24T04:53:41.555Z",
+   "error": "base.public.blockpi.network eth_sendRawTransaction: already known"
+  }
+ ],
+ "receipt": {
+  "blockNumber": "53014138",
+  "blockHash": "0x31b6dd35b9691653f18593e1a9104805b50c8bfc5e405f9c0db23a18a960b717",
+  "status": "success",
+  "gasUsed": "74578",
+  "confirmationsAtCheck": "3",
+  "authorityAfter": {
+   "owner": "0x0000000000000000000000000000000000000000",
+   "pendingOwner": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+   "revision": "0",
+   "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+   "atBlock": "53014140"
+  }
+ },
+ "note": "pending owner = Enclave wallet; next: its acceptOwner"
+}

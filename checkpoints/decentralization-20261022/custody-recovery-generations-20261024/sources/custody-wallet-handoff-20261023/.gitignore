@@ -1,0 +1,6 @@
+TASK.txt
+progress.txt
+progress.err
+journals/
+logs/
+node_modules

@@ -1,0 +1,687 @@
+{
+  "at": "2026-10-24T05:23:17.792337+00:00",
+  "previousCheckpoint": "631a3c59518a00614557c34236d3d15278913bf7",
+  "entries": [
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/.gitignore",
+      "sha256": "a00ee4f41bd47de5071b9b314564ecc626e799c91eb4292a45ebc5c8f7e2d21a",
+      "bytes": 41
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/.gitleaksignore",
+      "sha256": "990ab2fa0c10faf15f150c48432010b301d6c7d3d8172886feb462df2fd4f8fc",
+      "bytes": 1126
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/LAUNCH-PACKAGE.md",
+      "sha256": "83eae1f08eb1d2a242342addc46dcc26c8c3ad2cc632c76cba33c2db88906923",
+      "bytes": 15919
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/ORIGIN-0152520.json",
+      "sha256": "239b4f9135e92e6409d72d1697c3a6ea6f11241a7929d1b6a6de49bad878a2c1",
+      "bytes": 2216
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/STATUS.md",
+      "sha256": "42a49b201ab5dbef915851d8f551cba2dd38fe9f1e1e55a06d103661440d6a00",
+      "bytes": 25503
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/cli-pins/canary-contract-pins.json",
+      "sha256": "bbc47f6ce3e2098076f60c65d7bcd650988da17ba9ea34c6ca369af0843493b8",
+      "bytes": 589
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/assert.mjs",
+      "sha256": "24350790df1d6ea0a0a28a85a414e96887959901ede36851b1f0a8d155461e06",
+      "bytes": 12613
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/attestation.mjs",
+      "sha256": "2710a3dd803895949978c7c957475cbf3b4672a20d83e23635bfbd08bc46ee65",
+      "bytes": 6071
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/budget.mjs",
+      "sha256": "ff4438cdd1abd0441c50516009720dfee9f0e96984e3531348df01154def7cfd",
+      "bytes": 4184
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/canary-process.mjs",
+      "sha256": "adbcf844ce4047cfeac53b939bc9a767402132f8caf72736d7187b4a3149c464",
+      "bytes": 857
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/canonical.mjs",
+      "sha256": "c1dc48ba8331fd7b3522e47c8c91a9a78e822d601e06c26b709f3326b63d960f",
+      "bytes": 1195
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/capture-host-copy.mjs",
+      "sha256": "8f157960d99a0fa7a95435a3c757aa135b621b5c69316a48c4505579f19df167",
+      "bytes": 4520
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/cli.mjs",
+      "sha256": "02bd170685ed15dd91effb37634b991d8ea45db54b061cbe55663c130be6ec84",
+      "bytes": 47041
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/clipins.mjs",
+      "sha256": "7d3d4a8010b8ac7c3cb69e970c64fb02fab1a037d8e51bcfc3f6976467f9b7d3",
+      "bytes": 6658
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/genesis-capture.mjs",
+      "sha256": "12c2336a6238c013b470fdfe3f787a35a5d4796c479e35b41a208d3d5892e9fd",
+      "bytes": 4004
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/genesis-submit.mjs",
+      "sha256": "7ad6c3ea229396d4fc61e06c6cbf04ae55898ddd85a1cba8c82a9835b7efbe11",
+      "bytes": 2628
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/genesis.mjs",
+      "sha256": "e6f140cd43a56482d32a38b520c875d5d810c06c691bd2694674f382d1282918",
+      "bytes": 10882
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/guard.mjs",
+      "sha256": "44c0774817f3801482313df734926033fbba759c32025d0d000991407cd13f98",
+      "bytes": 2644
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/inspect-caddy.py",
+      "sha256": "d997c3addb4de22a1d1200e5f736ee75584c4b89391ce4e74328dc7ab82c94a2",
+      "bytes": 4336
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/journal.mjs",
+      "sha256": "b5285ba3b4d2c4240537b1dbb71ea513b2af2f7b67d8b2fd059cb784a0230283",
+      "bytes": 4541
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/launch-bundle.mjs",
+      "sha256": "9d7e5b7799c2d3416158946f5f09bec12124bd95c295ce77728c45a3cc3f5136",
+      "bytes": 15060
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/launch-ingress.mjs",
+      "sha256": "3642b1e698442e04ab7cbfe451c71621d9d39f9118362268f70735bf9b150ab8",
+      "bytes": 9350
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/launch-runtime.mjs",
+      "sha256": "246b0f3ed89d2bccc5878498500478ca9b0aaad554582dd5073d19188397f6c6",
+      "bytes": 24295
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/launch-verify.mjs",
+      "sha256": "e7cfd11fe2ec40e0d3171e6dc1c8f1ff71be99924274b4bd4a99f485807c1579",
+      "bytes": 6105
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/launch/resolve-as-original.mjs",
+      "sha256": "30cd9f2cd53ecc82509bc8ade157a934c16dcd0dead7e717480f85c9dc353fe7",
+      "bytes": 741
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/launch/resolve-register.mjs",
+      "sha256": "16deae35e7f1ccbb53969c762288e043c879e394c3018785c21f8ec0d475c29a",
+      "bytes": 1259
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/markers.mjs",
+      "sha256": "01039cff80f6a4d6bd35e6db042958b6c9c0993a89b49f9f53f06dc48602cbdd",
+      "bytes": 2793
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/plan.mjs",
+      "sha256": "1ce6478f73023ba0e17762e7c0a125899ed153d5a29f9a6089697fcb787c6262",
+      "bytes": 38623
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/prepare.mjs",
+      "sha256": "722dfdc3e4c1a75bf89c1e2ee6f91e0c1deaea6893362fb90de5ca57672928da",
+      "bytes": 7409
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/private-log.mjs",
+      "sha256": "709d1528b96912bb3ad8de47e6eb5560a24d759b17b3bdfe8f4d14dc2143f581",
+      "bytes": 5330
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/probe-old-committee.mjs",
+      "sha256": "be0275fec93f9384abc670d27e9f868877ec5c0e71cd46cee4f2aa56caae6d6e",
+      "bytes": 4065
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/probe.mjs",
+      "sha256": "f479408e53717fde62dec118f7e8b7acafdb24b8f8657fef9a75450ad796d306",
+      "bytes": 5815
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/proof.mjs",
+      "sha256": "e0d6e76c54f096a9f2c8300710fa15685efd2abfbcdb735f9c005763bd794dd5",
+      "bytes": 4934
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/r2-attestor.mjs",
+      "sha256": "bbdb53be229822b94bf6df543d7f04c073f012a2ce0898508c5993dcec38727f",
+      "bytes": 1713
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/read-steps.mjs",
+      "sha256": "43b6fc9bf08686621fe9a682ba3426e3a74de970eaf4c920282c809ad74c7fe5",
+      "bytes": 3735
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recovery-runtime.mjs",
+      "sha256": "35b333c7c01c918cc2fbfd688bf1ed3d06e8ec473c04a91fae0a5367d366eabb",
+      "bytes": 4863
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recovery-state.mjs",
+      "sha256": "f688fad3522fdf62fb58d4d21f5dc7477c20617b74806fb891ec7bfa3c100aa1",
+      "bytes": 2239
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/relay.mjs",
+      "sha256": "e0d2b4a40102d24066bf07ee8a2de62e61cf85f6ce5d4cd9231da801b9bc5c21",
+      "bytes": 5248
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/sender.mjs",
+      "sha256": "6e34a22a6704483d3fdb25914b7d05ee4c02db37c5120323620447053f6dec46",
+      "bytes": 27393
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/tx.mjs",
+      "sha256": "f7a473773a5d4e8feb572d2de50dba4f03c89b88bbaa8b82367ded30f8e523ce",
+      "bytes": 3132
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/pins.base.json",
+      "sha256": "4f97aa7945f095c50f417e8fab1cdffb93656fbebad35ad15e5bc82af2ff09a1",
+      "bytes": 5537
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/proposals/cli-ledger-write-guard.patch",
+      "sha256": "0688c3e4935683084858054f086a719050cd0642fab0844c73f9ca145a2313de",
+      "bytes": 2916
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/q.sh",
+      "sha256": "3ccf0f03253bff7356cd9ab284f0405aba1afaa45e1ba252c51b201a61ccdbf3",
+      "bytes": 619
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/assert.test.mjs",
+      "sha256": "94bf8288f858349b89b038f42e3171c5184cc911c8b878811502dd7b0bc5dae3",
+      "bytes": 11451
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/attestation.test.mjs",
+      "sha256": "a28b9507b7c2607c05d909da9861be07bceab2a109226fd559332ca320ea012b",
+      "bytes": 7191
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/canary-process.test.mjs",
+      "sha256": "19ccbd2ac892f4296c2b3294fb37c4b83169e48a419c691895deb5c722a79dd5",
+      "bytes": 3660
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/capture.test.mjs",
+      "sha256": "224727a7a5fbe36c18d9e9f7030fac3c44e98e76ca0de3b7685b81292c1646d9",
+      "bytes": 5319
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/clipins.test.mjs",
+      "sha256": "5fc363fa02c71fc68fa955e3dd5396066e0678245db1b2df3638da56966c2149",
+      "bytes": 6255
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/core.test.mjs",
+      "sha256": "1c6d6daa5082121fe8d0535f4e2d13f60d3a5218b8f05b442cb724cf607747b4",
+      "bytes": 10731
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/genesis-submit.test.mjs",
+      "sha256": "5a0ba6824070c4203d86d4ba191d71d728dd7b6f9d722d14922fc8b7876ff634",
+      "bytes": 4804
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/genesis.test.mjs",
+      "sha256": "700eb231aa385d9963c645f002f398e50ac73d9967adaaabda921a06d1b62b13",
+      "bytes": 8976
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/inspect-caddy.test.py",
+      "sha256": "e15260df5ed6417c753252ae2cb8024989f8b79bf6de55a3ec9d2cdeb6ce33bc",
+      "bytes": 2640
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/launch-bundle.test.mjs",
+      "sha256": "e00a6eec4cc69b008de9b655ea3aa7654fd760df0cf1c37dc92dd802b9dd75fd",
+      "bytes": 9185
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/launch-ingress.test.mjs",
+      "sha256": "34caaaa80ad7aacd60796ff56d2af455e8ddde91ec7abf72df4f965a4ac779ad",
+      "bytes": 6180
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/launch-runtime.test.mjs",
+      "sha256": "2f473ab4e23074c16809e5da6be10d3777d8ba5bddcb7e43deb5d5765f2794bd",
+      "bytes": 17505
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/launch-verify.test.mjs",
+      "sha256": "66e3c87683f85381ac8bae37110b5952ef7cdfd96c251a7670d9e28673deb2ac",
+      "bytes": 6353
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/limitations.test.mjs",
+      "sha256": "e109ff4240b776c671200f28cb9c8ce1d47e48bd69fe0a93091c98dd1d253916",
+      "bytes": 1935
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-evidence.py",
+      "sha256": "eed84a5af6884f9676e66a01725341afc4b383790f43c8a035ac7a1c52264950",
+      "bytes": 5182
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-ingress.py",
+      "sha256": "36d26cbc312853054a2850c2dda0c736ea80c19ca678159356a1f1c2a3ccdf50",
+      "bytes": 1602
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-launch-verify.py",
+      "sha256": "d420fda99ebee5df9a65445f7ca3ba01ba8d430a1c9225589bd2e1ceb0d902c3",
+      "bytes": 1624
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-launch.py",
+      "sha256": "b2b3d0abaf3dcc217800f98838c220d4903b70f0027debc2c164c07c9afb2aa2",
+      "bytes": 1941
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-old-probe.py",
+      "sha256": "d09a601c68196cb4258b3684d39db735f0ac275f6357808342649db23c0e09e9",
+      "bytes": 1688
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-private-log.py",
+      "sha256": "c793e34eebdfd3d914ca859d61f522569fa51b8cf01b0b048265c4619ce65fe6",
+      "bytes": 1665
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-process.py",
+      "sha256": "03fac1579097455b05f6552999256625ebf883c3f865f8766fa33ce327b77fd6",
+      "bytes": 1777
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-recovery.py",
+      "sha256": "fc575956928de51a774f075e05c4d4779d73a39c238deb540f5407eb34f4b780",
+      "bytes": 2787
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-runtime.py",
+      "sha256": "de6ed17745bd77ca4d6054bdcec20909ad273cedbf9a927bc95522196d186e19",
+      "bytes": 2243
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/mutate-stopped.py",
+      "sha256": "acf724bafd9723d3c3c63a8dd97f9033a38c198f50af528dc8e85722f7838f04",
+      "bytes": 1655
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/net.test.mjs",
+      "sha256": "92673c078cae847cd0c34e8d6f7544a9fccde3abbc83307ccfa47b7a0a7176d5",
+      "bytes": 7212
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/old-committee.test.mjs",
+      "sha256": "0e5d2955d48c09e1e20c31698a1da60c517b939afdb20391d7a7c7e1e3388382",
+      "bytes": 5945
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/prepare.test.mjs",
+      "sha256": "eab95ac13a3538af6359b0c5caca526ec1e3d41c460e80d46c26e964472db2df",
+      "bytes": 8693
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/private-log.test.mjs",
+      "sha256": "b52cb35a728a318d71e67aca3e9d35e68a2fe3a6a28181de40021c7c2df2db90",
+      "bytes": 4064
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/proof.test.mjs",
+      "sha256": "02134b701253be8cc71823459ece10eda1b5322913196f5dcec2cc1b4a498f35",
+      "bytes": 3757
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/read-steps.test.mjs",
+      "sha256": "24cdd4dbed0a1b2ce0e6289c0ce7e88b765f6fc7da991e475d794cc0c0fd5f35",
+      "bytes": 4625
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recovery-genesis.test.mjs",
+      "sha256": "dafcad170402e7d5397854091897c58aa6598c388a7d0fc7a7bf2b428e51da03",
+      "bytes": 2016
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recovery-host.test.mjs",
+      "sha256": "9a37f9a686801650a9f207b6e3e523f586e3affd0ce72299bad915ace9ddfb97",
+      "bytes": 4098
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recovery-runtime.test.mjs",
+      "sha256": "09e410cb9a7c8b31d611441b377692d3973b1113bf4ddcdc24d6c6fe768dccfe",
+      "bytes": 4709
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recovery-state.test.mjs",
+      "sha256": "c7b74ff34487d04fd8962f6dbc71286132942d9fd787ec81663529ac8552fc30",
+      "bytes": 2058
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/run-evidence-tests.sh",
+      "sha256": "a287758ed26235c488b18dd36a32e998156bbcef94b615a3c61c6b86bd8055fd",
+      "bytes": 269
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/run-tests.sh",
+      "sha256": "544494f71aa8ce1973ac4eb9ca6543e0ccbf43043cd76d5b45fd8d46adff9295",
+      "bytes": 478
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/sender.test.mjs",
+      "sha256": "89d979026744949de9c6d1e4fc0e3c96c2c516e258571ce6de05972d0ff25c95",
+      "bytes": 23344
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/tools/read-book.mjs",
+      "sha256": "f152bd7ff6ff673877e6b05783cbdbd1bb5775cd47e26ef59966e790f140f62e",
+      "bytes": 2639
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/tools/read-host.mjs",
+      "sha256": "398dd00b284ea78bbc848bf55417f48d14af4fa63d01448bd1339a73969e46fc",
+      "bytes": 1697
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/tools/read-runtime-baseline.mjs",
+      "sha256": "b0e23a915ae89b6af9fa76f99ebcf07f46d733b2980246f283d22f92a28e9766",
+      "bytes": 705
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/SOURCE-COMMIT.txt",
+      "sha256": "303bf1a5978edd5a47d2d3e47571ae28e9ba41214863d28fe082ee4f09d8f6e3",
+      "bytes": 41
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/.gitignore",
+      "sha256": "46391e195274b91e354a9538dd56bee086761929a21083a5b6e5234e76846eb9",
+      "bytes": 64
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/README.md",
+      "sha256": "8d60f93a800988af558fa0aa69d52a3fa67a5e63708719a67516a8475143cdda",
+      "bytes": 10550
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/app.css",
+      "sha256": "e20ba2b9793af513baff2533cfa10f539688e0fa77bda525bbbb264824f1e4f9",
+      "bytes": 399
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/app.js",
+      "sha256": "3f2942ffa95ca6d477279c2d57aa80427c99a3dbd4a85f6d2d1e881ed75676fd",
+      "bytes": 8198
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/evidence/metal0-enrollment-unsigned-20261023.json",
+      "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+      "bytes": 3801
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/handoff-server.mjs",
+      "sha256": "fb189e4610c8579739fb59fe385b91b461bc5bfb06d95780e94ec92e53d95b75",
+      "bytes": 4586
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/page.mjs",
+      "sha256": "71d14ef067ee12ea541c77adbe849bb11e0d6c41c258f566d3c1f08d86258e93",
+      "bytes": 2556
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/preflight.mjs",
+      "sha256": "07c7bdc2e68c5bccaca35779907df28138608784d78edd27bcfd52cc4d37dbc6",
+      "bytes": 2049
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/q.sh",
+      "sha256": "ff0bada86f142e46eebb1ce87134c891c2d0c997e6164afd8b6820c388b2314f",
+      "bytes": 904
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/rpc.mjs",
+      "sha256": "df00a18b6c454acaa95f4634dcf64941447bc019dd16d61379ce94f8ff3a86aa",
+      "bytes": 3755
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/run-tests.sh",
+      "sha256": "6b34fb5e8de0980f7b4c3215e424af45dfd350cb29ba0e4387ad8024d1dcd779",
+      "bytes": 664
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/scan-staged.sh",
+      "sha256": "d9d76195142bc41c73178ae6cf069a840e06f90e1e64775b7f3cca37845e4253",
+      "bytes": 276
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/serve.mjs",
+      "sha256": "8553b37bfe89dea55b315311665f6939280e81cf7306a5efb0f62ea873cd880d",
+      "bytes": 2105
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/stage-app.mjs",
+      "sha256": "a66cc68da3b16890a59ffb2c0f002f356169db5723a1379b37bfbfe8d62f4c50",
+      "bytes": 2415
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/stage.html",
+      "sha256": "5a874c8b49ac457bb537875b4224a1536b726707dbc9b13831bdcdf9c98aa8e1",
+      "bytes": 2082
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/stages.mjs",
+      "sha256": "b6ab22427ce5184247f4dc2aa636e1e5df5663e7e09ca906de37b08f00b672e6",
+      "bytes": 25979
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/style.css",
+      "sha256": "b055f0427d9b28ef9d10b27593c532755f864413869d2b926136f526af82e3c6",
+      "bytes": 919
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/test/browser.test.mjs",
+      "sha256": "ec9764b1005b7a44a821377677513ee54971695b33a7d0055f03bf39d01e5391",
+      "bytes": 10390
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/test/fake-base.mjs",
+      "sha256": "46b73e2f0ae608b92b7bdddc1c238e0abc9eaaae0b7bce860d3cd526d32200ab",
+      "bytes": 12476
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/test/stages.test.mjs",
+      "sha256": "fb4c0055e660574984df6e16057513a008406fd9504beb36720491b2d7085cae",
+      "bytes": 22149
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/trust.mjs",
+      "sha256": "c2b8e9004e5acb6ca5443f99ebc75fba304d620590ffa7d2cfc5e45ed5740d5a",
+      "bytes": 3000
+    },
+    {
+      "path": "sources/custody-wallet-handoff-20261023/SOURCE-COMMIT.txt",
+      "sha256": "11af2d28717d912697d3e79f069d70d08cb2d0c39316848b1d3be8f16127fcc5",
+      "bytes": 41
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/.gitignore",
+      "sha256": "44627057929a49ea2d001cde3bdca903a2f8840b60c2baee83b2abb4a970d262",
+      "bytes": 50
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/FEE-NOTES.md",
+      "sha256": "1f3411ed807be990aa727d4e444202d42f7ec07a97c0a3ebe9372378a847dbc4",
+      "bytes": 1313
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/PROGRESS.txt",
+      "sha256": "680e3ec233aaabf8c85158df326e4f9e05218ca06ceb1993f55f6c79e1d4f38d",
+      "bytes": 761
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/README.md",
+      "sha256": "0cc45766caef2df616e560ae149b8b5dc14533cc473a1f4c2b923b3c44b5c359",
+      "bytes": 9488
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/bin/operator-propose.mjs",
+      "sha256": "bd0458a00de28e1101fcc0f03d9bc51dfb8ce27f1e527050bc464b23737f0ea7",
+      "bytes": 3039
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/lib/proposer.mjs",
+      "sha256": "b3a01eebfa03b8f2511f48c8fef29fc19b193a7b167935e1d32b564629987210",
+      "bytes": 33634
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/package-lock.json",
+      "sha256": "bf7276af38c6a0da5537bf5d7c3212e9f095d10d25449aa8e169af8e7943a4de",
+      "bytes": 6916
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/package.json",
+      "sha256": "662477d0acf14e9a84c32f53d6d4a791388f033c443892e056e8a4e36219a687",
+      "bytes": 335
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/qrun.sh",
+      "sha256": "f9ed965ead87a3a1209d4769327f54d4eee61a2df9ffa9d263a2a05af49f2637",
+      "bytes": 515
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/run-tests.sh",
+      "sha256": "ae758e569fa328df7ddb8b5201d8f43cb90522620987361fef5542efe748f692",
+      "bytes": 302
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/test/fixtures/metal0-enrollment-unsigned-20261023.json",
+      "sha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+      "bytes": 3801
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/test/helpers/fake-base.mjs",
+      "sha256": "55af9f0f10ca73a11a970430d75b0b60853f3173969bb8e133c8061d98ede2a9",
+      "bytes": 8312
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/test/proposer.test.mjs",
+      "sha256": "ca6df490aeebbdcc09f8160aca307a609f2ce8f4c0767e92ec21629775a31613",
+      "bytes": 21549
+    },
+    {
+      "path": "sources/custody-operator-fees-20261023/SOURCE-COMMIT.txt",
+      "sha256": "b6dd588585cee519116de2042a3b3f0d8be029bfbcd9f01ad4ac0a19f4181344",
+      "bytes": 41
+    },
+    {
+      "path": "docs/CURRENT-STATE.md",
+      "sha256": "ba875003e44c63c276928c6b2335e52cab275a8c9d4fe15ab8989dcf166a4222",
+      "bytes": 23613
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "cc8a4ecee09c1415741414e433f3372a15f2901717e34a20530362cef6b6094e",
+      "bytes": 1288
+    },
+    {
+      "path": "docs/SIGNING-AUTHORITY.md",
+      "sha256": "95af6bca25748803b0d237473681510b10b6d70c3f658b41ca16dea2ac57d9bf",
+      "bytes": 5540
+    },
+    {
+      "path": "docs/SOURCES.md",
+      "sha256": "2ebb93ba0f4f17e08967fc0541a4a42395fef4a9504fbe807fae2681c1d706c6",
+      "bytes": 13224
+    },
+    {
+      "path": "docs/ROLLBACK.md",
+      "sha256": "25049a346a6f8a2c9754ac2ac0c58dea19e798665210ad578281e8fb77ac745c",
+      "bytes": 8579
+    },
+    {
+      "path": "docs/SOURCE-COMMIT.txt",
+      "sha256": "de9a7aefaabc6f0466fc5c5d675ce48a1dd4f4f1a1653f3ab8681b9a0a750426",
+      "bytes": 41
+    },
+    {
+      "path": "tests/root-full-23.out",
+      "sha256": "8a87f40f0a9515be6fc4f7183c11ea8f568e52d7b26eeba33aa8b485c8a5960e",
+      "bytes": 38015
+    },
+    {
+      "path": "tests/root-recovery-mutants-1.out",
+      "sha256": "ff8b3629fd170a3c0bd030130ed1f09a1b9b4c372683d6e1ab690569e659d523",
+      "bytes": 449
+    },
+    {
+      "path": "tests/root-recovery-full-2.guard",
+      "sha256": "1ba7e939512137d05bce4808e9008a6f08c4c8ea77b83e8da773bde8f3db25fa",
+      "bytes": 67
+    },
+    {
+      "path": "tests/root-recovery-source-scan.guard",
+      "sha256": "d6c6dd765f3710563a0867845015d814ca3c152f31413d789964c9287e82319b",
+      "bytes": 66
+    },
+    {
+      "path": "tests/root-recovery-doc-scan.guard",
+      "sha256": "c70a55f68c3f626fb793355b153fe6add703cd8eda0165d703dd9e15c3425f09",
+      "bytes": 66
+    },
+    {
+      "path": "reports/metal0-owner-nomination-plan-20261024.json",
+      "sha256": "e8a6ba4008887199402105c1644fe853ad6e13738d925ed79c8d06f08affcf7c",
+      "bytes": 2825
+    },
+    {
+      "path": "reports/metal0-owner-nomination-result-20261024.json",
+      "sha256": "6f88ea00dd45220335f735beaa50ec3f42a8dbe811e11e950957e694a0316a65",
+      "bytes": 1109
+    },
+    {
+      "path": "reports/metal0-owner-accept-preflight-20261024.json",
+      "sha256": "295ff820341463ffff5a7fbc37f4fe71f6d41f86180be0490ada529c47708e0a",
+      "bytes": 3487
+    },
+    {
+      "path": "reports/custody-book-current-20261024.json",
+      "sha256": "1e7daca7d1b361fce47f6dafab9c2ee52b685cfb0a4d601a72768a458291311f",
+      "bytes": 891
+    },
+    {
+      "path": "capture.py",
+      "sha256": "57853990d7d5ccde744066e199c94ce9a65e4a8c2a3804fb77fd06ae57d82c28",
+      "bytes": 2688
+    }
+  ],
+  "status": "Operator nomination confirmed, administrator acceptOwner pending at local handoff. Original factory book entry verified. Explicit recovery generations and retained-state guards tested locally (146 Node, 3 Python, 12 mutations, 1 known rollback TODO), no production secret lifecycle or recovery launch. Original production apps/admin controls preserved."
+}

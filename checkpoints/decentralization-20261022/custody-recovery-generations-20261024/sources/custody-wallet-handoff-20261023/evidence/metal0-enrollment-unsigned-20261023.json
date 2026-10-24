@@ -1,0 +1,101 @@
+{
+ "purpose": "pre-handover requirement: enroll accepted host-wallet ownership of the live custody seat's host (metal0) by the Enclave wallet; UNSIGNED, simulated only",
+ "block": "52997498",
+ "blockHash": "0x08af09c088faa85f94f4eef83a3a93fda6dfcf8e2c65e59b752384a5599c94aa",
+ "preconditions": {
+  "ownershipContract": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+  "ownershipCodeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
+  "ownershipRegistry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+  "hostId": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+  "hostEndpoint": "https://api.enclave.host/t/metal0",
+  "hostActive": true,
+  "hostOperator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+  "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "payoutIsEnclave": true,
+  "authorityNow": {
+   "owner": "0x0000000000000000000000000000000000000000",
+   "pendingOwner": "0x0000000000000000000000000000000000000000",
+   "revision": "0",
+   "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "pendingSlot": {
+   "slot": "0xa7a71f9446fc945d69f15a1c364bfae2b416217424c03364ed76cccc303285bd",
+   "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "liveCommittee": {
+   "committeeId": "0x47742ae8c544ff66a4ad91cfbf5cecdd389013da362813ba3b55c4e247b0f7a3",
+   "epoch": 1,
+   "t": 1,
+   "W": 1
+  }
+ },
+ "unsigned": [
+  {
+   "chainId": 8453,
+   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+   "value": "0x0",
+   "data": "0x03ba33a44dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61",
+   "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "signer": "the metal0 registry operator (the host operator key; it is not the Enclave admin wallet)",
+   "function": "proposeOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be, 0x0b2d009c0c9af05b12100d77f3c815fea822ee61)"
+  },
+  {
+   "chainId": 8453,
+   "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+   "value": "0x0",
+   "data": "0x0d85eb494dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+   "from": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61",
+   "signer": "the Enclave admin wallet 0x0b2d… (the vault enclaveOwner and address-book owner)",
+   "function": "acceptOwner(0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be)",
+   "after": "tx1 is mined"
+  }
+ ],
+ "simulations": {
+  "tx1_from_operator": {
+   "endpoints": [
+    "mainnet.base.org",
+    "base.public.blockpi.network"
+   ],
+   "results": [
+    "success",
+    "success"
+   ],
+   "agree": "success"
+  },
+  "tx1_from_enclave_wallet_must_revert": {
+   "endpoints": [
+    "mainnet.base.org",
+    "base.public.blockpi.network"
+   ],
+   "results": [
+    "revert: not active operator",
+    "revert: not active operator"
+   ],
+   "agree": "revert: not active operator"
+  },
+  "tx2_before_tx1_must_revert": {
+   "endpoints": [
+    "mainnet.base.org",
+    "base.public.blockpi.network"
+   ],
+   "results": [
+    "revert: not proposed owner",
+    "revert: not proposed owner"
+   ],
+   "agree": "revert: not proposed owner"
+  },
+  "tx2_after_tx1_state_override": {
+   "endpoints": [
+    "mainnet.base.org",
+    "base.public.blockpi.network"
+   ],
+   "results": [
+    "success",
+    "success"
+   ],
+   "agree": "success"
+  }
+ },
+ "effect": "after both: authority(hostId).owner = Enclave wallet, revision 1, policyHash 0 (no local host policy). The vault is untouched: its seat flag stays payout-based (payout == Enclave wallet), so owner and seat flag AGREE and the candidate runtime admits the seat into a future epoch. The live epoch, its share, bundle and policy are unaffected by these two transactions.",
+ "notSent": true
+}

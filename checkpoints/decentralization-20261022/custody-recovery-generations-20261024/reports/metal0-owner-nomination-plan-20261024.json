@@ -1,0 +1,75 @@
+{
+ "v": 1,
+ "tool": "custody-operator-propose",
+ "planFileSha256": "9f6eba17c9c479e9006849316f1708f37ee6680f37a990e57e07c421b86e6b82",
+ "preparedAt": "2026-10-24T04:50:16.422Z",
+ "tx": {
+  "type": "eip1559",
+  "chainId": 8453,
+  "from": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+  "to": "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7",
+  "value": "0",
+  "data": "0x03ba33a44dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be0000000000000000000000000b2d009c0c9af05b12100d77f3c815fea822ee61",
+  "nonce": "23767",
+  "gas": "94322",
+  "maxFeePerGas": "11000000",
+  "maxPriorityFeePerGas": "1000000"
+ },
+ "caps": {
+  "gas": "150000",
+  "maxFeePerGas": "100000000",
+  "totalWei": "5000000000000"
+ },
+ "observed": {
+  "block": "53014030",
+  "blockHash": "0x8aca1d619563df5252384b331f1dc57cdbee9a95586a13a90e5e8808d952a813",
+  "rpcs": [
+   "https://mainnet.base.org",
+   "https://base.public.blockpi.network/v1/rpc/public"
+  ],
+  "ownershipCodeHash": "0xe38a0e160dd929c366bccd30636285458c288ada475f1b74ffc3289febf1d5dd",
+  "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+  "registryCodeHash": "0x39911d6f53959c610b9108bb906fc36ea8f57016c4b2571b5cd52c9c32a6f518",
+  "host": {
+   "id": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+   "endpoint": "https://api.enclave.host/t/metal0",
+   "operator": "0xc9d0835cd8ebc7eae84304d9db0a76253eebe6ab",
+   "active": true,
+   "payoutWallet": "0x0b2d009c0c9af05b12100d77f3c815fea822ee61"
+  },
+  "authority": {
+   "owner": "0x0000000000000000000000000000000000000000",
+   "pendingOwner": "0x0000000000000000000000000000000000000000",
+   "revision": "0",
+   "policyHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "operatorCode": {
+   "delegation": "0xef01008900baca2167873ba2f8a8bae8b4876e6396d343",
+   "codeHash": "0xe2f1317f7b76520f746c22fe4898b7ad32d7a6947a4c11a766fdcdd55bf88bbe",
+   "target": "0x8900baca2167873ba2f8a8bae8b4876e6396d343",
+   "targetCodeHash": "0xdd893cd48b7c102dc266949d027c33d396a7f8884533ee81b3b2275048ec9ab2"
+  },
+  "nonce": "23767",
+  "balanceWei": "2692534656936",
+  "estimates": [
+   "75457",
+   "75457"
+  ],
+  "baseFeePerGas": "5000000",
+  "fees": {
+   "l2MaxWei": "1037542000000",
+   "l1DataUpperBoundWei": "505264395",
+   "operatorFeeUpperBoundWei": "0",
+   "totalAtBlockWei": "1038047264395",
+   "encodedBytes": {
+    "unsigned": 114,
+    "signedMax": 181,
+    "oracleArgument": 114,
+    "oracleSignatureAllowance": 68
+   },
+   "note": "L2 cap (gas x maxFeePerGas) + GasPriceOracle L1 data-fee upper bound for the maximum signed size + the oracle's operator fee for the gas limit, all at the agreed block's oracle parameters; --send re-reads them. Not a guarantee against later L1-fee or operator-parameter changes."
+  },
+  "balanceSufficient": true,
+  "fundingNeededWei": "0"
+ }
+}

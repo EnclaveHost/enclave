@@ -1,0 +1,13 @@
+missing-is-not-fresh: detected
+no-early-put: detected
+no-submit: detected
+fault-mode: detected
+sealed-hash: detected
+genesis-disabled: detected
+single-successor: detected
+predecessor-recheck: detected
+same-committee: detected
+recovered-identity: detected
+recovered-generation: detected
+recovery-deadline: detected
+12/12 recovery guard mutations detected; HTTP and filesystem checks plus synthetic runtime/chain fixtures, not production SNP recovery
