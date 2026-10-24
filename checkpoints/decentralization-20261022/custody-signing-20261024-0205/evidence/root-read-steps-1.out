@@ -1,0 +1,38 @@
+[queue] START available=24006MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: host read resolves only fresh accepted administrator ownership in the original vault
+ok 1 - host read resolves only fresh accepted administrator ownership in the original vault
+  ---
+  duration_ms: 2.145013
+  type: 'test'
+  ...
+# Subtest: genesis read passes the freshly attested private machine to chain verification and emits only public quote evidence
+ok 2 - genesis read passes the freshly attested private machine to chain verification and emits only public quote evidence
+  ---
+  duration_ms: 0.483756
+  type: 'test'
+  ...
+# Subtest: genesis read refuses missing, already stale and subsequently expired quotes
+ok 3 - genesis read refuses missing, already stale and subsequently expired quotes
+  ---
+  duration_ms: 0.242769
+  type: 'test'
+  ...
+# Subtest: production attestor loader needs exact r2 source pins and a reviewed manifest before returning any network function
+ok 4 - production attestor loader needs exact r2 source pins and a reviewed manifest before returning any network function
+  ---
+  duration_ms: 128.452076
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 188.627417
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

@@ -1,0 +1,3 @@
+{ "name": "custody-canary-wallet", "private": true, "type": "module",
+  "description": "Administrator MetaMask handoff: upload the pinned custody-canary-proof component and publish its catalog listing. Source only, inactive.",
+  "dependencies": { "viem": "2.53.1" } }

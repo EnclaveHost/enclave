@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · {{TITLE}}</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head>
+<body data-stage="{{STAGE}}" data-done="{{DONE}}"><main>
+<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · CATALOG · ONE MESSAGE + ONE TRANSACTION</p>
+<h1>{{TITLE}}</h1>
+<p>{{LEDE}}</p>
+<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Administrator (signs both)</dt><dd id="from"></dd></dl>
+<p id="wallet">Detecting MetaMask…</p>
+<div class="actions"><button id="connect" disabled>Connect MetaMask</button></div>
+<h2>1 · Upload authorization (message, no transaction)</h2>
+<dl><dt>Component</dt><dd id="component"></dd><dt>Message</dt><dd id="message">enclave-upload:&lt;sha256&gt;:&lt;expiry&gt; (shown when you start)</dd><dt>Upload state</dt><dd id="upload"></dd></dl>
+<p class="scope">{{UPLOAD}}</p>
+<div class="actions"><button id="authorize" disabled>Sign upload authorization in MetaMask</button><button id="verify-storage" hidden disabled>Verify storage again</button><button id="retry-same" hidden disabled>Upload the same bytes again (outcome unknown)</button></div>
+<h2>2 · Catalog publication (transaction)</h2>
+<dl><dt>Destination</dt><dd id="to"></dd><dt>Call</dt><dd>{{CALL}}</dd><dt>Value</dt><dd id="value"></dd><dt>Network fee</dt><dd>Shown by MetaMask. The server re-runs the reviewed preparation first: L2 fee cap + L1 data-fee bound for the signed size + the Isthmus operator fee, against fixed caps. Do not edit gas or fees.</dd></dl>
+<p class="scope">{{EFFECT}}</p>
+<p class="scope">{{ROLLBACK}}</p>
+<div class="actions"><button id="sign" disabled>Review publish transaction in MetaMask</button></div>
+<p id="status" role="status">Loading…</p>
+<div id="recover" hidden><label for="hash">Transaction hash</label><input id="hash" spellcheck="false" autocomplete="off" placeholder="0x… (from MetaMask's activity tab)"><button id="check" disabled>Check pending transaction</button><button id="reconcile" disabled>No hash: check the chain</button></div>
+<details><summary>Inspect transaction data</summary><pre id="transaction"></pre></details>
+<p class="fine">MetaMask (with a Trezor or other hardware key) is asked only when you click. Every publish request rechecks Base on two public providers at one agreed block and re-fetches the stored component before MetaMask is asked. The administrator key stays in the wallet; this local server never signs or sends.</p>
+</main></body></html>

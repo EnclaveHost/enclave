@@ -1,0 +1,40 @@
+[queue] START available=23042MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+attest-manifest: killed
+attest-chip: killed
+attest-tcb: killed
+attest-age: killed
+genesis-capture-machine: killed
+genesis-authorization: killed
+genesis-absence: killed
+host-read-age: killed
+sender-signed-fees: killed
+sender-signer: killed
+sender-fresh-block: killed
+sender-terminal-recheck: killed
+capture-conflict: killed
+capture-source-pin: killed
+capture-body-limit: killed
+genesis-success: killed
+genesis-event-identity: killed
+genesis-provider-agreement: killed
+genesis-confirmations: killed
+genesis-host-owner: killed
+genesis-code-activation: killed
+genesis-old-code: killed
+genesis-key-binding: killed
+journal-order: killed
+current-hmac: killed
+reject-old: killed
+exact-shape: killed
+empty-sets: killed
+typed-control: killed
+observed-rollback: killed
+missing-protected-fields: killed
+release-recipient: killed
+refusal-recipient: killed
+committee-binding: killed
+old-committee-guard: killed
+35/35 mutants killed; no production access
+[memory-guard] exit=0 peakTreeRssMiB=181 minHostAvailableMiB=21519
+[memory-guard] at peak: node:60 node:59 node:45 python3:17
+[queue] EXIT 0

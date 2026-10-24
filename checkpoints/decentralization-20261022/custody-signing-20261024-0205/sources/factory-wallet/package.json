@@ -1,0 +1,3 @@
+{ "name": "custody-factory-wallet", "private": true, "type": "module",
+  "description": "Single administrator MetaMask handoff: original EnclaveAddressBook.set(sessionVaultFactory, original factory). Source only.",
+  "dependencies": { "viem": "2.53.1" } }

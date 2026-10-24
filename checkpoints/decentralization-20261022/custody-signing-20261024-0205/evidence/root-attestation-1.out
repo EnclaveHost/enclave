@@ -1,0 +1,56 @@
+[queue] START available=23529MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: fresh independent challenges, pinned AMD verification options, private machine and minimal public evidence
+ok 1 - fresh independent challenges, pinned AMD verification options, private machine and minimal public evidence
+  ---
+  duration_ms: 23.316791
+  type: 'test'
+  ...
+# Subtest: rejects unreviewed manifest and wrong origin, host, identity or code before quote verification
+ok 2 - rejects unreviewed manifest and wrong origin, host, identity or code before quote verification
+  ---
+  duration_ms: 5.042929
+  type: 'test'
+  ...
+# Subtest: rejects an old challenge and a chip identity not proved by the signed report
+ok 3 - rejects an old challenge and a chip identity not proved by the signed report
+  ---
+  duration_ms: 3.560251
+  type: 'test'
+  ...
+# Subtest: requires verified VCEK, checked firmware floor, measurement and VMPL even if verifier returns ok
+ok 4 - requires verified VCEK, checked firmware floor, measurement and VMPL even if verifier returns ok
+  ---
+  duration_ms: 3.7296
+  type: 'test'
+  ...
+# Subtest: debug, migration-agent and lower privilege reports are rejected independently of verifier flags
+ok 5 - debug, migration-agent and lower privilege reports are rejected independently of verifier flags
+  ---
+  duration_ms: 2.020713
+  type: 'test'
+  ...
+# Subtest: rejects stale verification, malformed or oversized evidence and transport errors without echoing peer payloads
+ok 6 - rejects stale verification, malformed or oversized evidence and transport errors without echoing peer payloads
+  ---
+  duration_ms: 2.582179
+  type: 'test'
+  ...
+# Subtest: refuses redirects, HTTP errors and over-limit declared lengths
+ok 7 - refuses redirects, HTTP errors and over-limit declared lengths
+  ---
+  duration_ms: 0.779064
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 186.798121
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
