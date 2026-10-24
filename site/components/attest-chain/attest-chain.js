@@ -1,5 +1,5 @@
 /* ============================================================
-   <c-attest-chain> - the "what trustless means" walkthrough:
+   <c-attest-chain> - the verification walkthrough:
    the chain-of-measurements links on the left, and the selected
    link's artifact (json / verifier code) on the right.
    ============================================================ */
@@ -10,16 +10,16 @@ import { hlJson, hlCode, copyText } from "../../js/core/util.js";
    titles/descriptions live in the TEMPLATE so the build can prerender them) */
 const LINKS = [
   { fn: "policy.json",
-    j: { sevSnp: { measurement: "1260788e…f879d384", minTcb: "2026.05" }, gpu: { approvedDrivers: ["580.126.20"], approvedVbios: ["96.00.D0.00.03"] } } },
+    j: { example: true, sevSnp: { measurement: "1260788e…f879d384", minTcb: "2026.05" }, expectedMeasurementSource: "operator allowlist (limited unless independently pinned)" } },
   { fn: "vm.json",
     j: { technology: "amd-sev-snp", quote: "AwAAAAAAAAAA…", measurements: { measurement: "1260788e…f879d384" }, reportData: "beff22c9…e2978a4a",
          app: { kind: "ipfs", cid: "bafybeib…q2d4", verifiedAgainstCid: true, coverage: "bytes hash-verified in-enclave against this CID; the CID itself is not in a hardware register" } } },
-  { fn: "gpu.json",
-    j: { technology: "nvidia-cc", ccMode: "on", driverVersion: "565.57.01", nonce: "e37b…52c9", report: "SFVMQ…", certChain: "LS0tL…" } },
+  { fn: "shield-offload.example.json",
+    j: { example: true, deploymentRecord: "2026-10-14", mode: "Shield masked offload", gpuInsideConfidentialBoundary: false, gpuHardwareAttestation: false, protection: "masked inputs; results checked by the trusted CPU component", review: "internal only; no external audit" } },
   { fn: "tls.json",
     j: { tlsKeyFingerprint: "sha256:4b8c…e2a1", boundTo: "reportData[0:32] = sha256(TLS pubkey SPKI)" } },
   { fn: "verify.js",
-    code: "// the verifier this page ships (same-origin, hash-pinned): verifier/web in the EnclaveHost/enclave repo\n// from a shell: enclave attest [<deployment-id>] [--expect <measurement>]\nimport { verifyMetalBoxWeb } from '/vendor/enclave-verifier.js';\n\nconst r = await verifyMetalBoxWeb({ name: 'metal0' });   // a fresh nonce is drawn here and sent to the box\nconsole.log(r.status, r.measurement, r.omissions);       // verified | limited | rejected | unavailable\n" },
+    code: "// the verifier this page ships (same-origin, hash-pinned): verifier/web in the EnclaveHost/enclave repo\n// pin a measurement you derived independently (confidential-server check): enclave attest --expect <measurement>\nimport { verifyMetalBoxWeb } from '/vendor/enclave-verifier.js';\n\nconst r = await verifyMetalBoxWeb({ name: 'metal0' });   // a fresh nonce is drawn here and sent to the box\nconsole.log(r.status, r.measurement, r.omissions);       // without an independent pin, a successful check is limited\n" },
 ];
 
 class AttestChain extends EnclaveElement {

@@ -10,6 +10,7 @@ c-live-verify{display:contents;}
 .lv-txt{max-width:660px;}
 .lv-txt h3{margin:0 0 6px;font-family:var(--font-mono);font-size:.98rem;font-weight:600;}
 .lv-txt p{margin:0;color:var(--text-muted);font-size:.86rem;}
+.lv-txt p+p{margin-top:8px;}
 .lv-txt p a{color:var(--jade-2);}
 /* the two controls, stacked and full width: the kinds of host, then the button */
 .lv-act{display:flex;flex-direction:column;gap:10px;align-items:stretch;}
