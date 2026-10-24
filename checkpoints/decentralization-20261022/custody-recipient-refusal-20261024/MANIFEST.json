@@ -1,0 +1,65 @@
+{
+  "sourceCommit": "12c5b9274620fc2043df18ec20ebe06a32410ec3",
+  "entries": [
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/LAUNCH-PACKAGE.md",
+      "sha256": "dfb1e6990c8c5ad12699655f74af1e763e22f995128ae428984dce328f63abe0",
+      "bytes": 23010
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/STATUS.md",
+      "sha256": "61ae89f43319ddb8ce3104da6301c487edbe0f9f4b5cbaccaea820ca3e3fd953",
+      "bytes": 35418
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/assert.mjs",
+      "sha256": "eebe0236b51e39f3a8880c9a852b2271ba27a03b5cbd25ac8f0d574d4de5f3b2",
+      "bytes": 19228
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/cli.mjs",
+      "sha256": "4d4a96cdc9db21a9a19d9aea8fbaa26b767ad3dbf8370fb2dc4e23ed76a51c36",
+      "bytes": 56415
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recipient-failure.mjs",
+      "sha256": "aacfd0404f5d74955ce28c84984b4d845d1361bd06873c4757a8278ec6d2f5da",
+      "bytes": 6550
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/driver/recipient-observer.mjs",
+      "sha256": "d3d739400a23a182319be7aaaf0ae72d62783d2c3935c0bd7b7f3155fbb88fb5",
+      "bytes": 11759
+    },
+    {
+      "path": "sources/custody-v2-r2-production-canary-20261024/test/recipient-failure.test.mjs",
+      "sha256": "8dc243f6aabf199a272ab354b19f008963c2619db1cff33a671f41e969a13f9f",
+      "bytes": 8576
+    },
+    {
+      "path": "SOURCE-DELTA.json",
+      "sha256": "090b30f30ae68d59bdd47cec1798150012e85b0c1e618e5cd9015f2f956937c9",
+      "bytes": 804
+    },
+    {
+      "path": "CURRENT-STATE.md",
+      "sha256": "4ce431456baebdebcfdcac8a8aa169a8fe95fd8f8759ca5d419e9996d88a949e",
+      "bytes": 27435
+    },
+    {
+      "path": "tests/root-full-33.out",
+      "sha256": "20f4aa858ff2fadc67ef1f4071950efa5f81c69e303b62bdcea9d3f98d316d51",
+      "bytes": 46496
+    },
+    {
+      "path": "tests/root-recipient-failure-full-3.guard",
+      "sha256": "083b39e0bfd609e87e9036fc664fa638692555e0a4b1c3c01713587190bd983c",
+      "bytes": 67
+    },
+    {
+      "path": "report.json",
+      "sha256": "aa61b4723d5d8b696eccbb5d471d3945fbdf2f1164762771d5cfbbbb0457267a",
+      "bytes": 1089
+    }
+  ]
+}

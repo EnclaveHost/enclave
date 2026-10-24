@@ -1,0 +1,1106 @@
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK
+TAP version 13
+# Subtest: filterLines keeps only this deployment's custodian lines and the front custody lines
+ok 1 - filterLines keeps only this deployment's custodian lines and the front custody lines
+  ---
+  duration_ms: 1.152182
+  type: 'test'
+  ...
+# Subtest: release: passes only with the front revision line, a real-roots OK of the pinned image, no refusal, app answering
+ok 2 - release: passes only with the front revision line, a real-roots OK of the pinned image, no refusal, app answering
+  ---
+  duration_ms: 0.847354
+  type: 'test'
+  ...
+# Subtest: refusal: the expected code, no OK, a front custody error, and the app NOT started
+ok 3 - refusal: the expected code, no OK, a front custody error, and the app NOT started
+  ---
+  duration_ms: 0.533367
+  type: 'test'
+  ...
+# Subtest: marker search: zero hits AND a working control at every location; missing counts fail
+ok 4 - marker search: zero hits AND a working control at every location; missing counts fail
+  ---
+  duration_ms: 0.360958
+  type: 'test'
+  ...
+# Subtest: rollback: an older valid sealed blob is EXPECTED-FAIL; an old-secret refusal is labelled chain-revision only
+ok 5 - rollback: an older valid sealed blob is EXPECTED-FAIL; an old-secret refusal is labelled chain-revision only
+  ---
+  duration_ms: 0.212968
+  type: 'test'
+  ...
+# Subtest: policy check, inventory and the protected-policy comparison
+ok 6 - policy check, inventory and the protected-policy comparison
+  ---
+  duration_ms: 0.875174
+  type: 'test'
+  ...
+# Subtest: empty or malformed evidence never becomes a pass or observed rollback failure
+ok 7 - empty or malformed evidence never becomes a pass or observed rollback failure
+  ---
+  duration_ms: 0.207038
+  type: 'test'
+  ...
+# Subtest: release and refusal observations bind the full deployment, recipient endpoint and custodian key prefix
+ok 8 - release and refusal observations bind the full deployment, recipient endpoint and custodian key prefix
+  ---
+  duration_ms: 0.434937
+  type: 'test'
+  ...
+# Subtest: fresh independent challenges, pinned AMD verification options, private machine and minimal public evidence
+ok 9 - fresh independent challenges, pinned AMD verification options, private machine and minimal public evidence
+  ---
+  duration_ms: 25.894142
+  type: 'test'
+  ...
+# Subtest: rejects unreviewed manifest and wrong origin, host, identity or code before quote verification
+ok 10 - rejects unreviewed manifest and wrong origin, host, identity or code before quote verification
+  ---
+  duration_ms: 4.707247
+  type: 'test'
+  ...
+# Subtest: rejects an old challenge and a chip identity not proved by the signed report
+ok 11 - rejects an old challenge and a chip identity not proved by the signed report
+  ---
+  duration_ms: 3.936813
+  type: 'test'
+  ...
+# Subtest: requires verified VCEK, checked firmware floor, measurement and VMPL even if verifier returns ok
+ok 12 - requires verified VCEK, checked firmware floor, measurement and VMPL even if verifier returns ok
+  ---
+  duration_ms: 3.636205
+  type: 'test'
+  ...
+# Subtest: debug, migration-agent and lower privilege reports are rejected independently of verifier flags
+ok 13 - debug, migration-agent and lower privilege reports are rejected independently of verifier flags
+  ---
+  duration_ms: 1.993087
+  type: 'test'
+  ...
+# Subtest: rejects stale verification, malformed or oversized evidence and transport errors without echoing peer payloads
+ok 14 - rejects stale verification, malformed or oversized evidence and transport errors without echoing peer payloads
+  ---
+  duration_ms: 3.028839
+  type: 'test'
+  ...
+# Subtest: refuses redirects, HTTP errors and over-limit declared lengths
+ok 15 - refuses redirects, HTTP errors and over-limit declared lengths
+  ---
+  duration_ms: 0.942263
+  type: 'test'
+  ...
+# Subtest: real host process terminates after one child exit, including exit zero
+ok 16 - real host process terminates after one child exit, including exit zero
+  ---
+  duration_ms: 92.332245
+  type: 'test'
+  ...
+# Subtest: real spawn failure is terminal and does not print private errors or launch again
+ok 17 - real spawn failure is terminal and does not print private errors or launch again
+  ---
+  duration_ms: 27.137874
+  type: 'test'
+  ...
+# Subtest: error followed by exit signals only once; graceful stop stays under the existing parent shutdown
+ok 18 - error followed by exit signals only once; graceful stop stays under the existing parent shutdown
+  ---
+  duration_ms: 1.006673
+  type: 'test'
+  ...
+# Subtest: a failing diagnostic callback cannot leave the host alive after child loss
+ok 19 - a failing diagnostic callback cannot leave the host alive after child loss
+  ---
+  duration_ms: 0.533546
+  type: 'test'
+  ...
+# Subtest: restart cannot fall through to the ordinary release-log recorder and falsely pass without recovery evidence
+ok 20 - restart cannot fall through to the ordinary release-log recorder and falsely pass without recovery evidence
+  ---
+  duration_ms: 0.241898
+  type: 'test'
+  ...
+# Subtest: one private durable request, same-intent retry, different intent refused, no success acknowledgement
+ok 21 - one private durable request, same-intent retry, different intent refused, no success acknowledgement
+  ---
+  duration_ms: 5.116395
+  type: 'test'
+  ...
+# Subtest: rejects any other operation, shape, machine, code set, endpoint, signature or oversized request
+ok 22 - rejects any other operation, shape, machine, code set, endpoint, signature or oversized request
+  ---
+  duration_ms: 1.194802
+  type: 'test'
+  ...
+# Subtest: refuses symlinked/unsafe directories and records; no existing capture is overwritten
+ok 23 - refuses symlinked/unsafe directories and records; no existing capture is overwritten
+  ---
+  duration_ms: 0.807565
+  type: 'test'
+  ...
+# Subtest: storage failure never acknowledges submission or exposes an intent or error payload
+ok 24 - storage failure never acknowledges submission or exposes an intent or error payload
+  ---
+  duration_ms: 1.029303
+  type: 'test'
+  ...
+# Subtest: exact host transformation removes automatic wallet submission, parses, and refuses changed source
+ok 25 - exact host transformation removes automatic wallet submission, parses, and refuses changed source
+  ---
+  duration_ms: 20.559499
+  type: 'test'
+  ...
+# Subtest: the canary pins file is the pinned bytes and reconciles with the book, the original vault and the reviewed code
+ok 26 - the canary pins file is the pinned bytes and reconciles with the book, the original vault and the reviewed code
+  ---
+  duration_ms: 1.528789
+  type: 'test'
+  ...
+# Subtest: refused: the CLI's retired baked ledger, the modified vault, other pin files, book or code mismatches
+ok 27 - refused: the CLI's retired baked ledger, the modified vault, other pin files, book or code mismatches
+  ---
+  duration_ms: 1.114093
+  type: 'test'
+  ...
+# Subtest: every CLI transaction must target its step's contract: the pinned ledger, or the lease-gas reserve for lease steps
+ok 28 - every CLI transaction must target its step's contract: the pinned ledger, or the lease-gas reserve for lease steps
+  ---
+  duration_ms: 0.384618
+  type: 'test'
+  ...
+# Subtest: proposal patch (not applied to work/enclave): applies cleanly to the reviewed cli/enclave.mjs bytes and parses
+ok 29 - proposal patch (not applied to work/enclave): applies cleanly to the reviewed cli/enclave.mjs bytes and parses
+  ---
+  duration_ms: 31.401684
+  type: 'test'
+  ...
+# Subtest: canonical: key order independent, bigints tagged, undefined and bytes refused
+ok 30 - canonical: key order independent, bigints tagged, undefined and bytes refused
+  ---
+  duration_ms: 1.174772
+  type: 'test'
+  ...
+# Subtest: guard: refuses forbidden field names and every encoding of a registered secret
+ok 31 - guard: refuses forbidden field names and every encoding of a registered secret
+  ---
+  duration_ms: 1.41516
+  type: 'test'
+  ...
+# Subtest: markers: O_EXCL 0600 file in a 0700 dir, commitments only, never reused
+ok 32 - markers: O_EXCL 0600 file in a 0700 dir, commitments only, never reused
+  ---
+  duration_ms: 2.800151
+  type: 'test'
+  ...
+# Subtest: journal: hash chain, learned ids, one record per step, order and blocked steps enforced
+ok 33 - journal: hash chain, learned ids, one record per step, order and blocked steps enforced
+  ---
+  duration_ms: 2.401784
+  type: 'test'
+  ...
+# Subtest: tx: every pin is enforced before anything is sent
+ok 34 - tx: every pin is enforced before anything is sent
+  ---
+  duration_ms: 0.639315
+  type: 'test'
+  ...
+# Subtest: simulateRefusal: pass only on the expected revert; a succeeding call fails the step
+ok 35 - simulateRefusal: pass only on the expected revert; a succeeding call fails the step
+  ---
+  duration_ms: 0.378748
+  type: 'test'
+  ...
+# Subtest: journal replay rejects successful steps recorded out of order, blocked steps and undeclared expected-fails
+ok 36 - journal replay rejects successful steps recorded out of order, blocked steps and undeclared expected-fails
+  ---
+  duration_ms: 0.325747
+  type: 'test'
+  ...
+# Subtest: only fresh complete lines from actual private stream files are counted; no raw text or lifecycle pass escapes
+ok 37 - only fresh complete lines from actual private stream files are counted; no raw text or lifecycle pass escapes
+  ---
+  duration_ms: 7.573037
+  type: 'test'
+  ...
+# Subtest: a historical release and a line split across either window boundary cannot pass as a fresh release
+ok 38 - a historical release and a line split across either window boundary cannot pass as a fresh release
+  ---
+  duration_ms: 2.98653
+  type: 'test'
+  ...
+# Subtest: rewritten old prefixes, truncation, replaced files and unsafe links refuse
+ok 39 - rewritten old prefixes, truncation, replaced files and unsafe links refuse
+  ---
+  duration_ms: 7.26539
+  type: 'test'
+  ...
+# Subtest: changed cursor, deployment, key, measurement, endpoint, step, runtime or expired observation refuse
+ok 40 - changed cursor, deployment, key, measurement, endpoint, step, runtime or expired observation refuse
+  ---
+  duration_ms: 9.382635
+  type: 'test'
+  ...
+# Subtest: synthetic roots, wrong machine, endpoint, measurement and malformed releases stay distinguishable
+ok 41 - synthetic roots, wrong machine, endpoint, measurement and malformed releases stay distinguishable
+  ---
+  duration_ms: 1.980127
+  type: 'test'
+  ...
+# Subtest: changes during begin or collection never combine different generations or log snapshots
+ok 42 - changes during begin or collection never combine different generations or log snapshots
+  ---
+  duration_ms: 2.272845
+  type: 'test'
+  ...
+# Subtest: closed capture and backward time cannot open or finish a live window
+ok 43 - closed capture and backward time cannot open or finish a live window
+  ---
+  duration_ms: 1.221002
+  type: 'test'
+  ...
+# Subtest: cursor storage is exclusive, bounded, private and digest checked; malformed content is never echoed
+ok 44 - cursor storage is exclusive, bounded, private and digest checked; malformed content is never echoed
+  ---
+  duration_ms: 2.569842
+  type: 'test'
+  ...
+# Subtest: release recorder requires the live interval counts; old releases and current refusals cannot pass
+ok 45 - release recorder requires the live interval counts; old releases and current refusals cannot pass
+  ---
+  duration_ms: 3.153038
+  type: 'test'
+  ...
+# Subtest: refusal recorder requires the current expected reason plus a front failure and non-serving app
+ok 46 - refusal recorder requires the current expected reason plus a front failure and non-serving app
+  ---
+  duration_ms: 2.530383
+  type: 'test'
+  ...
+# Subtest: compiles exact captured creation only after fresh machine proof, accepted authority and both authorizations
+ok 47 - compiles exact captured creation only after fresh machine proof, accepted authority and both authorizations
+  ---
+  duration_ms: 34.762831
+  type: 'test'
+  ...
+# Subtest: machine substitution, unaccepted host, bad signature and existing committee all refuse before signing is possible
+ok 48 - machine substitution, unaccepted host, bad signature and existing committee all refuse before signing is possible
+  ---
+  duration_ms: 17.236591
+  type: 'test'
+  ...
+# Subtest: rechecks quote age after chain reads and sanitizes provider errors
+ok 49 - rechecks quote age after chain reads and sanitizes provider errors
+  ---
+  duration_ms: 6.297697
+  type: 'test'
+  ...
+# Subtest: learns committee only from confirmed matching calldata/events and current r2 machine/owner/code state
+ok 50 - learns committee only from confirmed matching calldata/events and current r2 machine/owner/code state
+  ---
+  duration_ms: 11.477461
+  type: 'test'
+  ...
+# Subtest: rejects wrong network, sender, destination, receipt status, transaction value and unconfirmed inclusion
+ok 51 - rejects wrong network, sender, destination, receipt status, transaction value and unconfirmed inclusion
+  ---
+  duration_ms: 7.071671
+  type: 'test'
+  ...
+# Subtest: rejects conflicting providers even when both return success
+ok 52 - rejects conflicting providers even when both return success
+  ---
+  duration_ms: 1.137302
+  type: 'test'
+  ...
+# Subtest: independent machine and exact code set checks refuse validly encoded wrong creations
+ok 53 - independent machine and exact code set checks refuse validly encoded wrong creations
+  ---
+  duration_ms: 5.076895
+  type: 'test'
+  ...
+# Subtest: payout declaration never substitutes for accepted host ownership or active authority
+ok 54 - payout declaration never substitutes for accepted host ownership or active authority
+  ---
+  duration_ms: 7.639487
+  type: 'test'
+  ...
+# Subtest: rejects stale state, wrong current committee/key, activation time and old admitted code
+ok 55 - rejects stale state, wrong current committee/key, activation time and old admitted code
+  ---
+  duration_ms: 9.547634
+  type: 'test'
+  ...
+# Subtest: rechecks canonical block after authorization and sanitizes provider errors
+ok 56 - rechecks canonical block after authorization and sanitizes provider errors
+  ---
+  duration_ms: 1.983356
+  type: 'test'
+  ...
+# Subtest: pins original vault code/book and rejects aliased receipt providers
+ok 57 - pins original vault code/book and rejects aliased receipt providers
+  ---
+  duration_ms: 3.149659
+  type: 'test'
+  ...
+# Subtest: agreement on success with forged receipt events still fails derivation
+ok 58 - agreement on success with forged receipt events still fails derivation
+  ---
+  duration_ms: 3.718445
+  type: 'test'
+  ...
+# Subtest: exact reviewed image packages capture-only host and isolated state, with no inherited wallet environment
+ok 59 - exact reviewed image packages capture-only host and isolated state, with no inherited wallet environment
+  ---
+  duration_ms: 418.234346
+  type: 'test'
+  ...
+# Subtest: state is never reused or overwritten by a repeated preparation
+ok 60 - state is never reused or overwritten by a repeated preparation
+  ---
+  duration_ms: 615.752238
+  type: 'test'
+  ...
+# Subtest: modified config, injected files and missing review digest cannot pass verification
+ok 61 - modified config, injected files and missing review digest cannot pass verification
+  ---
+  duration_ms: 623.448385
+  type: 'test'
+  ...
+# Subtest: changed binary or launch pins fail rather than adopt new settings
+ok 62 - changed binary or launch pins fail rather than adopt new settings
+  ---
+  duration_ms: 580.966396
+  type: 'test'
+  ...
+# Subtest: symlinks, public registry-key permissions and colliding ports refuse before creating package
+ok 63 - symlinks, public registry-key permissions and colliding ports refuse before creating package
+  ---
+  duration_ms: 509.458897
+  type: 'test'
+  ...
+# Subtest: genesis capture cannot be redirected to another package
+ok 64 - genesis capture cannot be redirected to another package
+  ---
+  duration_ms: 204.895921
+  type: 'test'
+  ...
+# Subtest: fault and restore packages retain original state/capture and give each generation fresh logs with genesis disabled
+ok 65 - fault and restore packages retain original state/capture and give each generation fresh logs with genesis disabled
+  ---
+  duration_ms: 2249.412399
+  type: 'test'
+  ...
+# Subtest: recovery cannot change origin, escape the run, target the original committee or reuse a generation
+ok 66 - recovery cannot change origin, escape the run, target the original committee or reuse a generation
+  ---
+  duration_ms: 1452.825694
+  type: 'test'
+  ...
+# Subtest: recovery verification refuses changed retained state and tampered configuration before a start
+ok 67 - recovery verification refuses changed retained state and tampered configuration before a start
+  ---
+  duration_ms: 2049.567364
+  type: 'test'
+  ...
+# Subtest: ingress evidence collects exact processes and all refusal routes, rechecking after probes
+ok 68 - ingress evidence collects exact processes and all refusal routes, rechecking after probes
+  ---
+  duration_ms: 2.83957
+  type: 'test'
+  ...
+# Subtest: wrong unit, kernel limits, inherited environment, sockets and process args all refuse
+ok 69 - wrong unit, kernel limits, inherited environment, sockets and process args all refuse
+  ---
+  duration_ms: 2.469343
+  type: 'test'
+  ...
+# Subtest: changes during collection and stale collection refuse
+ok 70 - changes during collection and stale collection refuse
+  ---
+  duration_ms: 1.4263
+  type: 'test'
+  ...
+# Subtest: every forbidden target must return exact 404 with exact method and unnormalized target
+ok 71 - every forbidden target must return exact 404 with exact method and unnormalized target
+  ---
+  duration_ms: 0.811634
+  type: 'test'
+  ...
+# Subtest: raw TLS probes preserve dot/percent targets, enforce certificate validation and discard bodies
+ok 72 - raw TLS probes preserve dot/percent targets, enforce certificate validation and discard bodies
+  ---
+  duration_ms: 1.251311
+  type: 'test'
+  ...
+# Subtest: SSH route proof requires exact endpoint, host-key checking, fresh time and positive listener inspection
+ok 73 - SSH route proof requires exact endpoint, host-key checking, fresh time and positive listener inspection
+  ---
+  duration_ms: 1.010643
+  type: 'test'
+  ...
+# Subtest: one launch is journaled before effect and actual process/cgroup/socket checks preserve existing VMs
+ok 74 - one launch is journaled before effect and actual process/cgroup/socket checks preserve existing VMs
+  ---
+  duration_ms: 8.496972
+  type: 'test'
+  ...
+# Subtest: accepted authority, memory, ports, original services and unchanged census gate the first launch
+ok 75 - accepted authority, memory, ports, original services and unchanged census gate the first launch
+  ---
+  duration_ms: 4.501269
+  type: 'test'
+  ...
+# Subtest: uncertain start is never repeated; exact live invocation can be reconciled
+ok 76 - uncertain start is never repeated; exact live invocation can be reconciled
+  ---
+  duration_ms: 2.790211
+  type: 'test'
+  ...
+# Subtest: unit replacement, escaped or substituted process, unexpected environment and changed tenant all refuse
+ok 77 - unit replacement, escaped or substituted process, unexpected environment and changed tenant all refuse
+  ---
+  duration_ms: 16.199988
+  type: 'test'
+  ...
+# Subtest: kernel-enforced cgroup, OOM, available memory and exact loopback socket ownership are required
+ok 78 - kernel-enforced cgroup, OOM, available memory and exact loopback socket ownership are required
+  ---
+  duration_ms: 21.330563
+  type: 'test'
+  ...
+# Subtest: stop works on our unhealthy invocation but refuses replacement or protected process in its cgroup
+ok 79 - stop works on our unhealthy invocation but refuses replacement or protected process in its cgroup
+  ---
+  duration_ms: 3.098889
+  type: 'test'
+  ...
+# Subtest: file recheck failure and tampered record cannot authorize start or stop
+ok 80 - file recheck failure and tampered record cannot authorize start or stop
+  ---
+  duration_ms: 2.063906
+  type: 'test'
+  ...
+# Subtest: reused PID or restarted VM cannot inherit a previous verified observation
+ok 81 - reused PID or restarted VM cannot inherit a previous verified observation
+  ---
+  duration_ms: 1.853507
+  type: 'test'
+  ...
+# Subtest: stop is still attempted when a protected service is unhealthy; it never claims preservation without evidence
+ok 82 - stop is still attempted when a protected service is unhealthy; it never claims preservation without evidence
+  ---
+  duration_ms: 1.37117
+  type: 'test'
+  ...
+# Subtest: stopping the custodian preserves a later-launched recipient VM, even outside the initial baseline
+ok 83 - stopping the custodian preserves a later-launched recipient VM, even outside the initial baseline
+  ---
+  duration_ms: 1.761608
+  type: 'test'
+  ...
+# Subtest: stop refuses a recipient or unknown process accidentally sharing the custodian cgroup
+ok 84 - stop refuses a recipient or unknown process accidentally sharing the custodian cgroup
+  ---
+  duration_ms: 2.006337
+  type: 'test'
+  ...
+# Subtest: a later recipient disappearing during stop cannot be reported as preserved
+ok 85 - a later recipient disappearing during stop cannot be reported as preserved
+  ---
+  duration_ms: 1.080913
+  type: 'test'
+  ...
+# Subtest: runtime verification includes private guest-log provenance and rejects substituted capture
+ok 86 - runtime verification includes private guest-log provenance and rejects substituted capture
+  ---
+  duration_ms: 2.202185
+  type: 'test'
+  ...
+# Subtest: a separately owned recipient is allowed during runtime inspection and counted as protected
+ok 87 - a separately owned recipient is allowed during runtime inspection and counted as protected
+  ---
+  duration_ms: 2.133506
+  type: 'test'
+  ...
+# Subtest: recipient loss during runtime inspection refuses instead of overlooking a later VM
+ok 88 - recipient loss during runtime inspection refuses instead of overlooking a later VM
+  ---
+  duration_ms: 1.246272
+  type: 'test'
+  ...
+# Subtest: stopped inspection checks actual absence and retained ciphertext without completing an outage test
+ok 89 - stopped inspection checks actual absence and retained ciphertext without completing an outage test
+  ---
+  duration_ms: 3.306527
+  type: 'test'
+  ...
+# Subtest: stopped inspection refuses a still-live generation, member, listener, replacement unit or changed tenant
+ok 90 - stopped inspection refuses a still-live generation, member, listener, replacement unit or changed tenant
+  ---
+  duration_ms: 8.61198
+  type: 'test'
+  ...
+# Subtest: stopped inspection cannot bless missing, linked, public, truncated or changing sealed state
+ok 91 - stopped inspection cannot bless missing, linked, public, truncated or changing sealed state
+  ---
+  duration_ms: 9.217227
+  type: 'test'
+  ...
+# Subtest: stopped inspection requires a prior verified generation and preserves later recipient census
+ok 92 - stopped inspection requires a prior verified generation and preserves later recipient census
+  ---
+  duration_ms: 18.461872
+  type: 'test'
+  ...
+# Subtest: one predecessor can authorize only one successor even when two starts race
+ok 93 - one predecessor can authorize only one successor even when two starts race
+  ---
+  duration_ms: 1.46206
+  type: 'test'
+  ...
+# Subtest: uncertain recovery start retains its successor slot and cannot be replaced by a new generation
+ok 94 - uncertain recovery start retains its successor slot and cannot be replaced by a new generation
+  ---
+  duration_ms: 1.864677
+  type: 'test'
+  ...
+# Subtest: combined gate binds public and local machines to unchanged runtime, ingress and current host authority
+ok 95 - combined gate binds public and local machines to unchanged runtime, ingress and current host authority
+  ---
+  duration_ms: 3.541956
+  type: 'test'
+  ...
+# Subtest: local socket transport permits only the exact evidence POST and preserves public-origin input to the verifier
+ok 96 - local socket transport permits only the exact evidence POST and preserves public-origin input to the verifier
+  ---
+  duration_ms: 11.985577
+  type: 'test'
+  ...
+# Subtest: different chip, key, identity, registry, origin or measurement between local and public evidence refuses
+ok 97 - different chip, key, identity, registry, origin or measurement between local and public evidence refuses
+  ---
+  duration_ms: 1.780018
+  type: 'test'
+  ...
+# Subtest: stale quotes, reused challenge, unsupported firmware, missing probe and weakened runtime refuse
+ok 98 - stale quotes, reused challenge, unsupported firmware, missing probe and weakened runtime refuse
+  ---
+  duration_ms: 1.992036
+  type: 'test'
+  ...
+# Subtest: authority, route or process changes during collection refuse and cannot manufacture a launch entry
+ok 99 - authority, route or process changes during collection refuse and cannot manufacture a launch entry
+  ---
+  duration_ms: 1.329091
+  type: 'test'
+  ...
+# Subtest: LIMITATION (recorded): an older valid sealed blob opens under the same identity
+ok 100 - LIMITATION (recorded): an older valid sealed blob opens under the same identity
+  ---
+  duration_ms: 0.718615
+  type: 'test'
+  ...
+# Subtest: EXPECTED FAIL: a custodian detects a rolled-back sealed state (needs a monotonic anchor that does not exist)
+not ok 101 - EXPECTED FAIL: a custodian detects a rolled-back sealed state (needs a monotonic anchor that does not exist) # TODO no monotonic anchor; spec 176-181; host keeps 20 blobs
+  ---
+  duration_ms: 0.619765
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/limitations.test.mjs:24:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: an older blob after a newer one must be refused'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/limitations.test.mjs:26:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: relay messages are byte-identical to the pinned relay/secrets.js formats
+ok 102 - relay messages are byte-identical to the pinned relay/secrets.js formats
+  ---
+  duration_ms: 1.147782
+  type: 'test'
+  ...
+# Subtest: getMeta returns names, rev and an equality verdict — never the values
+ok 103 - getMeta returns names, rev and an equality verdict — never the values
+  ---
+  duration_ms: 15.517224
+  type: 'test'
+  ...
+# Subtest: relay evaluations: legacy check, refusals for a held id, and the clear proof
+ok 104 - relay evaluations: legacy check, refusals for a held id, and the clear proof
+  ---
+  duration_ms: 0.344478
+  type: 'test'
+  ...
+# Subtest: nonce probe: the burnt nonce and the expired nonce are both bad_challenge; no partial anywhere
+ok 105 - nonce probe: the burnt nonce and the expired nonce are both bad_challenge; no partial anywhere
+  ---
+  duration_ms: 3.927223
+  type: 'test'
+  ...
+# Subtest: stale probe: older revisions, another committee and a future epoch are refused with their exact codes
+ok 106 - stale probe: older revisions, another committee and a future epoch are refused with their exact codes
+  ---
+  duration_ms: 3.336307
+  type: 'test'
+  ...
+# Subtest: old-committee probe sends C3 with old committee and current revisions to actual custodian, receiving wrong_committee before share access
+ok 107 - old-committee probe sends C3 with old committee and current revisions to actual custodian, receiving wrong_committee before share access
+  ---
+  duration_ms: 9.400575
+  type: 'test'
+  ...
+# Subtest: real unprefixed custodian challenges work for nonce replay and expiry probing
+ok 108 - real unprefixed custodian challenges work for nonce replay and expiry probing
+  ---
+  duration_ms: 4.082641
+  type: 'test'
+  ...
+# Subtest: protected id, wrong owner, unmigrated policy, stale state and wrong old key all refuse
+ok 109 - protected id, wrong owner, unmigrated policy, stale state and wrong old key all refuse
+  ---
+  duration_ms: 8.318053
+  type: 'test'
+  ...
+# Subtest: wrong response code, successful response and extra/nested plaintext never count or escape the result
+ok 110 - wrong response code, successful response and extra/nested plaintext never count or escape the result
+  ---
+  duration_ms: 8.886199
+  type: 'test'
+  ...
+# Subtest: migration changes and expired collection refuse after the HTTP reply
+ok 111 - migration changes and expired collection refuse after the HTTP reply
+  ---
+  duration_ms: 4.726597
+  type: 'test'
+  ...
+# Subtest: bounded JSON reader rejects oversize, redirects, malformed data and absent protocol fields without peer text
+ok 112 - bounded JSON reader rejects oversize, redirects, malformed data and absent protocol fields without peer text
+  ---
+  duration_ms: 2.209735
+  type: 'test'
+  ...
+# Subtest: decoys are well-formed and differ from the real image; every variant passes the pinned validateRules
+ok 113 - decoys are well-formed and differ from the real image; every variant passes the pinned validateRules
+  ---
+  duration_ms: 119.206419
+  type: 'test'
+  ...
+# Subtest: C1.create: the calldata decodes to update(C1, {expectPolicyRev 0, policy NEW unpaused, rules(image), bundle}) and passes the tx pins
+ok 114 - C1.create: the calldata decodes to update(C1, {expectPolicyRev 0, policy NEW unpaused, rules(image), bundle}) and passes the tx pins
+  ---
+  duration_ms: 32.413107
+  type: 'test'
+  ...
+# Subtest: prepare refuses: policyRev out of step, a foreign policy owner, no Y, no values, no config text, a blocked step
+ok 115 - prepare refuses: policyRev out of step, a foreign policy owner, no Y, no values, no config text, a blocked step
+  ---
+  duration_ms: 2.782561
+  type: 'test'
+  ...
+# Subtest: policy-only steps carry no bundle; pause carries paused:true; the decoy rules are what is written
+ok 116 - policy-only steps carry no bundle; pause carries paused:true; the decoy rules are what is written
+  ---
+  duration_ms: 3.918033
+  type: 'test'
+  ...
+# Subtest: simulations: NotOwner from a key-less decoy sender; StaleRevision from the owner one revision back
+ok 117 - simulations: NotOwner from a key-less decoy sender; StaleRevision from the owner one revision back
+  ---
+  duration_ms: 0.934334
+  type: 'test'
+  ...
+# Subtest: new policies cannot silently fall back to the old committee key
+ok 118 - new policies cannot silently fall back to the old committee key
+  ---
+  duration_ms: 5.76471
+  type: 'test'
+  ...
+# Subtest: genesis cannot escape the canary fee budget through an external submitter
+ok 119 - genesis cannot escape the canary fee budget through an external submitter
+  ---
+  duration_ms: 0.807334
+  type: 'test'
+  ...
+# Subtest: real child streams are private and only hashes and provenance leave inspection
+ok 120 - real child streams are private and only hashes and provenance leave inspection
+  ---
+  duration_ms: 31.994929
+  type: 'test'
+  ...
+# Subtest: aggregate stream cap fails once and never creates oversized output or a success record
+ok 121 - aggregate stream cap fails once and never creates oversized output or a success record
+  ---
+  duration_ms: 12.332645
+  type: 'test'
+  ...
+# Subtest: uncompleted, swapped, public, symlinked, hardlinked and other-generation logs cannot pass
+ok 122 - uncompleted, swapped, public, symlinked, hardlinked and other-generation logs cannot pass
+  ---
+  duration_ms: 3.155908
+  type: 'test'
+  ...
+# Subtest: stream failure cannot be mistaken for complete and private errors are not serialized
+ok 123 - stream failure cannot be mistaken for complete and private errors are not serialized
+  ---
+  duration_ms: 1.218701
+  type: 'test'
+  ...
+# Subtest: public or nonempty directories are rejected before stream output
+ok 124 - public or nonempty directories are rejected before stream output
+  ---
+  duration_ms: 0.577766
+  type: 'test'
+  ...
+# Subtest: consumption requires all expected current values and exact names
+ok 125 - consumption requires all expected current values and exact names
+  ---
+  duration_ms: 2.599432
+  type: 'test'
+  ...
+# Subtest: rejects ambiguity, real secret formats, old revisions, and malformed challenges
+ok 126 - rejects ambiguity, real secret formats, old revisions, and malformed challenges
+  ---
+  duration_ms: 0.676345
+  type: 'test'
+  ...
+# Subtest: fresh challenge GET sends no markers or expected proofs; output contains no peer data
+ok 127 - fresh challenge GET sends no markers or expected proofs; output contains no peer data
+  ---
+  duration_ms: 19.324877
+  type: 'test'
+  ...
+# Subtest: transport/status/cache/shape failures cannot become consumption evidence
+ok 128 - transport/status/cache/shape failures cannot become consumption evidence
+  ---
+  duration_ms: 2.608122
+  type: 'test'
+  ...
+# Subtest: host read resolves only fresh accepted administrator ownership in the original vault
+ok 129 - host read resolves only fresh accepted administrator ownership in the original vault
+  ---
+  duration_ms: 1.959296
+  type: 'test'
+  ...
+# Subtest: genesis read passes the freshly attested private machine to chain verification and emits only public quote evidence
+ok 130 - genesis read passes the freshly attested private machine to chain verification and emits only public quote evidence
+  ---
+  duration_ms: 0.432427
+  type: 'test'
+  ...
+# Subtest: genesis read refuses missing, already stale and subsequently expired quotes
+ok 131 - genesis read refuses missing, already stale and subsequently expired quotes
+  ---
+  duration_ms: 0.283218
+  type: 'test'
+  ...
+# Subtest: production attestor loader needs exact r2 source pins and a reviewed manifest before returning any network function
+ok 132 - production attestor loader needs exact r2 source pins and a reviewed manifest before returning any network function
+  ---
+  duration_ms: 119.970064
+  type: 'test'
+  ...
+# Subtest: fresh recipient quote must bind the observed transport key, exact deployment and pinned runtime without KDS fallback
+ok 133 - fresh recipient quote must bind the observed transport key, exact deployment and pinned runtime without KDS fallback
+  ---
+  duration_ms: 2.439024
+  type: 'test'
+  ...
+# Subtest: different TLS key, nonce, runtime, image, host data, ABI, privilege, policy or unverified quote refuse
+ok 134 - different TLS key, nonce, runtime, image, host data, ABI, privilege, policy or unverified quote refuse
+  ---
+  duration_ms: 5.369963
+  type: 'test'
+  ...
+# Subtest: transport/verifier errors never expose raw peer details, and expired quote checks refuse
+ok 135 - transport/verifier errors never expose raw peer details, and expired quote checks refuse
+  ---
+  duration_ms: 0.648695
+  type: 'test'
+  ...
+# Subtest: live wrapper rejects stale quotes or recipient replacement during quote verification
+ok 136 - live wrapper rejects stale quotes or recipient replacement during quote verification
+  ---
+  duration_ms: 0.929224
+  type: 'test'
+  ...
+# Subtest: real TLS transport captures the actual peer key and refuses redirects, non-JSON and oversized data
+ok 137 - real TLS transport captures the actual peer key and refuses redirects, non-JSON and oversized data
+  ---
+  duration_ms: 41.241656
+  type: 'test'
+  ...
+# Subtest: live failed-boot watcher keeps complete serial through cleanup and returns only counts
+ok 138 - live failed-boot watcher keeps complete serial through cleanup and returns only counts
+  ---
+  duration_ms: 5.085235
+  type: 'test'
+  ...
+# Subtest: watcher may start before the old canary is stopped, but an incomplete terminal line refuses
+ok 139 - watcher may start before the old canary is stopped, but an incomplete terminal line refuses
+  ---
+  duration_ms: 3.784334
+  type: 'test'
+  ...
+# Subtest: already failed, wrong identity, served or replaced guests cannot pass the watcher
+ok 140 - already failed, wrong identity, served or replaced guests cannot pass the watcher
+  ---
+  duration_ms: 22.064268
+  type: 'test'
+  ...
+# Subtest: watcher releases descriptors on timeouts, manager failures and changed terminal census
+ok 141 - watcher releases descriptors on timeouts, manager failures and changed terminal census
+  ---
+  duration_ms: 3.856884
+  type: 'test'
+  ...
+# Subtest: refusal evidence requires matching code, complete failed boot and no release/serving
+ok 142 - refusal evidence requires matching code, complete failed boot and no release/serving
+  ---
+  duration_ms: 1.748738
+  type: 'test'
+  ...
+# Subtest: real child writer can unlink its log; retained descriptor captures its final bytes after exit
+ok 143 - real child writer can unlink its log; retained descriptor captures its final bytes after exit
+  ---
+  duration_ms: 28.715102
+  type: 'test'
+  ...
+# Subtest: a new authenticated instance with a live serial writer produces only bounded identity and front counts
+ok 144 - a new authenticated instance with a live serial writer produces only bounded identity and front counts
+  ---
+  duration_ms: 5.250744
+  type: 'test'
+  ...
+# Subtest: old instances, wrong deployment/image/runtime/transport, early starts and failed instances refuse
+ok 145 - old instances, wrong deployment/image/runtime/transport, early starts and failed instances refuse
+  ---
+  duration_ms: 9.271536
+  type: 'test'
+  ...
+# Subtest: changed guestd generation, missing unrelated VM, replaced recipient process and reused PID refuse
+ok 146 - changed guestd generation, missing unrelated VM, replaced recipient process and reused PID refuse
+  ---
+  duration_ms: 3.785414
+  type: 'test'
+  ...
+# Subtest: serial cannot be substituted, made writable to others, truncated out of bounds, or read without the QEMU writer
+ok 147 - serial cannot be substituted, made writable to others, truncated out of bounds, or read without the QEMU writer
+  ---
+  duration_ms: 4.539489
+  type: 'test'
+  ...
+# Subtest: changed metadata or census during collection and expired or modified baselines refuse
+ok 148 - changed metadata or census during collection and expired or modified baselines refuse
+  ---
+  duration_ms: 2.996399
+  type: 'test'
+  ...
+# Subtest: only complete front lines are classified; peer messages are not returned
+ok 149 - only complete front lines are classified; peer messages are not returned
+  ---
+  duration_ms: 0.995503
+  type: 'test'
+  ...
+# Subtest: recipient cursors are exclusive and changes, links or exposed permissions refuse
+ok 150 - recipient cursors are exclusive and changes, links or exposed permissions refuse
+  ---
+  duration_ms: 2.627612
+  type: 'test'
+  ...
+# Subtest: release evaluation binds the real recipient observation to the current custodian interval and revision
+ok 151 - release evaluation binds the real recipient observation to the current custodian interval and revision
+  ---
+  duration_ms: 1.584449
+  type: 'test'
+  ...
+# Subtest: Linux descriptor collection observes a real child writer and rejects a substituted descriptor
+ok 152 - Linux descriptor collection observes a real child writer and rejects a substituted descriptor
+  ---
+  duration_ms: 25.598384
+  type: 'test'
+  ...
+# Subtest: consumption uses the fresh attested transport and retains only curated evidence
+ok 153 - consumption uses the fresh attested transport and retains only curated evidence
+  ---
+  duration_ms: 17.393081
+  type: 'test'
+  ...
+# Subtest: recipient replacement after a correct proof, expired quote, or wrong HMAC cannot pass
+ok 154 - recipient replacement after a correct proof, expired quote, or wrong HMAC cannot pass
+  ---
+  duration_ms: 2.463753
+  type: 'test'
+  ...
+# Subtest: real TLS pin rejects a different key before HTTP and bounds responses without redirects
+ok 155 - real TLS pin rejects a different key before HTTP and bounds responses without redirects
+  ---
+  duration_ms: 39.15093
+  type: 'test'
+  ...
+# Subtest: pre-recovery chain reconciliation binds the original capture and learned committee without claiming a new quote
+ok 156 - pre-recovery chain reconciliation binds the original capture and learned committee without claiming a new quote
+  ---
+  duration_ms: 5.591361
+  type: 'test'
+  ...
+# Subtest: actual recovery handler refuses writes before reading retained state and never captures a new genesis
+ok 157 - actual recovery handler refuses writes before reading retained state and never captures a new genesis
+  ---
+  duration_ms: 35.633075
+  type: 'test'
+  ...
+# Subtest: actual recovery handler returns a failure, never missing-state 404, when retained state disappears or changes
+ok 158 - actual recovery handler returns a failure, never missing-state 404, when retained state disappears or changes
+  ---
+  duration_ms: 15.156445
+  type: 'test'
+  ...
+# Subtest: state-503 fault does not read or overwrite sealed state and cannot submit anything
+ok 159 - state-503 fault does not read or overwrite sealed state and cannot submit anything
+  ---
+  duration_ms: 9.077528
+  type: 'test'
+  ...
+# Subtest: recovery preparation reconciles genesis between two live stopped observations before packaging
+ok 160 - recovery preparation reconciles genesis between two live stopped observations before packaging
+  ---
+  duration_ms: 1.942637
+  type: 'test'
+  ...
+# Subtest: missing/conflicting genesis or changed predecessor/sealed state never produces a recovery package
+ok 161 - missing/conflicting genesis or changed predecessor/sealed state never produces a recovery package
+  ---
+  duration_ms: 1.285151
+  type: 'test'
+  ...
+# Subtest: recovery start rechecks the predecessor around chain reads; a changed state cannot reach the start effect
+ok 162 - recovery start rechecks the predecessor around chain reads; a changed state cannot reach the start effect
+  ---
+  duration_ms: 1.315921
+  type: 'test'
+  ...
+# Subtest: recovery attestation binds current SNP identity to canonical genesis and final runtime without recording a lifecycle pass
+ok 163 - recovery attestation binds current SNP identity to canonical genesis and final runtime without recording a lifecycle pass
+  ---
+  duration_ms: 0.762315
+  type: 'test'
+  ...
+# Subtest: recovery reads exact retained ciphertext and permits writes only after that read
+ok 164 - recovery reads exact retained ciphertext and permits writes only after that read
+  ---
+  duration_ms: 3.426767
+  type: 'test'
+  ...
+# Subtest: missing, changed, replaced, shared, public or linked state never permits a fresh write
+ok 165 - missing, changed, replaced, shared, public or linked state never permits a fresh write
+  ---
+  duration_ms: 5.027505
+  type: 'test'
+  ...
+# Subtest: wrong content fingerprint or incomplete generation metadata refuses
+ok 166 - wrong content fingerprint or incomplete generation metadata refuses
+  ---
+  duration_ms: 0.993023
+  type: 'test'
+  ...
+# Subtest: prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked
+ok 167 - prepare: worst case = gas x maxFee + L1 upper bound + operator fee; every bound pinned and checked
+  ---
+  duration_ms: 20.862736
+  type: 'test'
+  ...
+# Subtest: prepare refuses another vault code, an unsettled nonce, or non-Base
+ok 168 - prepare refuses another vault code, an unsettled nonce, or non-Base
+  ---
+  duration_ms: 0.884004
+  type: 'test'
+  ...
+# Subtest: send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice
+ok 169 - send: intent file (0600) is durable BEFORE broadcast; verified with cost = gas x price + l1Fee + operator bound; never signs twice
+  ---
+  duration_ms: 12.385545
+  type: 'test'
+  ...
+# Subtest: a failed intent write broadcasts nothing
+ok 170 - a failed intent write broadcasts nothing
+  ---
+  duration_ms: 5.334983
+  type: 'test'
+  ...
+# Subtest: unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict
+ok 171 - unknown outcome: resume never signs; --rebroadcast re-sends the SAME bytes only while the nonce is unused; a consumed nonce is a final conflict
+  ---
+  duration_ms: 13.614406
+  type: 'test'
+  ...
+# Subtest: receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse
+ok 172 - receiptCosts: CLI transactions are costed from both RPCs (value + l1Fee + operator allowance); foreign or unmined refuse
+  ---
+  duration_ms: 3.268598
+  type: 'test'
+  ...
+# Subtest: budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)
+ok 173 - budget: per-step allowances, aggregate fit, cleanup reserve owed, spent from receipts (or the full allowance)
+  ---
+  duration_ms: 0.810245
+  type: 'test'
+  ...
+# Subtest: L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused
+ok 174 - L1 size: from the EXACT transaction (real nonce) and its maximum signed encoding; nonce-0 sizing undercounts and is refused
+  ---
+  duration_ms: 1.965437
+  type: 'test'
+  ...
+# Subtest: two-provider receipt status, fee and canonical inclusion must agree before verification or accounting
+ok 175 - two-provider receipt status, fee and canonical inclusion must agree before verification or accounting
+  ---
+  duration_ms: 30.028733
+  type: 'test'
+  ...
+# Subtest: unknown broadcast errors do not leak raw signed bytes in public status
+ok 176 - unknown broadcast errors do not leak raw signed bytes in public status
+  ---
+  duration_ms: 5.666751
+  type: 'test'
+  ...
+# Subtest: stale, future, malformed and wrong-height chain views refuse before signing
+ok 177 - stale, future, malformed and wrong-height chain views refuse before signing
+  ---
+  duration_ms: 1.059002
+  type: 'test'
+  ...
+# Subtest: signed gas, fees and recovered signer must equal prepared fields before intent or broadcast
+ok 178 - signed gas, fees and recovered signer must equal prepared fields before intent or broadcast
+  ---
+  duration_ms: 17.881237
+  type: 'test'
+  ...
+# Subtest: malicious broadcast success payload is not exposed as a returned hash
+ok 179 - malicious broadcast success payload is not exposed as a returned hash
+  ---
+  duration_ms: 4.693667
+  type: 'test'
+  ...
+# Subtest: resume rechecks terminal inclusion and never rebroadcasts a formerly confirmed orphan
+ok 180 - resume rechecks terminal inclusion and never rebroadcasts a formerly confirmed orphan
+  ---
+  duration_ms: 4.894286
+  type: 'test'
+  ...
+1..180
+# tests 180
+# suites 0
+# pass 179
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 1
+# duration_ms 12078.034497

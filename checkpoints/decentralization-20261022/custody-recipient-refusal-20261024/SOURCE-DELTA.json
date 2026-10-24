@@ -1,0 +1,36 @@
+{
+  "baseSnapshot": "../custody-recipient-boots-20261024/SOURCE-DELTA.json",
+  "baseCommit": "63c06f1111acd8c56527ed34746c3e0ed6881155",
+  "commit": "12c5b9274620fc2043df18ec20ebe06a32410ec3",
+  "changes": [
+    {
+      "status": "M",
+      "path": "LAUNCH-PACKAGE.md"
+    },
+    {
+      "status": "M",
+      "path": "STATUS.md"
+    },
+    {
+      "status": "M",
+      "path": "driver/assert.mjs"
+    },
+    {
+      "status": "M",
+      "path": "driver/cli.mjs"
+    },
+    {
+      "status": "A",
+      "path": "driver/recipient-failure.mjs"
+    },
+    {
+      "status": "M",
+      "path": "driver/recipient-observer.mjs"
+    },
+    {
+      "status": "A",
+      "path": "test/recipient-failure.test.mjs"
+    }
+  ],
+  "restore": "Reconstruct previous delta and overlay these source files. No deletions."
+}

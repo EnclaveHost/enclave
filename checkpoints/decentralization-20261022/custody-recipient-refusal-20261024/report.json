@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-24T09:55:28.024998+00:00",
+  "complete": false,
+  "sourceCommit": "12c5b9274620fc2043df18ec20ebe06a32410ec3",
+  "docsCommit": "f5401a017dfce99d2ffdaa4512402cef4667b478",
+  "tests": {
+    "nodePassed": 179,
+    "pythonPassed": 3,
+    "unexpectedFailures": 0,
+    "knownRollbackTodo": 1
+  },
+  "productionCanaryRun": false,
+  "appsStopped": [],
+  "administratorControls": "preserved",
+  "walletActions": "Metal0 acceptance39671 and canary publication39675 ready without hashes at09:48:19UTC",
+  "coordination": "Astra window unclaimed; request before any canary VM launch. Do not stop controller/native worker.",
+  "scope": "Real retained-descriptor child-process check; synthetic VM/chain refusal tests. No production SNP lifecycle result.",
+  "remaining": [
+    "wallet acceptance and publication",
+    "executable launch preflight and funding reconciliation",
+    "outage/restart integration",
+    "production lifecycle and migration/deletion matrix",
+    "rollback protection",
+    "dashboard/address-book activation",
+    "decentralized multi-operator custody"
+  ]
+}
