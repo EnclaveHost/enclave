@@ -1,0 +1,45 @@
+--- ../custody-factory-wallet-20261023/handoff-server.mjs	2026-10-23 13:39:13.577581458 -0700
++++ handoff-server.mjs	2026-10-23 15:11:09.995673791 -0700
+@@ -1,4 +1,11 @@
+ // Local EIP-1193 handoff transport. The browser alone asks MetaMask to send a transaction.
++// ADAPTED from custody-factory-wallet-20261023 handoff-server.mjs (sha256 fb189e46…, reviewed); the exact diff is
++// evidence/handoff-server.diff. Three additions, nothing removed or relaxed:
++//   gate()       /prepare is refused (409, journal untouched) while gate() names a reason (here: the upload is not verified);
++//   routes       extra POST routes behind the SAME host/origin/cross-site/token checks and body cap (the upload stage);
++//   reconcile()  for an attempt left in awaiting-wallet with no hash: the hook reads the chain and may answer
++//                {reset:true} (the prepared nonce can no longer be used, or provably was never used) -> ready, or anything
++//                else -> unchanged. A recorded hash is never reset.
+ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+@@ -15,7 +22,7 @@
+   },
+  };
+ }
+-export function createHandoffServer({initialRequest,prepare,verify,journal,assets={},accept=async()=>{}}) {
++export function createHandoffServer({initialRequest,prepare,verify,journal,assets={},accept=async()=>{},gate=async()=>null,routes={},reconcile=async()=>({reset:false}),status=async()=>({})}) {
+  let state=journal.read(),origin;
+  const token=randomBytes(24).toString('hex');
+  const set=value=>{journal.write(value);state=value;};
+@@ -30,11 +37,20 @@
+   if(req.headers.origin&&req.headers.origin!==origin)return reply(res,403,{error:'origin refused'});
+   if(req.headers['sec-fetch-site']==='cross-site'&&!(req.method==='GET'&&req.url==='/'&&req.headers['sec-fetch-mode']==='navigate'))return reply(res,403,{error:'cross-site refused'});
+   if(req.method==='GET'&&assets[req.url])return reply(res,200,assets[req.url].body,assets[req.url].type);
+-  if(req.method==='GET'&&req.url==='/request')return reply(res,200,{request:state.request||initialRequest,token,state});
++  if(req.method==='GET'&&req.url==='/request')return reply(res,200,{request:state.request||initialRequest,token,state,stages:await status()});
+   if(req.method!=='POST')return reply(res,404,{error:'not found'});
+   if(req.headers.origin!==origin||req.headers['x-signing-token']!==token)return reply(res,403,{error:'authorization refused'});
++  if(Object.hasOwn(routes,req.url))return reply(res,200,await routes[req.url](await body(req)));
++  if(req.url==='/reconcile'){
++   if(state.status!=='awaiting-wallet'||state.hash)return reply(res,409,{error:'Only an attempt handed to the wallet without a recorded hash can be reconciled.'});
++   const r=await reconcile(state.request);
++   if(r&&r.reset===true)set({status:'ready',reconciledFrom:{nonce:state.request?.transaction?.nonce,preparedAt:state.preparedAt},reconciledAt:new Date().toISOString(),reason:r.reason});
++   return reply(res,200,{...r,state});
++  }
+   if(req.url==='/prepare'){
+    if(state.status!=='ready')return reply(res,409,{error:'An attempt already exists. Inspect its outcome before another request.'});
++   const blocked=await gate();
++   if(blocked)return reply(res,409,{error:blocked});
+    set({status:'preparing'});
+    let request;
+    try{request=await prepare();}catch(e){set({status:'ready'});throw e}

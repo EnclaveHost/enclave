@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enclave · {{TITLE}}</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script></head>
+<body data-stage="{{STAGE}}" data-done="{{DONE}}"><main>
+<p class="eyebrow">ENCLAVE · LOCAL WALLET HANDOFF · ADDRESS-BOOK ENTRY · ONE TRANSACTION</p>
+<h1>{{TITLE}}</h1>
+<p>{{LEDE}}</p>
+<dl><dt>Network</dt><dd>Base · chain 8453</dd><dt>Administrator (signs)</dt><dd id="from"></dd><dt>Destination</dt><dd id="to"></dd><dt>Call</dt><dd>{{CALL}}</dd><dt>Value</dt><dd id="value"></dd><dt>Network fee</dt><dd>Shown by MetaMask. The server caps the L2 fee and bounds the L1 data fee for the signed transaction; any OP-stack operator fee is not included in that bound. Do not edit gas or fees.</dd></dl>
+<p class="scope">{{EFFECT}}</p>
+<p class="scope">{{ROLLBACK}}</p>
+<p id="wallet">Detecting MetaMask…</p>
+<div class="actions"><button id="connect" disabled>Connect MetaMask</button><button id="sign" disabled>Review transaction in MetaMask</button></div>
+<p id="status" role="status">Loading…</p>
+<div id="recover" hidden><label for="hash">Transaction hash</label><input id="hash" spellcheck="false" autocomplete="off" placeholder="0x… (from MetaMask's activity tab)"><button id="check" disabled>Check pending transaction</button></div>
+<details><summary>Inspect transaction data</summary><pre id="transaction"></pre></details>
+<p class="fine">Every request rechecks Base on two public providers at one agreed block, re-reads every current deployment's custody policy and simulates the exact call before MetaMask is asked. MetaMask opens only when you click. The administrator key stays in MetaMask; this local server never signs or sends.</p>
+</main></body></html>

@@ -1,0 +1,7 @@
+capture-binding: detected
+artifact-bytes: detected
+current-inputs: detected
+fresh-state: detected
+environment: detected
+extra-entry: detected
+6/6 broken launch-package guards detected; offline only

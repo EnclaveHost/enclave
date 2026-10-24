@@ -1,0 +1,15 @@
+2026-10-23 ROOT-NEXT-HANDOFF: administrator wallet handoff for the canary upload + catalog publish, source only,
+INACTIVE (no server start, no browser on a real wallet, no production endpoint, upload, signature, chain write or key).
+- Upload: personal_sign of exactly enclave-upload:<sha>:<expiry>; signer recovered locally; token -> add-wasm -> CID must
+  equal the pinned CID; bytes fetched back by CID must hash to the pin; durable journal (no signature stored).
+- Publish: gated on a fresh fetch-back; vendored reviewed preparer (ad81dd5) re-run at every prepare; reviewed transport
+  (fb189e46) + gate/routes/reconcile additions (evidence/handoff-server.diff); exact-field accept; 2-provider verify with
+  catalog event + getApp/getVersion readback; chain-based reconcile for a lost hash.
+- Port 39675 (factory 39672 untouched). Tests: handoff 11/11, browser 2/2 (464 MiB), mutants 15/15.
+2026-10-23T22:31Z ROOT-REVIEW corrections:
+- Privacy: no remote response body is kept, logged or returned. Relay/gateway/storage-fetch failures become a fixed
+  diagnostic plus at most an HTTP status; a gateway "CID" is kept only if it is CID-shaped; recovery errors are generic.
+  A test reflects signature/token in fake error bodies and the CID field: no leak anywhere.
+- Unknown upload: a failed verify-storage (timeout/5xx/network/404) keeps upload-unknown with an honest reason; the only
+  way back to an authorization is the administrator's explicit same-bytes retry (no automatic re-upload).
+- Tests (queue 512): handoff 12/12, browser 2/2 (464 MiB), mutants 21/21. Still INACTIVE: no server, browser or network.

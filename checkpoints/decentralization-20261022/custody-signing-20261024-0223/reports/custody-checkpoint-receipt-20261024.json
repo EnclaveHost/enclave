@@ -1,0 +1,43 @@
+{
+  "verifiedAt": "2026-10-24T02:06:54.145642+00:00",
+  "repository": "https://github.com/EnclaveHost/enclave",
+  "branch": "checkpoint/decentralization-20261022",
+  "commit": "21f0c480cf08b8e2cdff011ef91f3b30738ec18d",
+  "mainUnchanged": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+  "gitObjectManifestFilesVerified": 200,
+  "previousManifestUnchanged": true,
+  "sourceScan": "Project gitleaks and crypto scanner clean before commit; pre-push hook passed",
+  "productionRollout": "INCOMPLETE; no custody lifecycle test run",
+  "maintenanceApproval": "PENDING; no delegation or funding change",
+  "canaryScaffold": "Explicitly unfinished, not executable; preserved as source only",
+  "temporaryLeaseKeeperExpiresUTC": "2026-10-24T03:53:51Z",
+  "previousManifestsUnchanged": true,
+  "canarySourceCommit": "d1fc04dcaf6c9ebcfc9636f509307c2c2ddc0e8f",
+  "offlineTests": {
+    "pass": 78,
+    "unexpectedFailures": 0,
+    "knownRollbackTodo": 1,
+    "mutationControlsDetected": 35
+  },
+  "temporaryKeeperConfirmedLive": {
+    "at": "2026-10-24T02:06:08Z",
+    "mainPid": 716107,
+    "active": true
+  },
+  "healthEvidence": "custody-protected-health-20261024.json",
+  "hostAuthorityEvidence": "custody-host-authority-20261024.json",
+  "lastObservedLeaseExpiriesUTC": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": "2026-10-24T01:44:41+00:00",
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": "2026-10-24T01:48:05+00:00"
+  },
+  "keeperLimitCaveat": "Eight renewals per app may stop protection before the03:53:51UTC outer cutoff.",
+  "signingFixes": {
+    "factorySource": "8b1357ec8f6039b79ffa0a0cf5f63bf9156c6e44",
+    "factoryTests": 19,
+    "canaryWalletSource": "f77e6a707903be3bcdeb9237366dce25d1cf9fc3",
+    "canaryWalletTests": 16,
+    "factoryFreshPreflight": "passed",
+    "factoryJournal": "ready; no hash",
+    "canaryUpload": "unknown; readback returned404; explicit same-bytes retry required"
+  }
+}
