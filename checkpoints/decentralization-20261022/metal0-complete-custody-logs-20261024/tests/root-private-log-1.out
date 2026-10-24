@@ -1,0 +1,165 @@
+TAP version 13
+# Subtest: exact reviewed image packages capture-only host and isolated state, with no inherited wallet environment
+ok 1 - exact reviewed image packages capture-only host and isolated state, with no inherited wallet environment
+  ---
+  duration_ms: 430.250162
+  type: 'test'
+  ...
+# Subtest: state is never reused or overwritten by a repeated preparation
+ok 2 - state is never reused or overwritten by a repeated preparation
+  ---
+  duration_ms: 599.387256
+  type: 'test'
+  ...
+# Subtest: modified config, injected files and missing review digest cannot pass verification
+ok 3 - modified config, injected files and missing review digest cannot pass verification
+  ---
+  duration_ms: 637.613433
+  type: 'test'
+  ...
+# Subtest: changed binary or launch pins fail rather than adopt new settings
+ok 4 - changed binary or launch pins fail rather than adopt new settings
+  ---
+  duration_ms: 575.489999
+  type: 'test'
+  ...
+# Subtest: symlinks, public registry-key permissions and colliding ports refuse before creating package
+ok 5 - symlinks, public registry-key permissions and colliding ports refuse before creating package
+  ---
+  duration_ms: 494.407887
+  type: 'test'
+  ...
+# Subtest: genesis capture cannot be redirected to another package
+ok 6 - genesis capture cannot be redirected to another package
+  ---
+  duration_ms: 195.073531
+  type: 'test'
+  ...
+# Subtest: one launch is journaled before effect and actual process/cgroup/socket checks preserve existing VMs
+ok 7 - one launch is journaled before effect and actual process/cgroup/socket checks preserve existing VMs
+  ---
+  duration_ms: 7.528363
+  type: 'test'
+  ...
+# Subtest: accepted authority, memory, ports, original services and unchanged census gate the first launch
+ok 8 - accepted authority, memory, ports, original services and unchanged census gate the first launch
+  ---
+  duration_ms: 5.045464
+  type: 'test'
+  ...
+# Subtest: uncertain start is never repeated; exact live invocation can be reconciled
+ok 9 - uncertain start is never repeated; exact live invocation can be reconciled
+  ---
+  duration_ms: 2.529927
+  type: 'test'
+  ...
+# Subtest: unit replacement, escaped or substituted process, unexpected environment and changed tenant all refuse
+ok 10 - unit replacement, escaped or substituted process, unexpected environment and changed tenant all refuse
+  ---
+  duration_ms: 16.505332
+  type: 'test'
+  ...
+# Subtest: kernel-enforced cgroup, OOM, available memory and exact loopback socket ownership are required
+ok 11 - kernel-enforced cgroup, OOM, available memory and exact loopback socket ownership are required
+  ---
+  duration_ms: 19.871902
+  type: 'test'
+  ...
+# Subtest: stop works on our unhealthy invocation but refuses replacement or protected process in its cgroup
+ok 12 - stop works on our unhealthy invocation but refuses replacement or protected process in its cgroup
+  ---
+  duration_ms: 3.212421
+  type: 'test'
+  ...
+# Subtest: file recheck failure and tampered record cannot authorize start or stop
+ok 13 - file recheck failure and tampered record cannot authorize start or stop
+  ---
+  duration_ms: 1.555436
+  type: 'test'
+  ...
+# Subtest: reused PID or restarted VM cannot inherit a previous verified observation
+ok 14 - reused PID or restarted VM cannot inherit a previous verified observation
+  ---
+  duration_ms: 2.22583
+  type: 'test'
+  ...
+# Subtest: stop is still attempted when a protected service is unhealthy; it never claims preservation without evidence
+ok 15 - stop is still attempted when a protected service is unhealthy; it never claims preservation without evidence
+  ---
+  duration_ms: 1.14361
+  type: 'test'
+  ...
+# Subtest: stopping the custodian preserves a later-launched recipient VM, even outside the initial baseline
+ok 16 - stopping the custodian preserves a later-launched recipient VM, even outside the initial baseline
+  ---
+  duration_ms: 2.012832
+  type: 'test'
+  ...
+# Subtest: stop refuses a recipient or unknown process accidentally sharing the custodian cgroup
+ok 17 - stop refuses a recipient or unknown process accidentally sharing the custodian cgroup
+  ---
+  duration_ms: 1.678915
+  type: 'test'
+  ...
+# Subtest: a later recipient disappearing during stop cannot be reported as preserved
+ok 18 - a later recipient disappearing during stop cannot be reported as preserved
+  ---
+  duration_ms: 1.342238
+  type: 'test'
+  ...
+# Subtest: real child streams are private and only hashes and provenance leave inspection
+not ok 19 - real child streams are private and only hashes and provenance leave inspection
+  ---
+  duration_ms: 24.026955
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/private-log.test.mjs:4:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    39 !== 40
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 40
+  actual: 39
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/custody-v2-r2-production-canary-20261024/test/private-log.test.mjs:7:85)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: aggregate stream cap fails once and never creates oversized output or a success record
+ok 20 - aggregate stream cap fails once and never creates oversized output or a success record
+  ---
+  duration_ms: 10.941652
+  type: 'test'
+  ...
+# Subtest: uncompleted, swapped, public, symlinked, hardlinked and other-generation logs cannot pass
+ok 21 - uncompleted, swapped, public, symlinked, hardlinked and other-generation logs cannot pass
+  ---
+  duration_ms: 2.808234
+  type: 'test'
+  ...
+# Subtest: stream failure cannot be mistaken for complete and private errors are not serialized
+ok 22 - stream failure cannot be mistaken for complete and private errors are not serialized
+  ---
+  duration_ms: 1.335968
+  type: 'test'
+  ...
+# Subtest: public or nonempty directories are rejected before stream output
+ok 23 - public or nonempty directories are rejected before stream output
+  ---
+  duration_ms: 0.604494
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 22
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2986.805887

@@ -1,0 +1,8 @@
+aggregate-cap: detected
+host-generation: detected
+file-identity: detected
+failed-capture: detected
+completion: detected
+private-mode: detected
+runtime-provenance: detected
+7/7 log/provenance guard mutations detected; local processes and synthetic runtime fixtures only

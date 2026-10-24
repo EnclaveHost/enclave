@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-24T04:33:18.952619+00:00",
+  "listed": true,
+  "serving": true,
+  "eligible": true,
+  "held": [
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "vm": "gd9d4a391d",
+      "status": "running",
+      "owned": true
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "vm": "gdd0646f2c",
+      "status": "running",
+      "owned": true
+    }
+  ],
+  "tenantVouch": {
+    "at": "2026-10-24T04:32:38.716Z",
+    "ok": true,
+    "vouched": 2,
+    "reason": "ok"
+  },
+  "apps": [
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "healthy": true,
+      "detail": "html 42685B title 'image generator'"
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "healthy": true,
+      "detail": "ok/pong"
+    }
+  ]
+}

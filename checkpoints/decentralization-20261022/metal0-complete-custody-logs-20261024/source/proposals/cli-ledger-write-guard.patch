@@ -1,0 +1,37 @@
+--- a/cli/enclave.mjs	2026-10-23 14:34:27.524325214 -0700
++++ b/cli/enclave.mjs	2026-10-23 14:34:27.537174551 -0700
+@@ -655,6 +655,7 @@
+ async function sendTx(account, { address, abi, functionName, args: a, value }) {
+   // before the --unsigned branch below, so an unsigned transaction for someone else to sign is guarded too (enclave-b4)
+   if (String(address).toLowerCase() === String(DEFAULTS.APP_CATALOG_ADDRESS).toLowerCase()) catalogWriteAllowed();
++  if ([DEFAULTS.DEPLOYMENTS_ADDRESS, DEFAULTS.REGISTRY_ADDRESS].some((a) => String(address).toLowerCase() === String(a).toLowerCase())) ledgerWriteAllowed(address);
+   const name = { [DEFAULTS.DEPLOYMENTS_ADDRESS]: "EnclaveDeployments",
+                  [DEFAULTS.APP_CATALOG_ADDRESS]: "EnclaveAppCatalog" }[address] || address;
+   trace(`tx ${name}.${functionName}(${a.map(fmtArg).join(", ")})${value ? ` value=${formatUnits(value, 18)} ETH` : ""}`);
+@@ -5896,7 +5897,17 @@
+ // deploy would have read versions and fees from it). So an unread book is said
+ // on stderr, not only under --trace, and a catalog WRITE is refused unless the
+ // catalog address came from the book or the book was switched off on purpose.
+-const BOOK = { wanted: false, catalogFromBook: false, why: "" };
++const BOOK = { wanted: false, catalogFromBook: false, ledgerFromBook: false, why: "" };
++// The baked ledger is RETIRED (the book names ledger rev16d 0xB1783B61…). A write to the ledger or registry must come from
++// the book read at start or from explicit pins, never from a silent fallback to the baked addresses; and no pin may name
++// the retired ledger. (Proposal from work/custody-v2-production-canary-20261023/proposals; not applied there.)
++const RETIRED_LEDGERS = ["0xf9e71385c5cb49844f2457ba6567de0742f8b89a"];
++function ledgerWriteAllowed(address) {
++  if (RETIRED_LEDGERS.includes(String(address).toLowerCase())) throw new Error(`refusing to write to the retired ledger ${address}: pass --contract-pins naming the book's current ledger`);
++  if (CONTRACT_PINS || !BOOK.wanted || BOOK.ledgerFromBook) return;
++  throw new Error(`refusing to write to the ledger or registry: the on-chain address book was not read (${BOOK.why}), so this CLI `
++    + `would use its baked addresses. Retry, pass --contract-pins, or set ENCLAVE_ADDRESS_BOOK="" to use the baked addresses on purpose.`);
++}
+ function catalogWriteAllowed() {
+   if (!BOOK.wanted || BOOK.catalogFromBook) return;
+   throw new Error(`refusing to write to the app catalog: the on-chain address book was not read (${BOOK.why}), so this CLI `
+@@ -5922,6 +5933,7 @@
+       if (name && DEFAULTS[name] !== undefined && !/^0x0{40}$/i.test(v)) {
+         DEFAULTS[name] = v;
+         if (name === "APP_CATALOG_ADDRESS") BOOK.catalogFromBook = true;
++        if (name === "DEPLOYMENTS_ADDRESS") BOOK.ledgerFromBook = true;
+       }
+     });
+     if (!BOOK.catalogFromBook) BOOK.why = "it names no appCatalog";

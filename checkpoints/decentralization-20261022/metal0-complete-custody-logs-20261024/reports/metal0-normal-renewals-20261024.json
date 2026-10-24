@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-24T04:47:02.777Z",
+  "startedAt": "2026-10-24T04:47:00.377Z",
+  "status": "verified-both-normal-renewals",
+  "readOnly": true,
+  "source": "enclave-metal.service journal since original control restart, independently verified renewal receipts",
+  "apps": {
+    "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9": {
+      "hash": "0x9bc892c7fc20407b63d9806afcaec140850015fbec6010e07a684c963acc1f0b",
+      "receiptVerified": true,
+      "leaseUntil": 1792818707,
+      "blockNumber": "53013780",
+      "guest": "gd9d4a391d",
+      "originalGuestHealthy": true,
+      "previousClaimExpiry": 1792817129
+    },
+    "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c": {
+      "hash": "0xfca343ec0e74b1ebac55b0d002b853798dc5f4415560b80be19cf98cc6c0498a",
+      "receiptVerified": true,
+      "leaseUntil": 1792818827,
+      "blockNumber": "53013840",
+      "guest": "gdd0646f2c",
+      "originalGuestHealthy": true,
+      "previousClaimExpiry": 1792817143
+    }
+  },
+  "errors": {}
+}
