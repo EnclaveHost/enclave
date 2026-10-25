@@ -156,6 +156,7 @@ func TestNativeGuestKVM(t *testing.T) {
 	if waiting != 1 {
 		t.Fatalf("expected one waiting controller release reader; got %d", waiting)
 	}
+	gpuExecuted := false
 	if strings.Contains(string(cmdline), "native.graphics.probe=1") {
 		var desktopPID string
 		for _, pid := range strings.Fields(string(raw)) {
@@ -174,7 +175,12 @@ func TestNativeGuestKVM(t *testing.T) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		probe := exec.CommandContext(ctx, "/probe-native-graphics", desktopPID)
+		args := []string{desktopPID}
+		masked := strings.Contains(string(cmdline), "native.graphics.masked=1")
+		if masked {
+			args = append(args, "masked")
+		}
+		probe := exec.CommandContext(ctx, "/probe-native-graphics", args...)
 		probe.SysProcAttr = &syscall.SysProcAttr{UseCgroupFD: true, CgroupFD: d.native.group.FD()}
 		out, err := probe.CombinedOutput()
 		if err != nil {
@@ -183,6 +189,10 @@ func TestNativeGuestKVM(t *testing.T) {
 		var result map[string]any
 		if err = json.Unmarshal(out, &result); err != nil || result["passed"] != true {
 			t.Fatalf("desktop graphics result: %v (%s)", err, out)
+		}
+		gpuExecuted = result["gpuExecuted"] == true
+		if gpuExecuted != masked {
+			t.Fatal("graphics worker mode differs from the requested fixture")
 		}
 		fmt.Printf("NATIVE_GRAPHICS_RESULT=%s\n", bytes.TrimSpace(out))
 	}
@@ -226,5 +236,5 @@ func TestNativeGuestKVM(t *testing.T) {
 	if m.noDomains != "" {
 		t.Fatal("native cleanup poisoned the guest", m.noDomains)
 	}
-	fmt.Printf(`NATIVE_MONITOR_RESULT={"workerRevocation":%t,"passed":true,"nativeGraph":true,"secretReleased":false,"controllerExecuted":false,"gpuExecuted":false,"productionRelease":false,"claimSingleUse":true,"cgroupRemoved":true,"domainRemoved":true}`+"\n", revocation)
+	fmt.Printf(`NATIVE_MONITOR_RESULT={"workerRevocation":%t,"passed":true,"nativeGraph":true,"secretReleased":false,"controllerExecuted":false,"gpuExecuted":%t,"productionRelease":false,"claimSingleUse":true,"cgroupRemoved":true,"domainRemoved":true}`+"\n", revocation, gpuExecuted)
 }
