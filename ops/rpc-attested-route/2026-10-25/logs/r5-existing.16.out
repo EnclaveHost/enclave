@@ -1,0 +1,11 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/policy-mirror-sync-race.test.mjs
+✔ a publication that lands while a sync verifies is kept; the sync judges only what it captured (284.090181ms)
+✔ the checks stand: a foreign-signed document is refused on publication and dropped from a stored copy; the anchored one is filled from importDir (138.260849ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 590.417161

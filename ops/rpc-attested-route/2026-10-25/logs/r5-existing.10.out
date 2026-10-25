@@ -1,0 +1,40 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-reader.test.mjs
+✔ only an agreeing recent chain quorum can renew authorization (7.142695ms)
+✔ a stale outlier cannot prevent two fresh peers from agreeing (1.212831ms)
+✔ guest proof expires without self-extension and lease changes invalidate it (0.695854ms)
+✔ a missing deployment is revoked without withholding another app lease (1.513729ms)
+✔ a stalled snapshot cannot withhold an already agreeing quorum (0.979583ms)
+✔ a transport failure keeps the last guest proof only until it expires; a mismatch revokes it now (0.525226ms)
+✔ publications arriving during a snapshot share the next one (2.709719ms)
+✔ a peer head lagging behind the accepted block rereads that block instead of refusing (1.159811ms)
+✔ only a rate-limit refusal is retried (10.47016ms)
+✔ an app whose host left the registry is withheld without failing the apps sharing its snapshot (1.866116ms)
+✔ a peer that never answers its head cannot hold the snapshot for its request timeout (20.943019ms)
+✔ registry entries come from agreeing peers and decode only the original entry prefix (1.385959ms)
+✔ a registry read does not wait behind a stalled lease snapshot (0.803154ms)
+✔ schema 16 with no connectivity contract in the book reads as 15 under 'auto' (the 16d cutover outage) (1.116442ms)
+✔ a refresh with NO agreeing answer holds a running lease up to the grace after its last agreeing read, never past its end (1.084972ms)
+✔ a lease extended by an outage hold keeps the proofs made before it: a proof lasts its own 60 s (2026-10-14 07:28) (0.285878ms)
+✔ a fast liar beside a fast honest RPC cannot shut out a slower honest head (81.413386ms)
+✔ a liar whose low head makes the first block stale is outvoted at a newer block once the late honest head is in (81.122358ms)
+✔ a block that ages past the freshness bound during the read is not accepted (0.701475ms)
+✔ one deadline bounds the whole read, and no request starts after it (200.447843ms)
+✔ an agreed inactive lease replaces the cache at once, and no hold revives it (101.387493ms)
+✔ an answer is never older than a block another call on the same reader accepted meanwhile (21.220327ms)
+✔ a header for another block, a malformed hash or timestamp, or a header that changes under the read is refused (1.977015ms)
+✔ one client twice, or a client without the read calls, is refused (0.344728ms)
+✔ a read function cannot shadow the checked header, and its mistakes are reported as such (1.170372ms)
+✔ one public host is one vote, however its URL is written (1.996125ms)
+✔ a malformed RPC configuration is refused without echoing the URL (0.381057ms)
+✔ injected clients count by the URL they expose; URL-less test clients count by identity (3.075256ms)
+✔ chain policy is bounded at construction and again at every read (0.687674ms)
+✔ a local chain over plain loopback HTTP is accepted with real viem clients; public HTTP is not (43.604426ms)
+✔ an address literal is one vote however it is spelled, including IPv4 written as IPv6; distinct addresses stay distinct (0.986692ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 872.019506

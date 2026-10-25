@@ -31,6 +31,7 @@ import {connectivityAddress,submitAttestations,ensureHost} from '../onchain-qual
 import {createWalletClient} from 'viem';
 import {resolveProviderBootstrap} from '../service-index.mjs';
 import {providerHostServices,hostServicesPolicyEnv,providerDnsPlan} from './host-services-config.mjs';
+import {providerChainAuthority,providerHostPolicyRuntime} from './attested-authority.mjs';
 import {probeDns} from './dns-probe.mjs';
 import {resolveHostPolicyConfig} from '../platform-host-policy-config.mjs';
 import {createHostPolicyRuntime,fileStore} from '../host-policy-runtime.mjs';
@@ -51,9 +52,11 @@ const conntrack=hostServices?.dns?commandOnPath('conntrack'):null;
 // failover could keep steady resolvers on a removed host indefinitely. Its transport roles are unaffected.
 const dnsPlan=providerDnsPlan(hostServices,conntrack),dnsOn=dnsPlan.on;
 if(rulesetOnly){process.stdout.write(ruleset({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',dns:hostServices?.dns?.limits||null}));process.exit(0);}
+// THE chain authority, one explicit choice (attested-authority.mjs): the RPC quorum, or an attested remote verifier for
+// EVERY chain read (registry, leases, owner signatures AND the host-services admission policy) - never mixed, no fallback
+const chainAuth=providerChainAuthority(cfg,{log});
 if(checkOnly){
- if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
- console.log(JSON.stringify({ok:true,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+ console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
   pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes,
   hostServices:hostServices&&{zone:hostServices.zone,platformHostPolicy:typeof hostServices.platformHostPolicy==='string'?hostServices.platformHostPolicy:'explicit',maxHosts:hostServices.maxHosts,dnsHosts:hostServices.dns?.hosts.length||0,
    ...(hostServices.dns?{conntrack:conntrack||null}:{})}}));
@@ -67,13 +70,14 @@ const directories=new DirectoryClient({origins:boot.directories});
 const ports={exit:51820,guard:51821,control:51822,...cfg.ports};
 const providerId=providerIdFor(account.address,cfg.publicAddress);
 const stateDir=cfg.stateDir||'/var/lib/enclave-network';await fs.mkdir(stateDir,{recursive:true,mode:0o700});
-if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
+log(`chain authority: ${chainAuth.describe}`);
 
 // A paid provider charges through the on-chain connectivity contract: it must be a registry host that can sign receipts.
 const paid=(cfg.pricePerGiB6||0)>0;
 if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
-const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{})});
-const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
+const leases=new LeaseReader({...(chainAuth.mode==='attested-verifier'?{}:{rpc:cfg.rpc}),addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuth.leaseReaderOptions});
+// raw RPC clients exist only under the RPC quorum (a paid provider's on-chain writes); the attested authority has none
+const clients=chainAuth.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
 // Owner signatures use the same fresh chain quorum and explicit factory binding.
 const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
 const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,dns:dnsPlan.limits,log});
@@ -108,11 +112,11 @@ if(hostServices){
  if(dnsPlan.reason)log('DNS 53 NOT FORWARDED: '+dnsPlan.reason+' (install conntrack, then restart)');
  const env=hostServicesPolicyEnv(hostServices);
  if(!env)log('host services: platform host policy is EXPLICITLY OFF (development only; not a production transport profile)');
+ // (attested-authority.mjs providerHostPolicyRuntime: the same runtime, over THIS provider's one chain authority)
  // the accepted policy persists under stateDir (as host-service-gate does): a restart while the policy mirrors are
  // unreachable keeps judging hosts against the last ANCHORED, signed policy - every decision is still made at a fresh
  // agreed block, an unanchored or rotated authority still refuses, and only an explicit admit grants (final review N4)
- else{const resolved=resolveHostPolicyConfig({env,chainId:8453});const rt=createHostPolicyRuntime(resolved,{log,store:fileStore(path.join(stateDir,'platform-host-policy.json'))});
-  if(!rt)throw new Error('host services: the platform host policy did not resolve');hostAdmission=rt.admissions;}
+ else hostAdmission=providerHostPolicyRuntime(hostServices,chainAuth,{stateDir,log}).admissions;
  log(`host services: zone ${hostServices.zone}, at most ${hostServices.maxHosts} hosts; DNS 53 ${hostServices.dns?'to one of '+hostServices.dns.hosts.length+' pinned host(s)':'not forwarded'}`);
 }
 // a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement

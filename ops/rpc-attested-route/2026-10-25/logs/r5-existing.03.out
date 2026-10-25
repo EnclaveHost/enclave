@@ -1,0 +1,219 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/host-services-carriers.test.mjs
+✔ shared helper: one carrier origin and base rule (policy-carriers re-exports them); the block is explicit and validated (3.210814ms)
+✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (372.967778ms)
+✖ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (332.263761ms)
+✖ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (327.948026ms)
+✖ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (330.508456ms)
+✖ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (329.835322ms)
+✖ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (276.562157ms)
+✔ verifier seam: with one injected chain authority, neither the gate nor a carrier opens a raw RPC quorum of its own (241.77802ms)
+✔ enrollment: the opt-in file carries hostServicesPolicy (a non-production book becomes eligible only through it); an invalid one writes nothing (12.796766ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 3
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 21886.118788
+
+✖ failing tests:
+
+test at test/host-services-carriers.test.mjs:65:1
+✖ empty state, every fleet front refused: the first authenticated admit comes from an imported carrier (372.967778ms)
+  AssertionError [ERR_ASSERTION]: expected 1x /no apps: running this host's services only/ in:
+  node:internal/modules/package_json_reader:314
+    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+          ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs
+      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+      at packageResolve (node:internal/modules/esm/resolve:772:81)
+      at moduleResolve (node:internal/modules/esm/resolve:859:18)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    code: 'ERR_MODULE_NOT_FOUND'
+  }
+  
+  Node.js v22.23.3
+  
+      at d.until (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/helpers/privacy-agent-rig.mjs:69:12)
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/host-services-carriers.test.mjs:69:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/host-services-carriers.test.mjs:75:1
+✖ missing, unanchored, substituted and wrongly signed carrier data never admit; the anchored document then does, without a restart (332.263761ms)
+  AssertionError [ERR_ASSERTION]: expected 1x /host services held: platform host policy:/ in:
+  node:internal/modules/package_json_reader:314
+    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+          ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs
+      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+      at packageResolve (node:internal/modules/esm/resolve:772:81)
+      at moduleResolve (node:internal/modules/esm/resolve:859:18)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    code: 'ERR_MODULE_NOT_FOUND'
+  }
+  
+  Node.js v22.23.3
+  
+      at d.until (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/helpers/privacy-agent-rig.mjs:69:12)
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/host-services-carriers.test.mjs:80:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/host-services-carriers.test.mjs:96:1
+✖ admin ban and allow arrive through the carrier; a missing updated document and an anchored rollback fail closed (327.948026ms)
+  AssertionError [ERR_ASSERTION]: expected 1x /host services: \{/ in:
+  node:internal/modules/package_json_reader:314
+    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+          ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs
+      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+      at packageResolve (node:internal/modules/esm/resolve:772:81)
+      at moduleResolve (node:internal/modules/esm/resolve:859:18)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    code: 'ERR_MODULE_NOT_FOUND'
+  }
+  
+  Node.js v22.23.3
+  
+      at d.until (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/helpers/privacy-agent-rig.mjs:69:12)
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/host-services-carriers.test.mjs:100:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/host-services-carriers.test.mjs:115:1
+✖ first app added and last app removed never touch host services; a restart needs a FRESH authenticated admit (330.508456ms)
+  AssertionError [ERR_ASSERTION]: expected 1x /host services: \{/ in:
+  node:internal/modules/package_json_reader:314
+    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+          ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs
+      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+      at packageResolve (node:internal/modules/esm/resolve:772:81)
+      at moduleResolve (node:internal/modules/esm/resolve:859:18)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    code: 'ERR_MODULE_NOT_FOUND'
+  }
+  
+  Node.js v22.23.3
+  
+      at d.until (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/helpers/privacy-agent-rig.mjs:69:12)
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/host-services-carriers.test.mjs:120:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/host-services-carriers.test.mjs:133:1
+✖ this host's policy-mirror store (read from disk, the role need not run) and an independent peer's mirror carry the document (329.835322ms)
+  AssertionError [ERR_ASSERTION]: expected 1x /host services: \{/ in:
+  node:internal/modules/package_json_reader:314
+    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+          ^
+  
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs
+      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+      at packageResolve (node:internal/modules/esm/resolve:772:81)
+      at moduleResolve (node:internal/modules/esm/resolve:859:18)
+      at defaultResolve (node:internal/modules/esm/resolve:989:11)
+      at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+      at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)
+      at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
+      at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
+    code: 'ERR_MODULE_NOT_FOUND'
+  }
+  
+  Node.js v22.23.3
+  
+      at d.until (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/helpers/privacy-agent-rig.mjs:69:12)
+      at async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/host-services-carriers.test.mjs:137:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/host-services-carriers.test.mjs:148:1
+✖ a malformed policy block refuses an app-less agent before anything binds; with apps, it refuses host services only (276.562157ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /an empty app list runs only this host's services, and they are refused \(platform host policy: enclaveNetwork\.hostServicesPolicy/. Input:
+  
+  'node:internal/modules/package_json_reader:314\n' +
+    '  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);\n' +
+    '        ^\n' +
+    '\n' +
+    "Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs\n" +
+    '    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)\n' +
+    '    at packageResolve (node:internal/modules/esm/resolve:772:81)\n' +
+    '    at moduleResolve (node:internal/modules/esm/resolve:859:18)\n' +
+    '    at defaultResolve (node:internal/modules/esm/resolve:989:11)\n' +
+    '    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)\n' +
+    '    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)\n' +
+    '    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)\n' +
+    '    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {\n' +
+    "  code: 'ERR_MODULE_NOT_FOUND'\n" +
+    '}\n' +
+    '\n' +
+    'Node.js v22.23.3\n'
+  
+      at TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/host-services-carriers.test.mjs:154:45)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "node:internal/modules/package_json_reader:314\n  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);\n        ^\n\nError [ERR_MODULE_NOT_FOUND]: Cannot find package '@libp2p/crypto' imported from /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/discovery.mjs\n    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)\n    at packageResolve (node:internal/modules/esm/resolve:772:81)\n    at moduleResolve (node:internal/modules/esm/resolve:859:18)\n    at defaultResolve (node:internal/modules/esm/resolve:989:11)\n    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)\n    at ModuleLoader.resolve (node:internal/modules/esm/loader:724:38)\n    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)\n    at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v22.23.3\n",
+    expected: /an empty app list runs only this host's services, and they are refused \(platform host policy: enclaveNetwork\.hostServicesPolicy/,
+    operator: 'match',
+    diff: 'simple'
+  }

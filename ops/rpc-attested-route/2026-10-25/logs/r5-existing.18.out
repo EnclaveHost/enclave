@@ -1,0 +1,14 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/public-rpc-https.test.mjs
+﹣ configuration: the RPC name is fronted only for the host's own public-rpc with an explicit TLS port (0.796144ms) # needs the Foundry build (forge build)
+﹣ admission authority: service-tls reads the platform policy through the runner's verifier; G3's original field list did not (0.141069ms) # needs the Foundry build (forge build)
+﹣ packaged: one order for exactly the RPC name; SAN and SNI exact; real methods over HTTPS; no redirect; nothing else reachable (0.175958ms) # needs the Foundry build (forge build)
+﹣ restart: the stored certificate is served without a new order (0.241238ms) # needs the Foundry build (forge build)
+﹣ administration: the admin's ban stops HTTPS; the unban restores it with the same certificate (0.091959ms) # needs the Foundry build (forge build)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 5
+ℹ todo 0
+ℹ duration_ms 232.97683

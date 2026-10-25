@@ -1,0 +1,18 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/host-admission-retry.test.mjs
+✔ B1 bounded all-429: UNKNOWN within the 10 s budget (not the 30 s deadline), reasons named, no URL path/key, nothing DISPATCHED after the decision (13352.258604ms)
+✔ B2 mixed: one healthy RPC + one whose 429 window ends after 2.5 s (others 500/429): ridden out, ALLOWED (4125.402898ms)
+✔ B3 a permanently rate-limited RPC (drpc) does not delay two healthy agreeing answers (551.44124ms)
+✔ B4 moderation is FRESH per call: a yank is refused on the very next check, an un-yank allowed on the next (104.815422ms)
+✔ L1 DEFAULT reader (no option) keeps the original rule: all-429 -> fails fast, at most 3 head attempts per RPC (1966.410034ms)
+✔ L2 short deadline: retries never outlive it (deadline 2.5 s, budget 2 s -> capped at deadline - 1 s) (3476.838735ms)
+✔ L3 a non-429 error is NOT retried, even with the budget: each failing RPC is asked once (9.168725ms)
+✔ L4 head attempt: a 429 on eth_chainId does not end the attempt while eth_blockNumber is in flight (allSettled) (5404.633264ms)
+✔ L5 option validation: the budget must be a non-negative integer below the deadline (1.28112ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 29259.822962

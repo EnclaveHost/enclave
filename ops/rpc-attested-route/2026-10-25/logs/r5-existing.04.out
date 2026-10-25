@@ -1,0 +1,14 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/hosted-policy-cold-start.test.mjs
+﹣ fresh hosts with empty caches start under an ACTIVATED anchor with every fleet policy mirror refused; a fleet-only host never does (0.603425ms) # needs the Foundry build (forge build)
+﹣ the admin bans host B (new anchored document, published only to an Enclave host carrier): B stops every role; the next authenticated policy unbans it (0.099369ms) # needs the Foundry build (forge build)
+﹣ stale, substituted and wrongly signed documents are refused by the carrier and, independently, by the gate; an anchored rollback is refused (0.061139ms) # needs the Foundry build (forge build)
+﹣ runner: a failed spawn is an exit with backoff, never an unhandled error event; heapMiB is a V8 heap cap and the old name is refused (0.125699ms) # needs the Foundry build (forge build)
+﹣ the policy-mirror package: reviewed bytes, no secret, and its only custody/ input is the RPC quorum reader (0.072549ms) # needs the Foundry build (forge build)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 5
+ℹ todo 0
+ℹ duration_ms 210.498348

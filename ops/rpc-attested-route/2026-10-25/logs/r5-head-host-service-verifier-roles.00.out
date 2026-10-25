@@ -1,0 +1,13 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/host-service-verifier-roles.test.mjs
+✔ config: one explicit authority, the verifier local only and never a provider vote; the legacy quorum rule unchanged (3.702062ms)
+﹣ every public provider down: the hosts start on the verifier alone; the roles serve; host B cold-starts from the index read through it (0.184028ms) # needs the Foundry build (forge build)
+﹣ admin moderation through the verifier: ban and unban host B; then an AddressBook owner MIGRATION hands the policy to the new admin (0.088489ms) # needs the Foundry build (forge build)
+﹣ unknown, stale, missing and failed proofs REFUSE with the public providers up: no provider fallback in any reader (0.080719ms) # needs the Foundry build (forge build)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 3
+ℹ todo 0
+ℹ duration_ms 286.957722

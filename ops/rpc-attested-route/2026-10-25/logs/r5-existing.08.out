@@ -1,0 +1,20 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/lease-reader-verifier-deadline.test.mjs
+✔ a callback that never settles is rejected at the deadline; reader state is untouched (102.056637ms)
+✔ a callback that resolves after the deadline cannot answer, change state or send (450.293796ms)
+✔ a hung RPC inside the callback is bounded and its transport signal is aborted (100.026733ms)
+✔ retained clients cannot send after success, failure or timeout (119.95657ms)
+✔ the deadline is re-checked when the transport is actually invoked, not only when the request is queued (131.117515ms)
+✔ normal completion: callback-created pending requests are aborted, no timers stay behind (2.59043ms)
+✔ readAt (history) is bounded and closed the same way, and never becomes fresh authority (100.676517ms)
+✔ blockHashIs: true/false as before, a hung verifier answers false within the deadline and is aborted (99.559896ms)
+✔ the loopback HTTP verifier: a hung request is cancelled on the wire at the deadline (307.70442ms)
+✔ the deadline fires even when nothing else keeps the process alive (child process, no keep-alive) (328.569941ms)
+✔ policy is unchanged: the deadline bound and legacy quorum construction (0.459957ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1976.717809

@@ -498,9 +498,13 @@ export function resolveProviderBootstrap(cfg) {
   }
   if (mode !== 'explicit') throw new Error('bootstrap must be "legacy" or "explicit"');
   if ('addressBook' in cfg) throw new Error('explicit bootstrap uses authorityPins only: remove addressBook');
-  if (!Array.isArray(cfg.rpc) || cfg.rpc.length < 2) throw new Error('explicit bootstrap needs two or more RPCs');
-  const hosts = cfg.rpc.map((r) => { const e = rpcEndpoint(r, { loopbackPorts: false }); if (e.url.protocol !== 'https:') throw new Error('explicit bootstrap RPCs must be https'); return e.identity; });
-  if (new Set(hosts).size !== hosts.length) throw new Error('explicit bootstrap RPCs must be on distinct hosts');
+  // the attested chain authority (wg-provider/attested-authority.mjs) reads EVERY chain fact through an attested verifier and
+  // refuses an RPC list beside it; every other explicit provider still names its own two-or-more-host RPC quorum, unchanged
+  if (cfg.chainAuthority !== 'attested-verifier') {
+    if (!Array.isArray(cfg.rpc) || cfg.rpc.length < 2) throw new Error('explicit bootstrap needs two or more RPCs');
+    const hosts = cfg.rpc.map((r) => { const e = rpcEndpoint(r, { loopbackPorts: false }); if (e.url.protocol !== 'https:') throw new Error('explicit bootstrap RPCs must be https'); return e.identity; });
+    if (new Set(hosts).size !== hosts.length) throw new Error('explicit bootstrap RPCs must be on distinct hosts');
+  }
   const pins = validateNetworkAuthorities(cfg.authorityPins);
   for (const k of ['connectivity', 'sessionVaultFactory']) if (!(k in pins)) throw new Error(`explicit bootstrap needs authorityPins.${k} (zero to disable)`);
   if (!Array.isArray(cfg.checkers) || !cfg.checkers.length || cfg.checkers.some((c) => !ADDR.test(c))) throw new Error('explicit bootstrap needs one or more checker addresses');

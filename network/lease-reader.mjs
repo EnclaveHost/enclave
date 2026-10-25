@@ -7,6 +7,7 @@
 //    with it no provider client exists, so a failed proof or missing fresh evidence can only refuse.
 // Nan is neither a bootstrap nor an admission dependency.
 import {createPublicClient, http, stringToHex, encodeFunctionData, decodeFunctionResult} from 'viem';
+import {isAttestedVerifier} from './attested-verifier-brand.mjs';
 import {base} from 'viem/chains';
 import {canonical} from './route-record.mjs';
 import {readConnectivity} from './connectivity-chain.mjs';
@@ -151,7 +152,7 @@ export class LeaseReader {
     Object.defineProperty(this,'authority',{value:authority,enumerable:true});
     if(authority==='verifier'){
       // rpc/clients (spread in from a shared chain config) are deliberately NOT turned into clients: no fallback exists
-      this.verifier=verifierEndpoint(verifier);
+      this.verifier=verifierEndpoint(verifier);this.verifierAttested=isAttestedVerifier(verifier);
       Object.defineProperty(this,'authorityPins',{value:authorityPins===undefined?null:validateNetworkAuthorities(authorityPins),enumerable:true});
       this.clients=Object.freeze([]);this.labels=[];this.lastBlock=0n;this.cache=new Map();this.rateLimitRetryMs=0;this.lastEvidence=null;
       return;
@@ -235,7 +236,7 @@ export class LeaseReader {
   // What this reader's answers are worth, for evidence and status pages (never "independent").
   authorityInfo() {
     return this.authority==='verifier'
-      ?{authority:'local-verifier',head:'sequencer-signed Base unsafe head',tier:'unsafe',finality:'none',execution:'proof-backed (maintained Base EVM)',providerQuorum:false,last:this.lastEvidence}
+      ?{authority:this.verifierAttested?'attested-verifier':'local-verifier',localProof:!this.verifierAttested,head:'sequencer-signed Base unsafe head',tier:'unsafe',finality:'none',execution:'proof-backed (maintained Base EVM)',providerQuorum:false,last:this.lastEvidence}
       :{authority:'provider-quorum',head:'provider-reported',tier:'provider-reported',finality:'none',execution:'provider eth_call',providerQuorum:true,independentOfProviders:false};
   }
   agreed(read, failures=[]) {
@@ -394,7 +395,7 @@ export class LeaseReader {
       op.assertOpen();   // a body that outlived its deadline (a late callback) never answers or touches reader state
       if(b<this.lastBlock)throw new Error(`block ${b} is older than block ${this.lastBlock} accepted meanwhile`);
       this.lastBlock=b;
-      this.lastEvidence={authority:'local-verifier',tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
+      this.lastEvidence={authority:this.verifierAttested?'attested-verifier':'local-verifier',localProof:!this.verifierAttested,tier:'unsafe',blockNumber:String(b),blockHash:first.hash,stateRoot:first.stateRoot,timestamp:first.timestamp};
       return {...value,hash:first.hash,blockNumber:String(b),timestamp:first.timestamp};
     }).catch(e=>{
       if(e?.readerBug)throw e;
