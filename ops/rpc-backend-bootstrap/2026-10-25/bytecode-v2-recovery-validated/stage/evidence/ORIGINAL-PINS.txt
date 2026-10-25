@@ -1,0 +1,14 @@
+# original-evidence pins (snapshot 2026-10-25T22:56:03Z); the files themselves stay where they are
+2a5aca4eb8e366723f7e7f532906b97dff8ef9f217a03df321fe264744cf50ce  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-bytecode-v2-native-2249.out
+9d9b18720961e9b4689fd763b85e7b6f36160ccd3a8a1c9ddc5103bb0f66c396  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-bytecode-v2-native-2249.rc
+051e8fccdb89cc589b94754143e0dab4bbbc569c1a670d8c4f76a94a167caa44  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/inputs/STAGE-SHA256SUMS
+ea787c2b23cc664aa8db74890021159ce97d8f40c36cb9edd838a77a248d2b26  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/patched.test.out
+a46923ad96b7a0262995a1f7a7d42f23520607dfdd503a5c6824f0a175d24122  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/patched.build.json
+fb1cfb330fe8cb6d758175162ffc4a5a510c1586e9f6beed09248359eaa3a483  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/patched.build.err
+e901720ad6902c7ee60a4f6830b0052b638b707a9d2fef06d644a053c76e5aac  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/closure-manifest.json
+f3e7d9ca0cbf1c869dc1695087042bc6df1f7dbea4bb5a89dddbb77fd4aa000b  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/cargo-tree.txt
+a657b4943ca1d2b8b82e19028ca090dc4713d483dcc04a85722d49c02535aa70  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/root-oom-evidence.out
+7c95ec5bda0fa5812be493d592e1b87c7ed924155fa75c6372dca662a8c384ab  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/jobs/root-build-test.sh
+072a23a8c467d31748ed6c49451f8ef958ccb1ea93aba41cae9b4c57d69fc1ce  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/crate/src/tests.rs
+# 4294967296 bytes, 72 blocks of 512  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/build/tmp/base-bytecode-check-61028-v2bytes/db/mdbx.dat
+# no guard receipt: ls: cannot access '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-bytecode-v2-native-2249.guard': No such file or directory ls: cannot access '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/logs/root-build-test.guard': No such file or directory 

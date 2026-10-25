@@ -1,0 +1,67 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-validation/crate/src/tests.rs	2026-10-25 15:41:46.167226157 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/crate/src/tests.rs	2026-10-25 15:55:49.687642551 -0700
+@@ -255,6 +255,20 @@
+         let _ = std::fs::remove_dir_all(&self.0);
+     }
+ }
++/// Explicit small MDBX geometry for EVERY fixture DB (pinned reth-db 7134be3 API). The default geometry (8 TB max, 4 GiB
++/// growth step) makes each fixture mdbx.dat a 4 GiB sparse file, which the byte-for-byte read-only test reads into memory
++/// twice (the 1792 MiB cgroup OOM of the first native v2 run). Fixture-only: the product scan opens the DB as before.
++const FIXTURE_MAX_BYTES: usize = 64 << 20;
++const FIXTURE_GROWTH_BYTES: usize = 4 << 20;
++fn fixture_args() -> DatabaseArguments {
++    DatabaseArguments::default().with_geometry_max_size(Some(FIXTURE_MAX_BYTES)).with_growth_step(Some(FIXTURE_GROWTH_BYTES))
++}
++/// Every fixture mdbx.dat must be non-empty and within the fixture geometry; returns its size.
++fn assert_bounded(f: &Path) -> u64 {
++    let n = std::fs::metadata(f).expect("mdbx.dat").len();
++    assert!(n > 0 && n <= FIXTURE_MAX_BYTES as u64, "fixture {} is {n} bytes: not within the {FIXTURE_MAX_BYTES}-byte fixture geometry", f.display());
++    n
++}
+ /// v2 fixture: every DB also carries the 5 stage checkpoints at N_CP unless a test asks otherwise (make_db_with).
+ fn make_db(name: &str, rows: &[(Vec<u8>, Vec<u8>)], accounts: &[Option<B256>]) -> TmpDir {
+     make_db_with(name, rows, accounts, &all_cps())
+@@ -262,7 +276,7 @@
+ fn make_db_with(name: &str, rows: &[(Vec<u8>, Vec<u8>)], accounts: &[Option<B256>], cps: &[(&str, u64)]) -> TmpDir {
+     let d = TmpDir(std::env::temp_dir().join(format!("base-bytecode-check-{}-{name}", std::process::id())));
+     let _ = std::fs::remove_dir_all(&d.0);
+-    let db = reth_db::init_db(d.0.join("db"), DatabaseArguments::default()).expect("init_db");
++    let db = reth_db::init_db(d.0.join("db"), fixture_args()).expect("init_db");
+     db.update(|tx| {
+         for (k, v) in rows {
+             tx.put::<RawTable<tables::Bytecodes>>(RawKey::from_vec(k.clone()), RawValue::from_vec(v.clone())).expect("put row");
+@@ -276,6 +290,7 @@
+     })
+     .expect("commit");
+     drop(db);
++    assert_bounded(&d.0.join("db/mdbx.dat"));
+     d
+ }
+ fn identity(p: &Path) -> (u64, std::time::SystemTime) {
+@@ -388,7 +403,9 @@
+     let (k1, v1) = client_row(CODE);
+     let d = make_db("v2bytes", &[(k1.clone(), v1)], &[Some(B256::from_slice(&k1))]);
+     let f = d.0.join("db/mdbx.dat");
++    let size = assert_bounded(&f);
+     let before = std::fs::read(&f).expect("read mdbx.dat");
++    assert_eq!(before.len() as u64, size, "the whole fixture mdbx.dat must be read");
+     let r = scan_datadir(path(&d)).expect("scan");
+     assert!(r.ok(), "{}", r.json());
+     let after = std::fs::read(&f).expect("read mdbx.dat");
+@@ -493,7 +510,7 @@
+     let a = scan_datadir(path(&d)).expect("scan");
+     assert!(a.ok(), "{}", a.json());
+     {
+-        let db = reth_db::init_db(d.0.join("db"), DatabaseArguments::default()).expect("reopen read-write");
++        let db = reth_db::init_db(d.0.join("db"), fixture_args()).expect("reopen read-write");
+         db.update(|tx| {
+             tx.put::<RawTable<tables::Bytecodes>>(RawKey::from_vec(k4.clone()), RawValue::from_vec(v4.clone())).expect("put row");
+             tx.put::<tables::HashedAccounts>(B256::repeat_byte(0x77), Account { nonce: 1, balance: U256::ZERO, bytecode_hash: Some(B256::from_slice(&k4)) })
+@@ -501,6 +518,7 @@
+         })
+         .expect("commit");
+     }
++    assert_bounded(&d.0.join("db/mdbx.dat"));
+     let b = scan_datadir(path(&d)).expect("scan");
+     assert!(b.ok(), "{}", b.json());
+     assert!(b.txn_id > a.txn_id, "a later committed state is read at a later txn id: {:?} -> {:?}", a.txn_id, b.txn_id);
