@@ -89,7 +89,7 @@ import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
-import { isMcpHost, handleMcp } from "./mcp.js";
+import { isMcpHost, handleMcp, useMcpChainClient } from "./mcp.js";
 import { handleAccount, initAccounts, verifyAccountSession, vaultKeyOf, setSessionHooks } from "./auth.js";
 import { vaultAddressFor } from "./vaultsvc.js";
 import { handleSso, initSso } from "./sso.js";
@@ -108,12 +108,12 @@ import { claimCheapest, CLAIM_QUOTE_ABI } from "./cheapest-claim.mjs";
 import { createPlacement, pinnedHost } from "./placement.mjs";
 import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson, agreeingRead } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
-import { createLeaseGenerationReader, memoryStore, fileStore, startTracker } from "./lease-generation.mjs";
+import { createLeaseGenerationReader, memoryStore, fileStore, startTracker, refusingWriterAuthority } from "./lease-generation.mjs";
 import { createRegistryLiveness } from "./registry-liveness.mjs";
 import { createReferrals } from "./referrals.mjs";
 import { withDetachGrace } from "./route-grace.mjs";
 import {LeaseReader,createNetworkRoutes,DurableState,createLeaseSource,createRegistryOperator,createNetworkApi,networkReaderOptions,
-        createHostPolicyRuntime,resolveHostPolicyConfig,leaseHostAdmission,freshAdmissions} from "./network-runtime.bundle.mjs";
+        createHostPolicyRuntime,resolveHostPolicyConfig,leaseHostAdmission,freshAdmissions,relayChainAuthority} from "./network-runtime.bundle.mjs";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, avfAttestWithPvmCpu, pvmCpuAvailability, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
@@ -246,7 +246,7 @@ function hostSponsorRoutes() {
     try {
       sponsor = hostSponsor({ hub: tunnelHub, endpointOf: (n) => boxOrigin(n) || `${TUNNEL_ORIGIN}/t/${n}`,
                               ownerOf: async (n) => (await tunnelNameOwner(n)) || "", verifierKey: vk, bundlerKey: bk,
-                              paymaster: pm, registry: REGISTRY_ADDRESS, rpc: BASE_RPC, log: (m) => console.log(m) });
+                              paymaster: pm, registry: REGISTRY_ADDRESS, rpc: BASE_RPC, authority: RELAY_CHAIN, log: (m) => console.log(m) });
       console.log(`[sponsor] host registrations sponsored: paymaster ${pm}, verifier ${sponsor.verifier}, bundler ${sponsor.bundler}`);
     } catch (e) { console.error(`[sponsor] OFF: ${e.message}`); }
   }
@@ -323,6 +323,19 @@ let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env 
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
 const ADDRESS_BOOK      = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
 const BASE_RPC          = process.env.BASE_RPC || "https://mainnet.base.org";
+// THE RELAY'S CHAIN AUTHORITY (relay/relay-chain-authority.mjs): unset, chain() and the store's pool use BASE_RPC and its
+// fallbacks exactly as before. With ENCLAVE_CHAIN_AUTHORITY=verifier every read of chain() and of the pool is proven by the
+// local verifier, sends go only to the bound own backend, and no provider client exists (BASE_RPC must then be unset). An
+// invalid or mixed selection stops the relay HERE, before any key is loaded or any chain server is contacted.
+const RELAY_CHAIN = (() => {
+  try { return relayChainAuthority(process.env); }
+  catch (e) { console.error(`fatal: relay chain authority: ${e.message}`); process.exit(1); }
+})();
+if (RELAY_CHAIN) useMcpChainClient(RELAY_CHAIN.client);     // MCP reads: the same authority, never its public list
+if (RELAY_CHAIN) { const d = RELAY_CHAIN.describe();
+  console.log(`[chain] relay chain authority: local verifier ${d.verifier} (unsafe tier, no L1 finality); `
+    + (d.backend ? `sends and pool/fee hints only via the own backend ${d.backend.label}, bound to the verifier's head` : "no own transaction backend: nothing is sent")
+    + "; logs prove inclusion only; no provider RPC is used"); }
 const STATIC_ENCLAVES   = (process.env.ENCLAVES || "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
 const PORT              = parseInt(process.env.API_RELAY_PORT || "8100", 10);
 const AVAIL_POLL_SEC    = parseInt(process.env.AVAIL_POLL_SEC || "10", 10);
@@ -569,6 +582,7 @@ async function registryAbi(client, addr) {
 
 let _client = null;
 async function chain() {
+  if (!_client && RELAY_CHAIN) _client = RELAY_CHAIN.client;   // the same authority as the store's pool; never BASE_RPC
   if (!_client) {
     const { createPublicClient, http: viemHttp } = await import("viem");
     const { base } = await import("viem/chains");
@@ -2393,7 +2407,10 @@ const leaseHolderChipIds = async (endpoint) => {
 // the relay predict another app. SECRETS_RELEASE_CATALOG_RPCS: comma-separated https URLs, distinct hosts.
 const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((u) => u.trim()).filter((u) => /^https:\/\//.test(u)))];
 const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
-const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
+// Under the relay's verifier authority (RELAY_CHAIN) the catalog, the ledger record and their book entries are its ONE proven
+// answer (agreeingRead's min is the list's length, so one authority, never a vote of providers); the provider list was
+// refused at startup.
+const catalogClients = RELAY_CHAIN ? [RELAY_CHAIN.client] : CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
   if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
             // one retry (enclave-87, 09-26): a read is bounded at ~12 s per provider (6 s x 2), not viem's default 4 attempts (~25 s)
             c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000, retryCount: 1 }) }); }
@@ -2432,7 +2449,7 @@ async function confirmedLedger() {
   return addr;
 }
 async function confirmRow(id) {
-  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+  if (!RELAY_CHAIN && catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
   const ledger = await confirmedLedger();
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
                          owner: String(d.owner).toLowerCase(), isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli) });
@@ -2499,9 +2516,18 @@ const leaseGenerationStore = (() => {
   if (!file) return memoryStore();
   try { return fileStore(file, { fs }); } catch (e) { console.error(`[lease-generation] LEASE_GENERATION_STATE unusable (${e.message}): memory only`); return memoryStore(); }
 })();
-const leaseGenerationReader = CATALOG_RPCS.length >= 2 && catalogRpcHosts.size >= 2
+// Under the verifier authority the writer authority is REFUSED, explicitly and per release (code writer_authority_unproven):
+// it needs FINALIZED, COMPLETE lease-log history and the verifier proves neither (the sequencer-signed unsafe tier; eth_getLogs
+// proves inclusion, never completeness). No fact is made from history it cannot prove. Each release that refers to
+// ENCLAVE_WRITER_AUTHORITY logs the refusal and goes out with facts.runner only (the existing contract: never a 503 that would
+// kill the guest), and the guest establishes the authority itself from its own measured chain reads (isolation/m2/front).
+// This is a NARROWER relay: full parity needs finalized + complete verified receipts (logs/claude-relay-consumer-result.md).
+if (RELAY_CHAIN) console.log("[lease-generation] REFUSED under the verifier authority (writer_authority_unproven: needs finalized, complete lease logs; the verifier proves neither): releases that refer to ENCLAVE_WRITER_AUTHORITY carry facts.runner only and the guest establishes the authority itself");
+const leaseGenerationReader = !RELAY_CHAIN && CATALOG_RPCS.length >= 2 && catalogRpcHosts.size >= 2
   ? createLeaseGenerationReader({ rpcs: CATALOG_RPCS, ledger: () => confirmedLedger(), store: leaseGenerationStore }) : null;
-const leaseGeneration = leaseGenerationReader ? (id, opts) => leaseGenerationReader.writerAuthority(id, opts) : undefined;
+const writerAuthoritySource = leaseGenerationReader || (RELAY_CHAIN ? refusingWriterAuthority("writer_authority_unproven",
+  "the relay's verifier authority proves neither finality nor log completeness, which the writer authority needs") : null);
+const leaseGeneration = writerAuthoritySource ? (id, opts) => writerAuthoritySource.writerAuthority(id, opts) : undefined;
 // the tracker: every lease asked about (from its first release, final or not) is re-proved every 15 min (read-only), so its
 // coverage keeps up with what public RPCs serve; leases no longer current are dropped. Single-flight, each tick bounded
 // (lease-generation.mjs startTracker): a slow scan never overlaps the next tick.
@@ -2552,7 +2578,7 @@ async function resolveConfigCid(cid) {
 }
 const predictorSets = () => predictor().sets;
 const predictorProblems = () => [...predictor().problems,
-  ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
+  ...(!RELAY_CHAIN && catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
 // A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
 // verifier/index.mjs verifyEvidence's SNP branch, bundled because the relay ships relay/** only): the pinned AMD roots, the
 // CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
@@ -2585,12 +2611,12 @@ const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex"
 // secret custody (docs/security/secret-custody.md; relay/custody-state.mjs): with CUSTODY_VAULT set, a deployment whose owner
 // moved its secrets to custodians gets no value from this relay on any path. A CUSTODY_VAULT that is set but unusable
 // fails CLOSED: every custody question then answers 503, never "no custody" (which would serve an old plaintext copy).
-const CUSTODY_CFG = custodyConfig();
+const CUSTODY_CFG = custodyConfig(process.env, { authority: RELAY_CHAIN });
 const secretCustody = CUSTODY_CFG.on ? createCustodyReader(CUSTODY_CFG)
   : CUSTODY_CFG.error ? { custodyStateFor: async () => { throw new Error(CUSTODY_CFG.error); }, custodyHeld: async () => { throw new Error(CUSTODY_CFG.error); } }
   : null;
 if (CUSTODY_CFG.error) console.error(`[custody] CUSTODY_VAULT is set but unusable (${CUSTODY_CFG.error}): custody questions answer 503`);
-else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault || "-"}, v2 vault ${CUSTODY_CFG.vault2 || "-"} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`);
+else if (CUSTODY_CFG.on) console.log(`[custody] vault ${CUSTODY_CFG.vault || "-"}, v2 vault ${CUSTODY_CFG.vault2 || "-"} on chain ${CUSTODY_CFG.chainId}, ${CUSTODY_CFG.authority ? "the local verifier (one proven authority)" : `${CUSTODY_CFG.rpcs.length} RPCs, ${CUSTODY_CFG.minAgree} must agree`}`);
 const relayCtx = { shieldSecretRelease, pvmSecretRelease, json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    ...(secretCustody ? { custodyStateFor: secretCustody.custodyStateFor, custodyHeld: secretCustody.custodyHeld } : {}),
                    // sessions: the owner wallet behind a SessionVault-held record, and the custody release gate

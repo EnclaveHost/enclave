@@ -90,7 +90,11 @@ test('relay child: the chain authority is exactly the bound one; a sealed creden
   const credEnv = { ENCLAVE_CHAIN_AUTHORITY: 'quorum', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:9999/', NATIVE_CA_KEY: 'k', RELEASE_SIGNING_SEED_FILE: '/run/x' };
   const env = relayChildEnv({ cfg: bound, credEnv, dataDir: '/data' });
   assert.equal(env.ENCLAVE_CHAIN_AUTHORITY, 'verifier'); assert.equal(env.ENCLAVE_CHAIN_VERIFIER, 'http://127.0.0.1:8545/');
-  assert.equal(env.NATIVE_CA_KEY, undefined); assert.equal(env.RELEASE_SIGNING_SEED_FILE, '/run/x'); assert.equal(env.BASE_RPC, 'https://rpc-a.example/v1');
+  assert.equal(env.NATIVE_CA_KEY, undefined); assert.equal(env.RELEASE_SIGNING_SEED_FILE, '/run/x');
+  // under the bound verifier the role derives no provider default (the relay would refuse BASE_RPC beside the verifier);
+  // with the quorum authority the derived BASE_RPC is kept exactly as before
+  assert.equal(env.BASE_RPC, undefined);
+  assert.equal(relayChildEnv({ cfg: { ...bound, platformApi: { relayEnv: { ENCLAVE_CHAIN_AUTHORITY: 'quorum' } } }, credEnv: {}, dataDir: '/data' }).BASE_RPC, 'https://rpc-a.example/v1');
   const unbound = relayChildEnv({ cfg: { relayEnvBase: {}, platformApi: { relayEnv: {} } }, credEnv, dataDir: '/data' });
   for (const k of CHAIN_AUTHORITY_ENV) assert.equal(unbound[k], undefined, `${k} from a credential alone never reaches the relay`);
 });
@@ -124,9 +128,12 @@ test('native issuer: the host decision reads the policy through the bound verifi
 // ---- relays: real processes from the flat directory --------------------------------------------------------------------
 async function apiRelay(env) {
   const dir = flatRelay(), port = await freePort();
+  // the provider pool's settings only for a legacy run: with the chain authority named they are a mixed configuration the
+  // relay refuses (relay/relay-chain-authority.mjs), which is not what these cases test
+  const legacy = !env.ENCLAVE_CHAIN_AUTHORITY && !env.ENCLAVE_CHAIN_VERIFIER ? { RPC_FALLBACKS: '0', BASE_RPC: 'http://127.0.0.1:1' } : {};
   return run([process.execPath, path.join(dir, 'api-relay.js')], { cwd: dir, until: /\[chain\] network lease reader: .*\n|\[api-relay\] :\d+/, ms: 45000,
-    env: { PATH: process.env.PATH, HOME: dir, ENCLAVES: 'http://127.0.0.1:1', API_RELAY_PORT: String(port), API_RELAY_BIND: '127.0.0.1', RPC_FALLBACKS: '0',
-      BASE_RPC: 'http://127.0.0.1:1', DEPLOYMENTS_ADDRESS: a(0x12), FEATURED_VIEWS_FILE: path.join(dir, `views-${port}.json`), ...env } });
+    env: { PATH: process.env.PATH, HOME: dir, ENCLAVES: 'http://127.0.0.1:1', API_RELAY_PORT: String(port), API_RELAY_BIND: '127.0.0.1', ...legacy,
+      DEPLOYMENTS_ADDRESS: a(0x12), FEATURED_VIEWS_FILE: path.join(dir, `views-${port}.json`), ...env } });
 }
 
 test('api-relay process: the network LeaseReader takes the explicit local verifier with no provider client; misconfiguration stops the relay', { timeout: 240000 }, async () => {
@@ -141,7 +148,7 @@ test('api-relay process: the network LeaseReader takes the explicit local verifi
     [{ ...book, ENCLAVE_CHAIN_VERIFIER: v.url }, /not verifier/]]) {
     const r = await apiRelay(env);
     await waitFor(() => r.child.exitCode !== null);
-    assert.equal(r.child.exitCode, 1, r.out.slice(-800)); assert.match(r.out, /fatal: network chain authority: /); assert.match(r.out, why);
+    assert.equal(r.child.exitCode, 1, r.out.slice(-800)); assert.match(r.out, /fatal: (network|relay) chain authority: /); assert.match(r.out, why);
   }
 });
 

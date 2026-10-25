@@ -29,6 +29,8 @@ import { fileURLToPath } from "node:url";
 import * as hpke from "../../custody/hpke.mjs";
 import { ReplicaNode, sealMessage, openArchive, replaceAll, REPLICA_FORMAT } from "../../relay/state-replica.mjs";
 import { createNativeIssuer, nativeCaCredentials, isNativeCaCredential, CONFIG_PATH } from "./native-issuer.mjs";
+import { RELAY_CHAIN_ENV, RELAY_VERIFIER_CONFLICTS } from "../../relay/relay-chain-env.mjs";
+import { checkOwnBackend } from "../../network/chain-authority.mjs";
 
 export const ROLE_FORMAT = "enclave-platform-api-role/v1";
 export const PACKAGE_FORMAT = "enclave-platform-api-package/v1";
@@ -38,8 +40,9 @@ export const CREDENTIALS_INFO = Buffer.from("enclave-platform-api credentials v1
 export const RECOVERY_INFO = Buffer.from("enclave-platform-api recovery v1");
 export const CREDENTIALS_FILE = "platform-credentials.json";
 export const CREDENTIALS_FORMAT = "enclave-platform-api-credentials/v1";
-// the chain-authority names (network/lease-reader.mjs chainAuthorityFromEnv): bound config only, never a credential
-export const CHAIN_AUTHORITY_ENV = Object.freeze(["ENCLAVE_CHAIN_AUTHORITY", "ENCLAVE_CHAIN_VERIFIER"]);
+// the chain-authority names (relay/relay-chain-env.mjs: the authority, the local verifier and the own transaction backend):
+// bound config only, never a credential
+export const CHAIN_AUTHORITY_ENV = RELAY_CHAIN_ENV;
 /** the credentials document in the replicated state: { format, at (the admin package time, strictly increasing), credentials } */
 export function readCredentials(file) {
   try { const o = JSON.parse(fs.readFileSync(file, "utf8")); if (o && o.format === CREDENTIALS_FORMAT && o.credentials && typeof o.credentials === "object") return o; } catch {}
@@ -53,7 +56,26 @@ export function readCredentials(file) {
  * policy reads with (productionWiring policyEnv) - a sealed credential can neither set nor change it.
  */
 export function relayChildEnv({ cfg, credEnv = {}, dataDir }) {
-  const bound = { ...(cfg.relayEnvBase || {}), ...cfg.platformApi.relayEnv };
+  // Under a BOUND verifier authority the relay refuses every provider setting of the consumers that read through it
+  // (RELAY_VERIFIER_CONFLICTS). The role's own derived provider default (relayEnvBase BASE_RPC, from the config's rpcs) is
+  // then not the relay's and is not derived; a provider name in the bound relayEnv or in a sealed credential is refused HERE,
+  // by name, before the child starts (code relay_chain_conflict). Nothing is deleted: the administrator removes it.
+  const verifierBound = cfg.platformApi.relayEnv.ENCLAVE_CHAIN_AUTHORITY === "verifier";
+  // the bound own transaction backend: only with the bound verifier, and only what network/chain-authority.mjs accepts (a
+  // loopback or private address literal). Checked here, at the child's start, so a bad one never reaches the relay.
+  // (The same check at bind time belongs in measured-control.mjs canonicalDirectConfig: logs/...measured-control.proposal.patch.)
+  const txBackend = cfg.platformApi.relayEnv.ENCLAVE_CHAIN_TX_BACKEND;
+  if (txBackend !== undefined) {
+    if (!verifierBound) throw Object.assign(new Error("the bound ENCLAVE_CHAIN_TX_BACKEND is set but the bound chain authority is not the verifier (the relay is not started)"), { code: "relay_chain_conflict" });
+    try { checkOwnBackend(txBackend); } catch (e) { throw Object.assign(new Error(`${e.message} (the relay is not started)`), { code: "relay_chain_conflict" }); }
+  }
+  if (verifierBound) {
+    const named = [...RELAY_VERIFIER_CONFLICTS.filter((k) => cfg.platformApi.relayEnv[k] !== undefined).map((k) => `bound relayEnv ${k}`),
+                   ...RELAY_VERIFIER_CONFLICTS.filter((k) => credEnv[k] !== undefined).map((k) => `credential ${k}`)];
+    if (named.length) throw Object.assign(new Error(`the bound chain authority is the local verifier, but ${named.join(", ")} would make the relay read a provider: remove ${named.length > 1 ? "them" : "it"} (the relay is not started)`), { code: "relay_chain_conflict" });
+  }
+  const base = verifierBound ? Object.fromEntries(Object.entries(cfg.relayEnvBase || {}).filter(([k]) => !RELAY_VERIFIER_CONFLICTS.includes(k))) : (cfg.relayEnvBase || {});
+  const bound = { ...base, ...cfg.platformApi.relayEnv };
   const env = { PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin", ...bound, ...credEnv, AUTH_DATA_DIR: dataDir,
                 API_RELAY_BIND: "127.0.0.1", API_RELAY_PORT: "0", PLATFORM_API_ROLE: "relay-child", NODE_EXTRA_CA_CERTS: process.env.NODE_EXTRA_CA_CERTS || "" };
   for (const k of Object.keys(env)) if (isNativeCaCredential(k)) delete env[k];
@@ -155,7 +177,9 @@ export async function startRole({ cfg, verifyPeer, recoverMessageAddress, relayA
       const f = path.join(dirs.root, "creds", k);
       fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 }); fs.writeFileSync(f, v, { mode: 0o600 }); credEnv[k] = f;
     }
-    const env = relayChildEnv({ cfg, credEnv, dataDir });
+    let env;
+    try { env = relayChildEnv({ cfg, credEnv, dataDir }); }
+    catch (e) { log(`relay NOT started: ${e.message}`); return; }   // fail closed: no child, the reason in the log
     const argv = relayArgv || [process.execPath, fileURLToPath(import.meta.url), "--relay-child"];
     const c = spawn(argv[0], argv.slice(1), { env, cwd: dataDir, stdio: ["ignore", "inherit", "inherit", "ipc"] });
     child = c; childPort = 0;

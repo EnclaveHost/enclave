@@ -76,7 +76,11 @@ const EXPECTED_REPO = "EnclaveHost/enclave";
 const RPCS = [...new Set([...(process.env.BASE_RPC ? [process.env.BASE_RPC] : []),
   "https://base-rpc.publicnode.com", "https://base.drpc.org",
   "https://1rpc.io/base", "https://mainnet.base.org"])];
+// Under the relay's verifier authority api-relay.js hands its ONE proven client in (useMcpChainClient) before it serves any
+// request, so every MCP read is the verifier's and the public list above is never contacted. (The measured guest's own MCP
+// server bundles this file without the relay; it keeps the list.)
 let _pub = null;
+export function useMcpChainClient(client) { _pub = client; }
 const pub = () => _pub ||
   (_pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => viemHttp(u))) }));
 const read = (address, abi, functionName, args = []) =>

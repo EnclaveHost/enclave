@@ -20,7 +20,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
 import { verifyEvidence, memoryCollateral } from "../verifier/index.mjs";
 import { startLease16dRig, KEYS } from "./helpers/lease16d-rig.mjs";
-import { createLeaseGenerationReader } from "../relay/lease-generation.mjs";
+import { createLeaseGenerationReader, refusingWriterAuthority } from "../relay/lease-generation.mjs";
 
 const skip = (() => { try { execFileSync("anvil", ["--version"], { stdio: "ignore" }); return false; } catch { return "needs anvil"; } })();
 const sha = (...p) => createHash("sha256").update(Buffer.concat(p)).digest();
@@ -126,6 +126,22 @@ test("a claim not final yet: the release still goes out, WITHOUT the fact (never
   const { r, plain } = await releaseOnce(id);
   assert.equal(r.code, 200, JSON.stringify(r.body));
   assert.deepEqual(plain.facts, { runner: EP_ID }, "no fact, only the lease holder it is for: the guest establishes the fact itself, bound to it, while it waits");
+});
+
+test("the relay's verifier authority REFUSES the writer authority (unproven history): the release goes out with the lease holder only, the refusal logged by code", { skip, timeout: 120000 }, async () => {
+  rig.honest(0);                                            // even a FINAL claim: the verifier cannot prove the history
+  const id = await rig.create({ config: JSON.stringify({ isolation: { require: "snp-guest-per-app" }, config: STORAGE }) });
+  ids.push(id);
+  await rig.claim(id, rig.hosts.a); await rig.mine(5);
+  override = refusingWriterAuthority("writer_authority_unproven", "the relay's verifier authority proves neither finality nor log completeness");
+  const warned = [], warn = console.warn;
+  console.warn = (...a) => { warned.push(a.join(" ")); };
+  try {
+    const { r, plain } = await releaseOnce(id);
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    assert.deepEqual(plain.facts, { runner: EP_ID }, "no fact made from unproven history; only the lease holder, so the guest's own read binds to it");
+    assert.ok(warned.some((m) => m.includes(id) && /writer_authority_unproven/.test(m)), `the refusal is logged by code: ${warned.join(" | ")}`);
+  } finally { console.warn = warn; override = null; }
 });
 
 test("a config that does not refer to the name: no fact and no lease-generation read", { skip, timeout: 120000 }, async () => {

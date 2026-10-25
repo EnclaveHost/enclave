@@ -29,6 +29,15 @@ export class LeaseGenerationError extends Error {
   constructor(code, message, retry = false) { super(message); this.code = code; this.retry = retry; }
 }
 const fail = (code, message, retry = false) => { throw new LeaseGenerationError(code, message, retry); };
+/**
+ * The writer authority where this relay CANNOT establish it: every request refuses with `code` (never a fact made from
+ * history it cannot prove). The release then goes out with facts.runner only, as for any refusal here (never a 503 that
+ * would kill the guest), and the guest establishes the authority itself from its own measured chain reads.
+ * -> a reader-shaped { writerAuthority(id, { runner, signal }) } that always throws LeaseGenerationError(code).
+ */
+export function refusingWriterAuthority(code, message) {
+  return { writerAuthority: async () => { throw new LeaseGenerationError(code, message, false); } };
+}
 // a cancelled read (the caller's deadline, the tracker stopping): no request is sent after it, and no coverage is saved
 const aborted = (signal) => new LeaseGenerationError("aborted", `the read was cancelled (${String(signal?.reason?.message || signal?.reason || "aborted").slice(0, 80)})`, true);
 const abortableSleep = (ms, signal) => new Promise((ok, no) => {

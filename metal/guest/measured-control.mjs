@@ -403,9 +403,32 @@ function directPlatformApi(raw, { controlPort }) {
   if (chainAuthority !== undefined && chainAuthority !== 'verifier' && chainAuthority !== 'quorum') bad('platformApi.relayEnv.ENCLAVE_CHAIN_AUTHORITY must be verifier or quorum');
   if (chainAuthority === 'verifier' && !LOOPBACK_URL.test(chainVerifier || '')) bad('platformApi.relayEnv.ENCLAVE_CHAIN_VERIFIER must be a local (loopback) http(s) URL: a remote server is not a verifier');
   if (chainAuthority !== 'verifier' && chainVerifier !== undefined) bad('platformApi.relayEnv.ENCLAVE_CHAIN_VERIFIER is set but ENCLAVE_CHAIN_AUTHORITY is not verifier');
+  // the relay child's own transaction backend (network/chain-authority.mjs checkOwnBackend): only with the verifier, and a
+  // loopback or private IPv4 literal (or [::1]); and under the verifier no provider setting of the relay's chain consumers
+  // (relay/relay-chain-env.mjs RELAY_VERIFIER_CONFLICTS, copied here because this file is installed unbundled)
+  const txBackend = raw.relayEnv.ENCLAVE_CHAIN_TX_BACKEND;
+  if (chainAuthority !== 'verifier' && txBackend !== undefined) bad('platformApi.relayEnv.ENCLAVE_CHAIN_TX_BACKEND is set but ENCLAVE_CHAIN_AUTHORITY is not verifier');
+  if (txBackend !== undefined && !ownBackendLiteral(txBackend)) bad('platformApi.relayEnv.ENCLAVE_CHAIN_TX_BACKEND must be http(s) at a loopback or private IPv4 address literal (or [::1]), without credentials, query or fragment');
+  if (chainAuthority === 'verifier') {
+    const mixed = RELAY_VERIFIER_CONFLICTS.filter((k) => raw.relayEnv[k] !== undefined);
+    if (mixed.length) bad(`platformApi.relayEnv: ${mixed.join(', ')} cannot be set with ENCLAVE_CHAIN_AUTHORITY=verifier (the relay reads those through the verifier)`);
+  }
   const leaseMs = intIn(raw.leaseMs, 2000, 60000, 'platformApi.leaseMs');
   return { apiPort, peerPort, hostname: raw.hostname, members, measurements: [...raw.measurements], minTcb: raw.minTcb === null ? null : JSON.parse(canonicalJson(raw.minTcb)),
     admins, recovery: [...raw.recovery], archives, archiveMs, relayEnv: JSON.parse(canonicalJson(raw.relayEnv)), leaseMs };
+}
+export const RELAY_VERIFIER_CONFLICTS = Object.freeze(['BASE_RPC', 'RPC_FALLBACKS', 'SECRETS_RELEASE_CATALOG_RPCS', 'CUSTODY_RPCS', 'CUSTODY_MIN_AGREE', 'SESSIONS_RPC']);
+/** network/chain-authority.mjs checkOwnBackend's rule, without its dependencies: true for an acceptable own backend URL. */
+export function ownBackendLiteral(raw) {
+  if (typeof raw !== 'string' || raw.includes('#') || raw.includes('?')) return false;
+  let u; try { u = new URL(raw); } catch { return false; }
+  if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.username || u.password || u.search || u.hash) return false;
+  if (u.hostname === '[::1]') return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(u.hostname);
+  if (!m) return false;
+  const o = m.slice(1).map(Number);
+  if (o.some((x) => x > 255)) return false;
+  return o[0] === 127 || o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168);
 }
 export const PLATFORM_API_BUNDLE = '/opt/metal/platform-api.bundle.mjs';
 export const PLATFORM_API_PREFIX = '/platform-api/';
