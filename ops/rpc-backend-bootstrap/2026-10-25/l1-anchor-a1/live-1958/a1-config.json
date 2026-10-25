@@ -1,0 +1,20 @@
+{
+  "heliosUrl": "http://127.0.0.1:28550",
+  "elUrl": "http://127.0.0.1:28645",
+  "expectedChainId": 1,
+  "pinBy": "hash",
+  "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+  "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+  "portalAsrGetter": "anchorStateRegistry()",
+  "asrCandidates": [
+    {
+      "address": "0xdb9091e48b1c42992a1213e6916184f9ebdbfedf",
+      "provenance": "base v1.5.1 crates/common/genesis/src/chain/addresses.rs:134 (address-book fixture; UNAUTHENTICATED)"
+    },
+    {
+      "address": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+      "provenance": "root Helios-verified portal getter at 0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4"
+    }
+  ],
+  "maxFinalizedAgeSec": 1800
+}

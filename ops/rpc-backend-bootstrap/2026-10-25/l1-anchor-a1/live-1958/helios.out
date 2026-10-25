@@ -1,0 +1,8 @@
+[2m2026-10-25T19:57:00.782939Z[0m [32m INFO[0m [2mhelios::consensus[0m[2m:[0m saved checkpoint to DB: 0xaecd21ee561764c4cf898696626451b92e8cf348e2bf52fdbc2a1fda8852a903
+[2m2026-10-25T19:57:00.877941Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271924 age=25s
+[2m2026-10-25T19:57:01.295926Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m finalized block  number=26271848
+[2m2026-10-25T19:57:16.346768Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271926 age=17s
+[2m2026-10-25T19:57:16.347008Z[0m [33m WARN[0m [2mhelios_core::execution::providers::block::block_cache[0m[2m:[0m inconsistent block history detected: clearing cache
+[2m2026-10-25T19:57:28.168650Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271927 age=17s
+[2m2026-10-25T19:57:40.390213Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271928 age=17s
+[2m2026-10-25T19:57:52.277031Z[0m [32m INFO[0m [2mhelios::client[0m[2m:[0m latest block     number=26271929 age=17s
