@@ -7,6 +7,7 @@ import shutil
 
 HERE = pathlib.Path(__file__).resolve().parent
 p = argparse.ArgumentParser(description=__doc__)
+p.add_argument('--sequencer-forwarding', action='store_true', help='Enable submission to Base mainnet sequencer; not a read source')
 p.add_argument('--out', type=pathlib.Path, default=HERE / 'node-payload')
 p.add_argument('--anchor', type=pathlib.Path, default=HERE.parents[1] / 'outputs/rpc-production-final-20261025/anchor.json')
 p.add_argument('--observations', type=pathlib.Path, default=HERE.parents[1] / 'outputs/rpc-production-final-20261025/l1-finality-observations.json')
@@ -22,7 +23,7 @@ observations = json.loads(a.observations.read_text())
 assert len(observations) >= 2
 assert all(o['finality']['data']['finalized'] == {'epoch': str(anchor['epoch']), 'root': anchor['root']} for o in observations)
 anchor['observations'] = observations
-(OUT / 'chain.json').write_text(json.dumps({'checkpoint': anchor, 'baseBootstrap': {'coverageVerified': False, 'reason': 'Select a snapshot whose required origin blobs are available locally before activation.'}}, indent=2) + '\n')
+(OUT / 'chain.json').write_text(json.dumps({'checkpoint': anchor, 'txForwarding': {'endpoint': 'https://mainnet-sequencer.base.org' if a.sequencer_forwarding else None}, 'baseBootstrap': {'coverageVerified': False, 'reason': 'Select a snapshot whose required origin blobs are available locally before activation.'}}, indent=2) + '\n')
 for name, side, role, memory in [('enclave-l1-el', 'el', 'l1', 16), ('enclave-l1-cl', 'cl', 'l1', 10), ('enclave-base-holder', 'base', 'base', 28)]:
     mount = '/srv/enclave-l1-pair' if role == 'l1' else '/srv/enclave-base-holder'
     user = {'el': 'rpcl1el', 'cl': 'rpcl1cl', 'base': 'rpcbase'}[side]

@@ -89,6 +89,15 @@ def l1_ready():
     assert blob_slot is not None, 'no recent blob-carrying block served'
     return {'l1Block': int(h['number'], 16), 'l1Finalized': int(f['number'], 16), 'blobSlot': blob_slot}
 
+def forwarding_args():
+    setting = CONFIG.get('txForwarding') or {}
+    endpoint = setting.get('endpoint')
+    if endpoint is None:
+        return []
+    assert endpoint == 'https://mainnet-sequencer.base.org', 'unsupported submission endpoint'
+    # Submission only. This endpoint never supplies state, headers, proofs or fees.
+    return ['--rpc.forwarding-endpoint', endpoint]
+
 def run(side):
     role = 'base' if side == 'base' else 'l1'
     base = mount(role, side)
@@ -147,6 +156,7 @@ def run(side):
         env['BASE_NODE_L1_TRUST_RPC'] = 'false'
         a = [binary('base'), '--chain', 'mainnet', 'rpc', '--datadir', datadir,
              '--http', '--http.addr', '127.0.0.1', '--http.port', '18545', '--http.api', 'eth,net,web3',
+             '--txpool.disable-transactions-backup',
              '--prune.transaction-lookup.distance', '140000',
              '--rpc.max-connections', '64', '--rpc.eth-proof-window', '1800', '--ipcdisable',
              '--addr', '0.0.0.0', '--port', '30303', '--discovery.addr', '0.0.0.0', '--discovery.port', '30303',
@@ -155,8 +165,8 @@ def run(side):
              '--p2p.listen.tcp', '9222', '--p2p.listen.udp', '9223',
              '--l1-eth-rpc', 'http://127.0.0.1:18645', '--l1-beacon', 'http://127.0.0.1:15052',
              '--l1.rpc-timeout-ms', '10000', '--upgrade-signal.mode', 'metrics-only']
-        # Submission is intentionally not enabled by this read-backend bootstrap.
-        # Configure the separate, explicit sequencer/forced-inclusion path at cutover.
+        a += forwarding_args()
+        # A forwarded hash is not inclusion: consumers must verify the receipt.
     else:
         raise ValueError('unknown side')
     print(json.dumps({'starting': side, 'datadir': datadir, 'publicExecutionRpc': False}), flush=True)

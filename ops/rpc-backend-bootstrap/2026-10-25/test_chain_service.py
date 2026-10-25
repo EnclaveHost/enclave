@@ -42,6 +42,14 @@ class GateTests(unittest.TestCase):
         profile='[prune.segments]\nsender_recovery="full"\ntransaction_lookup="full"\nreceipts="full"\n[static_files.blocks_per_file]\nheaders=500000\n'
         with patch.object(c,'mount',return_value='/srv/enclave-base-holder'),patch.object(Path,'is_file',return_value=True),patch.object(Path,'read_text',return_value=profile):
             with self.assertRaisesRegex(AssertionError,'history retention too short'):c.run('base')
+    def test_no_implicit_submission_route(self):
+        with patch.object(c,'CONFIG',{}):self.assertEqual(c.forwarding_args(),[])
+    def test_explicit_submission_route(self):
+        with patch.object(c,'CONFIG',{'txForwarding':{'endpoint':'https://mainnet-sequencer.base.org'}}):
+            self.assertEqual(c.forwarding_args(),['--rpc.forwarding-endpoint','https://mainnet-sequencer.base.org'])
+    def test_unreviewed_submission_route_refused(self):
+        with patch.object(c,'CONFIG',{'txForwarding':{'endpoint':'https://user:password@evil.example'}}):
+            with self.assertRaisesRegex(AssertionError,'unsupported submission'):c.forwarding_args()
     def data(self):
         now=int(time.time()); head={'timestamp':hex(now-24),'number':'0x100','hash':'0xabc'}
         def rpc(port,method,params):
