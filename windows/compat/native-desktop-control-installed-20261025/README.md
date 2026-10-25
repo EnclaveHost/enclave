@@ -56,3 +56,11 @@ runner hooks, preserving all other captured bytes and checking six unchanged
 configuration inputs. Sixteen Windows tests pass, including real CMD success and
 failure behavior; the live guard refused writes. `runner-config-v9.json` records
 the scope. Complete task handoff/app recovery and API activation remain pending.
+
+`api_overlay.py` adds the separately pinned Linux API file transaction. It preserves
+all existing policy entries, adds the v9 desktop identity, and requires the API
+service already stopped before writing. Seventeen fixture tests pass locally and
+on the API host; the real running-service guard refused without changes.
+`api-overlay-v9.json` records the package and evidence pins. The API maintenance
+and rollback sequence is documented in `ACTIVATION.md`; it has not been executed
+against the production service.

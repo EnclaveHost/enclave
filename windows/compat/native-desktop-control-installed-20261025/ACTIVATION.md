@@ -1,6 +1,6 @@
 # Native desktop control activation
 
-Status: **preparation only; production has not been changed**. The code and runner-file transactions
+Status: **preparation only; production has not been changed**. The code, runner-file and API-file transactions
 are tested. The complete service/configuration handoff and rollback have not yet
 been rehearsed and are not ready for unattended execution.
 
@@ -219,5 +219,101 @@ successful propagation of all five native values, preservation of an existing
 variable, and refusal to launch the probe after a missing or failed environment
 script. A marker before the hook prevents a broken test launcher from counting as
 a successful refusal. Actual production runners, scheduled-task restarts and app
-recovery are not exercised by these fixture tests. The API overlay's activation
-and rollback procedure also remains to be completed before the full handoff.
+recovery are not exercised by these fixture tests.
+
+## API overlay transaction
+
+`api_overlay.py` applies exactly eight modified API modules, four new modules and
+the public Shield policy. Four dependencies must stay byte-identical: the API
+entrypoint, network bundle, package manifest and lockfile. It uses the same
+backed-up atomic replacement and interrupted-transaction recovery as the control
+transaction, with a separate journal on the Linux API host. It neither reads nor
+backs up private environment files, signer seeds, wallet keys or mutable app state.
+
+The prepared v9 policy has SHA256
+`74d7e5d2e992dfb974904fb5e125191307213029c15512ed39de57efec61e5ba`.
+All 12 existing image entries and every other existing policy field are preserved;
+one native image and one matching desktop release are added. The adapter checks
+that additive relationship independently of the payload hash, requires native SVN
+13 and verifies agreement between the image and desktop release identities.
+Do not use the older v4 policy hash from the original relay-overlay manifest.
+
+Apply and rollback require root on the actual Linux `/` filesystem and the exact
+`enclave-api-relay` unit loaded, inactive/dead, with MainPID 0, KillMode
+`control-group`, and its expected service user/group. Before each write it also
+requires root-owned 0755 source/policy directories and root-owned 0644 files,
+rejecting symlinked paths. The tools issue `systemctl show` only; stopping and
+starting the service are explicit maintenance operations outside the transaction.
+They do not silently stop a live API to make an installation succeed.
+
+Use the exported `native-api-activation-v9` evidence directory. It includes the
+exact `prepared/manifest.json`, 13-file payload and public baseline used by the
+tests. The manifest SHA256 is
+`9d23f546807e10ed6341d26a453e6ab52e1d28f91f12da32170d8330d1e92ca8`.
+The corresponding API fixture archive is separately hashed in `api-overlay-v9.json`.
+Stage this reviewed package in a new root-owned directory outside `/opt/nan-relay`
+and `/etc/nan-relay`. Inspect the live files first:
+
+```sh
+sudo python3 api_overlay.py inspect --installed / --manifest prepared/manifest.json
+```
+
+Every changed path must report `before`, and dependency/metadata validation must
+pass. A changed production baseline requires investigation, not regeneration of
+the expected hashes to accept it. The API source tests described by the earlier
+relay-overlay qualification still apply; these transaction tests do not replace
+the source or sealed-release tests.
+
+After the full service handoff has been rehearsed and the shared-service
+interruption arranged, the API-specific maintenance sequence is:
+
+1. Capture the API unit state, actual app-route results and fresh lease validity.
+   Keep a root-only journal location on the same host. Quiesce any independent
+   updater for these files. Do not proceed while lease/RPC instability prevents
+   meaningful verification of recovery.
+2. Explicitly stop only `enclave-api-relay`. Its current stop timeout is three
+   minutes. Wait for the stopped-state readback; a timeout is not permission to
+   write or force-kill unrelated processes. Do not start the inactive old relay.
+3. Apply from the pinned staged directory:
+
+   ```sh
+   sudo python3 api_overlay.py apply --installed / --manifest prepared/manifest.json --payload prepared/payload --journal /var/lib/native-api-backup-v9
+   sudo python3 api_overlay.py inspect --installed / --manifest prepared/manifest.json
+   ```
+
+   Require all 13 changed paths to report `after`. The journal path must not
+   already exist; never delete or reuse a previous journal to bypass this check.
+4. Explicitly start `enclave-api-relay`. Require a new running PID, stable restart
+   count, correct on-disk hashes, `/health` JSON `ok: true`, and restoration of the
+   same real app paths observed before maintenance. `/health` alone only proves
+   the relay handler is alive. Actual fresh attestation and the new app's normal
+   catalog/owner-release flow remain separate required checks.
+5. If application/startup verification fails, stop that same unit and restore
+   from this transaction's journal:
+
+   ```sh
+   sudo python3 api_overlay.py rollback --installed / --journal /var/lib/native-api-backup-v9
+   sudo python3 api_overlay.py inspect --installed / --manifest prepared/manifest.json
+   ```
+
+   Require all paths `before`, then start and verify the original service. If
+   rollback refuses unrelated drift, leave the service stopped and investigate;
+   do not overwrite the drift or start a mixture of modules. An incomplete
+   apply may already have restored the original bytes automatically; inspect
+   the journal and readback before choosing recovery. Repeating rollback is safe.
+
+The API is a separate transaction boundary from the Windows code and runner
+journals. API rollback restores its public policy and modules only; it does not
+undo Windows activation, preserve live API connections, revive retired VM memory,
+release leases, provision an owner or publish an app.
+
+Seventeen API transaction tests pass both locally and in temporary fixtures on
+the actual Linux API host (Python version recorded in `api-overlay-v9.json`).
+Coverage includes exact 13-file apply/repeated rollback, failure after rename,
+process death before journal advancement, service restart during an apply,
+corrupt backups, source drift, attempts to edit legacy policy, forbidden paths,
+metadata and symlink refusal. A separate read-only call to the real guard refused
+the running production API. All 17 source/policy/dependency checks and service
+PID/restart readbacks matched before and after. No production service was stopped
+and no real service activation/rollback was exercised. Combined handoff, recovery
+and final desktop acceptance remain open.
