@@ -30,7 +30,7 @@ export const SERVES = [DERIVATION];
 // consecutive failed answer checks that fail a running domain (a key change fails it at once)
 export const ANSWER_STRIKES = 3;
 import { HyperVPartitionBackend, BACKEND, SUPPORTS, PREREQUISITES } from "./backend.mjs";
-import { parseNotes, READINESS_WITNESS_APP_ID } from "./wmi-launcher.mjs";
+import { parseNotes, READINESS_WITNESS_APP_ID, type1VmMemMiB } from "./wmi-launcher.mjs";
 import { verifyPackage, MAX_PACKAGE_BYTES as MAX_STARTUP_PACKAGE_BYTES } from "../../../sdk/bootstrap/package.mjs";
 import { custodyCallbackMac, CUSTODY_CALLBACK_PROTOCOL, CUSTODY_CALLBACK_HEADER, CUSTODY_CALLBACK_SKEW_MS, CUSTODY_CALLBACK_NONCES,
          MAX_CALLBACK_BODY } from "./custody-transport.mjs";
@@ -77,10 +77,16 @@ export class Manager {
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
-                egress = null, ramPoolMiB = null, directBootstrap = false, custodyV2 = null, images = null } = {}) {
+                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, directBootstrap = false, custodyV2 = null, images = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
+    if (physicalRamPoolMiB !== null && (!Number.isSafeInteger(physicalRamPoolMiB) || physicalRamPoolMiB <= 0))
+      throw new Error("physicalRamPoolMiB must be a positive integer");
+    // An operator budget for this manager's VM namespace, after reserving RAM
+    // for Windows and other workloads. Distinct from the advertised app pool:
+    // this includes partition overhead and is held until confirmed removal.
+    this.physicalRamPoolMiB = physicalRamPoolMiB;
     // OWNER-COMMITTED STARTUP (package-transport.mjs; isolation/m2/front/shield_direct.go): ON only when the operator states
     // that the pinned partition image is a Shield-direct build (main.mjs ENCLAVE_SHIELD_DIRECT=1). The image, not this
     // flag, decides what runs: a legacy image ignores the package and certifies no owner name.
@@ -309,10 +315,23 @@ export class Manager {
     if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) return 1000;
     return [...this.domains.values()].reduce((n,r) => n+(r.gpuMilli || 0),0);
   }
+  physicalRamAllocated() {
+    let held = 0;
+    for (const r of this.domains.values()) {
+      if (r.recovered || r.unattributed || !Number.isSafeInteger(r.physicalMemoryMiB) || r.physicalMemoryMiB <= 0) return null;
+      held += r.physicalMemoryMiB;
+      if (!Number.isSafeInteger(held)) return null;
+    }
+    return held;
+  }
   health() {
     return {
       managerEpoch: this.epoch,
       ...(this.ramPoolMiB !== null ? { memory: { rule: "cpu-share", poolMiB: this.ramPoolMiB } } : {}),
+      ...(this.physicalRamPoolMiB !== null ? { physicalMemory: {
+        poolMiB: this.physicalRamPoolMiB, allocatedMiB: this.physicalRamAllocated(),
+        freeMiB: this.physicalRamAllocated() === null ? 0 : Math.max(0, this.physicalRamPoolMiB - this.physicalRamAllocated()),
+      } } : {}),
       inventory: this.inventory,
       // the VM namespace this manager owns (wmi-launcher.mjs markerFor): what a second instance's tooling checks first
       ...(this.backend?.prefix ? { vmScope: { prefix: this.backend.prefix, marker: this.backend.marker ?? null } } : {}),
@@ -500,8 +519,22 @@ export class Manager {
         const e = new Error("the RAM pool cannot fit the full purchased allowance"); e.status = 507; throw e;
       }
     }
+    // All currently served images use the type-1 memory rule. Native V8 must
+    // use its own desktop rule when admission is enabled; it is refused above.
+    let physicalMemoryMiB;
+    if (this.physicalRamPoolMiB !== null) {
+      const held = this.physicalRamAllocated();
+      if (held === null) {
+        const e = new Error("physical RAM allocation is unknown until existing partitions are reconciled"); e.status = 503; throw e;
+      }
+      physicalMemoryMiB = type1VmMemMiB(memory?.appMiB ?? mapping.record.policy.memMiB, { name, appId: mapping.appId });
+      if (physicalMemoryMiB > this.physicalRamPoolMiB - held) {
+        const e = new Error("the physical RAM pool cannot fit the partition including its overhead"); e.status = 507; throw e;
+      }
+    }
     const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
                   componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory,
+                  ...(physicalMemoryMiB !== undefined ? { physicalMemoryMiB } : {}),
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
                   // DEFECT 4: what the data plane needs to route, and what the boundary IS. 5d's
@@ -525,6 +558,13 @@ export class Manager {
       // the pinned direct IGVM, and nothing else on the direct image. Otherwise the domain fails at once, its channels
       // close, and its VM is left for DELETE.
       if (h) { rec.handle = h; rec.igvmSha256 = /^[0-9a-f]{64}$/.test(String(h.firmware?.sha256 || "")) ? h.firmware.sha256 : null; }
+      if (physicalMemoryMiB !== undefined && h?.memory?.vmMiB !== physicalMemoryMiB) {
+        const actual = h?.memory?.vmMiB;
+        // Never shrink a reservation based on a contradictory launcher answer.
+        // Missing/invalid allocation blocks all further physical admission.
+        rec.physicalMemoryMiB = Number.isSafeInteger(actual) && actual > 0 ? Math.max(actual, physicalMemoryMiB) : null;
+        throw new Error("the launcher did not confirm the reserved physical RAM allocation");
+      }
       if (role === "shield-direct") {
         if (h?.imageRole !== "shield-direct") throw new Error(`the launcher started this owner-committed package on the ${h?.imageRole ?? "unstated"} image, not the Shield-direct one`);
         if (rec.igvmSha256 !== this.images.shieldDirect.igvmSha256)
@@ -720,12 +760,17 @@ export class Manager {
    */
   async sweepLiveness() {
     if (!this.inventoryReady || !this.backend.canSurvey) return { checked: 0, failed: 0, skipped: "no inventory or no survey" };
+    // Check only handles that already existed when this survey began. A VM
+    // starting while the host answers cannot appear in that earlier snapshot.
+    const candidates = [...this.domains.values()].filter(r => !r.launching && r.handle?.vmId)
+      .map(rec => ({ rec, handle: rec.handle }));
     let s;
     try { s = await this.backend.survey(); } catch (e) { return { checked: 0, failed: 0, error: e.message }; }
     if (!s || !Array.isArray(s.vms)) return { checked: 0, failed: 0, error: "the survey returned no list" };
     const byId = new Map(s.vms.map((v) => [String(v.vmId || "").toLowerCase(), v]));
     let checked = 0, failed = 0;
-    for (const rec of this.domains.values()) {
+    for (const { rec, handle } of candidates) {
+      if (this.domains.get(rec.id) !== rec || rec.handle !== handle || rec.launching) continue;
       if (rec.status !== "running" && rec.status !== "starting") continue;
       const vmId = rec.handle && rec.handle.vmId;
       if (!vmId || this.#stopping.has(rec)) continue;
@@ -786,7 +831,15 @@ export class Manager {
     return { checked, failed };
   }
 
-  async remove(id) {
+  #removals = new Map();
+  remove(id) {
+    if (this.#removals.has(id)) return this.#removals.get(id);
+    // Install the single-flight entry before any backend operation can run.
+    const pending = Promise.resolve().then(() => this.#remove(id)).finally(() => this.#removals.delete(id));
+    this.#removals.set(id, pending);
+    return pending;
+  }
+  async #remove(id) {
     const r = this.domains.get(id);
     // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
     if (!r) {
@@ -795,14 +848,23 @@ export class Manager {
       return { removed: false, absent: true };
     }
     if (r.launching) { const e=new Error("instance is still launching; retry removal after launch settles");e.status=409;throw e; }
-    if (r.gpuMilli && !r.handle && this.backend.canSurvey) {
+    if (!r.handle?.vmId && this.backend.canSurvey) {
       const inventory=await this.backend.survey();
-      if (!Array.isArray(inventory?.vms)) throw new Error("cannot confirm failed GPU launch cleanup");
+      if (!Array.isArray(inventory?.vms)) throw new Error("cannot confirm failed resource launch cleanup");
+      let match = null;
       for (const vm of inventory.vms) {
         const parsed=parseNotes(vm.notes, { marker: this.backend.marker });
-        if (!parsed.identity) throw new Error("unattributed VM prevents releasing the GPU reservation");
-        if (parsed.identity.id===r.id) r.handle={vmId:vm.vmId,name:vm.name};
+        if (!parsed.identity) throw new Error("unattributed VM prevents releasing the resource reservation");
+        if (parsed.identity.id===r.id) {
+          if (match) throw new Error("multiple VMs name this instance; cleanup is ambiguous");
+          if (!vm.vmId) throw new Error("the matching VM has no removal identity");
+          match = vm;
+        }
       }
+      // Preserve private cleanup capabilities if the failed launch supplied
+      // them. A successful absent survey permits carrier-only cleanup.
+      if (match) r.handle={...r.handle,vmId:match.vmId,name:match.name};
+      else if (r.handle) r.handle={...r.handle,vmId:null,name:null};
     }
     this.#stopping.add(r);
     try {

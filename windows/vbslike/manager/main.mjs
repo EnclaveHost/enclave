@@ -263,6 +263,8 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   custodyV2: custodyV2 && launcherOptions ? custodyV2 : null,
   // Match the node agent's advertised hosting RAM, not physical machine RAM.
   ramPoolMiB: env("NODE_APP_RAM_GB") ? Number(env("NODE_APP_RAM_GB")) * 1024 : null,
+  // Separate VM budget INCLUDING overhead, after Windows/other workload RAM.
+  physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
   runtime,
   shield,
   runtimeId,

@@ -122,6 +122,26 @@ reserve the full partition size and the desktop's GPU share before calling the
 launcher, and hold those reservations until removal and transport cleanup are
 confirmed. Manager V8 admission remains disabled pending that integration.
 
+The manager's optional `NODE_VM_RAM_GB` budget now accounts for the full VM
+allocation of its currently served images, separately from purchased app RAM
+(`NODE_APP_RAM_GB`). The operator must subtract Windows and unrelated workloads
+before choosing this budget; it is not a probe of free host memory. Reservations
+are made synchronously before launch and remain held after launch, readiness or
+cleanup failures. Recovered or ambiguous allocations block further admission.
+The launcher must report the reserved allocation exactly; a discrepancy fails
+the domain and retains a conservative or unknown reservation until removal.
+Native admission must require this budget and use the desktop allocation rule
+instead of the ordinary type-1 rule. No V8 derivation is advertised yet.
+
+Failed launches retain private cleanup handles, including the worker carrier,
+for the manager to retry on removal. VM absence alone cannot release a GPU
+reservation when carrier closure remains uncertain. These capabilities are
+excluded from public records and error serialization.
+CPU launches without a returned VM handle also require a successful inventory
+before removal can release their record. Concurrent deletes share one cleanup
+attempt. Liveness checks only evaluate handles present before the host survey
+began, so an earlier snapshot cannot fail a newly started VM.
+
 NucBox qualification exercised this launcher through `MON ready` and then an
 intentional failure before worker admission. The exact VM was removed and its
 VMGS archived; the existing VMs and master remained unchanged. This is boot and
