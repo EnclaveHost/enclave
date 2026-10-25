@@ -1,0 +1,57 @@
+[queue] START available=21453MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+test_activation_section_edits_do_not_change_config_identity (__main__.Bridge.test_activation_section_edits_do_not_change_config_identity) ... ok
+test_arbitrary_receipt_cannot_bypass (__main__.Bridge.test_arbitrary_receipt_cannot_bypass) ... ok
+test_binding_consistency (__main__.Bridge.test_binding_consistency) ... ok
+test_boolean_alone_never_activates (__main__.Bridge.test_boolean_alone_never_activates) ... ok
+test_config_cannot_diverge_from_binding (__main__.Bridge.test_config_cannot_diverge_from_binding) ... ok
+test_installed_identity_bindings (__main__.Bridge.test_installed_identity_bindings) ... ok
+test_malformed_and_oversize (__main__.Bridge.test_malformed_and_oversize) ... ok
+test_malformed_pins (__main__.Bridge.test_malformed_pins) ... ok
+test_missing_and_unsafe_files (__main__.Bridge.test_missing_and_unsafe_files) ... ok
+test_not_approved (__main__.Bridge.test_not_approved) ... ok
+test_origin_rules (__main__.Bridge.test_origin_rules) ... ok
+test_parity_with_readiness_validator (__main__.Bridge.test_parity_with_readiness_validator) ... ok
+test_tampered_evidence_bytes (__main__.Bridge.test_tampered_evidence_bytes) ... ok
+test_tool_pins (__main__.Bridge.test_tool_pins) ... ok
+test_valid_binding (__main__.Bridge.test_valid_binding) ... ok
+test_verdict_rules (__main__.Bridge.test_verdict_rules) ... ok
+test_identity_and_check (__main__.Cli.test_identity_and_check) ... ok
+test_offline_refusal_precedes_live_calls (__main__.LiveBinding.test_offline_refusal_precedes_live_calls) ... ok
+test_origin_not_canonical (__main__.LiveBinding.test_origin_not_canonical) ... ok
+test_range_above_our_finality (__main__.LiveBinding.test_range_above_our_finality) ... ok
+test_receipts_and_blobs_must_be_served (__main__.LiveBinding.test_receipts_and_blobs_must_be_served) ... ok
+test_valid_starts_with_bound_values (__main__.LiveBinding.test_valid_starts_with_bound_values) ... {"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_real_manifest_accepted (__main__.RealManifest.test_real_manifest_accepted) ... ok
+test_real_manifest_adversarial_edits_refused (__main__.RealManifest.test_real_manifest_adversarial_edits_refused) ... ok
+test_real_manifest_full_activation (__main__.RealManifest.test_real_manifest_full_activation) ... ok
+test_adversarial_locations_and_paths (__main__.SnapshotIdentity.test_adversarial_locations_and_paths)
+Inputs that pinned reth would resolve outside the pinned snapshot host/directory, or extract outside the datadir. ... ok
+test_base_url_at_pinned_directory_or_empty_is_accepted (__main__.SnapshotIdentity.test_base_url_at_pinned_directory_or_empty_is_accepted) ... ok
+test_base_url_may_be_omitted (__main__.SnapshotIdentity.test_base_url_may_be_omitted) ... ok
+test_bootstrap_manifest_presented_as_snapshot_manifest (__main__.SnapshotIdentity.test_bootstrap_manifest_presented_as_snapshot_manifest) ... ok
+test_bootstrap_without_snapshot_url (__main__.SnapshotIdentity.test_bootstrap_without_snapshot_url) ... ok
+test_old_relabel_of_bootstrap_hash_refused (__main__.SnapshotIdentity.test_old_relabel_of_bootstrap_hash_refused) ... ok
+test_receipt_document_fields (__main__.SnapshotIdentity.test_receipt_document_fields) ... ok
+test_snapshot_block_binds_origin (__main__.SnapshotIdentity.test_snapshot_block_binds_origin) ... ok
+test_snapshot_manifest_missing_tampered_or_unpinned (__main__.SnapshotIdentity.test_snapshot_manifest_missing_tampered_or_unpinned) ... ok
+test_snapshot_manifest_schema_and_location (__main__.SnapshotIdentity.test_snapshot_manifest_schema_and_location) ... ok
+test_valid_binds_both_documents (__main__.SnapshotIdentity.test_valid_binds_both_documents) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 0.287s
+
+OK
+..........{"starting": "cl", "datadir": "/srv/enclave-l1-pair/cl", "publicExecutionRpc": false}
+.......{"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+...
+----------------------------------------------------------------------
+Ran 20 tests in 0.010s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=61 minHostAvailableMiB=21425
+[memory-guard] at peak: python3:57 bash:4
+[queue] EXIT 0

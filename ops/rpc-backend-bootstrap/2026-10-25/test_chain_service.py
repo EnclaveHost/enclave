@@ -135,6 +135,9 @@ INTENDED = {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': 
     'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000},
     **{n: {'distance': 140000} for n in ('receipts', 'account_history', 'storage_history', 'bodies_history')}}}
 
+BOUND_HASH = '0x' + 'ab' * 32
+BOUND = {'l1Block': 1, 'blobSlot': 2, 'toBlock': 20000, 'safeL1Origin': {'number': 3601, 'hash': BOUND_HASH}}
+
 class PruneProfileTests(unittest.TestCase):
     def launch(self, side, profile_text):
         mnt = '/srv/enclave-base-holder' if side == 'base' else '/srv/enclave-l1-pair'
@@ -142,7 +145,9 @@ class PruneProfileTests(unittest.TestCase):
         beacon = {'/eth/v2/beacon/blocks/2': {'message': {'body': {'blob_kzg_commitments': ['x']}}}, '/eth/v1/beacon/blobs/2': ['x']}
         with patch.object(c, 'mount', return_value=mnt), patch.object(Path, 'is_file', return_value=True), \
                 patch.object(Path, 'read_text', return_value=profile_text), patch.object(c, 'binary', side_effect=lambda n: '/pinned/' + n), \
-                patch.object(c, 'CONFIG', cfg), patch.object(c, 'l1_ready'), patch.object(c, 'rpc', return_value=[]), \
+                patch.object(c, 'CONFIG', cfg), patch.object(c, 'coverage_activation', return_value=BOUND), \
+                patch.object(c, 'l1_ready', return_value={'l1Finalized': 30000}), \
+                patch.object(c, 'rpc', side_effect=lambda port, m, p: {'hash': BOUND_HASH} if m == 'eth_getBlockByNumber' else []), \
                 patch.object(c, 'beacon', side_effect=beacon.__getitem__), patch.object(c.os, 'execve', side_effect=Executed) as exe:
             with self.assertRaises(Executed):
                 c.run(side)
