@@ -680,6 +680,9 @@ export class Manager {
       }
     } catch (e) {
       // The identity is still real and worth keeping: it is what was asked for and what would run.
+      // Failed WMI starts retain their private carrier handles for DELETE to
+      // retry. A survey showing no VM cannot establish carrier cleanup.
+      if (!rec.handle && e.launchHandle) rec.handle = e.launchHandle;
       rec.status = "failed";
       rec.reason = e.message;
       if (e.prerequisites) rec.prerequisites = e.prerequisites;

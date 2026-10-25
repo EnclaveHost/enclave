@@ -1332,6 +1332,14 @@ export class WmiHyperVLauncher {
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
                stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress, package: pkg, custody: cust, disks: disks.map((k) => k.child) }) };
     } catch (e) {
+      // Keep the private cleanup capabilities even when start never returns a
+      // successful handle. A failed carrier stop cannot be retried from a VM
+      // survey alone, and absence of the VM does not prove that carrier closed.
+      // Do not enumerate this on errors: it is process-local state, not JSON.
+      const failedVmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
+      if (failedVmId) Object.defineProperty(e, "launchHandle", { value: {
+        name, vmId: failedVmId, transport, egress, package: pkg, custody: cust, wmiserve: served,
+      } });
       // A carrier failure must not strand the VM or replace the launch error.
       if (transport) {
         try { await transport.stop(); }
@@ -1393,7 +1401,9 @@ export class WmiHyperVLauncher {
   }
   /** Close a relay and remove its bundle file; the outcome, never a throw. */
   async #closeServed(run) {
-    const closed = await run.stop().catch((x) => ({ closed: false, how: `stop failed: ${x.message}` }));
+    let closed;
+    try { closed = await run.stop(); }
+    catch (x) { closed = { closed: false, how: `stop failed: ${x.message}` }; }
     try { if (run.bundleFile) fs.rmSync(run.bundleFile, { force: true }); } catch (x) { closed.bundle = `not removed: ${x.message}`; }
     return closed;
   }
