@@ -1,0 +1,1 @@
+[memory-guard] exit=SIGTERM peakTreeRssMiB=3932 minHostAvailableMiB=16352 STOPPED: host MemAvailable 16352 MiB < floor 16384 MiB
