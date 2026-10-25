@@ -1,0 +1,18 @@
+{
+  "_candidate": "RFC 7396 merge patch for /home/steven/Projects/enclave/metal/config.json (observed sha256 58aa9653586b6e4d..). Copied from route-stage/examples/host-controller.chainVerifier.relay-mode.json (SOURCE-ONLY example, never deployed). registryKey, pairingKeyFile and every other member unchanged (secrets are not in this patch).",
+  "_preconditions": [
+    "a RELAY-MODE control dist that implements chainVerifier (the RUNNING metal-deabf8f90 has 0 occurrences; staged dist-rpc-ec56a70f1 is the reviewed candidate) = guest relaunch",
+    "proofSources: the example points at the public rpc-<b32>.app.enclave.host role, which is NOT live (no public HTTPS RPC route yet). Root must fill <MERGE: proof source> with a reviewed live role URL; do not substitute a third-party RPC",
+    "txBackend 10.0.2.2:28545 = the own Base node through the QEMU host gateway; Base node not running yet"
+  ],
+  "_unchangedHere": "leaseGas (rpcs, relays, quorum) is NOT changed by this patch: see C3; changing the control image does not by itself remove leaseGas public RPC use",
+  "chainVerifier": {
+    "format": "enclave-chain-verifier/v1",
+    "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+    "proofSources": [
+      "<MERGE: reviewed own rpc role URL https://rpc-<b32 of metal0 registry id>.app.enclave.host/>"
+    ],
+    "port": 50546,
+    "txBackend": "http://10.0.2.2:28545/"
+  }
+}

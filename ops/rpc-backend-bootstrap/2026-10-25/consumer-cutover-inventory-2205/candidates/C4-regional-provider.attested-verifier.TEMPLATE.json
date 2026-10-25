@@ -1,0 +1,30 @@
+{
+  "_candidate": "SOURCE-ONLY TEMPLATE for the 4 regional enclave-network-provider configs (observed rpc = mainnet.base.org, base-rpc.publicnode.com, base.drpc.org). Fields from attested-route-source b3fde181 network/wg-provider/attested-authority.mjs. NOT derived from any deployed attested verifier: none exists.",
+  "_preconditions": [
+    "provider RELEASE from route b3fde181 lineage (running: native-recovery-464cad3 x3, hs-transport-39d1513b on ca-east = drift)",
+    "a DEPLOYED SEV-SNP measured verifier replica (only a hardware canary passed; not deployed); its chain source = the own node",
+    "collateral pre-seed + separate writable cacheDir (source/ops/.../provider-collateral-prepared)"
+  ],
+  "_attestationRule": "chainAuthority attested-verifier is ONLY for an SNP-attested measured replica. A loopback/unmeasured helper must use chainAuthority verifier semantics elsewhere and must never be labelled attested.",
+  "rpc": null,
+  "chainAuthority": "attested-verifier",
+  "attestedVerifier": {
+    "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+    "replicas": [
+      {
+        "url": "<MERGE: deployed replica URL>",
+        "configFile": "<MERGE: absolute path of the replica's reviewed direct config JSON>",
+        "measurements": [
+          "<MERGE: reviewed 96-hex launch measurement>"
+        ],
+        "minTcb": "<MERGE: explicit TCB floor per product line>"
+      }
+    ],
+    "collateral": {
+      "dir": "<MERGE: absolute pre-seed dir>",
+      "cacheDir": "<MERGE: absolute separate writable dir>",
+      "kds": true
+    }
+  },
+  "_unchanged": "addressBook 0xab214342d5A490150A4A977063A2f88E21F80907 and authorityPins stay; unpaid providers must NOT set txBackend"
+}
