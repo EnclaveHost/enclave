@@ -71,6 +71,26 @@ class ApiTests(unittest.TestCase):
         self.assert_original()
         self.assertEqual(json.loads((self.journal/'state.json').read_text())['phase'],'rolled-back')
 
+    def test_newer_svn_policy_applies_and_rolls_back_without_legacy_changes(self):
+        self.m['nativeImage']['minimumGuestSvn']=15
+        self.changed_policy(lambda p:p['images'][-1].update(minimumGuestSvn=15))
+        self.assertEqual(self.apply()['phase'],'applied')
+        installed=json.loads((self.root/api.POLICY).read_bytes())
+        original=json.loads(self.original[api.POLICY])
+        self.assertEqual(installed['images'][:-1],original['images'])
+        self.assertEqual(installed['images'][-1]['minimumGuestSvn'],15)
+        self.assertEqual(api.rollback(self.root,self.journal,guard=self.guard)['phase'],'rolled-back')
+        self.assert_original()
+
+    def test_invalid_or_downgraded_svn_floor_refused_before_writes(self):
+        for floor in [None,True,False,12,-1,15.0,'15',0x100000000]:
+            with self.subTest(floor=floor):
+                self.m['nativeImage']['minimumGuestSvn']=floor
+                self.changed_policy(lambda p:p['images'][-1].update(minimumGuestSvn=floor))
+                with self.assertRaisesRegex(ValueError,'uint32 SVN floor'):
+                    self.apply()
+                self.assert_original();self.assertFalse(self.journal.exists())
+
     def test_process_death_after_rename_can_be_restored(self):
         class ProcessDeath(BaseException): pass
         def fail(p,data):
