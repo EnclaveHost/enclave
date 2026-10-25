@@ -1,0 +1,82 @@
+{
+ "verdict": "A1-original-game-recheck-passed",
+ "recheckOf": {
+  "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
+  "verdict": "A1-authenticated",
+  "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "N": "52866960",
+  "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+  "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+  "l1": {
+   "number": 26271848,
+   "hash": "0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4"
+  }
+ },
+ "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+ "N": "52866960",
+ "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+ "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+ "respectedGameType": 621,
+ "l1": {
+  "number": 26272420,
+  "hash": "0x2c30e28c599697c0ed0ebb07e4bfc96747875dae6bf373df32954b00c590a3f3",
+  "stateRoot": "0x5d0028d9c3e654918fbd20e59c05768a9a77852847fc3e0b9f52339c5a4058bc",
+  "timestamp": 1792964183,
+  "ageSec": 931
+ },
+ "latestAnchorObservation": {
+  "game": "0x27d5e3b9343fd081666d96e2b8044c29e176b7bf",
+  "N": "52869960",
+  "outputRoot": "0x1f6165fb54e6a19b18baacef70eba29b31320106b04fd8486d9f5a3b8551f94c",
+  "advanced": true,
+  "accepted": false,
+  "note": "observation only: the bootstrap stays bound to the original game/N; descendants are never accepted here"
+ },
+ "pins": {
+  "0x49048044d57e1c92a77f79988d21fa8faf74e97e": {
+   "codeHash": "0x7d1cd19d713c8d64bf663f4168250abfbf690dbb6214c25bf757fee383816914",
+   "slots": {
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x00000000000000000000000003863ab7f64b733cff85c8ff44a86601c568ca70",
+    "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+   },
+   "comparison": "unchanged-from-initial-observation"
+  },
+  "0x909f6cf47ed12f010a796527f562bfc26c7f4e72": {
+   "codeHash": "0xfa8c9db6c6cab7108dea276f4cd09d575674eb0852c0fa3187e59e98ef977998",
+   "slots": {
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x0000000000000000000000004483f964f6711cb55f633820ed174e780369b99d",
+    "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000475cbcaebd9ce8afa5025828d5b98dfb67e059e"
+   },
+   "comparison": "unchanged-from-initial-observation"
+  },
+  "0x343b3a99527af07d2cfb2652747b9e37715e21ac": {
+   "codeHash": "0xbf530c4112fdac21c5f76954a3fc25ffd1dfb6d7619211e328222b1b95eeef65",
+   "slots": {
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "comparison": "unchanged-from-initial-observation"
+  }
+ },
+ "reads": {
+  "portalAsr": "helios-call",
+  "paused": "helios-call",
+  "respectedGameType": "helios-call",
+  "isGameFinalized": "helios-call",
+  "isGameRespected": "helios-call",
+  "isGameBlacklisted": "helios-call",
+  "isGameRetired": "helios-call",
+  "gameStatus": "helios-call",
+  "gameRootClaim": "helios-call",
+  "gameL2SequenceNumber": "helios-call",
+  "gameType": "helios-call",
+  "gameAnchorStateRegistry": "helios-call",
+  "latestAnchorRoot": "helios-call",
+  "latestAnchorGame": "helios-call",
+  "account:0x49048044d57e1c92a77f79988d21fa8faf74e97e": "mpt-proof",
+  "account:0x909f6cf47ed12f010a796527f562bfc26c7f4e72": "mpt-proof",
+  "account:0x343b3a99527af07d2cfb2652747b9e37715e21ac": "mpt-proof"
+ },
+ "label": "A1 original-game recheck: Helios-light-client-relative; pins compared to initial OBSERVATIONS (not approved versions); not SNP/attested",
+ "at": "2026-10-25T21:53:07.913Z"
+}

@@ -1,0 +1,18 @@
+{
+ "baselineTests": 27,
+ "mutants": {
+  "anchor-regressed": "killed",
+  "binding": "killed",
+  "freshness": "killed",
+  "initial-sha": "killed",
+  "initial-verdict": "killed",
+  "n-unchanged": "killed",
+  "pin-codehash": "killed",
+  "respected-type": "killed",
+  "root-unchanged": "killed",
+  "use-latest-N": "killed"
+ },
+ "killed": 10,
+ "total": 10,
+ "notGenuinelyKilled": 0
+}

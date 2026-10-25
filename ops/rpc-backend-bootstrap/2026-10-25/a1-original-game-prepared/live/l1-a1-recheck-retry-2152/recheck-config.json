@@ -1,0 +1,14 @@
+{
+  "heliosUrl": "http://127.0.0.1:28550",
+  "elUrl": "http://127.0.0.1:28645",
+  "expectedChainId": 1,
+  "pinBy": "hash",
+  "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+  "asr": "0x909f6cf47ed12f010a796527f562bfc26c7f4e72",
+  "portalAsrGetter": "anchorStateRegistry()",
+  "maxFinalizedAgeSec": 1800,
+  "initialEvidenceSha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
+  "originalGame": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "originalN": "52866960",
+  "originalOutputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700"
+}

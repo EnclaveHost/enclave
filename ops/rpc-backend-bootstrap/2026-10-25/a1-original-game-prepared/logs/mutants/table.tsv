@@ -1,0 +1,10 @@
+initial-verdict	if (e.verdict !== INITIAL_VERDICT || "recheckOf" in e) fail	if (false) fail
+initial-sha	sha !== lc(expectedSha256).replace(/^0x/, "")) fail	false) fail
+freshness	if (number <= init.l1.number || at.blockHash === init.l1.hash) fail	if (false) fail
+root-unchanged	if (lc(await h("gameRootClaim", G, "rootClaim()", "bytes32")) !== init.outputRoot) fail	if (false) fail
+n-unchanged	if (await h("gameL2SequenceNumber", G, "l2SequenceNumber()", "uint") !== init.N) fail	if (false) fail
+respected-type	if (respectedGameType !== init.respectedGameType) fail	if (false) fail
+pin-codehash	if (v.codeHash !== lc(was.codeHash)) fail	if (false) fail
+anchor-regressed	if (latest.l2SequenceNumber < init.N) fail	if (false) fail
+use-latest-N	game: G, N: init.N.toString(), outputRoot: init.outputRoot,	game: G, N: latest.l2SequenceNumber.toString(), outputRoot: lc(latest.root),
+binding	if (g !== init.game || BigInt(N) !== init.N || root !== init.outputRoot || cfg.asr !== init.asr)	if (false)
