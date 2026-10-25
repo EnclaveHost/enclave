@@ -1,0 +1,86 @@
+{
+ "format": "enclave-native-reproduction-expected/v1",
+ "date": "2026-10-25",
+ "status": "PREPARED, NOT RUN: no native has been reproduced; nothing here is a provenance pass",
+ "audit": "../ (README.md, audit.json, ROOT-REVIEW.md; root commit b9375992a)",
+ "imagePins": {
+  "source": "chain-verifier-inputs/PINS.sha256 == metal/chain-verifier-image.json at 0235e7d96",
+  "files": {
+   "helios": {
+    "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+    "kind": "own debug build",
+    "status": "source unrecorded; not reproduced"
+   },
+   "witness-check": {
+    "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+    "kind": "own debug build",
+    "status": "built from dirty aca8176 before ef320298 was committed; not reproduced"
+   },
+   "enclave-base-head-listener": {
+    "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+    "kind": "own release build",
+    "status": "recipe recorded; not reproduced"
+   },
+   "ld-linux-x86-64.so.2": {
+    "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+    "kind": "distribution",
+    "package": "Arch glibc 2.44+r50+g1848099f063e-1",
+    "evidence": "== file in the signature-verified cached package"
+   },
+   "libc.so.6": {
+    "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+    "kind": "distribution",
+    "package": "Arch glibc 2.44+r50+g1848099f063e-1",
+    "evidence": "== file in the signature-verified cached package"
+   },
+   "libm.so.6": {
+    "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+    "kind": "distribution",
+    "package": "Arch glibc 2.44+r50+g1848099f063e-1",
+    "evidence": "== file in the signature-verified cached package"
+   },
+   "libgcc_s.so.1": {
+    "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+    "kind": "distribution",
+    "package": "Arch libgcc 16.2.1+r23+gd564253eb6c8-1",
+    "evidence": "== file in the signature-verified cached package"
+   }
+  }
+ },
+ "toolchain": {
+  "rustc": "1.96.0 (ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96)",
+  "cargo": "1.96.0 (30a34c682)",
+  "cc": "GCC 16.2.1 20260810",
+  "profile": "CARGO_BUILD_JOBS=1, CARGO_INCREMENTAL=0, offline, -Wl,--threads=1"
+ },
+ "reproductionTargets": {
+  "r1r": {
+   "pin": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+   "recipe": "build-binaries.sh d5bb17e8 release listener (remapped paths)",
+   "listener": "5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 tree 00e3a61d48c91a6072355bf0ac67564490a6fc8b",
+   "baseTarball": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+   "cargoHomeManifest": "95d7ca2220f90c7d70dc8a80d18d13ee498249134850fcbee1474f33ee9c5ceb",
+   "claim": "only a FRESH build (B) equal to the pin reproduces it; A-resumed is supplementary"
+  },
+  "r2b": {
+   "pin": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+   "commit": "ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 tree eec339e18296d850a514f72de2efdd8729302efd",
+   "cargoLock": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+   "paths": "original witness-failover paths via a private mount namespace",
+   "cargoHomeManifest": "8fe797b4c4aca0d4ea96e0120c3a9ab927487365b6fbe5ccef837b02f579d039",
+   "vendorInspectManifest": "d3115258a839485cb61b99844ea0c9770201dccad9b79c56b8e0bb550633d90d"
+  },
+  "r3": {
+   "pin": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+   "candidates": {
+    "b93fcfd": "tree ef08b7cfe262dd7f040b84f3f3ee4dd2cd23f122",
+    "eeffcc9": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e"
+   },
+   "cargoLock": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+   "paths": "original rpc-priority paths via a private mount namespace",
+   "cargoHomeManifest": "b59affc5af675986e211567055ceef93403d133e6101a784569dc80336dd8117",
+   "vendorInspectManifest": "fcfe96fb7481cb9b78180fe6a46ff16610de38f317211421aab8a85229543471"
+  }
+ },
+ "interpretation": "a byte match from a FRESH build reproduces a pin; a mismatch does NOT prove the source differed; any pin change needs root review and a new image"
+}

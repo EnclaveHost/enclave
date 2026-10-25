@@ -1,0 +1,22 @@
+{
+  "source": "https://codeload.github.com/base/base/tar.gz/5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+  "commit": "5476069f1eb74a56bccb56fdefd4b4bb0e3cda42",
+  "tarballSha256": "9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012",
+  "filesExtracted": 207,
+  "crates": {
+    "base-consensus-gossip": "crates/consensus/gossip",
+    "base-consensus-peers": "crates/consensus/peers",
+    "base-consensus-disc": "crates/consensus/disc",
+    "base-protocol": "crates/consensus/protocol",
+    "base-common-chains": "crates/common/chains",
+    "base-common-genesis": "crates/common/genesis",
+    "base-common-consensus": "crates/common/consensus",
+    "base-common-rpc-types-engine": "crates/common/rpc-types-engine",
+    "base-metrics": "crates/utilities/metrics"
+  },
+  "crateManifestsModified": false,
+  "generated": [
+    "Cargo.toml (root)",
+    "upstream/base-5476069f/Cargo.toml (vendor mini workspace)"
+  ]
+}

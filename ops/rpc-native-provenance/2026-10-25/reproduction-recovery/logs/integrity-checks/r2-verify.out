@@ -1,0 +1,32 @@
+[queue] START available=87362MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+== pre: originals
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/native-provenance-audit-stage/reproduce/r2-verify
+[ok] original helios repo tree eec339e1
+[ok] original helios repo clean
+[ok] original target binary == pin
+[pre] cargo-home manifest 8fe797b4c4aca0d4ea96e0120c3a9ab927487365b6fbe5ccef837b02f579d039; vendor-inspect manifest d3115258a839485cb61b99844ea0c9770201dccad9b79c56b8e0bb550633d90d
+[ok] clone: ef320298 tree eec339e1
+[ok] clone: clean
+[ok] clone: Cargo.lock 28f4400c (closure.json)
+[ok] cargo-home copy == original
+[ok] mounted: original path shows the clone (HEAD ef320298)
+[ok] mounted: original target path is the empty fresh dir
+[ok] mounted: cargo-home path is the copy
+[ok] mounted: vendor-inspect read-only
+[inner] VERIFY_ONLY: mounts verified; stopping before compilation
+== post: originals unchanged
+[ok] original helios repo HEAD unchanged
+[ok] original helios repo still clean
+[ok] original target binary still == pin
+[ok] original cargo-home unchanged
+[ok] vendor-inspect unchanged
+[ok] clone still clean after build
+[verify] VERIFY_ONLY: namespace mounts and originals verified (inner rc=0); no compilation, no receipt
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=87246
+[memory-guard] at peak: sort:9 sha256sum:6 sha256sum:6 bash:4 xargs:2 cut:2 bash:2 bash:2
+[queue] EXIT 0

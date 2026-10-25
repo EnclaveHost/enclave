@@ -1,0 +1,29 @@
+[queue] START available=87442MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+== 0 original inputs
+[ok] build-binaries.sh d5bb17e8
+[ok] base tarball 9784e20a
+[ok] listener 5e178676 tree 00e3a61d
+[ok] helios ef320298 tree eec339e1
+[ok] listener repo clean
+[ok] helios repo clean
+[ok] original listener cargo home == manifest recorded by r1 (95d7ca22)
+== 1 interrupted build A: integrity vs a fresh export (build-binaries.sh's export commands)
+[ok] A work dir and cache copy exist
+[ok] A cache copy exists
+[ok] verify-export dir new
+[ok] A helios == fresh export
+[ok] A listener == fresh export
+[ok] A vendor-inspect == fresh export
+[ok] A has nothing beyond helios, listener, vendor-inspect, target-listener
+[A cache] file-list differences vs original: none
+[ok] A cache: no original file missing
+[ok] A cache: only cargo lock/state files added
+[FAIL] A cache: every original file byte-identical in the copy
+[memory-guard] exit=9 peakTreeRssMiB=33 minHostAvailableMiB=87216
+[memory-guard] at peak: sha256sum:6 sha256sum:6 sort:5 bash:4 grep:2 xargs:2 bash:2 bash:2
+[queue] EXIT 9
