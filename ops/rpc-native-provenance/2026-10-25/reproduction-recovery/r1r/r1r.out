@@ -1,0 +1,55 @@
+[queue] START available=21736MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline: interfaces = lo only (lo )
+[ok] offline: no IPv4 route
+[tool] rustc 1.96.0 (ac68faa20 2026-05-25) binary: rustc commit-hash: ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96 commit-date: 2026-05-25 host: x86_64-unknown-linux-gnu release: 1.96.0 LLVM version: 22.1.2 
+[tool] cargo 1.96.0 (30a34c682 2026-05-25)
+[tool] rustc ba4b837efb6612df cargo f30f9fd1b1d0b8fd cc cc (GCC) 16.2.1 20260810
+== 0 original inputs
+[ok] build-binaries.sh d5bb17e8
+[ok] base tarball 9784e20a
+[ok] listener 5e178676 tree 00e3a61d
+[ok] helios ef320298 tree eec339e1
+[ok] listener repo clean
+[ok] helios repo clean
+[ok] original listener cargo home == manifest recorded by r1 (95d7ca22)
+== 1 interrupted build A: integrity vs a fresh export (build-binaries.sh's export commands)
+[ok] A work dir and cache copy exist
+[ok] A cache copy exists
+[ok] verify-export dir new
+[ok] A helios == fresh export
+[ok] A listener == fresh export
+[ok] A vendor-inspect == fresh export
+[ok] A has nothing beyond helios, listener, vendor-inspect, target-listener
+[A cache] file-list differences vs original: none
+[ok] A cache: no original file missing
+[ok] A cache: only cargo lock/state files added
+[ok] A cache: every file except cargo's own state (.global-cache, .package-cache*) byte-identical
+[A cache] cargo state files differing (expected, not compile inputs): 1
+[A] partial target: 2598 files; final binary present: no
+== 2 RESUME A in place (build-binaries.sh release environment, verbatim)
+   Compiling clap v4.6.5
+   Compiling enclave-base-head-listener v0.1.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/native-provenance-audit-stage/reproduce/r1/work-a/listener/crates/enclave-base-head-listener)
+    Finished `release` profile [optimized] target(s) in 3m 32s
+[A-resumed] rc=0
+[ok] A Cargo.lock unchanged
+== 3 B FRESH through build-binaries.sh
+[ok] B work dir and cache copy new
+[ok] B cache copy new
+[ok] B cache copy == original
+  "enclave-base-head-listener": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3"
+ }
+}
+[B] rc=0
+== 4 compare; originals unchanged
+[ok] original cargo home unchanged
+[ok] listener repo still clean
+[ok] helios repo still clean
+[result] A-resumed 9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3
+[result] B-fresh   9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3
+[result] pin       9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3
+[result] B (fresh) REPRODUCED the pin
+[result] A-resumed == B
+[r1r] rc=0
+[memory-guard] exit=0 peakTreeRssMiB=725 minHostAvailableMiB=21040
+[memory-guard] at peak: rustc:585 cargo:134 bash:4 timeout:2
+[queue] EXIT 0

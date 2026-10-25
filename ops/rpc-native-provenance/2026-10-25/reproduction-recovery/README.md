@@ -1,7 +1,9 @@
 # Native reproduction: interrupted first attempt, recovery scripts and integrity checks (2026-10-25)
 
-**Status: PREPARED, NOT RUN.**
-- **No native file has been reproduced. Nothing here is a native-provenance pass.**
+**Status (updated after root's foreground run): R1 REPRODUCED. R2 and R3 UNFINISHED and NOT published here.**
+- **ONE native is reproduced: the release listener `enclave-base-head-listener` `9ca75047…`, by a FRESH build** (section 6).
+- **No other native is reproduced:** witness-check `4fe0cd3b` and Helios `cc962e2b` are still open, and the 4 libraries
+  remain distribution bytes. This is not a native-provenance pass for the image as a whole.
 - The audit this follows is in `../` (`README.md`, `audit.json`, `ROOT-REVIEW.md`).
 - Root launches `jobs/resume.sh` in the FOREGROUND from a session that survives the CLI. **No job here runs as a
   background job of a CLI session.**
@@ -55,3 +57,29 @@ All ran in the foreground through the queue at 512 MiB, offline, with **no compi
 - **A mismatch does NOT prove the source differed.** It calls for a diff diagnosis.
 - **Any pin change needs root review and a new image.**
 - **Not established here:** hardware attestation, activation, readiness and finality.
+
+## 6. R1r result (root-launched FOREGROUND run of `jobs/resume.sh`, phase `r1r`; evidence in `r1r/`)
+
+- **Job:** `r1r` exit **0**, finished 18:04:46Z. Memory guard: peak 725 MiB, host minimum 21040 MiB (`r1r/r1r.guard`,
+  `r1r/r1r.rc`). Offline, through the shared queue at 1024 MiB.
+- **Re-checked before building** (`r1r/r1r.out` §0–1):
+  - all original inputs (script `d5bb17e8`, tarball `9784e20a`, listener `5e178676` and helios `ef320298` trees, clean
+    repos, the original cache manifest `95d7ca22…`);
+  - interrupted A's sources are again equal to a fresh export, and its cache is byte-identical except cargo state.
+
+| build | how | log | binary sha256 |
+|---|---|---|---|
+| **B-fresh: THE reproduction** | `build-binaries.sh` release from scratch: new work dir and cache copy, all 404 units compiled; started 17:58:43Z, `Finished … in 6m 00s` | `r1r/r1r-build-b.out`, `r1r/receipts/B-fresh-BUILD.json` | **`9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3`** |
+| A-resumed (supplementary) | the interrupted first-attempt A, resumed in place with the script's exact release environment; 114 remaining units, 17:55:07–17:58:39Z, `Finished … in 3m 32s` | `r1r/r1r-build-a-resume.out`, `r1r/receipts/r1r-a-resume-*.utc` | `9ca75047…` (equal to B) |
+
+- **Pin:** `9ca75047…` (`chain-verifier-inputs/PINS.sha256`, the image record at `0235e7d96`). **B-fresh == pin.**
+  A-resumed == B, but A reused units compiled in the interrupted attempt, so it is NOT counted as the reproduction.
+- **Hashes, independently re-checked** for this publication (sha256 of both binaries on disk, read-only): both equal
+  `r1r/receipts/r1r.sha256` and `B-fresh-BUILD.json`.
+- **Afterwards, originals unchanged:** the listener cache, and both repos clean.
+- **What this proves:** the pinned release listener is reproducible from the committed listener `5e178676` and base/base
+  tarball `9784e20a` with the recorded toolchain and recipe, on this host.
+  - **Not proven:** that it reproduces on a different host or toolchain installation. A second, independent builder
+    host is still open.
+- **R2 (`r2b`) and R3 (`r3-b93fcfd`, `r3-eeffcc9`):** were still running or pending when this was written. Their logs
+  are deliberately NOT copied, to avoid publishing incomplete files. No result is claimed.
