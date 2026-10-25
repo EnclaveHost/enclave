@@ -215,6 +215,10 @@ export class IsolationManagerClient {
       appId: o.appId ?? null,
       runtimeId: o.runtimeId ?? null,
       recordSha256: o.recordSha256 ?? null,
+      derivation: typeof o.derivation === "string" ? o.derivation : null,
+      componentSha256: typeof o.componentSha256 === "string" ? o.componentSha256 : null,
+      desktop: o.desktop && typeof o.desktop === "object" && !Array.isArray(o.desktop)
+        ? { profile: o.desktop.profile, profileSha256: o.desktop.profileSha256, gpuMilli: o.desktop.gpuMilli } : null,
       // the owner-committed package a Shield-direct partition was given (server.mjs), for the node's adoption check
       bootstrapSha256: typeof o.bootstrapSha256 === "string" ? o.bootstrapSha256 : null,
       // the pinned image it runs on (F3): absent means legacy (a manager or VM from before image selection), and the IGVM

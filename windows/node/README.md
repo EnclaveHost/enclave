@@ -4,6 +4,35 @@ The pieces a Windows 11 machine runs to join the fleet as a `windows-vbs-node` (
 `windows/vbs/EVIDENCE.md`). This directory holds the TPM half; the enclave half lives in
 `windows/enclave-engine/`, the agent that drives both is `agent.mjs`.
 
+## Native desktop release selection
+
+The native V8 desktop planner requires independent operator release pins.
+`ENCLAVE_DESKTOP_RELEASE_FILE` names a local `enclave-desktop-release/1` JSON
+file, and `ENCLAVE_DESKTOP_RELEASE_SHA256` pins its exact raw bytes. Both must
+be configured together. With neither set, native release selection stays off.
+A configured file that cannot be read or validated causes construction of the
+host to fail; it never falls back to manager-provided pins.
+
+The loader reads at most 64 KiB from one regular-file descriptor, validates the
+hash, UTF-8, JSON and release schema, and keeps an immutable snapshot for the
+host lifetime. A changed release requires a host restart. The approved release
+binds the controller CID/hash, runtime, IGVM, profile, launch measurement and
+resource policy; the shared release schema specifies the exact fields. App
+configuration and manager `/health` cannot install this authority.
+
+Before adopting a native VM, the host compares its reported canonical record
+hash, controller hash, runtime, image role, IGVM/image hash, desktop profile and
+GPU allocation with the current plan. It repeats this check after reconciliation
+so an identity change between checks cannot be routed. A stale same-catalog
+record is retired before replacement, with the existing confirmed-removal rule.
+Manager statements remain consistency checks, not hardware attestation; the
+node continues to report `hostExcluded=false` on this backend.
+
+This is source integration, not release activation. Production certificate,
+privacy-agent startup and sealed owner-secret delivery still need native release
+integration and end-to-end qualification. No hardware SVN requirement is lowered
+and no live node configuration is changed by the loader or its tests.
+
 ## tpmattest.exe: the TPM half, driven over stdin/stdout
 
 `tpmattest.c` is one MSVC tool (raw TPM 2.0 commands through TBS, no TSS) that the agent spawns
