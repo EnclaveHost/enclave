@@ -127,6 +127,30 @@ const ONLY = process.env.E2E_ONLY ? new Set(process.env.E2E_ONLY.split(',')) : n
 const Tn = (n) => (ONLY && !ONLY.has(String(n)) ? { skip: 'not selected (E2E_ONLY)' } : T);
 let H, Q;   // the relay-mode verifier host and its first claimed deployment
 
+// The rig pre-registers this endpoint for the operator with no proof key, so a booting host either register()s or (92223d0df)
+// adopts that exact row after a setProofKey for its freshly minted key. Either way the log line proves nothing by itself:
+// the row is read back from the chain (this operator, active, the host's own signer as proofKey), and the boot's
+// transaction must have gone through the own backend and landed with ProofKeySet(id, signer).
+const REGISTERED = /\[registry\] (?:registered|adopted the existing registration of) (\S+) .*?id=(0x[0-9a-f]{64})(.*)/;
+const REG_SELECTORS = new Set([viem.toFunctionSelector('setProofKey(bytes32,address)'), viem.toFunctionSelector('register(string,string,bytes32,uint64,uint64,address)')]);
+async function verifyRegistration(h) {
+  const [, endpoint, id, rest] = h.stdout().match(REGISTERED);
+  const signer = lc(h.stdout().match(/\[proof\] proof-of-time signer (0x[0-9a-fA-F]{40})/)?.[1] || '');
+  assert.match(signer, /^0x[0-9a-f]{40}$/, 'the host minted a proof-of-time signer');
+  assert.equal(endpoint, rig.endpoint); assert.equal(lc(id), lc(rig.runner), 'the registration is the rig runner id');
+  const registry = lc(rig.addresses.registry);
+  const row = await rig.pc.readContract({ address: registry, abi: rig.A.registry4.abi, functionName: 'get', args: [id] });
+  assert.equal(lc(row.operator), lc(rig.operator), 'the row is the operator key\'s'); assert.equal(row.active, true, 'the row is active');
+  assert.equal(lc(row.proofKey), signer, 'the chain holds this boot\'s proof key');
+  const tx = rest.match(/tx=(0x[0-9a-f]{64})/)?.[1];
+  assert.ok(tx, `the boot published its new proof key in a transaction: ${rest}`);
+  const rcpt = await rig.pc.getTransactionReceipt({ hash: tx });
+  assert.equal(rcpt.status, 'success'); assert.equal(lc(rcpt.to), registry);
+  const set = parseEventLogs({ abi: rig.A.registry4.abi, logs: rcpt.logs, eventName: 'ProofKeySet' });
+  assert.ok(set.some((e) => lc(e.args.id) === lc(id) && lc(e.args.proofKey) === signer), 'ProofKeySet(id, signer) in that receipt');
+  assert.ok(backend.st.sends.some((s) => s.to === registry && REG_SELECTORS.has(s.selector)), 'the registry write went through the own backend');
+}
+
 test('relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, and renews, every write through the own backend only; no provider or public origin is ever attempted', Tn(1), async () => {
   Q = await fundedDeployment();
   const from = await rig.pc.getBlockNumber();
@@ -134,7 +158,8 @@ test('relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, a
   await H.waitLog(/\[chain\] authority: local verifier .* own backend .* no provider RPC is used/, 30000);
   // boot proceeds past listening (a stalled process would show here, with its health endpoint's answer)
   const health0 = async () => { try { return JSON.stringify(await (await fetch(`${H.upstream}/v1/health`, { signal: AbortSignal.timeout(5000) })).json()).slice(0, 600); } catch (e) { return 'NO ANSWER: ' + e.message; } };
-  await waitFor(() => /\[registry\] registered/.test(H.stdout()), 120000, 'registered through the own backend').catch(async (e) => { throw new Error(`${e.message}; health: ${await health0()}\n${H.stdout().slice(-6000)}`); });
+  await waitFor(() => REGISTERED.test(H.stdout()), 120000, 'registered through the own backend').catch(async (e) => { throw new Error(`${e.message}; health: ${await health0()}\n${H.stdout().slice(-6000)}`); });
+  await verifyRegistration(H);
   await waitFor(async () => lc((await getRow(rig, Q)).runner) === lc(rig.runner), 180000, 'Q claimed by this host').catch(async (e) => { throw new Error(`${e.message}; health: ${await health0()}\n${H.stdout().slice(-6000)}`); });
   await waitOr(() => H.effects.some((e) => e.launched && e.name === Q), 60000, 'Q launched after the claim receipt was verified');
   await waitOr(async () => (await ledgerEvents(from, Q)).some((e) => e.eventName === 'Renewed'), 120000, 'Q renewed');
@@ -151,15 +176,17 @@ test('relay mode: the supervisor claims, adopts on the VERIFIED claim receipt, a
   assert.equal(health.chainAuthority.logs, 'inclusion only (completeness not proven)');
 });
 
-test('proof-source outage: new claims refuse (nothing submitted), the running app keeps serving; a restart during the outage keeps it; claims resume when proofs return', Tn(2), async () => {
+test('proof-source outage: new claims refuse (nothing submitted), the running app keeps serving; a restart during the outage keeps it; claims resume when proofs return', Tn(2), async (t) => {
   const sendsBefore = backend.st.sends.length, deletesBefore = H.effects.filter((e) => e.delete).length;
   proof.st.mode = 'down';
+  t.after(() => { proof.st.mode = 'ok'; });   // a failure here must not leave the later cases without a proof source
   await sleep(4000);
   const S = await fundedDeployment();
   await sleep(25000);
   assert.match(lc((await getRow(rig, S)).runner), /^0x0{64}$/, 'S is not claimed while no proof source answers');
   assert.equal(backend.st.sends.length, sendsBefore, 'nothing was submitted during the outage');
-  assert.equal(H.effects.filter((e) => e.delete).length, deletesBefore, 'the running app was not stopped');
+  assert.equal(H.effects.filter((e) => e.delete).length, deletesBefore,
+    `the running app was not stopped: ${JSON.stringify(H.effects.filter((e) => e.delete).slice(deletesBefore, deletesBefore + 3))}\n${H.stdout().slice(-4000)}`);
   // restart DURING the outage: the restored record keeps serving (chain-backed, not chain-live); nothing is sent
   const stateFile = H.stateFile;
   await H.kill();
