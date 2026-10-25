@@ -1,0 +1,19 @@
+
+running 14 tests
+test chain_provider::tests::forged_header_cannot_vouch_for_forged_receipts ... ok
+test chain_provider::tests::altered_log_is_refused ... ok
+test chain_provider::tests::omitted_receipt_is_refused_and_not_cached ... ok
+test chain_provider::tests::test_from_alloy_chain_provider_error ... ok
+test chain_provider::tests::reordered_receipts_are_refused ... ok
+test chain_provider::tests::trusted_rpc_keeps_upstream_behaviour ... ok
+test chain_provider::tests::transactions_must_match_the_verified_transactions_root ... ok
+test chain_provider::tests::verified_receipts_are_returned_and_cached ... ok
+test l2_chain_provider::tests::test_block_by_number_exhausts_null_retry_budget ... ok
+test l2_chain_provider::tests::test_block_by_number_retries_nulls_then_succeeds ... ok
+test l2_chain_provider::tests::test_from_alloy_l2_chain_provider_error ... ok
+test l2_chain_provider::tests::test_block_by_number_transport_error_does_not_retry ... ok
+test l2_chain_provider::tests::test_l2_block_info_by_number_bypasses_number_cache ... ok
+test l2_chain_provider::tests::test_l2_chain_provider_callers_preserve_transport_errors ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.20s
+

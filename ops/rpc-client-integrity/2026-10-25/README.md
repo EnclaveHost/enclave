@@ -6,9 +6,9 @@
 
 | Item | State |
 |---|---|
-| M7 Rust tests | **NOT COMPILED and NOT RUN.** |
+| M7 Rust tests | **Compiled and VALIDATED (root foreground run, 2026-10-25 19:11Z, rc 0):** 19 tests pass (providers 14 = 7 new + 1 + 6 pre-existing; CLI `l1::` 5 = 1 new + 4), and the negative control detects **5 faults** (`m7-control-recovery/`). **Still NOT a production binary build, activation, or full authenticated bootstrap.** |
 | Self-check | Only syntax and patch application were checked (§3). |
-| Root queue run | Prepared and **launched by root**. It is waiting behind the native reproduction build; its outcome is **pending** and is not reported here (§4). |
+| Root queue run | Completed after three earlier failures, preserved in `earlier-failures/` (§4): a guard stop (rc 99), an argparse refusal at 1792 (rc 2), and an r2 run whose control was invalid (cache reuse, rc 1). Final: `m7-control-recovery/` PASS. |
 | Gates, live conversion, authority | None accepted. No live conversion, no VM change, no measured-image change. This grants no finality or DB authority. **SNP attestation does not authenticate a database or snapshot.** |
 
 ## 1. Pinned sources
@@ -85,11 +85,11 @@ Read-only source findings. **No DB was touched.**
 
 **Out of scope:** the sequencer-only `actors/sequencer/l1_origin/provider.rs:113` (`91c850df…`) also reads receipts unverified.
 
-**Tests in the patch: NOT COMPILED, NOT RUN.**
+**Tests in the patch: compiled and run (root, 2026-10-25); see `m7-control-recovery/`.**
 - 7 in `chain_provider::tests` (httpmock JSON-RPC): consistent, omitted, altered, reordered, forged header, explicit-trust opt-out, transactions root.
 - 1 in `l1::tests`: default false, flag sets true.
 
-The fixtures were written against alloy 2.4.1 sources but never compiled; fix-ups may be needed.
+The fixtures were written against alloy 2.4.1 sources. They compiled and passed unchanged with the patch `e9dfb8c6…`.
 
 **Self-check evidence** (`evidence/selfcheck.*`; shared queue 256 MiB in `unshare -rn`; rc 0):
 - the patch applies to a pristine archive of `5476069f`;
@@ -104,13 +104,22 @@ The fixtures were written against alloy 2.4.1 sources but never compiled; fix-up
   - a private `CARGO_HOME` seeded by *copying* `~/.cargo/{registry,git}`;
   - `cargo fetch --locked`.
 - **test-offline** (`unshare -rn`, 1536 MiB): requires the patched provider and cli tests to pass, **and** the control to fail exactly `altered_log_is_refused`, `omitted_receipt_is_refused_and_not_cached`, `reordered_receipts_are_refused` and `transactions_must_match_the_verified_transactions_root`.
+  **This expectation of four was WRONG:** the correct number is five, with `forged_header_cannot_vouch_for_forged_receipts`. Its control flow was also invalid, because of a shared-target cache reuse. It is superseded by `m7-control-recovery/test-offline-r3.sh`. The pinned job is kept unchanged as history.
 
 **Root's queued run:** `root-queue/run.py` and `root-queue/pins.json` are copied exactly as root prepared them. The run:
 1. waits for the native reproduction `r3-eeffcc9.rc`;
 2. re-checks the pinned job hashes before every step;
 3. runs prepare-fetch, then test-offline, through `work/claude-test-queue.py` with `CARGO_BUILD_JOBS=1`, retrying only on queue rc 98.
 
-Its last line states that even exit 0 "requires log/source/root review, NOT production activation". At publication it was **waiting** (no compile started). **No result is claimed here;** the logs come later and may need fixups.
+Its last line states that even exit 0 "requires log/source/root review, NOT production activation".
+
+**Outcome (updated 2026-10-25):**
+1. `root-test-offline-1`: the 1536 MiB guard stopped the CLI link (rc 99, peak 1565).
+2. A 1792 retry was refused by the old queue's argparse (rc 2).
+3. After root installed the 1792 queue (`b7de4344…`; `recovery-preparation/root-installed.sha256`; queue tests 8/8, negative control 5 of 6 fail), the `r2` rerun passed the patched tests. Its control was INVALID: it reran the patched binary (rc 1).
+4. The corrected harness passed fully: `m7-control-recovery/`.
+
+All three earlier runs' closed logs are in `earlier-failures/`. The unexecuted, flawed `recovery-preparation/superseded-not-executed/control-rerun.sh` is history only.
 
 ## 5. Applying M7, only after the queued tests pass and root reviews them
 

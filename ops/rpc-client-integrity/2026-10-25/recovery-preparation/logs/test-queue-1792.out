@@ -1,0 +1,91 @@
+[queue] START available=20017MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+## candidate
+test_choices_accept_1792_reject_other (test_queue_1792.Candidate1792.test_choices_accept_1792_reject_other) ... ok
+test_large_1536_with_running_small_now_yields_by_the_1792_reserve (test_queue_1792.Candidate1792.test_large_1536_with_running_small_now_yields_by_the_1792_reserve) ... ok
+test_large_1792_alone_boundary_and_unchanged_child_limits (test_queue_1792.Candidate1792.test_large_1792_alone_boundary_and_unchanged_child_limits) ... ok
+test_large_1792_with_running_small_keeps_existing_rules (test_queue_1792.Candidate1792.test_large_1792_with_running_small_keeps_existing_rules) ... ok
+test_small_alone_unchanged (test_queue_1792.Candidate1792.test_small_alone_unchanged) ... ok
+test_small_joining_occupied_large_lane_reserves_1792 (test_queue_1792.Candidate1792.test_small_joining_occupied_large_lane_reserves_1792) ... ok
+test_original_refuses_1792 (test_queue_1792.OriginalBaseline.test_original_refuses_1792) ... ok
+test_original_small_joining_large_reserves_only_1536 (test_queue_1792.OriginalBaseline.test_original_small_joining_large_reserves_only_1536) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 15.768s
+
+OK
+## candidate rc=0
+## negative control: Candidate1792 tests against the original queue (failures expected)
+test_choices_accept_1792_reject_other (test_queue_1792.Candidate1792.test_choices_accept_1792_reject_other) ... FAIL
+test_large_1536_with_running_small_now_yields_by_the_1792_reserve (test_queue_1792.Candidate1792.test_large_1536_with_running_small_now_yields_by_the_1792_reserve) ... FAIL
+test_large_1792_alone_boundary_and_unchanged_child_limits (test_queue_1792.Candidate1792.test_large_1792_alone_boundary_and_unchanged_child_limits) ... FAIL
+test_large_1792_with_running_small_keeps_existing_rules (test_queue_1792.Candidate1792.test_large_1792_with_running_small_keeps_existing_rules) ... FAIL
+test_small_alone_unchanged (test_queue_1792.Candidate1792.test_small_alone_unchanged) ... ok
+test_small_joining_occupied_large_lane_reserves_1792 (test_queue_1792.Candidate1792.test_small_joining_occupied_large_lane_reserves_1792) ... FAIL
+
+======================================================================
+FAIL: test_choices_accept_1792_reject_other (test_queue_1792.Candidate1792.test_choices_accept_1792_reject_other)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py", line 83, in test_choices_accept_1792_reject_other
+    self.assertEqual(rc, 0, out)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 2 != 0 : usage: claude-test-queue.py [-h] --mib {256,512,768,1024,1408,1536} --log LOG
+                            ...
+claude-test-queue.py: error: argument --mib: invalid choice: '1792' (choose from '256', '512', '768', '1024', '1408', '1536')
+
+
+======================================================================
+FAIL: test_large_1536_with_running_small_now_yields_by_the_1792_reserve (test_queue_1792.Candidate1792.test_large_1536_with_running_small_now_yields_by_the_1792_reserve)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py", line 129, in test_large_1536_with_running_small_now_yields_by_the_1792_reserve
+    self.assertEqual(rc, 98, out)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 0 != 98 : [queue] START available=18432MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+[queue] EXIT 0
+
+
+======================================================================
+FAIL: test_large_1792_alone_boundary_and_unchanged_child_limits (test_queue_1792.Candidate1792.test_large_1792_alone_boundary_and_unchanged_child_limits)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py", line 90, in test_large_1792_alone_boundary_and_unchanged_child_limits
+    self.assertEqual(rc, 98, out)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 2 != 98 : usage: claude-test-queue.py [-h] --mib {256,512,768,1024,1408,1536} --log LOG
+                            ...
+claude-test-queue.py: error: argument --mib: invalid choice: '1792' (choose from '256', '512', '768', '1024', '1408', '1536')
+
+
+======================================================================
+FAIL: test_large_1792_with_running_small_keeps_existing_rules (test_queue_1792.Candidate1792.test_large_1792_with_running_small_keeps_existing_rules)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py", line 118, in test_large_1792_with_running_small_keeps_existing_rules
+    self.assertEqual(rc, 98, out)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 2 != 98 : usage: claude-test-queue.py [-h] --mib {256,512,768,1024,1408,1536} --log LOG
+                            ...
+claude-test-queue.py: error: argument --mib: invalid choice: '1792' (choose from '256', '512', '768', '1024', '1408', '1536')
+
+
+======================================================================
+FAIL: test_small_joining_occupied_large_lane_reserves_1792 (test_queue_1792.Candidate1792.test_small_joining_occupied_large_lane_reserves_1792)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/queue-recovery/test_queue_1792.py", line 106, in test_small_joining_occupied_large_lane_reserves_1792
+    self.assertEqual(rc, 98, out)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: 0 != 98 : [queue] START available=18687MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+[queue] EXIT 0
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 3.370s
+
+FAILED (failures=5)
+## control rc=1
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=38 minHostAvailableMiB=19837
+[memory-guard] at peak: python3:18 python3:16 bash:4
+[queue] EXIT 0
