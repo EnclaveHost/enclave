@@ -1,0 +1,27 @@
+# Evidence metadata (sha256). Sources stay in place; files marked [not copied] are excluded by policy (size/binary).
+# release artifact [not copied: binary]
+b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7  finality-stage/bytecode-v2-recovery/build/target/release/base-bytecode-check  size=1276048
+# release-logs files [not copied]
+e901720ad6902c7ee60a4f6830b0052b638b707a9d2fef06d644a053c76e5aac  finality-stage/bytecode-v2-release-recovery/release-logs/closure-manifest.json
+8397c2991daa6ea6a3c2586d61109555e69ea94fbc104027f08636b563c7153a  finality-stage/bytecode-v2-release-recovery/release-logs/release.build.json
+#   closure-manifest.json is byte-identical to the pinned finality-stage/bytecode-v2-recovery/inputs/closure-manifest.json (e901720a...)
+# every source of a copied file, as in the stage/logs
+06c88f03c39b8cd1904457037b9aee48ef6e2dff9b7ac15e73dfcf2514ed9f4d  finality-stage/bytecode-v2-release-recovery/release-logs/release-manifest.json
+0ff89d82971ac0afbb3676200386e727f5a3d7fcb94f615373b2739a0bc7b267  finality-stage/bytecode-v2-release-recovery/release-logs/release.log
+27406165d5b250a7276c41dded843274bde037dc4b68ca6a37cfc406a47993a1  finality-stage/bytecode-v2-release-recovery/release-logs/artifact.json
+7cae1529355531b93bcc35be0aaec56b28b63c60e8c5833dc5a00dcb98d59795  finality-stage/bytecode-v2-release-recovery/release-logs/usage.out
+44efc052445e8b3df05ba98cef23e88ee2190ca41d561aca0524496de25face6  finality-stage/bytecode-v2-release-recovery/release-logs/release.comment.txt
+a7c9495f4bd914679cce1596f6899ce44aa454f7c3a0857c59e82fff79c7e516  finality-stage/bytecode-v2-release-recovery/release-logs/test-receipt.json
+9374f5ef6348edcb71e29d36e1c742b64d7ba6bef4f9400ffaf1dfc7081d7fbd  finality-stage/bytecode-v2-release-recovery/release-logs/tree-compare.txt
+72510526402a1891816fbed27e2f99d41ebc47c53ef8dceb2928288a883ee136  finality-stage/bytecode-v2-release-recovery/release-logs/verify_inputs.out
+16ad710661647a47d21b10e9efce449286880fd353c42c12d2738ed40b52253e  finality-stage/bytecode-v2-release-recovery/release-logs/cargo-tree.release.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  finality-stage/bytecode-v2-release-recovery/release-logs/cargo-tree.release.err
+1c16d6dc7d6452663a1fa21344fdae561b709d5a34c497328c27ad118e51e94d  finality-stage/bytecode-v2-release-recovery/release-logs/release.build.err
+ad747af42af516cb4f4aeab2f97d4f8421e9be0df60c808879b166e82d95127a  logs/root-bytecode-v2-release-2303.out
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  logs/root-bytecode-v2-release-2303.rc
+dc4a289b824fdd09cdb8b17ece8874ceced37c1c3a8e728e428e0b4c0bae9fda  logs/root-bytecode-v2-release-2303.guard
+261211ddacd01aad44bfea59d79decf750ba898fe793d1740c81ada3a878726e  finality-stage/bytecode-v2-release-recovery/inputs/PASSED-TEST-RECEIPTS.sha256
+# test receipts the release consumed (root-pinned, not copied here; published in bytecode-v2-recovery-validated)
+aae989a6af69d174a09b6daa436dd275474e3a60e5a96bfc4839b4c6e4e8a6e8  logs/root-bytecode-v2-recovery-2259.out
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  logs/root-bytecode-v2-recovery-2259.rc
+adb8e26553b08491fe63f8fc798a4922c6c33d9b8a853fbe590a1b68c96fba39  logs/root-bytecode-v2-recovery-2259.guard

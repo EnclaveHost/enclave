@@ -1,0 +1,34 @@
+[queue] START available=23067MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+PASS six monitor controls: success, remote failure, prestart floor, active floor, cancellation, unexpected observer error
+[ok] repair MANIFEST.sha256 == 1864c8526dd9487d5a07a12d311f8d887214fe85eed66eb9d9d8535e126b6d29
+[ok] every repair-stage file == MANIFEST (15 files)
+[ok] no unlisted file or symlink in the repair stage
+[ok] fixed M10 patch d97c31b5
+[ok] OLD stage == MANIFEST dd9df0ab (toolchain, base tar, caches as staged)
+[ok] staged rustc/cargo 1.96.0
+[ok] run 1 ENDED (receipt rc 1, unit inactive)
+[ok] reused cache /srv/m10-guest-validation/runs/run-1/build/cargo-home/registry (owner m10build)
+[ok] reused cache /srv/m10-guest-validation/runs/run-1/build/target/debug (owner m10build)
+[ok] run-2 directory is new
+[ok] cc: /usr/bin/cc (cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] c++: /usr/bin/c++ (c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] gcc: /usr/bin/gcc (gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] g++: /usr/bin/g++ (g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] clang: /usr/bin/clang (Ubuntu clang version 18.1.3 (1ubuntu1))
+[ok] make: /usr/bin/make (GNU Make 4.3)
+[ok] cmake: /usr/bin/cmake (cmake version 3.28.3)
+[ok] pkg-config: /usr/bin/pkg-config (1.8.1)
+[ok] git: /usr/bin/git (git version 2.43.0)
+[ok] python3: /usr/bin/python3 (Python 3.12.3)
+[ok] node: /usr/bin/node (v18.19.1)
+[ok] tar: /usr/bin/tar (tar (GNU tar) 1.35)
+[ok] libclang: /usr/lib/llvm-18/lib/libclang.so
+[ok] pkg-config openssl 3.0.13
+[ok] build user m10build (uid 993)
+[ok] stages not writable by m10build
+[ok] disk: 19057 MiB free >= 8192 floor + 8192 run-2 estimate
+[ok] memory: MemAvailable 53645 MiB >= 16384 floor + 12288 cap
+## preflight-2 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=19 minHostAvailableMiB=23008
+[memory-guard] at peak: python3:16 bash:4
+[queue] EXIT 0

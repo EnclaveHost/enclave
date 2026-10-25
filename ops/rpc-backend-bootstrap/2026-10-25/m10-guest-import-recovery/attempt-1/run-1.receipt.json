@@ -1,0 +1,18 @@
+{
+ "attempt": 1,
+ "systemdRunExit": 1,
+ "unit": "Result=exit-code ExecMainCode=1 ExecMainStatus=1 MemoryPeak=10088509440 ",
+ "start": "2026-10-25T22:45:10Z",
+ "end": "2026-10-25T23:08:38Z",
+ "stageManifestSha256": "dd9df0ab82e9f8b53a90063808bdd2199b873eafcf037fb6313d4406d4fb49ee",
+ "outSha256": "f88f486484409c82415f8e55d4e2cdbed39e1b674ea933bec067059cd2c61116",
+ "aggregateLine": "## aggregate rc=1",
+ "testResultLines": 1,
+ "ignoredTotal": 0,
+ "guardLines": [
+  "[disk-guard] exit=1 childExit=1 minFreeMiB=19057",
+  "[memory-guard] exit=1 peakTreeRssMiB=4486 minHostAvailableMiB=49508",
+  "[memory-guard] at peak: rustc:4141 cargo:330 python3:12 bash:4"
+ ],
+ "pass": false
+}

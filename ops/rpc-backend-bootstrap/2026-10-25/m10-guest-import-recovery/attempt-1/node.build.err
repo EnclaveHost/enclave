@@ -1,0 +1,711 @@
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling portable-atomic v1.14.0
+   Compiling critical-section v1.2.0
+   Compiling once_cell v1.21.4
+   Compiling bytes v1.12.1
+   Compiling subtle v2.6.1
+   Compiling crypto-common v0.1.7
+   Compiling log v0.4.33
+   Compiling smallvec v1.15.2
+   Compiling digest v0.10.7
+   Compiling num-traits v0.2.19
+   Compiling bitflags v2.13.1
+   Compiling hashbrown v0.17.1
+   Compiling tracing-core v0.1.36
+   Compiling rand_core v0.9.5
+   Compiling tracing v0.1.44
+   Compiling rand_chacha v0.9.0
+   Compiling indexmap v2.14.0
+   Compiling base64ct v1.6.0
+   Compiling pem-rfc7468 v0.7.0
+   Compiling rand v0.9.5
+   Compiling der v0.7.10
+   Compiling spki v0.7.3
+   Compiling serdect v0.2.0
+   Compiling pkcs8 v0.10.2
+   Compiling sha2 v0.10.9
+   Compiling hmac v0.12.1
+   Compiling signature v2.2.0
+   Compiling ff v0.13.1
+   Compiling group v0.13.0
+   Compiling sec1 v0.7.3
+   Compiling crypto-bigint v0.5.5
+   Compiling rand_core v0.10.1
+   Compiling getrandom v0.4.3
+   Compiling elliptic-curve v0.13.8
+   Compiling rfc6979 v0.4.0
+   Compiling ecdsa v0.16.9
+   Compiling k256 v0.13.4
+   Compiling rustix v1.1.4
+   Compiling lock_api v0.4.14
+   Compiling linux-raw-sys v0.12.1
+   Compiling parking_lot_core v0.9.12
+   Compiling derive_more-impl v2.1.1
+   Compiling rand v0.8.7
+   Compiling arrayvec v0.7.8
+   Compiling derive_more v2.1.1
+   Compiling alloy-rlp v0.3.16
+   Compiling tempfile v3.27.0
+   Compiling rusty-fork v0.3.1
+   Compiling rand_xorshift v0.4.0
+   Compiling proptest v1.11.0
+   Compiling const-hex v1.19.1
+   Compiling secp256k1-sys v0.11.0
+   Compiling ruint v1.19.0
+   Compiling secp256k1 v0.31.1
+   Compiling alloy-primitives v1.6.1
+   Compiling serde_json v1.0.151
+   Compiling either v1.16.0
+   Compiling parking_lot v0.12.5
+   Compiling futures-core v0.3.33
+   Compiling errno v0.3.14
+   Compiling signal-hook-registry v1.4.8
+   Compiling mio v1.2.2
+   Compiling byteorder v1.5.0
+   Compiling tokio v1.53.1
+   Compiling futures-channel v0.3.33
+   Compiling futures-io v0.3.33
+   Compiling futures-task v0.3.33
+   Compiling futures-util v0.3.33
+   Compiling serde_with v3.21.0
+   Compiling itertools v0.14.0
+   Compiling alloy-eip7928 v0.4.5
+   Compiling blst v0.3.16
+   Compiling secp256k1-sys v0.10.1
+   Compiling alloy-eip7702 v0.6.3
+   Compiling alloy-eip2930 v0.2.3
+   Compiling c-kzg v2.1.8
+   Compiling secp256k1 v0.30.0
+   Compiling alloy-eip2124 v0.2.0
+   Compiling ethereum_serde_utils v0.8.1
+   Compiling ethereum_ssz v0.10.4
+   Compiling alloy-serde v2.4.1
+   Compiling alloy-eips v2.4.1
+   Compiling nybbles v0.4.8
+   Compiling alloy-trie v0.9.5
+   Compiling alloy-consensus v2.4.1
+   Compiling static_assertions v1.1.0
+   Compiling icu_normalizer v2.0.1
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling alloy-sol-types v1.6.1
+   Compiling idna_adapter v1.2.1
+   Compiling form_urlencoded v1.2.2
+   Compiling ahash v0.8.12
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling num-integer v0.1.46
+   Compiling zstd-safe v7.2.4
+   Compiling num-bigint v0.4.8
+   Compiling zstd v0.13.3
+   Compiling bitvec v1.1.1
+   Compiling revm-primitives v42.0.0
+   Compiling revm-bytecode v42.0.0
+   Compiling nonmax v0.5.5
+   Compiling crossbeam-epoch v0.9.20
+   Compiling revm-state v42.0.0
+   Compiling tokio-util v0.7.19
+   Compiling alloy-consensus-any v2.4.1
+   Compiling alloy-network-primitives v2.4.1
+   Compiling futures-executor v0.3.33
+   Compiling alloy-rpc-types-eth v2.4.1
+   Compiling http v1.4.2
+   Compiling hashbrown v0.14.5
+   Compiling futures v0.3.33
+   Compiling alloy-genesis v2.4.1
+   Compiling ark-std v0.6.0
+   Compiling ark-serialize v0.6.0
+   Compiling crossbeam-deque v0.8.7
+   Compiling konst_macro_rules v0.2.19
+   Compiling rayon-core v1.13.0
+   Compiling konst v0.2.20
+   Compiling ark-ff v0.6.0
+   Compiling dashmap v6.2.1
+   Compiling revm-database-interface v42.0.0
+   Compiling parity-scale-codec v3.7.5
+   Compiling const_format_proc_macros v0.2.34
+   Compiling const_format v0.2.36
+   Compiling ark-poly v0.6.0
+   Compiling raw-cpuid v11.6.0
+   Compiling impl-trait-for-tuples v0.2.3
+   Compiling modular-bitfield-impl v0.13.1
+   Compiling byte-slice-cast v1.2.3
+   Compiling modular-bitfield v0.13.1
+   Compiling quanta v0.12.6
+   Compiling ark-ec v0.6.0
+   Compiling revm-context-interface v42.0.0
+   Compiling reth-zstd-compressors v0.6.0
+   Compiling num-rational v0.4.2
+   Compiling num-iter v0.1.46
+   Compiling num-complex v0.4.6
+   Compiling reth-codecs-derive v0.6.0
+   Compiling visibility v0.1.1
+   Compiling reth-codecs v0.6.0
+   Compiling num v0.4.3
+   Compiling primeorder v0.13.6
+   Compiling p256 v0.13.2
+   Compiling aurora-engine-modexp v1.2.0
+   Compiling ark-bls12-381 v0.6.0
+   Compiling ark-bn254 v0.6.0
+   Compiling rayon v1.12.0
+   Compiling proptest-arbitrary-interop v0.1.0
+   Compiling derive-where v1.6.1
+   Compiling revm-context v42.0.0
+   Compiling revm-precompile v42.0.1
+   Compiling reth-primitives-traits v0.6.0
+   Compiling revm-interpreter v42.0.0
+   Compiling revm-handler v42.0.1
+   Compiling curve25519-dalek v4.1.3
+   Compiling revm-inspector v42.0.1
+   Compiling revm-database v42.0.0
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling revm v42.0.1
+   Compiling crunchy v0.2.4
+   Compiling ed25519 v2.2.3
+   Compiling ed25519-dalek v2.2.0
+   Compiling alloy-chains v0.2.36
+   Compiling rustc-hash v2.1.3
+   Compiling alloy-hardforks v0.4.7
+   Compiling anstyle v1.0.14
+   Compiling tokio-stream v0.1.18
+   Compiling utf8parse v0.2.2
+   Compiling colorchoice v1.0.5
+   Compiling hash-db v0.15.2
+   Compiling anstyle-parse v1.0.0
+   Compiling plain_hasher v0.2.3
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling anstyle-query v1.1.5
+   Compiling anstream v1.0.0
+   Compiling reth-trie-common v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling ipnet v2.12.0
+   Compiling keccak v0.1.6
+   Compiling clap_lex v1.1.0
+   Compiling clap_builder v4.6.5
+   Compiling sha3 v0.10.9
+   Compiling clap_derive v4.6.4
+   Compiling clap v4.6.5
+   Compiling alloy-evm v0.38.0
+   Compiling reth-ethereum-primitives v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling fixed-map-derive v0.9.5
+   Compiling fixed-map v0.9.5
+   Compiling time v0.3.55
+   Compiling reth-stages-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling ring v0.17.14
+   Compiling reth-static-file-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling enr v0.13.0
+   Compiling reth-prune-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-storage-errors v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-network-peers v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling simple_asn1 v0.6.4
+   Compiling jsonwebtoken v10.4.0
+   Compiling alloy-rpc-types-engine v2.4.1
+   Compiling bytemuck v1.25.2
+   Compiling reth-ethereum-forks v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling http-body v1.1.0
+   Compiling alloy-json-rpc v2.4.1
+   Compiling hdrhistogram v7.6.0
+   Compiling sync_wrapper v1.0.2
+   Compiling tower v0.5.3
+   Compiling reth-chainspec v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling roaring v0.11.4
+   Compiling reth-db-models v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling anyhow v1.0.104
+   Compiling reth-db-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-execution-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling http-body-util v0.1.4
+   Compiling rustls v0.23.43
+   Compiling h2 v0.4.15
+   Compiling rustls-webpki v0.103.13
+   Compiling bs58 v0.5.1
+   Compiling hyper v1.11.0
+   Compiling alloy-signer v2.4.1
+   Compiling alloy-rpc-types-any v2.4.1
+   Compiling aho-corasick v1.1.4
+   Compiling regex-automata v0.4.16
+   Compiling alloy-network v2.4.1
+   Compiling hyper-util v0.1.20
+   Compiling reth-execution-errors v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling metrics-derive v0.1.2
+   Compiling reth-metrics v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling tokio-rustls v0.26.4
+   Compiling uuid v1.24.0
+   Compiling prost-derive v0.14.4
+   Compiling brotli v8.0.4
+   Compiling prost v0.14.4
+   Compiling crc32fast v1.5.0
+   Compiling reth-consensus v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling thiserror v1.0.69
+   Compiling simd-adler32 v0.3.10
+   Compiling miniz_oxide v0.8.9
+   Compiling thiserror-impl v1.0.69
+   Compiling flate2 v1.1.9
+   Compiling matchers v0.2.0
+   Compiling reth-tokio-util v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling tracing-serde v0.2.0
+   Compiling tracing-log v0.2.0
+   Compiling ryu v1.0.23
+   Compiling nu-ansi-term v0.50.3
+   Compiling tracing-subscriber v0.3.23
+   Compiling hyper-rustls v0.27.9
+   Compiling unicase v2.9.0
+   Compiling mime_guess v2.0.5
+   Compiling compression-core v0.4.32
+   Compiling compression-codecs v0.4.38
+   Compiling reth-errors v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling async-compression v0.4.42
+   Compiling reth-storage-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling http-range-header v0.4.2
+   Compiling tower-http v0.6.11
+   Compiling serde_urlencoded v0.7.1
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling typeid v1.0.3
+   Compiling reqwest v0.13.4
+   Compiling fixed-cache v0.1.10
+   Compiling reth-evm v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling ripemd v0.1.3
+   Compiling slotmap v1.1.1
+   Compiling futures-timer v3.0.4
+   Compiling bech32 v0.9.1
+   Compiling base64 v0.21.7
+   Compiling coins-core v0.12.0
+   Compiling reth-payload-primitives v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling rustc-hex v2.1.0
+   Compiling rlp v0.5.2
+   Compiling coins-bip32 v0.12.0
+   Compiling crossbeam-channel v0.5.16
+   Compiling pbkdf2 v0.12.2
+   Compiling coins-bip39 v0.12.0
+   Compiling reth-trie-sparse v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling triehash v0.8.4
+   Compiling clang-sys v1.8.1
+   Compiling eyre v0.6.12
+   Compiling reth-trie v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling alloy-signer-local v2.4.1
+   Compiling minimal-lexical v0.2.1
+   Compiling indenter v0.3.4
+   Compiling nom v7.1.3
+   Compiling libloading v0.8.9
+   Compiling bindgen v0.72.1
+   Compiling cexpr v0.6.0
+   Compiling itertools v0.13.0
+   Compiling opentelemetry v0.32.0
+   Compiling iana-time-zone v0.1.65
+   Compiling data-encoding v2.11.0
+   Compiling shlex v1.3.0
+   Compiling data-encoding-macro-internal v0.1.18
+   Compiling chrono v0.4.45
+   Compiling reth-chain-state v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling tracing-futures v0.2.5
+   Compiling thread-priority v3.1.1
+   Compiling reth-fs-util v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling sha1 v0.10.7
+   Compiling match-lookup v0.1.2
+   Compiling const-str v0.4.3
+   Compiling base256emoji v1.0.2
+   Compiling reth-tasks v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling data-encoding-macro v0.1.20
+   Compiling multihash v0.19.5
+   Compiling hyper-timeout v0.5.2
+   Compiling hkdf v0.12.4
+   Compiling asn1_der v0.7.7
+   Compiling base45 v3.2.0
+   Compiling base-x v0.2.11
+   Compiling multibase v0.9.3
+   Compiling libp2p-identity v0.2.14
+   Compiling tonic v0.14.6
+   Compiling multiaddr v0.18.2
+   Compiling opentelemetry-http v0.32.0
+   Compiling jsonrpsee-types v0.26.0
+   Compiling tonic-prost v0.14.6
+   Compiling opentelemetry_sdk v0.32.1
+   Compiling prost-types v0.14.4
+   Compiling lz4-sys v1.11.1+lz4-1.10.0
+   Compiling tonic-types v0.14.6
+   Compiling opentelemetry-proto v0.32.0
+   Compiling reth-mdbx-sys v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling libz-sys v1.1.29
+   Compiling bzip2-sys v0.1.13+1.0.8
+   Compiling memmap2 v0.9.11
+   Compiling inotify-sys v0.1.8
+   Compiling opentelemetry-otlp v0.32.0
+   Compiling tracing-opentelemetry v0.33.0
+   Compiling opentelemetry-semantic-conventions v0.32.1
+   Compiling symlink v0.1.0
+   Compiling tracing-appender v0.2.5
+   Compiling reth-tracing-otlp v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling tracing-samply v0.1.5
+   Compiling rolling-file v0.2.0
+   Compiling librocksdb-sys v0.17.3+10.4.2
+   Compiling reth-payload-builder-primitives v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling tracing-logfmt v0.3.7
+   Compiling tracing-journald v0.3.2
+   Compiling tracing-chrome v0.7.2
+   Compiling crossbeam-queue v0.3.13
+   Compiling bincode v1.3.3
+   Compiling lz4_flex v0.12.2
+   Compiling same-file v1.0.6
+   Compiling walkdir v2.5.0
+   Compiling reth-nippy-jar v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-libmdbx v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-tracing v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-engine-primitives v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling inotify v0.11.4
+   Compiling notify-types v2.1.0
+   Compiling sysinfo v0.38.4
+   Compiling page_size v0.6.0
+   Compiling reth-db v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling notify v8.2.0
+   Compiling reth-trie-db v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling alloy-rpc-types-debug v2.4.1
+   Compiling inout v0.1.4
+   Compiling openssl v0.10.81
+   Compiling cipher v0.4.4
+   Compiling reth-storage-overlay v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling rocksdb v0.24.0
+   Compiling reth-node-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-ethereum-engine-primitives v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling alloy-transport v2.4.1
+   Compiling tinyvec_macros v0.1.1
+   Compiling tinyvec v1.12.0
+   Compiling reth-provider v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling native-tls v0.2.18
+   Compiling tungstenite v0.29.0
+   Compiling reth-eth-wire-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-net-banlist v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling opentelemetry v0.31.0
+   Compiling humantime v2.4.0
+   Compiling alloy-pubsub v2.4.1
+   Compiling interprocess v2.4.2
+   Compiling humantime-serde v1.1.1
+   Compiling tokio-tungstenite v0.29.0
+   Compiling tokio-native-tls v0.3.1
+   Compiling aes v0.8.4
+   Compiling ctr v0.9.2
+   Compiling jsonrpsee-core v0.26.0
+   Compiling universal-hash v0.5.1
+   Compiling opaque-debug v0.3.1
+   Compiling polyval v0.6.2
+   Compiling hyper-tls v0.6.0
+   Compiling reth-network-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling opentelemetry-http v0.31.0
+   Compiling tracing-opentelemetry v0.32.1
+   Compiling rand_xoshiro v0.7.0
+   Compiling tagptr v0.2.0
+   Compiling moka v0.12.15
+   Compiling alloy-transport-http v2.4.1
+   Compiling ghash v0.5.1
+   Compiling alloy-transport-ws v2.4.1
+   Compiling alloy-transport-ipc v2.4.1
+   Compiling reth-rpc-traits v0.6.0
+   Compiling aead v0.5.2
+   Compiling proc-macro-error-attr2 v2.0.0
+   Compiling include_dir_macros v0.7.4
+   Compiling winnow v1.0.4
+   Compiling resolv-conf v0.7.6
+   Compiling hashbrown v0.13.2
+   Compiling schnellru v0.2.4
+   Compiling include_dir v0.7.4
+   Compiling proc-macro-error2 v2.0.1
+   Compiling aes-gcm v0.10.3
+   Compiling reth-rpc-convert v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling alloy-rpc-client v2.4.1
+   Compiling hashlink v0.11.1
+   Compiling safe_arch v0.7.4
+   Compiling uint v0.10.0
+   Compiling delay_map v0.4.1
+   Compiling alloy-rpc-types-trace v2.4.1
+   Compiling more-asserts v0.3.1
+   Compiling prettyplease v0.2.37
+   Compiling bitmaps v3.2.1
+   Compiling imbl-sized-chunks v0.1.3
+   Compiling wide v0.7.33
+   Compiling aquamarine v0.6.0
+   Compiling spin v0.10.1
+   Compiling archery v1.2.2
+   Compiling imbl v7.0.1
+   Compiling base-common-genesis v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/genesis)
+   Compiling reth-network-p2p v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-revm v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-evm-ethereum v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-transaction-pool v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling bon-macros v3.9.3
+   Compiling toml_parser v1.1.2+spec-1.1.0
+   Compiling chacha20 v0.10.1
+   Compiling vergen-lib v10.0.1
+   Compiling libgit2-sys v0.18.5+1.9.4
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling winnow v0.7.15
+   Compiling toml v0.9.12+spec-1.1.0
+   Compiling rand v0.10.2
+   Compiling bon v3.9.3
+   Compiling prefix-trie v0.8.4
+   Compiling alloy-rpc-types-admin v2.4.1
+   Compiling vergen v10.0.1
+   Compiling num_threads v0.1.7
+   Compiling reth-network-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling hickory-proto v0.26.1
+   Compiling reth-config v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-execution-cache v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-trie-parallel v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling alloy-rpc-types v2.4.1
+   Compiling vergen-git2 v10.0.1
+   Compiling git2 v0.21.0
+   Compiling reth-payload-builder v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling hickory-net v0.26.1
+   Compiling discv5 v0.10.4 (https://github.com/sigp/discv5?rev=7663c00#7663c00e)
+   Compiling concat-kdf v0.1.0
+   Compiling if-addrs v0.14.0
+   Compiling linked-hash-map v0.5.6
+   Compiling linked_hash_set v0.1.6
+   Compiling reth-net-nat v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-ecies v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling hickory-resolver v0.26.1
+   Compiling reth-node-core v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-dns-discovery v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-common-consensus v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/consensus)
+   Compiling reth-eth-wire v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-discv4 v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-discv5 v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-rpc-server-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling revm-inspectors v0.42.2
+   Compiling dirs-sys-next v0.1.2
+   Compiling dirs-next v2.0.0
+   Compiling reth-rpc-eth-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-network v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-basic-payload-builder v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-engine-local v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-cli-util v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling ethereum_hashing v0.8.0
+   Compiling dtor-proc-macro v0.0.6
+   Compiling dtor v0.1.1
+   Compiling tree_hash v0.12.1
+   Compiling soketto v0.8.1
+   Compiling rustls-platform-verifier v0.5.3
+   Compiling tree_hash_derive v0.12.1
+   Compiling ctor-proc-macro v0.0.7
+   Compiling ctor v0.6.3
+   Compiling alloy-rpc-types-beacon v2.4.1
+   Compiling reth-node-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-metrics v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/utilities/metrics)
+   Compiling lru v0.18.2
+   Compiling route-recognizer v0.3.1
+   Compiling jsonrpsee-server v0.26.0
+   Compiling jsonrpsee-client-transport v0.26.0
+   Compiling jsonrpsee-http-client v0.26.0
+   Compiling jsonrpsee-ws-client v0.26.0
+   Compiling jsonrpsee-proc-macros v0.26.0
+   Compiling base-common-chains v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/chains)
+   Compiling jsonrpsee-wasm-client v0.26.0
+   Compiling jsonrpsee v0.26.0
+   Compiling async-stream v0.3.6
+   Compiling base-precompile-macros v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/precompile-macros)
+   Compiling alloy-sol-type-parser v1.6.1
+   Compiling alloy-json-abi v1.6.1
+   Compiling base-precompile-storage v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/precompile-storage)
+   Compiling alloy-provider v2.4.1
+   Compiling base-common-rpc-types-engine v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/rpc-types-engine)
+   Compiling base-common-eip8130 v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/eip8130)
+   Compiling quick-protobuf v0.8.1
+   Compiling base-common-flz v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/flz)
+   Compiling web-time v1.1.0
+   Compiling unsigned-varint v0.7.2
+   Compiling multistream-select v0.13.0
+   Compiling base-common-precompiles v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/precompiles)
+   Compiling alloy-dyn-abi v1.6.1
+   Compiling reth-exex-types v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling rw-stream-sink v0.4.0
+   Compiling alloy-rpc-types-mev v2.4.1
+   Compiling reth-rpc-eth-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling libp2p-core v0.43.2
+   Compiling reth-prune v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-execution-eip8130 v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/eip8130)
+   Compiling base-common-l1-fees v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/l1-fees)
+   Compiling reth-static-file v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-consensus-common v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling miniz_oxide v0.9.1
+   Compiling rmp v0.8.15
+   Compiling rmp-serde v1.3.1
+   Compiling base-protocol v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/protocol)
+   Compiling reth-stages-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-common-evm v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/evm)
+   Compiling reth-era v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-etl v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-era-downloader v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-common-rpc-types v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/rpc-types)
+   Compiling reth-exex v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-testing-utils v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling foldhash v0.1.5
+   Compiling hashbrown v0.15.5
+   Compiling reth-era-utils v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling alloy-rpc-types-txpool v2.4.1
+   Compiling alloy-rpc-types-anvil v2.4.1
+   Compiling concurrent-queue v2.5.0
+   Compiling unicode-width v0.2.2
+   Compiling parking v2.2.1
+   Compiling event-listener v5.4.1
+   Compiling reth-rpc-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-stages v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling hashlink v0.10.0
+   Compiling libp2p-swarm-derive v0.35.1
+   Compiling procfs v0.18.0
+   Compiling signal-hook v0.3.18
+   Compiling cfg_aliases v0.2.2
+   Compiling nix v0.30.1
+   Compiling libp2p-swarm v0.47.1
+   Compiling event-listener-strategy v0.5.4
+   Compiling procfs-core v0.18.0
+   Compiling netlink-packet-core v0.8.1
+   Compiling ordered-float v5.3.0
+   Compiling metrics-util v0.20.4
+   Compiling evmap v11.0.0
+   Compiling reth-engine-tree v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-rpc-engine-api v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling castaway v0.2.4
+   Compiling asynchronous-codec v0.7.0
+   Compiling netlink-sys v0.8.8
+   Compiling backon v1.6.0
+   Compiling strum_macros v0.28.0
+   Compiling yansi v1.0.1
+   Compiling debug-helper v0.3.14
+   Compiling diff v0.1.13
+   Compiling instability v0.3.12
+   Compiling litrs v1.0.0
+   Compiling document-features v0.2.12
+   Compiling pretty_assertions v1.4.1
+   Compiling boyer-moore-magiclen v0.2.24
+   Compiling strum v0.28.0
+   Compiling netlink-proto v0.12.0
+   Compiling compact_str v0.9.1
+   Compiling reth-rpc v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling signal-hook-mio v0.2.5
+   Compiling metrics-process v2.4.3
+   Compiling metrics-exporter-prometheus v0.18.3
+   Compiling netlink-packet-route v0.28.0
+   Compiling unicode-truncate v2.0.1
+   Compiling reth-ipc v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-rpc-layer v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling kasuari v0.4.12
+   Compiling regex v1.13.1
+   Compiling snow v0.9.6
+   Compiling enum-as-inner v0.6.1
+   Compiling nohash-hasher v0.2.0
+   Compiling indoc v2.0.7
+   Compiling ringbuffer v0.16.0
+   Compiling reth-consensus-debug-client v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling hickory-proto v0.25.2
+   Compiling ratatui-core v0.1.2
+   Compiling reth-rpc-builder v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling rtnetlink v0.20.0
+   Compiling reth-node-metrics v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling crossterm v0.29.0
+   Compiling reth-db-common v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-invalid-block-hooks v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling quick-protobuf-codec v0.3.1
+   Compiling reth-engine-util v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-node-events v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling reth-downloaders v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-execution-chainspec v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/chainspec)
+   Compiling reth-node-ethstats v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling fdlimit v0.3.0
+   Compiling reth-payload-validator v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling virtue v0.0.18
+   Compiling bincode_derive v2.0.1
+   Compiling reth-node-builder v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-execution-consensus v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/consensus)
+   Compiling if-watch v3.2.2
+   Compiling hickory-resolver v0.25.2
+   Compiling yamux v0.12.1
+   Compiling yamux v0.13.10
+   Compiling async-channel v2.5.0
+   Compiling futures-bounded v0.2.4
+   Compiling x25519-dalek v2.0.1
+   Compiling hashlink v0.9.1
+   Compiling line-clipping v0.3.7
+   Compiling blake3 v1.8.5
+   Compiling hex_fmt v0.3.0
+   Compiling unty v0.0.4
+   Compiling option-ext v0.2.0
+   Compiling dirs-sys v0.5.0
+   Compiling bincode v2.0.1
+   Compiling libp2p-gossipsub v0.49.5
+   Compiling ratatui-widgets v0.3.2
+   Compiling libp2p-noise v0.46.1
+   Compiling libp2p-identify v0.47.0
+   Compiling libp2p-yamux v0.47.0
+   Compiling libp2p-dns v0.44.0
+   Compiling libp2p-tcp v0.44.1
+   Compiling base-execution-evm v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/evm)
+   Compiling ratatui-crossterm v0.1.2
+   Compiling libp2p-connection-limits v0.6.0
+   Compiling libp2p-ping v0.47.0
+   Compiling libp2p-allow-block-list v0.6.0
+   Compiling base-bundles v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/bundles)
+   Compiling base-observability-events v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/observability-events)
+   Compiling reth-cli-runner v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling xattr v1.6.1
+   Compiling hostname v0.4.2
+   Compiling filetime v0.2.29
+   Compiling constant_time_eq v0.4.2
+   Compiling tar v0.4.46
+   Compiling base-execution-txpool v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/txpool)
+   Compiling reth-cli v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling libp2p v0.56.0
+   Compiling ratatui v0.30.2
+   Compiling base-execution-trie v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/trie)
+   Compiling dirs v6.0.0
+   Compiling reth-ethereum-payload-builder v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling comfy-table v7.2.2
+   Compiling base-retry v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/utilities/retry)
+   Compiling base-common-network v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/common/network)
+   Compiling reth-ethereum-consensus v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-consensus-upgrades v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/upgrades)
+   Compiling reth-payload-util v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling discv5 v0.10.4
+   Compiling lz4 v1.28.1
+   Compiling redb v2.6.3
+   Compiling human_bytes v0.4.3
+   Compiling reth-cli-commands v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-consensus-peers v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/peers)
+   Compiling base-execution-payload-builder v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/payload)
+   Compiling base-consensus-derive v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/derive)
+   Compiling reth-node-ethereum v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-upgrade-signal v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/utilities/upgrade-signal)
+   Compiling predicates-core v1.0.10
+   Compiling mockall_derive v0.14.0
+   Compiling reth-e2e-test-utils v2.5.2 (https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b)
+   Compiling base-consensus-providers v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/providers)
+   Compiling base-execution-rpc v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/rpc)
+   Compiling base-consensus-disc v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/disc)
+   Compiling base-execution-exex v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/exex)
+   Compiling async-lock v3.4.2
+   Compiling headers-core v0.3.0
+   Compiling serde_repr v0.1.21
+   Compiling termtree v0.5.1
+   Compiling mockall v0.14.0
+   Compiling predicates-tree v1.0.13
+   Compiling base-consensus-gossip v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/gossip)
+   Compiling headers v0.4.1
+   Compiling async-object-pool v0.2.0
+   Compiling base-node-core v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/node)
+   Compiling base-consensus-safedb v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/safedb)
+   Compiling base-consensus-engine v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/engine)
+   Compiling predicates v3.1.4
+   Compiling serde_regex v1.2.0
+   Compiling tabwriter v1.4.1
+   Compiling base-test-utils v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/utilities/test-utils)
+   Compiling fragile v2.1.0
+   Compiling assert-json-diff v2.0.2
+   Compiling path-tree v0.8.3
+   Compiling similar v2.7.0
+   Compiling stringmetrics v2.2.2
+   Compiling downcast v0.11.0
+   Compiling httpmock v0.8.3
+   Compiling base-node-runner v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/execution/runner)
+   Compiling base-consensus-rpc v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/rpc)
+   Compiling rstest v0.26.1
+   Compiling base-consensus-sources v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/sources)
+   Compiling base-health v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/utilities/health)
+   Compiling base-consensus-node v1.5.1 (/srv/m10-guest-validation/runs/run-1/build/tree/crates/consensus/service)
+error: could not compile `base-consensus-node` (lib test) due to 1 previous error

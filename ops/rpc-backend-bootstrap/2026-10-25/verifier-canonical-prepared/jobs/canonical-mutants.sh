@@ -3,8 +3,9 @@
 # panic; a compile error is INVALID (not a kill). M0 runs the cache tests on the UNPATCHED base (must fail by assertion).
 # Root, after canonical-tests PASSES (q-exit-status.sh NAME MIB CMD...):
 #   ./jobs/q-exit-status.sh canonical-mutants 2560 unshare -rn bash verifier-canonical-stage/jobs/canonical-mutants.sh
+# Exit 21 CLOSURE failure / 22 DEV-CACHE-MISSING (explicit blocker) happen before any mutant and are never verdicts.
 . "$(dirname "$0")/common.sh"
-X=$S/run/mutants-$(date -u +%Y%m%dT%H%M%SZ); prepare $X 1; cd $X/helios; rc=0
+X=$S/run/mutants-$(date -u +%Y%m%dT%H%M%SZ); prepare $X 1; cd $X/helios; closure_check $X; rc=0
 verdict() {   # $1 name, $2 test binaries, rest: test names that must fail
   local n=$1 bins=$2; shift 2
   timeout -k 10 5400 cargo test --offline --locked -p helios-core $bins --no-run > $X/$n.build 2>&1 || { echo "$n: INVALID (does not compile; not a kill)"; rc=1; return; }

@@ -1,0 +1,8 @@
+# static ELF facts of the v2 release candidate (readelf on the build host; the binary was NOT executed)
+sha256 b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7 size 1276048
+[Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+required symbol versions:
+GCC_3.0 GCC_3.3 GCC_4.2.0 GLIBC_2.2.5 GLIBC_2.3 GLIBC_2.3.2 GLIBC_2.3.4 GLIBC_2.4 GLIBC_2.10 GLIBC_2.14 GLIBC_2.16 GLIBC_2.17 GLIBC_2.18 GLIBC_2.25 GLIBC_2.28 GLIBC_2.30 GLIBC_2.32 GLIBC_2.33 GLIBC_2.34 GLIBC_2.38 

@@ -1,11 +1,39 @@
 # Verifier canonical block-hash (EIP-1898 requireCanonical): PREPARED source, UNCOMPILED and UNVALIDATED
 
 **Status: source preparation only.**
-- **Not yet run:** nothing here has been compiled or run, no native test or mutant has run, and nothing is deployed.
+- **Ran once, FAILED before compiling:** root's native run `root-canonical-native-2309` exited **20** at the compile
+  preflight because the job's dependency closure was incomplete (see "Native run history"). **No source has compiled, no
+  test or mutant has run, and nothing is deployed.** The job closure is repaired (below); the product patch is unchanged.
 - **Not secure yet:** do not treat this patch as secure until root's native runs of `jobs/canonical-tests.sh` and
   `jobs/canonical-mutants.sh` pass.
 - **Custody v2 stays REFUSED.** It needs those runs, a reth forced-reorg end-to-end test, and a reviewed measured
   release.
+
+## Native run history (every run kept)
+
+| Run | Result | Logs (`runs/`) |
+| --- | --- | --- |
+| `root-canonical-native-2309` | **FAIL, exit 20, before compiling.** All `[ok]` pre-checks passed (offline, clone tree and `Cargo.lock`, base manifest, patch apply plus `PATCHED.sha256`, cargo-home copy). Then `cargo test --no-run` could not load `helios-opstack`'s path dependency `../../vendor-inspect/base-v1.5.1/crates/common/chains/Cargo.toml`: the fresh work dir had no sibling `vendor-inspect`. **Not a test verdict; nothing compiled.** | `root-canonical-native-2309.{out,guard,rc}` |
+
+**Cause.** R3x built its clone **mounted over the original path**, so the workspace's sibling path dependencies resolved
+to `rpc-priority/vendor-inspect`. The job's fresh clone had no sibling.
+
+**Closure repair (harness only; patch, `Cargo.lock` and dependencies unchanged), in `jobs/common.sh`:**
+- **Pinned archive:** `vendor-inspect/base-v1.5.1` is now extracted in the work dir from the **pinned archive**
+  `rpc-runtime-final-integration/closure/src/base-5476069f.tar.gz` (sha256 `9784e20a…`). The extraction is exactly that
+  of the reviewed `r1r.sh:28` and `build-binaries.sh:39-40`, and is verified against the extracted tree hash `c9301490…`.
+  It is then made read-only.
+- **Equivalence with R3x:** R3x's `rpc-priority/vendor-inspect/base-v1.5.1` is a shallow git clone of the **same
+  commit** `5476069f` (tag `v1.5.1-rc.15`). Its files are byte-identical to this extraction; it differs only by a
+  mutable `.git`. It is not linked or read.
+- **New phase A0 (before any build):**
+  - `cargo metadata --offline --locked`; failure gives exit **21, CLOSURE-FAILURE**. It also requires all 26 path
+    packages to resolve **inside the work dir** (14 helios plus 12 `base-*`).
+  - `cargo fetch --offline --locked --target x86_64-unknown-linux-gnu`; a missing crate gives exit **22,
+    DEV-CACHE-MISSING**, an explicit blocker and never a verdict.
+- **Static pre-check (read-only):** all 952 registry packages in `Cargo.lock` are present in the reviewed cache, and the
+  single git package (`ethereum_hashing@7ee70944`) has its checkout and database. A runtime gap would still be reported
+  as exit 22.
 
 ## Base and pins
 
@@ -104,11 +132,13 @@ The `jobs/` copies here are byte-identical to `verifier-canonical-stage/jobs/`.
 **Setup checks (`common.sh`):**
 - the network is offline (loopback brought up);
 - the source repo is clean at `eeffcc9`, and a fresh clone has the tree, `Cargo.lock` and base files from the manifest;
+- `vendor-inspect/base-v1.5.1` is extracted from the pinned archive (`9784e20a…`), verified (`c9301490…`), and made read-only;
 - `git apply --check`, then `PATCHED.sha256`;
 - a hash-verified **copy** of the existing cargo-home;
 - toolchain 1.96.0, `--offline --locked`, one compiler job.
 
 **`canonical-tests.sh`:**
+- **A0:** locked closure and dependency cache (exit **21** / **22**, never verdicts).
 - **A:** compile preflight. A failure gives exit **20, COMPILE-FAILURE, never a verdict**.
 - **B:** `check_cargo_output.py named` requires exactly the 5 binaries, exactly the 35 names all `ok`, and each summary
   `N passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`. There is no `--include-ignored`, and any unexpected name

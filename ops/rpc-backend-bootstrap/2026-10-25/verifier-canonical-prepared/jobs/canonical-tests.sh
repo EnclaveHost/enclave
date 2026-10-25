@@ -2,10 +2,11 @@
 # Canonical-block tests on committed eeffcc9 + canonical-block.patch. Offline, one compiler, --locked; no skips or
 # ignored tests can pass (jobs/check_cargo_output.py). Root, from work/rpc-production-final-20261025 (q-exit-status.sh NAME MIB CMD...):
 #   ./jobs/q-exit-status.sh canonical-tests 2560 unshare -rn bash verifier-canonical-stage/jobs/canonical-tests.sh
-# Exit: 0 PASS; 20 COMPILE/FETCH failure (not a verdict); 30 INCOMPLETE (ignored/filtered/missing); 1 FAIL.
+# Exit: 0 PASS; 21 CLOSURE failure; 22 DEV-CACHE-MISSING (explicit blocker); 20 COMPILE failure (21/22/20 are never
+# verdicts); 30 INCOMPLETE (ignored/filtered/missing); 1 FAIL.
 . "$(dirname "$0")/common.sh"
 CHK="python3 $S/jobs/check_cargo_output.py"
-X=$S/run/tests-$(date -u +%Y%m%dT%H%M%SZ); prepare $X 1; cd $X/helios
+X=$S/run/tests-$(date -u +%Y%m%dT%H%M%SZ); prepare $X 1; cd $X/helios; closure_check $X
 echo "== A: compile preflight (a failure here is a COMPILE/FETCH failure, never a test result)"
 timeout -k 10 5400 cargo test --offline --locked -p helios-core $TESTS --no-run || { echo "RESULT: COMPILE-FAILURE (not a test verdict)"; exit 20; }
 echo "== B: the 35 named tests in exactly 5 binaries, all ok, 0 ignored/filtered (no --include-ignored)"
