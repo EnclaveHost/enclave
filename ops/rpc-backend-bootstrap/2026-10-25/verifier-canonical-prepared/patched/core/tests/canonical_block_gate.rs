@@ -122,7 +122,7 @@ async fn gate_forged_ancestry_link_refused() {
     not_canonical(gate(&m, b10.header.hash, Some(true)).await);
 }
 
-fn push(c: &BlockCache<Ethereum>, b: &Blk) -> impl std::future::Future<Output = ()> + '_ { let b = b.clone(); async move { c.push_block(b, BlockNumberOrTag::Latest.into()).await } }
+fn push<'a>(c: &'a BlockCache<Ethereum>, b: &Blk) -> impl std::future::Future<Output = ()> + 'a { let b = b.clone(); async move { c.push_block(b, BlockNumberOrTag::Latest.into()).await } }
 
 #[tokio::test]
 async fn block_cache_root_counterexample_refused() {

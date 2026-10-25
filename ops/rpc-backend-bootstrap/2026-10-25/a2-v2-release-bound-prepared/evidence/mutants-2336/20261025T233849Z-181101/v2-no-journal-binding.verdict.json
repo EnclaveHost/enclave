@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "BytecodeGate.test_step_order_and_a_db_mutated_after_a4_or_after_the_scan": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "BytecodeGate.test_step_order_and_a_db_mutated_after_a4_or_after_the_scan"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

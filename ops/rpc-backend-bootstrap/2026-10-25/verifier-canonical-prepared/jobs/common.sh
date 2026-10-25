@@ -32,10 +32,56 @@ prepare() {   # $1 = fresh work dir; $2 = apply patch? (1|0)
   need "vendor-inspect/base-v1.5.1 == pinned extraction c9301490" [ "$(treehash $X/vendor-inspect/base-v1.5.1)" = $VBASE ]
   need "vendor-inspect holds only base-v1.5.1" [ "$(ls -A $X/vendor-inspect)" = base-v1.5.1 ]
   chmod -R a-w $X/vendor-inspect                     # read-only, as R3x's ro mount (cleanup: chmod -R u+w first)
-  CHH=$(treehash $CH0); cp -a $CH0 $X/cargo-home; need "cargo-home copy == original" [ "$(treehash $X/cargo-home)" = "$CHH" ]
-  export RUSTUP_TOOLCHAIN=1.96.0 RUSTUP_AUTO_INSTALL=0 CARGO_HOME=$X/cargo-home CARGO_TARGET_DIR=$X/target CARGO_BUILD_JOBS=1 \
+  if [ -n "${CANONICAL_CACHE_FROM:-}" ]; then
+    reuse_cache $X "$CANONICAL_CACHE_FROM"          # optional, root-reviewed: see reuse_cache below
+  else
+    CHH=$(treehash $CH0); cp -a $CH0 $X/cargo-home; need "cargo-home copy == original" [ "$(treehash $X/cargo-home)" = "$CHH" ]
+    CH=$X/cargo-home; TD=$X/target
+  fi
+  export RUSTUP_TOOLCHAIN=1.96.0 RUSTUP_AUTO_INSTALL=0 CARGO_HOME=$CH CARGO_TARGET_DIR=$TD CARGO_BUILD_JOBS=1 \
          CARGO_NET_OFFLINE=true CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 RUSTFLAGS="-C link-arg=-Wl,--threads=1"
   rustc --version; cargo --version
+}
+# OPTIONAL cache reuse (CANONICAL_CACHE_FROM=<an ENDED earlier run dir under $S/run>; unset = fresh copy of CH0, as before).
+# Only speed: the new work dir still gets its own fresh clone, patch + PATCHED.sha256, pinned vendor-inspect, closure checks
+# and logs, and every phase (A..D) still compiles and RUNS; nothing is inferred from an existing binary. The earlier run's
+# cargo-home and target are used IN PLACE (same absolute path, so cargo's fingerprints stay valid) as MUTABLE caches: they
+# are the only paths of that run that may change; its source tree, logs and receipts are not touched. CH0 is never written.
+# Refused (exit 23, CACHE-REUSE-REFUSED, never a verdict) unless: that run ENDED (its queue log logs/*.out names it as
+# "[ok] fresh <dir>", ends with "[queue] EXIT", and its .rc is not older than the .out), no process uses the dir, no other
+# job holds the reuse lock (held for this whole job), and its cargo-home registry/cache, registry/src and git equal CH0's.
+# Same toolchain, RUSTFLAGS, --offline --locked, Cargo.lock and closure checks as a fresh run. Not a reproducibility claim.
+refuse() { echo "[FAIL] cache-reuse: $1"; echo "RESULT: CACHE-REUSE-REFUSED (not a test verdict)"; exit 23; }
+reuse_cache() {   # $1 = new work dir, $2 = the ended run dir whose cargo-home + target are reused
+  local X=$1 R; R=$(realpath -e "$2" 2>/dev/null) || refuse "$2 does not exist"
+  [ "$(dirname "$R")" = "$S/run" ] && [ "$R" != "$X" ] || refuse "$R is not an earlier run dir under $S/run"
+  [ -d "$R/cargo-home" ] && [ -d "$R/target" ] && [ -d "$R/helios" ] || refuse "$R lacks cargo-home/target/helios"
+  local L=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs o rc ended=
+  for o in $(grep -lxF "[ok] fresh $R" $L/*.out 2>/dev/null); do rc=${o%.out}.rc
+    [ -s "$rc" ] && [ ! "$rc" -ot "$o" ] && tail -n 1 "$o" | grep -q '^\[queue\] EXIT' && ended="$o (rc $(cat "$rc"))"
+  done
+  [ -n "$ended" ] || refuse "no ended queue log names $R"; echo "[ok] cache-reuse: $R ended per $ended"
+  python3 - "$R" <<'PYB' || refuse "a process still uses $R"
+import os, sys
+r = os.path.realpath(sys.argv[1]) + "/"; busy = []
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try: links = ["cwd", "exe"] + ["fd/" + f for f in os.listdir(f"/proc/{pid}/fd")]
+    except OSError: links = ["cwd", "exe"]
+    for l in links:
+        try: t = os.readlink(f"/proc/{pid}/{l}")
+        except OSError: continue
+        if (t + "/").startswith(r): busy.append(f"{pid} {l} {t}")
+print("\n".join(busy)); sys.exit(1 if busy else 0)
+PYB
+  exec 8>"$R/target/.canonical-cache-reuse.lock"; flock -n 8 || refuse "another job holds the reuse lock of $R"
+  echo "[ok] cache-reuse: exclusive lock held for this job"
+  local d; for d in registry/cache registry/src git; do
+    [ -e "$CH0/$d" ] || continue
+    [ "$(treehash $R/cargo-home/$d)" = "$(treehash $CH0/$d)" ] || refuse "$R/cargo-home/$d differs from the reviewed cache"
+    echo "[ok] cache-reuse: cargo-home/$d == CH0"
+  done
+  echo "$R" > $X/CACHE-REUSED-FROM; CH=$R/cargo-home; TD=$R/target
+  echo "[ok] cache-reuse: CARGO_HOME=$CH CARGO_TARGET_DIR=$TD (mutable; fresh source, patch, closure and logs in $X)"
 }
 TESTS="--test block_cache_exact_hash --test canonical_block_gate --test node_canonical_methods --test rpc_exact_hash_postcondition --test ancestor_block_hash"
 lock_unchanged() { git -C $1/helios diff --quiet Cargo.lock && echo "[ok] Cargo.lock unchanged" || { echo "[FAIL] Cargo.lock CHANGED"; exit 4; }; }

@@ -1,0 +1,29 @@
+{"step": "bytecodes", "ok": false, "refused": "order: a4-rebuilt.json missing: run the previous step first"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": false, "refused": "bytecode_order: the last journaled mutation is not the finished A4 merkle rebuild: the DB may have changed after A4"}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+test_step_order_and_a_db_mutated_after_a4_or_after_the_scan (test_a2a4.BytecodeGate.test_step_order_and_a_db_mutated_after_a4_or_after_the_scan) ... FAIL
+
+======================================================================
+FAIL: test_step_order_and_a_db_mutated_after_a4_or_after_the_scan (test_a2a4.BytecodeGate.test_step_order_and_a_db_mutated_after_a4_or_after_the_scan)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 627, in test_step_order_and_a_db_mutated_after_a4_or_after_the_scan
+    self.refused('release', 'bytecode_receipt_stale')                                      # journal changed after the scan
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 131, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'release', 'startedAt': '2026-10-25T23:50:19.202003+00:00', 'result': None, 'ok': True, 'commands': [{'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019272890Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019336590Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019399984Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019463459Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019528010Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpdc2oenyu/datadir', '--config', '/tmp/tmpdc2oenyu/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019591580Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpdc2oenyu/datadir', '--config', '/tmp/tmpdc2oenyu/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019655141Z-0007.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpdc2oenyu/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpdc2oenyu/datadir', '--config', '/tmp/tmpdc2oenyu/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmpdc2oenyu/work/cmd/20261025T235019719199Z-0008.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T23:50:19.821053+00:00'}
+
+----------------------------------------------------------------------
+Ran 1 test in 8.475s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

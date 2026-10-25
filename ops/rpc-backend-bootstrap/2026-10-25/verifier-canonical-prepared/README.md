@@ -1,14 +1,18 @@
 # Verifier canonical block-hash (EIP-1898 requireCanonical): PREPARED source, UNTESTED candidate
 
-**Status: source preparation only. The current candidate (test type-path fix) is UNTESTED, not a fixed production patch.**
-- **Three native runs, all FAILED exit 20 before any test ran** (see "Native run history"):
+**Status: source preparation only. The current candidate (test lifetime fix) is UNTESTED, not a fixed production patch.**
+- **Four native runs, all FAILED exit 20 before any test ran** (see "Native run history"):
   - `root-canonical-native-2309`: the dependency closure was incomplete. The harness was repaired.
   - `root-canonical-native-closure-2318`: the closure passed, then `helios-core` (lib) failed with 13 × E0599, because
     the `alloy::consensus::BlockHeader` trait was not in scope in `canonical.rs` and `ancestry.rs`.
   - `root-canonical-native-import-2333`: production `helios-core` (lib) **compiled**. The new test
     `core/tests/node_canonical_methods.rs` failed with 5 × E0576, because it named the `Network` associated types through
     `<Ethereum as NetworkSpec>::`.
-- **The fix:** the current patch corrects only that test's trait path to `<Ethereum as Network>::`.
+  - `root-canonical-native-types-2345`: those 5 errors were fixed. The next target, `core/tests/canonical_block_gate.rs`,
+    failed with 1 × E0106 at line 125: the test helper `push` returned a `+ '_` future with two reference parameters.
+- **The fixes:** the earlier test fix corrected the trait path to `<Ethereum as Network>::`. The current patch also
+  names that helper's lifetime: `fn push<'a>(c: &'a BlockCache<Ethereum>, b: &Blk) -> impl Future<Output = ()> + 'a`.
+  `b` is cloned and owned, and only `c` is borrowed. Both are test-only.
 - **Not yet shown:** no test or mutant has run, nothing is deployed, and the test targets have not yet compiled.
 - **Not secure yet:** do not treat this patch as secure until root's native runs of `jobs/canonical-tests.sh` and
   `jobs/canonical-mutants.sh` pass.
@@ -22,6 +26,7 @@
 | `root-canonical-native-2309` | **FAIL, exit 20, before compiling.** All `[ok]` pre-checks passed (offline, clone tree and `Cargo.lock`, base manifest, patch apply plus `PATCHED.sha256`, cargo-home copy). Then `cargo test --no-run` could not load `helios-opstack`'s path dependency `../../vendor-inspect/base-v1.5.1/crates/common/chains/Cargo.toml`: the fresh work dir had no sibling `vendor-inspect`. **Not a test verdict; nothing compiled.** | `root-canonical-native-2309.{out,guard,rc}` |
 | `root-canonical-native-closure-2318` | **FAIL, exit 20, COMPILE-FAILURE before tests.** All pre-checks `[ok]`; A0 closure passed (26 path packages, 0 outside the work dir; `cargo fetch --offline --locked` ok; `Cargo.lock` unchanged). 401 crates compiled, then `helios-core` (lib) failed: 13 × E0599 (`number`/`timestamp`/`parent_hash` not found on `N::HeaderResponse`; the trait `BlockHeader` is not in scope), 7 in `core/src/client/canonical.rs`, 6 in `core/src/execution/ancestry.rs`. Peak RSS 677 MiB. **Not a test verdict; no test binary was built.** | `root-canonical-native-closure-2318.{out,guard,rc}` |
 | `root-canonical-native-import-2333` | **FAIL, exit 20, COMPILE-FAILURE before tests.** Production `helios-core` (lib) and `helios-revm-utils` compiled (2 unused-import warnings in `proof_db.rs`). The test target `node_canonical_methods` failed with 5 × E0576: `TransactionResponse` (lines 84, 85), `ReceiptResponse` (91, 92) and `TransactionRequest` (100) were not found in trait `NetworkSpec`, because they belong to `alloy::network::Network` (`NetworkSpec: Network`). Peak RSS 676 MiB. **Not a test verdict; no test ran.** | `root-canonical-native-import-2333.{out,guard,rc}` |
+| `root-canonical-native-types-2345` | **FAIL, exit 20, COMPILE-FAILURE before tests.** The 5 E0576 errors from 2333 were gone. The test target `canonical_block_gate` failed with 1 × E0106 (missing lifetime specifier) at 125:87, in the helper `fn push(c: &BlockCache<Ethereum>, b: &Blk) -> impl Future<Output = ()> + '_`. Peak RSS 680 MiB. **Not a test verdict; no test ran.** | `root-canonical-native-types-2345.{out,guard,rc}` |
 
 **Import fix (after 2318).**
 - **Source change:** `use alloy::consensus::BlockHeader;` is added to `core/src/client/canonical.rs` and
@@ -42,6 +47,26 @@
 **Unchanged:** product sources, assertions, expected controls, the gate, jobs, dependencies and `Cargo.lock`.
 
 **Kept:** the previous revision is in `history/prior-20261025-import-fix-failed-2333-test-types/`.
+
+**Test lifetime fix and harness changes (after 2345).**
+- **The test fix:** `canonical_block_gate.rs:125` now names the lifetime `'a` on `c` only. The crate is edition 2021, so
+  the returned future captures only `'a`. No body or assertion changed. A scan of the other test targets found no
+  other `-> impl` or `'_` helper.
+- **Phase A uses `cargo test … --no-run --keep-going`.** One run reports every target's compile errors, and any error
+  still exits 20.
+- **Optional cache reuse, root-reviewed (`CANONICAL_CACHE_FROM=<ended run dir>`; unset means a fresh copy of the
+  reviewed cache, as before):**
+  - **Each run is still fresh:** its own clone, patch, `PATCHED.sha256` check, pinned `vendor-inspect`, closure
+    checks, logs, and phases A–D all compile and run.
+  - **Reused in place, as mutable caches:** only the ended run's `cargo-home` and `target`. Its source and logs are not
+    touched. The original cargo-home is never written.
+  - **Refused with exit 23 (never a verdict) unless:**
+    - the run ended: its queue `.out` names it, ends with `[queue] EXIT`, and its `.rc` is not older than the `.out`;
+    - no visible process uses the run dir;
+    - no other job holds the reuse lock (an exclusive `flock`, held for the whole job);
+    - its cargo-home `registry/cache`, `registry/src` and `git` equal the reviewed cache's.
+  - **No reproducibility claim.**
+- **Kept:** the previous revision, including its jobs, is in `history/prior-20261025-types-fix-failed-2345-lifetime/`.
 
 **Cause.** R3x built its clone **mounted over the original path**, so the workspace's sibling path dependencies resolved
 to `rpc-priority/vendor-inspect`. The job's fresh clone had no sibling.
@@ -72,8 +97,8 @@ byte-for-byte (native R3x).
 | File | sha256 | What |
 | --- | --- | --- |
 | `INPUT-MANIFEST.base-eeffcc9.sha256` | `df1f198a…` | base file hashes and tree id |
-| `canonical-block.patch` | `881c5473…` | 1243 lines, 15 files (test type-path fix; priors `3d2c5180…`, `0bdab7cf…` in `history/`) |
-| `PATCHED.sha256` | `4c2fa585…` | the patched files, also under `patched/`; `git apply` onto the base reproduces them exactly (checked) |
+| `canonical-block.patch` | `41667ec9…` | 1243 lines, 15 files (test lifetime fix; priors `881c5473…`, `3d2c5180…`, `0bdab7cf…` in `history/`) |
+| `PATCHED.sha256` | `7e87fad8…` | the patched files, also under `patched/`; `git apply` onto the base reproduces them exactly (checked) |
 
 There is no dependency, `Cargo.toml` or `Cargo.lock` change.
 

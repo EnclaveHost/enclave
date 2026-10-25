@@ -1,0 +1,8 @@
+combined source = git archive 5476069f (a92160eb) + M7 e9dfb8c6 + fixed M10 d97c31b5
+sourceManifest 58c572cbb0258bd40f799ec7fac28003529428352d0cd1fe2b82b5556b784405
+files 2533
+Cargo.lock f122da76b80d5df44c9dc0c6fc4efc335abe295280fa49325f367ddcfc7b6a8f
+provider 201d9b8c16b080a4f7111ca29ec5ece8f02a2b9be807bb06e24e7eb1248bb3b2
+13:const DEFAULT_L1_TRUST_RPC: bool = false;
+237:    #[arg(long = "bootstrap.anchor", value_name = "NUMBER:HASH")]
+283:    #[arg(long = "bootstrap.anchor", value_name = "NUMBER:HASH")]

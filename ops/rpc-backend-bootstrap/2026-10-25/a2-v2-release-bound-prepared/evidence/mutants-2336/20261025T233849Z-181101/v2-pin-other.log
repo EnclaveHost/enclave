@@ -1,0 +1,29 @@
+test_source_pin_is_the_actually_released_and_abi_smoked_binary (test_a2a4.ReleaseEvidence.test_source_pin_is_the_actually_released_and_abi_smoked_binary) ... FAIL
+
+======================================================================
+FAIL: test_source_pin_is_the_actually_released_and_abi_smoked_binary (test_a2a4.ReleaseEvidence.test_source_pin_is_the_actually_released_and_abi_smoked_binary)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 677, in test_source_pin_is_the_actually_released_and_abi_smoked_binary
+    self.assertEqual((m['format'], m['receiptFormat'], m['sha256'], m['size'], m['fresh']),
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     ('base-bytecode-check-release/v2', 'base-bytecode-check/v2', pin, 1276048, False))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: ('bas[52 chars]2', 'b55e6b78c6ac8e0a672f69e238135eca7466d1081[36 chars]alse) != ('bas[52 chars]2', '00000000000000000000000000000000000000000[36 chars]alse)
+
+First differing element 2:
+'b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7'
+'0000000000000000000000000000000000000000000000000000000000000000'
+
+  ('base-bytecode-check-release/v2',
+   'base-bytecode-check/v2',
+-  'b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7',
++  '0000000000000000000000000000000000000000000000000000000000000000',
+   1276048,
+   False)
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

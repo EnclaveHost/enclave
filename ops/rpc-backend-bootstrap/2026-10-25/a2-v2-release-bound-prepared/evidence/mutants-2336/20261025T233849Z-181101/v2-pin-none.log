@@ -1,0 +1,16 @@
+test_source_pin_is_the_actually_released_and_abi_smoked_binary (test_a2a4.ReleaseEvidence.test_source_pin_is_the_actually_released_and_abi_smoked_binary) ... FAIL
+
+======================================================================
+FAIL: test_source_pin_is_the_actually_released_and_abi_smoked_binary (test_a2a4.ReleaseEvidence.test_source_pin_is_the_actually_released_and_abi_smoked_binary)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.a6IJsCDG0M/test/test_a2a4.py", line 670, in test_source_pin_is_the_actually_released_and_abi_smoked_binary
+    self.assertRegex(str(pin), r'^[0-9a-f]{64}$')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: '^[0-9a-f]{64}$' not found in 'None'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

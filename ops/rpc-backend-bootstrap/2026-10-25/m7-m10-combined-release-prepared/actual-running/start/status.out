@@ -1,0 +1,23 @@
+Sun Oct 25 23:53:41 UTC 2026
+MainPID=41714
+Result=success
+MemoryCurrent=957624320
+ActiveState=active
+SubState=running
+   Compiling alloy-eip2930 v0.2.3
+   Compiling cmake v0.1.58
+   Compiling num_cpus v1.17.0
+   Compiling fs_extra v1.3.0
+   Compiling percent-encoding v2.3.2
+   Compiling aws-lc-sys v0.43.0
+   Compiling threadpool v1.8.1
+   Compiling zerofrom v0.1.8
+   Compiling c-kzg v2.1.8
+   Compiling stable_deref_trait v1.2.1
+   Compiling yoke v0.8.3
+   Compiling secp256k1 v0.30.0
+               total        used        free      shared  buff/cache   available
+Mem:           64302       11197        8377           1       45450       53105
+Swap:              0           0           0
+Avail
+17026

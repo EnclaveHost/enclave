@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Recheck.test_run_record_provenance": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Recheck.test_run_record_provenance"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

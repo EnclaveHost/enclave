@@ -1,0 +1,35 @@
+[queue] NOT STARTED: small allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=23489MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+[ok] P1 actual run 2 (pass:false kept) + synthetic complete supplement, checker re-run accepted: gate rc=0 {
+[ok] N1 compound.json absent: gate rc=1 [REFUSE] missing /tmp/tmpu5hynk2j/receipts/cli-child-1.compound.json
+[ok] N2 compound pin mismatch: gate rc=1 [REFUSE] compound.json differs from its pin
+[ok] N3 supplement missing a run, forged compoundAccepted:true: gate rc=1 [REFUSE] supplement output has 97 files, not 99
+[ok] N4 compound.json boolean/summary edited after a valid run: gate rc=1 [REFUSE] stored compound.json is not byte-identical to the re-run checker output
+[ok] N5 original receipt forged to pass:true: gate rc=1 [REFUSE] original run-2 run-2.receipt.json is not the actual receipt b4162de1dcf1
+[ok] N6 a second ignored test in a phase log: gate rc=1 [REFUSE] run-2 log node.test.out differs from its pin
+[ok] N7 child checker modified: gate rc=1 [REFUSE] child stage checker/check_compound.py differs from its MANIFEST
+[ok] N8 child checker tests modified: gate rc=1 [REFUSE] child stage tests/test_check_compound.py differs from its MANIFEST
+[ok] N9 unlisted file in the child stage: gate rc=1 [REFUSE] child stage has unlisted/missing files: ['checker/extra.py']
+[ok] N10 supplement manifest pin mismatch: gate rc=1 [REFUSE] supplement output dir differs from its pinned manifest
+[ok] N11 unit .out count corrupted (48): gate rc=1 [REFUSE] cli-child .out (unit output) is not exactly 'recorded 49 runs': b'recorded 48 runs\n'
+[ok] N17 unit .out replaced by the host launch log (the v2 mistake): gate rc=1 [REFUSE] cli-child .out (unit output) is not exactly 'recorded 49 runs': b'## cli-child supplement attempt 1: unit exit 0; compound che'
+[ok] N18 unit .out with an extra line: gate rc=1 [REFUSE] cli-child .out (unit output) is not exactly 'recorded 49 runs': b'recorded 49 runs\nextra\n'
+[ok] N12 negative control passed instead of failing: gate rc=1 [REFUSE] re-run checker exit 1
+[ok] N13 launcher pin mismatch: gate rc=1 [REFUSE] launcher.json differs from its pin
+[ok] N14 extra run-2 log: gate rc=1 [REFUSE] run-2 log set is not exactly the 8 pinned logs
+[ok] N15 malformed pin argument: gate rc=1 [REFUSE] --compound-sha is not a sha256
+[ok] N16 ignored annotation changed in cli.test.out: gate rc=1 [REFUSE] run-2 log cli.test.out differs from its pin
+[ok] R1 ACTUAL collected evidence with its actual pins is accepted (checker re-run on real files): gate rc=0 {
+[ok] R2 actual evidence, one supplement stdout byte changed (re-pinned): gate rc=1 [REFUSE] re-run checker exit 1
+[ok] R3 actual evidence, unit .out replaced by the host launch.out (re-pinned): gate rc=1 [REFUSE] cli-child .out (unit output) is not exactly 'recorded 49 runs': b'\n## cli-child supplement attempt 1: unit exit 0; compound ch'
+[ok] R4 actual evidence, compound.json reformatted (re-pinned): gate rc=1 [REFUSE] stored compound.json is not byte-identical to the re-run checker output
+[ok] R5 actual evidence with the original run-2 receipt flipped to pass:true: gate rc=1 [REFUSE] original run-2 run-2.receipt.json is not the actual receipt b4162de1dcf1
+## compound gate tests failed=0
+PASS six monitor controls: success, remote failure, prestart floor, active floor, cancellation, unexpected observer error
+ROOT COMBINED RELEASE PREPARATION TESTS PASS
+[memory-guard] exit=0 peakTreeRssMiB=67 minHostAvailableMiB=23334
+[memory-guard] at peak: python3:22 python3:21 python3:21 bash:4
+[queue] EXIT 0
