@@ -22,12 +22,14 @@ import { base } from "viem/chains";
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // ../mutants-fee.sh points this at a mutated copy; normally the repo's own file
 const CURRENT = fs.readFileSync(process.env.OPERATOR_FEE_SUPERVISOR || path.join(REPO, "supervisor.js"), "utf8");
-const BASELINE = execFileSync("git", ["-C", REPO, "show", "7dd3acd061af765cdcd9ba21b9744f2f2c6bdf5b:supervisor.js"], { maxBuffer: 64 << 20 }).toString();
+// On the RPC line the baseline is c08532b28 (the final-tested RPC consumer line before this port): its sendOperatorTx has the same
+// unset-fee writeContract as 7dd3acd, behind the line's gate + chainActionGate (7dd3acd is not in this history).
+const BASELINE = execFileSync("git", ["-C", REPO, "show", "c08532b28238a24f517db1beb3b12614abd05a6c:supervisor.js"], { maxBuffer: 64 << 20 }).toString();
 const slice = (src, re, what) => { const m = re.exec(src); assert.ok(m, `${what} in supervisor.js`); return m[0]; };
 const PIECES = (src) => [
   slice(src, /let _claimAccount = null, _claimWallet = null, _txChain = Promise\.resolve\(\);\nfunction claimSigner\(\) \{[\s\S]*?\n\}/, "claimSigner"),
   slice(src, /async function awaitReceipt\(hash, timeoutMs = 90_000\) \{[\s\S]*?\n\}/, "awaitReceipt"),
-  slice(src, /function sendOperatorTx\(address, abi, functionName, args\) \{[\s\S]*?\n\}/, "sendOperatorTx"),
+  slice(src, /function sendOperatorTx\(address, abi, functionName, args(?:, \{ gate = null \} = \{\})?\) \{[\s\S]*?\n\}/, "sendOperatorTx"),
 ].join("\n");
 
 const REGISTRY = "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac";
@@ -76,19 +78,25 @@ function node({ fail = {}, fill = "higher", receiptStatus = "0x1" } = {}) {
 }
 
 // one supervisor operator queue over that node, with the supervisor's own functions
-function queue(src, n) {
+// chainActionGate: the RPC line's verifier/backend gate (supervisor.js), recorded into the node's call log; `refuse` rejects it
+function queue(src, n, { refuse = null } = {}) {
   const PK = generatePrivateKey();
   const transport = custom({ request: n.request });
-  const make = new Function("REGISTRY_PK", "privateKeyToAccount", "createWalletClient", "base", "rpcTransport", "chainClient", "getAddress", "sleepMs", `
+  const gates = [];
+  const chainActionGate = async (what, submit) => {
+    gates.push({ what, submit }); n.calls.push({ method: "<chainActionGate>", params: [what, submit] });
+    if (refuse) throw new Error(refuse);
+  };
+  const make = new Function("REGISTRY_PK", "privateKeyToAccount", "createWalletClient", "base", "rpcTransport", "chainClient", "getAddress", "sleepMs", "chainActionGate", `
     ${PIECES(src)}
     return { sendOperatorTx, claimSigner };`);
   const q = make(PK, privateKeyToAccount, createWalletClient, base, () => transport,
-    createPublicClient({ chain: base, transport }), getAddress, () => new Promise((r) => setImmediate(r)));
-  return { ...q, operator: privateKeyToAccount(PK).address };
+    createPublicClient({ chain: base, transport }), getAddress, () => new Promise((r) => setImmediate(r)), chainActionGate);
+  return { ...q, gates, operator: privateKeyToAccount(PK).address };
 }
 const send = (q) => q.sendOperatorTx(REGISTRY, ABI, "setProofKey", [ID, KEY]);
 
-test("BASELINE (7dd3acd), SDK scenario: where the node fills, writeContract with nothing set re-multiplies the filled fee: 13.2 mwei signed against this stub", async () => {
+test("BASELINE (c08532b28, same unset-fee write as 7dd3acd), SDK scenario: where the node fills, writeContract with nothing set re-multiplies the filled fee: 13.2 mwei signed against this stub", async () => {
   const n = node(), q = queue(BASELINE, n);
   await send(q);
   assert.ok(n.methods().includes("eth_fillTransaction"));
@@ -172,4 +180,36 @@ test("the queue still serializes through confirmation, and a reverted receipt is
   const g = send(q2);
   await assert.rejects(f);
   await g; assert.equal(m2.sent.length, 1, "the one after the failure is sent");
+});
+
+// RPC line (c08532b28) behaviour kept: the caller's gate and the chain authority's action gate run, in that order, BEFORE any fee
+// read, estimate or signature; either refusing sends nothing and reads nothing from the node.
+test("RPC line: gate + chainActionGate(submit) precede the fee reads; a stale gate or a refusing authority signs and reads nothing", async () => {
+  const n = node(), q = queue(CURRENT, n);
+  await send(q);
+  assert.deepEqual(q.gates, [{ what: "setProofKey", submit: true }]);
+  const m = n.methods();
+  assert.equal(m[0], "<chainActionGate>", m.join(","));
+  assert.equal(n.sent.length, 1);
+
+  const n2 = node(), q2 = queue(CURRENT, n2);
+  const stale = q2.sendOperatorTx(REGISTRY, ABI, "setProofKey", [ID, KEY], { gate: () => "lease superseded" });
+  await assert.rejects(stale, (e) => e.superseded === true && /not sent: lease superseded/.test(e.message));
+  await assert.rejects(stale.receipt);
+  assert.deepEqual(q2.gates, [], "the authority is not even asked");
+  assert.deepEqual(n2.calls, []);
+
+  const n3 = node(), q3 = queue(CURRENT, n3, { refuse: "verifier head stale" });
+  const refused = send(q3);
+  await assert.rejects(refused, /verifier head stale/);
+  await assert.rejects(refused.receipt);
+  assert.deepEqual(n3.methods(), ["<chainActionGate>"], "no fee read, estimate, fill or send");
+  assert.equal(n3.sent.length, 0);
+  // and the queue survives the refusal
+  const n4 = node(); let refuseOnce = true;
+  const q4 = queue(CURRENT, n4);
+  const f = q4.sendOperatorTx(REGISTRY, ABI, "setProofKey", [ID, KEY], { gate: () => (refuseOnce ? (refuseOnce = false, "stale") : null) });
+  f.catch(() => {}); f.receipt.catch(() => {});
+  await assert.rejects(f); await send(q4);
+  assert.equal(n4.sent.length, 1);
 });

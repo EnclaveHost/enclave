@@ -53,7 +53,9 @@ export function fixture({hostId=host}={}){
   chainClient:{readContract:async q=>{
    if(q.functionName==='getApp')return {appId:app,versionCount:2,active:true,publisher:catalog,slug:'test'};
    if(q.functionName==='getVersion')return {cid:'cid',version:'1',active:true,yanked:false,approval:1,config:'{}'};
-   if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');}},
+   if(q.functionName==='versionFee')return 0n;if(q.functionName==='versionConfigCid')return '';throw Error('unexpected read');},
+   // sendOperatorTx's explicit fee/gas reads (5db2be3f port): fixed answers, the write is still the recorded writeContract
+   estimateFeesPerGas:async()=>({maxFeePerGas:7_000_000n,maxPriorityFeePerGas:1_000_000n}),estimateContractGas:async()=>50_000n},
   _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Map(),_releaseIntents:new Map(),
   HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,chainActionGate:async()=>{},leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
   TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),lc:v=>String(v||'').toLowerCase(),
