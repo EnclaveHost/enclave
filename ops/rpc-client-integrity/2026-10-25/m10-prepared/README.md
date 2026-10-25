@@ -1,4 +1,6 @@
-# M10: opt-in bootstrap-anchor start for base-consensus (SOURCE + PREPARED TESTS; NOT compiled, NOT run, NOT production)
+# M10: opt-in bootstrap-anchor start — engine tested, full native validation pending
+
+Current 2026-10-25 21:55 status: engine **152/152 passed** in two rebuilt native runs. Both runs stopped by memory guard during node test compilation (1818 >1792 MiB, then2566 >2560 MiB); no node/sequencer/SafeDB/CLI/control pass is claimed. Reviewed4096MiB retry is queued under the unchanged16GiB host floor. Both recovery harnesses passed dry source re-derivation and7 refusal checks. This is NOT a combined release binary, independent reproduction, or production activation. Failure history and bounded recovery scripts are retained below; prior preparation-only statements in detailed notes are historical.
 
 `m10-bootstrap-anchor.patch` (sha256 in `.sha256`; `git apply --stat`: **18 files changed, 987 insertions(+), 8 deletions(-)**,
 including 3 new files `engine/src/sync/anchor.rs`, `engine/src/test_utils/anchor_blocks.rs`, `service/src/service/anchor_safedb.rs`)
