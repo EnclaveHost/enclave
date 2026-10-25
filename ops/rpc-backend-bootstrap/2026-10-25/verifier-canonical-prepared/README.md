@@ -1,9 +1,12 @@
-# Verifier canonical block-hash (EIP-1898 requireCanonical): PREPARED source, UNCOMPILED and UNVALIDATED
+# Verifier canonical block-hash (EIP-1898 requireCanonical): PREPARED source, UNTESTED candidate
 
-**Status: source preparation only.**
-- **Ran once, FAILED before compiling:** root's native run `root-canonical-native-2309` exited **20** at the compile
-  preflight because the job's dependency closure was incomplete (see "Native run history"). **No source has compiled, no
-  test or mutant has run, and nothing is deployed.** The job closure is repaired (below); the product patch is unchanged.
+**Status: source preparation only. The current candidate (import fix) is UNTESTED, not a fixed production patch.**
+- **Two native runs, both FAILED exit 20 before any test ran** (see "Native run history"):
+  - `root-canonical-native-2309`: the dependency closure was incomplete. The harness was repaired.
+  - `root-canonical-native-closure-2318`: the closure passed, then `helios-core` (lib) failed with 13 × E0599, because
+    the `alloy::consensus::BlockHeader` trait was not in scope in `canonical.rs` and `ancestry.rs`.
+- **The fix:** the current patch adds only that one import line to each of the two files.
+- **Not yet shown:** no test or mutant has run, nothing is deployed, and the candidate has not yet compiled.
 - **Not secure yet:** do not treat this patch as secure until root's native runs of `jobs/canonical-tests.sh` and
   `jobs/canonical-mutants.sh` pass.
 - **Custody v2 stays REFUSED.** It needs those runs, a reth forced-reorg end-to-end test, and a reviewed measured
@@ -14,6 +17,16 @@
 | Run | Result | Logs (`runs/`) |
 | --- | --- | --- |
 | `root-canonical-native-2309` | **FAIL, exit 20, before compiling.** All `[ok]` pre-checks passed (offline, clone tree and `Cargo.lock`, base manifest, patch apply plus `PATCHED.sha256`, cargo-home copy). Then `cargo test --no-run` could not load `helios-opstack`'s path dependency `../../vendor-inspect/base-v1.5.1/crates/common/chains/Cargo.toml`: the fresh work dir had no sibling `vendor-inspect`. **Not a test verdict; nothing compiled.** | `root-canonical-native-2309.{out,guard,rc}` |
+| `root-canonical-native-closure-2318` | **FAIL, exit 20, COMPILE-FAILURE before tests.** All pre-checks `[ok]`; A0 closure passed (26 path packages, 0 outside the work dir; `cargo fetch --offline --locked` ok; `Cargo.lock` unchanged). 401 crates compiled, then `helios-core` (lib) failed: 13 × E0599 (`number`/`timestamp`/`parent_hash` not found on `N::HeaderResponse`; the trait `BlockHeader` is not in scope), 7 in `core/src/client/canonical.rs`, 6 in `core/src/execution/ancestry.rs`. Peak RSS 677 MiB. **Not a test verdict; no test binary was built.** | `root-canonical-native-closure-2318.{out,guard,rc}` |
+
+**Import fix (after 2318).**
+- **Source change:** `use alloy::consensus::BlockHeader;` is added to `core/src/client/canonical.rs` and
+  `core/src/execution/ancestry.rs`. This is the same import the base already uses in `node.rs`, `block_cache.rs` and
+  `eip2935.rs`. It is the only change.
+- **Unchanged:** semantics, tests, the 35 expected controls, jobs, dependencies and `Cargo.lock`.
+- **Tests:** none of the test files needed the import. They call only `header().hash()`, with `HeaderResponse` and
+  `BlockResponse` already imported, or use struct fields.
+- **Kept:** the previous patch, manifest, README and `SHA256SUMS` are in `history/prior-20261025-round3-closure-failed-2318-import/`.
 
 **Cause.** R3x built its clone **mounted over the original path**, so the workspace's sibling path dependencies resolved
 to `rpc-priority/vendor-inspect`. The job's fresh clone had no sibling.
@@ -44,8 +57,8 @@ byte-for-byte (native R3x).
 | File | sha256 | What |
 | --- | --- | --- |
 | `INPUT-MANIFEST.base-eeffcc9.sha256` | `df1f198a…` | base file hashes and tree id |
-| `canonical-block.patch` | `0bdab7cf…` | 1240 lines, 15 files |
-| `PATCHED.sha256` | `89dcb59a…` | the patched files, also under `patched/`; `git apply` onto the base reproduces them exactly (checked) |
+| `canonical-block.patch` | `3d2c5180…` | 1242 lines, 15 files (import fix; prior `0bdab7cf…` in `history/`) |
+| `PATCHED.sha256` | `3e9d8f49…` | the patched files, also under `patched/`; `git apply` onto the base reproduces them exactly (checked) |
 
 There is no dependency, `Cargo.toml` or `Cargo.lock` change.
 

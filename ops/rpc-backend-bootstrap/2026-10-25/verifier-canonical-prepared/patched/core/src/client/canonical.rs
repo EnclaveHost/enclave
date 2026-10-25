@@ -13,6 +13,7 @@
 //! Callers run this BEFORE and AFTER a read bound to the hash's own state root (BLOCKHASH to its own ancestry,
 //! execution::ancestry); each run takes its own fresh head snapshot, so the answer is returned only if the block is on
 //! the head chain at the end.
+use alloy::consensus::BlockHeader;
 use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::network::{primitives::HeaderResponse, BlockResponse};
 use helios_common::{execution_provider::BlockProvider, network_spec::NetworkSpec};

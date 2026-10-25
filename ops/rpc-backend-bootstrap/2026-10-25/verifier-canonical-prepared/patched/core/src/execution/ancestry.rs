@@ -2,6 +2,7 @@
 //! this instead of "the canonical block at that height now": the walk follows parent hashes from the pinned block with
 //! exact-hash reads (each link: hash and height + 1), so a reorg flap between reads cannot mix another chain's ancestor
 //! into a run pinned to this block. Only revm's 256-block window is served; a broken or unknown link refuses.
+use alloy::consensus::BlockHeader;
 use alloy::eips::{eip1898::RpcBlockHash, BlockId};
 use alloy::network::{primitives::HeaderResponse, BlockResponse};
 use alloy::primitives::B256;

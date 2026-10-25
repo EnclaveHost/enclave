@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/core/src/client/canonical.rs
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,92 @@
 +//! EIP-1898 block-hash gate over the verified BlockProvider (verifier-canonical-stage, round 3; NOT yet compiled).
 +//! Node::check_block_id delegates here; tests drive it with the real BlockCache, a mock provider and a real Node.
 +//!
@@ -16,6 +16,7 @@
 +//! Callers run this BEFORE and AFTER a read bound to the hash's own state root (BLOCKHASH to its own ancestry,
 +//! execution::ancestry); each run takes its own fresh head snapshot, so the answer is returned only if the block is on
 +//! the head chain at the end.
++use alloy::consensus::BlockHeader;
 +use alloy::eips::{BlockId, BlockNumberOrTag};
 +use alloy::network::{primitives::HeaderResponse, BlockResponse};
 +use helios_common::{execution_provider::BlockProvider, network_spec::NetworkSpec};
@@ -319,11 +320,12 @@
      #[error("execution error: {0}")]
 --- /dev/null
 +++ b/core/src/execution/ancestry.rs
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,39 @@
 +//! BLOCKHASH ancestry bound to the PINNED block (verifier-canonical-stage; NOT yet compiled). revm-utils ProofDB uses
 +//! this instead of "the canonical block at that height now": the walk follows parent hashes from the pinned block with
 +//! exact-hash reads (each link: hash and height + 1), so a reorg flap between reads cannot mix another chain's ancestor
 +//! into a run pinned to this block. Only revm's 256-block window is served; a broken or unknown link refuses.
++use alloy::consensus::BlockHeader;
 +use alloy::eips::{eip1898::RpcBlockHash, BlockId};
 +use alloy::network::{primitives::HeaderResponse, BlockResponse};
 +use alloy::primitives::B256;
