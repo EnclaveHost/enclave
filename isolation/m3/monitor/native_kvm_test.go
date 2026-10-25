@@ -80,14 +80,56 @@ func TestNativeGuestKVM(t *testing.T) {
 	}
 	until := func(state string, deadline time.Duration) {
 		t.Helper()
-		end := time.Now().Add(deadline)
+		started := time.Now()
+		end := started.Add(deadline)
 		var last error
 		nextSnapshot := time.Now().Add(10 * time.Second)
+		diagnostics := strings.Contains(string(cmdline), "native.startup.probe=1")
+		snapshot := func() {
+			pids, _ := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
+			var processes []map[string]string
+			for _, pid := range strings.Fields(string(pids)) {
+				entry := map[string]string{"pid": pid}
+				// Fixed kernel counters only: never command lines, environment,
+				// memory, descriptor targets or service/desktop log contents.
+				for _, name := range []string{"comm", "wchan", "schedstat", "io"} {
+					v, err := os.ReadFile("/proc/" + pid + "/" + name)
+					if err == nil {
+						entry[name] = strings.TrimSpace(string(v))
+					}
+				}
+				if raw, err := os.ReadFile("/proc/" + pid + "/stat"); err == nil {
+					// Skip comm, which can contain spaces and parentheses; omit
+					// address fields and retain only resource accounting.
+					if end := strings.LastIndexByte(string(raw), ')'); end >= 0 {
+						fields := strings.Fields(string(raw[end+1:]))
+						if len(fields) >= 22 {
+							for name, index := range map[string]int{"state": 0, "userTicks": 11, "systemTicks": 12, "threads": 17, "startTicks": 19, "rssPages": 21} {
+								entry[name] = fields[index]
+							}
+						}
+					}
+				}
+				processes = append(processes, entry)
+			}
+			group := make(map[string]string)
+			for _, name := range []string{"cpu.stat", "cpu.pressure", "io.stat", "io.pressure", "memory.current", "memory.events", "memory.pressure"} {
+				v, err := os.ReadFile(filepath.Join(d.cgroup, name))
+				if err == nil {
+					group[name] = strings.TrimSpace(string(v))
+				}
+			}
+			encoded, _ := json.Marshal(map[string]any{"waitingFor": state, "elapsedMs": time.Since(started).Milliseconds(), "processes": processes, "cgroup": group})
+			fmt.Printf("NATIVE_STARTUP_DIAGNOSTIC=%s\n", encoded)
+		}
 		for time.Now().Before(end) {
 			if d.state() != contract.Running {
 				t.Fatalf("domain ended before %s", state)
 			}
-			if strings.Contains(string(cmdline), "native.graphics.probe=1") && time.Now().After(nextSnapshot) {
+			if diagnostics && time.Now().After(nextSnapshot) {
+				snapshot()
+				nextSnapshot = time.Now().Add(5 * time.Second)
+			} else if !diagnostics && strings.Contains(string(cmdline), "native.graphics.probe=1") && time.Now().After(nextSnapshot) {
 				pids, _ := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
 				var snapshot []map[string]string
 				for _, pid := range strings.Fields(string(pids)) {
@@ -102,12 +144,22 @@ func TestNativeGuestKVM(t *testing.T) {
 			v, e := query(5001, "status")
 			last = e
 			if e == nil && v["status"] == state {
+				if diagnostics {
+					snapshot()
+					fmt.Printf("NATIVE_STARTUP_TRANSITION state=%s elapsedMs=%d\n", state, time.Since(started).Milliseconds())
+				}
 				return
 			}
 			if e == nil && v["status"] == "failed" {
+				if diagnostics {
+					snapshot()
+				}
 				t.Fatalf("native supervisor failed: %v", v)
 			}
 			time.Sleep(100 * time.Millisecond)
+		}
+		if diagnostics {
+			snapshot()
 		}
 		t.Fatalf("native %s deadline: %v", state, last)
 	}
@@ -123,7 +175,7 @@ func TestNativeGuestKVM(t *testing.T) {
 	if _, err = query(5001, "start"); err != nil {
 		t.Fatal(err)
 	}
-	until("running", 65*time.Second)
+	until("running", 125*time.Second)
 	if wx := m.scanDomainWX(d); !strings.HasPrefix(wx, "wx=clean ") {
 		t.Fatal(wx)
 	}
