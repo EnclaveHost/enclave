@@ -12,8 +12,16 @@ export function startingShieldTransport(base, expected, {fetchImpl=fetch, connec
   const r=await fetchImpl(new URL('/vms',u),{signal:AbortSignal.timeout(10000)});
   if(!r.ok)throw Error('Shield inventory unavailable');
   const body=await r.text();if(body.length>1048576)throw Error('Shield inventory too large');
-  const v=JSON.parse(body).vms?.find(v=>v.name===id&&!v.recovered&&!v.launching&&['starting','running'].includes(v.status));
+  const matches=JSON.parse(body).vms?.filter(v=>v.name===id&&!v.recovered&&!v.launching&&v.directBootstrap!==true&&['starting','running'].includes(v.status));
+  const v=matches?.length===1?matches[0]:null;
   if(!v||v.secretDeployment!==id||v.appId!==want.appSha256||v.runtimeId!==want.runtimeId||v.relay?.host!=='127.0.0.1'||!Number.isInteger(v.relay.port)||v.relay.port<1||v.relay.port>65535)throw Error('startup guest identity or loopback relay differs');
+  if(want.requiresDesktop===true) {
+   const d=want.desktop;
+   if(!d||!['recordSha256','controllerSha256','igvmSha256','profileSha256'].every(k=>/^[0-9a-f]{64}$/.test(d[k]||''))||
+      d.profile!=='kvm-box-masked-v1'||!Number.isSafeInteger(d.gpuMilli)||d.gpuMilli<500||d.gpuMilli>1000||v.derivation!=='enclave-catalog-bundle/8'||v.imageRole!=='desktop'||v.recordSha256!==d.recordSha256||
+      v.componentSha256!==d.controllerSha256||v.image!==d.igvmSha256||v.igvmSha256!==d.igvmSha256||
+      ['profile','profileSha256','gpuMilli'].some(k=>v.desktop?.[k]!==d[k]))throw Error('native startup release identity differs');
+  } else if(v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)throw Error('native startup requires explicit desktop expectation');
   return new Promise((resolve,reject)=>{
    const s=connect({host:'127.0.0.1',port:v.relay.port});
    const timer=setTimeout(()=>s.destroy(Error('startup guest connection timeout')),10000);

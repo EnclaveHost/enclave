@@ -1,8 +1,11 @@
+import { desktopExpectation } from './desktop-expectation.mjs';
 // The app expectation a Windows (Enclave Shield) host's privacy agent pins for one leased deployment, from the node
 // manager's record of the partition it launched: shared by the platform's SSH reconcile (reconcile-shield-apps.mjs) and
 // the host's own enrollment (windows/node/tuna-enroll.mjs), so both pin exactly the same thing.
 //
-// A record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
+// Native V8 enrollment independently derives a starting/ready identity using the
+// approved desktop release, public configuration and rehashed controller bytes.
+// A legacy record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
 // version's catalog CID (and, for a raw-leaf CID, a component sha256 equal to the CID's digest), and runs the runtime the
 // agent's admitted Shield policy pins; so a partition from before an upgrade is never pinned. The agent still verifies
 // every proof against the policy itself, and the relay derives its own expectation from the chain before it routes.
@@ -18,13 +21,18 @@ export const rawDigest = cid => {
 /** The catalog reference of a lease's appRef, or null. */
 export const catalogRef = appRef => { const m = String(appRef || '').match(/^catalog:\/\/(0x[0-9a-f]{64})\/(\d+)$/i); return m ? { app: m[1].toLowerCase(), version: Number(m[2]) } : null; };
 /**
- * shieldExpectation({ row, version, vms, policy, previous }) -> { expected } | { wait } | { skip }:
+ * shieldExpectation({ row, version, vms, policy, previous, desktopInputs }) -> { expected } | { wait } | { skip }:
  * row = the ledger deployment (id, appRef, configCid), version = its catalog version record ({ cid }), vms = the
  * manager's /vms list, policy = the admitted Shield policy, previous = the expectation pinned before (or null).
  */
-export function shieldExpectation({ row, version, vms, policy, previous = null }) {
+export function shieldExpectation({ row, version, vms, policy, previous = null, desktopInputs }) {
   const id = String(row.id).toLowerCase(), appRef = String(row.appRef), ref = catalogRef(appRef);
   if (!ref) return { skip: `appRef ${appRef} is not a catalog reference` };
+  if (policy?.desktop?.controllerCid === version?.cid)
+    return desktopExpectation({row,version,vms,policy,inputs:desktopInputs});
+  // A V8 partition may never inherit the legacy GPU-inference approval path.
+  if (vms.some(v=>String(v.name).toLowerCase()===id&&(v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)))
+    return {skip:'native desktop has no independently approved controller release'};
   const vm = vms.filter(v => String(v.name).toLowerCase() === id && v.status === 'running' && v.appReady === true && !v.launching &&
       String(v.catalog?.app).toLowerCase() === ref.app && Number(v.catalog?.version) === ref.version && v.cid === String(version?.cid))
     .sort((x, y) => Number(y.startedAt) - Number(x.startedAt))[0];

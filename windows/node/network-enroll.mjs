@@ -167,7 +167,7 @@ export function validPaceMbps(v) {
  * name, endpoint and transportKey are accepted (and unused) so older callers keep working.
  */
 export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
-                                   fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {},
+                                   desktopInputs, fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {},
                                    hostServiceRefusal = () => null }) {
   if (!config?.enclaveNetwork) throw new Error("the Enclave network configuration (trusted checkers) is required: TUNA is retired");
   const file = (f) => path.join(agentDir, f);
@@ -262,7 +262,7 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     }
     if (retired.length) { changed = true; log(`retired TUNA settings dropped from the config: ${retired.join(", ")}`); }
     const policy = await readJSON(config.policyFile, null);
-    if (!policy?.cpu?.runtimeId) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
+    if (!policy?.cpu?.runtimeId && !policy?.desktop) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
     const now = Math.floor(Date.now() / 1000), me = String(runner).toLowerCase();
     const mine = (await rows()).filter((d) => String(d.runner).toLowerCase() === me && d.active === true && d.isPublic === true &&
       Number(d.leaseUntil) > now && ID.test(String(d.id).toLowerCase()));
@@ -275,7 +275,13 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
       if (!catalogRef(row.appRef)) { log(`${short}: not a catalog app; skipped`); continue; }
       const expectedFile = path.join(dir, "expected.json");
       const previous = await readJSON(expectedFile, null);
-      const v = shieldExpectation({ row, version: await version(row.appRef), vms: list, policy, previous });
+      const catalogVersion = await version(row.appRef);
+      let nativeInputs;
+      if (policy?.desktop?.controllerCid === catalogVersion?.cid && desktopInputs) {
+        try { nativeInputs = await desktopInputs(row, catalogVersion); }
+        catch (e) { waiting++; log(`${short}: native inputs unavailable: ${e.message}`); continue; }
+      }
+      const v = shieldExpectation({ row, version: catalogVersion, vms: list, policy, previous, desktopInputs: nativeInputs });
       if (!v.expected) { if (v.wait) waiting++; log(`${short}: ${v.wait || v.skip}`); continue; }
       const existing = cfg.apps.find((a) => a.deploymentId === id);
       await fs.mkdir(dir, { recursive: true });
@@ -284,11 +290,15 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
         if (existing) log(`${short}: expectation now ${v.expected.appRef.split("/").pop()} app ${v.expected.appSha256.slice(0, 8)}`);
       }
       if (existing) {
+        if (v.startupEgress === true && existing.startupEgress !== true) { existing.startupEgress = true; changed = true; }
+        else if (previous?.requiresDesktop === true && v.expected.requiresDesktop !== true && existing.startupEgress === true) {
+          delete existing.startupEgress; changed = true;
+        }
         if (domains) { const n = namesFor(id); if (JSON.stringify(n) !== JSON.stringify(existing.names)) { existing.names = n; changed = true; } }
         continue;
       }
       if (!domains) { log(`${short}: new, but the relay's domain map is unavailable; enrolling next pass`); continue; }
-      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true });
+      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true, ...(v.startupEgress === true ? { startupEgress: true } : {}) });
       changed = true; log(`${short}: enrolled on the Enclave network (${namesFor(id).join(", ")})`);
     }
     // no app yet: written only for a VALID host-services block (an invalid one would only be refused by the agent) while this

@@ -1056,6 +1056,7 @@ async function startHostingControls() {
       log('[network] enrollment: off (independent mode needs ENCLAVE_NETWORK_DIRECTORIES: the public directories to use)');
     else if (netReady) {
       const { createNetworkEnroll, fileSha256 } = await import('./network-enroll.mjs');
+      const { nativeEnrollmentInputs } = await import('./desktop-inputs.mjs');
       const chainMod = await import('./chain.mjs');
       const relayBase = ID.mode === 'relay' ? ID.relayHttp : ID.relayBase;
       let enroll = null, enrolling = false, lastEnrollError = '', enrollWaiting = 0;
@@ -1089,6 +1090,7 @@ async function startHostingControls() {
               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
               { timeout: 30000, windowsHide: true }, () => res())); },
             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
+            desktopInputs: (row, version) => nativeEnrollmentInputs(host, row, version),
             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
             // an app-less config (host services only) is not written while this node's platform host policy refuses this host
@@ -1155,6 +1157,7 @@ async function startHostingControls() {
         const certs = createHvCertPass({
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
           runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
+          desktopRelease: host.desktopRelease,
           endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }), ...(ID.mode === 'relay' ? {} : { base: host.cfg.relayBase }),
           served: (owner) => host.servingScope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
         let running = false;

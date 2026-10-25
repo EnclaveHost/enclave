@@ -1262,7 +1262,8 @@ export class Host {
     // What this partition must run, when an owner committed it: recorded before the spawn so the adoption checks below
     // and a restart judge the manager's view against it, and so the names come only from this package.
     const startup = plan.startup || null;
-    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null });
+    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null,
+      desktopRecord: plan.derivation === DESKTOP_DERIVATION ? plan.spawn.derive : null });
 
     // A lapsed hosting lease or readiness timeout may already have retired the
     // ended VM. Keep its service cooldown before reconcile can spawn an absent
