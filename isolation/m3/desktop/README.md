@@ -262,3 +262,26 @@ application-plus-640 MiB rule cannot simply be reused for an 8192 MiB native
 allocation with its required guest reserve. GPU acceptance, Moonlight and
 publication remain separate requirements. Evidence is exported under
 outputs/kvm-box/evidence/native-platform-integration.
+
+## Native CPU allocation
+
+The native monitor accepts the launcher's `load.cpu` availability allocation
+separately from the catalog policy hashed into the application bundle. An
+omitted or zero request uses the catalog default. Explicit allocations must
+remain within 400..1600 percent (four to sixteen CPU equivalents); invalid
+values fail before any native resources are opened or a domain is registered.
+This does not change the application identity, controller or media pins.
+
+The effective processor requirement is the greater of the catalog's `vcpus`
+and `ceil(cpu / 100)`. The monitor checks the guest's online CPU capacity and
+passes that requirement to the native supervisor. The cgroup quota uses the
+effective allocation: for example, a 400-percent/four-processor catalog entry
+loaded with `cpu: 600` requires at least six online processors and configures
+`cpu.max` as `600000 100000`. The host must independently reserve the purchased
+share; accepting the request does not establish a lease or authorize release
+of owner secrets.
+
+Unit coverage checks default and explicit allocations, rounding, capacity,
+integer extremes, malformed catalog policies and rejection through the actual
+monitor load path. Host allocation integration and runtime cgroup verification
+are separate qualification requirements.

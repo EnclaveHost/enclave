@@ -87,14 +87,25 @@ func (m *monitor) initNativeGuest() error {
 	return nil
 }
 
+func (g *nativeGuest) allocationCPU(man contract.Manifest, requestedCPU int) (int, int, error) {
+	return desktop.CPUAllocation(man.Policy.CPUPercent, man.Policy.Vcpus, requestedCPU)
+}
+
 func (g *nativeGuest) validate(man contract.Manifest, artifact []byte, cpu, mem int) error {
 	if err := g.profile.CheckBundle(man, artifact); err != nil {
 		return err
 	}
-	if cpu != man.Policy.CPUPercent || mem < man.Policy.MemMiB {
-		return errors.New("native allocation differs from its measured CPU or memory floor")
+	if mem < man.Policy.MemMiB {
+		return errors.New("native allocation is below its measured memory floor")
 	}
-	if _, err := desktop.Limits(cpu, mem, man.Policy.Vcpus); err != nil {
+	allocated, vcpus, err := g.allocationCPU(man, cpu)
+	if err != nil {
+		return err
+	}
+	if allocated != cpu {
+		return errors.New("native effective CPU allocation is unset")
+	}
+	if _, err := desktop.Limits(cpu, mem, vcpus); err != nil {
 		return err
 	}
 	cfg, err := man.AppConfig()
@@ -118,6 +129,10 @@ func (m *monitor) prepareNative(d *domain, man contract.Manifest, artifact []byt
 	if err := m.native.validate(man, artifact, d.CPU, d.MemMiB); err != nil {
 		return err
 	}
+	_, vcpus, err := m.native.allocationCPU(man, d.CPU)
+	if err != nil {
+		return err
+	}
 	var si syscall.Sysinfo_t
 	if err := syscall.Sysinfo(&si); err != nil {
 		return err
@@ -125,7 +140,7 @@ func (m *monitor) prepareNative(d *domain, man contract.Manifest, artifact []byt
 	if si.Unit == 0 || si.Totalram > ^uint64(0)/uint64(si.Unit) {
 		return errors.New("invalid guest memory capacity")
 	}
-	if err := desktop.CheckCapacity(d.MemMiB, runtime.NumCPU(), man.Policy.Vcpus, si.Totalram*uint64(si.Unit)/1024); err != nil {
+	if err := desktop.CheckCapacity(d.MemMiB, runtime.NumCPU(), vcpus, si.Totalram*uint64(si.Unit)/1024); err != nil {
 		return err
 	}
 	r, err := m.native.profile.OpenMounted(nativeRootPath, nativeModelPath)
@@ -137,7 +152,7 @@ func (m *monitor) prepareNative(d *domain, man contract.Manifest, artifact []byt
 		r.Close()
 		return err
 	}
-	group, err := desktop.NewGroup("/sys/fs/cgroup", claim, d.CPU, d.MemMiB, man.Policy.Vcpus)
+	group, err := desktop.NewGroup("/sys/fs/cgroup", claim, d.CPU, d.MemMiB, vcpus)
 	if err != nil {
 		// Group creation may have partially installed limits. No process has
 		// launched, but the consumed claim and any failed group must stay held.
@@ -146,7 +161,7 @@ func (m *monitor) prepareNative(d *domain, man contract.Manifest, artifact []byt
 		m.poisonNative(err)
 		return err
 	}
-	d.native = &nativeDomain{monitor: m, claim: claim, resources: r, group: group, vcpus: man.Policy.Vcpus, gpuMilli: man.Desktop.GPUMilli}
+	d.native = &nativeDomain{monitor: m, claim: claim, resources: r, group: group, vcpus: vcpus, gpuMilli: man.Desktop.GPUMilli}
 	d.UID, d.FrontUID = nativeRuntimeUID, nativeRuntimeUID+frontUIDOffset
 	// Full 256-bit claim identity, but a short prefix keeps the broker pathname
 	// at 106 bytes, below sockaddr_un's 107-byte pathname limit.
