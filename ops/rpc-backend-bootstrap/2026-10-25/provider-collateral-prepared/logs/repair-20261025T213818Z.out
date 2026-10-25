@@ -1,0 +1,265 @@
+[queue] START available=20508MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+d94dd37d5b1388af8e2c06fb4414472e56926fae110307da24968e4cb970373b  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/wg-provider/attested-authority.mjs
+33ab66c1389cc8bd9e5da499c364407ccf8456b5068a5f6741206dd11c4955f3  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/test/attested-provider-collateral.test.mjs
+eab07f86acc54f5411fb2e9148b155d0ccc7e12bc608453c8f73b9869181f7b6  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/verifier/collateral-cache.mjs
+c2be31edf2d6a2154f5e220c5cc1bcaa16a7f9e06065fd1290e06387e55a057f  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/verifier/collateral.mjs
+beb7571c9b3004da4cd8bfd87377e2dd2fcaca72884b83676325d1e150df6721  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/verifier/snp.mjs
+fec9145e5a108a6336b1b34149cb5f2e9d4402987b18bfdfac75eeb6d22f661d  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source/network/attested-verifier-client.mjs
+ee1ce2534a5dd5095874caab9439e47e857b620decf3f00aff61ba6b7dc1fb15  orig/attested-authority.mjs
+3d7bb0e3985e550fa39fd92c2300f02944ba056b06974442836b9a0b81344a73  mutants.mjs
+=== suite: focused collateral test + existing attested route composition, paid provider, collateral cache
+TAP version 13
+# Subtest: config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+ok 1 - config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+  ---
+  duration_ms: 970.244902
+  type: 'test'
+  ...
+# Subtest: R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+ok 2 - R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+  ---
+  duration_ms: 41.22552
+  type: 'test'
+  ...
+# Subtest: attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+ok 3 - attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+  ---
+  duration_ms: 30225.077504
+  type: 'test'
+  ...
+# Subtest: PRE-SIGN gates: a refused, unavailable, unbound, behind or wrong-chain backend, a stale or down verifier, a foreign pending nonce, a revert (incl. the registry ban), caps and funds sign NOTHING
+ok 4 - PRE-SIGN gates: a refused, unavailable, unbound, behind or wrong-chain backend, a stale or down verifier, a foreign pending nonce, a revert (incl. the registry ban), caps and funds sign NOTHING
+  ---
+  duration_ms: 8992.641323
+  type: 'test'
+  ...
+# Subtest: LOST broadcast reply and RESTART: the same signed bytes are re-broadcast, never re-signed; a returned hash or a pool entry is not a receipt
+ok 5 - LOST broadcast reply and RESTART: the same signed bytes are re-broadcast, never re-signed; a returned hash or a pool entry is not a receipt
+  ---
+  duration_ms: 3918.934883
+  type: 'test'
+  ...
+# Subtest: R1 a backend REFUSAL is not proof that nothing is pending: forwarded-then-refused bytes stay recorded and are retried identically after restart; R2 malformed broadcast answers are unknown
+ok 6 - R1 a backend REFUSAL is not proof that nothing is pending: forwarded-then-refused bytes stay recorded and are retried identically after restart; R2 malformed broadcast answers are unknown
+  ---
+  duration_ms: 540.500422
+  type: 'test'
+  ...
+# Subtest: CHANGED NONCE: another transaction of the operator key consumes the recorded nonce - resolved from the verifier as "not landed", never as success
+ok 7 - CHANGED NONCE: another transaction of the operator key consumes the recorded nonce - resolved from the verifier as "not landed", never as success
+  ---
+  duration_ms: 1686.11999
+  type: 'test'
+  ...
+# Subtest: RESTART state: an invalid, foreign or non-regular send record REFUSES every send (never cleared or overwritten); a record that cannot be written is never broadcast
+ok 8 - RESTART state: an invalid, foreign or non-regular send record REFUSES every send (never cleared or overwritten); a record that cannot be written is never broadcast
+  ---
+  duration_ms: 190.048939
+  type: 'test'
+  ...
+# Subtest: EXISTING paid-provider behaviour (the quorum branch's plain viem wallet and client over one node, unchanged): setHost, qualify, no resend
+ok 9 - EXISTING paid-provider behaviour (the quorum branch's plain viem wallet and client over one node, unchanged): setHost, qualify, no resend
+  ---
+  duration_ms: 8028.570935
+  type: 'test'
+  ...
+# Subtest: a VERIFIED REVERTED receipt: a qualify that passed the verified simulation reverts on inclusion - the caller sees the revert, the record resolves
+ok 10 - a VERIFIED REVERTED receipt: a qualify that passed the verified simulation reverts on inclusion - the caller sees the revert, the record resolves
+  ---
+  duration_ms: 310.21632
+  type: 'test'
+  ...
+# Subtest: ZERO public calls: every connection this file made went to loopback (the attested route, the own backend proxy, the test node)
+ok 11 - ZERO public calls: every connection this file made went to loopback (the attested route, the own backend proxy, the test node)
+  ---
+  duration_ms: 0.304206
+  type: 'test'
+  ...
+# Subtest: the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+ok 12 - the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+  ---
+  duration_ms: 2.786858
+  type: 'test'
+  ...
+# Subtest: stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+ok 13 - stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+  ---
+  duration_ms: 6.365994
+  type: 'test'
+  ...
+# Subtest: fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+ok 14 - fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+  ---
+  duration_ms: 11.007833
+  type: 'test'
+  ...
+# Subtest: stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+ok 15 - stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+  ---
+  duration_ms: 5.610245
+  type: 'test'
+  ...
+# Subtest: restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+ok 16 - restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+  ---
+  duration_ms: 16.651368
+  type: 'test'
+  ...
+# Subtest: forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+ok 17 - forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+  ---
+  duration_ms: 11.954858
+  type: 'test'
+  ...
+# Subtest: defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+ok 18 - defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+  ---
+  duration_ms: 2.414833
+  type: 'test'
+  ...
+# Subtest: configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+ok 19 - configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+  ---
+  duration_ms: 1.222142
+  type: 'test'
+  ...
+# Subtest: the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse
+ok 20 - the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse
+  ---
+  duration_ms: 21.912868
+  type: 'test'
+  ...
+# Subtest: host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back
+ok 21 - host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back
+  ---
+  duration_ms: 1283.098042
+  type: 'test'
+  ...
+# [parity] [["admit",[true,true]],["ban",[false,false]],["unban",[true,true]],["previous-owner-doc",[false,false]],["current-owner-ban",[false,false]],["current-owner-unban",[true,true]],["rollback-anchor",[false,false]],["re-anchor",[true,true]]]
+# Subtest: PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history
+ok 22 - PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history
+  ---
+  duration_ms: 1573.035633
+  type: 'test'
+  ...
+# Subtest: registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier
+ok 23 - registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier
+  ---
+  duration_ms: 12322.168651
+  type: 'test'
+  ...
+# Subtest: collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed)
+ok 24 - collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed)
+  ---
+  duration_ms: 31.121774
+  type: 'test'
+  ...
+# Subtest: the PACKAGED provider: source entry and an esbuild bundle of wg-provider/main.mjs report the attested authority, refuse a mixed config, keep the quorum
+ok 25 - the PACKAGED provider: source entry and an esbuild bundle of wg-provider/main.mjs report the attested authority, refuse a mixed config, keep the quorum
+  ---
+  duration_ms: 1074.653913
+  type: 'test'
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand; a plain object is never "attested"
+ok 26 - packaging: separately bundled reader and client share ONE brand; a plain object is never "attested"
+  ---
+  duration_ms: 120.225421
+  type: 'test'
+  ...
+# Subtest: cold, then warm, then offline: the first verification fetches and stores only authenticated bytes; the second answers from the cache with no network and the same verdict; the verdict states each piece's source
+ok 27 - cold, then warm, then offline: the first verification fetches and stores only authenticated bytes; the second answers from the cache with no network and the same verdict; the verdict states each piece's source
+  ---
+  duration_ms: 16.480364
+  type: 'test'
+  ...
+# Subtest: a poisoned cached chain (another product's genuine chain) is quarantined and never served: refetched when the upstream answers, and the verification fails closed when it does not
+ok 28 - a poisoned cached chain (another product's genuine chain) is quarantined and never served: refetched when the upstream answers, and the verification fails closed when it does not
+  ---
+  duration_ms: 8.695511
+  type: 'test'
+  ...
+# Subtest: a poisoned cached VCEK (another product's) is quarantined; a tampered or sidecar-less CRL is quarantined; with the upstream down the CRL policy decides and never accepts
+ok 29 - a poisoned cached VCEK (another product's) is quarantined; a tampered or sidecar-less CRL is quarantined; with the upstream down the CRL policy decides and never accepts
+  ---
+  duration_ms: 17.168224
+  type: 'test'
+  ...
+# Subtest: a poisoned or garbage upstream answer is refused, not cached, and the verification fails closed
+ok 30 - a poisoned or garbage upstream answer is refused, not cached, and the verification fails closed
+  ---
+  duration_ms: 1.696295
+  type: 'test'
+  ...
+# Subtest: KDS rate limiting (HTTP 429) through the real http adapter: a cold cache fails closed, a warm cache never asks
+ok 31 - KDS rate limiting (HTTP 429) through the real http adapter: a cold cache fails closed, a warm cache never asks
+  ---
+  duration_ms: 6.565092
+  type: 'test'
+  ...
+# Subtest: an unwritable cache directory is reported, never fatal and never a false hit; a leftover temp file is ignored
+ok 32 - an unwritable cache directory is reported, never fatal and never a false hit; a leftover temp file is ignored
+  ---
+  duration_ms: 4.070449
+  type: 'test'
+  ...
+# Subtest: a stale cached CRL is refreshed from the upstream before it is served; the verdict shows a fresh CRL from the upstream
+ok 33 - a stale cached CRL is refreshed from the upstream before it is served; the verdict shows a fresh CRL from the upstream
+  ---
+  duration_ms: 3.628056
+  type: 'test'
+  ...
+# Subtest: a stale cached CRL with no upstream answer is served flagged stale, and only the policy can accept it: required rejects, stale-ok within its bound is limited and says so, beyond the bound rejects
+ok 34 - a stale cached CRL with no upstream answer is served flagged stale, and only the policy can accept it: required rejects, stale-ok within its bound is limited and says so, beyond the bound rejects
+  ---
+  duration_ms: 6.109729
+  type: 'test'
+  ...
+# Subtest: an authentic CRL that REVOKES the ASK is served by the cache, never quarantined or replaced: the verifier rejects, and a warm cache cannot hide a revocation
+ok 35 - an authentic CRL that REVOKES the ASK is served by the cache, never quarantined or replaced: the verifier rejects, and a warm cache cannot hide a revocation
+  ---
+  duration_ms: 3.943861
+  type: 'test'
+  ...
+# Subtest: Codex's reproduction: an authentic VCEK requested under another chip id is refused on the way in, nothing is stored, and the next request still asks the upstream (no availability poisoning)
+ok 36 - Codex's reproduction: an authentic VCEK requested under another chip id is refused on the way in, nothing is stored, and the next request still asks the upstream (no availability poisoning)
+  ---
+  duration_ms: 2.413224
+  type: 'test'
+  ...
+# Subtest: a planted authentic VCEK for the wrong chip or the wrong TCB in the requested slot is quarantined on read; a healthy upstream then restores the right one and the verdict is verified; with the upstream down the verdict is rejected, never verified
+ok 37 - a planted authentic VCEK for the wrong chip or the wrong TCB in the requested slot is quarantined on read; a healthy upstream then restores the right one and the verdict is verified; with the upstream down the verdict is rejected, never verified
+  ---
+  duration_ms: 11.754034
+  type: 'test'
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 82732.873466
+=== source-weakened mutants of the CURRENT authority file (assertion kills only)
+m1-crl-seed-first (the original defect, cache kept): KILLED (rc 1; stale pre-seed + fresh KDS: the provider...=assertion-fail; restoration without restart: KDS back, o...=assertion-fail)
+m2-chain-from-kds-first (ASK rotation bypass): KILLED (rc 1; stale pre-seed + fresh KDS: the provider...=assertion-fail)
+m3-cache-bypassed (no authenticated cache): KILLED (rc 1; fresh, warm, offline and restart: a warm...=assertion-fail)
+m4-kds-without-cache-allowed (legacy layered path): KILLED (rc 1; configuration: legacy { dir } unchanged;...=assertion-fail)
+m5-no-cacheDir-separation: KILLED (rc 1; configuration: legacy { dir } unchanged;...=assertion-fail)
+=== informational: ORIGINAL attested-authority.mjs ee1ce253 + the focused test (not a pass criterion)
+ok 1 - the DEFECT, reproduced on the old composition: layered(pre-seed, KDS) serves the expired seed CRL first and KDS is never asked
+not ok 2 - stale pre-seed + fresh KDS: the provider fetches the fresh CRL, verifies, and caches only what it authenticated
+not ok 3 - fresh, warm, offline and restart: a warm cache verifies with KDS down and no network, also from a NEW instance (restart)
+not ok 4 - stale + KDS outage: rejected (CRL required), never accepted; no CRL anywhere: rejected
+not ok 5 - restoration without restart: KDS back, or (no network) the operator replaces the seed CRL; the same instance verifies again
+not ok 6 - forged and revoked collateral are refused: a CRL under another ARK, a forged pre-seeded chain, another chip's VCEK, an authentic CRL revoking the ASK
+ok 7 - defence in depth: the forged CRL delivered with NO cache in between is still rejected by the verifier's own signature check; the genuine fresh CRL in its place verifies
+not ok 8 - configuration: legacy { dir } unchanged; { dir, kds: true } refused with the migration; cacheDir absolute and separate; nothing names a root
+# tests 8
+# pass 2
+# fail 6
+job rc=0
+[memory-guard] exit=0 peakTreeRssMiB=432 minHostAvailableMiB=20462
+[memory-guard] at peak: esbuild:117 node:116 node:99 node:64 anvil:27 jobs2.sh:4 timeout:2 jobs2.sh:2
+[queue] EXIT 0
