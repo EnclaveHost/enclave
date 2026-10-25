@@ -1,10 +1,11 @@
 # Experimental masked desktop contract
 
 `enclave-catalog-bundle/8` describes a portable Wasm controller with a fixed,
-measured native desktop companion. This is offline identity tooling. V8 is
-absent from the manager's `DERIVATIONS`, and ordinary `contract.Parse` refuses
-desktop bundles. Only `ParseDesktop` validates them for development tooling.
-No host can legitimately advertise desktop support from this patch alone.
+measured native desktop companion. V8 remains absent from the ordinary
+`DERIVATIONS`, and ordinary `contract.Parse` refuses desktop bundles. The
+native build uses `ParseDesktop`; the Windows manager has a separate opt-in
+admission path. Identity validation alone establishes neither a working
+desktop nor permission to release owner secrets.
 
 The separate version is necessary because the existing V5–V7 configuration and
 sealed-secret rules refuse the inference profile. Those rules retain their
@@ -120,7 +121,8 @@ The 8192-MiB app / 12288-MiB partition case is qualified on NucBox; larger sizes
 are an allocation policy, not measured capacity evidence. The manager must
 reserve the full partition size and the desktop's GPU share before calling the
 launcher, and hold those reservations until removal and transport cleanup are
-confirmed. Manager V8 admission remains disabled pending that integration.
+confirmed. The optional manager admission path now enforces both reservations;
+it is not enabled on production hosts by these source changes.
 
 The manager's optional `NODE_VM_RAM_GB` budget now accounts for the full VM
 allocation of its currently served images, separately from purchased app RAM
@@ -130,8 +132,9 @@ are made synchronously before launch and remain held after launch, readiness or
 cleanup failures. Recovered or ambiguous allocations block further admission.
 The launcher must report the reserved allocation exactly; a discrepancy fails
 the domain and retains a conservative or unknown reservation until removal.
-Native admission must require this budget and use the desktop allocation rule
-instead of the ordinary type-1 rule. No V8 derivation is advertised yet.
+Native admission requires this budget and uses the desktop allocation rule
+instead of the ordinary type-1 rule. V8 is advertised only when its separately
+configured image, worker and host preflight are available.
 
 Failed launches retain private cleanup handles, including the worker carrier,
 for the manager to retry on removal. VM absence alone cannot release a GPU
@@ -148,3 +151,46 @@ VMGS archived; the existing VMs and master remained unchanged. This is boot and
 cleanup evidence, not owner-release, controller-execution or GPU acceptance.
 The detailed evidence is retained in `native-launch-integration` alongside the
 previous native platform and media qualifications.
+
+## Native manager configuration and remaining qualification
+
+`ENCLAVE_DESKTOP_CONFIG` and `ENCLAVE_DESKTOP_CONFIG_SHA256` select a public JSON
+file bounded to 64 KiB. Its exact fields are:
+
+| Field | Meaning |
+| --- | --- |
+| `imagePath` | The dedicated native IGVM path. |
+| `platform` | Raw `desktopPlatform` configuration: IGVM and runtime hashes, canonical profile text/hash, and the three pinned ISO descriptors. |
+| `runtime` | Complete runtime identity; its digest must equal the platform RuntimeID and describe an x86_64 JIT. |
+| `bridge` | Exactly `{exe, sha256}` for the authenticated native worker bridge. |
+| `workerPort` | Local worker TCP port; the guest reaches only the authenticated per-VM bridge. |
+| `workerBudgetGb` | Worker budget in GiB, checked against its non-reserving HELLO. |
+
+The existing legacy image, runtime identity, pinned wmiserve/egress utilities,
+VMGS master and Hyper-V utilities remain required. Native configuration also
+requires `NODE_APP_RAM_GB`, `NODE_VM_RAM_GB`, and all four of
+`ENCLAVE_CONFIG_BUNDLE_V5`, `ENCLAVE_SECRETS_V1`,
+`ENCLAVE_CONFIG_SOCKET_SERVER_V1`, `ENCLAVE_PROTECTED_PORTS_V1` set to `1`.
+Native launch always uses linux-direct boot, even if the legacy image uses a
+UEFI medium. All routed launchers share the VM inventory and cleanup paths.
+
+The manager rederives the bundle against the pinned controller/profile/runtime,
+binds its sealed-secret deployment name, checks purchased GPU share, and takes
+an owned request snapshot before fetching the component. Both reservations
+exist before the launcher starts. Returned image, runtime, profile, allocation
+and transport statements must match. A launcher `appReady` flag cannot bypass
+native readiness: the judge receives the desktop runtime identity and its
+linux-direct image statement. Existing owner-secret verification is unchanged.
+
+Desktop preflight and worker availability are separate from existing roles.
+Worker HELLO must report reservation-capable protocol 1.3 or later in major 1,
+and the configured budget. This proves protocol availability only. A read-only
+NucBox probe reported protocol 1.4.0, Radeon 780M, a 12-GiB budget and zero
+reservations; it did not execute GPU work or authorize a deployment.
+
+Unit and injected lifecycle tests cover malformed or contradictory requests,
+wrong images/runtimes, simultaneous reservations, worker revocation, late
+readiness, cleanup failure and legacy regressions. Native node planning,
+owner-release/controller execution, Moonlight routing, real GPU quality and
+performance, and wallet publication still require completion and end-to-end
+qualification. The app remains a draft and the existing compute menus remain.

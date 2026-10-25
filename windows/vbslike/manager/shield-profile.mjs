@@ -100,7 +100,7 @@ function imageRoute(mapping, opts) {
  *   otherwise                 -> the legacy image: public, relay-secret V6/V7 and the readiness witness, as before
  * A missing package can only ever cause a refusal, and no image runs a spawn of the other kind (each launcher refuses it
  * again). Inventory is shared: one VM prefix and Notes marker, and stop is by VM id, so survey, teardown and stop go to the
- * legacy launcher. Preflight reports the direct and desktop images' own checks too, prefixed.
+ * legacy launcher. Preflight reports direct checks prefixed and desktop checks under roles.desktop.
  * The desktop route is opt-in selection only: it does not verify the measured desktop profile, allocate GPU capacity or
  * authorize owner secret release; the desktop launcher and the manager must enforce those independently.
  */
@@ -114,22 +114,32 @@ export class ImageLauncher {
     if (desktop !== null && (typeof desktop !== "object" || Array.isArray(desktop) || desktop.imageRole !== "desktop"
         || typeof desktop.start !== "function" || typeof desktop.preflight !== "function"))
       throw new Error("the desktop launcher must be a launcher pinned as imageRole desktop");
+    if (desktop) for (const key of ["prefix", "marker", "guestStateRunDir", "guestStateArchiveDir"])
+      if (desktop[key] !== legacy[key]) throw new Error(`desktop and legacy launchers must share ${key} for inventory and cleanup`);
     this.legacy = legacy; this.shieldDirect = shieldDirect; this.gpu = gpu; this.desktop = desktop;
   }
   get boundary() { return this.legacy.boundary; }
   get marker() { return this.legacy.marker; }
   get prefix() { return this.legacy.prefix; }
+  get desktopPlatform() { return this.desktop?.desktopPlatform ?? null; }
   async preflight() {
     const a = await this.legacy.preflight();
     if (!this.shieldDirect && !this.desktop) return a;
     const seen = new Set((a?.checks || []).map((c) => c.name));
     let ok = a?.ok === true;
     const checks = [...(a?.checks || [])];
-    for (const [label, launcher] of [["shield-direct", this.shieldDirect], ["desktop", this.desktop]]) {
+    for (const [label, launcher] of [["shield-direct", this.shieldDirect]]) {
       if (!launcher) continue;
       const b = await launcher.preflight();
       ok = ok && b?.ok === true;
       checks.push(...(b?.checks || []).filter((c) => !seen.has(c.name) || c.ok !== true).map((c) => ({ ...c, name: `${label} image: ${c.name}` })));
+    }
+    // An optional native image must not disable existing image roles.
+    if (this.desktop) {
+      let desktop;
+      try { desktop = await this.desktop.preflight(); }
+      catch (e) { desktop = { ok: false, checks: [{ name: "desktop preflight", ok: false, detail: e.message }] }; }
+      return { ok, checks, roles: { desktop } };
     }
     return { ok, checks };
   }

@@ -102,6 +102,12 @@ export class IsolationManagerClient {
       throw new Error("hasSecrets must be stated: absent secrets must be KNOWN absent, not assumed");
     const b = { image, name, cpuShare, gpuShare, appPort, ports, config, configCid, egress, derive,
                 isPublic, hasSecrets };
+    if (derive.derivation === "enclave-catalog-bundle/8") {
+      if (config !== "" || configCid !== "") throw new Error("native desktop configuration must be carried in its measured record");
+      // The V8 record carries configBase64. Do not inject the legacy empty
+      // configuration fields as a second, unmeasured configuration source.
+      delete b.config; delete b.configCid;
+    }
     if (id) b.id = id;
     if (hosts) b.hosts = hosts;
     // an owner-committed startup package (base64), for a Shield-direct partition's own verification (shield-startup.mjs)
