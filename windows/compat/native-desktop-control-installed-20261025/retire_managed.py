@@ -41,7 +41,7 @@ def validate_plan(plan):
 
 
 def prepare(inspection):
-    if (inspection.get('schema')!='native-activation-inspection/1' or not inspection.get('baselineMatches')
+    if (inspection.get('schema')!='native-activation-inspection/1' or inspection.get('expectedCodeState','before')!='before' or not inspection.get('baselineMatches')
             or inspection['manager']['inventory']['state']!='ready'
             or inspection['manager']['inventory']['unattributed']!=0):raise ValueError('unverified installed baseline or inventory')
     tasks={t['name']:t for t in inspection['tasks']}

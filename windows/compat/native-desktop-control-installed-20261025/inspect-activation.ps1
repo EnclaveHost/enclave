@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ManifestPath)
+param([Parameter(Mandatory=$true)][string]$ManifestPath,[ValidateSet('before','after')][string]$ExpectedState='before')
 $ErrorActionPreference='Stop'
 $root='C:\Program Files\Enclave\control'
 $data='C:\ProgramData\Enclave'
@@ -10,9 +10,9 @@ function Hash-File([string]$p) {
   return (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 $checks=@()
-foreach($f in $m.modified){$h=Hash-File(Join-Path $root $f.path);$checks+=@{path=$f.path;expected=$f.beforeSha256;actual=$h;matches=($h -ceq $f.beforeSha256)}}
+foreach($f in $m.modified){$want=if($ExpectedState -eq 'after'){$f.afterSha256}else{$f.beforeSha256};$h=Hash-File(Join-Path $root $f.path);$checks+=@{path=$f.path;expected=$want;actual=$h;matches=($h -ceq $want)}}
 foreach($f in $m.requiredUnchanged){$h=Hash-File(Join-Path $root $f.path);$checks+=@{path=$f.path;expected=$f.sha256;actual=$h;matches=($h -ceq $f.sha256)}}
-foreach($f in $m.added){$h=Hash-File(Join-Path $root $f.path);$checks+=@{path=$f.path;expected=$null;actual=$h;matches=($null -eq $h)}}
+foreach($f in $m.added){$want=if($ExpectedState -eq 'after'){$f.sha256}else{$null};$h=Hash-File(Join-Path $root $f.path);$checks+=@{path=$f.path;expected=$want;actual=$h;matches=($want -ceq $h)}}
 $tasks=@('Node','Shield','Update')|ForEach-Object{
   $name=$_;$t=Get-ScheduledTask -TaskPath '\Enclave\' -TaskName $name
   $want=Join-Path $data ('run-'+$name.ToLowerInvariant()+'.cmd')
@@ -34,8 +34,11 @@ foreach($role in $roles.Keys){
 }
 $health=Invoke-RestMethod -Uri 'http://127.0.0.1:8091/health' -TimeoutSec 10
 $list=Invoke-RestMethod -Uri 'http://127.0.0.1:8091/vms' -TimeoutSec 10
-$records=@($list.vms|ForEach-Object{@{id=$_.id;name=$_.name;appId=$_.appId;vmId=$_.launcherVmId;status=$_.status;appReady=$_.appReady;recovered=$_.recovered;imageRole=$_.imageRole;memory=$_.memory;cpu=$_.cpu}})
+$records=@($list.vms|ForEach-Object{@{id=$_.id;name=$_.name;appId=$_.appId;instanceId=$_.instanceId;vmId=$_.launcherVmId;status=$_.status;launching=$_.launching;appReady=$_.appReady;recovered=$_.recovered;imageRole=$_.imageRole;memory=$_.memory;cpu=$_.cpu}})
 $managedIds=@($records|ForEach-Object{$_.vmId})
 $vms=@(Get-VM|Sort-Object Id|ForEach-Object{@{id=[string]$_.Id;name=$_.Name;state=[string]$_.State;memoryAssigned=[long]$_.MemoryAssigned;memoryStartup=[long]$_.MemoryStartup;dynamicMemory=$_.DynamicMemoryEnabled;managerOwned=([string]$_.Id -in $managedIds)}})
+$ownership=ConvertFrom-Json -InputObject (& (Join-Path $PSScriptRoot 'inspect-managed-inventory.ps1'))
+if($null -eq $ownership){$ownership=@()}
+$ownership=[object[]]$ownership
 $os=Get-CimInstance Win32_OperatingSystem
-@{schema='native-activation-inspection/1';utc=(Get-Date).ToUniversalTime().ToString('o');productionMutations=$false;files=$checks;baselineMatches=(@($checks|Where-Object{-not $_.matches}).Count -eq 0);tasks=$tasks;configurationPins=$configs;processes=$processes;manager=@{epoch=$health.managerEpoch;canStart=$health.canStart;memory=$health.memory;cpu=$health.cpu;inventory=$health.inventory};affectedRecords=$records;vms=$vms;host=@{totalVisibleBytes=[long]$os.TotalVisibleMemorySize*1024;freeBytes=[long]$os.FreePhysicalMemory*1024;lastBoot=$os.LastBootUpTime.ToUniversalTime().ToString('o')}}|ConvertTo-Json -Depth 10 -Compress
+@{schema='native-activation-inspection/1';expectedCodeState=$ExpectedState;utc=(Get-Date).ToUniversalTime().ToString('o');productionMutations=$false;files=$checks;baselineMatches=(@($checks|Where-Object{-not $_.matches}).Count -eq 0);tasks=$tasks;configurationPins=$configs;processes=$processes;manager=@{epoch=$health.managerEpoch;listingEpoch=$list.managerEpoch;canStart=$health.canStart;memory=$health.memory;cpu=$health.cpu;inventory=$health.inventory};affectedRecords=$records;vms=$vms;ownershipInventory=$ownership;host=@{totalVisibleBytes=[long]$os.TotalVisibleMemorySize*1024;freeBytes=[long]$os.FreePhysicalMemory*1024;lastBoot=$os.LastBootUpTime.ToUniversalTime().ToString('o')}}|ConvertTo-Json -Depth 10 -Compress
