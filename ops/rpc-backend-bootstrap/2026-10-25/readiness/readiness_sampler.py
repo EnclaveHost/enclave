@@ -31,6 +31,14 @@ window of at least --min-window seconds, never regressing; finality never rewrit
 reviewed COVERED historical-coverage receipt whose SHA-256 bindings match the evidence bytes and the expected
 snapshot/config identities supplied by root. An advancing unsafe 'latest' alone is never readiness.
 
+Identity with pruned history: our L1 EL (and Base EL with its retention) prune genesis bodies, so block 0 may be
+refused with reth's EIP-4444 error (code 4444, 'pruned history unavailable: requested 0, earliest available N').
+Only that exact refusal switches identity to a compensated basis, and every pinned check still runs: L1 = chainId 1
++ mainnet CL genesis/spec + the beacon finalized payload served identically by our EL; Base = chainId 8453 + the
+pinned mainnet rollupConfig + a derived finalized head served identically by our Base EL with an L1 origin canonical
+on our L1. Such a pass is then downgraded unless the paired/derived gates it relies on pass for the whole window.
+Any other error, a null block 0, or a mismatched genesis is never accepted.
+
 Gate status: pass | fail (observed negative evidence) | incomplete (unavailable/unobserved/insufficient).
 Exit 0 READY, 3 FAIL, 4 INCOMPLETE, 2 usage/bounds. 'activationAuthorized' and 'coverageVerifiedWritten' are
 always false: this tool never authorizes or performs activation.
@@ -119,6 +127,20 @@ class Negative(Exception):
     def __init__(self, code, detail=''):
         super().__init__(f'{code}: {detail}')
         self.code, self.detail = code, _cut(detail)
+
+
+class RpcRefusal(Unavailable):
+    """A well-formed JSON-RPC error object; still Unavailable, but keeps its code/message for exact matching."""
+
+    def __init__(self, detail, rpc_code, rpc_message):
+        super().__init__('rpc-error', detail)
+        self.rpc_code, self.rpc_message = rpc_code, rpc_message
+
+
+# reth EthApiError::PrunedHistoryUnavailable (rpc-eth-types/src/error/mod.rs:88-89,364-365): EIP-4444 code 4444 and
+# exactly this message. Only this refusal, for block 0, may switch identity to the pruned-genesis basis.
+PRUNED_CODE = 4444
+PRUNED_MSG = re.compile(r'pruned history unavailable: requested (0|[1-9][0-9]*), earliest available ([1-9][0-9]*)')
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -370,6 +392,10 @@ class Sampler:
                     or isinstance(doc.get('id'), bool) or ('result' in doc and 'error' in doc):
                 raise Unavailable('malformed-response', f'{name} {method}: invalid JSON-RPC 2.0 envelope')
             if 'error' in doc:
+                err = doc['error']
+                if isinstance(err, dict) and isinstance(err.get('code'), int) and not isinstance(err.get('code'), bool) \
+                        and isinstance(err.get('message'), str):
+                    raise RpcRefusal(f'{name} {method}: JSON-RPC error {err["code"]}', err['code'], err['message'])
                 raise Unavailable('rpc-error', f'{name} {method}: JSON-RPC error')
             if 'result' not in doc:
                 raise Unavailable('malformed-response', f'{name} {method}: JSON-RPC response lacks result')
@@ -399,12 +425,27 @@ class Sampler:
         return {'number': _qty(b.get('number'), 'number'), 'hash': _h32(b.get('hash'), 'hash'),
                 'parentHash': _h32(b.get('parentHash'), 'parentHash'), 'timestamp': _qty(b.get('timestamp'), 'timestamp')}
 
+    def genesis(self, name, want):
+        """Genesis block 0 of a client. Returns (basis, earliestAvailable). A served block must be the pinned genesis.
+        Only reth's exact EIP-4444 refusal for block 0 yields the 'pruned' basis, which the caller must then
+        compensate; any other error, a null block, or a malformed reply stays Unavailable (never a pass)."""
+        try:
+            g = self.el_block(name, '0x0')
+        except RpcRefusal as e:
+            m = PRUNED_MSG.fullmatch(e.rpc_message)
+            if e.rpc_code == PRUNED_CODE and m and m[1] == '0':
+                return 'pruned', int(m[2])
+            raise
+        if g is None:
+            raise Unavailable('genesis-unavailable', f'{name} returned no block 0 and no pruned-history refusal')
+        if g['number'] != 0 or g['hash'] != want:
+            raise Negative('wrong-chain', f'{name} genesis hash mismatch')
+        return 'block', 0
+
     def l1_identity(self):
         if self.rpc('el', 'eth_chainId', []) != '0x1':
             raise Negative('wrong-chain', 'L1 EL chainId is not 0x1')
-        g = self.el_block('el', '0x0')
-        if g is None or g['hash'] != EL_GENESIS:
-            raise Negative('wrong-chain', 'L1 EL genesis hash mismatch')
+        basis, earliest = self.genesis('el', EL_GENESIS)
         gen = _obj(self.bn('/eth/v1/beacon/genesis').get('data'), 'genesis')
         if _h32(gen.get('genesis_validators_root'), 'gvr') != CL_GVR or _dec(gen.get('genesis_time'), 'genesis_time') != CL_GENESIS_TIME:
             raise Negative('wrong-chain', 'L1 CL genesis mismatch')
@@ -416,11 +457,30 @@ class Sampler:
             raise Unavailable('malformed-response', 'CL version')
         if not ver.startswith(LIGHTHOUSE_VERSION):
             raise Negative('wrong-client', f'CL version {ver!r} is not {LIGHTHOUSE_VERSION}')
+        if basis == 'block':
+            ident = {'basis': 'el-genesis-block'}
+        else:
+            # EL genesis body pruned: the EL's chain is identified through the mainnet beacon chain instead. The
+            # beacon finalized block (non-optimistic, flagged finalized, on the CL whose GVR/genesis time/spec were
+            # just checked) commits to an execution block hash; our EL must serve exactly that block. Block hashes
+            # commit to all ancestors, so the EL's chain contains mainnet's. Operational identity only: it trusts
+            # the local CL, as every gate here does; it is not cryptographic authority against this host.
+            cl = self.cl_payload('finalized')
+            if cl['finalized'] is not True:
+                raise Negative('cl-finalized-flag', 'beacon finalized block not flagged finalized')
+            if cl['number'] < earliest:
+                raise Unavailable('identity-pairing-unavailable',
+                                  f'beacon finalized {cl["number"]} is below EL earliest available {earliest}')
+            el = self._paired('finalized', cl)
+            ident = {'basis': 'pruned-el-genesis+mainnet-cl-paired-finalized', 'elEarliestAvailable': earliest,
+                     'pairedFinalized': {'number': el['number'], 'hash': el['hash']},
+                     'requires': ['l1-finalized-paired', 'l1-head-paired-fresh']}
         try:
             el_ver = self.rpc('el', 'web3_clientVersion', [])
         except Unavailable:
             el_ver = None
-        return {'clVersion': _cut(ver), 'elClientVersion': _cut(el_ver) if isinstance(el_ver, str) else None}
+        return {'clVersion': _cut(ver), 'elClientVersion': _cut(el_ver) if isinstance(el_ver, str) else None,
+                'identity': ident}
 
     def l1_execution_synced(self):
         s = self.rpc('el', 'eth_syncing', [])
@@ -512,9 +572,7 @@ class Sampler:
     def base_identity(self):
         if self.rpc('base', 'eth_chainId', []) != hex(BASE_CHAIN_ID):
             raise Negative('wrong-chain', 'Base EL chainId is not 0x2105')
-        g = self.el_block('base', '0x0')
-        if g is None or g['hash'] != BASE_L2_GENESIS:
-            raise Negative('wrong-chain', 'Base EL genesis hash mismatch')
+        basis, earliest = self.genesis('base', BASE_L2_GENESIS)
         cfg = _obj(self.rpc('rollup', 'optimism_rollupConfig', []), 'rollupConfig')
         gen = _obj(cfg.get('genesis'), 'rollupConfig.genesis')
         l1, l2 = _obj(gen.get('l1'), 'genesis.l1'), _obj(gen.get('l2'), 'genesis.l2')
@@ -530,11 +588,36 @@ class Sampler:
         bad = [k for k in want if got[k] != want[k]]
         if bad:
             raise Negative('wrong-chain', f'rollupConfig differs from Base mainnet: {",".join(bad)}')
+        if basis == 'block':
+            ident = {'basis': 'base-genesis-block'}
+        else:
+            # Base EL genesis body pruned (retention): the rollup node, configured with the pinned Base mainnet
+            # genesis/inbox/system config just checked, must have DERIVED a finalized head that our Base EL serves
+            # exactly, whose L1 origin is canonical on our (identified) L1. Operational identity only.
+            f = self.sync_status()['finalized_l2']
+            if f['hash'] == ZERO32 or f['number'] == 0:
+                raise Unavailable('identity-pairing-unavailable', 'rollup finalized_l2 not derived')
+            if f['number'] < earliest:
+                raise Unavailable('identity-pairing-unavailable',
+                                  f'finalized_l2 {f["number"]} is below Base EL earliest available {earliest}')
+            el = self.el_block('base', hex(f['number']))
+            if el is None:
+                raise Negative('base-el-rollup-mismatch', f'Base EL lacks derived finalized block {f["number"]}')
+            for k in ('hash', 'parentHash', 'timestamp'):
+                if el[k] != f[k]:
+                    raise Negative('base-el-rollup-mismatch', f'Base EL block {f["number"]} {k} differs from finalized_l2')
+            o = f['l1origin']
+            l1 = self.el_block('el', hex(o['number']))
+            if l1 is None or l1['hash'] != o['hash']:
+                raise Negative('base-l1-origin-not-canonical', f'finalized_l2 L1 origin {o["number"]} not canonical on our L1')
+            ident = {'basis': 'pruned-base-genesis+mainnet-rollupConfig-derived-finalized', 'elEarliestAvailable': earliest,
+                     'derivedFinalized': {'number': f['number'], 'hash': f['hash']},
+                     'requires': ['l1-identity', 'base-heads-consistent']}
         try:
             ver = self.rpc('rollup', 'optimism_version', [])
         except Unavailable:
             ver = None
-        return {'rollupVersion': _cut(ver) if isinstance(ver, str) else None}
+        return {'rollupVersion': _cut(ver) if isinstance(ver, str) else None, 'identity': ident}
 
     def base_execution_synced(self):
         if self.rpc('base', 'eth_syncing', []) is not False:
@@ -728,6 +811,20 @@ def summarize(results):
     return {'status': 'pass', **({'info': info[-1]} if info else {})}
 
 
+def enforce_identity_basis(gates):
+    """A pruned-genesis identity pass stands only if every gate it relies on passed across the whole window;
+    otherwise the identity gate itself is downgraded (never left passing on its own)."""
+    for gate in ('l1-identity', 'base-identity'):
+        for r in list(gates[gate]):
+            req = r['status'] == 'pass' and (r.get('info') or {}).get('identity', {}).get('requires')
+            if not req:
+                continue
+            weak = [g for g in req if summarize(gates[g])['status'] != 'pass']
+            if weak:
+                gates[gate].append({'sample': None, 'status': 'unavailable', 'code': 'identity-basis-unconfirmed',
+                                    'detail': f'pruned-genesis identity requires passing {",".join(weak)}'})
+
+
 def run(a):
     started = time.time()
     deadline = time.monotonic() + a.max_duration
@@ -766,6 +863,7 @@ def run(a):
     else:
         s.gates['sampling-complete'].append({'sample': None, 'status': 'unavailable', 'code': 'deadline',
                                              'detail': f'{taken}/{a.samples} samples within --max-duration'})
+    enforce_identity_basis(s.gates)
     gates = {g: summarize(s.gates[g]) for g in GATES}
     statuses = {v['status'] for v in gates.values()}
     overall = 'FAIL' if 'fail' in statuses else 'INCOMPLETE' if 'incomplete' in statuses else 'READY'

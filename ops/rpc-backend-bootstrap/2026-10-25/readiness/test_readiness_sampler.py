@@ -889,6 +889,175 @@ class TestJsonRpcEnvelope(Base):
         self.check({'jsonrpc': '2.0', 'id': 1})
 
 
+# Verbatim live refusal from our pruned reth (root readiness window 19:34, eth_getBlockByNumber 0).
+LIVE_PRUNED = 'pruned history unavailable: requested 0, earliest available 26100000'
+
+
+def rpc_error_raw(code, message):
+    return Raw(200, json.dumps({'jsonrpc': '2.0', 'id': 1, 'error': {'code': code, 'message': message}}).encode())
+
+
+def prune_genesis(*roles, code=4444, message=None, earliest=None):
+    """The client refuses block 0 exactly as reth does once genesis bodies are pruned."""
+    def p(role, key, res):
+        if role in roles and key == 'eth_getBlockByNumber' and isinstance(res, dict) and res.get('number') == '0x0':
+            n = earliest or (4000 if role == 'el' else 40000)   # below the synthetic finalized heads
+            return rpc_error_raw(code, message or f'pruned history unavailable: requested 0, earliest available {n}')
+        return res
+    return p
+
+
+def chained(*ps):
+    def p(role, key, res):
+        for f in ps:
+            res = f(role, key, res)
+        return res
+    return p
+
+
+class TestPrunedIdentity(Base):
+    samples = 3
+
+    def test_live_refusal_text_is_matched_exactly(self):
+        self.assertEqual(rs.PRUNED_MSG.fullmatch(LIVE_PRUNED).groups(), ('0', '26100000'))
+        for bad in (LIVE_PRUNED + ' ', 'Pruned history unavailable: requested 0, earliest available 26100000',
+                    'pruned history unavailable: requested 0, earliest available 0',
+                    'pruned history unavailable: requested 00, earliest available 5', 'header not found'):
+            self.assertIsNone(rs.PRUNED_MSG.fullmatch(bad), bad)
+
+    def test_pruned_l1_and_base_genesis_compensated_ready_only_with_coverage(self):
+        e = self.env(patch=prune_genesis('el', 'base'))
+        rc, r = e.run()
+        self.assertIncomplete(rc, r, 'historical-coverage', 'coverage-receipt-absent')
+        self.assertEqual({v['status'] for k, v in r['gates'].items() if k != 'historical-coverage'}, {'pass'}, r['gates'])
+        l1 = r['gates']['l1-identity']['info']['identity']
+        self.assertEqual((l1['basis'], l1['elEarliestAvailable']), ('pruned-el-genesis+mainnet-cl-paired-finalized', 4000))
+        self.assertEqual(l1['pairedFinalized']['hash'], e.chain.l1hash(l1['pairedFinalized']['number']))
+        base = r['gates']['base-identity']['info']['identity']
+        self.assertEqual((base['basis'], base['elEarliestAvailable']),
+                         ('pruned-base-genesis+mainnet-rollupConfig-derived-finalized', 40000))
+        e2 = self.env(patch=prune_genesis('el', 'base'))
+        rc, r = e2.run(*e2.coverage())
+        self.assertEqual((rc, r['overall']), (0, 'READY'), r['gates'])
+        self.assertIs(r['activationAuthorized'], False)
+
+    def test_served_genesis_keeps_block_basis(self):
+        rc, r = self.env().run()
+        self.assertEqual(r['gates']['l1-identity']['info']['identity'], {'basis': 'el-genesis-block'})
+        self.assertEqual(r['gates']['base-identity']['info']['identity'], {'basis': 'base-genesis-block'})
+
+    def test_pruned_l1_still_requires_mainnet_identity(self):
+        cases = {
+            'chain id': patch_for(('el', 'eth_chainId'), '0x5'),
+            'cl genesis': patch_for(('beacon', '/eth/v1/beacon/genesis'),
+                                    lambda d: {'data': dict(d['data'], genesis_validators_root='0x' + '11' * 32)}),
+            'cl spec': patch_for(('beacon', '/eth/v1/config/spec'), lambda d: {'data': dict(d['data'], DEPOSIT_CHAIN_ID='17000')}),
+        }
+        for name, p in cases.items():
+            with self.subTest(name):
+                rc, r = self.env(patch=chained(p, prune_genesis('el'))).run()
+                self.assertFailed(rc, r, 'l1-identity', 'wrong-chain')
+
+    def test_pruned_l1_el_not_serving_beacon_finalized_fails(self):
+        p = patch_for(('beacon', '/eth/v1/beacon/blinded_blocks/finalized'), lambda d: {**d, 'data': {'message': {
+            **d['data']['message'], 'body': {'execution_payload_header': {
+                **d['data']['message']['body']['execution_payload_header'], 'block_hash': _h('other-chain')}}}}})
+        rc, r = self.env(patch=chained(p, prune_genesis('el'))).run()
+        self.assertFailed(rc, r, 'l1-identity', 'el-cl-finalized-mismatch')
+
+    def test_pruned_l1_optimistic_finalized_fails(self):
+        p = patch_for(('beacon', '/eth/v1/beacon/blinded_blocks/finalized'), lambda d: dict(d, execution_optimistic=True))
+        rc, r = self.env(patch=chained(p, prune_genesis('el'))).run()
+        self.assertFailed(rc, r, 'l1-identity', 'cl-optimistic')
+
+    def test_finalized_below_live_earliest_is_incomplete(self):
+        rc, r = self.env(patch=prune_genesis('el', message=LIVE_PRUNED)).run()
+        self.assertIncomplete(rc, r, 'l1-identity', 'identity-pairing-unavailable')
+
+    def test_other_rpc_errors_are_never_accepted(self):
+        for code, msg in ((4444, 'pruned history unavailable: requested 0, earliest available 0'),
+                          (4444, 'pruned history unavailable: requested 5, earliest available 4000'),
+                          (4444, 'header not found'),
+                          (4444, 'pruned history unavailable: requested 0, earliest available 4000; retry'),
+                          (-32000, 'pruned history unavailable: requested 0, earliest available 4000'),
+                          (-32601, 'the method eth_getBlockByNumber does not exist')):
+            with self.subTest(code=code, msg=msg):
+                rc, r = self.env(samples=2, patch=prune_genesis('el', code=code, message=msg)).run()
+                self.assertIncomplete(rc, r, 'l1-identity', 'rpc-error')
+                self.assertNotIn('info', r['gates']['l1-identity'])
+
+    def test_null_genesis_is_incomplete_not_accepted(self):
+        def p(role, key, res):
+            return None if (role, key) == ('el', 'eth_getBlockByNumber') and isinstance(res, dict) and res['number'] == '0x0' else res
+        rc, r = self.env(patch=p).run()
+        self.assertIncomplete(rc, r, 'l1-identity', 'genesis-unavailable')
+
+    def test_served_wrong_genesis_still_fails(self):
+        for role, gate in (('el', 'l1-identity'), ('base', 'base-identity')):
+            def p(r_, key, res, role=role):
+                if (r_, key) == (role, 'eth_getBlockByNumber') and isinstance(res, dict) and res['number'] == '0x0':
+                    return dict(res, hash=_h('other-genesis'))
+                return res
+            with self.subTest(role):
+                rc, r = self.env(patch=p).run()
+                self.assertFailed(rc, r, gate, 'wrong-chain')
+
+    def test_pruned_identity_downgraded_when_pairing_later_fails(self):
+        holder = {}
+
+        def p(role, key, res):
+            if (role, key) == ('beacon', '/eth/v1/beacon/blinded_blocks/finalized') and holder['chain'].k >= 3:
+                h = res['data']['message']['body']['execution_payload_header']
+                h['block_hash'] = _h('fork')
+            return res
+        e = self.env(samples=4, patch=chained(p, prune_genesis('el', 'base')))
+        holder['chain'] = e.chain
+        rc, r = e.run('--continue-on-fail', *e.coverage())
+        self.assertFailed(rc, r, 'l1-finalized-paired', 'el-cl-finalized-mismatch')
+        self.assertEqual((r['gates']['l1-identity']['status'], r['gates']['l1-identity'].get('code')),
+                         ('incomplete', 'identity-basis-unconfirmed'))
+        self.assertEqual(r['gates']['base-identity']['code'], 'identity-basis-unconfirmed')   # Base relies on L1
+
+    def test_pruned_base_downgraded_when_l1_identity_fails(self):
+        p = patch_for(('beacon', '/eth/v1/beacon/genesis'),
+                      lambda d: {'data': dict(d['data'], genesis_validators_root='0x' + '11' * 32)})
+        e = self.env(patch=chained(p, prune_genesis('el', 'base')))
+        rc, r = e.run(*e.coverage())
+        self.assertFailed(rc, r, 'l1-identity', 'wrong-chain')
+        self.assertEqual((r['gates']['base-identity']['status'], r['gates']['base-identity'].get('code')),
+                         ('incomplete', 'identity-basis-unconfirmed'))
+
+    def test_pruned_base_still_requires_mainnet_identity(self):
+        cases = {
+            'chain id': patch_for(('base', 'eth_chainId'), '0x14a34'),
+            'rollup l2 genesis': patch_for(('rollup', 'optimism_rollupConfig'),
+                                           lambda d: {**d, 'genesis': {**d['genesis'], 'l2': {'hash': _h('sepolia'), 'number': 0}}}),
+            'rollup chain id': patch_for(('rollup', 'optimism_rollupConfig'), lambda d: dict(d, l2_chain_id=84532)),
+        }
+        for name, p in cases.items():
+            with self.subTest(name):
+                rc, r = self.env(patch=chained(p, prune_genesis('base'))).run()
+                self.assertFailed(rc, r, 'base-identity', 'wrong-chain')
+
+    def test_pruned_base_el_not_serving_derived_finalized_fails(self):
+        def p(role, key, res):
+            if (role, key) == ('rollup', 'optimism_syncStatus'):
+                res['finalized_l2']['hash'] = _h('not-ours')
+            return res
+        rc, r = self.env(patch=chained(p, prune_genesis('base'))).run()
+        self.assertFailed(rc, r, 'base-identity', 'base-el-rollup-mismatch')
+
+    def test_pruned_base_without_derived_heads_is_not_accepted(self):
+        e = self.env(patch=prune_genesis('base'))
+        e.chain.o['unsafe_only'] = True
+        rc, r = e.run(*e.coverage())
+        self.assertNotReady(rc, r)
+        self.assertEqual((r['gates']['base-identity']['status'], r['gates']['base-identity']['code']),
+                         ('incomplete', 'identity-pairing-unavailable'))
+        rc, r = self.env(closed=('rollup',), patch=prune_genesis('base')).run()
+        self.assertIncomplete(rc, r, 'base-identity', 'endpoint-unreachable')
+
+
 class TestDecoderParity(unittest.TestCase):
     def test_matches_origin_extract(self):
         spec = importlib.util.spec_from_file_location('origin_extract', ORIGIN_EXTRACT)
