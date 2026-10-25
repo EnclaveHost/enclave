@@ -36,6 +36,8 @@ const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://
   .split(",").map((s) => s.trim()).filter(Boolean);
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
 /** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). */
+// Keep independent security witnesses separate from ordinary cached reads.
+const CLIENT_RPCS = [...new Set([process.env.BASE_RPC || "https://api.enclave.host/rpc/base", ...RPCS])];
 export const rpcUrls = () => [...RPCS];
 /** The EnclaveAddressBook this node resolves contracts from (session-api-auth.mjs reads sessionVaultFactory there). */
 export const addressBook = () => BOOK;
@@ -132,7 +134,7 @@ let pub = null, acct = null, wal = null;
 const keyOf = (name) => pad(stringToHex(name), { dir: "right", size: 32 });
 
 export function publicClient() {
-  if (!pub) pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
+  if (!pub) pub = createPublicClient({ chain: base, transport: fallback(CLIENT_RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
   return pub;
 }
 /** The operator key: generated on THIS box, never leaves it, and controls nothing but this row. */
@@ -143,7 +145,7 @@ export function loadOperator(keyFile) {
   if (!hex) return null;
   if (!/^0x[0-9a-fA-F]{64}$/.test(hex)) throw new Error("operator key must be 0x + 64 hex chars");
   acct = privateKeyToAccount(hex);
-  wal = createWalletClient({ account: acct, chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
+  wal = createWalletClient({ account: acct, chain: base, transport: fallback(CLIENT_RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
   return acct;
 }
 export function newOperatorKey(keyFile) {
