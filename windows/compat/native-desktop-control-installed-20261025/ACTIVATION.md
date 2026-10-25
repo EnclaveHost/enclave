@@ -1,7 +1,7 @@
 # Native desktop control activation
 
-Status: **preparation only; production has not been changed**. The code transaction
-is tested. The complete service/configuration handoff and rollback have not yet
+Status: **preparation only; production has not been changed**. The code and runner-file transactions
+are tested. The complete service/configuration handoff and rollback have not yet
 been rehearsed and are not ready for unattended execution.
 
 ## Verified current impact
@@ -93,8 +93,9 @@ code still requires a fresh, policy-authorized app launch.
 4. Stop the old manager only after that scoped cleanup. Verify disabled/stopped
    tasks and absent processes. Apply the pinned code transaction and separately
    pinned public native config/release inputs, preserving unrelated configuration
-   and the existing CPU/application RAM pools. The configuration transaction and
-   its rollback are still to be implemented/rehearsed.
+   and the existing CPU/application RAM pools. `runner_config.py` provides the narrow two-file configuration transaction
+   and fixture-tested rollback described below. The complete service handoff
+   has not yet been exercised.
 5. Start the manager first and require correct legacy and native pins, worker
    readiness, complete inventory and zero stale reservations. Start the node
    afterward. Require the existing app and witness to regain serving status and
@@ -166,3 +167,57 @@ The public controller gateway request returned 404. Normal wallet-authorized
 artifact upload and actual catalog/component retrieval are still required; the
 local fixture fetcher does not establish either. The service/configuration
 handoff and rollback gates above remain open.
+
+## Runner configuration transaction
+
+`runner_config.py` prepares exactly two inserted lines per runner: a CALL of the
+permanent `native-desktop-env.cmd`, immediately followed by `if errorlevel 1 exit
+/b 1`. The call follows the existing base-config CALL and precedes the service
+loop. The captured custom RPC/gateway settings, command paths, logging and mixed
+line endings remain byte-identical. The three original base configuration files
+are only hash-checked, never copied or rewritten by this tool.
+
+The prepared manifest pins both before/after runner files and six unchanged
+inputs: three base configs plus the permanent native config, release identity and
+environment file. Preparation validates the capture and release identity. Apply
+independently strips the proposed hook and requires the reconstructed original
+hash, so a modified RPC setting cannot be hidden behind an updated payload hash.
+Only `run-node.cmd` and `run-shield.cmd` can be modified; arbitrary paths and added
+files are rejected. The existing code transaction supplies atomic file replacement,
+backup verification and interrupted-apply recovery. Both apply and rollback require
+Node, Shield and Update tasks disabled/stopped with their processes absent. The
+live guard was called read-only and refused the running services without writes.
+
+Preparation takes the public runner capture, config hash/size inventory and
+permanent release metadata. It does not read private base-config contents:
+
+```sh
+python runner_config.py prepare --capture runners.json --config-pins config-pins.json \
+  --release durable-release-v9.json --environment native-desktop-env.cmd --output new-runner-preparation
+```
+
+During an authorized, rehearsed maintenance window, after the service controls
+have stopped and disabled the three tasks, the runner-file commands are:
+
+```powershell
+python runner_config.py inspect --installed 'C:\ProgramData\Enclave' --manifest .\prepared\manifest.json
+python runner_config.py apply --installed 'C:\ProgramData\Enclave' --manifest .\prepared\manifest.json --payload .\prepared\payload --journal 'C:\ProgramData\Enclave\native-runner-backup-v9'
+python runner_config.py rollback --installed 'C:\ProgramData\Enclave' --journal 'C:\ProgramData\Enclave\native-runner-backup-v9'
+```
+
+Neither transaction starts services. Restore both code and runners before starting
+the original stack after a failed activation. Keep distinct journals for the code
+and runner transactions. Retired VM memory/session state is not restored by either.
+
+`runner-config-v9.json` records 16 passing tests on Windows Python 3.14.5 and 13
+passes plus three Windows-only skips on Linux. Temporary fixtures use the exact
+captured public runners, copies of public release files and synthetic base configs;
+no private production configuration is copied. The live read-only inspection
+checks the actual six config pins. Real `cmd.exe` tests execute only the inserted
+hook against a disposable environment copy and a harmless probe. They prove
+successful propagation of all five native values, preservation of an existing
+variable, and refusal to launch the probe after a missing or failed environment
+script. A marker before the hook prevents a broken test launcher from counting as
+a successful refusal. Actual production runners, scheduled-task restarts and app
+recovery are not exercised by these fixture tests. The API overlay's activation
+and rollback procedure also remains to be completed before the full handoff.
