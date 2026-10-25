@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-10-25T12:10:00Z",
+  "hostAlias": "eu-central",
+  "host": "134.209.248.172",
+  "unit": "enclave-lease-relay.service",
+  "active": true,
+  "listener": "127.0.0.1:8549",
+  "workingDirectory": "/opt/enclave-lease-relay/current",
+  "publicInfo": {
+    "chainId": 8453,
+    "reserve": "0x12A3f873041Dec436DaA0085B766a399A6fA3639",
+    "executor": "0x8900BACA2167873BA2F8a8bAE8b4876E6396d343",
+    "payee": "0xC5D88d2D1c898fCACDCe965Cbe2f1C3cD38Bb26a",
+    "canonicalLength": 388
+  },
+  "changesMade": false
+}

@@ -60,3 +60,9 @@ The measured control image at runtime commit `ec56a70f143cf1bb6bbdd52228401bcf24
 Host shutdown prerequisite: the enclosing `user@1000.service` currently allows only two minutes. The prepared `90-enclave-rpc-shutdown.conf` raises it to 45 minutes; installation under `/etc/systemd/system/user@1000.service.d/` and `sudo systemctl daemon-reload` require local sudo authentication (noninteractive sudo refused). It has not been installed. Do not restart the user manager. Until this is resolved, stop the RPC VM cleanly before rebooting the desktop.
 
 Official submission endpoint reference: https://github.com/base/node/blob/main/.env.mainnet (checked October 25). This endpoint is never used for reads, proofs or fee estimates by this adapter.
+
+## Live consumer inventory — October 25, 12:10 UTC
+
+The active Metal0 network agent (release808f691d0) has no hostServices configuration yet. Its registry identity is `0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be`, derived from its registered endpoint. The active control image is `dist-leasegas-deabf8f90` with no chainVerifier member. HTTPS proof serving and the staged verifier image have not been activated.
+
+Metal0 currently sends app-funded leases to `https://134.209.248.172`, whose eu-central lease relay is running. The proposed host-local port8549 relay does not exist on Metal0. Minipc's earlier local-relay migration is a separate installation. Replacing public RPC reads in the control guest alone therefore cannot complete the lease path: the actual relay's authority and broadcast path, and its intended host placement, must also migrate. No relay key or service was changed during this inventory. Public whitelisted receipts are in `evidence/live-metal0-*.json`.
