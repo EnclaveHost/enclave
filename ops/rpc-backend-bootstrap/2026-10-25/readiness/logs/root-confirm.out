@@ -1,0 +1,5 @@
+[queue] START available=22342MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{"rc": 3, "overall": "FAIL", "baseElLabels": {"code": "base-el-label-noncanonical", "count": 1, "detail": "Base EL 'safe' block 49981 differs from the canonical block at that height", "samples": [0], "status": "fail"}, "probe": "safe/finalized tags contradict numbered canonical blocks"}
+[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=21844
+[memory-guard] at peak: python3:32
+[queue] EXIT 0
