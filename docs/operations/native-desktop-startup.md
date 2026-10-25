@@ -125,3 +125,45 @@ new GPU work; Vulkan must preserve output and skip the later draw. Normal stop
 and worker revocation still require full domain/cgroup cleanup. These tests
 establish composition with the actual native platform, not general GPU rendering,
 performance, conformance or production authorization.
+
+## Hardware version diagnostic, 2026-10-25
+
+A new verifier-generated TPM challenge on NucBox passed all 31 production host
+evidence checks, including the pinned AMD fTPM root, credential activation,
+quote/PCR replay, Secure Boot, VBS/HVCI policy and transport-key possession.
+The host verifier still reports `hostExcluded: false` and the omission
+`platform-firmware-unpinned`. This host evidence grants no desktop admission.
+The diagnostic used a separate ephemeral AIK and transport key, with no node
+identity key, wallet, owner provisioning or live policy changes.
+
+Both archived reports from the earlier `9c868a4f` kernel probe verify under that
+boot's authenticated IDKS. Their signed guest SVN is actually 0; signer,
+product and module fields are also zero. With the unchanged floor of 13, each
+report passes envelope, VTL, image, recorded-binding and signature checks but
+fails SVN. Editing only the SVN to 13 makes the signature fail. These are
+historical reports with guest-generated bindings, so this establishes neither
+fresh guest authorization nor acceptance of the final graphics image.
+
+The image generator writes the recipe's SVN into companion endorsements without
+adding a VBS measurement/signature directive to the IGVM. The locally retained
+Microsoft release-2511 `openhcl-cvm.bin` also contains no such directive. Its
+absence is consistent with the zero identity fields, but does not by itself
+prove how this Windows loader handles signed directives.
+
+A single, separately marked signing experiment preserved every parsed boot
+object and the launch digest, then added an experimental VBS identity directive.
+Its 60-byte signed-data layout followed OpenVMM's `measurement_diag.rs`; its
+P-384 CNG key/signature encoding and SVN tamper rejection verified independently
+with Windows CNG. Hyper-V nevertheless refused to start that diagnostic image
+before the guest booted. The available VMMS/Worker events only report generic
+start failure. **This is not an implemented or accepted VBS signing format.**
+Do not reuse the experimental image as a release, lower the SVN floor, or treat
+a disposable self-generated signing key as release authority.
+
+The exact probe VM was removed and its unchanged per-run guest state archived
+with a matching hash. Before/after inventories retain the same four running
+VMs, the same host boot and unchanged Secure Boot/VBS state. The separate
+`native-vbs-svn-v1` evidence bundle records the successful host checks, rejected
+guest admission, failed signing experiment and cleanup. Next work must establish
+the loader's supported signed-identity contract, then repeat fresh guest and
+full application admission against the final graphics image.
