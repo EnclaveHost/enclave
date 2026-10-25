@@ -1,0 +1,2 @@
+Collected 2026-10-25T22:52:10.240470+00:00
+Engine phase complete; node compile running. Full native run not complete. Source/stage pins remain as documented.

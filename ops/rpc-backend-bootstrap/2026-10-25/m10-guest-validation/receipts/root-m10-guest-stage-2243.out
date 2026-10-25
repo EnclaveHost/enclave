@@ -1,0 +1,27 @@
+[queue] START available=23102MiB required=17664MiB cap=768MiB floor=16384MiB concurrentSmall=256MiB
+== frozen inputs
+[pin] root-input-pins.json ead48b1d: 8/8 frozen inputs unchanged
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/test/helpers/memory-guard.mjs cdd00af7
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/make-guest-runner.py 3e8a0b75
+[ok] runner == make-guest-runner.py(root-test-m10.sh 51ffbda2)
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/runner/m10-guest-test.sh 6b72c8f9
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/runner/guest-env.sh fd0669c1
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/runner/verify-deps.py 7d4394a9
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/runner/disk-guard.py 40e6d0cc
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/runner/verify-stage.sh d0ed4b17
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/runner/run-guest.sh b67fcec1
+[pin] base repo HEAD 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+[pin] toolchain rust 1.96.0 ac68faa20 / cargo 30a34c682
+== assemble /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/stage-1
+[pin] /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/m10-guest-validation/stage-1/src/base-5476069f1eb74a56bccb56fdefd4b4bb0e3cda42.tar a92160eb
+== offline dependency verification against the derived tree's Cargo.lock
+[ok] every locked dependency present offline (build-host-verify-deps.json)
+== names that must never be staged
+    none
+== manifest
+[stage] files 5630, size 1.5G
+[stage] MANIFEST.sha256 dd9df0ab82e9f8b53a90063808bdd2199b873eafcf037fb6313d4406d4fb49ee   <- pass this value to verify-stage.sh / run-guest.sh on the guest
+## stage complete
+[memory-guard] exit=0 peakTreeRssMiB=329 minHostAvailableMiB=22010
+[memory-guard] at peak: git:303 python3:22 bash:4
+[queue] EXIT 0

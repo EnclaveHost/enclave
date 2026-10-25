@@ -1,0 +1,31 @@
+[queue] START available=22935MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+[ok] MANIFEST.sha256 == dd9df0ab82e9f8b53a90063808bdd2199b873eafcf037fb6313d4406d4fb49ee
+[ok] every staged file == MANIFEST (5630 files)
+[ok] no unlisted file in the stage
+[ok] symlinks == MANIFEST.symlinks (0)
+[ok] staged rustc/cargo 1.96.0 run on this guest
+[ok] cc: /usr/bin/cc (cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] c++: /usr/bin/c++ (c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] gcc: /usr/bin/gcc (gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] g++: /usr/bin/g++ (g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0)
+[ok] clang: /usr/bin/clang (Ubuntu clang version 18.1.3 (1ubuntu1))
+[ok] make: /usr/bin/make (GNU Make 4.3)
+[ok] cmake: /usr/bin/cmake (cmake version 3.28.3)
+[ok] pkg-config: /usr/bin/pkg-config (1.8.1)
+[ok] git: /usr/bin/git (git version 2.43.0)
+[ok] python3: /usr/bin/python3 (Python 3.12.3)
+[ok] node: /usr/bin/node (v18.19.1)
+[ok] tar: /usr/bin/tar (tar (GNU tar) 1.35)
+[ok] python3 >= 3.11 (tomllib)
+[ok] libclang (bindgen): /usr/lib/llvm-18/lib/libclang.so
+[ok] pkg-config openssl 3.0.13 (openssl-sys links the system OpenSSL)
+[info] no system zlib dev files: libz-sys builds its vendored zlib from the checksummed crate (zlib1g-dev deliberately NOT installed: it would upgrade the running zlib)
+[info] no system libgit2: libgit2-sys builds its vendored copy
+[ok] build user m10build exists (uid 993)
+[ok] stage not writable by m10build
+[ok] disk: 25001 MiB free >= 8192 floor + 14336 build estimate
+[ok] memory: MemAvailable 53381 MiB >= 16384 floor + 12288 cap
+## preflight rc=0
+[memory-guard] exit=0 peakTreeRssMiB=22 minHostAvailableMiB=21894
+[memory-guard] at peak: ssh:14 bash:4 tar:4
+[queue] EXIT 0
