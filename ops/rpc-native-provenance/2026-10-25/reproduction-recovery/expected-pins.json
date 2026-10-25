@@ -1,7 +1,7 @@
 {
  "format": "enclave-native-reproduction-expected/v1",
  "date": "2026-10-25",
- "status": "R1 and R2 REPRODUCED by fresh builds (listener 9ca75047, witness-check 4fe0cd3b); R3 (Helios cc962e2b) unfinished, not published here",
+ "status": "R1 and R2 REPRODUCED by fresh builds (listener 9ca75047, witness-check 4fe0cd3b); R3 NOT reproduced: both clean Helios builds mismatch; the eeffcc9 differences are consistent with (not proven to be) the OpenSSL build stamp (heuristics in README \u00a78); exact rebuild r3x-eeffcc9 QUEUED, not completed",
  "audit": "../ (README.md, audit.json, ROOT-REVIEW.md; root commit b9375992a)",
  "imagePins": {
   "source": "chain-verifier-inputs/PINS.sha256 == metal/chain-verifier-image.json at 0235e7d96",
@@ -9,7 +9,7 @@
    "helios": {
     "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
     "kind": "own debug build",
-    "status": "source unrecorded; not reproduced"
+    "status": "NOT reproduced. Hypothesis (unproven): the eeffcc9 rebuild differs only via the OpenSSL 'built on' stamp (pin 2026-10-23T01:31:58Z) and its layout effects. Observed: 31/35 sections identical; differing .text/.rodata/.rela.dyn at equal sizes; heuristic checks only, no instruction decoding or semantic proof. Exact rebuild r3x queued"
    },
    "witness-check": {
     "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
@@ -96,7 +96,23 @@
    "paths": "original rpc-priority paths via a private mount namespace",
    "cargoHomeManifest": "b59affc5af675986e211567055ceef93403d133e6101a784569dc80336dd8117",
    "vendorInspectManifest": "fcfe96fb7481cb9b78180fe6a46ff16610de38f317211421aab8a85229543471",
-   "result": "not started or not finished at publication; not published"
+   "result": {
+    "b93fcfd": {
+     "exit": 1,
+     "rebuilt": "97de79e2d820bde6f8b9c7b2de642a5b1ee292beacfed3f3e543e4119ce40813",
+     "guardPeakMiB": 1237,
+     "verdict": "mismatch; broad size/content differences in most sections (observed); not a source verdict"
+    },
+    "eeffcc9": {
+     "exit": 1,
+     "rebuilt": "b9432500764ed2266f1ae925ebcad76f742696b08aefe5c2e11bd7100819a8de",
+     "guardPeakMiB": 1350,
+     "verdict": "mismatch; observed differences limited to build-id, .text 1393 B, .rodata 28103 B, .rela.dyn 840 B at equal sizes; consistent with the OpenSSL build-stamp hypothesis by heuristic checks (no instruction decoding, target identity not checked); not proven"
+    },
+    "nextTest": "r3x-eeffcc9 (SOURCE_DATE_EPOCH=1792719118): launched by root (exec62493), QUEUED behind M7, not completed; script archived as r3/prepared-not-run/r3x.sh (historical name)",
+    "evidence": "r3/",
+    "provenIs": "nothing beyond the byte mismatch and the listed observations; only an exact rebuild can establish source"
+   }
   }
  },
  "interpretation": "a byte match from a FRESH build reproduces a pin; a mismatch does NOT prove the source differed; any pin change needs root review and a new image"
