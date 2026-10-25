@@ -502,6 +502,13 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 		}
 	}
 	pol := contract.EffectivePolicy(manifest, contract.Request{CPU: req.CPU, MemMiB: req.MemMiB})
+	if m.native != nil {
+		cpu, _, err := m.native.allocationCPU(*manifest, req.CPU)
+		if err != nil {
+			return nil, err
+		}
+		pol.CPUPercent = cpu
+	}
 	// Physical RAM is an availability allocation, separate from the immutable
 	// catalog minimum in the hashed bundle. The launcher may raise that limit.
 	if manifest != nil && req.MemMiB != 0 {

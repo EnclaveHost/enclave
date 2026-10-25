@@ -50,11 +50,17 @@ func TestNativeAdmissionBindsControllerProfileAndResources(t *testing.T) {
 	if err := g.validate(man, artifact, 400, 16384); err != nil {
 		t.Fatal("larger permitted RAM allocation", err)
 	}
+	for _, cpu := range []int{401, 600, 1600} {
+		if err := g.validate(man, artifact, cpu, 8192); err != nil {
+			t.Fatal("permitted purchased CPU allocation", cpu, err)
+		}
+	}
 	for _, c := range []struct {
 		name     string
 		cpu, mem int
 	}{
-		{"CPU override", 500, 8192}, {"below minimum", 400, 8191}, {"above native ceiling", 400, 65537},
+		{"unset effective CPU", 0, 8192}, {"CPU below native floor", 399, 8192}, {"CPU above native ceiling", 1601, 8192},
+		{"below minimum", 400, 8191}, {"above native ceiling", 400, 65537},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if g.validate(man, artifact, c.cpu, c.mem) == nil {
@@ -84,6 +90,25 @@ func TestNativeAdmissionBindsControllerProfileAndResources(t *testing.T) {
 	}
 	if g.validate(man, append(artifact, 0), 400, 8192) == nil {
 		t.Fatal("different controller accepted")
+	}
+}
+
+func TestNativeLoadRejectsUnsafeCPURequestBeforeResourceAccess(t *testing.T) {
+	g, man, artifact := nativeFixture(t)
+	bundle, err := contract.Build(man, artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cpu := range []int{-1, 399, 1601} {
+		m := newMonitor(false, "/not-opened", "/not-opened", 40000, 5000)
+		m.native = g
+		_, err := m.load(bufio.NewReader(bytes.NewReader(bundle)), request{Size: len(bundle), CPU: cpu})
+		if err == nil || !strings.Contains(err.Error(), "native CPU allocation") {
+			t.Fatalf("request %d did not fail at CPU validation: %v", cpu, err)
+		}
+		if len(m.doms) != 0 || len(m.byUID) != 0 {
+			t.Fatal("invalid allocation registered a domain")
+		}
 	}
 }
 
