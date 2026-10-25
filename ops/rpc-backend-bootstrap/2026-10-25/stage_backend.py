@@ -62,7 +62,7 @@ def main():
     (a.out / 'manifest.json').write_text(json.dumps(meta, indent=2) + '\n')
     # Fixed upstream selections. No --force, --prune-unlisted or implicit latest.
     commands = {
-        'base': '/opt/enclave-rpc/bin/base snapshot download --chain base --minimal',
+        'base': '/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000',
         'l1': '/opt/enclave-rpc/bin/reth download --chain mainnet --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000',
     }
     for role, mount in meta['mounts'].items():

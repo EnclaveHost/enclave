@@ -34,10 +34,14 @@ class GateTests(unittest.TestCase):
         with patch.object(c,'mount',return_value='/srv/enclave-l1-pair'), patch.object(c,'binary',return_value='/pinned/lighthouse'), patch.object(Path,'is_dir',return_value=False):
             with self.assertRaisesRegex(AssertionError,'checkpoint too old'):c.run('cl')
     def test_base_requires_explicit_origin_coverage(self):
-        profile='[prune.segments]\nsender_recovery="full"\ntransaction_lookup="full"\n[static_files.blocks_per_file]\nheaders=500000\n'
+        profile='[prune.segments]\nsender_recovery="full"\ntransaction_lookup="full"\n' + ''.join(name+'={distance=140000}\n' for name in ('receipts','account_history','storage_history','bodies_history')) + '[static_files.blocks_per_file]\nheaders=500000\n'
         with patch.object(c,'mount',return_value='/srv/enclave-base-holder'),patch.object(Path,'is_file',return_value=True),patch.object(Path,'read_text',return_value=profile),patch.object(c,'l1_ready') as ready:
             with self.assertRaisesRegex(AssertionError,'coverage not approved'):c.run('base')
             ready.assert_not_called()
+    def test_minimal_receipt_pruning_is_refused(self):
+        profile='[prune.segments]\nsender_recovery="full"\ntransaction_lookup="full"\nreceipts="full"\n[static_files.blocks_per_file]\nheaders=500000\n'
+        with patch.object(c,'mount',return_value='/srv/enclave-base-holder'),patch.object(Path,'is_file',return_value=True),patch.object(Path,'read_text',return_value=profile):
+            with self.assertRaisesRegex(AssertionError,'history retention too short'):c.run('base')
     def data(self):
         now=int(time.time()); head={'timestamp':hex(now-24),'number':'0x100','hash':'0xabc'}
         def rpc(port,method,params):

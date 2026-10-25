@@ -100,11 +100,13 @@ def run(side):
         segments = profile.get('prune', {}).get('segments', {})
         assert segments.get('sender_recovery') == 'full', 'snapshot prune profile missing'
         assert profile.get('static_files', {}).get('blocks_per_file'), 'snapshot segment sizes missing'
-        if side == 'base':
-            assert segments.get('transaction_lookup') == 'full', 'Base minimal profile missing'
-        else:
-            for name in ('receipts', 'account_history', 'storage_history'):
-                assert segments.get(name, {}).get('distance', 0) >= 140000, 'L1 retention too short'
+        for name in ('receipts', 'account_history', 'storage_history', 'bodies_history'):
+            mode = segments.get(name)
+            assert isinstance(mode, dict) and mode.get('distance', 0) >= 140000, 'bounded history retention too short'
+        lookup = segments.get('transaction_lookup')
+        # Downloads omit RocksDB lookup indices; the client rebuilds the retained
+        # range. The explicit CLI distance below is persisted after first start.
+        assert lookup == 'full' or (isinstance(lookup, dict) and lookup.get('distance', 0) >= 140000), 'transaction lookup retention missing'
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': datadir, 'TMPDIR': base + ('/tmp-cl' if side == 'cl' else '/tmp')}
     jwt = '/etc/enclave-rpc/jwt.hex'
     if side == 'el':
@@ -112,6 +114,7 @@ def run(side):
         # Do not override it with --full (which applies a different preset).
         a = [binary('reth'), 'node', '--chain', 'mainnet', '--datadir', datadir,
              '--http', '--http.addr', '127.0.0.1', '--http.port', '18645', '--http.api', 'eth,net,web3',
+             '--prune.transaction-lookup.distance', '140000',
              '--rpc.max-connections', '64', '--authrpc.addr', '127.0.0.1', '--authrpc.port', '18651',
              '--authrpc.jwtsecret', jwt, '--ipcdisable', '--addr', '0.0.0.0', '--port', '30313',
              '--discovery.addr', '0.0.0.0', '--discovery.port', '30313', '--discovery.v5.addr', '0.0.0.0',
@@ -144,6 +147,7 @@ def run(side):
         env['BASE_NODE_L1_TRUST_RPC'] = 'false'
         a = [binary('base'), '--chain', 'mainnet', 'rpc', '--datadir', datadir,
              '--http', '--http.addr', '127.0.0.1', '--http.port', '18545', '--http.api', 'eth,net,web3',
+             '--prune.transaction-lookup.distance', '140000',
              '--rpc.max-connections', '64', '--rpc.eth-proof-window', '1800', '--ipcdisable',
              '--addr', '0.0.0.0', '--port', '30303', '--discovery.addr', '0.0.0.0', '--discovery.port', '30303',
              '--discovery.v5.addr', '0.0.0.0', '--discovery.v5.port', '9200',
