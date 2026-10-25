@@ -1,11 +1,15 @@
 # Native reproduction: interrupted first attempt, recovery scripts and integrity checks (2026-10-25)
 
-**Status (updated after root's foreground run): R1 and R2 REPRODUCED. R3 FINISHED: NOT reproduced (byte mismatch; hypothesis and heuristics in §8; exact rebuild `r3x` queued).**
-- **TWO natives are now reproduced by fresh builds:** the listener `9ca75047…` (§6) and witness-check `4fe0cd3b…` (§7).
-- **Not reproduced:** Helios `cc962e2b`. Both clean R3 builds differ from it (§8). For the `eeffcc9` rebuild, the observed
-  differences are CONSISTENT WITH (not proven to be) OpenSSL's embedded build timestamp and its layout effects. An exact
-  rebuild (`r3x`, §8) is queued, not completed. The 4 libraries
-  remain distribution bytes. This is not a native-provenance pass for the image as a whole.
+**Status (updated after root's foreground runs): all THREE own Rust natives REPRODUCED from committed source (R1, R2, R3x).**
+- **Reproduced by fresh builds, byte-identical to the pins:**
+  - the listener `9ca75047…` (§6);
+  - witness-check `4fe0cd3b…` (§7);
+  - Helios `cc962e2b…` (§9: committed `eeffcc9` with `SOURCE_DATE_EPOCH=1792719118`).
+
+  The earlier clean Helios builds without that setting did NOT match; they are preserved in §8.
+- **Not source-built:** the 4 libraries are verified, signed Arch distribution bytes; glibc and libgcc were not rebuilt.
+- **Still open:** a second, independent builder host. Every reproduction here ran on this one host with this toolchain
+  installation. This is not hardware attestation, activation or finality.
 - The audit this follows is in `../` (`README.md`, `audit.json`, `ROOT-REVIEW.md`).
 - Root launches `jobs/resume.sh` in the FOREGROUND from a session that survives the CLI. **No job here runs as a
   background job of a CLI session.**
@@ -168,7 +172,7 @@ outputs `d1`–`d5` are included. No disassembly dump, and no binary, is publish
      RIP-relative displacements", and the script docstrings) states the heuristic more strongly than it establishes; the
      limits above apply.
 
-### 8.3 Hypothesis (NOT proven)
+### 8.3 Hypothesis (NOT proven at the time; later confirmed by the exact reproduction in §9)
 
 - **The hypothesis:** the only input difference between the pin and the `eeffcc9` rebuild is the OpenSSL build
   timestamp. The linker then reordered the merged strings, which changes string references in code and relocations, and
@@ -182,7 +186,7 @@ outputs `d1`–`d5` are included. No disassembly dump, and no binary, is publish
   The `b93fcfd` rebuild's broader differences make it a poor match under this recipe, but that is not a source verdict.
 - **Only an exact byte reproduction settles it.**
 
-### 8.4 Exact-rebuild test: QUEUED, not yet completed
+### 8.4 Exact-rebuild test: QUEUED at the time of writing; since COMPLETED (see §9)
 
 - **Job:** the foreground job `r3x-eeffcc9`, launched by root (exec62493) and QUEUED behind M7 at the time of writing.
   - It runs `jobs/r3x.sh` (archived here as `r3/prepared-not-run/r3x.sh`, a historical filename; sha256 `9d621d4b…`).
@@ -195,4 +199,41 @@ outputs `d1`–`d5` are included. No disassembly dump, and no binary, is publish
 - **Going forward (independent of `r3x`):** a fixed `SOURCE_DATE_EPOCH` in the Helios recipe, and a re-pin to such a
   build. A pin change requires root review and a NEW image.
 
-**Production remains blocked for Helios native provenance until an exact reproduction or a reviewed re-pin exists.**
+**Historical gate at §8 publication: Helios native provenance required an exact reproduction or reviewed re-pin. The exact reproduction in §9 now closes this gate for the existing pin.**
+
+## 9. R3x result: Helios `cc962e2b` REPRODUCED from committed `eeffcc9` (evidence in `r3x/`)
+
+- **Job:** `r3x-eeffcc9`, launched by root in the foreground (exec62493). It waited 10 times for a queue slot, each
+  `NOT STARTED: test allocation held` (`r3x/r3x-eeffcc9.retries`, `r3x/queue-retries/`), then ran.
+  - Exit **0**. Memory guard: peak 1326 MiB, host minimum 20349 MiB (`r3x/r3x-eeffcc9.guard`, `.rc`).
+  - Offline, through the shared queue at 1536 MiB.
+- **Exact recipe:** `r3x/r3x.sh`, byte-identical to `r3/prepared-not-run/r3x.sh` and to the script run (sha256
+  `9d621d4b…`).
+  - **Base:** it is `r3.sh` plus **`SOURCE_DATE_EPOCH=1792719118`** (= `Fri Oct 23 01:31:58 2026 UTC`) in the cargo build
+    environment.
+  - **Source:** a FRESH clean clone of committed **`eeffcc9`** (tree `2171ad2b…`, `Cargo.lock` `28f4400c…`), mounted at
+    the ORIGINAL rpc-priority paths in a private mount namespace.
+  - **Target:** an EMPTY fresh target dir.
+  - **Cache:** a byte-equal copy of the original cache (manifest `b59affc5…`).
+  - **Vendor tree:** read-only (manifest `fcfe96fb…`).
+  - **Toolchain and flags:** rustc 1.96.0 (`ac68faa20`), `CARGO_PROFILE_DEV_DEBUG=0`, `CARGO_INCREMENTAL=0`,
+    `CARGO_BUILD_JOBS=1`, offline, `-Wl,--threads=1`; `cargo build --offline -p helios-cli --bin helios`.
+  - **Command:** `C=eeffcc9 SOURCE_DATE_EPOCH_PIN=1792719118 ./jobs/q.sh 1536 r3x-eeffcc9 bash jobs/r3x.sh`.
+- **Build:** started 18:50:49Z, `Finished dev … in 7m 37s`, `Cargo.lock` unchanged. The job finished 18:58:26Z.
+- **Result:** rebuilt **`cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0` == the pin**
+  (`r3x/receipts/r3x-eeffcc9.sha256`). Independently re-hashed for this publication; the rebuilt binary's embedded
+  OpenSSL stamp reads `built on: Fri Oct 23 01:31:58 2026 UTC`.
+- **Afterwards, originals unchanged:** the helios-patched HEAD and clean state, the original target binary (still the
+  pin), the original cache and the vendor tree.
+- **What this establishes:**
+  - the pinned Helios CLI is a reproducible build of COMMITTED `eeffcc9` with the recorded recipe and that one
+    environment variable, on this host;
+  - the §8.3 hypothesis is now confirmed by the exact byte match, not by the §8.2 heuristics;
+  - the `eeffcc9` mismatch is resolved by setting `SOURCE_DATE_EPOCH`; the different `b93fcfd` source remains an unmatched candidate.
+- **What remains:**
+  - a second, independent builder;
+  - making `SOURCE_DATE_EPOCH` an explicit part of the recorded Helios build recipe, so future builds are deterministic
+    without knowing the old stamp (root's decision);
+  - production chain readiness, finality authority and activation. The separate hardware canary already passed for image source `0235e7d96`; see the `hardware-canary-0235` evidence on branch `fix/rpc-attested-verifier-20261025`.
+
+  **The 4 distribution libraries stay signed-package evidence, not source builds.**

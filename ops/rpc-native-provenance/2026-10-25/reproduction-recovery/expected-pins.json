@@ -1,7 +1,7 @@
 {
  "format": "enclave-native-reproduction-expected/v1",
  "date": "2026-10-25",
- "status": "R1 and R2 REPRODUCED by fresh builds (listener 9ca75047, witness-check 4fe0cd3b); R3 NOT reproduced: both clean Helios builds mismatch; the eeffcc9 differences are consistent with (not proven to be) the OpenSSL build stamp (heuristics in README \u00a78); exact rebuild r3x-eeffcc9 QUEUED, not completed",
+ "status": "All THREE own Rust natives REPRODUCED by fresh builds from committed source on this host: listener 9ca75047 (r1r), witness-check 4fe0cd3b (r2b), Helios cc962e2b (r3x-eeffcc9 with SOURCE_DATE_EPOCH=1792719118). The 4 libraries are signed distribution bytes, not source-built. A second independent builder is NOT done",
  "audit": "../ (README.md, audit.json, ROOT-REVIEW.md; root commit b9375992a)",
  "imagePins": {
   "source": "chain-verifier-inputs/PINS.sha256 == metal/chain-verifier-image.json at 0235e7d96",
@@ -9,7 +9,7 @@
    "helios": {
     "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
     "kind": "own debug build",
-    "status": "NOT reproduced. Hypothesis (unproven): the eeffcc9 rebuild differs only via the OpenSSL 'built on' stamp (pin 2026-10-23T01:31:58Z) and its layout effects. Observed: 31/35 sections identical; differing .text/.rodata/.rela.dyn at equal sizes; heuristic checks only, no instruction decoding or semantic proof. Exact rebuild r3x queued"
+    "status": "REPRODUCED by a fresh build of committed eeffcc9 with SOURCE_DATE_EPOCH=1792719118 (r3x-eeffcc9 == pin, 2026-10-25T18:58Z, this host). Earlier clean builds without it mismatched (r3-b93fcfd, r3-eeffcc9; see r3/)"
    },
    "witness-check": {
     "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
@@ -109,11 +109,35 @@
      "guardPeakMiB": 1350,
      "verdict": "mismatch; observed differences limited to build-id, .text 1393 B, .rodata 28103 B, .rela.dyn 840 B at equal sizes; consistent with the OpenSSL build-stamp hypothesis by heuristic checks (no instruction decoding, target identity not checked); not proven"
     },
-    "nextTest": "r3x-eeffcc9 (SOURCE_DATE_EPOCH=1792719118): launched by root (exec62493), QUEUED behind M7, not completed; script archived as r3/prepared-not-run/r3x.sh (historical name)",
+    "nextTest": "r3x-eeffcc9 COMPLETED: exact match (see reproductionTargets.r3x)",
     "evidence": "r3/",
-    "provenIs": "nothing beyond the byte mismatch and the listed observations; only an exact rebuild can establish source"
+    "provenIs": "r3 alone: only the mismatches and observations; the exact match is established by r3x"
+   }
+  },
+  "r3x": {
+   "pin": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+   "commit": "eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e tree 2171ad2bfd3c97f2e0e029e866b1a8535cbbd187",
+   "cargoLock": "28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4",
+   "env": "SOURCE_DATE_EPOCH=1792719118 (Fri Oct 23 01:31:58 2026 UTC)",
+   "recipe": "r3x/r3x.sh (sha256 9d621d4b...)",
+   "cargoHomeManifest": "b59affc5af675986e211567055ceef93403d133e6101a784569dc80336dd8117",
+   "vendorInspectManifest": "fcfe96fb7481cb9b78180fe6a46ff16610de38f317211421aab8a85229543471",
+   "result": {
+    "exit": 0,
+    "finished": "2026-10-25T18:58:26Z",
+    "rebuilt": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+    "guardPeakMiB": 1326,
+    "buildTime": "7m 37s",
+    "queueRetries98": 10,
+    "evidence": "r3x/"
    }
   }
  },
- "interpretation": "a byte match from a FRESH build reproduces a pin; a mismatch does NOT prove the source differed; any pin change needs root review and a new image"
+ "interpretation": "a byte match from a FRESH build reproduces a pin; a mismatch does NOT prove the source differed; any pin change needs root review and a new image",
+ "openGates": [
+  "second independent builder host",
+  "SOURCE_DATE_EPOCH as an explicit part of the recorded Helios build recipe (root decision)",
+  "the 4 libraries are distribution bytes, not source-built",
+  "production chain readiness, finality authority and activation (hardware canary separately passed for image0235e7d96)"
+ ]
 }
