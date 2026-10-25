@@ -58,7 +58,7 @@ function setup(t,over={}){
   startEgress:async()=>{events.push('egress');return over.egress===undefined?egress:over.egress;},
   serve:{exe:'host.exe',bundleDir,portFor:async()=>12345,run:async args=>{events.push('serve');servedArgs=args;
    if(over.exitDuringServe)workerExit({code:1});
-   return {vm:VM_ID,domainId:1,tcpPort:12345,guestPort:40001,launcherKey:'test',stop:async()=>{events.push('relay-stop');return{closed:true};}};}}};
+   return {vm:VM_ID,domainId:1,tcpPort:12345,guestPort:40001,launcherKey:'test',stop:over.relayStop??(async()=>{events.push('relay-stop');return{closed:true};})};}}};
  const launcher=new WmiHyperVLauncher(config);
  return {...f,config,launcher,events,scripts,workerExit,egressExit,get definition(){return definition;},get workerMapping(){return workerMapping;},get servedArgs(){return servedArgs;}};
 }
@@ -126,4 +126,33 @@ for(const [name,over] of [
 test('missing worker service registration refuses before defining a VM',async t=>{
  const h=setup(t,{registered:false});await assert.rejects(h.launcher.start(h.mapping,h.opts),/native desktop worker service/);
  assert.deepEqual(h.events,['preflight','workerService']);
+});
+
+test('failed launch retains its private worker handle until cleanup can be retried',async t=>{
+ let stopFails=true,stops=0;
+ const worker={exited:new Promise(()=>{}),stop(){stops++;if(stopFails)throw Error('worker still alive');}};
+ const h=setup(t,{worker,egress:null});
+ let failure;
+ try{await h.launcher.start(h.mapping,h.opts);}catch(e){failure=e;}
+ assert.match(failure.message,/egress transport/);
+ assert.equal(failure.transportCleanup.closed,false);
+ assert.equal(failure.launchHandle.transport,worker);
+ assert.equal(failure.launchHandle.vmId,VM_ID);
+ assert.ok(!Object.keys(failure).includes('launchHandle'));
+ assert.ok(h.events.includes('removeById'));
+ await assert.rejects(h.launcher.stop(failure.launchHandle),/worker transport cleanup failed/);
+ assert.equal(h.events.filter(x=>x==='removeById').length,2);
+ stopFails=false;
+ assert.equal((await h.launcher.stop(failure.launchHandle)).stopped,true);
+ assert.equal(stops,3);
+});
+
+test('a synchronous relay stop failure cannot skip failed-launch VM removal',async t=>{
+ const h=setup(t,{exitDuringServe:true,relayStop(){throw Error('relay stop failed');}});
+ await assert.rejects(h.launcher.start(h.mapping,h.opts),e=>{
+  assert.match(e.message,/transport or app delivery failed/);
+  assert.equal(e.relay.closed,false);assert.match(e.relay.how,/relay stop failed/);
+  assert.equal(e.launchHandle.vmId,VM_ID);return true;
+ });
+ assert.ok(h.events.includes('removeById'));assert.ok(h.events.includes('retire'));
 });
