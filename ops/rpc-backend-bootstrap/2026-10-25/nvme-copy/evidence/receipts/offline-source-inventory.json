@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-25T16:44:56.530931+00:00",
+  "target": "/vm/enclave-volumes/rpc-production",
+  "mode": "0o700",
+  "targetDev": 64769,
+  "disks": {
+    "os.qcow2": {
+      "path": "/mnt/usb/enclave-rpc-production/os.qcow2",
+      "dev": 2050,
+      "ino": 3219,
+      "size": 3110666240,
+      "allocated": 3110666240,
+      "mtimeNs": 1792946515647561400,
+      "ctimeNs": 1792946515647561400
+    },
+    "l1-origin.qcow2": {
+      "path": "/mnt/usb/enclave-rpc-production/l1-origin.qcow2",
+      "dev": 2050,
+      "ino": 3220,
+      "size": 495572353024,
+      "allocated": 495572353024,
+      "mtimeNs": 1792946513213591400,
+      "ctimeNs": 1792946513213591400
+    },
+    "base-origin.qcow2": {
+      "path": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+      "dev": 2050,
+      "ino": 3221,
+      "size": 77363609600,
+      "allocated": 77363609600,
+      "mtimeNs": 1792946513115592600,
+      "ctimeNs": 1792946513115592600
+    }
+  }
+}

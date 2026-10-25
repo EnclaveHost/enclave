@@ -1,0 +1,5 @@
+[queue] START available=87505MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"status": "ok", "error": null, "final": "/vm/enclave-volumes/rpc-production/os.qcow2", "partial": null, "sourceSha256": "9a71081601d2a9820e422d6347736c93b98526d74a715a4a48074bdb79f33b2f", "copySha256": "9a71081601d2a9820e422d6347736c93b98526d74a715a4a48074bdb79f33b2f", "bytes": 3110666240, "copySec": 22.4, "verifySec": 2.7}
+[memory-guard] exit=0 peakTreeRssMiB=36 minHostAvailableMiB=87492
+[memory-guard] at peak: python3:36
+[queue] EXIT 0
