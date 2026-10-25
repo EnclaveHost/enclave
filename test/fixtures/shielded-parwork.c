@@ -7,7 +7,29 @@
  * EXACTLY once at every width, that two owner threads do not serialise or
  * corrupt each other, and that helpers are reclaimed when their owner exits.
  * Off by default (width 1), so the width-1 path is a case, not a skip. */
+#define _GNU_SOURCE   /* before any header, as shielded-parwork.c itself wants it */
+/* The helper's bounded park goes through this counter, so a wait that times
+ * out while a dispatch is already waiting for it (gen ahead of done: the
+ * wakeup that should have ended the wait never came) is seen directly, not
+ * only through the clock. Forwarding only; the wait itself is unchanged. */
+#include <errno.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stddef.h>
+#include <time.h>
+static int counting_timedwait(pthread_cond_t *c, pthread_mutex_t *m, const struct timespec *dl);
+#define pthread_cond_timedwait counting_timedwait
 #include "../../wasm/ggml-shielded/shielded-parwork.c"
+#undef pthread_cond_timedwait
+static atomic_long g_missed;
+static int counting_timedwait(pthread_cond_t *c, pthread_mutex_t *m, const struct timespec *dl) {
+    const int rc = pthread_cond_timedwait(c, m, dl);
+    if (rc == ETIMEDOUT) {
+        sh_par_worker *w = (sh_par_worker *)((char *)c - offsetof(sh_par_worker, cv));
+        if (atomic_load(&w->gen) != atomic_load(&w->done)) atomic_fetch_add(&g_missed, 1);
+    }
+    return rc;
+}
 
 #include <assert.h>
 #include <stdio.h>
@@ -148,6 +170,7 @@ static void park_boundary(void) {
     unsigned char *seen = calloc(LEN, 1); assert(seen);
     int rounds = ROUNDS;
     pthread_t wd; assert(pthread_create(&wd, NULL, watchdog, &rounds) == 0);
+    atomic_store(&g_missed, 0);
     struct timespec t0; clock_gettime(CLOCK_MONOTONIC, &t0);
     for (int r = 0; r < ROUNDS; r++) {
         wd_round = r;
@@ -172,7 +195,29 @@ static void park_boundary(void) {
      * up to a thousand timeout periods on top. Anything near that means the
      * park/dispatch handshake stopped working even though the answers are
      * still right. */
-    fprintf(stderr, "parwork: park boundary %d dispatches in %.0f ms\n", ROUNDS, ms);
+    const long missed = atomic_load(&g_missed);
+    fprintf(stderr, "parwork: park boundary %d dispatches in %.0f ms, %ld park timeouts with a dispatch pending\n",
+            ROUNDS, ms, missed);
+    /* A timeout can race a dispatch that is about to signal, so allow a few;
+     * a lost wakeup misses on (nearly) every parked dispatch. */
+    if (missed > ROUNDS / 100) {
+        fprintf(stderr, "parwork: %ld of %d dispatches found their helper waiting out the timeout\n", missed, ROUNDS);
+        assert(!"park/dispatch handshake is losing wakeups");
+    }
+    /* The clock is evidence only when the owner and every helper can run at
+     * once. With fewer CPUs than width + 1 they time-share, and a slow
+     * boundary says nothing about the handshake: width 8 pinned to 4 CPUs
+     * took ~15 s whether the park timeout was 20 ms or 2 s, and not one wait
+     * timed out with a dispatch pending (measured 2026-09-24; that is how the
+     * 4-vCPU CI runner failed here). Coverage and the watchdog above still
+     * ran; the fence itself is the litmus test's job at any CPU count. */
+    cpu_set_t cpus;
+    const int ncpu = sched_getaffinity(0, sizeof cpus, &cpus) == 0 ? CPU_COUNT(&cpus) : 0;
+    if (ncpu < sh_par_width() + 1) {
+        fprintf(stderr, "parwork: %d CPUs for width %d + owner: boundary timing not judged (the timeout count above still is)\n", ncpu, sh_par_width());
+        free(seen);
+        return;
+    }
     if (ms > 8000.0) {
         fprintf(stderr, "parwork: park boundary took %.0f ms, expected ~2500: wakeups are being lost "
                         "and recovered by the timeout\n", ms);
