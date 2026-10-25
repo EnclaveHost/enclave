@@ -186,3 +186,50 @@ VMs, the same host boot and unchanged Secure Boot/VBS state. The separate
 guest admission, failed signing experiment and cleanup. Next work must establish
 the loader's supported signed-identity contract, then repeat fresh guest and
 full application admission against the final graphics image.
+
+### Signed identity follow-up, 2026-10-25
+
+The subsequent controlled experiment resolves the signing-hash issue for the
+tested NucBox Windows 11 build 26200. Parsing and serializing the unsigned
+`9c868a4f` image without adding a directive reproduces its bytes exactly, and
+that image boots again on the same host boot. Its two new reports still have
+authentic signatures and SVN 0. Direct `Msvm_ComputerSystem.RequestStateChange`
+and `Msvm_ConcreteJob.GetErrorEx` expose only a generic failure for the earlier
+signed candidate; that error alone does not identify the cause.
+
+A matched pair uses the same disposable P-384 key, 60-byte identity payload,
+launch digest and all other header fields. The SHA-256 signature refuses to
+boot; the SHA-384 signature boots and passes the kernel/device probe. Both
+signatures independently verify with Windows CNG under their intended hash,
+and fail under the other hash. The accepted image's two reports verify under
+the same-boot TPM-authenticated IDKS with the unchanged minimum SVN 13. They
+contain SVN 13, the chosen product/module IDs and a signer equal to SHA-256 of
+the 104-byte CNG public-key blob. Flipping a signature byte, or changing SVN
+13 to 14 without re-signing, each prevents boot.
+
+The observed encoding is:
+
+- One VBS `0x311` directive with the original compatibility mask and version 1.
+- Signed bytes: seven little-endian u32 fields (version, product, module, SVN,
+  policy flags, boot-digest algorithm 1, signing algorithm 1), then the original
+  32-byte SHA-256 launch digest: 60 bytes total.
+- ECDSA P-384 over SHA-384 of those bytes. Store fixed-width big-endian r and s,
+  48 bytes each, followed by zero padding to the 256-byte signature field.
+- CNG `BCRYPT_ECDSA_PUBLIC_P384_MAGIC` (`ECS3`), key length 48, and big-endian
+  X/Y coordinates: 104 bytes total, zero-padded to the 512-byte public-key field.
+  Zero-pad the 32-byte boot digest to its 64-byte IGVM field.
+
+This is measured compatibility evidence for that host build, not a universal
+published loader specification. The reports use guest-generated bindings;
+the prior same-boot host TPM transcript was replayed, not freshly challenged
+for these runs. The private signing key existed only in the generator process
+and was not persisted. No diagnostic key is release authority. Production work
+must pin an authorized signer/product/module, obtain a fresh verifier challenge,
+and qualify the exact final graphics image and owner/controller path. A high
+SVN signed by an arbitrary new key must not establish release authority.
+
+All six exact diagnostic VMs were removed and their state archived with matching
+hashes. The original four running VMs, host boot and security configuration are
+unchanged. `native-vbs-identity-v2` contains the public inputs, reports, matched
+controls, CNG checks, generic job errors, scoped Claude review and cleanup
+evidence. The earlier SHA-256 experiment remains rejected and is not a release.
