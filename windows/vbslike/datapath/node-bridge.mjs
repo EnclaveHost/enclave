@@ -21,6 +21,8 @@
 import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
 import { createDataPlane } from "./datapath.mjs";
 import { appConfigText, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7 } from "../manager/derive.mjs";
+import { validateDesktopRelease } from "../../../relay/shield-desktop-release.mjs";
+import { nativeDesktopPlan } from "./desktop-plan.mjs";
 
 export const BACKEND = "hyperv-partition-per-app";
 export const V1 = "enclave-catalog-bundle/1";
@@ -102,7 +104,7 @@ export function derivationOf(appId, index, cid, policy, runtimeId, httpPort = 0)
  * -> { ok: false, input, why, unknown }
  */
 export function isolationPlan({ deploymentId, deployment, version, appConfig, hasSecrets, waf, volumes, runtimeId,
-                                require, manager, appConfigCid, configSourceCid, backend = BACKEND } = {}) {
+                                require, manager, appConfigCid, configSourceCid, desktopRelease, backend = BACKEND } = {}) {
   if (!/^0x[0-9a-f]{64}$/.test(String(deploymentId || ""))) return refused("deploymentId", `${deploymentId} is not a deployment id`);
   if (!deployment || typeof deployment !== "object") return unknownInput("deployment", "the ledger record");
   // the tenant's opt-in, then the manager's identity: supervisor.js checks these first, in this order
@@ -124,6 +126,14 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
   if (deployment.isPublic !== true && deployment.isPublic !== false) return unknownInput("deployment.isPublic", "whether the deployment is public");
   if (deployment.isPublic === false)
     return refused("deployment.isPublic", "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the partition");
+  if (desktopRelease !== undefined && desktopRelease !== null) {
+    let release;
+    try { release = validateDesktopRelease(desktopRelease); }
+    catch (e) { return refused("desktopRelease", e.message); }
+    if (version.cid === release.controllerCid)
+      return nativeDesktopPlan({ release, deploymentId, deployment, version, appConfig,
+        hasSecrets, waf, volumes, manager, appConfigCid, configSourceCid });
+  }
   const gpu = Number(deployment.gpuMilli);
   if (deployment.gpuMilli === undefined || deployment.gpuMilli === null || !Number.isFinite(gpu)) return unknownInput("deployment.gpuMilli", "the deployment's GPU share");
   const inf = gpu > 0 ? manager.inference : null;
