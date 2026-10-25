@@ -32,8 +32,13 @@ await build({
   platform: "node",
   format: "esm",
   plugins: [cliViem],
-  // bundled deps still use require() internally; give them one
-  banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url);' },
+  // bundled deps still use require() internally; give them one.
+  // process.argv[1] is hidden before any bundled module runs. Helpers that are also standalone tools
+  // (cli/independent-capacity.mjs, cli/host-independent-lifecycle.mjs, windows/node/host-identity.mjs,
+  // scripts/network/fetch-runtime.mjs) run their own main when argv[1] is their own file. In ONE bundled file that test
+  // is true for every module, so they would also run on enclave's argv: the capacity tool exits 1 under `availability`,
+  // and `host` runs twice. The CLI itself never reads argv[1].
+  banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url); process.argv[1] = "";' },
   outfile: out,
   logLevel: "warning",
 });

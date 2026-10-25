@@ -53,7 +53,9 @@ export function defineAnswer(script, over = {}) {
 
 /** Which launcher command a script is. Order matters: the define script also hashes files and removes VMs. */
 export function keyOf(s) {
-  return s.includes("$r.vmms") ? "preflight"
+  return s.includes("its disks are not removed") ? "removeRunDisks"
+    : s.includes("Add-VMHardDiskDrive") ? "attachDisks"
+    : s.includes("$r.vmms") ? "preflight"
     : s.includes("New-CustomVM") ? "define"
     : s.includes("GetFileNameWithoutExtension") ? "retire"
     : s.includes("Get-FileHash") ? "imageHash"

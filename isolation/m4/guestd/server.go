@@ -36,6 +36,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -102,12 +103,17 @@ type Request struct {
 	// it for a deployment the relay lists for the release; any other deployment on a -release guestd is built from the
 	// legacy tree (-legacy-isolation), unchanged. Accepted only with -release.
 	Release bool `json:"release"`
+	// Bootstrap is base64 of exact public owner-committed startup bytes.
+	Bootstrap string `json:"bootstrap"`
 	// Ticket is a release ticket (base64, 32 bytes) for the deployment this guest serves: accepted only for a release
 	// guest, and handed only to it (release.go). The config and secrets it releases never cross this host.
 	Ticket string `json:"ticket"`
 	// Derive is the catalog derivation record (contract/catalog/DERIVE.md) an ipfs:// image needs: the CID alone names
 	// bytes, not a contract identity, and guestd will not invent one.
 	Derive *catalog.Derivation `json:"derive"`
+	// Volumes are the deployment's model volumes by name (its config's "volumes", as the supervisor reads it): each is
+	// attached read-only for the guest to mount against the root its own measured table pins (modelvol.go).
+	Volumes []string `json:"volumes"`
 }
 
 // unsupported names the first feature this backend cannot honour inside the guest, or "".
@@ -130,6 +136,7 @@ func unsupported(r *Request) string {
 type vm struct {
 	GPUCardBytes                                         int64 // one reservation on EACH of the two workers
 	InferenceModel                                       string
+	Volumes                                              []string // model volumes attached read-only (modelvol.go)
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
 	RuntimeID                                            string // identity actually verified for this guest
 	RecordSha256                                         string // the catalog derivation, when the app came from one
@@ -145,15 +152,18 @@ type vm struct {
 	leaseUntil                                           time.Time
 	splices                                              map[*splice]struct{} // open data-plane connections
 	reclaimed                                            bool                 // its reclaim has finished: it holds no reservation (pool.go)
-	ticket                                               chan [32]byte        // its one release ticket slot; nil = it takes none (release.go)
-	release                                              bool                 // a release guest (its egress is admitted); false = none, or legacy
-	legacy                                               bool                 // built and started by the legacy launcher (-legacy-isolation)
-	releases                                             []string             // the release(s) of the tree that built it (treeReleases), as recorded
-	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
-	ticketTaken                                          bool                 // its guest took its one ticket: no second is handed
-	custodyPending                                       string               // the binding its guest waits to have authorized (custody.go)
-	custodyV                                             int                  // that request's version: 1, or 2 (custody v2, names a vault)
-	custodyVault                                         string               // v2: the vault the request names ("0x" + 40 lowercase hex)
+	bootstrap                                            []byte               // untrusted public package, never secrets
+	bootstrapSha256                                      string
+	directBootstrap                                      bool
+	ticket                                               chan [32]byte // its one release ticket slot; nil = it takes none (release.go)
+	release                                              bool          // a release guest (its egress is admitted); false = none, or legacy
+	legacy                                               bool          // built and started by the legacy launcher (-legacy-isolation)
+	releases                                             []string      // the release(s) of the tree that built it (treeReleases), as recorded
+	awaitingTicket                                       bool          // its guest is connected and waiting for the ticket
+	ticketTaken                                          bool          // its guest took its one ticket: no second is handed
+	custodyPending                                       string        // the binding its guest waits to have authorized (custody.go)
+	custodyV                                             int           // that request's version: 1, or 2 (custody v2, names a vault)
+	custodyVault                                         string        // v2: the vault the request names ("0x" + 40 lowercase hex)
 	custodyAuth                                          chan custodyAuthMsg
 	custodyServed                                        int
 }
@@ -164,6 +174,7 @@ type server struct {
 	ShieldReleases    []string
 	RuntimeSET        bool // a real worker execution probe of the runtime used by this tree
 	RuntimeMem64      bool // a real 64-bit canonical ABI execution probe
+	RuntimeEncvol     bool // the pinned template carries encrypted volumes (rt/encvol.enabled: init trailer, front plane)
 	L                 Launcher
 	Auth              *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
 	Store             *store       // catalog mappings; nil = only file:// bundles are accepted
@@ -177,7 +188,8 @@ type server struct {
 	Budget            poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
 	IDPrefix          string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
 	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
-	Release bool
+	Release         bool
+	DirectBootstrap bool // dedicated measured bootstrap tree; no relay ticket path
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
 	// tree's image, unchanged (d1's rollout option (i)). nil = such a deployment is refused.
 	Legacy Launcher
@@ -198,6 +210,13 @@ type server struct {
 	vms          map[string]*vm
 	lastBeat     time.Time // zero = never heard one: the lease is INERT
 	launching    sync.WaitGroup
+
+	// model volumes (modelvol.go): the pinned table's volumes this host's store holds intact, why each other one is
+	// absent, whether the template carries the table, and whether its runtime's measured probe found ggml preload
+	ModelVolumes map[string]modelVolume
+	ModelMissing map[string]string
+	ModelTable   bool
+	RuntimeNN    bool
 }
 
 func newServer(l Launcher, root string) *server {
@@ -267,7 +286,11 @@ func (v *vm) public() map[string]any {
 		m["inferenceModel"] = v.InferenceModel
 		m["gpuCardBytes"] = v.GPUCardBytes
 	}
-	if v.release {
+	if v.directBootstrap {
+		m["directBootstrap"] = true
+		m["bootstrapSha256"] = v.bootstrapSha256
+	}
+	if v.release && !v.directBootstrap {
 		m["release"] = true // a release guest: its config and secrets come sealed from the relay (release.go)
 	}
 	if v.legacy {
@@ -336,14 +359,20 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"set": s.RuntimeSET, "setRequiresRelease": s.RuntimeSET && s.Release,
 			"mem64": s.RuntimeMem64, "mem64RequiresRelease": s.RuntimeMem64 && s.Release,
-			"firmware": s.Firmware, "catalog": cat, "pool": pool, "inference": inference, "volumes": s.inferenceVolumes(), "shieldedPool": s.ShieldEnabled,
+			"firmware": s.Firmware, "catalog": cat, "pool": pool, "inference": inference, "volumes": append(s.inferenceVolumes(), s.modelVolumesHealth()...), "modelVolumesMissing": s.ModelMissing, "shieldedPool": s.ShieldEnabled,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
 			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with
 			// egress to its own allowlist (release.go); nothing of them crosses this host, so config/secrets stay false
 			"supports": map[string]bool{"gpu": s.ShieldEnabled, "secrets": false, "egress": false, "config": false,
-				"ports": false, "protectedPorts": true, "configCid": false, "release": s.Release,
+				"ports": false, "protectedPorts": true, "configCid": false, "release": s.Release && !s.DirectBootstrap, "directBootstrap": s.Release && s.DirectBootstrap,
 				// legacyImage: a deployment that is not a release guest can still run here (on the previous image)
-				"legacyImage": s.Release && s.Legacy != nil}})
+				"legacyImage": s.Release && s.Legacy != nil,
+				// encVolumes: the image runs the config's encrypted volumes inside the guest; config reaches only a release
+				// or owner-committed guest, so it is claimed only with one (supervisor.js isolationEncVolumesRefusal)
+				"encVolumes": s.RuntimeEncvol && s.Release,
+				// modelVolumes: this image mounts config-named volumes against its measured table; names reach a release or
+				// owner-committed guest only. nnPreload: its runtime's measured probe found wasi-nn with the ggml CPU backend
+				"modelVolumes": s.ModelTable && s.Release, "nnPreload": s.RuntimeNN}})
 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
 		s.create(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/prefetch":
@@ -438,6 +467,10 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": why})
 		return
 	}
+	if why := s.modelRefusal(req.Volumes, m.Inference != nil, legacy); why != "" {
+		s.json(w, 422, map[string]any{"error": "this backend refuses " + why})
+		return
+	}
 	if legacy && len(m.Ports) != 0 {
 		s.json(w, 422, map[string]any{"error": "protected ports require this release image, not a legacy guest"})
 		return
@@ -494,6 +527,13 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}
 	v.legacy = legacy
+	v.Volumes = append([]string(nil), req.Volumes...)
+	if req.Bootstrap != "" {
+		v.bootstrap, _ = decodeBootstrap(req.Bootstrap) // releaseChoice validated before reservation
+		v.directBootstrap, v.release = true, true
+		h := sha256.Sum256(v.bootstrap)
+		v.bootstrapSha256 = hex.EncodeToString(h[:])
+	}
 	if s.Release && req.Release {
 		v.release = true
 		v.ticket = make(chan [32]byte, 1)
@@ -630,6 +670,10 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.Measurement = meas })
+	if err := s.writeVolumeAttach(image, v.Volumes); err != nil {
+		s.fail(v, fmt.Errorf("model volumes: %w", err))
+		return
+	}
 	unit, err := l.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData, v.cid)
 	cid := v.cid // chosen at create (release.go), so the ticket service knows this guest before it serves
 	s.set(v, func() { v.unit = unit })

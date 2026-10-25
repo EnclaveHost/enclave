@@ -42,6 +42,7 @@ import (
 
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/appconfig"
+	"enclave.host/isolation/m2/bootstrap"
 	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
 )
@@ -63,12 +64,27 @@ type provisioner struct {
 	window      time.Duration                     // retry a ticket-keeping refusal this long after the ticket arrived; 0 = release.ReleaseWindow
 	retry       time.Duration                     // between those retries; 0 = the client's 5 s
 	logf        func(string, ...any)
+	enc         *encvolHost // the image's encrypted-volume engine (encvol.go); nil = none
+	modelTables string      // tests only: another measured model-volume table; "" = modelTablePath
+}
+
+func (p *provisioner) modelTable() string {
+	if p.modelTables != "" {
+		return p.modelTables
+	}
+	return modelTablePath
 }
 
 type provisioned struct {
 	config   string // ENCLAVE_CONFIG, resolved; "" = the release carried no config
 	envelope string // the ledger envelope's sha256 (hex): public (it is on chain), stated on the console
 	fwd      *egress.Forwarder
+	owner    *ownerStartup // direct startup only: owner-committed names (names.go)
+	// direct startup only: the lease's writer authority was read (its history verified) under this authorization, so a
+	// checkpoint can be served from it
+	writerAuthority *bootstrap.Authorization
+	enc             *encStarted // the deployment's encrypted volumes (encvol.go); nil = none
+	models          []byte      // init's model-volume block (modelvol.go); nil = none
 }
 
 func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtimeState, appSha []byte) (*provisioned, error) {
@@ -159,12 +175,16 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		}
 	}
 	secrets := rel.Secrets
+	facts, err := p.relayPathFacts(ctx, rel, id, text, snpIsolation)
+	if err != nil {
+		return nil, err
+	}
 	pol, err := egress.FromRelease(rel, relay)
 	if err != nil {
 		return nil, fmt.Errorf("the allowlist: %w", err)
 	}
 	if text != "" {
-		resolved, err := appconfig.Resolve(text, secrets)
+		resolved, err := appconfig.ResolveWithFacts(text, secrets, facts)
 		if err != nil {
 			return nil, fmt.Errorf("the config: %w", err)
 		}
@@ -179,7 +199,20 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	// tenant cannot reach (the runtime gives it no access to other processes).
 	rel.Secrets = nil
 	secrets = nil
+	return p.startForwarders(ctx, id, out, pol)
+}
 
+func (p *provisioner) startForwarders(ctx context.Context, id [32]byte, out *provisioned, pol *egress.Policy) (*provisioned, error) {
+	// encrypted volumes (encvol.go): their S3 endpoints join the allowlist before the forwarders exist, so they get a
+	// forwarder and a hosts entry like any allowed origin; a bad entry, or an image without the engine, is a failed launch
+	encSpecs, err := encPrepare(out.config, pol, p.enc)
+	if err != nil {
+		return nil, err
+	}
+	// model volumes (modelvol.go): every name the config lists must be in this image's measured table, or no launch
+	if out.models, err = modelBlock(out.config, p.modelTable(), shieldImage()); err != nil {
+		return nil, err
+	}
 	out.fwd = &egress.Forwarder{Policy: pol, Port: p.fwdPort, Upstream: p.egress, Logf: domLogf(p.logf)}
 	if err := out.fwd.Start(ctx); err != nil {
 		return nil, err
@@ -195,6 +228,14 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	for _, o := range pol.Origins {
 		a, _ := out.fwd.Addr(o.Host)
 		want = append(want, a)
+	}
+	if len(encSpecs) > 0 {
+		// staged and listening BEFORE the audit, which then expects exactly the forwarders and this plane
+		if out.enc, err = encStart(ctx, id, encSpecs, p.enc, p.logf); err != nil {
+			out.fwd.Close()
+			return nil, err
+		}
+		want = append(want, out.enc.addr)
 	}
 	if err := p.audit(want); err != nil {
 		out.fwd.Close()
@@ -373,4 +414,95 @@ func domLogf(logf func(string, ...any)) func(string, ...any) {
 		return nil
 	}
 	return func(format string, a ...any) { logf("DOM "+format, a...) }
+}
+
+// Release facts (storage writer fencing, work/storage-front-binding-interface.txt). ENCLAVE_INSTANCE_ISOLATION is a constant of
+// THIS measured front build, never a host, relay or owner label; ENCLAVE_WRITER_AUTHORITY is the relay's lease fact, read
+// strictly and bound to this deployment (HOST_DATA) on Base. Absent: the name stays unresolved and an app that needs it
+// fails closed on its own.
+const (
+	snpIsolation    = "snp" // the SEV-SNP fronts (relay release and bootstrapdirect)
+	shieldIsolation = "vbs" // the Shield (Hyper-V VBS) fronts
+	baseChainID     = 8453
+)
+
+func releaseFacts(rel *release.Release, id [32]byte, isolation string) (map[string]string, error) {
+	facts := map[string]string{appconfig.FactInstanceIsolation: isolation}
+	if rel != nil && rel.Facts != nil && len(rel.Facts.WriterAuthority) > 0 {
+		w, err := appconfig.ParseWriterAuthority(rel.Facts.WriterAuthority, id, baseChainID)
+		if err != nil {
+			return nil, fmt.Errorf("the release's facts: %w", err)
+		}
+		facts[appconfig.FactWriterAuthority] = w
+	}
+	return facts, nil
+}
+
+// referencedFacts: only the facts the measured config refers to. A Shield runtime gets them as environment variables too
+// (secretrun --env), so a config that names none keeps exactly its legacy payload.
+func referencedFacts(facts map[string]string, configText string) map[string]string {
+	out := make(map[string]string, len(facts))
+	for k, v := range facts {
+		if strings.Contains(configText, k) {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// releaseRunner: the lease holder a release was authorized for (release facts.runner), to which a writer authority this
+// front establishes itself is bound. A release without it (a relay that predates it) gives no authority.
+func releaseRunner(rel *release.Release) ([32]byte, error) {
+	var runner [32]byte
+	if rel == nil || rel.Facts == nil || len(rel.Facts.Runner) != 66 || rel.Facts.Runner != strings.ToLower(rel.Facts.Runner) || !strings.HasPrefix(rel.Facts.Runner, "0x") {
+		return runner, errors.New("the release names no lease holder for the writer authority")
+	}
+	b, err := hex.DecodeString(rel.Facts.Runner[2:])
+	if err != nil {
+		return runner, errors.New("the release names no lease holder for the writer authority")
+	}
+	copy(runner[:], b)
+	if runner == ([32]byte{}) {
+		return runner, errors.New("the release names no lease holder for the writer authority")
+	}
+	return runner, nil
+}
+
+// relayPathFacts: the facts of a relay-release front. The writer authority comes from the release when the relay could
+// establish it; otherwise, when the config refers to it, THIS guest reads it from its own measured RPC quorum
+// (measuredReader), waiting for the claim to finalize with the domain alive and the app not started, so the host keeps
+// the lease renewed meanwhile instead of counting a dead guest. The wait ends at writerAuthorityWindow: no fact, no app.
+func (p *provisioner) relayPathFacts(ctx context.Context, rel *release.Release, id [32]byte, configText, isolation string) (map[string]string, error) {
+	facts, err := releaseFacts(rel, id, isolation)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := facts[appconfig.FactWriterAuthority]; ok || !strings.Contains(configText, appconfig.FactWriterAuthority) {
+		return facts, nil
+	}
+	runner, err := releaseRunner(rel)
+	if err != nil {
+		return nil, err
+	}
+	roots, err := bootstrap.MeasuredRoots()
+	if err != nil {
+		return nil, err
+	}
+	reader, err := measuredReader(roots, p.egress)
+	if err != nil {
+		return nil, err
+	}
+	p.logf("DOM writer authority: not in the release; reading the lease's finalized claim from the measured RPCs (pending)")
+	w, err := bootstrap.WhenFinal(ctx, writerAuthorityWindow, writerAuthorityInterval, func(c context.Context) (appconfig.WriterAuthority, error) {
+		return reader.LeaseWriterAuthorityFor(c, id, runner)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("the lease's writer authority: %w", err)
+	}
+	j, err := w.JSON()
+	if err != nil {
+		return nil, err
+	}
+	facts[appconfig.FactWriterAuthority] = j
+	return facts, nil
 }

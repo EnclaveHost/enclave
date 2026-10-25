@@ -13,16 +13,18 @@
    ============================================================ */
 import { appLabel, appEndpoint } from "../../components/deployments/deployments.js";
 import { runlog } from "../core/runlog.js";
-import { payForRuntime } from "../core/fund.js";
+import { payForRuntime, fundingTerms } from "../core/fund.js";
 import { navigate } from "../boot.js";
 import { esc, short, wait, fmtDur, showToast, statusCls } from "../core/util.js";
 import { APP_DOMAIN, DEPLOYMENTS_ADDRESS, ACCOUNTS_ENABLED } from "../core/config.js";
-import { Enclave, EnclaveError } from "../core/api.js";
+import { Enclave, EnclaveError, INDEPENDENT_MODE } from "../core/api.js";
 import { vaultOp } from "../core/vault.js";
 import { freeEnclavesFor } from "../core/pricing.js";
-import { encCall, DEP_SEL, DEP_CREATED_TOPIC, depGet, depRate6, depSchemaRev, depMaxGpuMilli, waitReceipt, catVersionFee } from "../core/chain.js";
+import { encCall, DEP_SEL, DEP_CREATED_TOPIC, depGet, depRate6, depSchemaRev, depMaxGpuMilli, waitReceipt, catVersionFee, catGetApp, catGetVersion } from "../core/chain.js";
 import { connectWallet, refreshWallet, ensureBaseChain, sendTx } from "../core/wallet.js";
 import { parseCatalogRef, publisherOfRef } from "../core/catalog.js";
+import { catalogAdmissionRefusal } from "../core/catalog-policy.js";
+import { PREPARE_ONLY_ENVELOPE } from "../core/startup-package.js";
 
 /* the My Apps panel lives on the dashboard; resolve it at call time
    (present after the deploy flow navigates there, absent otherwise) */
@@ -34,7 +36,11 @@ const depsPanel = () => document.querySelector("c-deployments");
 // and every runner refuses the flag on a 0% GPU deployment rather than let an
 // owner believe their app is preferring hardware it can never be given.
 function envelopeOf(spec){
-  const parts = { ...(spec.waf ? { waf: spec.waf } : {}), ...(spec.config ? { config: spec.config } : {}),
+  // a strict host pin rides the record (envelope "placement", honored by hosts that follow it; the ledger does not
+  // enforce it) - the on-chain form of choosing a host, with no API placement store
+  const pin = spec.pinHost && /^0x[0-9a-f]{64}$/.test(spec.pinHost.hostId || "") ? { placement: { hostId: spec.pinHost.hostId } } : {};
+  if (spec.prepareOnly) return JSON.stringify({ ...PREPARE_ONLY_ENVELOPE, ...pin });
+  const parts = { ...pin, ...(spec.waf ? { waf: spec.waf } : {}), ...(spec.config ? { config: spec.config } : {}),
                   ...(spec.gpuOptional && Number(spec.gpuPct || 0) > 0 ? { gpu: { optional: true } } : {}) };
   return Object.keys(parts).length ? JSON.stringify(parts) : "";
 }
@@ -69,6 +75,13 @@ export async function deployOnChain(spec){
   // store's quick-deploy modal) - not narrated into a run log they were just
   // navigated to. The caller re-checks earlier for richer UI; this is the
   // shared backstop for the races it can't see.
+  const catalogRef = parseCatalogRef(spec.reference);
+  if (!catalogRef) return showToast("Deploy refused: a catalog version is required.");
+  try {
+    const [app, version] = await Promise.all([catGetApp(catalogRef.appId), catGetVersion(catalogRef.appId,catalogRef.index)]);
+    const refusal = catalogAdmissionRefusal(app,version,{forPrivate:spec.isPublic===false});
+    if (refusal) return showToast("Deploy refused: " + refusal);
+  } catch { return showToast("Deploy refused: could not verify current catalog moderation. Please retry."); }
   const capMsg = await gpuCapRefusal(spec.gpuMilli);
   if (capMsg) return showToast("Deploy refused: " + capMsg);
   // The version's publisher fee is snapshotted INTO the record by create():
@@ -87,7 +100,14 @@ export async function deployOnChain(spec){
         return showToast("Deploy refused: this app charges a publisher fee, which the live deployments ledger predates.");
     }
   }
-  const fund = spec.fundUsd;
+  // prepareOnly (independent mode): an unfunded record whose startup is disabled until the owner commits a startup
+  // package - exactly the CLI's deploy --chain-only --prepare-only envelope. Nothing else may ride it.
+  if (spec.prepareOnly){
+    if (!INDEPENDENT_MODE) return showToast("Startup settings you publish yourself need independent mode.");
+    if (spec.config || spec.waf || spec.fundUsd > 0) return showToast("A record waiting for its own startup settings is created without funding, config or protection options.");
+    if ((await depSchemaRev()) !== 16) return showToast("Deploy refused: the pinned ledger does not support owner-committed startup (it needs ledger schema 16).");
+  }
+  const fund = spec.prepareOnly ? 0 : spec.fundUsd;
   const { portsCsv, appPort } = portsSpec(spec.ports);
   const asset = spec.asset || "USDC";
   let w = null, detached = false;
@@ -101,7 +121,7 @@ export async function deployOnChain(spec){
     // account - ONE passkey tap signs a vault op that creates + funds the
     // deployment from credit (the customer's vault owns the record on-chain).
     // Same run, same narrative, same claim watch as a wallet deploy.
-    if (!Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
+    if (!INDEPENDENT_MODE && !Enclave.address && ACCOUNTS_ENABLED && Enclave.accountAuthed()){
       if (spec.waf){ w.line("warn", "[!] WAF options need a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
       if (spec.config){ w.line("warn", "[!] a config override needs a wallet deploy for now - credit deploys don't carry an options envelope yet"); return; }
       if (fee6 > 0n){ w.line("warn", "[!] this app charges a publisher fee, which credit deploys don't support yet - deploy it from a wallet instead"); return; }
@@ -145,19 +165,37 @@ export async function deployOnChain(spec){
     }
     // NO SIWE sign-in here: the create tx and the funding signature ARE the
     // proof of key ownership - a connected wallet is all the flow needs
-    if (!Enclave.provider){
+    // a passkey account that pays its own gas (account-transport.js) needs no wallet at all
+    const ownGas = INDEPENDENT_MODE && await import("../core/account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false);
+    if (!Enclave.provider && !ownGas){
       w.line("info", "[*] connecting wallet…");
       await connectWallet();
       w.line("ok", "[✓] wallet " + short(Enclave.address));
     }
-    w.line("dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
+    if (!ownGas) w.line("dimln", "    if nothing happens, check your wallet - a popup may be waiting (or queued behind an old one; open the wallet and clear pending requests)");
     await ensureBaseChain();
 
     // capacity heads-up BEFORE the first signature (fresh read: the store's
     // quick-deploy modal reaches here without a capacity poll of its own). Not
     // a gate - the create is still right - but nobody should sign expecting an
     // instant boot when the fleet is full for this size.
-    try {
+    let quotes = null;
+    if (INDEPENDENT_MODE){
+      // no API: each live registered host's OWN total for these shares, read at a block the profile's RPCs agree on.
+      // The ceiling is the owner's choice (spec.maxRate6); without one, the cheapest charging host's total is used
+      // and said so. It is never raised automatically. Free capacity is not a ledger fact and is not claimed here.
+      const { independentQuotes } = await import("../core/independent-chain.js");
+      // "free for this owner" is about the record's owner: a selected passkey account, not the wallet paying gas
+      const quoteOwner = (await import("../core/identity.js")).actingOwner(Enclave.address) || Enclave.address;
+      try { quotes = await independentQuotes({ gpuMilli: spec.gpuMilli, cpuMilli: spec.cpuMilli, owner: quoteOwner }); }
+      catch(e){ w.line("warn", "[x] couldn't read host prices from the pinned registry: " + (e.message || e) + " - nothing was sent"); return; }
+      w.line("dimln", "    independent mode · ledger " + DEPLOYMENTS_ADDRESS + " · " + quotes.eligibleCount + " of " + quotes.registeredHosts
+        + " registered hosts can quote this size (live: a verified signed capacity record or a recent operator registry write) at block " + quotes.block);
+      // an outage is not "no capacity": say which evidence could not be checked
+      if (quotes.liveness && quotes.liveness.note) w.line("warn", "[!] " + quotes.liveness.note);
+      // the administrator's platform host policy: unavailable means no host is admitted (never a silent fallback)
+      if (quotes.policy && quotes.policy.unavailable) w.line("warn", "[!] " + quotes.policy.note);
+    } else try {
       adoptFreePct(await Enclave.getAvailability());
       if (queuedVerdict(spec.gpuMilli / 10, spec.cpuMilli / 10))
         w.line("warn", "[!] the fleet is full for this size right now - after funding, the deployment waits as Queued and starts automatically the moment capacity frees up (queued time is never billed; the balance only burns while the app runs)");
@@ -166,6 +204,25 @@ export async function deployOnChain(spec){
     // rate estimate straight from the contract (same ceil math as create) -
     // best-effort with a hard cap so a slow RPC can never stall the deploy
     let rate6 = 0n;
+    if (INDEPENDENT_MODE){
+      const pinned = spec.pinHost ? quotes.hosts.find((h) => h.hostId === spec.pinHost.hostId) : null;
+      if (spec.pinHost && !pinned){ w.line("warn", "[x] the chosen host is not in the pinned registry - nothing was sent"); return; }
+      if (pinned && !pinned.eligible){ w.line("warn", "[x] the chosen host " + pinned.endpoint + " cannot take this now (" + pinned.reason + ") - nothing was sent"); return; }
+      const explicit = spec.maxRate6 != null && String(spec.maxRate6) !== "" ? BigInt(spec.maxRate6) : null;
+      if (explicit != null && explicit <= 0n){ w.line("warn", "[x] the price ceiling must be above zero - nothing was sent"); return; }
+      // the ceiling: the owner's explicit choice; else the chosen host's own total; else the cheapest charging host's
+      rate6 = explicit ?? (pinned ? pinned.rate6 : quotes.defaultCap6 ?? 0n);
+      if (rate6 <= 0n){ w.line("warn", "[x] no live registered host quotes this size right now - choose a ceiling and host explicitly, or try again later; nothing was sent"); return; }
+      if (pinned && pinned.rate6 > rate6){
+        w.line("warn", "[x] " + pinned.endpoint + " charges $" + (Number(pinned.rate6) * 3600 / 1e6).toFixed(2) + "/hr for this size, above your ceiling of $"
+          + (Number(rate6) * 3600 / 1e6).toFixed(2) + "/hr: it could never claim it. Raise the ceiling or choose another host - nothing was sent");
+        return;
+      }
+      const under = quotes.hosts.filter((h) => h.eligible && (h.free || h.rate6 <= rate6));
+      w.line("dimln", "    price ceiling $" + (Number(rate6) * 3600 / 1e6).toFixed(2) + "/hr (" + (explicit != null ? "your choice" : pinned ? "the chosen host's posted price" : "the cheapest live host's posted price")
+        + ") · " + under.length + " live host(s) post a price at or under it. A posted price is not reserved capacity: a host may be full or decline.");
+      if (pinned) w.line("dimln", "    pinned to host " + pinned.endpoint + " (" + pinned.hostId + "); hosts that follow placement pins leave it to that host, and the ledger does not enforce the pin");
+    } else
     try { rate6 = await Promise.race([depRate6(spec.gpuMilli, spec.cpuMilli), wait(6000).then(() => 0n)]); } catch(e){}
     // Does the deployer run their own enclave? A box that has declared THIS
     // wallet as its payout wallet hosts this deployment for nothing (ledger
@@ -177,7 +234,7 @@ export async function deployOnChain(spec){
     if (rate6 > 0n){
       const rate = Number(rate6 + fee6) / 1e6;   // the publisher's cut rides on top, exactly as create() adds it
       w.line("info", fund > 0
-        ? "    " + fund + " USDC ≈ " + fmtDur(fund / rate) + " of runtime at $" + (rate * 3600).toFixed(2) + "/hr"
+        ? "    " + fund + " USDC ≈ " + (INDEPENDENT_MODE ? "at least " : "") + fmtDur(fund / rate) + " of runtime at " + (INDEPENDENT_MODE ? "most " : "") + "$" + (rate * 3600).toFixed(2) + "/hr"
         : "    no funding now: the record is created with an empty balance (it would burn $" + (rate * 3600).toFixed(2) + "/hr once funded)");
       if (fee6 > 0n)
         w.line("info", "    includes the app's publisher fee: $" + (Number(fee6) * 3600 / 1e6).toFixed(2) + "/hr, paid to " + short(feeTo) + " out of each funding");
@@ -214,8 +271,11 @@ export async function deployOnChain(spec){
     }
     if (spec.waf) w.line("info", "    protection on: " + JSON.stringify({ waf: spec.waf }) + " (enforced per requester IP by the enclave's proxy)");
     if (spec.config) w.line("info", "    config override on: this deployment runs on YOUR config (the version's config stays the default for everyone else)");
-    w.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
-    w.line("info", "[*] confirm the create transaction in your wallet…");
+    const acctIdentity = INDEPENDENT_MODE && (await import("../core/identity.js")).currentIdentity().kind === "account";
+    if (!acctIdentity){
+      w.line("p", "$ EnclaveDeployments.create(…)  (wallet · one tx · you own the record)");
+      w.line("info", "[*] confirm the create transaction in your wallet…");
+    }
     // encode whichever create() shape the live contract speaks (depSchemaRev
     // sniffs once): rev 1 took a now-removed sshPubKey string before
     // configCid; rev 4 grew the publisher-fee snapshot (recipient, fee/sec)
@@ -241,6 +301,10 @@ export async function deployOnChain(spec){
       ...(rev >= 4 ? [{ t: "addr", v: feeTo || "0x" + "0".repeat(40) }, { t: "uint", v: fee6 }] : []),
       ...(rev >= 8 ? [{ t: "uint", v: maxRate6 }] : []),
     ]);
+    if (acctIdentity){
+      if (await accountCreate({ spec, w, fund, asset, fee6, appPort, portsCsv, envelope, maxRate6, cdata })) detached = true;
+      return;
+    }
     const chash = await sendTx(DEPLOYMENTS_ADDRESS, cdata);
     w.line("dimln", "  ↳ sent " + chash + " · waiting for confirmation…");
     const rcpt = await waitReceipt(chash);
@@ -258,6 +322,12 @@ export async function deployOnChain(spec){
     // burns), and is funded later from its row - or claimed for nothing by a
     // box that pays out to this wallet, whose zero price an empty balance
     // satisfies (rev 12 claimableBy). Only THAT case has a claim to watch for.
+    if (spec.prepareOnly){
+      w.line("ok", "[✓] created " + id + " with startup disabled until you commit its startup settings");
+      w.line("dimln", "    next: open its Startup tab, publish and commit the settings, then Top up - hosts can claim it only after both");
+      const dpp = depsPanel(); if (dpp) dpp.refresh({ highlight: id });
+      return;
+    }
     if (!(fund > 0)){
       w.line("ok", "[✓] created unfunded - " + id + " sits inert (costs nothing) until it has balance");
       if (!freeBoxes.length){
@@ -267,14 +337,9 @@ export async function deployOnChain(spec){
       }
       w.line("dimln", "    " + freeNames + " hosts it for nothing - watching for that claim");
     } else {
-      let pricing = null;
-      try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
       try {
-        await payForRuntime({
-          contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
-          usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          ethUsd: pricing && pricing.ethUsd,
-        }, fund, asset, w.line);
+        const pay = await fundingTerms();
+        await payForRuntime({ contract: DEPLOYMENTS_ADDRESS, deploymentRef: id, ...pay }, fund, asset, w.line);
       } catch(e){
         const rejected = (e && e.code === 4001) || /reject|denied|declin|cancell/i.test(e && e.message || "");
         w.line("warn", rejected ? "[x] funding rejected in wallet." : "[x] funding failed: " + (e.message || e));
@@ -294,11 +359,87 @@ export async function deployOnChain(spec){
     detached = true;
   } catch(e){
     if (w) w.line("warn", "[x] " + (e.message || String(e)));
-    if (w && e.status === 0) w.line("dimln", "    the API endpoint is unreachable right now - retry in a moment.");
+    if (w && e.status === 0 && !e.independent) w.line("dimln", "    the API endpoint is unreachable right now - retry in a moment.");
   } finally {
     if (!detached && w) w.end();
     refreshWallet();
   }
+}
+
+/* Create under a passkey account identity (independent mode, js/core/identity.js). The connected wallet only submits and
+   pays gas; the record is the account's:
+   - through the account's live SESSION (SessionVault deploy.create, funded from the session budget): its vault holds the
+     record as staging, and later changes need no passkey prompt;
+   - otherwise BY THE SAFE ITSELF (one passkey-approved Safe transaction calling the ledger's create): the Safe holds the
+     record. This covers what a session cannot do - a paid app, a record waiting for owner-committed startup settings,
+     ETH funding - and having no session. Funding then comes from the Safe's own USDC or ETH.
+   Resolves true once a claim watch runs detached (the caller must not end the run). */
+async function accountCreate({ spec, w, fund, asset, fee6, appPort, portsCsv, envelope, maxRate6, cdata }){
+  const ID = await import("../core/identity.js");
+  const acct = await ID.ensureIdentity();
+  if (acct.state !== "verified"){ w.line("warn", "[x] your passkey account " + acct.safe + " is not verified (" + (acct.reason || "still checking") + ") - nothing was sent"); return false; }
+  const S = await import("../core/sessions.js");
+  const c = await S.currentSession().catch(() => null);
+  const why = spec.prepareOnly ? "it waits for startup settings you commit" : fee6 > 0n ? "this app charges a publisher fee" : fund > 0 && asset === "ETH" ? "it is funded in ETH" : !c ? "no account session is open" : null;
+  let id, holder;
+  const ownGas = await import("../core/account-transport.js").then((m) => m.accountPaysOwnGas()).catch(() => false);
+  w.line("info", "    owner: passkey account " + short(acct.safe) + " · gas: " + (ownGas ? "paid by the account itself, through your bundler" : "your wallet " + short(Enclave.address) + " pays it and owns nothing"));
+  if (!why){
+    holder = String(c.session.handle.vault).toLowerCase();
+    w.line("p", "$ SessionVault.execute(deploy.create, …)  (your account's session · its vault " + short(holder) + " holds the record)");
+    w.line("dimln", "    held as staging: your account's sessions may change its version; switch it to production on its Environment tab");
+    let r;
+    try {
+      r = await S.sessionCall("deploy.create", { appRef: spec.reference, gpuMilli: spec.gpuMilli, cpuMilli: spec.cpuMilli, appPort, ports: portsCsv,
+        isPublic: !!spec.isPublic, configCid: envelope, maxRate6, env: "staging", fund6: BigInt(Math.round(fund * 1e6)) });
+    } catch(e){ w.line("warn", "[x] " + (e.message || e) + " - nothing was created"); return false; }
+    id = await createdIn(r.txHash, w);
+  } else {
+    holder = acct.safe;
+    w.line("p", "$ EnclaveDeployments.create(…)  (your passkey account itself · " + why + ")");
+    w.line("info", "[*] approve with your passkey…");
+    let h;
+    try { h = await S.safeExecute({ to: DEPLOYMENTS_ADDRESS, data: cdata }); }
+    catch(e){ w.line("warn", "[x] " + (e.message || e) + " - nothing was created"); return false; }
+    id = await createdIn(h, w);
+  }
+  const { row } = await (await import("../core/independent-chain.js")).deploymentAt(id);
+  if (!row || String(row.owner).toLowerCase() !== holder) throw new EnclaveError("created " + id + " but the ledger names " + (row && row.owner) + " as its owner, not " + holder, 0);
+  w.line("ok", "[✓] created " + id + " · held by your passkey account" + (holder === acct.safe ? "" : "'s session vault " + short(holder))
+    + (!why && fund > 0 ? " · funded $" + fund + " from the session budget" : ""));
+  if (spec.prepareOnly){
+    w.line("dimln", "    next: open its Startup tab, publish and commit the settings, then Top up - hosts can claim it only after both");
+    const dpp = depsPanel(); if (dpp) dpp.refresh({ highlight: id });
+    return false;
+  }
+  if (why && fund > 0){
+    try {
+      const pay = await fundingTerms();
+      await payForRuntime({ contract: DEPLOYMENTS_ADDRESS, deploymentRef: id, ...pay }, fund, asset, w.line);
+    } catch(e){
+      w.line("warn", "[x] funding failed: " + (e.message || e));
+      w.line("dimln", "    " + id + " exists on-chain but is unfunded (inert, costs nothing). Fund it any time from its row.");
+      offerRetry(w, id, fund, asset);
+      return false;
+    }
+  }
+  if (!(fund > 0)){
+    w.line("dimln", "    unfunded: it sits inert (costs nothing) until it has balance");
+    const dp = depsPanel(); if (dp) dp.refresh({ highlight: id });
+    return false;
+  }
+  watchClaimAndRun(id, null, w, spec.targetName || "")
+    .catch(e => w.line("warn", "[x] " + (e.message || String(e))))
+    .finally(() => { w.end(); refreshWallet(); });
+  return true;
+}
+async function createdIn(hash, w){
+  w.line("dimln", "  ↳ sent " + hash);
+  const rcpt = await waitReceipt(hash);
+  const clog = (rcpt.logs || []).find(l => (l.topics || [])[0] === DEP_CREATED_TOPIC && (l.address || "").toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase());
+  if (!clog) throw new EnclaveError("the create confirmed but no Created event found in the receipt", 0);
+  w.setId(clog.topics[1]);
+  return clog.topics[1];
 }
 
 /* The one deploy failure the reader can still fix from where they are
@@ -357,13 +498,7 @@ export async function retryFunding(id, usd, asset, run){
     }
     await ensureBaseChain();
     w.line("info", "[*] retrying the payment for " + id + "…");
-    let pricing = null;
-    try { pricing = await (await fetch(Enclave.base + "/pricing", { signal: AbortSignal.timeout(8000) })).json(); } catch(e){}
-    await payForRuntime({
-      contract: DEPLOYMENTS_ADDRESS, deploymentRef: id,
-      usdcDomain: pricing && pricing.usdcDomain, usdc: (pricing && pricing.usdc) || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      ethUsd: pricing && pricing.ethUsd,
-    }, usd, asset, w.line);
+    await payForRuntime({ contract: DEPLOYMENTS_ADDRESS, deploymentRef: id, ...(await fundingTerms()) }, usd, asset, w.line);
     watchClaimAndRun(id, null, w, "")
       .catch(e => w.line("warn", "[x] " + (e.message || String(e))))
       .finally(() => { w.end(); refreshWallet(); });
@@ -390,9 +525,11 @@ async function watchClaimAndRun(id, dPre, w, prefer){
   const leased = (d) => d && d.runner && !/^0x0+$/.test(d.runner) && d.leaseUntil * 1000 > Date.now();
   let claimed = leased(dPre) ? dPre : null;
   if (!claimed){
-    // nudge the fleet - otherwise the next sweep (<=60s) picks it up
-    w.line("info", "[*] hinting enclaves to claim…" + (prefer ? " (aimed at " + prefer + ")" : ""));
-    try {
+    // nudge the fleet - otherwise the next sweep (<=60s) picks it up. Independent mode sends no hint (it would go
+    // through the API): hosts find funded work on the ledger by themselves.
+    if (INDEPENDENT_MODE) w.line("info", "[*] waiting for a host to claim it from the ledger (hosts sweep funded work about once a minute; no API hint is sent)…");
+    else w.line("info", "[*] hinting enclaves to claim…" + (prefer ? " (aimed at " + prefer + ")" : ""));
+    if (!INDEPENDENT_MODE) try {
       const h = await (await fetch(Enclave.base + "/claim-hint", { method: "POST",
         headers: { "content-type": "application/json" }, body: hintBody })).json();
       if (h && h.accepted === false && h.reason) w.line("dimln", "    hint declined: " + h.reason + " (the sweep may still claim it)");
@@ -405,7 +542,7 @@ async function watchClaimAndRun(id, dPre, w, prefer){
       let d = null; try { d = await depGet(id); } catch(e){}
       if (leased(d)) claimed = d;
       else if (i === 1) w.line("info", "[*] waiting for an enclave to claim (the lease appears on-chain)…");
-      else if (i > 1 && i % 3 === 0){
+      else if (i > 1 && i % 3 === 0 && !INDEPENDENT_MODE){
         // Re-hint every ~6s until an enclave claims (was every 30s). The FIRST
         // hint usually races ahead of the funding tx being visible to the
         // fleet's (load-balanced) RPC node and is declined; a slow re-hint would
@@ -419,8 +556,10 @@ async function watchClaimAndRun(id, dPre, w, prefer){
           if (h && h.accepted === false && h.reason && h.reason !== lastReason){
             lastReason = h.reason;
             w.line("warn", "[!] fleet declines to claim: " + h.reason);
-            if (/yanked|not.approved|rejected|delisted|unlisted|below|minimum/i.test(h.reason)){
-              w.line("dimln", "    this won't resolve by waiting - fix the app version in the catalog. The deployment stays funded and is claimed automatically once deployable.");
+            if (/yanked|not.approved|rejected|delisted|unlisted/i.test(h.reason)){
+              w.line("dimln", "    this host declines the release; another host may accept it under its own policy. The deployment remains queued.");
+            } else if (/below|minimum/i.test(h.reason)){
+              w.line("dimln", "    check the deployment's resource allocation against the app's requirements. The deployment remains queued.");
               break;
             }
           }
@@ -433,6 +572,13 @@ async function watchClaimAndRun(id, dPre, w, prefer){
     }
   }
   w.line("ok", "[✓] claimed by enclave operator " + short(claimed.runnerOperator) + " · lease until " + new Date(claimed.leaseUntil * 1000).toLocaleTimeString());
+  if (INDEPENDENT_MODE){
+    // what the ledger proves, and nothing more: a host holds a paid lease. Whether the app answers is the host's
+    // word, read from the app itself (verify it with the native client using the full deployment id).
+    w.line("dimln", "    observed on the ledger at the pinned contract: runner " + claimed.runner + ", lease until " + new Date(claimed.leaseUntil * 1000).toISOString());
+    w.line("dimln", "    reach and verify it with the attestation-pinned native client: node scripts/network/native-get.mjs (full id " + id + ")");
+    const dpi = depsPanel(); if (dpi) dpi.refresh({ highlight: id }); return;
+  }
   const label = appLabel(id);
   w.line("dimln", "    app origin: https://" + label + "." + APP_DOMAIN + "  (first request may take a moment: the enclave fetches + verifies your wasm from IPFS)");
   if (!Enclave.authed() && !Enclave.sessionMayServe()){

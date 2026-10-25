@@ -1,80 +1,86 @@
 #!/usr/bin/env bash
-# ci-setup.sh - one-time provisioning for .github/workflows/deploy.yml.
-# Idempotent: re-run any time; it only (re)writes what it manages.
-#
-# Needs: gh (authed as a repo admin), ssh access to the site + relay boxes via
-# the `nan` / `nan-relay` aliases in ~/.ssh/config.
-#
-# What it sets up:
-#   - a dedicated CI deploy keypair (~/.ssh/nan-ci-deploy), installed on both boxes
-#   - repo secret  DEPLOY_SSH_KEY        (the private key CI ssh-es with)
-#   - repo vars    SITE_SSH_HOST, RELAY_SSH_HOST, DEPLOY_KNOWN_HOSTS, CONTRACTS_NETWORK
-#   - environment  contract-deploy      (required-reviewer gate for contract deploys)
-#
-# What it can NOT do for you (prints reminders):
-#   - DEPLOYER_PRIVATE_KEY: your funded Base EOA, set it yourself on the environment
-#   - ghcr Actions access for the sidecar packages (web UI only), or a CR_PAT secret
+# Provision CI for explicitly selected relay targets. No hosts are discovered or defaulted.
+# Required: RELAY_DEPLOY_ROLES, each selected RELAY_{API,DNS}_{TARGET,DIR},
+# KEYFILE (dedicated SSH deployment key), DEPLOY_KNOWN_HOSTS_FILE (verified host keys).
+# Targets must be reachable names/user@host on the CI runner, not local-only aliases.
+# --check-config validates without generating keys, connecting or changing GitHub.
+# Site publication uses its separate owner-authorized publication workflow.
 set -euo pipefail
-say() { printf '\033[1;36m[ci-setup]\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m[ci-setup] WARNING:\033[0m %s\n' "$*" >&2; }
-
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+say() { printf '[ci-setup] %s\n' "$*"; }
+die() { printf '[ci-setup] %s\n' "$*" >&2; exit 2; }
 REPO_SLUG="${REPO_SLUG:-EnclaveHost/enclave}"
-SITE_HOST="${SITE_HOST:-62.238.4.214}"
-RELAY_HOST="${RELAY_HOST:-46.62.128.36}"
-KEYFILE="${KEYFILE:-$HOME/.ssh/nan-ci-deploy}"
+[[ "$REPO_SLUG" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die 'REPO_SLUG must be owner/repository'
+[[ "${CONTRACTS_NETWORK:-base}" =~ ^[a-z][a-z0-9-]*$ ]] || die 'invalid CONTRACTS_NETWORK'
+[ "$#" -le 1 ] && { [ "$#" -eq 0 ] || [ "$1" = --check-config ]; } || die 'usage: ci-setup.sh [--check-config]'
+bash "$ROOT/relay/deploy.sh" --check-config
+[ -n "${KEYFILE:-}" ] || die 'KEYFILE is required: name a dedicated CI deployment key'
+[ -n "${DEPLOY_KNOWN_HOSTS_FILE:-}" ] || die 'DEPLOY_KNOWN_HOSTS_FILE is required: supply independently verified SSH host keys'
+[ -f "$DEPLOY_KNOWN_HOSTS_FILE" ] && [ -s "$DEPLOY_KNOWN_HOSTS_FILE" ] || die 'DEPLOY_KNOWN_HOSTS_FILE must be a nonempty regular file'
 
-# 1) CI deploy keypair
-if [ ! -f "$KEYFILE" ]; then
-  ssh-keygen -t ed25519 -N "" -C "nan-ci-deploy" -f "$KEYFILE"
-  say "generated $KEYFILE"
-else
-  say "reusing existing $KEYFILE"
-fi
-PUB="$(cat "$KEYFILE.pub")"
-
-# 2) install the public key on every box the deploy touches (your ssh aliases).
-# EXTRA_RELAY_HOSTS lists the data-plane relays beyond the first, space- or
-# comma-separated - the same aliases you put in the workflow's
-# EXTRA_RELAY_SSH_HOSTS var. A relay the key never reaches is a relay that
-# silently stops receiving deploys, which is how us-west spent weeks behind.
-for h in nan nan-relay $(printf '%s' "${EXTRA_RELAY_HOSTS:-}" | tr ',' ' '); do
-  if ssh -o BatchMode=yes -o ConnectTimeout=10 "$h" \
-      "mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys \
-       && grep -qF '$PUB' ~/.ssh/authorized_keys || echo '$PUB' >> ~/.ssh/authorized_keys"; then
-    say "CI key installed on $h"
-  else
-    warn "could not reach $h — install the key manually: cat $KEYFILE.pub | ssh $h 'cat >> ~/.ssh/authorized_keys'"
-  fi
+declare -A SEEN=()
+TARGETS=()
+read -ra ROLES <<<"${RELAY_DEPLOY_ROLES//,/ }"
+for role in "${ROLES[@]}"; do
+  var="RELAY_${role^^}_TARGET"; target=${!var}
+  if [ -z "${SEEN[$target]:-}" ]; then TARGETS+=("$target"); SEEN[$target]=1; fi
 done
+for target in "${TARGETS[@]}"; do
+  ssh-keygen -F "${target##*@}" -f "$DEPLOY_KNOWN_HOSTS_FILE" >/dev/null ||
+    die "verified host key missing for ${target##*@}; no SSH keys or GitHub settings were changed"
+done
+if [ "${1:-}" = --check-config ]; then
+  say "configuration valid for $REPO_SLUG; no keys, servers or GitHub settings changed"
+  exit 0
+fi
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15
+          -o "UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE")
+# Check every host before key generation, key installation or GitHub changes.
+for target in "${TARGETS[@]}"; do
+  ssh "${SSH_OPTS[@]}" "$target" true ||
+    die "cannot reach $target using its verified host key; no keys or GitHub settings were changed"
+done
+REVIEWER_ID=$(gh api user --jq .id)
+REVIEWER_LOGIN=$(gh api user --jq .login)
+[[ "$REVIEWER_ID" =~ ^[1-9][0-9]*$ ]] || die 'GitHub did not return a valid reviewer user ID'
 
-# 3) repo secret + vars
+if [ ! -e "$KEYFILE" ]; then
+  [ ! -e "$KEYFILE.pub" ] || die 'public key exists without its private key; choose an existing pair or a new KEYFILE'
+  (umask 077; ssh-keygen -t ed25519 -N '' -C enclave-ci-deploy -f "$KEYFILE")
+  say "generated dedicated key at $KEYFILE"
+fi
+[ -f "$KEYFILE" ] && [ -f "$KEYFILE.pub" ] || die 'KEYFILE and KEYFILE.pub must both be regular files'
+PUB=$(cat "$KEYFILE.pub")
+[[ "$PUB" != *$'\n'* && "$PUB" != *$'\r'* && "$PUB" =~ ^ssh-ed25519\ [A-Za-z0-9+/]+={0,2}(\ .*)?$ ]] ||
+  die 'dedicated deployment public key must be one ssh-ed25519 line'
+# Pass public key bytes through stdin, never interpolate them into remote shell code.
+for target in "${TARGETS[@]}"; do
+  ssh "${SSH_OPTS[@]}" "$target" 'set -eu
+    IFS= read -r key
+    umask 077
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    touch ~/.ssh/authorized_keys
+    chmod 600 ~/.ssh/authorized_keys
+    grep -qxF -- "$key" ~/.ssh/authorized_keys || printf "%s\n" "$key" >> ~/.ssh/authorized_keys' <<<"$PUB" ||
+      die "key installation failed on $target; earlier selected hosts may already have the key; GitHub settings were not changed"
+  say "CI public key installed on $target"
+done
 gh secret set DEPLOY_SSH_KEY -R "$REPO_SLUG" < "$KEYFILE"
-say "set secret DEPLOY_SSH_KEY"
-gh variable set SITE_SSH_HOST -R "$REPO_SLUG" -b "$SITE_HOST"
-gh variable set RELAY_SSH_HOST -R "$REPO_SLUG" -b "$RELAY_HOST"
+gh variable set RELAY_DEPLOY_ROLES -R "$REPO_SLUG" -b "$RELAY_DEPLOY_ROLES"
+for role in "${ROLES[@]}"; do
+  for field in TARGET DIR; do
+    var="RELAY_${role^^}_$field"
+    gh variable set "$var" -R "$REPO_SLUG" -b "${!var}"
+  done
+done
+gh variable set DEPLOY_KNOWN_HOSTS -R "$REPO_SLUG" < "$DEPLOY_KNOWN_HOSTS_FILE"
 gh variable set CONTRACTS_NETWORK -R "$REPO_SLUG" -b "${CONTRACTS_NETWORK:-base}"
-KNOWN="$(ssh-keyscan -t ed25519 "$SITE_HOST" "$RELAY_HOST" 2>/dev/null)"
-[ -n "$KNOWN" ] || { warn "ssh-keyscan returned nothing; DEPLOY_KNOWN_HOSTS not set"; exit 1; }
-gh variable set DEPLOY_KNOWN_HOSTS -R "$REPO_SLUG" -b "$KNOWN"
-say "set vars SITE_SSH_HOST=$SITE_HOST RELAY_SSH_HOST=$RELAY_HOST CONTRACTS_NETWORK=${CONTRACTS_NETWORK:-base} DEPLOY_KNOWN_HOSTS"
-
-# 4) review-gated environment: contract deploys.
-# Reviewer = the AUTHENTICATED USER, not the repo owner: when the repo lives
-# in an org, users/<owner> resolves to the ORG id and GitHub silently stores
-# an empty reviewer list — runs then wait on an approval nobody can give
-# (bit us live 2026-07-17: a gated run deadlocked "waiting").
-REVIEWER_ID="$(gh api user --jq .id)"
-REVIEWER_LOGIN="$(gh api user --jq .login)"
-for envname in contract-deploy; do
-  gh api -X PUT "repos/$REPO_SLUG/environments/$envname" \
-    --input - >/dev/null <<EOF
+# Retain the authenticated administrator's contract-deployment review gate.
+gh api -X PUT "repos/$REPO_SLUG/environments/contract-deploy" --input - >/dev/null <<EOF
 {"reviewers":[{"type":"User","id":$REVIEWER_ID}]}
 EOF
-  say "environment $envname created (required reviewer: $REVIEWER_LOGIN)"
-done
-
-say "still manual:"
-say "  1. gh secret set DEPLOYER_PRIVATE_KEY -R $REPO_SLUG --env contract-deploy   # funded Base EOA for contract deploys"
-say "  2. ghcr package settings for enclave-supervisor / enclave-wasm-manager: grant this repo"
-say "     'Actions access: write' (workflows auth with GITHUB_TOKEN only; the CR_PAT secret is retired -"
-say "     a brand-new package name needs one-time web-UI creation before its first push)"
+say "configured selected relay roles and contract-deploy reviewer $REVIEWER_LOGIN"
+say "No deployment was triggered. Existing unrelated repository variables were left untouched."
+say "Still manual: configure DEPLOYER_PRIVATE_KEY in contract-deploy if using CI contract deployment,"
+say "and grant the repository Actions write access to its GHCR packages."

@@ -604,6 +604,16 @@ async function acmePoll(ca, url, what, isOk, isBad, onTimeout = (msg) => caErr(m
 // Let's Encrypt token from the zone's shared budget.
 const pendingErr = (msg, ra) => Object.assign(new Error(msg), { orderPending: true,
   retryAfterSec: Number.isFinite(ra) && ra > 0 ? Math.min(ra, 300) : 30 });
+// A CA-level failure whose outcome at the CA is UNKNOWN - a timeout, a network error, a 5xx (the request may have
+// landed: a finalize the CA acted on, an order it is still issuing) - is not a verdict on an order we already placed.
+// From the finalize on (the order is persisted immediately BEFORE the finalize POST, once its authorization is valid),
+// such a failure KEEPS the persisted order (as `processing` does) and is answered orderPending: the next ask resumes it
+// on its own CA. Dropping it orphaned the certificate the CA was issuing and the next ask ordered afresh, on another CA
+// when this one was cooling (2026-10-21 19:06Z, ZeroSSL order poll timeout). Any 4xx is a verdict, not uncertainty: it
+// drops the order as before. Failures before the persist (order, challenge, authz) are unchanged: dropped. The kept
+// order stays bounded by ORDER_TTL_MS from its creation.
+const uncertain = (e) => e?.caLevel === true && !(e.status >= 400 && e.status < 500);
+const keptPending = (e) => Object.assign(e, { orderPending: true, retryAfterSec: Math.max(1, Math.ceil(CA_COOLDOWN_MS / 1000)) });
 // Poll a finalized order to its certificate. `rec` is the persisted order
 // record (dropped here on any terminal outcome, kept when still processing).
 async function acmeCollect(ca, key, rec, acct = ca.account) {
@@ -628,6 +638,11 @@ async function acmeCollect(ca, key, rec, acct = ca.account) {
   }
   const certPem = String(cert.data);
   const leaf = new X509Certificate(certPem);
+  // Accepted ONLY for the key and name we finalized with: `key` is "<name>|<sha256(CSR SPKI)>". A certificate for any
+  // other key or name (a CA fault, an order record that does not match its CSR) is refused and never cached.
+  const spki = createHash("sha256").update(leaf.publicKey.export({ type: "spki", format: "der" })).digest("hex");
+  if (spki !== String(key).slice(String(key).lastIndexOf("|") + 1) || !leaf.checkHost(rec.name))
+    throw new Error(`the certificate ${ca.name} returned for ${rec.name} is not for the requested key and name`);
   return { certPem, notBefore: new Date(leaf.validFrom).toISOString(), notAfter: new Date(leaf.validTo).toISOString(), ca: ca.name };
 }
 const dropOrder = (key) => { if (store.data.orders[key]) { delete store.data.orders[key]; store.saveSoon(); } };
@@ -656,7 +671,7 @@ async function acmeIssueViaOnce(ca, name, csrDer, key, txtName = `_acme-challeng
     rec.txtValue = dns01TxtValue(chal.token, acct.thumbprint);
     await dnsTxt("POST", rec.txtName, rec.txtValue);
   }
-  let keep = false;
+  let keep = false, persisted = false;
   try {
     if (rec.txtName) {
       const chal = authz.data.challenges.find((c) => c.type === "dns-01");
@@ -665,12 +680,16 @@ async function acmeIssueViaOnce(ca, name, csrDer, key, txtName = `_acme-challeng
       await acmePoll(ca, authzUrl, `authz for ${name}`, (a) => a.status === "valid",
                      (a) => ["invalid", "revoked", "deactivated", "expired"].includes(a.status), undefined, acct);
     }
+    // the authorization is valid: from the finalize on the order is the CA's to finish, and the CA may act on a finalize
+    // whose reply is lost. Persist it NOW so an uncertain failure, a `processing` past the deadline or a relay restart
+    // resumes instead of re-ordering
+    store.data.orders[key] = rec; store.saveSoon(); persisted = true;
     await acmePost(ca, rec.finalizeUrl, { csr: b64u(csrDer) }, { acct });
-    // from here the order is the CA's to finish: persist it so a `processing`
-    // past the deadline (or a relay restart) resumes instead of re-ordering
-    store.data.orders[key] = rec; store.saveSoon();
-    try { return await acmeCollect(ca, key, rec, acct); }
-    catch (e) { if (e.orderPending) keep = true; throw e; }
+    return await acmeCollect(ca, key, rec, acct);
+  } catch (e) {
+    if (e.orderPending) keep = true;
+    else if (persisted && uncertain(e)) { keep = true; keptPending(e); }
+    throw e;
   } finally {
     if (!keep) { dropOrder(key); txtCleanup(rec); }
   }
@@ -686,8 +705,11 @@ async function acmeResume(ca, key, rec) {
     const o = await acmePost(ca, rec.orderUrl, null, { acct });
     if (o.data.status === "ready") await acmePost(ca, rec.finalizeUrl, { csr: b64u(csrDer) }, { acct });
     else if (o.data.status === "pending") throw new Error(`resumed order for ${rec.name} is still pending (never validated)`);
-    try { return await acmeCollect(ca, key, rec, acct); }
-    catch (e) { if (e.orderPending) keep = true; throw e; }
+    return await acmeCollect(ca, key, rec, acct);
+  } catch (e) {
+    if (e.orderPending) keep = true;
+    else if (uncertain(e)) { keep = true; keptPending(e); }
+    throw e;
   } finally {
     if (!keep) { dropOrder(key); txtCleanup(rec); }
   }
@@ -700,6 +722,11 @@ async function acmeResume(ca, key, rec) {
 // retryAfterSec } when the CA is still finishing a persisted order.
 // A persisted order for this key is resumed FIRST, on its own CA, and costs
 // no pace token (the token was spent when it was placed).
+const keptCooling = (ca, name, e) => {
+  ca.downUntil = Date.now() + CA_COOLDOWN_MS;
+  console.warn(`[certs] ${ca.name}: ${e.message} — order for ${name} KEPT (outcome unknown at the CA), resumed on the next ask; `
+    + `cooling this CA off ${Math.round(CA_COOLDOWN_MS / 1000)}s for new orders`);
+};
 async function acmeIssue(name, csrDer, key, txtName) {
   const now = Date.now();
   const held = store.data.orders[key];
@@ -725,7 +752,7 @@ async function acmeIssue(name, csrDer, key, txtName) {
         return issued;
       } catch (e) {
         lastErr = e;
-        if (e.orderPending) throw e;
+        if (e.orderPending) { if (e.caLevel) keptCooling(ca, name, e); throw e; }
         if (e.caLevel) {
           ca.downUntil = Date.now() + CA_COOLDOWN_MS;
           cooledNow.push(ca);
@@ -744,7 +771,7 @@ async function acmeIssue(name, csrDer, key, txtName) {
       return issued;
     } catch (e) {
       lastErr = e;
-      if (e.orderPending) throw e;
+      if (e.orderPending) { if (e.caLevel) keptCooling(ca, name, e); throw e; }
       if (e.caLevel) {
         ca.downUntil = Date.now() + CA_COOLDOWN_MS;
         cooledNow.push(ca);
@@ -761,7 +788,7 @@ async function acmeIssue(name, csrDer, key, txtName) {
         return issued;
       } catch (e) {
         lastErr = e;
-        if (e.orderPending) throw e;
+        if (e.orderPending) { if (e.caLevel) keptCooling(ca, name, e); throw e; }
         if (e.caLevel) ca.downUntil = Date.now() + CA_COOLDOWN_MS;
       }
     }

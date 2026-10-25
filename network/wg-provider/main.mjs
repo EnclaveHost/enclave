@@ -1,18 +1,27 @@
 // enclave-wg-provider: runs an Enclave-network provider on a Linux server with a public IPv4 address.
 //   node wg-provider.mjs /etc/enclave-network/provider.json
+//   node wg-provider.mjs --check-config <provider.json>     (validate the bootstrap and exit; install.sh runs it)
+//   node wg-provider.mjs --ruleset <provider.json>          (print the nftables table this configuration applies, and exit:
+//                                                            `nft -c -f` it BEFORE a restart - a kernel without the DNS
+//                                                            expressions would refuse it at start)
 // config: {operatorKeyFile, publicAddress, uplink, roles, pricePerGiB6, region, kind, hostId, ports:{exit,guard,control},
+//          bootstrap: "explicit" | "legacy" (default), authorityPins, directories:[...],
 //          rpc:[two or more https], addressBook, relay, checkers:[...], zone, probeZone, stateDir,
 //          budget:{monthlyBytes, stopAt},   (budget: outbound bytes this month; at stopAt the provider stops accepting)
-//          proofKeyFile}                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
+//          proofKeyFile,                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
 //                                            [kind community, hostId], co-signs receipts with that host's proof key)
+//          hostServices}                    (optional: registered hosts' own public service names and DNS 53, as raw
+//                                            packets; wg-provider/host-services-config.mjs)
 import fs from 'node:fs/promises';
+import fs_sync from 'node:fs';
 import path from 'node:path';
 import {privateKeyToAccount} from 'viem/accounts';
 import {createPublicClient,http} from 'viem';
 import {base} from 'viem/chains';
+import {DirectoryClient} from '../directory-client.mjs';
 import {LeaseReader} from '../lease-reader.mjs';
 import {WgProvider} from './provider.mjs';
-import {Kernel} from './kernel.mjs';
+import {Kernel,ruleset} from './kernel.mjs';
 import {createRouter} from './router.mjs';
 import {createControl} from './control.mjs';
 import {providerIdFor,signProviderRecord,verifyProviderRecord} from '../provider-directory.mjs';
@@ -20,35 +29,67 @@ import {verifyOwnerSignature} from '../owner-signature.mjs';
 import {PeerMeter,createReceiptCosigner} from './paid.mjs';
 import {connectivityAddress,submitAttestations,ensureHost} from '../onchain-qualification.mjs';
 import {createWalletClient} from 'viem';
+import {resolveProviderBootstrap} from '../service-index.mjs';
+import {providerHostServices,hostServicesPolicyEnv,providerDnsPlan} from './host-services-config.mjs';
+import {probeDns} from './dns-probe.mjs';
+import {resolveHostPolicyConfig} from '../platform-host-policy-config.mjs';
+import {createHostPolicyRuntime,fileStore} from '../host-policy-runtime.mjs';
 
 const log=m=>console.log(new Date().toISOString(),m);
-const cfg=JSON.parse(await fs.readFile(process.argv[2]||'/etc/enclave-network/provider.json','utf8'));
+function commandOnPath(name){for(const d of String(process.env.PATH||'').split(':').filter(Boolean)){const f=path.join(d,name);try{fs_sync.accessSync(f,fs_sync.constants.X_OK);return f;}catch{}}return null;}
+const checkOnly=process.argv[2]==='--check-config',rulesetOnly=process.argv[2]==='--ruleset';
+const cfg=JSON.parse(await fs.readFile((checkOnly||rulesetOnly?process.argv[3]:process.argv[2])||'/etc/enclave-network/provider.json','utf8'));
+// WHO THIS PROVIDER TRUSTS AND ASKS (network/service-index.mjs resolveProviderBootstrap). "explicit": the operator's own
+// pins, RPCs, directories, checkers and zones; no address book, no relay fallback, no enclave.host default. "legacy" (an
+// installed provider's config, unchanged): Enclave's defaults exactly as before.
+const boot=resolveProviderBootstrap(cfg);
+const hostServices=providerHostServices(cfg.hostServices,{zone:boot.zone,probeZone:boot.probeZone,roles:cfg.roles||[]});
+// DNS 53 forwarding needs conntrack-tools: on a target change kernel.mjs deletes the UDP flows still DNATed to the old host
+// (without it they stay there up to the kernel's udp stream timeout, 120 s - measured on ca-east). Only with hostServices.dns.
+const conntrack=hostServices?.dns?commandOnPath('conntrack'):null;
+// FAIL CLOSED: without conntrack-tools this provider forwards no DNS at all (no DNS rules, no pinned hosts) - an unflushable
+// failover could keep steady resolvers on a removed host indefinitely. Its transport roles are unaffected.
+const dnsPlan=providerDnsPlan(hostServices,conntrack),dnsOn=dnsPlan.on;
+if(rulesetOnly){process.stdout.write(ruleset({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',dns:hostServices?.dns?.limits||null}));process.exit(0);}
+if(checkOnly){
+ if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
+ console.log(JSON.stringify({ok:true,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+  pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes,
+  hostServices:hostServices&&{zone:hostServices.zone,platformHostPolicy:typeof hostServices.platformHostPolicy==='string'?hostServices.platformHostPolicy:'explicit',maxHosts:hostServices.maxHosts,dnsHosts:hostServices.dns?.hosts.length||0,
+   ...(hostServices.dns?{conntrack:conntrack||null}:{})}}));
+ if(hostServices?.dns&&!conntrack){console.error('hostServices.dns needs conntrack (conntrack-tools): a DNS failover must move open UDP flows to the new host. Install it (install.sh does) or remove hostServices.dns');process.exit(1);}
+ process.exit(0);
+}
 const account=privateKeyToAccount((await fs.readFile(cfg.operatorKeyFile,'utf8')).trim());
+log(`bootstrap: ${boot.mode}; directories ${boot.directories.join(',')}; ${boot.authorityPins?'pinned contracts':'address book '+boot.addressBook}`);
+for(const n of boot.notes)log('bootstrap: '+n);
+const directories=new DirectoryClient({origins:boot.directories});
 const ports={exit:51820,guard:51821,control:51822,...cfg.ports};
 const providerId=providerIdFor(account.address,cfg.publicAddress);
 const stateDir=cfg.stateDir||'/var/lib/enclave-network';await fs.mkdir(stateDir,{recursive:true,mode:0o700});
 if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
 
-const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,log});
-const keys=await kernel.ensure();
 // A paid provider charges through the on-chain connectivity contract: it must be a registry host that can sign receipts.
 const paid=(cfg.pricePerGiB6||0)>0;
 if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
-const leases=new LeaseReader({rpc:cfg.rpc,addressBook:cfg.addressBook,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{})});
+const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{})});
 const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
-// wallet, passkey vault (ERC-1271) or SessionVault owners: every RPC must agree the signature is valid.
-const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({clients,owner,message,signature,addressBook:cfg.addressBook});
+// Owner signatures use the same fresh chain quorum and explicit factory binding.
+const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
+const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,dns:dnsPlan.limits,log});
+const keys=await kernel.ensure();
 const policyFile=path.join(stateDir,'policy-nonces.json');
 let nonces={};try{nonces=JSON.parse(await fs.readFile(policyFile,'utf8'));}catch{}
 const policyMemory={get:async id=>nonces[id],set:async(id,n)=>{nonces[id]=n;await fs.writeFile(policyFile+'.tmp',JSON.stringify(nonces),{mode:0o600});await fs.rename(policyFile+'.tmp',policyFile);}};
-const relayJSON=async p=>{const r=await fetch(cfg.relay+p,{signal:AbortSignal.timeout(10000)});if(r.status===404)return null;if(!r.ok)throw new Error(`relay ${p}: HTTP ${r.status}`);return r.json();};
+const relayJSON=async p=>{const r=await fetch(boot.relay+p,{signal:AbortSignal.timeout(10000)});if(r.status===404)return null;if(!r.ok)throw new Error(`relay ${p}: HTTP ${r.status}`);return r.json();};
 let domainMap={at:0,map:{}};
-const domains=async id=>{if(Date.now()-domainMap.at>60000){try{const m=await relayJSON('/v1/domains/map');domainMap={at:Date.now(),map:m||{}};}catch(e){log(e.message);}}
+// Custom-domain names come only from a relay the configuration names; without one only app-zone names are served.
+const domains=async id=>{if(!boot.relay)return [];if(Date.now()-domainMap.at>60000){try{const m=await relayJSON('/v1/domains/map');domainMap={at:Date.now(),map:m||{}};}catch(e){log(e.message);}}
  return Object.entries(domainMap.map?.domains||domainMap.map||{}).filter(([,v])=>(v?.deploymentId||v)===id).map(([k])=>k.toLowerCase());};
 let targetCache={at:0,list:[]};
 const targets=async()=>{
  if(Date.now()-targetCache.at<60000)return targetCache.list;
- try{const d=await relayJSON('/v1/network/providers');
+ try{const d=await directories.providers({hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}});
   // A guard may forward to any provider with a current, operator-signed record that offers an exit role - qualified
   // or not, so qualification itself can test guard paths. Which exits a host USES is decided by qualification, on the host.
   const ok=[];for(const e of d?.providers||[]){try{ok.push(await verifyProviderRecord(e.record,{hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}}));}catch{}}
@@ -57,9 +98,25 @@ const targets=async()=>{
  return targetCache.list;
 };
 const config={providerId,hostId:cfg.hostId||null,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,publicAddress:cfg.publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],
- ports,zone:cfg.zone||'app.enclave.host',probeZone:cfg.probeZone||'probe.enclave.host',checkers:cfg.checkers||[]};
+ ports,zone:boot.zone,probeZone:boot.probeZone,checkers:cfg.checkers||[],
+ ...(hostServices?{hostServices:{zone:hostServices.zone,platformHostPolicy:hostServices.platformHostPolicy==='off'?'off':'on',maxHosts:hostServices.maxHosts,
+  ...(dnsPlan.pins?{dns:dnsPlan.pins}:{})}}:{})};
+// Host services obey the platform host policy exactly as every other enforcement point: the admin's bans and allowlist,
+// at agreed blocks, only an explicit admit grants (host-policy-adapters.mjs hostAdmissions). "off" is explicit and loud.
+let hostAdmission=null;
+if(hostServices){
+ if(dnsPlan.reason)log('DNS 53 NOT FORWARDED: '+dnsPlan.reason+' (install conntrack, then restart)');
+ const env=hostServicesPolicyEnv(hostServices);
+ if(!env)log('host services: platform host policy is EXPLICITLY OFF (development only; not a production transport profile)');
+ // the accepted policy persists under stateDir (as host-service-gate does): a restart while the policy mirrors are
+ // unreachable keeps judging hosts against the last ANCHORED, signed policy - every decision is still made at a fresh
+ // agreed block, an unanchored or rotated authority still refuses, and only an explicit admit grants (final review N4)
+ else{const resolved=resolveHostPolicyConfig({env,chainId:8453});const rt=createHostPolicyRuntime(resolved,{log,store:fileStore(path.join(stateDir,'platform-host-policy.json'))});
+  if(!rt)throw new Error('host services: the platform host policy did not resolve');hostAdmission=rt.admissions;}
+ log(`host services: zone ${hostServices.zone}, at most ${hostServices.maxHosts} hosts; DNS 53 ${hostServices.dns?'to one of '+hostServices.dns.hosts.length+' pinned host(s)':'not forwarded'}`);
+}
 // a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement
-const registryAddress=async()=>{const [c]=clients;return c.readContract({address:cfg.addressBook,abi:[{type:'function',name:'addr',stateMutability:'view',inputs:[{type:'bytes32'}],outputs:[{type:'address'}]}],functionName:'addr',args:['0x'+Buffer.from('registry').toString('hex').padEnd(64,'0')]});};
+const registryAddress=()=>leases.bookAddress('registry');
 let registry;const hosts=async id=>{registry||=await registryAddress();const [h]=await leases.registryEntries(registry,[id]);return h||null;};
 // the peer table on disk: a restart (an update) keeps every peer at its tunnel address
 const peerFile=path.join(stateDir,'peers.json');
@@ -68,7 +125,9 @@ let saving=Promise.resolve(),seq=0;
 const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'utf8'));}catch{return null;}},
  save:v=>(saving=saving.catch(()=>{}).then(async()=>{const tmp=`${peerFile}.${process.pid}.${++seq}.tmp`;await fs.writeFile(tmp,JSON.stringify(v),{mode:0o600});await fs.rename(tmp,peerFile);}))};
 const lastLease=new Map();
-const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,store,
+// a pinned DNS host receives 53 only while its route-dns answers an SOA question for the zone through its tunnel
+const dnsProbe=dnsOn?address=>probeDns({address,zone:hostServices.zone}):null;
+const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,hostAdmission,dnsProbe,store,
  leases:async(id,{renewal=false}={})=>{
   try{const l=(await leases.readSnapshot([id]))[0]||null;if(l)lastLease.set(id,{l,at:Date.now()});return l;}
   catch(e){
@@ -78,7 +137,7 @@ const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,ver
    if(renewal&&c&&Date.now()-c.at<10*60000&&Number(c.l.leaseUntil)>Date.now()){log(`lease ${id.slice(0,10)}: ${e.message}; using the agreeing read from ${Math.round((Date.now()-c.at)/1000)} s ago`);return {...c.l,validUntil:Date.now()+30000};}
    throw e;
   }},
- currentPolicy:async id=>(await relayJSON('/v1/network/policy/'+id))?.envelope||null});
+ currentPolicy:(id,owner)=>directories.policy(id,{owner,verify:verifyOwner})});
 log(`restored ${await provider.restore()} peer(s) from the last run`);
 let receipt=null;
 if(paid){
@@ -91,9 +150,9 @@ if(paid){
  // submitted while it serves (each lasts at most 5 minutes); the operator key pays the gas.
  const wallet=createWalletClient({account,chain:base,transport:http(cfg.rpc[0],{timeout:15000})}),[client]=clients;
  const onchain=async()=>{
-  const connectivity=await connectivityAddress(client,cfg.addressBook);if(!connectivity)return;
+  const connectivity=leases.authorityPins?.connectivity??await connectivityAddress(client,boot.addressBook);if(!connectivity||/^0x0{40}$/i.test(connectivity))return;
   if(await ensureHost({wallet,client,connectivity,hostId:cfg.hostId,pricePerGiB6:cfg.pricePerGiB6}))log(`on chain: offering network service at ${cfg.pricePerGiB6} per GiB`);
-  const d=await relayJSON('/v1/network/providers');const mine=d?.providers?.find(e=>e.record?.record?.providerId===providerId);
+  const d=await directories.providers({hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}});const mine=d?.providers?.find(e=>e.record?.record?.providerId===providerId);
   const sent=await submitAttestations({wallet,client,connectivity,hostId:cfg.hostId,address:cfg.publicAddress,attestations:(mine?.qualifications||[]).map(x=>x.onchain).filter(Boolean)});
   if(sent)log(`on chain: ${sent} checker attestation(s) submitted`);
  };
@@ -107,7 +166,7 @@ const count=(to,up,down)=>{const m=meter.get(to)||{up:0,down:0};m.up+=up;m.down+
 const localRoutes=new Map(Object.entries(cfg.localRoutes||{}).filter(([n,r])=>/^[a-z0-9.-]{1,253}$/.test(n)&&r&&/^127\.\d+\.\d+\.\d+$/.test(r.host)
  &&Number.isInteger(r.tls)&&Number.isInteger(r.http)).map(([n,r])=>[n,{host:r.host,tls:r.tls,http:r.http}]));
 const routeOf=n=>localRoutes.get(n)||provider.route(n);
-const routes=[await createRouter({port:443,route:routeOf,tls:true,count,log}),await createRouter({port:80,route:routeOf,tls:false,count,log})];
+const routes=[await createRouter({port:443,route:routeOf,tls:true,noSniRoute:cfg.noSniRoute??null,count,log}),await createRouter({port:80,route:routeOf,tls:false,count,log})];
 const control=await createControl({provider,receipt,port:ports.control,log,info:()=>({providerId,operator:account.address.toLowerCase(),address:cfg.publicAddress,roles:cfg.roles,
  pricePerGiB6:config.pricePerGiB6,keys:{exit:keys['wg-exit'],guard:keys['wg-guard']},ports,region:cfg.region,kind:cfg.kind||'enclave'})});
 
@@ -129,8 +188,7 @@ async function publish(){
  const record={version:1,providerId,operator:account.address.toLowerCase(),address:cfg.publicAddress,wgExitKey:keys['wg-exit'],wgGuardKey:keys['wg-guard'],ports,
   roles:provider.accepting?cfg.roles:[],pricePerGiB6:config.pricePerGiB6,region:cfg.region||'unknown',kind:cfg.kind||'enclave',hostId:cfg.hostId||null,issuedAt:now,expiresAt:now+30*60000};
  const env=await signProviderRecord(account,record);
- const r=await fetch(cfg.relay+'/v1/network/providers',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(env),signal:AbortSignal.timeout(10000)});
- if(!r.ok)throw new Error('publish provider record: HTTP '+r.status+' '+(await r.text()).slice(0,200));
+ await directories.publish('/v1/network/providers',env);
 }
 const every=(ms,f,name)=>{const go=()=>f().catch(e=>log(`${name}: ${e.message}`));setInterval(go,ms).unref?.();return go();};
 await every(60000,checkBudget,'budget');

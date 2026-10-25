@@ -248,6 +248,7 @@ static void insmod_args(const char *p, const char *args) {
     close(fd);
 }
 static void insmod(const char *p) { insmod_args(p, ""); }
+#include "modelvol.h"   /* the deployment's model volumes: pinned-root dm-verity mounts, /models preopens, ggml preloads */
 
 /* the kernel gives lo 127.0.0.1/8 itself once it is up */
 static void lo_up(void) {
@@ -465,6 +466,87 @@ static void seccomp_statement_from(int fd, pid_t child) {
 }
 
 static int public_https_egress; /* only the authenticated front handoff can enable it */
+
+/* Encrypted volumes (isolation/m2/encvol, front/encvol.go): the front stages /enc/<name> (a sized tmpfs owned by the
+ * app's uid) and serves the token-gated plane on this guest's loopback; init only learns, after the config, the plane's
+ * URL, the deployment's token and the names, and gives the app the live preopens and three env values. The token is
+ * the app's own credential for that plane; it is never printed, and travels to the app only in its environment. */
+#define ENC_MAX 8
+#ifndef ENC_ROOT
+#define ENC_ROOT "/enc"   /* where the front stages volumes; a test harness compiles another host-side root */
+#endif
+static int enc_n;
+static char enc_names[ENC_MAX][65];
+static char enc_dir_args[ENC_MAX][300];       /* "<ENC_ROOT>/<name>::/enc/<name>" */
+static char enc_env_names[16 + ENC_MAX * 65]; /* ENCLAVE_ENC=a,b */
+static char enc_env_api[200];                 /* ENCLAVE_ENC_API=http://127.0.0.1:N/encvol/0x<64 hex> */
+static char enc_env_token[80];                /* ENCLAVE_ENC_TOKEN=<48 hex> */
+
+static int enc_name_ok(const char *v, size_t n) {   /* ^[a-z0-9][a-z0-9._-]{0,63}$ (_VOL_NAME_RE) */
+    if (n < 1 || n > 64) return 0;
+    for (size_t i = 0; i < n; i++) {
+        char c = v[i];
+        int alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+        if (!alnum && (i == 0 || (c != '.' && c != '_' && c != '-'))) return 0;
+    }
+    return 1;
+}
+static int enc_hex_ok(const char *v, size_t n) {
+    for (size_t i = 0; i < n; i++) if (!((v[i] >= '0' && v[i] <= '9') || (v[i] >= 'a' && v[i] <= 'f'))) return 0;
+    return 1;
+}
+/* The app's three encrypted-volume values, appended to envp at ei (none without volumes). -> the new ei. */
+static int enc_env(char **envp, int ei) {
+    if (enc_n > 0) {
+        envp[ei++] = enc_env_names;
+        envp[ei++] = enc_env_api;
+        envp[ei++] = enc_env_token;
+    }
+    return ei;
+}
+/* "E1\n" "api=http://127.0.0.1:<port>/encvol/0x<64 hex>\n" "token=<48 hex>\n" then 1..8 "vol=<name>\n", nothing else. */
+static const char *enc_trailer(const char *t, size_t n) {
+    static const char api_pre[] = "http://127.0.0.1:";
+    int got_api = 0, got_tok = 0;
+    enc_n = 0;
+    if (n < 3 || memcmp(t, "E1\n", 3) != 0) return "sent an encrypted-volume trailer that is not E1";
+    size_t i = 3;
+    while (i < n) {
+        const char *nl = memchr(t + i, '\n', n - i);
+        if (!nl) return "sent an encrypted-volume trailer with an unterminated line";
+        const char *l = t + i;
+        size_t ll = (size_t)(nl - l);
+        if (ll > 4 && memcmp(l, "api=", 4) == 0 && !got_api) {
+            const char *v = l + 4; size_t vl = ll - 4, pl = sizeof api_pre - 1;
+            if (vl <= pl || memcmp(v, api_pre, pl) != 0) return "sent an encrypted-volume plane that is not on this guest's loopback";
+            size_t j = pl, digits = 0;
+            while (j < vl && v[j] >= '0' && v[j] <= '9') { j++; digits++; }
+            if (digits < 1 || digits > 5 || vl - j != 8 + 2 + 64 || memcmp(v + j, "/encvol/0x", 10) != 0 || !enc_hex_ok(v + j + 10, 64))
+                return "sent a malformed encrypted-volume plane URL";
+            snprintf(enc_env_api, sizeof enc_env_api, "ENCLAVE_ENC_API=%.*s", (int)vl, v);
+            got_api = 1;
+        } else if (ll == 6 + 48 && memcmp(l, "token=", 6) == 0 && !got_tok) {
+            if (!enc_hex_ok(l + 6, 48)) return "sent a malformed encrypted-volume token";
+            snprintf(enc_env_token, sizeof enc_env_token, "ENCLAVE_ENC_TOKEN=%.*s", 48, l + 6);
+            got_tok = 1;
+        } else if (ll > 4 && memcmp(l, "vol=", 4) == 0) {
+            if (enc_n >= ENC_MAX || !enc_name_ok(l + 4, ll - 4)) return "sent a bad or excess encrypted volume name";
+            for (int k = 0; k < enc_n; k++) if (strlen(enc_names[k]) == ll - 4 && memcmp(enc_names[k], l + 4, ll - 4) == 0)
+                return "sent a duplicate encrypted volume name";
+            memcpy(enc_names[enc_n], l + 4, ll - 4);
+            enc_names[enc_n][ll - 4] = 0;
+            snprintf(enc_dir_args[enc_n], sizeof enc_dir_args[enc_n], ENC_ROOT "/%s::/enc/%s", enc_names[enc_n], enc_names[enc_n]);
+            enc_n++;
+        } else {
+            return "sent an encrypted-volume trailer with an unexpected line";
+        }
+        i += ll + 1;
+    }
+    if (!got_api || !got_tok || enc_n == 0) { enc_n = 0; return "sent an incomplete encrypted-volume trailer"; }
+    size_t o = (size_t)snprintf(enc_env_names, sizeof enc_env_names, "ENCLAVE_ENC=");
+    for (int k = 0; k < enc_n; k++) o += (size_t)snprintf(enc_env_names + o, sizeof enc_env_names - o, "%s%s", k ? "," : "", enc_names[k]);
+    return NULL;
+}
 static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
 /* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
  * holds it), handed to the child, and read to EOF - until the child's exec closes its end - so the positive line and the
@@ -659,6 +741,8 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
             envp[ei++] = shield_models_env;
             envp[ei++] = shield_preloads_env;
         }
+        if (drop) ei = enc_env(envp, ei);   /* the app only: the plane's URL, its token, the volume names */
+        if (drop) ei = mv_env(envp, ei);    /* the app only: ENCLAVE_MODELS, preloads and the ggml CPU backend */
         envp[ei++] = extra; envp[ei] = NULL;
         execve(argv[0], argv, envp);
         if (con >= 0) dprintf(con, "DOM ERROR exec %s: %s\n", argv[0], strerror(errno));
@@ -672,8 +756,27 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
  * length; on "N" *env stays NULL. Anything else - an empty pipe (the front died first), one byte over the ceiling, a
  * NUL, another tag - returns why, and the caller does not start the app. The read buffer is wiped either way. */
 #define CFG_MAX 65536
+#define ENC_TRAILER_MAX 2048   /* E1 (~711 bytes at most) + NUL + M1 (3 + 8 names of <= 69 each: ~555) */
+/* After the config's NUL: up to two blocks, NUL-separated, each at most once - "E1" (encrypted volumes, enc_trailer)
+ * and "M1" (model volumes, model_block). Anything else is refused and enables nothing. */
+static const char *front_blocks(const char *t, size_t n) {
+    int seen_e = 0, seen_m = 0;
+    for (int b = 0; b < 2 && n; b++) {
+        const char *z = memchr(t, 0, n);
+        size_t bl = z ? (size_t)(z - t) : n;
+        const char *why;
+        if (bl >= 3 && memcmp(t, "E1\n", 3) == 0 && !seen_e) { why = enc_trailer(t, bl); seen_e = 1; }
+        else if (bl >= 3 && memcmp(t, "M1\n", 3) == 0 && !seen_m) { why = model_block(t, bl); seen_m = 1; }
+        else why = "sent a trailer block that is neither E1 nor M1, or one twice";
+        if (why) return why;
+        if (!z) return NULL;
+        t = z + 1; n -= bl + 1;
+        if (!n) return "sent an empty trailer block";
+    }
+    return n ? "sent more trailer blocks than init reads" : NULL;
+}
 static const char *read_front_msg(int fd, char **env, size_t *len) {
-    static char msg[1 + CFG_MAX + 1];
+    static char msg[1 + CFG_MAX + 1 + ENC_TRAILER_MAX];   /* the config's ceiling, plus room for the bounded trailer */
     static const char pre[] = "ENCLAVE_CONFIG=";
     size_t n = 0;
     const char *why = NULL;
@@ -684,15 +787,24 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
         n += (size_t)r;
         if (n == sizeof msg) break;
     }
+    const size_t total = n;   /* what was read, trailer included: all of it is wiped below */
     *env = NULL;
     *len = 0;
     public_https_egress = 0;
+    enc_n = 0;
+    mv_n = 0;
+    /* an encrypted-volume trailer follows the config after its first NUL (a config never holds one: the front's
+     * appconfig refuses it); the config part keeps every rule below */
+    size_t end = n;
+    const char *nul = n > 1 ? memchr(msg + 1, 0, n - 1) : NULL;
+    if (nul && (msg[0] == 'C' || msg[0] == 'P') && n < sizeof msg) end = (size_t)(nul - msg);
     if (n == 0) why = "ended before it handed over the app's config";
     else if (n == 1 && msg[0] == 'N') why = NULL;
-    else if ((msg[0] != 'C' && msg[0] != 'P') || n < 2) why = "sent no valid config message";
-    else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
-    else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
+    else if ((msg[0] != 'C' && msg[0] != 'P') || end < 2) why = "sent no valid config message";
+    else if (n == sizeof msg || end - 1 > CFG_MAX) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
+    else if (end < n && (why = front_blocks(msg + end + 1, n - end - 1)) != NULL) { /* why says what was wrong */ }
     else {
+        n = end;
         *len = n - 1;
         *env = malloc(sizeof pre + *len);
         if (!*env) why = "sent a config there was no memory for";
@@ -703,7 +815,8 @@ static const char *read_front_msg(int fd, char **env, size_t *len) {
             public_https_egress = msg[0] == 'P';
         }
     }
-    explicit_bzero(msg, n);
+    if (why) enc_n = mv_n = 0;   /* a refused message enables nothing */
+    explicit_bzero(msg, total);
     return why;
 }
 
@@ -711,6 +824,45 @@ static double now_ms(void) {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     return t.tv_sec * 1e3 + t.tv_nsec / 1e6;
+}
+
+/* The app's runtime argv: `base` (serve or run) with what this domain grants inserted before /app.wasm - public HTTPS
+ * egress, ENCLAVE_CONFIG, the encrypted volumes' preopens and env names, the Shield model. Values never ride argv:
+ * each --env NAME takes its value from the environment spawn() builds. -> the count; app[count] = NULL. */
+static int app_argv(char *const *base, char **app, const char *cfg_env) {
+    int k = 0;
+    for (int i = 0; base[i]; i++) {
+        if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++] = "-S"; app[k++] = "egress=127.0.0.2:1080";
+        }
+        if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++] = "--env";
+            app[k++] = "ENCLAVE_CONFIG";
+        }
+        if (strcmp(base[i], "/app.wasm") == 0) k = mv_argv(app, k);   /* model volumes: -S nn, preloads, ro preopens */
+        if (enc_n && strcmp(base[i], "/app.wasm") == 0) {   /* live preopens; the values ride the environment (spawn) */
+            for (int e = 0; e < enc_n; e++) { app[k++] = "--dir"; app[k++] = enc_dir_args[e]; }
+            app[k++] = "--env"; app[k++] = "ENCLAVE_ENC";
+            app[k++] = "--env"; app[k++] = "ENCLAVE_ENC_API";
+            app[k++] = "--env"; app[k++] = "ENCLAVE_ENC_TOKEN";
+        }
+        if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++]="-S"; app[k++]="nn";
+            if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
+            app[k++]="--dir"; app[k++]="/models::/models";
+            app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
+            app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
+            app[k++]="--env"; app[k++]="ENCLAVE_GGML_N_CTX";
+            app[k++]="--env"; app[k++]="ENCLAVE_GGML_MAX_SESSIONS";
+            app[k++]="--env"; app[k++]="ENCLAVE_GGML_POOLED";
+            app[k++]="--env"; app[k++]="ENCLAVE_VRAM_BYTES";
+            app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_BYTES";
+            app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_KIND";
+        }
+        app[k++] = base[i];
+    }
+    app[k] = NULL;
+    return k;
 }
 
 int main(void) {
@@ -906,6 +1058,40 @@ int main(void) {
     }
     if (cfg_env) printf("DOM app config: %zu bytes (ENCLAVE_CONFIG)\n", cfg_len);   /* its length, never its content */
     else printf("DOM app config: none\n");
+    /* each encrypted volume the front staged must be a real directory here (its tmpfs), never a link: the preopen is
+     * what the app reads and writes, so a path that is not the front's mount is refused, and the app is not started */
+    for (int i = 0; i < enc_n; i++) {
+        char d[240];
+        struct stat st;
+        snprintf(d, sizeof d, ENC_ROOT "/%.64s", enc_names[i]);
+        if (lstat(d, &st) != 0 || !S_ISDIR(st.st_mode)) {
+            printf("DOM ERROR encrypted volume %s is not staged: the app is not started\n", enc_names[i]);
+            fflush(stdout);
+            sync();
+            reboot(RB_POWER_OFF);
+            _exit(1);
+        }
+    }
+    if (enc_n) printf("DOM app encrypted volumes: %d, locked until the app unlocks them\n", enc_n);   /* never the token */
+    /* the deployment's model volumes: names from the front's M1 block, identities from this image's measured table, bytes
+     * from host disks verified block by block against the pinned roots. Any failure: the app is not started. */
+    if (mv_n) {
+        char who[80] = "";
+        const char *mwhy = shield_on ? "a Shield inference image carries its own model, not deployment model volumes" : mv_table();
+        if (!mwhy) mwhy = mv_mount_all(who, sizeof who);
+        if (mwhy) {
+            printf("DOM ERROR model volume%s%s: %s (%s): the app is not started\n", who[0] ? " " : "s", who, mwhy, errno ? strerror(errno) : "-");
+            fflush(stdout);
+            sync();
+            reboot(RB_POWER_OFF);
+            _exit(1);
+        }
+        printf("DOM app model volumes: %d mounted read-only at " MV_ROOT ", every block verified against this image's pinned roots\n", mv_n);
+    }
+    if (!shield_on) {
+        struct sysinfo msi;
+        mv_preloads(sysinfo(&msi) == 0 ? (unsigned long long)msi.totalram * msi.mem_unit : 0);
+    }
     if (shield_spill_ok) {
         /* the same reading spawn() applies to the app's engine (see shieldPadBusyMint there) */
         const int busy = shield_busy_mint(cfg_env ? cfg_env + sizeof "ENCLAVE_CONFIG=" - 1 : NULL);
@@ -916,32 +1102,8 @@ int main(void) {
 
     /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
      * value is never an argument */
-    char **base = port ? run : serve, *app[96];
-    int k = 0;
-    for (int i = 0; base[i]; i++) {
-        if (public_https_egress && strcmp(base[i], "/app.wasm") == 0) {
-            app[k++] = "-S"; app[k++] = "egress=127.0.0.2:1080";
-        }
-        if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
-            app[k++] = "--env";
-            app[k++] = "ENCLAVE_CONFIG";
-        }
-        if (shield_on && strcmp(base[i], "/app.wasm") == 0) {
-            app[k++]="-S"; app[k++]="nn";
-            if (shield_load_allowed) { app[k++]="-S"; app[k++]=shield_graph; }
-            app[k++]="--dir"; app[k++]="/models::/models";
-            app[k++]="--env"; app[k++]="ENCLAVE_MODELS";
-            app[k++]="--env"; app[k++]="ENCLAVE_NN_PRELOADS";
-            app[k++]="--env"; app[k++]="ENCLAVE_GGML_N_CTX";
-            app[k++]="--env"; app[k++]="ENCLAVE_GGML_MAX_SESSIONS";
-            app[k++]="--env"; app[k++]="ENCLAVE_GGML_POOLED";
-            app[k++]="--env"; app[k++]="ENCLAVE_VRAM_BYTES";
-            app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_BYTES";
-            app[k++]="--env"; app[k++]="ENCLAVE_NN_SERVE_KIND";
-        }
-        app[k++] = base[i];
-    }
-    app[k] = NULL;
+    char **base = port ? run : serve, *app[160];
+    app_argv(base, app, cfg_env);
     unsigned long long app_oom_before = shield_oom_events();
     pid_t app_pid = spawn_app(app, cfg_env, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);   /* quiet, dropped to APP_UID, filtered */
     if (app_pid == -2) {

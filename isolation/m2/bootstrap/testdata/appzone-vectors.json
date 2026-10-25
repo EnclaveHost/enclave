@@ -1,0 +1,99 @@
+{
+ "cases": [
+  {
+   "name": "app zone only",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"]}}}",
+   "valid": true
+  },
+  {
+   "name": "app zone with owner hosts and owner acme",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"hosts\":[\"shop.example.com\"],\"acme\":{\"directory\":\"https://acme.example.org/dir\",\"challenge\":\"https://c.example.net\",\"zone\":\"acme.example.net\"},\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"]}}}",
+   "valid": true
+  },
+  {
+   "name": "app zone with custody eab",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"custody-v2\",\"custody\":{\"v\":2,\"chainId\":8453,\"vault\":\"0x8888888888888888888888888888888888888888\",\"policyRev\":\"1\",\"secretRev\":\"1\",\"epoch\":1,\"committeeId\":\"0x9999999999999999999999999999999999999999999999999999999999999999\",\"t\":2,\"bundle\":\"ababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab\",\"commitments\":\"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798\",\"machines\":[{\"encKey\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"endpoint\":\"https://custodian1.example\",\"enclave\":false,\"indices\":[1]},{\"encKey\":\"0202020202020202020202020202020202020202020202020202020202020202\",\"endpoint\":\"https://custodian2.example\",\"enclave\":false,\"indices\":[2]},{\"encKey\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"endpoint\":\"https://custodian3.example\",\"enclave\":false,\"indices\":[3]}]},\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"],\"eab\":{\"kid\":\"APPZONE_KID\",\"hmac\":\"APPZONE_HMAC\"}}}}",
+   "valid": true
+  },
+  {
+   "name": "eight replicas",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://r0.example.net\",\"https://r1.example.net\",\"https://r2.example.net\",\"https://r3.example.net\",\"https://r4.example.net\",\"https://r5.example.net\",\"https://r6.example.net\",\"https://r7.example.net\"]}}}",
+   "valid": true
+  },
+  {
+   "name": "nine replicas",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://r0.example.net\",\"https://r1.example.net\",\"https://r2.example.net\",\"https://r3.example.net\",\"https://r4.example.net\",\"https://r5.example.net\",\"https://r6.example.net\",\"https://r7.example.net\",\"https://r8.example.net\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "no replicas",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[]}}}",
+   "valid": false
+  },
+  {
+   "name": "replicas not ascending",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-b.example.org\",\"https://replica-a.example.net\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "duplicate replica",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-a.example.net\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "http replica",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"http://replica.example.net\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "replica with a port",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica.example.net:8443\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "IP literal replica",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://134.199.235.187\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "app zone names a zone (the name is never chosen)",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"],\"zone\":\"app.enclave.host\"}}}",
+   "valid": false
+  },
+  {
+   "name": "app zone names a host",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"],\"name\":\"7ae476a3.app.enclave.host\"}}}",
+   "valid": false
+  },
+  {
+   "name": "eab in public secrets mode",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"],\"eab\":{\"kid\":\"A\",\"hmac\":\"B\"}}}}",
+   "valid": false
+  },
+  {
+   "name": "eab with one secret twice",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"custody-v2\",\"custody\":{\"v\":2,\"chainId\":8453,\"vault\":\"0x8888888888888888888888888888888888888888\",\"policyRev\":\"1\",\"secretRev\":\"1\",\"epoch\":1,\"committeeId\":\"0x9999999999999999999999999999999999999999999999999999999999999999\",\"t\":2,\"bundle\":\"ababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab\",\"commitments\":\"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798\",\"machines\":[{\"encKey\":\"0101010101010101010101010101010101010101010101010101010101010101\",\"endpoint\":\"https://custodian1.example\",\"enclave\":false,\"indices\":[1]},{\"encKey\":\"0202020202020202020202020202020202020202020202020202020202020202\",\"endpoint\":\"https://custodian2.example\",\"enclave\":false,\"indices\":[2]},{\"encKey\":\"0303030303030303030303030303030303030303030303030303030303030303\",\"endpoint\":\"https://custodian3.example\",\"enclave\":false,\"indices\":[3]}]},\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"],\"eab\":{\"kid\":\"A\",\"hmac\":\"A\"}}}}",
+   "valid": false
+  },
+  {
+   "name": "empty hosts with app zone",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"hosts\":[],\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "owner acme without hosts",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"acme\":{\"directory\":\"https://acme.example.org/dir\",\"challenge\":\"https://c.example.net\",\"zone\":\"acme.example.net\"},\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"]}}}",
+   "valid": false
+  },
+  {
+   "name": "null in app zone",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{\"appZone\":{\"directory\":\"https://acme.example.org/dir\",\"challenges\":[\"https://replica-a.example.net\",\"https://replica-b.example.org\"],\"eab\":null}}}",
+   "valid": false
+  },
+  {
+   "name": "empty names member",
+   "manifest": "{\"version\":1,\"chainId\":8453,\"ledger\":\"0x2222222222222222222222222222222222222222\",\"deployment\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"owner\":\"0x3333333333333333333333333333333333333333\",\"appRef\":\"catalog://explicit/1\",\"appId\":\"4444444444444444444444444444444444444444444444444444444444444444\",\"runtimeId\":\"5555555555555555555555555555555555555555555555555555555555555555\",\"configText\":\"{ \\\"endpoint\\\": \\\"https://independent.example\\\" }\",\"secretsMode\":\"public\",\"names\":{}}",
+   "valid": false
+  }
+ ]
+}

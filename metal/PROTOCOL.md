@@ -75,8 +75,8 @@ sit above any more: buyers see every box's price, pick from the ones inside
 their deployment's `maxRate6` ceiling, and a deployment whose ceiling is under
 your price is simply not yours to take (`claim` reverts `"over rate cap"`).
 Set it with `priceCpuUsdHr` / `priceGpuUsdHr` in `config.json`; the guest
-publishes it at registration and re-publishes on the next heartbeat whenever
-you change it. Price yourself out of the market and your box idles; price
+publishes it at registration and re-publishes on the next reconcile pass (a
+read every 15 minutes; a transaction only on a mismatch) whenever you change it. Price yourself out of the market and your box idles; price
 under the fleet and queued work lands on you first.
 
 **You get paid for time you PROVE you served (schema rev 9 of the ledger).**
@@ -88,7 +88,7 @@ running here through time T"* — and the ledger pays you for
 *It is automatic, and there is no key to provision.* The signing key is
 secp256k1 and **minted inside your CVM at boot**, alongside the TLS-bridge and
 session keys; the guest publishes its address to your registry entry
-(`EnclaveRegistry.setProofKey`, schema 3) on the next heartbeat and re-publishes
+(`EnclaveRegistry.setProofKey`, schema 3) on the next reconcile pass and re-publishes
 after every relaunch, because the key is memory-only. You never see it, and
 neither does the platform — which is the point: your operator EOA came from
 outside the CVM (it is in your `config.json`), so a signature from *that* proves

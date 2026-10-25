@@ -11,7 +11,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {preparePackage} from '../sdk/bootstrap/package.mjs';
 import { encodeFunctionData, keccak256, toHex } from "viem";
 import { decodeFunctionData, encodeFunctionResult, parseTransaction, verifyMessage, recoverMessageAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -87,6 +88,7 @@ const VAULT_DEP_ID = "0x" + "f1".repeat(32);   // a deployment the account's cre
 // ---- the platform double -----------------------------------------------------
 // state the tests poke at between runs
 const S = {
+  rpcCalls: [],
   logins: 0, apiCalls: [], txs: [],            // recorded traffic
   claimed: false,                              // get(ID) shows a live lease?
   active: true,                                // get(ID).active (false = suspended)
@@ -265,7 +267,7 @@ function rpcServer() {
       capOf: () => [S.cap6],                 // rev-8 surface: the deployment's spend ceiling
       refundableOf: () => [S.refundable6],   // rev-10 surface: what refund() would pay back now
       getAppsPage: () => [Number(args[0]) === 0 ? [{ appId: APP_ID, publisher: OWNER, slug: "hello-world",
-        name: "Hello World", description: "first app", versionCount: S.versionCount, createdAt: 1n, updatedAt: 1n, active: true }] : []],
+        name: "Hello World", description: "first app", versionCount: S.versionCount, createdAt: 1n, updatedAt: 1n, active: S.catalogActive !== false }] : []],
       getVersionsPage: () => [Number(args[1]) === 0 ? [version, version2()].slice(0, S.versionCount) : []],
       numVersions: () => [S.numVersions],
       appIdOf: () => [APP_ID],
@@ -278,6 +280,7 @@ function rpcServer() {
   return http.createServer(async (req, res) => {
     let body = ""; for await (const c of req) body += c;
     const { id, method, params } = JSON.parse(body);
+    S.rpcCalls.push({ method, params });
     const reply = (result) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ jsonrpc: "2.0", id, result })); };
     try {
       switch (method) {
@@ -368,6 +371,7 @@ function run(cliArgs, { input, env } = {}) {
              ENCLAVE_IPFS_UPLOAD: `http://127.0.0.1:${ipfsPort}/add-wasm`,
              ENCLAVE_IPFS_JSON_UPLOAD: `http://127.0.0.1:${ipfsPort}/add-json`,
              ENCLAVE_ADDRESS_BOOK: "",   // opt out of the on-chain address book: the double must stay offline (and the 4s resolve cap × every invocation would blow the suite timeout)
+             ENCLAVE_CONTRACT_PINS_FILE: "",
              XDG_CONFIG_HOME: confDir,
              ...env },                   // per-test overrides (ENCLAVE_KEY: "" = the passkey-only, wallet-less user)
     });
@@ -1210,4 +1214,412 @@ test("--unsigned and --signer refuse to guess which wallet they are acting as", 
     assert.notEqual(r.code, 0);
     assert.match(r.err, /needs --from/);
   }
+});
+
+
+test("explicit deploy and upgrade enforce platform moderation before spending", async () => {
+  S.versionCount = 2;
+  try {
+    for (const status of [{active:false,approval:1}, {approval:2}, {approval:1,yanked:true}, {approval:0}]) {
+      S.catalogActive=status.active!==false;S.v2={memMb:64,cpuGflops:2,...status};
+      for (const args of [["deploy","hello-world:2","--fund","2","--no-wait"],["upgrade",ID,"2"]]) {
+        S.txs.length=0;const r=await run(args);assert.notEqual(r.code,0,r.out);assert.equal(S.txs.length,0);
+      }
+      if(status.approval!==0){
+        S.txs.length=0;const r=await run(["deploy","hello-world:2","--private","--fund","2","--no-wait"]);
+        assert.notEqual(r.code,0);assert.equal(S.txs.length,0);
+      }
+    }
+    S.catalogActive=true;S.v2={memMb:64,cpuGflops:2,approval:0};S.txs.length=0;
+    const dev=await run(["deploy","hello-world:2","--private","--fund","2","--no-wait"]);
+    assert.equal(dev.code,0,dev.err);assert.equal(S.txs.find(t=>t.functionName==="create").args[5],false);
+    S.txs.length=0;
+    const implicit=await run(["deploy","hello-world","--fund","2","--no-wait"]);
+    assert.equal(implicit.code,0,implicit.err);assert.equal(S.txs.find(t=>t.functionName==="create").args[0],`catalog://${APP_ID}/0`);
+  } finally {S.catalogActive=true;S.versionCount=1;S.v2=null;S.txs.length=0;}
+});
+
+/* Explicit authority pins: mutable discovery cannot redirect an operation. */
+function writeAuthorityPins(overrides = {}) {
+  const file = path.join(confDir, 'contract-pins.json');
+  const zero = '0x' + '00'.repeat(20);
+  fs.writeFileSync(file, JSON.stringify({ version: 1, chainId: 8453, contracts: {
+    registry: REGISTRY, deployments: DEPLOYMENTS, appCatalog: BOOK_CATALOG,
+    proofOfTime: '0x' + '91'.repeat(20), enclavePay: zero, verificationFees: zero,
+    sessionVaultFactory: zero, secretVaultV2: zero, ...overrides,
+  } }));
+  return file;
+}
+const callsTo = (address) => S.rpcCalls.filter(x => x.method === 'eth_call' && x.params[0].to.toLowerCase() === address.toLowerCase());
+
+test('explicit pins publish to the selected catalog without consulting an unavailable address book', async () => {
+  S.rpcCalls.length = 0; S.txs.length = 0; S.numVersions = 0n; S.book = 'fail';
+  try {
+    const r = await run(['publish', component(), '--slug', 'hello-world', '--contract-pins', writeAuthorityPins()],
+      { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(S.txs.find(t => t.functionName === 'publishVersion')?.to, BOOK_CATALOG);
+    assert.equal(callsTo(BOOK_ADDR).length, 0);
+    assert.equal(callsTo(CATALOG).length, 0, 'no baked-catalog fallback');
+    assert.ok(callsTo(BOOK_CATALOG).length > 0);
+  } finally { S.book = 'ok'; }
+});
+
+test('invalid authority pins refuse before RPC, API or transaction activity', async () => {
+  const file = writeAuthorityPins({ deployments: '0x' + '00'.repeat(20) });
+  S.rpcCalls.length = 0; S.apiCalls.length = 0; S.txs.length = 0;
+  const r = await run(['apps'], { env: { ENCLAVE_CONTRACT_PINS_FILE: file, ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+  assert.notEqual(r.code, 0); assert.match(r.err, /invalid contract pin: deployments/);
+  assert.equal(S.rpcCalls.length, 0); assert.equal(S.apiCalls.length, 0); assert.equal(S.txs.length, 0);
+});
+
+test('a missing pin file does not fall back to address-book or baked discovery', async () => {
+  S.rpcCalls.length = 0;
+  const r = await run(['apps', '--contract-pins', path.join(confDir, 'missing.json')]);
+  assert.notEqual(r.code, 0); assert.match(r.err, /ENOENT/); assert.equal(S.rpcCalls.length, 0);
+});
+
+test('zero custody pin refuses instead of the baked v2 vault or an environment override', async () => {
+  S.rpcCalls.length = 0;
+  const r = await run(['custody', 'status', ID, '--v2', '--contract-pins', writeAuthorityPins()],
+    { env: { ENCLAVE_SECRET_VAULT_V2: '0x' + 'a1'.repeat(20) } });
+  assert.notEqual(r.code, 0); assert.match(r.err, /pins disable secretVaultV2/);
+  assert.equal(S.rpcCalls.length, 0);
+});
+
+test('custody environment cannot replace an explicit vault pin', async () => {
+  S.rpcCalls.length = 0;
+  const r = await run(['custody', 'status', ID, '--v2', '--contract-pins',
+    writeAuthorityPins({ secretVaultV2: '0x' + 'a1'.repeat(20) })],
+    { env: { ENCLAVE_SECRET_VAULT_V2: '0x' + 'a2'.repeat(20) } });
+  assert.notEqual(r.code, 0); assert.match(r.err, /override conflicts/); assert.equal(S.rpcCalls.length, 0);
+});
+
+test('disabled session factory cannot fall back to the address book or baked factory', async () => {
+  S.rpcCalls.length = 0;
+  const r = await run(['session', 'delegate', '--contract-pins', writeAuthorityPins()],
+    { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+  assert.notEqual(r.code, 0); assert.match(r.err, /pins disable sessionVaultFactory/);
+  assert.equal(S.rpcCalls.length, 0);
+});
+
+test('chain-only wallet deployment creates and funds without API, upload gateway or address-book requests', async () => {
+  S.rpcCalls.length = 0; S.apiCalls.length = 0; S.txs.length = 0; S.pinnedWasm = 0; S.pinnedJson.length = 0;
+  const previous = { depRev: S.depRev, catRev: S.catRev, versionCount: S.versionCount, v2: S.v2, book: S.book };
+  S.depRev = 15n; S.catRev = 5n; S.versionCount = 2;
+  S.v2 = { approval: 1, yanked: false, config: '{"wasi":"0.3"}' }; S.book = 'fail';
+  try {
+    const r = await run(['deploy', 'hello-world:2', '--chain-only', '--contract-pins', writeAuthorityPins(),
+      '--cpu', '0.1', '--gpu', '0', '--max-rate', '1', '--fund', '2', '--isolation', 'snp-guest-per-app', '--config', '{"hello":"world"}', '--json'],
+      { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+    assert.equal(r.code, 0, r.err);
+    const create = S.txs.find(x => x.functionName === 'create');
+    assert.equal(create.to, DEPLOYMENTS);
+    assert.equal(create.args[0], `catalog://${APP_ID}/1`);
+    assert.equal(create.args[2], 100);
+    assert.deepEqual(JSON.parse(create.args[6]), { isolation: { require: 'snp-guest-per-app' }, config: { hello: 'world' } });
+    assert.equal(create.args.at(-1), 278n, 'owner spend ceiling, not an invented quote');
+    assert.ok(S.txs.some(x => x.functionName === 'fundWithAuthorization'));
+    assert.match(r.out, /"readinessVerified": false/);
+    assert.equal(S.apiCalls.length, 0); assert.equal(callsTo(BOOK_ADDR).length, 0);
+    assert.equal(S.pinnedWasm, 0); assert.equal(S.pinnedJson.length, 0);
+  } finally { Object.assign(S, previous); }
+});
+
+test('chain-only refuses incomplete intent and relay secrets before spending', async () => {
+  for (const [extra, why] of [
+    [[], /explicit --cpu, --gpu and --max-rate/],
+    [['--cpu','0.1','--gpu','0','--max-rate','1','--secrets','{"TOKEN":"test"}'], /cannot stage relay-held secrets/],
+  ]) {
+    S.txs.length = 0; S.apiCalls.length = 0;
+    const r = await run(['deploy','hello-world:1','--chain-only','--contract-pins',writeAuthorityPins(),'--fund','2',...extra]);
+    assert.notEqual(r.code, 0); assert.match(r.err, why); assert.equal(S.txs.length, 0); assert.equal(S.apiCalls.length, 0);
+  }
+});
+
+test('chain-only preparation creates a disabled unfunded record without central API calls',async()=>{
+ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
+ try{
+  const r=await run(['deploy','hello-world:1','--chain-only','--prepare-only','--contract-pins',writeAuthorityPins(),'--cpu','0.1','--gpu','0','--max-rate','1','--json']);
+  assert.equal(r.code,0,r.err);assert.equal(S.apiCalls.length,0);
+  const c=S.txs.find(x=>x.functionName==='create');assert.ok(c);
+  assert.equal(JSON.parse(c.args[6]).guestBootstrap.sha256,'f'.repeat(64));
+  assert.equal(S.txs.some(x=>/fund/i.test(x.functionName)),false);assert.match(r.out,/awaiting-startup-package/);
+ }finally{S.depRev=prev;}
+});
+test('bootstrap prepare preserves exact config bytes and refuses overwrite without API or transactions',async()=>{
+ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
+ const cfg=path.join(confDir,'bootstrap-config.json'),out=path.join(confDir,'owner-startup.json');fs.writeFileSync(cfg,'{ "public": true }');
+ try{
+  const args=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
+  const r=await run(args);assert.equal(r.code,0,r.err);assert.equal(JSON.parse(fs.readFileSync(out)).configText,'{ "public": true }');
+  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);assert.match(r.out,/"committed": false/);
+  const again=await run(args);assert.notEqual(again.code,0);assert.match(again.err,/EEXIST/);
+ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+});
+test('bootstrap prepare commits owner names and an explicit ACME selection, printing the owner-bound CNAMEs',async()=>{
+ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
+ const cfg=path.join(confDir,'bootstrap-names-config.json'),out=path.join(confDir,'owner-names-startup.json');fs.writeFileSync(cfg,'{}');
+ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
+ const acme=['--acme-directory','https://acme-v02.api.letsencrypt.org/directory','--acme-challenge','https://challenge.example.net','--acme-zone','acme.example.net'];
+ try{
+  const r=await run([...base,'--names','www.example.com,shop.example.com',...acme]);assert.equal(r.code,0,r.err);
+  const m=JSON.parse(fs.readFileSync(out));assert.deepEqual(m.names,{hosts:['shop.example.com','www.example.com'],acme:{directory:acme[1],challenge:acme[3],zone:acme[5]}});
+  const o=JSON.parse(r.out);assert.equal(o.dns.length,2);assert.match(o.dns[0],/^_acme-challenge\.shop\.example\.com\. CNAME _acme-challenge\.[0-9a-f]{32}\.acme\.example\.net\.$/);
+  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
+  for(const [extra,why] of [[['--names','x.app.enclave.host'],/outside enclave\.host/],[['--names','shop.example.com','--acme-directory',acme[1]],/explicit/],
+    [acme,/need --names/],[['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID','--acme-eab-hmac-secret','ACME_EAB_HMAC'],/custody-v2/],
+    [['--names','shop.example.com',...acme,'--acme-eab-kid-secret','ACME_EAB_KID'],/both/]]){
+   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
+  }
+ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+});
+
+test('bootstrap prepare commits owner history sources exactly, warns honestly, and never publishes a credential silently',async()=>{
+ const prev=S.depRev;S.depRev=16n;S.txs.length=0;S.apiCalls.length=0;
+ const cfg=path.join(confDir,'bootstrap-history-config.json'),out=path.join(confDir,'owner-history-startup.json');fs.writeFileSync(cfg,'{}');
+ const base=['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json'];
+ const {verifyPackage,historyFromList}=await import('../sdk/bootstrap/package.mjs');
+ try{
+  const r=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base,https://base-rpc.polkachu.com']);assert.equal(r.code,0,r.err);
+  const bytes=fs.readFileSync(out),m=JSON.parse(bytes);
+  assert.deepEqual(m.history,{rpcs:['https://base-rpc.polkachu.com','https://gateway.tenderly.co/public/base']});
+  assert.equal(Object.keys(m).at(-1),'history');
+  const o=JSON.parse(r.out);assert.deepEqual(o.history,m.history.rpcs);assert.deepEqual(o.historyWarnings,[]);
+  verifyPackage(bytes,{version:1,sha256:o.sha256});
+  assert.equal(S.apiCalls.length,0);assert.equal(S.txs.length,0);fs.rmSync(out);
+  // one operator: committed, with the warning
+  const one=await run([...base,'--history-rpcs','https://gateway.tenderly.co/public/base']);assert.equal(one.code,0,one.err);
+  assert.match(JSON.parse(one.out).historyWarnings[0],/only 1 independent operator/);fs.rmSync(out);
+  // none: the package is exactly an older tool's (no member), and the output says what that means
+  const none=await run(base);assert.equal(none.code,0,none.err);
+  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(out)),'history'),false);assert.match(JSON.parse(none.out).historyWarnings[0],/no history sources/);fs.rmSync(out);
+  // a key-like path only with the explicit confirmation
+  const keyed='https://base-mainnet.example-provider.com/v2/Ab3dE5gH7jK9mN1pQ3sT';
+  const refused=await run([...base,'--history-rpcs',keyed]);assert.notEqual(refused.code,0);assert.match(refused.err,/looks like a provider key/);assert.equal(fs.existsSync(out),false);
+  const confirmed=await run([...base,'--history-rpcs',keyed,'--history-path-is-public']);assert.equal(confirmed.code,0,confirmed.err);
+  assert.deepEqual(JSON.parse(fs.readFileSync(out)).history,historyFromList(keyed,{pathIsPublic:true}));fs.rmSync(out);
+  for(const [extra,why] of [[['--history-rpcs','https://user:pw@node.example.org'],/credentials/],[['--history-rpcs','https://node.example.org/rpc?key=1'],/query/],
+    [['--history-rpcs','http://node.example.org'],/https/],[['--history-rpcs','https://node.example.org:8545'],/no port/],[['--history-path-is-public'],/applies to --history-rpcs/],
+    [['--history-rpcs',['a','b','c','d','e','f','g'].map(x=>`https://${x}.example`).join(',')],/1 to 6/]]){
+   const bad=await run([...base,...extra]);assert.notEqual(bad.code,0);assert.match(bad.err,why);assert.equal(fs.existsSync(out),false);
+  }
+  assert.equal(S.txs.length,0);
+ }finally{S.depRev=prev;fs.rmSync(out,{force:true});}
+});
+
+test('history checkpoint export, import, refresh-crl, verify and mirror carry a checkpoint without trusting the carrier',async()=>{
+ // the shared synthetic vectors (isolation/m2/bootstrap/testdata/checkpoint-vectors.json): one local server stands in for the
+ // running guest's endpoint (the bare envelope it serves), AMD's KDS (chain, VCEK, CRL) and the owner's mirror (PUT/GET)
+ const cv=JSON.parse(fs.readFileSync(path.join(REPO,'isolation/m2/bootstrap/testdata/checkpoint-vectors.json'),'utf8'));
+ const bare=cv.cases.find(c=>c.bare).envelope,seen=[],stored={};
+ const srv=http.createServer(async(req,res)=>{
+  const u=new URL(req.url,'http://x');seen.push(`${req.method} ${u.pathname}${u.search}`);
+  const send=(b,type='application/octet-stream')=>{res.writeHead(200,{'content-type':type});res.end(b);};
+  if(req.method==='PUT'){const parts=[];for await(const c of req)parts.push(c);stored[u.pathname]=Buffer.concat(parts);res.writeHead(201);return res.end();}
+  if(u.pathname==='/.well-known/enclave-history-checkpoint')return send(bare,'application/json');
+  if(u.pathname==='/vcek/v1/Genoa/cert_chain')return send(cv.kds.chain,'text/plain');
+  if(u.pathname==='/vcek/v1/Genoa/crl')return send(Buffer.from(cv.kds.crl,'base64'));
+  if(u.pathname.startsWith('/vcek/v1/Genoa/'))return send(Buffer.from(cv.kds.vcek,'base64'));
+  if(stored[u.pathname])return send(stored[u.pathname],'application/json');
+  res.writeHead(404);res.end();
+ });
+ await new Promise(r=>srv.listen(0,'127.0.0.1',r));
+ const base=`http://127.0.0.1:${srv.address().port}`,common=['--kds',base,'--ledger',cv.ledger,'--json'];
+ const f1=path.join(confDir,'cp1.json'),f2=path.join(confDir,'cp2.json'),f3=path.join(confDir,'cp3.json');
+ try{
+  // export from the running guest: collateral completed from the KDS double; no expected measurement -> "unverified"
+  const ex=await run(['history','checkpoint','export',cv.deployment,'--front',base,'--out',f1,...common]);assert.equal(ex.code,0,ex.err);
+  const o=JSON.parse(ex.out);assert.equal(o.status,'unverified');assert.equal(o.claims.lo,120);assert.equal(o.claims.hi,5000);
+  assert.deepEqual(Object.keys(o.collateral).sort(),['chain','crl','vcek']);assert.match(o.reasons.at(-1),/NOT VERIFIED/);
+  const saved=JSON.parse(fs.readFileSync(f1));assert.ok(saved.certs.length>100&&saved.crl.length>100);
+  assert.ok(seen.includes('GET /.well-known/enclave-history-checkpoint'));
+  // with the expected measurement the evidence IS judged, and the real AMD pins refuse the synthetic root: nothing written
+  const pinned=await run(['history','checkpoint','export',cv.deployment,'--front',base,'--out',f2,'--expect',cv.measurement,...common]);
+  assert.notEqual(pinned.code,0);assert.match(pinned.err,/not AMD's pinned Genoa root/);assert.equal(fs.existsSync(f2),false);
+  // another deployment's checkpoint is refused before any collateral is fetched
+  const n=seen.length,wrong=await run(['history','checkpoint','export','0x'+'12'.repeat(32),'--front',base,'--out',f2,...common]);
+  assert.notEqual(wrong.code,0);assert.match(wrong.err,/another chain, ledger or deployment/);assert.deepEqual(seen.slice(n),['GET /.well-known/enclave-history-checkpoint']);
+  // import from a file (moving between mirrors), refresh its CRL, verify needs the measurement
+  const im=await run(['history','checkpoint','import',cv.deployment,f1,...common]);assert.equal(im.code,0,im.err);assert.equal(JSON.parse(im.out).status,'unverified');
+  const rc=await run(['history','checkpoint','refresh-crl',cv.deployment,f1,'--out',f3,...common]);assert.equal(rc.code,0,rc.err);
+  assert.deepEqual(Object.keys(JSON.parse(rc.out).collateral),['crl']);assert.ok(seen.filter(x=>x==='GET /vcek/v1/Genoa/crl').length>=2);
+  const blind=await run(['history','checkpoint','verify',cv.deployment,f1,...common]);assert.notEqual(blind.code,0);assert.match(blind.err,/needs --expect/);
+  const ver=await run(['history','checkpoint','verify',cv.deployment,f1,'--expect',cv.measurement,...common]);assert.notEqual(ver.code,0);assert.match(ver.err,/pinned/);
+  // mirror: one PUT (a presigned query is used, never printed), then the public read-back of the URL to commit
+  const mi=await run(['history','checkpoint','mirror',cv.deployment,f1,'--put',`${base}/m/cp.json?X-Sig=SECRET123`,...common]);assert.equal(mi.code,0,mi.err);
+  const mo=JSON.parse(mi.out);assert.equal(mo.readBack,true);assert.equal(mo.mirror,`${base}/m/cp.json`);assert.equal(mo.committable,false);assert.match(mo.note,/cannot be committed/);
+  assert.doesNotMatch(mi.out+mi.err,/SECRET123/);assert.ok(stored['/m/cp.json'].equals(fs.readFileSync(f1)));
+  // transport rules: https only (loopback http aside), no credentials in a URL
+  for(const [args,why] of [[['--front','http://example.org'],/https only/],[['--front','https://u:p@example.org'],/no credentials/]]){
+   const bad=await run(['history','checkpoint','export',cv.deployment,...args,'--out',f2,...common]);assert.notEqual(bad.code,0);assert.match(bad.err,why);
+  }
+  // the package side: the mirrors are committed with the sources, after them, and said for what they are
+  const prev=S.depRev;S.depRev=16n;
+  try{
+   const cfg=path.join(confDir,'cp-config.json'),out=path.join(confDir,'cp-startup.json');fs.writeFileSync(cfg,'{}');
+   const r=await run(['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json',
+    '--history-rpcs','https://base-rpc.polkachu.com','--history-checkpoints','https://owner.example.net/cp,https://mirror.example.org/d1.json']);assert.equal(r.code,0,r.err);
+   const m=JSON.parse(fs.readFileSync(out));assert.deepEqual(m.history,{rpcs:['https://base-rpc.polkachu.com'],checkpoints:['https://mirror.example.org/d1.json','https://owner.example.net/cp']});
+   const ro=JSON.parse(r.out);assert.deepEqual(ro.checkpointMirrors,m.history.checkpoints);assert.ok(ro.historyWarnings.some(w=>/SEV-SNP direct guests/.test(w)));
+   fs.rmSync(out);
+   const q=await run(['bootstrap','prepare',ID,'--contract-pins',writeAuthorityPins(),'--config-file',cfg,'--app-id','44'.repeat(32),'--runtime-id','55'.repeat(32),'--public','--out',out,'--json','--history-checkpoints','https://owner.example.net/cp?sig=1']);
+   assert.notEqual(q.code,0);assert.match(q.err,/query/);assert.equal(fs.existsSync(out),false);
+  }finally{S.depRev=prev;}
+ }finally{srv.close();for(const f of [f1,f2,f3])fs.rmSync(f,{force:true});}
+});
+
+test('owner startup packages prevent legacy config edits and preserve WAF-only changes',async()=>{
+ const prev=S.depRev,old=S.envelope;S.depRev=16n;
+ const guestBootstrap={version:1,sha256:'ab'.repeat(32)};
+ try{
+  S.envelope=JSON.stringify({guestBootstrap,waf:{rps:10}});
+  for(const args of [['set',ID,'{}'],['clear',ID,'config'],['clear',ID,'all']]){
+   S.txs.length=0;S.apiCalls.length=0;
+   const r=await run(['config',...args,'--wallet','--contract-pins',writeAuthorityPins()]);
+   assert.notEqual(r.code,0);assert.match(r.err,/bootstrap prepare/);assert.equal(S.txs.length,0);assert.equal(S.apiCalls.length,0);
+  }
+  const show=await run(['config','show',ID,'--json']);assert.equal(show.code,0,show.err);
+  assert.equal(JSON.parse(show.out).configSource,'owner-startup-package');
+  for(const args of [['set',ID,'--waf','{"rps":20}'],['clear',ID,'waf']]){
+   S.txs.length=0;S.apiCalls.length=0;
+   const r=await run(['config',...args,'--wallet','--contract-pins',writeAuthorityPins()]);assert.equal(r.code,0,r.err);
+   const e=JSON.parse(S.txs.find(x=>x.functionName==='setConfig').args[1]);assert.deepEqual(e.guestBootstrap,guestBootstrap);
+   assert.equal(e.config,undefined);assert.equal(S.apiCalls.length,0);
+  }
+ }finally{S.depRev=prev;S.envelope=old;}
+});
+
+test('bootstrap publication and activation verify exact bytes before committing without central API calls',async()=>{
+ const prev=S.depRev,old=S.envelope;S.depRev=16n;
+ const pkg=preparePackage({version:1,chainId:8453,ledger:DEPLOYMENTS,deployment:ID,owner:OWNER,
+  appRef:`catalog://${APP_ID}/0`,appId:'44'.repeat(32),runtimeId:'55'.repeat(32),configText:'{ "value": 1 }',secretsMode:'public'});
+ const file=path.join(confDir,'workflow-package.json'),preload=path.join(confDir,'bootstrap-fetch.mjs'),calls=path.join(confDir,'bootstrap-fetch.jsonl');
+ fs.writeFileSync(file,pkg.bytes);
+ // Keep the real JSON-RPC HTTP double. Only the explicitly chosen storage
+ // endpoints are simulated, including corrupt bodies and unbounded replies.
+ fs.writeFileSync(preload,`import fs from 'node:fs';
+const real=globalThis.fetch;
+globalThis.fetch=async (url,opts={})=>{
+ if(!['independent.example','independent2.example','independent3.example'].includes(new URL(url).hostname))return real(url,opts);
+ fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify({url,method:opts.method||'GET',headers:opts.headers,body:opts.body?Buffer.from(opts.body).toString():null,redirect:opts.redirect})+'\\n');
+ if(process.env.BOOTSTRAP_TEST_DOWN==='one'&&String(url).startsWith('https://independent.example/'))return new Response('',{status:503});
+ if(process.env.BOOTSTRAP_TEST_DOWN==='two'&&!String(url).startsWith('https://independent3.example/'))return new Response('',{status:503});
+ if(process.env.BOOTSTRAP_TEST_RESPONSE==='oversize')return new Response('x'.repeat(4097));
+ if(process.env.BOOTSTRAP_TEST_RESPONSE==='corrupt')return new Response('{}');
+ return new Response(opts.method==='POST'?JSON.stringify({cid:${JSON.stringify(pkg.cid)}}):fs.readFileSync(${JSON.stringify(file)}));
+};`);
+ const env={NODE_OPTIONS:`--import=${pathToFileURL(preload).href}`},common=['--wallet','--contract-pins',writeAuthorityPins(),'--json'];
+ try{
+  S.envelope=JSON.stringify({config:{old:true},waf:{rps:10},placement:{hostId:'0x'+'66'.repeat(32)}});S.apiCalls.length=0;S.txs.length=0;
+  const publish=['bootstrap','publish',ID,'--file',file,'--upload','https://independent.example/add-json','--audience',ID,...common];
+  const r=await run(publish,{env});assert.equal(r.code,0,r.err);assert.equal(S.txs.length,0);
+  const request=JSON.parse(fs.readFileSync(calls,'utf8').trim().split('\n')[0]);
+  assert.equal(request.body,pkg.bytes.toString());assert.match(request.headers['x-upload-signature'],/^0x[0-9a-f]{130}$/);
+  assert.equal(request.headers['x-upload-token'],undefined);assert.equal(request.redirect,'error');
+  const activate=['bootstrap','activate',ID,'--file',file,'--gateways','https://independent.example/ipfs',...common];
+  const activated=await run(activate,{env});assert.equal(activated.code,0,activated.err);
+  const envelope=JSON.parse(S.txs.find(x=>x.functionName==='setConfig').args[1]);
+  assert.deepEqual(envelope.guestBootstrap,pkg.intent);assert.equal(envelope.config,undefined);assert.deepEqual(envelope.waf,{rps:10});
+  assert.equal(envelope.placement.hostId,'0x'+'66'.repeat(32));assert.equal(envelope.isolation.require,'snp-guest-per-app');
+  assert.equal(JSON.parse(activated.out).readinessVerified,false);assert.equal(S.apiCalls.length,0);
+  S.txs.length=0;
+  const unsigned=await run([...activate,'--unsigned','--from',OWNER],{env});assert.equal(unsigned.code,0,unsigned.err);
+  const prepared=JSON.parse(unsigned.out);assert.equal(prepared.unsigned.to.toLowerCase(),DEPLOYMENTS);assert.equal(prepared.committed,undefined);assert.equal(S.txs.length,0);
+  const planFile=path.join(confDir,'replicated-storage.json');
+  fs.writeFileSync(planFile,JSON.stringify({version:1,minimumCopies:2,replicas:[1,2,3].map(n=>({
+   upload:`https://independent${n===1?'':n}.example/add-json`,gateway:`https://independent${n===1?'':n}.example/ipfs`,audience:'0x'+String(n).repeat(64)}))}));
+  for(const sub of ['publish','activate']){
+   S.txs.length=0;
+   const args=['bootstrap',sub,ID,'--file',file,'--storage-plan',planFile,...common];
+   const good=await run(args,{env:{...env,BOOTSTRAP_TEST_DOWN:'one'}});assert.equal(good.code,0,good.err);
+   assert.equal(JSON.parse(good.out).storage.verifiedCopies,2);assert.equal(S.txs.length,sub==='activate'?1:0);
+   S.txs.length=0;
+   const bad=await run(args,{env:{...env,BOOTSTRAP_TEST_DOWN:'two'}});assert.notEqual(bad.code,0);assert.match(bad.err,/storage availability requirement/);assert.equal(S.txs.length,0);
+  }
+  const mixed=await run([...publish,'--storage-plan',planFile],{env});assert.notEqual(mixed.code,0);assert.match(mixed.err,/cannot be combined/);
+  assert.equal(S.apiCalls.length,0);
+  for(const args of [activate,publish]){
+   const bad=await run(args,{env:{...env,BOOTSTRAP_TEST_RESPONSE:'corrupt'}});assert.notEqual(bad.code,0);assert.equal(S.txs.length,0);
+  }
+  const large=await run(publish,{env:{...env,BOOTSTRAP_TEST_RESPONSE:'oversize'}});assert.notEqual(large.code,0);assert.match(large.err,/size limit/);
+ }finally{S.depRev=prev;S.envelope=old;}
+});
+
+test('replicated app publication bypasses the token issuer and commits only after WASM and config readback',async()=>{
+ const prev=S.catRev;S.catRev=7n;
+ const planFile=path.join(confDir,'artifact-storage.json'),preload=path.join(confDir,'artifact-fetch.mjs');
+ fs.writeFileSync(planFile,JSON.stringify({version:1,minimumCopies:2,replicas:[1,2,3].map(n=>({upload:`https://artifact${n}.example/add-json`,gateway:`https://artifact${n}.example/ipfs`,audience:'0x'+String(n).repeat(64)}))}));
+ const identityModule=pathToFileURL(path.join(REPO,'sdk/storage/unixfs.mjs')).href;
+ fs.writeFileSync(preload,`import {artifactIdentity} from ${JSON.stringify(identityModule)};
+const real=globalThis.fetch,stores=new Map();
+globalThis.fetch=async(url,opts={})=>{
+ const u=new URL(url);if(!['artifact1.example','artifact2.example','artifact3.example'].includes(u.hostname))return real(url,opts);
+ if(u.hostname==='artifact1.example'||process.env.ARTIFACT_TEST_DOWN==='two'&&u.hostname==='artifact2.example')return new Response('',{status:503});
+ if(opts.method==='POST'){
+  const chunks=[];for await(const chunk of opts.body)chunks.push(Buffer.from(chunk));const bytes=Buffer.concat(chunks),cid=artifactIdentity(bytes).cid;
+  if(process.env.ARTIFACT_TEST_CONFIG_FAIL==='1'&&u.pathname==='/add-json')return new Response('',{status:503});
+  if(!stores.has(u.hostname))stores.set(u.hostname,new Map());stores.get(u.hostname).set(cid,bytes);
+  return new Response(JSON.stringify({cid}));
+ }
+ const bytes=stores.get(u.hostname)?.get(u.pathname.split('/').at(-1));if(!bytes)return new Response('',{status:404});
+ const [start,end]=opts.headers.range.slice(6).split('-').map(Number);
+ return new Response(bytes.subarray(start,end+1),{status:206,headers:{'content-range':'bytes '+start+'-'+end+'/'+bytes.length}});
+};`);
+ const configFile=path.join(confDir,'large-published-config.json');fs.writeFileSync(configFile,JSON.stringify({payload:'x'.repeat(300000)}));
+ const args=['publish',component(),'--slug','hello-world','--config-file',configFile,'--storage-plan',planFile,'--contract-pins',writeAuthorityPins(),'--wallet','--json'];
+ const env={NODE_OPTIONS:`--import=${pathToFileURL(preload).href}`};
+ try{
+  S.txs.length=0;S.apiCalls.length=0;
+  const good=await run(args,{env});assert.equal(good.code,0,good.err);
+  const result=JSON.parse(good.out);assert.equal(result.storage.wasm.verifiedCopies,2);assert.equal(result.storage.config.verifiedCopies,2);
+  const tx=S.txs.find(t=>t.functionName==='publishVersionCfg');assert(tx);assert.equal(tx.args[4],result.cid);
+  assert.equal(tx.args.at(-2),result.storage.config.cid);assert.equal(S.apiCalls.length,0);
+  assert.equal(result.storage.config.bytes,300014);
+  S.txs.length=0;const mixed=await run([...args,'--config','{}'],{env});assert.notEqual(mixed.code,0);assert.match(mixed.err,/choose --config/);assert.equal(S.txs.length,0);
+  for(const failEnv of [{ARTIFACT_TEST_DOWN:'two'},{ARTIFACT_TEST_CONFIG_FAIL:'1'}]){
+   S.txs.length=0;S.apiCalls.length=0;const bad=await run(args,{env:{...env,...failEnv}});
+   assert.notEqual(bad.code,0);assert.match(bad.err,/storage availability requirement/);assert.equal(S.txs.length,0);assert.equal(S.apiCalls.length,0);
+  }
+ }finally{S.catRev=prev;}
+});
+
+test('runtime artifact CLI publishes with scoped signatures and verifies without wallets, RPC or platform APIs',async()=>{
+ const file=path.join(confDir,'runtime-kernel.bin'),planFile=path.join(confDir,'runtime-storage.json'),preload=path.join(confDir,'runtime-fetch.mjs');
+ fs.writeFileSync(file,Buffer.alloc(512*1024+7,0xa7));
+ fs.writeFileSync(planFile,JSON.stringify({version:1,minimumCopies:2,replicas:[1,2,3].map(n=>({upload:`https://runtime${n}.example/add-json`,gateway:`https://runtime${n}.example/ipfs`,audience:'0x'+String(n).repeat(64)}))}));
+ fs.writeFileSync(preload,`import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {artifactIdentity} from ${JSON.stringify(pathToFileURL(path.join(REPO,'sdk/storage/unixfs.mjs')).href)};
+import {uploadMessage} from ${JSON.stringify(pathToFileURL(path.join(REPO,'sdk/storage/upload-auth.mjs')).href)};
+import {recoverMessageAddress} from ${JSON.stringify(pathToFileURL(path.join(REPO,'node_modules/viem/_esm/index.js')).href)};
+const bytes=fs.readFileSync(${JSON.stringify(file)}),identity=artifactIdentity(bytes);
+globalThis.fetch=async(url,opts={})=>{
+ const u=new URL(url),i=['runtime1.example','runtime2.example','runtime3.example'].indexOf(u.hostname);
+ if(i<0)throw Error('unexpected network request: '+u.hostname);
+ if(i===0||process.env.RUNTIME_TEST_DOWN==='two'&&i===1)return new Response('',{status:503});
+ if(opts.method==='POST'){
+  assert.equal(u.pathname,'/add-file');assert.equal(opts.headers['x-upload-token'],undefined);
+  const chunks=[];for await(const chunk of opts.body)chunks.push(Buffer.from(chunk));assert.deepEqual(Buffer.concat(chunks),bytes);
+  const h=opts.headers;assert.equal(await recoverMessageAddress({message:uploadMessage({audience:'0x'+String(i+1).repeat(64),path:'/add-file',address:h['x-upload-address'],hash:h['x-upload-sha256'],size:bytes.length,expiry:Number(h['x-upload-expiry'])}),signature:h['x-upload-signature']}),${JSON.stringify(OWNER)});
+  return new Response(JSON.stringify({cid:identity.cid}));
+ }
+ assert.equal(u.pathname,'/ipfs/'+identity.cid);
+ assert.equal(opts.headers['x-upload-signature'],undefined);
+ const [start,end]=opts.headers.range.slice(6).split('-').map(Number);
+ return new Response(bytes.subarray(start,end+1),{status:206,headers:{'content-range':'bytes '+start+'-'+end+'/'+bytes.length}});
+};`);
+ const env={NODE_OPTIONS:`--import=${pathToFileURL(preload).href}`,ENCLAVE_ADDRESS_BOOK:BOOK_ADDR};
+ const args=sub=>['artifact',sub,file,'--storage-plan',planFile,'--json'];
+ S.txs.length=0;S.apiCalls.length=0;S.rpcCalls.length=0;
+ const published=await run([...args('publish'),'--wallet'],{env});assert.equal(published.code,0,published.err);
+ const report=JSON.parse(published.out);assert.equal(report.storage.kind,'file');assert.equal(report.storage.verifiedCopies,2);assert.equal(report.admissionChanged,false);assert.equal(report.published,true);
+ const verified=await run(args('verify'),{env:{...env,ENCLAVE_KEY:'invalid-key-that-must-not-be-read',ENCLAVE_SESSION:'invalid-session-that-must-not-be-read'}});assert.equal(verified.code,0,verified.err);
+ assert.equal(JSON.parse(verified.out).published,false);assert.equal(JSON.parse(verified.out).storage.cid,report.storage.cid);
+ for(const sub of ['publish','verify']){
+  const failed=await run([...args(sub),'--wallet'],{env:{...env,RUNTIME_TEST_DOWN:'two'}});assert.notEqual(failed.code,0);assert.match(failed.err,/storage availability requirement/);
+ }
+ const unknown=await run([...args('publish'),'--wallet','--kind','unknown'],{env});assert.notEqual(unknown.code,0);assert.match(unknown.err,/invalid artifact kind/);
+ const session=await run(args('publish'),{env:{...env,ENCLAVE_SESSION:'session-present'}});assert.notEqual(session.code,0);assert.match(session.err,/requires a direct wallet/);
+ assert.equal(S.txs.length,0);assert.equal(S.apiCalls.length,0);assert.equal(S.rpcCalls.length,0);
 });

@@ -25,19 +25,19 @@ function box(env) {
   const make = new Function("env", "sleeps", "txs", "logs", `
     let REGISTRY_ADDRESS = "0xAAAA";
     const REGISTRY_READY = true, PUBLIC_URL = env.PUBLIC_URL || "";
-    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null;
+    let _registered = false, _registeredOn = null, _enclaveId = null, _advertisedEndpoint = null, _activeSeen = null;
     const keccak256 = (b) => "id(" + b + ")", stringToBytes = (s) => s;
     const registryRev = async () => 3;
     const PROOF_ACCOUNT = null, REGISTRY_ABI = [], REGISTRY_ABI_V2 = [], REGISTRY_ABI_V1 = [];
     const ENCLAVE_REPO = "EnclaveHost/enclave", ENCLAVE_MEASUREMENT = "0x00", SELL_CPU_PRICE6 = 1, SELL_GPU_PRICE6 = 2;
-    const IS_GPU = false, HEARTBEAT_SEC = 60;
+    const IS_GPU = false, RECONCILE_SEC = 60;
     const sendOperatorTx = async (address, _abi, fn, args) => { txs.push({ address, fn, endpoint: args[0] }); return env.send(fn, args); };
     const setInterval = () => ({ unref() {} });
     const setTimeout = (fn, ms) => {
       if (sleeps.length >= 50) throw new Error("still not registered after 50 retries");   // fail, don't spin forever
       sleeps.push(ms / 1000); setImmediate(fn); return { unref() {} };
     };
-    const syncRegisteredPrice = async () => {}, syncRegisteredProofKey = async () => {}, syncDeclaredPayoutWallet = async () => {};
+    const syncRegisteredPrice = async () => {}, syncRegisteredProofKey = async () => {}, syncDeclaredPayoutWallet = async () => {}, syncRegisteredActive = async () => {};
     const console = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
     ${FNS}
     return { advertise, registerSelf,
@@ -97,7 +97,7 @@ test("an attempt in flight elsewhere does not end the loop: if it fails, the loo
 });
 
 test("a PUBLIC_URL box re-registers its pinned origin when the address book repoints the registry", async () => {
-  // the heartbeat calls advertise() on a repoint; before, it called registerFromShimCert, which a box without a shim
+  // the reconcile pass calls advertise() on a repoint; before, it called registerFromShimCert, which a box without a shim
   // (metal0) can never satisfy, so it stayed registered on a registry nobody reads
   const b = box({ PUBLIC_URL: "https://api.enclave.host/t/metal0", send: () => "0xhash" });
   await b.advertise();
@@ -117,10 +117,10 @@ test("a box with no PUBLIC_URL cannot name itself, so it never registers (and ne
   assert.ok(b.logs.some((l) => /no PUBLIC_URL/.test(l)), "it says why");
 });
 
-test("boot, the heartbeat's repoint path and the request middleware all go through the retrying entry points", () => {
+test("boot, the reconcile pass's repoint path and the request middleware all go through the retrying entry points", () => {
   assert.match(src, /\nif \(REGISTRY_READY\) advertise\(\);\n/, "boot starts the retry loop");
   assert.doesNotMatch(src, /\nif \(PUBLIC_URL\) registerOnChain\(PUBLIC_URL\);/, "the one-shot boot registration is gone");
-  const heartbeat = slice(/setInterval\(async \(\) => \{[\s\S]*?HEARTBEAT_SEC\) \* 1000\)/, "the registry heartbeat");
-  assert.match(heartbeat, /registryRepointed\(\)\) return void advertise\(\)/);
+  const reconcile = slice(/setInterval\(async \(\) => \{[\s\S]*?RECONCILE_SEC\) \* 1000\)/, "the registry reconcile pass");
+  assert.match(reconcile, /registryRepointed\(\)\) return void advertise\(\)/);
   assert.match(src, /if \(REGISTRY_READY && !_registered\) registerSelf\(\)\.catch\(/, "the middleware kicks registerSelf");
 });

@@ -136,3 +136,348 @@ paths = ['''^windows/vbslike/evidence/''']
 [[allowlists]]
 description = "Ed25519 public keys in SPKI form (public by construction)"
 regexes = ['''302a300506032b6570032100[0-9a-f]{64}''']
+
+# Checkpoint scan: exact public source identifiers, scoped to both rule and file.
+
+[[allowlists]]
+description = "Bundle input SHA256 digests, not Coinbase access tokens"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^metal/guest/lease-gas-conduit\\.bundle\\.mjs\\.manifest\\.json$", "^windows/node/lease-gas-runtime\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^\\s*\"[^\"\\n]+\": \"[0-9a-f]{64}\",?\\s*$"]
+
+[[allowlists]]
+description = "Solidity contract name in compiler fixture"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^test/helpers/original-vault-rig\\.mjs$"]
+regexTarget = "line"
+regexes = ["vault: pick\\(v, \"EnclaveSecretVaultV2\\.sol\", \"EnclaveSecretVaultV2\"\\)"]
+
+[[allowlists]]
+description = "Prose describing a test operator, not an API key"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^test/lease-gas/forge/test/LeaseExecutor\\.t\\.sol$"]
+regexTarget = "line"
+regexes = ["/// \\(factory 0x1F5c\\.\\.\\. build, sha256 a447add6\\.\\.\\.\\)\\. Operators are fresh keys holding no ETH, EIP-7702-delegated to the"]
+
+[[allowlists]]
+description = "Public attestation transport public key"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/untracked/eyesoff\\-ai/tests/fixtures/attest\\-9eb4e600/capture\\.json$"]
+regexTarget = "line"
+regexes = ["\"transportKey\":\\ \"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFJI/waOpug1BMjDmOmaz8dqRgkKXOwvptB1Q/8/g2KxDp\\+frr9yLg3vRiXCA9Inal1aa3dkL6dHw44zidhyX7A==\","]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/untracked/jot/scripts/link\\-minio\\.test\\.mjs$"]
+regexTarget = "line"
+regexes = ["const\\ env\\ =\\ \\{\\ JOT_AK:\\ AK,\\ JOT_SK:\\ SK,\\ JOT_API_KEY:\\ 'api\\-key\\-0123456789',\\ JOT_MASTER:\\ 'master\\-key\\-0123456789abcdef',\\ JOT_LINK_KEY:\\ linkKey\\ \\};"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/tracked\\-changes\\.patch$"]
+regexTarget = "line"
+regexes = ["\\+\\ \\ \\ \\ \\ \\ \\ \\ std::env::set_var\\(\"T_DEPOT_TOKEN2\",\\ \"tok\\-alice\\-0123456789abcdefgh\"\\);"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/tracked\\-changes\\.patch$"]
+regexTarget = "line"
+regexes = ["\\+\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ std::env::set_var\\(\"T_DEPOT_TOKEN3\",\\ \"tok\\-carol\\-0123456789abcdefgh\"\\);"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/untracked/api\\-mcp\\-adapter/src/wallet\\.rs$"]
+regexTarget = "line"
+regexes = ["let\\ secret\\ =\\ \"s3cr3t\\-api\\-key\\-0123456789\";"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/untracked/eyesoff\\-ai/src/wallet\\.rs$"]
+regexTarget = "line"
+regexes = ["let\\ secret\\ =\\ \"s3cr3t\\-api\\-key\\-0123456789\";"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/untracked/jot/src/wallet\\.rs$"]
+regexTarget = "line"
+regexes = ["let\\ secret\\ =\\ \"s3cr3t\\-api\\-key\\-0123456789\";"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/untracked/depot/src/wallet\\.rs$"]
+regexTarget = "line"
+regexes = ["let\\ secret\\ =\\ \"s3cr3t\\-api\\-key\\-0123456789\";"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/tracked\\-changes\\.patch$"]
+regexTarget = "line"
+regexes = ["\\+\\ \\ \\ \\ \\ \\ \\ \\ let\\ both\\ =\\ cfg\\(serde_json::json!\\(\\{\\ \"sso\":\\ sso_block\\(\\),\\ \"wallet\":\\ wallet_block\\(\\),\\ \"api_key_seed\":\\ \"s33d\\-0f1e2d3c4b5a69788796a5b4c3d2e1f0\"\\ \\}\\)\\);"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/tracked\\-changes\\.patch$"]
+regexTarget = "line"
+regexes = ["\\+\\ \\ \\ \\ \\ \\ \\ \\ let\\ c\\ =\\ cfg\\(serde_json::json!\\(\\{\\ \"sso\":\\ sso_block\\(\\),\\ \"wallet\":\\ wallet_block\\(\\),\\ \"api_key_seed\":\\ \"s33d\\-0f1e2d3c4b5a69788796a5b4c3d2e1f0\"\\ \\}\\)\\);"]
+
+[[allowlists]]
+description = "Deterministic example/test-only credential text"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ["^checkpoints/decentralization\\-20261022/related/enclave\\-apps/tracked\\-changes\\.patch$"]
+regexTarget = "line"
+regexes = ["\\+\\ \\ \\ \\ \\ \\ \\ \\ let\\ no_sso\\ =\\ cfg\\(serde_json::json!\\(\\{\\ \"wallet\":\\ wallet_block\\(\\),\\ \"api_key_seed\":\\ \"s33d\\-0f1e2d3c4b5a69788796a5b4c3d2e1f0\"\\ \\}\\)\\);"]
+
+# Narrow gitleaks exceptions for checkpoints/decentralization-20261022/external/ (supplemental archive).
+# Each block: one rule, exact committed file paths, exact-line regexes. Generated from secret-review.json evidence.
+# NOT covered (must be EXCLUDED, not allowlisted): ethereum-private-key-constructor in browser-default-independence
+# (mistyped Anvil #4 key, non-public) and private-key in host-service-tls-20261021/native/fixtures/fixtures.json.
+
+[[allowlists]]
+description = '''SHA256 digests of public npm files (viem setCoinbase.js) recorded as bundle-input manifest entries; each digest verified equal to sha256 of the local node_modules file, not a Coinbase token'''
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/app-lease-gas/overlay-main/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/claude-resumed-20261022/cutover-review/measured-carrier-integration-r2/bundle/new/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/credit-final-composition/generated/prev-run/after/windows/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/credit-final-composition/patches/final-minus-integrated\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/credit-final-main-integration/before/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/credit-vault-final-integration/patches/credit-vault-final-integration\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/eu-relay-host-role-migration/package/gate/lease-relay-migration-check\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/eu-relay-user-target/release/5e13596d6f2c92640e13e0527046436066bec2bb1d7e0ccd69dadfaeaf0a684e/gate/lease-relay-migration-check\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-lease-relay/stage/release/manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-lease-relay/tree/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-relay-cli-repair/tree/metal/guest/lease-gas-conduit\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-relay-cli-repair/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-relay-final-repair/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/hosted-services-activation/tree-r3/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/lease-relay-activation/final-94f4ebdf/build-manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/lease-relay-release/stage/manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/linux-lease-activation/patches/03-generated-bundle\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/owner-guard-historical/tree/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/platform-api-hosted/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/resume-20261021/platform-bundle-smoke/control-out/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-main-composition/tree/metal/guest/lease-gas-conduit\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-main-composition/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-main-composition/tree/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-migration/stage/relay/lease-relay-migration-check\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-migration/stage/relay/release/manifest\.json$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*[+ -]?\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js": "(?:c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb)",?\s*$''',
+  '''^\s*[+ -]?\s*"relay/node_modules/viem/_esm/actions/test/setCoinbase\.js": "(?:c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb)",?\s*$''',
+]
+
+[[allowlists]]
+description = '''SHA256 digests of public npm files whose PATH names contain privateKey/private_key (viem, @peculiar/asn1-*) recorded as bundle-input manifest entries; each digest verified equal to sha256 of the local node_modules file, not a private key'''
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/claude-resumed-20261022/cutover-review/measured-carrier-integration-r2/bundle/new/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/credit-final-composition/patches/final-minus-integrated\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/credit-vault-final-integration/patches/credit-vault-final-integration\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-lease-relay/stage/release/manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-relay-cli-repair/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/host-relay-final-repair/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/hosted-services-activation/tree-r3/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/lease-relay-activation/final-94f4ebdf/build-manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/lease-relay-release/stage/manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/platform-api-hosted/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/resume-20261021/platform-bundle-smoke/control-out/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-main-composition/tree/metal/guest/platform-api\.bundle\.mjs\.manifest\.json$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/windows-local-relay-migration/stage/relay/release/manifest\.json$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*[+ -]?\s*"node_modules/viem/_esm/accounts/generatePrivateKey\.js": "(?:0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"node_modules/viem/_esm/accounts/privateKeyToAccount\.js": "(?:c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"node_modules/viem/_esm/accounts/utils/privateKeyToAddress\.js": "(?:67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-ecc/build/cjs/ec_private_key\.js": "(?:56c02678232daa7afb9078551218b318ede1bd280cf4fb821f19ecf0d720cd6e)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-ecc/build/es2015/ec_private_key\.js": "(?:2b70d1099840ee796f03e09bc321f0e04d0be24363dcf9638cdc64b069a00524)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-pkcs8/build/cjs/private_key_info\.js": "(?:58484c2767a25908ec21066305d7981cbb4c06d8cdb9d8e1ad02342ae8491f4b)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-rsa/build/cjs/rsa_private_key\.js": "(?:89df1148c5c1d204fce19b1d8839be54f3ed0dd67e3564bee305c8aa88cd22f8)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-rsa/build/es2015/rsa_private_key\.js": "(?:d50563fd684db0ca09610432dadc71fbad88460d964b59439e22f566b1ce711b)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-x509/build/cjs/extensions/private_key_usage_period\.js": "(?:d00a2f09af2915386e491d2a6fc3d09bd76c3b23e8fa810d7acd507d3116be82)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/@peculiar/asn1-x509/build/es2015/extensions/private_key_usage_period\.js": "(?:20634ab3dc5f013799dc3bdc2e6cc4d9646917cdfc414cd3bc946eed1eb0488d)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/viem/_esm/accounts/generatePrivateKey\.js": "(?:0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/viem/_esm/accounts/privateKeyToAccount\.js": "(?:c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+  '''^\s*[+ -]?\s*"relay/node_modules/viem/_esm/accounts/utils/privateKeyToAddress\.js": "(?:67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b)",?\s*$''', # SHA256 digest of public dependency source, independently recomputed.
+]
+
+[[allowlists]]
+description = '''api_key_seed test constant: synthetic nibble-sequence seed used only in #[test] fns and a 127.0.0.1 wasmtime harness; identical value already public as SEED in checkpoints/.../related/enclave-apps/untracked/eyesoff-ai/tests/helpers/component.mjs'''
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/diffs/work/app-auth-release-migration/scratch/apps/eyesoff-ai/src/lib\.rs\.diff$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/app-auth-final/browser-hand-signer\.mjs$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*\+        let both = cfg\(serde_json::json!\(\{ "sso": sso_block\(\), "wallet": wallet_block\(\), "api_key_seed": "s33d-0f1e2d3c4b5a69788796a5b4c3d2e1f0" \}\)\);\s*$''',
+  '''^\s*\+        let c = cfg\(serde_json::json!\(\{ "sso": sso_block\(\), "wallet": wallet_block\(\), "api_key_seed": "s33d-0f1e2d3c4b5a69788796a5b4c3d2e1f0" \}\)\);\s*$''',
+  '''^\s*\+        let no_sso = cfg\(serde_json::json!\(\{ "wallet": wallet_block\(\), "api_key_seed": "s33d-0f1e2d3c4b5a69788796a5b4c3d2e1f0" \}\)\);\s*$''',
+  '''^\s*const cfg = \{ wallet: \{ audience: AUD, domains: \[host\], contract_wallets: rd\.contract_wallets \}, api_key_seed: 's33d-0f1e2d3c4b5a69788796a5b4c3d2e1f0' \};\s*$''',
+]
+
+[[allowlists]]
+description = '''Doc-comment prose ("Operators are fresh keys holding no ETH"), same line already allowlisted for test/lease-gas/forge/test/LeaseExecutor.t.sol in the primary config'''
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/app-lease-gas/forge/test/LeaseExecutor\.t\.sol$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/app-lease-gas/snapshots/round2/forge/test/LeaseExecutor\.t\.sol$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/lease-release-packaging/lease-release-packaging\.patch$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*/// \(factory 0x1F5c\.\.\. build, sha256 a447add6\.\.\.\)\. Operators are fresh keys holding no ETH, EIP-7702-delegated to the\s*$''',
+  '''^\s*\+/// \(factory 0x1F5c\.\.\. build, sha256 a447add6\.\.\.\)\. Operators are fresh keys holding no ETH, EIP-7702-delegated to the\s*$''',
+]
+
+[[allowlists]]
+description = '''EIP-712-style domain tag strings EnclaveVault.addKey.v1/removeKey.v1 hashed with keccak256, not a key'''
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/app-auth-release-migration/tests/passkey-recovery\.mjs$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*const deadline = BigInt\(now\(\) \+ 600\), tag = viem\.keccak256\(viem\.toHex\(op === 'add' \? 'EnclaveVault\.addKey\.v1' : 'EnclaveVault\.removeKey\.v1'\)\);\s*$''',
+]
+
+[[allowlists]]
+description = '''Rehearsal phase identifier tuple ("S5-fixture-app-operations-real-api-v28"), not a key'''
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/claude-resumed-20261022/storage-enclave-rehearsal/rehearse/rehearse-c2\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/claude-resumed-20261022/storage-enclave-rehearsal/rehearse/rehearse-c2\.py$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*\("S5-fixture-app-operations-real-api-v28", "s5_fixture_ops"\), \("S6-admin-block-unblock-v28", "s6_block"\),\s*$''',
+  '''^\s*\+          \("S5-fixture-app-operations-real-api-v28", "s5_fixture_ops"\), \("S6-admin-block-unblock-v28", "s6_block"\),\s*$''',
+]
+
+[[allowlists]]
+description = '''Solidity contract name in compiler fixture (same line already allowlisted for test/helpers/original-vault-rig.mjs in the primary config)'''
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/existing-custody-audit/candidate/existing-vault-client\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/existing-custody-audit/candidate/final-r5/core\.patch$''',
+  '''^checkpoints/decentralization-20261022/external/files/work/existing-custody-audit/candidate/final-root-dns-0730/core\.patch$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*\+           vault: pick\(v, "EnclaveSecretVaultV2\.sol", "EnclaveSecretVaultV2"\), registry: pick\(o, "EnclaveRegistry\.sol", "EnclaveRegistry"\),\s*$''',
+]
+
+[[allowlists]]
+description = '''PINNED provider-directory record: operator address plus WireGuard PUBLIC keys (wgExitKey/wgGuardKey = kernel key .publicKey per network/wg-provider/kernel.mjs:75, published in signed provider records)'''
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/external/files/work/hs-transport-final-review-20261021/combined-canary/a1-observation/verify-quals\.mjs$''',
+]
+regexTarget = "line"
+regexes = [
+  '''^\s*const PINNED=\{operator:'0x3b0497d24b3fc8ef776a194b065118d52fb4248c',wgExitKey:'5yJS0uYW178RxnvOBa5N1uIGD1Z8iN\+rbV88A5MU9Cs=',wgGuardKey:'tBHkbI2h\+Qs6fwYw8OTlVPM862m\+Yb3jOwxvL37U9nc='\};\s*$''',
+]
+
+[[allowlists]]
+description = "Verified SHA256 of public relay/vbs-credential.mjs source in two composition inventories; not a credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-a\.inventory\.json$''',
+  '''^checkpoints/decentralization-20261022/closeout-drafts/files/measured-composition/tree-b\.inventory\.json$''',
+  '''^checkpoints/decentralization-20261022/closeout-followup/files/measured-composition/tree-c\.inventory\.json$''',
+]
+regexTarget = "line"
+regexes = ['''^\s*"relay/vbs-credential\.mjs": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",?\s*$''']
+
+# RPC candidate publication: exact reviewed public code/manifest false positives.
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^scripts/network/verify\-profile\.mjs$''']
+regexTarget = "line"
+regexes = ['''secretVaultV2:'EnclaveSecretVaultV2'''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/authority\-profile\.test\.mjs$''']
+regexTarget = "line"
+regexes = ['''secretVaultV2:'EnclaveSecretVaultV2'''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/helpers/original\-vault\-rig\.mjs$''']
+regexTarget = "line"
+regexes = ['''^\ \ \ \ \ \ \ \ \ \ \ vault:\ pick\(v,\ "EnclaveSecretVaultV2\.sol",\ "EnclaveSecretVaultV2"\),\ registry:\ pick\(o,\ "EnclaveRegistry\.sol",\ "EnclaveRegistry"\),$''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/lease\-gas/forge/test/LeaseExecutor\.t\.sol$''']
+regexTarget = "line"
+regexes = ['''^///\ \(factory\ 0x1F5c\.\.\.\ build,\ sha256\ a447add6\.\.\.\)\.\ Operators\ are\ fresh\ keys\ holding\ no\ ETH,\ EIP\-7702\-delegated\ to\ the$''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/service\-index\.test\.mjs$''']
+regexTarget = "line"
+regexes = ['''\-\-key',\ 'recordKey=0xabc'''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^metal/guest/lease\-gas\-conduit\.bundle\.mjs\.manifest\.json$''']
+regexTarget = "line"
+regexes = ['''^\ \ \ \ "node_modules/viem/_esm/actions/test/setCoinbase\.js":\ "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",$''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^windows/node/lease\-gas\-runtime\.bundle\.mjs\.manifest\.json$''']
+regexTarget = "line"
+regexes = ['''^\ \ \ \ "node_modules/viem/_esm/actions/test/setCoinbase\.js":\ "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",$''']

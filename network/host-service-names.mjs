@@ -1,0 +1,65 @@
+// The public names of a HOST's own service roles on the Enclave network (work/host-service-transport-20261021): derived
+// from the host's FULL registry id, never chosen by anyone. A WireGuard provider grants exactly these names to a 'service'
+// peer of that host (wg-provider/provider.mjs), and the host's ingress worker answers exactly these (host-service-ingress.mjs).
+//   <label>-<base32(registry id)>.<zone>     label: dir | boot | policy
+// base32 is RFC 4648 (lowercase, no padding) of all 32 bytes: 52 characters, injective, so two hosts never share a name
+// (an 8-hex prefix like an app label would collide). A service name has a hyphen and 52 base32 characters, so it can
+// never be an app label (8 hex) and is kept apart from app names and custom domains on both sides.
+export const HOST_SERVICE_LABELS = Object.freeze({ dir: 'directory-replica', boot: 'bootstrap-replica', policy: 'policy-mirror' });
+export const HOST_SERVICE_ROLES = Object.freeze(Object.fromEntries(Object.entries(HOST_SERVICE_LABELS).map(([l, r]) => [r, l])));
+const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
+const ID = /^0x[0-9a-f]{64}$/;
+export const SERVICE_ZONE = /^(?=.{1,190}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+export function base32(bytes) {
+  let out = '', bits = 0, value = 0;
+  for (const b of bytes) { value = (value << 8) | b; bits += 8; while (bits >= 5) { out += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; } value &= 0xff; }
+  if (bits > 0) out += ALPHABET[(value << (5 - bits)) & 31];
+  return out;
+}
+export function hostLabel(hostId) {
+  const id = String(hostId || '').toLowerCase();
+  if (!ID.test(id) || /^0x0{64}$/.test(id)) throw new Error('a host service name needs a nonzero 32-byte registry id');
+  return base32(Buffer.from(id.slice(2), 'hex'));
+}
+export function validServiceZone(zone) {
+  if (typeof zone !== 'string' || !SERVICE_ZONE.test(zone)) throw new Error('hostServices.zone must be a lowercase DNS zone');
+  return zone;
+}
+/** -> { 'directory-replica': 'dir-<b32>.<zone>', ... } for one host */
+export function hostServiceNames(hostId, zone) {
+  const h = hostLabel(hostId); validServiceZone(zone);
+  return Object.fromEntries(Object.entries(HOST_SERVICE_LABELS).map(([label, role]) => [role, `${label}-${h}.${zone}`]));
+}
+// The host's attested challenge PUSH origin (the app-zone-replica's managed front, challenge-replica-host.mjs; TLS by the
+// host's service-tls role): chal-<base32(registry id)>.<zone>, a 57-character label (<= 63). Deliberately NOT one of
+// hostServiceNames(): a provider grants it only when its operator opts in (hostServices.challenge), so the exact three-name
+// grant of every existing provider and host is unchanged. It has the service SHAPE, so no app or customer name can hold it.
+export const HOST_CHALLENGE_LABEL = 'chal';
+export const HOST_CHALLENGE_ROLE = 'app-zone-replica';
+/** -> 'chal-<b32>.<zone>' for one host */
+export function hostChallengeName(hostId, zone) {
+  const h = hostLabel(hostId); validServiceZone(zone);
+  return `${HOST_CHALLENGE_LABEL}-${h}.${zone}`;
+}
+/** -> 'https://chal-<b32>.<zone>' (the only origin a managed challenge front may declare) */
+export const hostChallengeOrigin = (hostId, zone) => `https://${hostChallengeName(hostId, zone)}`;
+// The host's PUBLIC JSON-RPC origin for browser network profiles (network/public-rpc.mjs, role 'public-rpc'):
+// rpc-<base32(registry id)>.<zone>. Like the challenge origin, NOT one of hostServiceNames(): a provider grants it only
+// when its operator opts in (hostServices.rpc), and a host serves it only when it runs the role, so the exact three-name
+// grant of every other provider and host is unchanged. One name per host: an RPC origin is one vote of ONE host.
+export const HOST_RPC_LABEL = 'rpc';
+export const HOST_RPC_ROLE = 'public-rpc';
+/** -> 'rpc-<b32>.<zone>' for one host */
+export function hostRpcName(hostId, zone) {
+  const h = hostLabel(hostId); validServiceZone(zone);
+  return `${HOST_RPC_LABEL}-${h}.${zone}`;
+}
+/** -> 'https://rpc-<b32>.<zone>' (what a browser network profile lists) */
+export const hostRpcOrigin = (hostId, zone) => `https://${hostRpcName(hostId, zone)}`;
+/** a name of the host-service SHAPE (any host; the three roles, the challenge and RPC origins) in `zone`, or anywhere when zone is null */
+export function isHostServiceName(name, zone = null) {
+  const n = String(name || '').toLowerCase();
+  const m = /^(dir|boot|policy|chal|rpc)-([a-z2-7]{52})\.(.+)$/.exec(n);
+  return !!m && (zone === null || m[3] === zone);
+}

@@ -143,7 +143,7 @@ export function appRequestHandler({ serveHttp, log = () => {} }) {
   };
 }
 
-export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null }) {
+export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null, admitted = null }) {
   const streams = new Map();
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
@@ -178,6 +178,14 @@ export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, 
     let target = null;
     try { target = await resolve(ref); } catch (e) { log(`app-zone ${ref}: ${e.message}`); }
     const id = target?.id || ref;
+    // NAMED from here, so a later closeDeployment(id) finds this stream; and re-asked now, synchronously with the naming,
+    // so a withdrawal that landed while resolve awaited is not served (host.appZoneAdmitted)
+    st.id = id;
+    if (target && admitted && !admitted(id)) {
+      log(`app-zone ${id.slice(0, 10)}: no longer served here`);
+      st.sock.write(`HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n`);
+      return drop(st.sid);
+    }
 
     // AN ISOLATED DEPLOYMENT IS SPLICED, NOT TERMINATED.
     //
@@ -325,5 +333,7 @@ export function appZone({ resolve, serveHttp, maxBodyBytes = 0, log = () => {}, 
       .catch(e => { log(`local app ingress: ${e.message}`); drop(sid); });
     return true;
   }
-  return { handleUpgrade, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); } };
+  // closeDeployment(id): every stream this zone splices or serves for one deployment ends now (a wallet hold) -> count
+  const closeDeployment = (id) => { let n = 0; for (const [sid, st] of [...streams]) if (st.id === id) { drop(sid); n++; } return n; };
+  return { handleUpgrade, open: () => streams.size, closeAll: () => { for (const sid of [...streams.keys()]) drop(sid); }, closeDeployment };
 }
