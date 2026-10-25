@@ -57,9 +57,11 @@ hardware or authorize real owner secrets.
 
 The candidate NucBox report's guest SVN 0 differs from the recipe's SVN 13.
 Resolve the producer/report identity and verify the real hardware chain; do not
-lower the admission floor. Rebuild and independently predict the final native
-image, then exercise enrollment, certificate issuance, sealed secret delivery,
-masked GPU operations and Moonlight on that exact image before publication.
+lower the admission floor. The combined graphics platform now has a reproducible
+initrd/IGVM and independently validated image mapping. Exercise enrollment,
+certificate issuance, sealed secret delivery, masked GPU operations and Moonlight
+on the admitted hardware image before publication. One earlier local native
+startup hit the supervisor deadline; its cause remains unresolved.
 The existing graphics driver supports OpenGL/Vulkan through Mesa with trusted
 CPU rendering and a bounded masked integer-affine compute path. General GPU
 rendering, gaming performance and API conformance are not established by these
@@ -92,8 +94,34 @@ The probe also verifies UID, zero capability sets, seccomp and absent physical
 GPU nodes. Run it both before normal stop and before worker revocation, and
 retain the monitor's process/mount/cgroup cleanup result.
 
-This exercises trusted CPU graphics through the installed standard APIs. It
-performs zero masked GPU operations and cannot replace the separate masked
-compute integrity tests. The lifecycle client remains a privileged fixture;
+The default probe exercises trusted CPU graphics through the installed standard
+APIs and performs zero masked GPU operations. The lifecycle client remains a privileged fixture;
 the Wasm controller stays blocked on sealed owner provisioning. It therefore
 does not prove real owner authorization, hardware admission or final publication.
+
+Adding `native.graphics.masked=1` runs the bounded affine compute and integrity
+case through the real native monitor, guest worker broker and host
+`serveDesktopWorker` transport. The distinct fixture archive must additionally
+contain the six pinned public affine qualification assets under
+`/probe-graphics-assets/`: `prepass`, `prepass-gl`, `linear-prepass.comp.spv`,
+`prepass.vert.spv`, `prepass.frag.spv` and `prepass-gl.comp`. The helper copies
+these root-owned read-only files into a fresh fixed temporary directory before
+dropping to the desktop role. They are never installed in the production image.
+
+The host fixture authenticates the disposable vsock carrier with a per-run
+credential, binds it to the exact application/profile/allocation and relays
+only to the pinned dedicated GPU worker. After sixteen successful exchanges,
+its test-only proxy flips one byte of an actual seventeenth GEMM reply. It must
+record exactly seventeen data streams, one mutation and no further GPU stream
+for either retry; it logs counts and identities, never protocol bodies or
+bridge credentials. This carrier is a Linux test adapter, not the physical
+Windows VmId-bound bridge.
+
+The two standard API programs each check 2,048 computed values and buffer guards.
+Together they must report sixteen verified offloads and 131,072 MACs; the Vulkan
+triangle must match the reference frame hash. The corrupted OpenGL call must
+lose its context and skip readback. OpenGL and Vulkan retries must fail without
+new GPU work; Vulkan must preserve output and skip the later draw. Normal stop
+and worker revocation still require full domain/cgroup cleanup. These tests
+establish composition with the actual native platform, not general GPU rendering,
+performance, conformance or production authorization.

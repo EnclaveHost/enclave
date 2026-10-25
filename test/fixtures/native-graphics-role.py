@@ -1,8 +1,9 @@
 """Actual desktop GL/Vulkan rendering inside the measured native platform.
-Synthetic lifecycle client only; does not claim owner release or masked GPU work.
+Synthetic lifecycle client only; does not claim owner release. The optional
+masked case requires the host fixture to corrupt the seventeenth GPU exchange.
 """
 import ctypes as c
-import hashlib,json,os,re,subprocess,time
+import hashlib,json,os,re,socket,struct,subprocess,sys,tempfile,time
 from pathlib import Path
 assert os.getuid()==os.geteuid()==1000
 status=dict(line.split(':',1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
@@ -83,4 +84,45 @@ try:
    try:p.communicate(timeout=5)
    except subprocess.TimeoutExpired:p.kill();p.communicate()
 finally:close_display(d)
-print(json.dumps({'passed':True,'uid':os.getuid(),'capabilitiesZero':True,'seccomp':2,'noPhysicalGpu':True,'display':':0','rendering':'trusted CPU','maskedGpuOperations':0,'vulkanSummary':vk,'openGLSummary':gl,'frames':results}))
+masked=None
+if len(sys.argv)==2:
+ assert sys.argv[1]=='masked'
+ def compute_status():
+  with socket.socket(socket.AF_UNIX) as sock:
+   sock.settimeout(5);sock.connect('/run/shield/compute.sock')
+   body=b'{"op":"status"}';sock.sendall(struct.pack('!I',len(body))+body)
+   def exact(n):
+    data=bytearray()
+    while len(data)<n:
+     part=sock.recv(n-len(data));assert part;data.extend(part)
+    return bytes(data)
+   length,=struct.unpack('!I',exact(4));assert length<65536
+   value=json.loads(exact(length));assert value['ok'];return value
+ root=Path('/tmp/native-graphics-input')
+ before=compute_status();assert before['state']=='ready'
+ with tempfile.TemporaryDirectory(prefix='native-graphics-output-') as output:
+  frame_path=Path(output)/'triangle.rgba'
+  vulkan=json.loads(command([str(root/'prepass'),str(root),str(frame_path)]))
+  opengl=json.loads(command([str(root/'prepass-gl'),str(root/'prepass-gl.comp')]))
+  assert vulkan['passed'] and opengl['passed']
+  assert vulkan['shaderOutputsChecked']==2048 and vulkan['guardsIntact']
+  assert opengl['outputsChecked']==2048 and opengl['guardsIntact']
+  assert hashlib.sha256(frame_path.read_bytes()).hexdigest()=='5732e44bd0a0e35a28ea79cf37176034e295ac3c2cdc71f7a42f2ca13fa694f4'
+  after=compute_status();assert after['state']=='ready'
+  exchanges=after['telemetry']['verifiedOffloads']-before['telemetry']['verifiedOffloads']
+  macs=after['telemetry']['maskedMacs']-before['telemetry']['maskedMacs']
+  assert exchanges==16 and macs==131072,(exchanges,macs)
+  attempts=[]
+  for name in ['corrupted-worker-opengl','retired-service-opengl-retry','retired-service-vulkan-retry']:
+   args=[str(root/'prepass-gl'),str(root/'prepass-gl.comp'),'--expect-device-lost'] if 'opengl' in name else [str(root/'prepass'),str(root),str(Path(output)/'failed-frame'),'--expect-device-lost']
+   started=time.monotonic();record=json.loads(command(args));elapsed=time.monotonic()-started
+   assert elapsed<5
+   if 'opengl' in name:assert record['contextLost'] and record['readbackSkipped']
+   else:assert record['deviceLost'] and record['outputUnchanged'] and record['laterDrawSkipped']
+   retired=compute_status();assert retired['state']=='retired'
+   assert retired['telemetry']['verifiedOffloads']==after['telemetry']['verifiedOffloads']
+   assert retired['telemetry']['maskedMacs']==after['telemetry']['maskedMacs']
+   attempts.append({'case':name,'elapsedSeconds':elapsed,**record})
+  assert not (Path(output)/'failed-frame').exists()
+  masked={'verifiedExchanges':exchanges,'verifiedMacs':macs,'vulkan':vulkan,'opengl':opengl,'triangleSha256':hashlib.sha256(frame_path.read_bytes()).hexdigest(),'integrityAttempts':attempts,'serviceRetired':True}
+print(json.dumps({'passed':True,'uid':os.getuid(),'capabilitiesZero':True,'seccomp':2,'noPhysicalGpu':True,'display':':0','rendering':'trusted CPU','gpuExecuted':masked is not None,'maskedGpuOperations':masked['verifiedExchanges'] if masked else 0,'masked':masked,'vulkanSummary':vk,'openGLSummary':gl,'frames':results}))
