@@ -59,6 +59,8 @@ The matched NucBox diagnostic established SHA384/P384 identity signing and
 authenticated guest SVN 13. The final graphics candidate is still unsigned:
 use an explicitly authorized release key, pin its identity, and obtain fresh
 evidence from the final signed image without lowering the admission floor.
+The signing tool and its exact invocation are documented in
+[`tools/vbs-image-sign/README.md`](../../tools/vbs-image-sign/README.md).
 The combined graphics platform now has a reproducible
 initrd/IGVM and independently validated image mapping. Exercise enrollment,
 certificate issuance, sealed secret delivery, masked GPU operations and Moonlight
@@ -103,6 +105,30 @@ crossed measurement/authority pairs, high SVN, actual TLS startup probes, DNS
 authorization, fresh-report forwarding, and Node/browser/bundled-browser parity.
 These changes only implement policy enforcement; they do not install a release
 key, change a live policy, or approve the diagnostic key for production.
+
+### Signing the separate image
+
+`enclave-vbs-image-sign` now reads the explicit P384 release key through stdin,
+checks its independently supplied CNG public-key fingerprint, and signs only an
+input whose artifact SHA256 matches the supplied pin. It derives the launch
+measurement itself, refuses existing signatures and unsupported image profiles,
+and verifies every original parsed object plus the launch digest after signing.
+Output files are created exclusively in a private staging directory; the public
+manifest is written last. After syncing, the complete directory is published by
+Linux rename-without-replacement, followed by syncing the parent. Its `identity` object has exactly the three fields admission needs,
+with `guestSvn` recorded separately.
+
+Ten Rust tests cover atomic output publication, format and cryptographic refusals, including duplicate
+identities, multiple platforms and CRC-correct changes to signed fields or pages.
+The CLI qualification signs the actual graphics candidate with a disposable
+in-memory key, checks it with an independent crypto implementation, confirms
+repeat signing is byte-identical, and exercises 36 input/pin/output refusals and
+positive checks. It deletes its temporary images and never persists the key.
+The tool also accepts the earlier hardware-accepted SHA384 diagnostic artifact
+and refuses the three artifacts rejected by hardware (SHA256, changed signature,
+and changed SVN). These are local checks against existing artifacts, not a new
+hardware admission. The final authorized release key and fresh image acceptance
+remain separate steps.
 
 ## Combined graphics platform probe
 
