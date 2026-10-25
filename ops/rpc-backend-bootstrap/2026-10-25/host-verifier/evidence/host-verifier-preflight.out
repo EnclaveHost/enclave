@@ -1,0 +1,65 @@
+[queue] START available=20962MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+{
+  "ok": true,
+  "chainId": 8453,
+  "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a",
+  "verifierUrl": "http://127.0.0.1:28590/",
+  "order": [
+    "stateDir kernel lock (flock, parent-held descriptor)",
+    "witness-check helper (offline)",
+    "root store (pushed signed heads only)",
+    "head relay 127.0.0.1:ephemeral",
+    "witness gateway 127.0.0.1:ephemeral",
+    "gossip listener (native commitment) -> roots.offer -> relay.offer",
+    "first fresh verified head",
+    "Helios 127.0.0.1:28590",
+    "ready"
+  ],
+  "untrustedProofSources": 1,
+  "witnessCache": "none",
+  "witnessArchive": null,
+  "hostTools": {
+    "flock": "/usr/bin/flock",
+    "curl": "/usr/bin/curl",
+    "probed": {
+      "flock": "flock from util-linux 2.42.4"
+    }
+  },
+  "binaryStaging": "copy",
+  "glibcRuntime": null,
+  "binaries": {
+    "listener": {
+      "path": "/home/steven/enclave-prod/rpc-host-verifier-7aa504eb/bin/enclave-base-head-listener",
+      "pinned": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+      "actual": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+      "build": "enclave-base-head-listener 5e178676, release profile, scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0",
+      "ok": true
+    },
+    "helios": {
+      "path": "/home/steven/enclave-prod/rpc-host-verifier-7aa504eb/bin/helios-eeffcc9",
+      "pinned": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+      "actual": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+      "build": "helios enclave-base-evm eeffcc9 (CLI source identical in function to ef320298: later commits change only the witness-check helper), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release)",
+      "ok": true
+    },
+    "witnessCheck": {
+      "path": "/home/steven/enclave-prod/rpc-host-verifier-7aa504eb/bin/witness-check",
+      "pinned": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+      "actual": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+      "build": "witness-check enclave-witness-check ef320298, Rust 1.96.0, debug profile (not an optimized release)",
+      "ok": true
+    }
+  },
+  "labels": {
+    "head": "sequencer-signed Base UNSAFE head received over native gossip (no L1 safety, no finality)",
+    "execution": "Helios enclave-base-evm over proof-backed state (maintained Base EVM; refuses execution from Denim)",
+    "witnesses": "UNTRUSTED upstream proof sources from config (explicit state holders), every pinned witness verified against a bound root before use; no usable maintained peer-proof source is established for this runtime (reviewed Base clients ship snap/2 serving off, peer availability unknown), so fresh state requires a configured, reachable proof source",
+    "roots": "signed-head roots (pushed per verified head) and ancestor roots (authenticated ancestry) are history for their block, never freshness",
+    "cache": "no local witness cache (none is budgeted); the optional S3/Sia archive is untrusted history for its block only: never a root, never freshness, never needed to start",
+    "independence": "NOT provider-independent: fresh reads need at least one configured, reachable proof source; no provider agreement replaces a failed proof",
+    "exposure": "loopback only; no public serving, advertisement or grant"
+  }
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=20938
+[memory-guard] at peak: 
+[queue] EXIT 0
