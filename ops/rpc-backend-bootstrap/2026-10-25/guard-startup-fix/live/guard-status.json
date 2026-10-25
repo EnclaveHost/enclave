@@ -1,0 +1,22 @@
+{
+ "free": {
+  "nvme": 700062564352
+ },
+ "manifestSha": "fd71831c7f54b79e22596ae566e21521b67979e81fa8decf886c61d90f199ca3",
+ "mode": null,
+ "qemuSeen": true,
+ "rateBytesPerS": {
+  "nvme": 7377915
+ },
+ "reasons": [],
+ "state": "armed",
+ "thresholds": {
+  "nvme": {
+   "floor": 300000000000,
+   "pause": 368719476736,
+   "shutdown": 468719476736,
+   "start": 488719476736
+  }
+ },
+ "wallTime": 1792951088.461664
+}

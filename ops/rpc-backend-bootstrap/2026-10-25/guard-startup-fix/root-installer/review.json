@@ -1,0 +1,8 @@
+{
+ "oldManifestSha256": "74db2e44b784ad1bf9bd8eddc533cde5790da7377c35ed0937749316a4ad159c",
+ "newManifestSha256": "fd71831c7f54b79e22596ae566e21521b67979e81fa8decf886c61d90f199ca3",
+ "launcherSha256": "38f8dc891bfa9f5f74fcd8eb4ba50ea6f5f70342c49e3c7e2944a10c504436d7",
+ "qemuArgvUnchanged": true,
+ "seedUnchanged": true,
+ "guestDiskConfigUnchanged": true
+}

@@ -1,0 +1,147 @@
+[queue] START available=87555MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+8b1ece11201b0f6fe157c2dbf053e46846572741663dfc772ca29a0e0bfa463c  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/old-provision_vm-8b1ece11.py
+FFFEF.F..E/usr/lib/python3.14/unittest/case.py:668: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gs-4dejibn3/pbkyke4ip/m>
+  with outcome.testPartExecutor(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/old-provision_vm-8b1ece11.py:1232: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gs-4dejibn3/rlkmpzzma/qmp>
+  q = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FE/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/old-provision_vm-8b1ece11.py:1232: ResourceWarning: unclosed <socket.socket fd=3, family=1, type=1, proto=0, raddr=/tmp/gs-4dejibn3/q5nxlybw8/m>
+  q = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FEEE
+======================================================================
+ERROR: test_delayed_greeting_then_runtime_policy_unchanged (test_guard_startup.InitialGrace.test_delayed_greeting_then_runtime_policy_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 142, in test_delayed_greeting_then_runtime_policy_unchanged
+    self.assertEqual(q_lost_at[0], 230)
+                     ~~~~~~~~~^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_no_greeting_is_controlled_failure_not_traceback (test_guard_startup.PowerdownHandshake.test_no_greeting_is_controlled_failure_not_traceback)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 363, in test_no_greeting_is_controlled_failure_not_traceback
+    rc = pv.cmd_powerdown('ignored')
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guard-startup-stage/tmp/old-provision_vm-8b1ece11.py", line 924, in cmd_powerdown
+    f.readline()                                # greeting
+    ~~~~~~~~~~^^
+  File "/usr/lib/python3.14/socket.py", line 729, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+TimeoutError: timed out
+
+======================================================================
+ERROR: test_accepted_no_greeting_times_out_and_closes (test_guard_startup.RealSocketQmp.test_accepted_no_greeting_times_out_and_closes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 282, in test_accepted_no_greeting_times_out_and_closes
+    pv.Qmp(self.path, handshake_timeout=0.3)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Qmp.__init__() got an unexpected keyword argument 'handshake_timeout'
+
+======================================================================
+ERROR: test_malformed_reply_is_oserror_and_closes (test_guard_startup.RealSocketQmp.test_malformed_reply_is_oserror_and_closes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 295, in test_malformed_reply_is_oserror_and_closes
+    pv.Qmp(self.path, handshake_timeout=1)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Qmp.__init__() got an unexpected keyword argument 'handshake_timeout'
+
+======================================================================
+ERROR: test_never_accepted_backlog_full_no_fd_leak (test_guard_startup.RealSocketQmp.test_never_accepted_backlog_full_no_fd_leak)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 269, in test_never_accepted_backlog_full_no_fd_leak
+    pv.Qmp(self.path, handshake_timeout=0.05)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Qmp.__init__() got an unexpected keyword argument 'handshake_timeout'
+
+======================================================================
+ERROR: test_success_restores_runtime_timeout (test_guard_startup.RealSocketQmp.test_success_restores_runtime_timeout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 304, in test_success_restores_runtime_timeout
+    q = pv.Qmp(self.path, timeout=10, handshake_timeout=1)
+TypeError: Qmp.__init__() got an unexpected keyword argument 'handshake_timeout'
+
+======================================================================
+FAIL: test_absent_forever_fails_closed_after_exactly_300s (test_guard_startup.InitialGrace.test_absent_forever_fails_closed_after_exactly_300s)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 114, in test_absent_forever_fails_closed_after_exactly_300s
+    self.assertIsNone(pv.guard_loop(v2_min(), 'S', io, max_loops=301))   # t=301: 300 s elapsed -> still allowed
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 is not None
+
+======================================================================
+FAIL: test_capacity_pause_and_check_failure_during_startup_refuse_immediately (test_guard_startup.InitialGrace.test_capacity_pause_and_check_failure_during_startup_refuse_immediately)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 184, in test_capacity_pause_and_check_failure_during_startup_refuse_immediately
+    self.assertIn('capacity pause', io.lines[-1])
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'capacity pause' not found in 'FAIL-CLOSED: cannot reach the guard QMP monitor ([Errno 11] Resource temporarily unavailable); exiting so the VM unit stops'
+
+======================================================================
+FAIL: test_capacity_shutdown_level_during_startup_refuses_immediately (test_guard_startup.InitialGrace.test_capacity_shutdown_level_during_startup_refuses_immediately)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 177, in test_capacity_shutdown_level_during_startup_refuses_immediately
+    self.assertEqual(io.t, 1.0)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: 62.0 != 1.0
+
+======================================================================
+FAIL: test_qemu_gone_after_seen_exits_0_unchanged (test_guard_startup.InitialGrace.test_qemu_gone_after_seen_exits_0_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 150, in test_qemu_gone_after_seen_exits_0_unchanged
+    self.assertEqual(io.handshakes, [1])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [None] != [1]
+
+First differing element 0:
+None
+1
+
+- [None]
++ [1]
+
+======================================================================
+FAIL: test_reconnect_after_seen_keeps_60s_not_300s (test_guard_startup.InitialGrace.test_reconnect_after_seen_keeps_60s_not_300s)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 161, in test_reconnect_after_seen_keeps_60s_not_300s
+    self.assertEqual(io.handshakes[0], 1)            # first connect: short initial handshake
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: None != 1
+
+======================================================================
+FAIL: test_guard_survives_stalled_real_monitor (test_guard_startup.RealQemuStalledMonitor.test_guard_survives_stalled_real_monitor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 421, in test_guard_survives_stalled_real_monitor
+    self.assertIn(False, seen)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: False not found in [True, True, True, None]
+
+======================================================================
+FAIL: test_guard_loop_real_delayed_greeting (test_guard_startup.RealSocketQmp.test_guard_loop_real_delayed_greeting)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/nvme-migration/test_guard_startup.py", line 346, in test_guard_loop_real_delayed_greeting
+    self.assertIn(False, io.states)                  # polled (and fed the watchdog) before the greeting
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+AssertionError: False not found in [True, True, True, None]
+
+----------------------------------------------------------------------
+Ran 16 tests in 18.203s
+
+FAILED (failures=7, errors=6)
+[memory-guard] exit=1 peakTreeRssMiB=69 minHostAvailableMiB=87520
+[memory-guard] at peak: qemu-system-x86:34 python3:28 bash:4 timeout:2
+[queue] EXIT 1
