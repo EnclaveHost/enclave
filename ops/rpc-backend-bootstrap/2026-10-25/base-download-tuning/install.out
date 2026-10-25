@@ -1,0 +1,17 @@
+{
+  "time": "2026-10-25T18:17:01.348062+00:00",
+  "unitSha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+  "dropInSha256": "d2fc22dba1f055fce33b02ef6368c15b5d10707fa2a5ae87dc4701752c543b52",
+  "concurrencyBefore": 8,
+  "concurrencyAfter": 16,
+  "memoryMaxBytes": 4294967296,
+  "protectedPidsUnchanged": {
+    "enclave-l1-el.service": "847",
+    "enclave-l1-cl.service": "898"
+  },
+  "rollback": "Stop only snapshot service, remove exact 30-download-concurrency.conf after checking its hash, daemon-reload, start snapshot service; never delete partials or use --force."
+}
+ExecStart={ path=/opt/enclave-rpc/bin/base ; argv[]=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-url https://mainnet-v2-snapshots.base.org/1792886410/manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 16 --resumable=true -y ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }
+MemoryMax=4294967296
+MemorySwapMax=0
+

@@ -1,0 +1,12 @@
+528590eb992ecad38ed3285b0b5c29dbd6203e705bf42a1ae359aec4baf7ebed  ./G3-SNAPSHOT-VERIFICATION.md
+a4b701d33649350f73dae0995ed26e2dbc7a419a81c6723171b59792674bb624  ./README.md
+474a751d2f49776677c26ac7cdff16eca75ac9f01018c2b86cecfb9e916a57e1  ./evidence/selfcheck.guard
+1453d84b11a414964bd0458bcd2027dcdd1605b45cbb818a7a2e9de92d7e24fe  ./evidence/selfcheck.out
+93ff7811a209e2a8479230bbb9b6bc19f7f311d3af383ec350c1db2a7e7d5494  ./evidence/selfcheck.rc
+cd1c6b561bd2ff53d9d5fa9f86011478cdd1fc3f076061799c3fabd86d3fc738  ./jobs/env.sh
+33bf160bbe83c3b2c5d4bf4a08ea856b7c06bc8a4acc9bb8aa8c4af5fe342025  ./jobs/prepare-fetch.sh
+337d7c9a1b1f009b1244810c5eabe460fdf692889296abec164cc59f59ca6179  ./jobs/selfcheck.sh
+47f01ee9c8fb686c964ba140af9921a3c013ba08864556e482f290b46005ed92  ./jobs/test-offline.sh
+e9dfb8c6f950222fb8dee6a42d55612d10bd2cf8c2a68646c9aca8a581485312  ./patch/base-l1-verify.patch
+f3592fee54e7e551f66fe3674f563b90164e6bb7699edd1844b48dbcebc913de  ./root-queue/pins.json
+f5a55c1753bf1c0b6af9269b40066e995ff318c04db3d668272160f404786e06  ./root-queue/run.py

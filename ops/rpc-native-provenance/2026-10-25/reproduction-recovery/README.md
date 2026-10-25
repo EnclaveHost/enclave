@@ -1,8 +1,9 @@
 # Native reproduction: interrupted first attempt, recovery scripts and integrity checks (2026-10-25)
 
-**Status (updated after root's foreground run): R1 REPRODUCED. R2 and R3 UNFINISHED and NOT published here.**
+**Status (updated after root's foreground run): R1 and R2 REPRODUCED. R3 UNFINISHED and NOT published here.**
 - **ONE native is reproduced: the release listener `enclave-base-head-listener` `9ca75047…`, by a FRESH build** (section 6).
-- **No other native is reproduced:** witness-check `4fe0cd3b` and Helios `cc962e2b` are still open, and the 4 libraries
+- **TWO natives are now reproduced by fresh builds:** the listener `9ca75047…` (§6) and witness-check `4fe0cd3b…` (§7).
+- **Not reproduced:** Helios `cc962e2b` is still open (R3 unfinished), and the 4 libraries
   remain distribution bytes. This is not a native-provenance pass for the image as a whole.
 - The audit this follows is in `../` (`README.md`, `audit.json`, `ROOT-REVIEW.md`).
 - Root launches `jobs/resume.sh` in the FOREGROUND from a session that survives the CLI. **No job here runs as a
@@ -81,5 +82,30 @@ All ran in the foreground through the queue at 512 MiB, offline, with **no compi
   tarball `9784e20a` with the recorded toolchain and recipe, on this host.
   - **Not proven:** that it reproduces on a different host or toolchain installation. A second, independent builder
     host is still open.
-- **R2 (`r2b`) and R3 (`r3-b93fcfd`, `r3-eeffcc9`):** were still running or pending when this was written. Their logs
+- **R2 (`r2b`) and R3 (`r3-b93fcfd`, `r3-eeffcc9`):** were still running or pending when this was written (R2 has since
+  finished and is published in §7). Their logs
   are deliberately NOT copied, to avoid publishing incomplete files. No result is claimed.
+
+## 7. R2b result (root-launched FOREGROUND run of `jobs/resume.sh`, phase `r2b`; evidence in `r2b/`)
+
+- **Job:** `r2b` exit **0**, finished 18:12:44Z. Memory guard: peak 1198 MiB, host minimum 20757 MiB (`r2b/r2b.guard`,
+  `r2b/r2b.rc`). Offline, through the shared queue at 1536 MiB.
+- **What was built:** `witness-check` (debug), from a FRESH clone of the **committed** `ef320298` (tree `eec339e1`,
+  `Cargo.lock` `28f4400c`, clean before and after), at the ORIGINAL absolute paths through a private mount namespace.
+  - Mounted over the originals: the clone, an EMPTY target, and a byte-equal copy of the original cache (manifest
+    `8fe797b4…`). The vendor tree was read-only (manifest `d3115258…`).
+  - The flags and command are those of the original build script (`helper-build-test-r5.sh`): rustc 1.96.0
+    (`ac68faa20`), `CARGO_PROFILE_DEV_DEBUG=0`, `CARGO_INCREMENTAL=0`, `CARGO_BUILD_JOBS=1`, offline,
+    `-Wl,--threads=1`.
+  - Build started 18:05:03Z, `Finished dev … in 7m 36s`; `Cargo.lock` unchanged.
+- **Result:** rebuilt `4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411` == **the pin**
+  (`r2b/receipts/r2.sha256`). The sha256 of the rebuilt file was independently re-checked for this publication.
+- **Afterwards, originals unchanged:** the helios repo HEAD and clean state, the original target binary (still the pin),
+  the original cache and the vendor tree.
+- **What this settles:** the audit's open point. The pinned helper had been built from a DIRTY `aca8176` tree 15 minutes
+  before `ef320298` was committed. A fresh build of the committed `ef320298` now yields the same bytes, so the pinned
+  `witness-check` corresponds to committed source `ef320298` (on this host, with this toolchain).
+  - **Not proven:** reproduction on a different host or toolchain installation; a second, independent builder is still
+    open.
+- **R3:** `r3-b93fcfd` was running and `r3-eeffcc9` was pending when this was written. Their logs are NOT copied, and no
+  Helios result is claimed.
