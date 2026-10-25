@@ -98,6 +98,50 @@ def forwarding_args():
     # Submission only. This endpoint never supplies state, headers, proofs or fees.
     return ['--rpc.forwarding-endpoint', endpoint]
 
+RETAINED_BLOCKS = 140000
+DEFAULT_BLOCK_INTERVAL = 5          # reth/base-reth crates/config DEFAULT_BLOCK_INTERVAL
+DEFAULT_MINIMUM_DISTANCE = 10064    # MINIMUM_UNWIND_SAFE_DISTANCE = 32 * 2 + 10_000
+HISTORY_FLAGS = (('receipts', 'receipts'), ('account_history', 'account-history'),
+                 ('storage_history', 'storage-history'), ('bodies_history', 'bodies'))
+
+def _uint(v):
+    return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
+def prune_args(profile):
+    """Complete prune CLI equal to the persisted snapshot profile (lookup kept for the retained range).
+
+    Pinned reth/base-reth (launch/common.rs save_pruning_config) REPLACES the whole [prune] section of reth.toml
+    with the CLI-only PruneConfig whenever any --prune.* flag is given; a partial flag set therefore erases every
+    other segment. So every setting is passed explicitly, taken from the validated profile and never reduced.
+    Settings the CLI cannot reproduce losslessly are refused instead of being silently dropped.
+    """
+    prune = profile.get('prune', {})
+    segments = prune.get('segments', {})
+    assert isinstance(prune, dict) and isinstance(segments, dict), 'snapshot prune profile missing'
+    assert set(prune) <= {'block_interval', 'minimum_pruning_distance', 'segments'}, 'unsupported prune setting'
+    assert set(segments) <= {'sender_recovery', 'transaction_lookup', 'receipts_log_filter'} | {n for n, _ in HISTORY_FLAGS}, 'unsupported prune segment'
+    assert not segments.get('receipts_log_filter'), 'receipt log filter pruning unsupported'
+    assert segments.get('sender_recovery') == 'full', 'snapshot prune profile missing'
+    interval = prune.get('block_interval', DEFAULT_BLOCK_INTERVAL)
+    minimum = prune.get('minimum_pruning_distance', DEFAULT_MINIMUM_DISTANCE)
+    assert _uint(interval) and interval >= 1 and _uint(minimum), 'invalid prune interval/minimum distance'
+    args = ['--prune.block-interval', str(interval), '--prune.minimum-distance', str(minimum),
+            '--prune.sender-recovery.full']
+    for name, flag in HISTORY_FLAGS:
+        mode = segments.get(name)
+        assert isinstance(mode, dict) and set(mode) == {'distance'} and _uint(mode['distance']) \
+            and mode['distance'] >= RETAINED_BLOCKS, 'bounded history retention too short'
+        args += [f'--prune.{flag}.distance', str(mode['distance'])]
+    lookup = segments.get('transaction_lookup')
+    # Downloads omit the lookup index ('full' = none kept); the client rebuilds the retained range.
+    if lookup == 'full':
+        distance = RETAINED_BLOCKS
+    else:
+        assert isinstance(lookup, dict) and set(lookup) == {'distance'} and _uint(lookup['distance']) \
+            and lookup['distance'] >= RETAINED_BLOCKS, 'transaction lookup retention missing'
+        distance = lookup['distance']
+    return args + ['--prune.transaction-lookup.distance', str(distance)]
+
 def run(side):
     role = 'base' if side == 'base' else 'l1'
     base = mount(role, side)
@@ -106,24 +150,16 @@ def run(side):
     datadir = base + ('/cl' if side == 'cl' else '/data')
     if side in ('el', 'base'):
         profile = tomllib.loads(pathlib.Path(datadir, 'reth.toml').read_text())
-        segments = profile.get('prune', {}).get('segments', {})
-        assert segments.get('sender_recovery') == 'full', 'snapshot prune profile missing'
         assert profile.get('static_files', {}).get('blocks_per_file'), 'snapshot segment sizes missing'
-        for name in ('receipts', 'account_history', 'storage_history', 'bodies_history'):
-            mode = segments.get(name)
-            assert isinstance(mode, dict) and mode.get('distance', 0) >= 140000, 'bounded history retention too short'
-        lookup = segments.get('transaction_lookup')
-        # Downloads omit RocksDB lookup indices; the client rebuilds the retained
-        # range. The explicit CLI distance below is persisted after first start.
-        assert lookup == 'full' or (isinstance(lookup, dict) and lookup.get('distance', 0) >= 140000), 'transaction lookup retention missing'
+        prune = prune_args(profile)
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': datadir, 'TMPDIR': base + ('/tmp-cl' if side == 'cl' else '/tmp')}
     jwt = '/etc/enclave-rpc/jwt.hex'
     if side == 'el':
-        # The snapshot wrote the exact 140000-block prune profile to reth.toml.
-        # Do not override it with --full (which applies a different preset).
+        # The snapshot wrote the exact 140000-block prune profile to reth.toml. Pass all of it (never --full,
+        # a different preset): any partial --prune.* set would replace the persisted profile.
         a = [binary('reth'), 'node', '--chain', 'mainnet', '--datadir', datadir,
              '--http', '--http.addr', '127.0.0.1', '--http.port', '18645', '--http.api', 'eth,net,web3',
-             '--prune.transaction-lookup.distance', '140000',
+             *prune,
              '--rpc.max-connections', '64', '--authrpc.addr', '127.0.0.1', '--authrpc.port', '18651',
              '--authrpc.jwtsecret', jwt, '--ipcdisable', '--addr', '0.0.0.0', '--port', '30313',
              '--discovery.addr', '0.0.0.0', '--discovery.port', '30313', '--discovery.v5.addr', '0.0.0.0',
@@ -157,7 +193,7 @@ def run(side):
         a = [binary('base'), '--chain', 'mainnet', 'rpc', '--datadir', datadir,
              '--http', '--http.addr', '127.0.0.1', '--http.port', '18545', '--http.api', 'eth,net,web3',
              '--txpool.disable-transactions-backup',
-             '--prune.transaction-lookup.distance', '140000',
+             *prune,
              '--rpc.max-connections', '64', '--rpc.eth-proof-window', '1800', '--ipcdisable',
              '--addr', '0.0.0.0', '--port', '30303', '--discovery.addr', '0.0.0.0', '--discovery.port', '30303',
              '--discovery.v5.addr', '0.0.0.0', '--discovery.v5.port', '9200',

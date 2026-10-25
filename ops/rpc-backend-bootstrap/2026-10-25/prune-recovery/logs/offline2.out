@@ -1,0 +1,282 @@
+[queue] START available=21122MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+8cdd1f35e00558a40ff19001752c4b4fa3ea885c88d1c704348ba88248f6d250  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload/bin/reth
+9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload/bin/base
+== help: reth node prune flags
+--full
+--minimal
+--prune.block-interval <BLOCK_INTERVAL>
+--prune.sender-recovery.full
+--prune.sender-recovery.distance <BLOCKS>
+--prune.sender-recovery.before <BLOCK_NUMBER>
+--prune.transaction-lookup.full
+--prune.transaction-lookup.distance <BLOCKS>
+--prune.transaction-lookup.before <BLOCK_NUMBER>
+--prune.receipts.full
+--prune.receipts.pre-merge
+--prune.receipts.distance <BLOCKS>
+--prune.receipts.before <BLOCK_NUMBER>
+--prune.receiptslogfilter <FILTER_CONFIG>
+--prune.account-history.full
+--prune.account-history.distance <BLOCKS>
+--prune.account-history.before <BLOCK_NUMBER>
+--prune.storage-history.full
+--prune.storage-history.distance <BLOCKS>
+--prune.storage-history.before <BLOCK_NUMBER>
+--prune.bodies.pre-merge
+--prune.bodies.distance <BLOCKS>
+--prune.bodies.before <BLOCK_NUMBER>
+--prune.minimum-distance <BLOCKS>
+== help: base rpc prune flags
+--full
+--minimal
+--prune.block-interval <BLOCK_INTERVAL>
+--prune.sender-recovery.full
+--prune.sender-recovery.distance <BLOCKS>
+--prune.sender-recovery.before <BLOCK_NUMBER>
+--prune.transaction-lookup.full
+--prune.transaction-lookup.distance <BLOCKS>
+--prune.transaction-lookup.before <BLOCK_NUMBER>
+--prune.receipts.full
+--prune.receipts.pre-merge
+--prune.receipts.distance <BLOCKS>
+--prune.receipts.before <BLOCK_NUMBER>
+--prune.receiptslogfilter <FILTER_CONFIG>
+--prune.account-history.full
+--prune.account-history.distance <BLOCKS>
+--prune.account-history.before <BLOCK_NUMBER>
+--prune.storage-history.full
+--prune.storage-history.distance <BLOCKS>
+--prune.storage-history.before <BLOCK_NUMBER>
+--prune.bodies.pre-merge
+--prune.bodies.distance <BLOCKS>
+--prune.bodies.before <BLOCK_NUMBER>
+--prune.minimum-distance <BLOCKS>
+=========== reth: OLD argv (lookup flag only)
+-- /tmp/prunerec.fbDZWa/reth-old/reth.toml sha=33e7b18fca23bd98
+   parsed prune: {'block_interval': 5, 'segments': {'sender_recovery': 'full', 'transaction_lookup': 'full', 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | [prune.segments]
+   | sender_recovery = "full"
+   | transaction_lookup = "full"
+   | [prune.segments.receipts]
+   | distance = 140000
+   | [prune.segments.account_history]
+   | distance = 140000
+   | [prune.segments.storage_history]
+   | distance = 140000
+   | [prune.segments.bodies_history]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+-- reth exit=124 (0 'Saving prune config' lines)
+-- /tmp/prunerec.fbDZWa/reth-old/reth.toml sha=f905165e4bca7e27
+   parsed prune: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'transaction_lookup': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | minimum_pruning_distance = 10064
+   | [prune.segments.transaction_lookup]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+=========== reth: NEW argv (complete profile)
+-- reth exit=124 (0 'Saving prune config' lines)
+-- /tmp/prunerec.fbDZWa/reth-new/reth.toml sha=80c28b89c9859a06
+   parsed prune: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000}, 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | minimum_pruning_distance = 10064
+   | [prune.segments]
+   | sender_recovery = "full"
+   | [prune.segments.transaction_lookup]
+   | distance = 140000
+   | [prune.segments.receipts]
+   | distance = 140000
+   | [prune.segments.account_history]
+   | distance = 140000
+   | [prune.segments.storage_history]
+   | distance = 140000
+   | [prune.segments.bodies_history]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+=========== reth: NEW argv second launch (must not rewrite)
+-- reth exit=124 (0 'Saving prune config' lines)
+STABLE: second launch left reth.toml byte-identical
+=========== reth: repair the defect file, then NEW argv launch (must not rewrite)
+before sha256 f905165e4bca7e27a5d19459ef65179deeb83df838c4d624176e3e9f045a8f76  after sha256 80c28b89c9859a0621e4249a750dac4b9a7a1c6913d981556c2cbe5ee66258d7
+inserting:
+[prune.segments]
+sender_recovery = "full"
+
+[prune.segments.transaction_lookup]
+distance = 140000
+
+[prune.segments.receipts]
+distance = 140000
+
+[prune.segments.account_history]
+distance = 140000
+
+[prune.segments.storage_history]
+distance = 140000
+
+[prune.segments.bodies_history]
+distance = 140000
+
+REPAIRED /tmp/prunerec.fbDZWa/reth-old/reth.toml; original preserved at /tmp/prunerec.fbDZWa/reth-old/reth.toml.pre-prune-repair
+repair exit=0
+-- /tmp/prunerec.fbDZWa/reth-old/reth.toml sha=80c28b89c9859a06
+   parsed prune: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000}, 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | minimum_pruning_distance = 10064
+   | [prune.segments]
+   | sender_recovery = "full"
+   | [prune.segments.transaction_lookup]
+   | distance = 140000
+   | [prune.segments.receipts]
+   | distance = 140000
+   | [prune.segments.account_history]
+   | distance = 140000
+   | [prune.segments.storage_history]
+   | distance = 140000
+   | [prune.segments.bodies_history]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+-- reth exit=124 (0 'Saving prune config' lines)
+REPAIR-CANONICAL: launch left repaired reth.toml byte-identical
+non-prune content preserved: True | prune before: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'transaction_lookup': {'distance': 140000}}} | after: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000}, 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}}
+=========== base: OLD argv (lookup flag only)
+-- /tmp/prunerec.fbDZWa/base-old/reth.toml sha=33e7b18fca23bd98
+   parsed prune: {'block_interval': 5, 'segments': {'sender_recovery': 'full', 'transaction_lookup': 'full', 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | [prune.segments]
+   | sender_recovery = "full"
+   | transaction_lookup = "full"
+   | [prune.segments.receipts]
+   | distance = 140000
+   | [prune.segments.account_history]
+   | distance = 140000
+   | [prune.segments.storage_history]
+   | distance = 140000
+   | [prune.segments.bodies_history]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+-- base exit=0 (0 'Saving prune config' lines)
+2026-10-25T15:48:42.869355Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=273.226127ms
+2026-10-25T15:48:43.143946Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=636.712775ms
+2026-10-25T15:48:43.782939Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=1.307670891s
+2026-10-25T15:48:45.092589Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=2.445789874s
+-- /tmp/prunerec.fbDZWa/base-old/reth.toml sha=f905165e4bca7e27
+   parsed prune: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'transaction_lookup': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | minimum_pruning_distance = 10064
+   | [prune.segments.transaction_lookup]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+=========== base: NEW argv (complete profile)
+-- base exit=0 (0 'Saving prune config' lines)
+2026-10-25T15:48:47.813379Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=331.849113ms
+2026-10-25T15:48:48.146031Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=438.259382ms
+2026-10-25T15:48:48.585792Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=1.181490451s
+2026-10-25T15:48:49.768275Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=2.700351119s
+-- /tmp/prunerec.fbDZWa/base-new/reth.toml sha=80c28b89c9859a06
+   parsed prune: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000}, 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | minimum_pruning_distance = 10064
+   | [prune.segments]
+   | sender_recovery = "full"
+   | [prune.segments.transaction_lookup]
+   | distance = 140000
+   | [prune.segments.receipts]
+   | distance = 140000
+   | [prune.segments.account_history]
+   | distance = 140000
+   | [prune.segments.storage_history]
+   | distance = 140000
+   | [prune.segments.bodies_history]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+=========== base: NEW argv second launch (must not rewrite)
+-- base exit=0 (0 'Saving prune config' lines)
+2026-10-25T15:48:52.786335Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=217.498614ms
+2026-10-25T15:48:53.005707Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=444.38776ms
+2026-10-25T15:48:53.451240Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=1.237837762s
+2026-10-25T15:48:54.690253Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=3.019188285s
+STABLE: second launch left reth.toml byte-identical
+=========== base: repair the defect file, then NEW argv launch (must not rewrite)
+before sha256 f905165e4bca7e27a5d19459ef65179deeb83df838c4d624176e3e9f045a8f76  after sha256 80c28b89c9859a0621e4249a750dac4b9a7a1c6913d981556c2cbe5ee66258d7
+inserting:
+[prune.segments]
+sender_recovery = "full"
+
+[prune.segments.transaction_lookup]
+distance = 140000
+
+[prune.segments.receipts]
+distance = 140000
+
+[prune.segments.account_history]
+distance = 140000
+
+[prune.segments.storage_history]
+distance = 140000
+
+[prune.segments.bodies_history]
+distance = 140000
+
+REPAIRED /tmp/prunerec.fbDZWa/base-old/reth.toml; original preserved at /tmp/prunerec.fbDZWa/base-old/reth.toml.pre-prune-repair
+repair exit=0
+-- /tmp/prunerec.fbDZWa/base-old/reth.toml sha=80c28b89c9859a06
+   parsed prune: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000}, 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}} | static_files: {'blocks_per_file': {'headers': 500000, 'transactions': 500000, 'receipts': 500000}}
+   | [prune]
+   | block_interval = 5
+   | minimum_pruning_distance = 10064
+   | [prune.segments]
+   | sender_recovery = "full"
+   | [prune.segments.transaction_lookup]
+   | distance = 140000
+   | [prune.segments.receipts]
+   | distance = 140000
+   | [prune.segments.account_history]
+   | distance = 140000
+   | [prune.segments.storage_history]
+   | distance = 140000
+   | [prune.segments.bodies_history]
+   | distance = 140000
+   | [static_files.blocks_per_file]
+   | headers = 500000
+   | transactions = 500000
+   | receipts = 500000
+-- base exit=0 (0 'Saving prune config' lines)
+2026-10-25T15:48:58.114475Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=270.459779ms
+2026-10-25T15:48:58.386093Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=601.814613ms
+2026-10-25T15:48:58.989691Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=1.063124448s
+2026-10-25T15:49:00.054093Z  WARN p2p::flags: Retrying L1 latest block number lookup for unsafe block signer resolution error=error sending request for url (http://127.0.0.1:9/) delay=2.838191748s
+REPAIR-CANONICAL: launch left repaired reth.toml byte-identical
+non-prune content preserved: True | prune before: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'transaction_lookup': {'distance': 140000}}} | after: {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000}, 'receipts': {'distance': 140000}, 'account_history': {'distance': 140000}, 'storage_history': {'distance': 140000}, 'bodies_history': {'distance': 140000}}}
+[memory-guard] exit=0 peakTreeRssMiB=303 minHostAvailableMiB=20919
+[memory-guard] at peak: reth:297 bash:4 timeout:2
+[queue] EXIT 0
