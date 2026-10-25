@@ -44,3 +44,9 @@ The subsequent hardware run in `hardware-v9.json` launched the exact signed v9 i
 ## Activation preparation
 
 [ACTIVATION.md](ACTIVATION.md) records the observed service impact, exact live-pool allocation difference and remaining handoff gates. `transaction.py` adds a code-only, hash-guarded apply/rollback journal; 16 fault/recovery tests pass on Linux and the installed Windows Python runtime. The live guard refuses running services. This does not activate the package or qualify the full service/configuration handoff.
+
+The subsequent `hardware-livepool-v9.json` qualifies the pre-owner launch at the
+actual 16-CPU/96-GiB live pools: 25% share, 4 CPUs, 24-GiB app allowance and a
+36-GiB VM. `durable-release-v9.json` records the separate permanent asset directory
+and its new config pin. Neither checkpoint activates production or supplies owner
+provisioning; see the appended activation checkpoint for the remaining gates.
