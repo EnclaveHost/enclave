@@ -1,0 +1,8 @@
+{
+ "note": "protected-before/after.json (running user services + enclave-* MainPIDs + QEMU identities) are machine inventory: NOT published. Their hashes prove the run compared identical snapshots.",
+ "protectedBeforeSha256": "1f5fbf2a86b31291bfa475da94717f9e10b5825d95f2262542ff8753a3d5338d",
+ "protectedAfterSha256": "1f5fbf2a86b31291bfa475da94717f9e10b5825d95f2262542ff8753a3d5338d",
+ "identical": true,
+ "qemuCount": 4,
+ "runningUserServiceCount": 40
+}

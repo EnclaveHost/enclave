@@ -1,0 +1,25 @@
+{
+  "mode": "snp",
+  "name": "direct-control-canary",
+  "cpus": 4,
+  "memMiB": 2048,
+  "dist": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-image-stage/out/dist-direct-0235e7d96-a",
+  "ovmf": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+  "qemu": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/snp-verifier-canary-stage/canary/qemu-restrict.sh",
+  "sevDevice": "/dev/sev",
+  "control": "direct",
+  "direct": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/snp-verifier-canary-stage/runs/20261025T174309Z/private/owner-config.json",
+  "isolation": {
+    "backend": "snp-guest-per-app",
+    "pairingKeyFile": "<private, 0600, removed at the end>",
+    "managerUrl": "http://10.0.2.2:53473",
+    "dataAddr": "10.0.2.2:45181"
+  },
+  "hostfwd": [
+    {
+      "host": 55385,
+      "guest": 8444
+    }
+  ],
+  "measureGflops": false
+}
