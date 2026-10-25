@@ -1,0 +1,197 @@
+[queue] START available=19505MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+test_layouts (test_origin_extract.DecodeTest.test_layouts) ... ok
+test_rejects (test_origin_extract.DecodeTest.test_rejects) ... ok
+test_no_persisted_safe_is_reported_not_fabricated (test_origin_extract.ExtractTest.test_no_persisted_safe_is_reported_not_fabricated) ... ok
+test_persisted_safe_and_finalized (test_origin_extract.ExtractTest.test_persisted_safe_and_finalized) ... ok
+test_refusals (test_origin_extract.ExtractTest.test_refusals) ... ok
+test_scratch_inside_datadir_or_nonempty_refused (test_origin_extract.ExtractTest.test_scratch_inside_datadir_or_nonempty_refused) ... ok
+test_writable_datadir_refused (test_origin_extract.ExtractTest.test_writable_datadir_refused) ... ok
+test_all_scope_checks_non_batcher_blobs (test_coverage_gate.GateTest.test_all_scope_checks_non_batcher_blobs) ... ok
+test_batcher_change_in_range (test_coverage_gate.GateTest.test_batcher_change_in_range) ... ok
+test_beacon_gap_is_missing_data_not_missed_slot (test_coverage_gate.GateTest.test_beacon_gap_is_missing_data_not_missed_slot) ... ok
+test_blobs_unavailable (test_coverage_gate.GateTest.test_blobs_unavailable) ... ok
+test_bounds (test_coverage_gate.GateTest.test_bounds) ... usage: python3 -m unittest [-h] --origin ORIGIN [--el EL] [--beacon BEACON]
+                           --kzg KZG --kzg-sha256 KZG_SHA256 --out OUT
+                           [--to-block TO_BLOCK] [--blob-scope {batcher,all}]
+                           [--accept-tip-walk-rule] [--max-blocks MAX_BLOCKS]
+                           [--max-requests MAX_REQUESTS] [--rps RPS]
+                           [--timeout TIMEOUT] [--max-body MAX_BODY]
+                           [--max-head-age MAX_HEAD_AGE]
+                           [--max-final-age MAX_FINAL_AGE]
+                           [--min-custody-groups MIN_CUSTODY_GROUPS]
+python3 -m unittest: error: bounds outside the allowed envelope
+ok
+test_commitments_not_matching_el_versioned_hashes (test_coverage_gate.GateTest.test_commitments_not_matching_el_versioned_hashes) ... ok
+test_consistent_blob_swap_fails_transactions_root (test_coverage_gate.GateTest.test_consistent_blob_swap_fails_transactions_root) ... ok
+test_covered_with_missed_slot_and_commitment_matching (test_coverage_gate.GateTest.test_covered_with_missed_slot_and_commitment_matching) ... ok
+test_discontinuities (test_coverage_gate.GateTest.test_discontinuities) ... ok
+test_endpoint_policy_and_kzg_pin (test_coverage_gate.GateTest.test_endpoint_policy_and_kzg_pin) ... ok
+test_header_field_tamper_fails_header_hash (test_coverage_gate.GateTest.test_header_field_tamper_fails_header_hash) ... ok
+test_origin_not_canonical_or_not_finalized (test_coverage_gate.GateTest.test_origin_not_canonical_or_not_finalized) ... ok
+test_receipt_content_tamper_fails_receipts_root (test_coverage_gate.GateTest.test_receipt_content_tamper_fails_receipts_root) ... ok
+test_receipts_missing_or_mismatched (test_coverage_gate.GateTest.test_receipts_missing_or_mismatched) ... ok
+test_right_count_wrong_blob_is_rejected (test_coverage_gate.GateTest.test_right_count_wrong_blob_is_rejected) ... ok
+test_stale_optimistic_syncing_and_custody (test_coverage_gate.GateTest.test_stale_optimistic_syncing_and_custody) ... ok
+test_unsafe_only_origin_refused_unless_tip_rule (test_coverage_gate.GateTest.test_unsafe_only_origin_refused_unless_tip_rule) ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 37.352s
+
+OK
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpzmei0p45/verdict1237059221628248.json"}
+{"verdict": "REFUSED", "refusal": {"code": "batcher-changed-in-range", "detail": "SystemConfig batcher update in L1 block 1003"}, "out": "/tmp/tmp1ik1jjjm/verdict1237061445618485.json"}
+{"verdict": "REFUSED", "refusal": {"code": "missing-data", "detail": "1 slots/blocks lack EL, receipt, beacon or blob data"}, "out": "/tmp/tmpcg5t_p80/verdict1237063477383556.json"}
+{"verdict": "REFUSED", "refusal": {"code": "missing-data", "detail": "1 slots/blocks lack EL, receipt, beacon or blob data"}, "out": "/tmp/tmpi5fiqwuo/verdict1237065592327538.json"}
+{"verdict": "REFUSED", "refusal": {"code": "range-too-large", "detail": "9 blocks exceeds --max-blocks 3"}, "out": "/tmp/tmp7z15if0o/verdict1237067682308071.json"}
+{"verdict": "REFUSED", "refusal": {"code": "request-budget-exhausted", "detail": "more than 20 requests needed"}, "out": "/tmp/tmp7z15if0o/verdict1237067709156745.json"}
+{"verdict": "REFUSED", "refusal": {"code": "response-too-large", "detail": "http://127.0.0.1:37733/eth/v1/beacon/blobs/15508984?versioned_hashes=0x01a38f7a01dc0e1d7b344c5b2406eeaaec18a5580dddf1bf268a13d8fdf75b54&versioned_hashes=0x011ad5a3ed9a5d89cee00d811435baab933769151f65514dcc91f5b2c77ae8a7: over 1048576 bytes"}, "out": "/tmp/tmp7z15if0o/verdict1237067756523184.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpy_elwwlv/verdict1237068320824863.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpuhcm1qkc/verdict1237070395486556.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpniv7im7l/verdict1237072528012701.json"}
+{"verdict": "REFUSED", "refusal": {"code": "el-discontinuity", "detail": "block 1004 parentHash does not link to block 1003"}, "out": "/tmp/tmpg6xwa5tt/verdict1237074648935932.json"}
+{"verdict": "REFUSED", "refusal": {"code": "cl-discontinuity", "detail": "slot 15508987 parent_root does not link to slot 15508986"}, "out": "/tmp/tmpg6xwa5tt/verdict1237076171543722.json"}
+{"verdict": "REFUSED", "refusal": {"code": "el-cl-mismatch", "detail": "slot 15508989 does not commit to EL block 1006"}, "out": "/tmp/tmpg6xwa5tt/verdict1237077719928548.json"}
+{"verdict": "REFUSED", "refusal": {"code": "config", "detail": "http://192.0.2.1:8545: endpoint must be loopback"}, "out": "/tmp/tmpc_rybjj6/v1237079848063310.json"}
+{"verdict": "REFUSED", "refusal": {"code": "config", "detail": "https://127.0.0.1:1: only plain http://loopback:port endpoints are allowed"}, "out": "/tmp/tmpc_rybjj6/v1237079848729911.json"}
+{"verdict": "REFUSED", "refusal": {"code": "config", "detail": "kzgcheck binary differs from --kzg-sha256"}, "out": "/tmp/tmpc_rybjj6/v1237079849152336.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmp3m2unwxa/verdict1237080480129455.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/tmpy8cv5g3n/verdict1237082601431907.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-finalized", "detail": "L1 origin 1009 is above the checked finalized range end 1008"}, "out": "/tmp/tmpy8cv5g3n/verdict1237082636213220.json"}
+{"verdict": "REFUSED", "refusal": {"code": "range-not-finalized", "detail": "--to-block 1010 is above L1 finalized 1008"}, "out": "/tmp/tmpy8cv5g3n/verdict1237082661440106.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpnnlvo7o0/verdict1237083192218729.json"}
+{"verdict": "REFUSED", "refusal": {"code": "missing-data", "detail": "1 slots/blocks lack EL, receipt, beacon or blob data"}, "out": "/tmp/tmpqw8lvcgo/verdict1237085334028350.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpqw8lvcgo/verdict1237086982492478.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpqw8lvcgo/verdict1237088593438836.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpsg8w5m0z/verdict1237090692016655.json"}
+{"verdict": "REFUSED", "refusal": {"code": "cl-optimistic", "detail": "L1 consensus head is optimistic (execution not validated)"}, "out": "/tmp/tmpkxdku92n/verdict1237092817937621.json"}
+{"verdict": "REFUSED", "refusal": {"code": "cl-optimistic", "detail": "beacon head response is optimistic or unavailable"}, "out": "/tmp/tmpkxdku92n/verdict1237092832627233.json"}
+{"verdict": "REFUSED", "refusal": {"code": "el-syncing", "detail": "L1 execution client still syncing"}, "out": "/tmp/tmpkxdku92n/verdict1237092853932731.json"}
+{"verdict": "REFUSED", "refusal": {"code": "insufficient-custody", "detail": "custody_group_count 4 < 64: cannot reconstruct blobs"}, "out": "/tmp/tmpkxdku92n/verdict1237092866842705.json"}
+{"verdict": "REFUSED", "refusal": {"code": "stale-head", "detail": "L1 EL head is stale"}, "out": "/tmp/tmpkxdku92n/verdict1237092891970834.json"}
+{"verdict": "REFUSED", "refusal": {"code": "no-persisted-safe-head", "detail": "snapshot persists no safe label; an unsafe tip alone is not accepted without --accept-tip-walk-rule"}, "out": "/tmp/tmpq39ykvv4/verdict1237093415680237.json"}
+{"verdict": "COVERED_UNDER_TIP_WALK_RULE_ROOT_DECISION_REQUIRED", "refusal": null, "out": "/tmp/tmpq39ykvv4/verdict1237093416395188.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-format", "detail": "status claims a persisted safe head but labels.safe is absent"}, "out": "/tmp/tmpq39ykvv4/verdict1237095047814184.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-provenance", "detail": "origin was not extracted read-only with the pinned client tooling"}, "out": "/tmp/tmpq39ykvv4/verdict1237095048438936.json"}
+{"status": "REFUSED", "out": "/tmp/covreal.IEBwF6/origin.json"}
+{
+ "format": "enclave-base-snapshot-origin/v1",
+ "progress": {
+  "calls": [
+   {
+    "argv": [
+     "reth",
+     "db",
+     "--chain",
+     "base",
+     "--datadir",
+     "/tmp/covreal.IEBwF6/ro",
+     "--datadir.rocksdb",
+     "/tmp/covreal.IEBwF6/scratch/view/rocksdb",
+     "get",
+     "mdbx",
+     "ChainState",
+     "\"LastSafeBlock\""
+    ],
+    "rc": 0
+   },
+   {
+    "argv": [
+     "reth",
+     "db",
+     "--chain",
+     "base",
+     "--datadir",
+     "/tmp/covreal.IEBwF6/ro",
+     "--datadir.rocksdb",
+     "/tmp/covreal.IEBwF6/scratch/view/rocksdb",
+     "get",
+     "mdbx",
+     "ChainState",
+     "\"LastFinalizedBlock\""
+    ],
+    "rc": 0
+   },
+   {
+    "argv": [
+     "reth",
+     "db",
+     "--chain",
+     "base",
+     "--datadir",
+     "/tmp/covreal.IEBwF6/ro",
+     "--datadir.rocksdb",
+     "/tmp/covreal.IEBwF6/scratch/view/rocksdb",
+     "get",
+     "mdbx",
+     "StageCheckpoints",
+     "\"Finish\""
+    ],
+    "rc": 0
+   },
+   {
+    "argv": [
+     "reth",
+     "db",
+     "--chain",
+     "base",
+     "--datadir",
+     "/tmp/covreal.IEBwF6/ro",
+     "--datadir.rocksdb",
+     "/tmp/covreal.IEBwF6/scratch/view/rocksdb",
+     "get",
+     "static-file",
+     "headers",
+     "0"
+    ],
+    "rc": 0
+   },
+   {
+    "argv": [
+     "reth",
+     "db",
+     "--chain",
+     "base",
+     "--datadir",
+     "/tmp/covreal.IEBwF6/ro",
+     "--datadir.rocksdb",
+     "/tmp/covreal.IEBwF6/scratch/view/rocksdb",
+     "get",
+     "static-file",
+     "headers",
+     "0"
+    ],
+    "rc": 0
+   },
+   {
+    "argv": [
+     "reth",
+     "db",
+     "--chain",
+     "base",
+     "--datadir",
+     "/tmp/covreal.IEBwF6/ro",
+     "--datadir.rocksdb",
+     "/tmp/covreal.IEBwF6/scratch/view/rocksdb",
+     "get",
+     "mdbx",
+     "BlockBodyIndices",
+     "0"
+    ],
+    "rc": 0
+   }
+  ],
+  "finishBlock": 0,
+  "lastFinalizedBlock": null,
+  "lastSafeBlock": null,
+  "tipHeader": {
+   "hash": "0xf712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd",
+   "number": 0
+  }
+ },
+ "refusal": "tip block 0: body pruned or empty (no L1-attributes deposit)",
+ "status": "REFUSED"
+}
+REAL-ORIGIN PASS: pinned base reth db get ran read-only; labels absent reported; genesis hash matched; tree unchanged
+[memory-guard] exit=0 peakTreeRssMiB=112 minHostAvailableMiB=17481
+[memory-guard] at peak: base:81 python3:22 bash:4 bash:4 timeout:2
+[queue] EXIT 0
