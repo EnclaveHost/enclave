@@ -64,3 +64,12 @@ on the API host; the real running-service guard refused without changes.
 `api-overlay-v9.json` records the package and evidence pins. The API maintenance
 and rollback sequence is documented in `ACTIVATION.md`; it has not been executed
 against the production service.
+
+`retire_managed.py` adds a reviewed-identity retirement journal for the two managed
+app/witness instances. It requires stopped admissions and the original manager,
+then explicit manager removal plus independent Hyper-V absence for each target.
+Eleven tests pass against the installed HTTP implementation with a simulated host
+backend, locally and on Windows. A separate real scheduled-task rehearsal verifies
+child-process shutdown, failed-hook refusal and manager-first recovery using
+disposable workers. `handoff-boundaries-v9.json` and `ACTIVATION.md` distinguish
+these component proofs from the still-pending combined handoff and real app recovery.

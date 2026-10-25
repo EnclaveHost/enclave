@@ -1,0 +1,69 @@
+{
+  "schema": "native-handoff-boundaries-qualification/1",
+  "sourceCommit": "f615ec1ad4103192c1509310727397021ee1953c",
+  "managerSourceSha256": "1bbb64ffff2bdefe8f15ecf804720e15dc3c322adb93cf8f2fe50a5191ecea66",
+  "fixtureZipSha256": "e5b0049635f0a9b2520973d28be2647976b2321d9d87145b8581f35d0b59d673",
+  "taskLifecycle": {
+    "startedUtc": "2026-10-25T18:09:31.6136670Z",
+    "finishedUtc": "2026-10-25T18:09:45.1237433Z",
+    "steps": 5,
+    "passed": true,
+    "productionUnchangedDuringRehearsal": true,
+    "remainingFixtureTasks": 0,
+    "remainingFixtureProcesses": 0,
+    "explicitProcessKillNeeded": false,
+    "actualScheduledTasks": true,
+    "realServiceRunners": false
+  },
+  "retirement": {
+    "localPassed": 11,
+    "windowsPassed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "windowsPython": "Python 3.14.5",
+    "actualInstalledHttpServer": true,
+    "hyperVBackend": "simulated",
+    "liveGuardRefused": true,
+    "realRetirementPerformed": false,
+    "remainingFixtureProcesses": [],
+    "initialWindowsFixtureFailure": "CRLF command parser rejected inventory/shutdown; fixed and final run passed"
+  },
+  "finalInspection": {
+    "utc": "2026-10-25T18:17:14.9034243Z",
+    "baselineMatches": true,
+    "processes": [
+      {
+        "creationDate": "2026-10-23T19:19:10.4023340Z",
+        "parentPid": 16272,
+        "pid": 4716,
+        "role": "node",
+        "parentIsCmd": true,
+        "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+      },
+      {
+        "creationDate": "2026-10-23T19:18:15.0107030Z",
+        "parentPid": 10316,
+        "pid": 5180,
+        "role": "manager",
+        "parentIsCmd": true,
+        "executable": "C:\\Program Files\\Enclave\\runtime\\node\\node.exe"
+      }
+    ],
+    "appVm": "3adac528-f53f-48fb-a445-11533476e688"
+  },
+  "continuityException": {
+    "retiredAtUtc": "2026-10-25T18:11:30Z",
+    "loggedReason": "lease expired after RPC renewal failures",
+    "priorVm": "3b3a309a-7d6c-4ee4-bf68-e6d0ddd858fe",
+    "replacementVm": "3adac528-f53f-48fb-a445-11533476e688",
+    "replacementReadyAtFinalInspection": true,
+    "underlyingRpcCauseEstablished": false
+  },
+  "productionServiceActions": false,
+  "productionVmRemovalRequests": false,
+  "combinedHandoffRehearsed": false,
+  "ownerProvisioned": false,
+  "published": false,
+  "evidence": "outputs/kvm-box/evidence/native-handoff-v9",
+  "remaining": "Combined file/task handoff, post-node-start failure recovery, lease/RPC stability, actual owner provisioning and desktop acceptance/publication."
+}
