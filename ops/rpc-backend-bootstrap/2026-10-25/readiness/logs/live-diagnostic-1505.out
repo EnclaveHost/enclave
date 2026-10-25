@@ -1,0 +1,8 @@
+Running as unit: enclave-readiness-diagnostic-1505.service
+{"overall": "FAIL", "acceptance": false, "failing": ["l1-consensus-nonoptimistic"], "incomplete": ["base-el-labels", "base-execution-synced", "base-finalized-advancing", "base-finalized-fresh", "base-heads-consistent", "base-identity", "base-safe-advancing", "base-safe-fresh", "base-unsafe-fresh", "historical-coverage", "l1-execution-synced", "l1-finalized-paired", "l1-head-advancing", "l1-head-paired-fresh", "l1-identity", "sampling-complete"], "out": "/var/tmp/enclave-readiness-0c94a25ac/diagnostic.json"}
+Finished with result: exit-code
+Main processes terminated with: code=exited/status=3
+Service runtime: 76ms
+CPU time consumed: 69ms
+Memory peak: 1.6M
+Memory swap peak: 0B
