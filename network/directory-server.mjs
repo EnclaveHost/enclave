@@ -44,10 +44,20 @@ export function createDirectoryServer(directory,{maxInFlight=32,log=()=>{}}={}){
   });
 }
 
+// The directory's chain reader (lease rows, registry operators, owner signatures), as ONE explicit choice: the legacy
+// provider quorum from config.rpc, exactly as before, unless config.chainAuthority is "verifier". Then ONLY the host-LOCAL
+// verifier (config.chainVerifier, loopback; LeaseReader builds no provider client and has no fallback; not an attested
+// verifier), and a config that still names rpc is REFUSED rather than silently ignored (one authority, never mixed).
+export function directoryReaderOptions(config){
+  const authority=chainAuthorityOptions(config);
+  if(authority.authority==='verifier'&&config.rpc!==undefined)throw new Error('directory: rpc is not used with chainAuthority "verifier" (one explicit authority, no provider fallback): remove it');
+  return {rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true,...authority};
+}
+
 // reader: an injected chain reader with the LeaseReader interface (refresh, registryEntries, bookAddress); tests only.
 export async function runDirectory(config,{reader:injected}={}){
   const log=m=>console.log(new Date().toISOString(),m);
-  const reader=injected||new LeaseReader({rpc:config.rpc,addressBook:config.addressBook,authorityPins:config.authorityPins,includeHostPayout:true,...chainAuthorityOptions(config)});
+  const reader=injected||new LeaseReader(directoryReaderOptions(config));
   const leases=new Map(),operators=new Map();let registry=null,registryAt=0,refreshLeases=null;
   const leaseOf=async id=>{
     const cached=leases.get(id);if(cached&&cached.at+15000>Date.now())return cached.row;

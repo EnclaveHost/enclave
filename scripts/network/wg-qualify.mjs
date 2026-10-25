@@ -4,6 +4,8 @@
 //        [--rpc https://… --book 0x…]   (a community provider that passes also gets an on-chain attestation, for paid service)
 //   node scripts/network/wg-qualify.mjs --key-file k --wg w --records records.json --out results.json      (tests)
 // --directories-file PUBLIC_JSON_ARRAY avoids shell-specific JSON quoting for service launchers.
+// --chain-authority verifier --chain-verifier http://127.0.0.1:<port>/ (instead of --rpc): every chain read through the
+//   host-LOCAL verifier only (network/qualifier-chain.mjs; not an attested verifier), fail-closed, no provider fallback.
 //
 // INDEPENDENT (no Enclave default anywhere; docs/network/open-participation.md):
 //   node scripts/network/wg-qualify.mjs --independent --key-file checker.key --wg /path/enclave-wg
@@ -32,6 +34,7 @@ import {hostABI} from '../../network/registry-abi.mjs';
 import {base} from 'viem/chains';
 import {DirectoryClient} from '../../network/directory-client.mjs';
 import {resolveCheckerBootstrap,agreedRead,rpcLabel} from '../../network/service-index.mjs';
+import {qualifierChainAuthority} from '../../network/qualifier-chain.mjs';
 
 const arg=(n,d)=>{const i=process.argv.indexOf('--'+n);return i>0?process.argv[i+1]:d;};
 const args=n=>process.argv.flatMap((a,i)=>a==='--'+n&&process.argv[i+1]!==undefined?[process.argv[i+1]]:[]);
@@ -41,6 +44,10 @@ if(process.argv.includes('--print-address')){console.log(account.address.toLower
 const wgBinary=arg('wg'),relay=arg('relay'),log=m=>console.log(new Date().toISOString(),m);
 if(arg('directories-file')&&arg('directories'))throw Error('choose directories or directories-file, not both');
 const origins=arg('directories-file')?JSON.parse(await fs.readFile(arg('directories-file'),'utf8')):arg('directories')?JSON.parse(arg('directories')):relay?[relay]:null;
+// EXPLICIT local-verifier authority (network/qualifier-chain.mjs): checked before anything else reads the chain; refuses a
+// mixed selection (--rpc / --independent). Without --chain-authority this is null and every read below is unchanged.
+const verified=qualifierChainAuthority({authority:arg('chain-authority'),verifier:arg('chain-verifier'),rpc:args('rpc'),independent,chainId:Number(arg('chain-id',8453))});
+if(verified)log('chain reads: '+JSON.stringify(verified.describe()));
 const boot=independent?resolveCheckerBootstrap({directories:origins,pins:arg('pins')?JSON.parse(await fs.readFile(arg('pins'),'utf8')):null,rpc:args('rpc'),
  chainId:Number(arg('chain-id',8453)),relay,book:arg('book'),outbound:arg('outbound'),dns:arg('dns'),smtp:arg('smtp'),smtpDomain:arg('smtp-domain')}):null;
 const directories=arg('directories-file')||arg('directories')||relay?new DirectoryClient({origins,timeoutMs:15000}):null;
@@ -48,7 +55,7 @@ const zero='0x'+'0'.repeat(64);
 // Independent: an agreeing quorum of the operator's RPCs; its readContract answers only with what two of them return at one block.
 const peers=boot?boot.rpc.map((u,i)=>({label:`${rpcLabel(u)}#${i+1}`,client:createPublicClient({transport:http(u,{timeout:8000,retryCount:0})})})):null;
 const agreedCall=async q=>(await agreedRead({peers,chainId:boot.chainId,read:async(c,blockNumber,call)=>({v:await call(q.functionName,()=>c.readContract({...q,blockNumber}))})})).value.v;
-const chain=boot?{readContract:agreedCall}:arg('rpc')?createPublicClient({chain:base,transport:http(arg('rpc'),{timeout:15000})}):null;
+const chain=verified?{readContract:verified.readContract}:boot?{readContract:agreedCall}:arg('rpc')?createPublicClient({chain:base,transport:http(arg('rpc'),{timeout:15000})}):null;
 const book=arg('book','0xab214342d5A490150A4A977063A2f88E21F80907');
 // a community provider must be the operator of an active registry host (the pinned registry, or the one the address book publishes)
 let registry=boot?boot.pins.registry:null;
