@@ -18,7 +18,7 @@ import {createNetworkHost} from './enclave-network-host.mjs';
 import {WgControlTransport} from './wg-control.mjs';
 import {HostServiceTransport,validateHostServicesTransport,hostServiceLifecycle} from './host-service-transport.mjs';
 import {createHostServiceGate} from './host-service-gate.mjs';
-import {hostServicesPolicyConfig} from './host-policy-gate-config.mjs';
+import {hostServicesPolicyConfig,hostServicesGateAuthority} from './host-policy-gate-config.mjs';
 import {hostPolicyCarrierGate} from './host-policy-carrier-gate.mjs';
 import {createPaidNetwork} from './paid-network.mjs';
 import {ShieldHostProof} from './shield-host-proof.mjs';
@@ -272,8 +272,14 @@ export async function runPrivacy(configFile){
   let hostGate=null;
   if(hostServicesConfig){try{const hsp=cfg.enclaveNetwork.hostServicesPolicy,stateDir=path.join(cfg.directory,'host-services-policy');
     const secs=v=>Number(v)>0?Number(v)*1000:null;
+    // the gate's chain authority (the block's chainAuthority: the policy's RPC quorum by default, or EXPLICITLY the local
+    // verifier) must agree with the environment and the agent's own chain verifier: a mismatch refuses host services only
+    const hspc=hsp===undefined?null:hostServicesPolicyConfig(hsp),auth=hostServicesGateAuthority(hspc,{env:process.env,chain:cfg.chain});
+    if(auth.refused)throw new Error(auth.refused);
+    if(auth.warning)log('host services: WARNING: '+auth.warning);
+    if(hspc?.chainAuthority==='verifier')log('host services: platform host policy gate and carriers read through the local chain verifier (no RPC quorum)');
     hostGate=hsp===undefined?createHostServiceGate({env:process.env,chainId:8453,book:cfg.chain?.addressBook||null,hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log})
-      :await hostPolicyCarrierGate(hostServicesPolicyConfig(hsp),{hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log,
+      :await hostPolicyCarrierGate(hspc,{hostId:cfg.runner,stateDir,fetch:globalThis.fetch,log,
         intervalMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_INTERVAL_SEC),graceMs:secs(process.env.ENCLAVE_PLATFORM_HOST_POLICY_GRACE_SEC)});}
    catch(e){pre.refused='platform host policy: '+e.message;log('HOST SERVICES REFUSED (apps unaffected): '+pre.refused);hostServicesConfig=null;}}
   // an app-less host has nothing else to run: refused (before anything binds) unless its host services can actually run -

@@ -1,0 +1,35 @@
+{
+  "upstreamSourceHead": "dba7b4fdc091441ac8b85cca2738f19efa1003e0",
+  "files": [
+    {
+      "path": "network/host-policy-carrier-gate.mjs",
+      "sha256": "2995b9de22d2600570ead197af2204b39966898ccba9a76bd412d25bcb76ef75",
+      "identical": true
+    },
+    {
+      "path": "network/host-policy-gate-config.mjs",
+      "sha256": "08ea47324d26eb54b7f897bc4953f1dc56f8f26509498af52a8e4e44f4a83a80",
+      "identical": true
+    },
+    {
+      "path": "network/privacy-agent.mjs",
+      "sha256": "20608d12e16761578f0b372fbc095c630b71c70d81352ae65199b7cc67320a87",
+      "identical": true
+    },
+    {
+      "path": "test/helpers/platform-policy-world.mjs",
+      "sha256": "c8fd21232d29c74530d68a269272b2e7a682f97f57c55a01a9f01a2aa3f19482",
+      "identical": true
+    },
+    {
+      "path": "test/host-services-agent-verifier.test.mjs",
+      "sha256": "242603d698b94c4315f43be44fc4b128c8341c818647a2737c4580962ae70870",
+      "identical": true
+    },
+    {
+      "path": "windows/node/host-admission.bundle.mjs",
+      "sha256": "9825a9a20c8f2fb8c0afd128bd0121a574ec46cdd50513e220f73d10c095658a",
+      "identical": true
+    }
+  ]
+}

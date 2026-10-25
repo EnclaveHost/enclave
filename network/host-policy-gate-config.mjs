@@ -32,6 +32,7 @@ export function runnerPolicyShape(h) {
   const pc = h.carriers ? { ...(h.carriers.importDir ? { importDir: h.carriers.importDir } : {}), ...(h.carriers.peers ? { peers: h.carriers.peers } : {}) } : null;
   return { platformHostPolicy: h.policy, ...(h.mirrors.length ? { platformHostPolicyMirrors: h.mirrors } : {}), ...(h.rpcs ? { platformHostPolicyRpcs: h.rpcs } : {}),
     ...(pc && Object.keys(pc).length ? { platformHostPolicyCarriers: pc } : {}),
+    ...(h.chainAuthority === 'verifier' ? { chainAuthority: 'verifier', chainVerifier: h.chainVerifier } : {}),
     services: h.carriers?.policyMirrorStateDir ? [{ role: 'policy-mirror', config: { stateDir: h.carriers.policyMirrorStateDir } }] : [] };
 }
 /** The gate's environment for a normalized block (with the reserved carrier origin when carriers are configured). */
@@ -41,6 +42,7 @@ export function hostPolicyGateEnv(h) {
   const mirrors = [...h.mirrors, ...(h.carriers ? [CARRIER_MIRROR] : [])];
   if (mirrors.length) env.ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS = mirrors.join(',');
   if (h.rpcs) env.ENCLAVE_PLATFORM_HOST_POLICY_RPCS = h.rpcs.join(',');
+  if (h.chainAuthority === 'verifier') { env.ENCLAVE_CHAIN_AUTHORITY = 'verifier'; env.ENCLAVE_CHAIN_VERIFIER = h.chainVerifier; }
   return { env, shape };
 }
 
@@ -52,16 +54,37 @@ const absolute = (p) => typeof p === 'string' && (p.startsWith('/') || /^[A-Za-z
  *   mirrors?: extra HTTPS mirror origins (at most 8)
  *   rpcs?:    the policy's own RPC quorum (2 to 8 distinct providers; http only on loopback)
  *   carriers?: { importDir?, policyMirrorStateDir?, peers? }  (absolute directories; peers: other hosts' policy mirrors)
+ *   chainAuthority?: "quorum" (default: the policy's RPC quorum, exactly as before) | "verifier" with
+ *   chainVerifier: the LOCAL (loopback) proof-backed verifier URL. Verifier mode is ONE explicit authority for the gate and
+ *     every carrier's fresh verification: it refuses rpcs (here or inside the policy) and a policy that names its own chain
+ *     authority, and nothing in it ever falls back to an RPC quorum. The normalized block then carries chainAuthority and
+ *     chainVerifier (a quorum block is normalized exactly as before, without them).
  * The endpoint and state directory are the agent's own (its runner and state directory), never repeated here. A policy whose
  * quorum is unknown (an explicit book with no rpcs) is refused: neither the gate nor a carrier could read it.
  */
 export function hostServicesPolicyConfig(c, where = 'enclaveNetwork.hostServicesPolicy') {
   const fail = (m) => { throw new Error(`${where}: ${m}`); };
   if (!isObj(c)) fail('must be an object');
-  const extra = Object.keys(c).filter((k) => !['policy', 'mirrors', 'rpcs', 'carriers'].includes(k));
+  const extra = Object.keys(c).filter((k) => !['policy', 'mirrors', 'rpcs', 'carriers', 'chainAuthority', 'chainVerifier'].includes(k));
   if (extra.length) fail(`unknown field(s): ${extra.join(', ')}`);
   const policy = c.policy;
   if (!(policy === 'production' || policy === 'off' || isObj(policy))) fail('policy must be "production", "off" or an explicit {book, hostOwnership, mirrors, ...}');
+  // the chain authority: named ONCE, at the top level of this block (never inside the policy, where it would sit beside an
+  // RPC list); "quorum" or absent = the policy's RPC quorum as before
+  if (isObj(policy) && (policy.chainAuthority !== undefined || policy.chainVerifier !== undefined))
+    fail('policy.chainAuthority/chainVerifier: name the chain authority once, as this block\'s chainAuthority/chainVerifier');
+  let verifier = null;
+  if (c.chainAuthority === undefined || c.chainAuthority === 'quorum') {
+    if (c.chainVerifier !== undefined) fail('chainVerifier is set but chainAuthority is not "verifier"');
+  } else if (c.chainAuthority === 'verifier') {
+    if (typeof c.chainVerifier !== 'string' || !c.chainVerifier) fail('chainAuthority "verifier" needs chainVerifier (the local verifier URL)');
+    if (policy === 'off') fail('"off" takes no chain authority');
+    if (c.rpcs !== undefined || (isObj(policy) && (policy.rpcs !== undefined || policy.minAgree !== undefined)))
+      fail('rpcs/minAgree are not used with chainAuthority "verifier" (one explicit authority, never a quorum beside it): remove them');
+    try { resolveHostPolicyConfig({ env: { ENCLAVE_PLATFORM_HOST_POLICY: 'production', ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: c.chainVerifier }, chainId: 8453 }); }
+    catch (e) { fail(`chainVerifier: ${e.message}`); }
+    verifier = { chainAuthority: 'verifier', chainVerifier: c.chainVerifier };
+  } else fail('chainAuthority must be "quorum" or "verifier"');
   try { resolveHostPolicyConfig({ env: { ENCLAVE_PLATFORM_HOST_POLICY: typeof policy === 'string' ? policy : JSON.stringify(policy) }, chainId: 8453 }); }
   catch (e) { fail(`policy: ${e.message}`); }
   if (policy === 'off') {
@@ -90,8 +113,35 @@ export function hostServicesPolicyConfig(c, where = 'enclaveNetwork.hostServices
       ...(peers?.length ? { peers } : {}) };
     if (!Object.keys(carriers).length) fail('carriers names no carrier');
   }
-  const h = { policy, mirrors, rpcs, carriers };
+  const h = { policy, mirrors, rpcs, carriers, ...(verifier || {}) };
   let resolved; try { resolved = resolveHostPolicyConfig({ env: hostPolicyGateEnv(h).env, chainId: 8453 }); } catch (e) { fail(e.message); }
-  if (!resolved.config?.rpcs?.length) fail('the policy\'s RPC quorum is unknown: name rpcs (or use "production")');
+  if (verifier) { if (resolved.config?.chainAuthority !== 'verifier') fail('the chain verifier did not resolve'); }
+  else if (!resolved.config?.rpcs?.length) fail('the policy\'s RPC quorum is unknown: name rpcs (or use "production")');
   return Object.freeze(h);
+}
+
+/**
+ * The privacy agent's ONE check that its host-services gate and its other chain settings name the same authority
+ * (h: a normalized block, or null when the block is absent and the gate reads the process environment). -> { refused, warning }
+ *   refused: the process environment's ENCLAVE_CHAIN_AUTHORITY/ENCLAVE_CHAIN_VERIFIER disagree with an explicit block (the
+ *     block's gate never reads them, so either would be silently ignored); or the block's verifier is not the agent's own
+ *     chain verifier (cfg.chain.verifier) - two local verifiers for one host.
+ *   warning: the agent's lease reads use the local verifier but its host-services gate still reads the RPC quorum (the
+ *     quorum default is kept; this is reported, never hidden).
+ */
+export function hostServicesGateAuthority(h, { env = {}, chain = null } = {}) {
+  const envA = String(env.ENCLAVE_CHAIN_AUTHORITY ?? '').trim(), envV = String(env.ENCLAVE_CHAIN_VERIFIER ?? '').trim();
+  const chainV = chain?.authority === 'verifier' ? String(chain.verifier || '') : null;
+  const gateV = h ? (h.chainAuthority === 'verifier' ? h.chainVerifier : null)
+    : (envA === 'verifier' ? envV : null);
+  if (h && (envA || envV)) {
+    const blockA = h.chainAuthority === 'verifier' ? 'verifier' : 'quorum';
+    if ((envA || 'quorum') !== blockA || (blockA === 'verifier' && envV && envV !== h.chainVerifier))
+      return { refused: `ENCLAVE_CHAIN_AUTHORITY/ENCLAVE_CHAIN_VERIFIER (${envA || 'unset'}) in the environment disagree with enclaveNetwork.hostServicesPolicy (${blockA}): one explicit authority`, warning: null };
+  }
+  if (gateV && chainV && gateV !== chainV)
+    return { refused: `the host-services gate's chain verifier (${gateV}) is not this agent's chain verifier (${chainV}): one local verifier per host`, warning: null };
+  if (chainV && !gateV)
+    return { refused: null, warning: 'the lease reads use the local chain verifier, but the host-services gate reads the platform host policy through its RPC quorum (set enclaveNetwork.hostServicesPolicy.chainAuthority "verifier" to move it)' };
+  return { refused: null, warning: null };
 }

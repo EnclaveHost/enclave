@@ -1,0 +1,69 @@
+[queue] START available=21557MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[r7] b3 rc=0
+old 6bd913516bbeeb72602720c2b5c29d00ced72d1c1ebb2046bb5c5abad447ff87  windows/node/host-admission.bundle.mjs
+old 228d4cf0824f31eae4eac8161099c9314bdd6cbb0ab95ebe48539f74031a1991  metal/guest/host-policy.bundle.mjs
+admission --check: current
+new 9825a9a20c8f2fb8c0afd128bd0121a574ec46cdd50513e220f73d10c095658a  windows/node/host-admission.bundle.mjs
+new 228d4cf0824f31eae4eac8161099c9314bdd6cbb0ab95ebe48539f74031a1991  metal/guest/host-policy.bundle.mjs
+full tracked diff sha256 66d11928452387df45573f89ddb4867f6e5e052c8f2fef8fdba21d4d9c3289a8
+(verified current)
+network/build.mjs exit=1 (go denials: 1)
+tree base: admission bundles current
+(verified current)
+network/build.mjs exit=1 (go denials: 1)
+tree a: admission bundles current
+(verified current)
+network/build.mjs exit=1 (go denials: 1)
+tree b: admission bundles current
+REPRODUCIBLE: 26 artifacts identical (route-source vs HEAD export + diff)
+same    ./bootstrap-replica.mjs 1e45e75f1f4a7d2b -> 1e45e75f1f4a7d2b
+same    ./bootstrap-replica.package.json 7732950bc2f63852 -> 7732950bc2f63852
+same    ./credit-vault-submitter.mjs 2a4de6d5b166c25a -> 2a4de6d5b166c25a
+same    ./credit-vault-submitter.package.json a22cd7a8fc6f7d85 -> a22cd7a8fc6f7d85
+same    ./directory-replica.mjs 45dc23218fd88a4e -> 45dc23218fd88a4e
+same    ./directory-replica.package.json e9cff3283064bcf2 -> e9cff3283064bcf2
+same    ./dist/enclave-directory.mjs b677d864e1b5ed39 -> b677d864e1b5ed39
+same    ./dist/host-service-ingress.mjs a8165fd492323cad -> a8165fd492323cad
+CHANGED ./dist/privacy-agent.mjs 1561a1430e077f22 -> eaa6aa1caf4b40e7
+same    ./dist/reconcile-apps.mjs 9c445ade0c21fd39 -> 9c445ade0c21fd39
+same    ./dist/wg-provider.mjs 73947253716bf1a8 -> 73947253716bf1a8
+same    ./dist/wg-qualify.mjs 8811439086a682f5 -> 8811439086a682f5
+same    ./dist/windows-circuit-worker.mjs dcac53cbe4f4fe19 -> dcac53cbe4f4fe19
+CHANGED ./host-admission.bundle.mjs 6bd913516bbeeb72 -> 9825a9a20c8f2fb8
+same    ./host-policy.bundle.mjs 228d4cf0824f31ea -> 228d4cf0824f31ea
+same    ./hs2/host-services-runner.mjs 39ba68c8072d16fd -> 39ba68c8072d16fd
+same    ./hs2/stage-tool.mjs 7c460cbc55d4748c -> 7c460cbc55d4748c
+CHANGED ./network-runtime.bundle.mjs b2d7a17d658b8956 -> c3fe5be65f00cfbe
+same    ./policy-mirror.mjs 440d3f90643fa681 -> 440d3f90643fa681
+CHANGED ./policy-mirror.package.json 120aeb0782e13651 -> c87c4f06a3a7cfe6
+same    ./public-rpc.mjs 24aabe4b6514c6e3 -> 24aabe4b6514c6e3
+same    ./public-rpc.package.json d631cae1a274ea48 -> d631cae1a274ea48
+CHANGED ./route-dns.mjs edaae81ab18b6b3f -> 1cce363ff5cd5786
+CHANGED ./route-dns.package.json 1daac8a34e837dd8 -> 3c1f3ff2818e5fec
+same    ./service-tls.mjs feda13d354dbcca5 -> feda13d354dbcca5
+CHANGED ./service-tls.package.json 8afcd969bc676a39 -> 4ce89ec5a6531c2a
+B3_BUILD_OK
+[suite] r7-consumers: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head dba7b4fdc091441ac8b85cca2738f19efa1003e0 dirty=5; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 29.8s test/host-admission-retry.test.mjs
+[file] rc=0 tests=7 pass=7 fail=0 cancelled=0 skip=0 notrun-native=0 0.3s test/host-admission-runtime.test.mjs
+[file] rc=0 tests=10 pass=10 fail=0 cancelled=0 skip=0 notrun-native=0 22.2s test/metal-launcher-isolation.test.mjs
+[file] rc=1 tests=14 pass=13 fail=1 cancelled=0 skip=0 notrun-native=0 5.3s test/node-policy-carriers.test.mjs
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.718241ms)
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.718241ms)
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 3.1s test/windows-chain-authority.test.mjs
+[file] rc=0 tests=3 pass=3 fail=0 cancelled=0 skip=0 notrun-native=0 0.1s test/windows-node-deploy-files.test.mjs
+[file] rc=0 tests=1 pass=1 fail=0 cancelled=0 skip=0 notrun-native=0 0.3s test/windows-node-platform-policy.test.mjs
+[file] rc=0 tests=11 pass=11 fail=0 cancelled=0 skip=0 notrun-native=0 21.5s test/windows-node-wallet-network-hold.test.mjs
+[suite] r7-consumers: files=8 tests=64 pass=63 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/node-policy-carriers.test.mjs
+[suite] r7-base-node-policy-carriers: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-stage/tmp/base-head head 39ba6b0a0086255fcffa3c831638265241ce5622 dirty=0; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=14 pass=13 fail=1 cancelled=0 skip=0 notrun-native=0 5.9s test/node-policy-carriers.test.mjs
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.76059ms)
+        ✖ parity: with NO carrier setting the candidate resolves exactly what the installed bundle 6bef372d resolves (config, mirrors, quorum, off reasons) (1.76059ms)
+[suite] r7-base-node-policy-carriers: files=1 tests=14 pass=13 fail=1 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/node-policy-carriers.test.mjs
+[r7] baseline also fails test/node-policy-carriers.test.mjs
+[r7] rc=1
+[memory-guard] exit=1 peakTreeRssMiB=677 minHostAvailableMiB=20847
+[memory-guard] at peak: node:72 node:64 node:58 python3:16 wasmtime:15 wasmtime:15 wasmtime:15 wasmtime:15
+[queue] EXIT 1

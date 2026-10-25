@@ -26,7 +26,9 @@ const REGISTRY_KEY = toHex('registry', { size: 32 });
 
 export async function platformPolicyWorld(t, { hosts = {} } = {}) {
   const admin = privateKeyToAccount(generatePrivateKey());
-  const state = { hi: ZA, lo: ZA, down: false, hosts };
+  // owner: the book's CURRENT owner (rotateOwner models setOwner + acceptOwnership); publicHits: requests the three public
+  // provider origins answered (the operator's own node, `node`, is not one of them and ignores setDown)
+  const state = { hi: ZA, lo: ZA, down: false, hosts, owner: admin, publicHits: 0 };
   const t0 = Date.now();
   // A numbered block must stay immutable when a quorum read crosses a wall-clock second.
   const blockAt = (n) => ({ number: toHex(n), hash: keccak256(toHex(n, { size: 32 })), parentHash: keccak256(toHex(n - 1, { size: 32 })), timestamp: toHex(Math.floor(t0 / 1000) + (n - 1000)),
@@ -44,7 +46,7 @@ export async function platformPolicyWorld(t, { hosts = {} } = {}) {
       const { to, data } = params[0]; const T = String(to).toLowerCase();
       const { functionName, args } = decodeFunctionData({ abi: ABI, data });
       let r;
-      if (T === BOOK && functionName === 'owner') r = admin.address;
+      if (T === BOOK && functionName === 'owner') r = state.owner.address;
       else if (T === BOOK && functionName === 'addr') r = args[0] === ANCHOR_KEYS.hi ? state.hi : args[0] === ANCHOR_KEYS.lo ? state.lo : args[0] === REGISTRY_KEY ? REGISTRY : ZA;
       else if (T === REGISTRY && functionName === 'get') { const h = state.hosts[String(args[0]).toLowerCase()];
         r = { endpoint: h?.endpoint || '', repo: '', measurement: Z32, operator: h?.operator || ZA, registeredAt: 1n, lastSeen: 1n, active: !!h?.active }; }
@@ -54,16 +56,17 @@ export async function platformPolicyWorld(t, { hosts = {} } = {}) {
     }
     throw Error('unsupported ' + method);
   };
-  const rpcServer = () => http.createServer((req, res) => {
+  const rpcServer = (own = false) => http.createServer((req, res) => {
     const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => {
-      if (state.down) { res.writeHead(503); return res.end('down'); }
+      if (!own) state.publicHits++;
+      if (state.down && !own) { res.writeHead(503); return res.end('down'); }
       let body; try { body = JSON.parse(Buffer.concat(c)); } catch { res.writeHead(400); return res.end(); }
       const one = (q) => { try { return { jsonrpc: '2.0', id: q.id, result: answer(q) }; } catch (e) { return { jsonrpc: '2.0', id: q.id, error: { code: -32000, message: String(e.message) } }; } };
       res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(Array.isArray(body) ? body.map(one) : one(body)));
     });
   });
-  const rpcs = [rpcServer(), rpcServer(), rpcServer()];
-  await Promise.all(rpcs.map((s) => new Promise((r) => s.listen(0, '127.0.0.1', r))));
+  const rpcs = [rpcServer(), rpcServer(), rpcServer()], node = rpcServer(true);
+  await Promise.all([...rpcs, node].map((s) => new Promise((r) => s.listen(0, '127.0.0.1', r))));
   // the mirror: HTTPS with a throwaway CA (openssl), serving <digest>.json
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-world-'));
   const ossl = (...a) => execFileSync('openssl', a, { cwd: dir, stdio: 'pipe' });
@@ -78,16 +81,16 @@ export async function platformPolicyWorld(t, { hosts = {} } = {}) {
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(docs.get(m[1])));
   });
   await new Promise((r) => mirror.listen(0, '127.0.0.1', r));
-  t.after(() => { for (const s of [...rpcs, mirror]) { s.closeAllConnections?.(); s.close(); } fs.rmSync(dir, { recursive: true, force: true }); });
+  t.after(() => { for (const s of [...rpcs, node, mirror]) { s.closeAllConnections?.(); s.close(); } fs.rmSync(dir, { recursive: true, force: true }); });
   const mirrorOrigin = `https://127.0.0.1:${mirror.address().port}/policy`;
   let seq = 0;
   // sign + publish + ANCHOR a non-expiring policy (what the admin does: sign, mirror, setMany)
-  async function publish({ mode = 'denylist', deny = [], admit = [] } = {}) {
+  async function publish({ mode = 'denylist', deny = [], admit = [], signer = null } = {}) {
     seq++;
     const p = { format: POLICY_FORMAT, chainId: 8453, book: BOOK, registry: REGISTRY, hostOwnership: OWNERSHIP, sequence: seq, issuedAt: Math.floor(Date.now() / 1000) - 5,
                 expiresAt: 0, maxStaleSec: 0, previousDigest: Z32, mode, deny, admit };
     const digest = policyDigest(p);
-    docs.set(digest, { document: JSON.stringify(p), signature: await admin.signTypedData(policyTypedData(p)) });
+    docs.set(digest, { document: JSON.stringify(p), signature: await (signer || state.owner).signTypedData(policyTypedData(p)) });
     const a = encodeAnchor(digest); state.hi = a.hi; state.lo = a.lo;
     return digest;
   }
@@ -102,5 +105,7 @@ export async function platformPolicyWorld(t, { hosts = {} } = {}) {
       ENCLAVE_PLATFORM_HOST_POLICY_RPCS: rpcs.map((s) => `http://127.0.0.1:${s.address().port}`).join(','), NODE_EXTRA_CA_CERTS: path.join(dir, 'ca.pem'), ...extra }),
     setDown: (v) => { state.down = !!v; },
     unanchor: () => { state.hi = ZA; state.lo = ZA; },
+    node: `http://127.0.0.1:${node.address().port}`, publicHits: () => state.publicHits,
+    rotateOwner: () => { const prev = state.owner; state.owner = privateKeyToAccount(generatePrivateKey()); return { prev, next: state.owner }; },
   };
 }
