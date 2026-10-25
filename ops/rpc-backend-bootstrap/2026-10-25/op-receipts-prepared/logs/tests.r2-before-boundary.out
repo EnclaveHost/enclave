@@ -1,0 +1,194 @@
+[queue] START available=20353MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: empty trie root and upstream base proof.rs vectors (Bedrock, Regolith nonce-strip quirk, Canyon, EIP-2930)
+ok 1 - empty trie root and upstream base proof.rs vectors (Bedrock, Regolith nonce-strip quirk, Canyon, EIP-2930)
+  ---
+  duration_ms: 14.169622
+  type: 'test'
+  ...
+# Subtest: REAL Ethereum mainnet block: 202 receipts reproduce the authenticated header's receiptsRoot
+ok 2 - REAL Ethereum mainnet block: 202 receipts reproduce the authenticated header's receiptsRoot
+  ---
+  duration_ms: 69.189987
+  type: 'test'
+  ...
+# Subtest: REAL Base mainnet: 5 blocks, 1,824 receipts (types 0x0/0x1/0x2/0x4/0x7e) reproduce receiptsRoot; headers authenticated
+ok 3 - REAL Base mainnet: 5 blocks, 1,824 receipts (types 0x0/0x1/0x2/0x4/0x7e) reproduce receiptsRoot; headers authenticated
+  ---
+  duration_ms: 757.799168
+  type: 'test'
+  ...
+# Subtest: complete-logs integration: bloom plan over 28 real linked headers + verified receipt entries recover the real lease event
+ok 4 - complete-logs integration: bloom plan over 28 real linked headers + verified receipt entries recover the real lease event
+  ---
+  duration_ms: 700.989539
+  type: 'test'
+  ...
+# Subtest: refuses: drop last receipt -> gas_total
+ok 5 - refuses: drop last receipt -> gas_total
+  ---
+  duration_ms: 36.840842
+  type: 'test'
+  ...
+# Subtest: refuses: drop middle receipt -> order
+ok 6 - refuses: drop middle receipt -> order
+  ---
+  duration_ms: 3.537003
+  type: 'test'
+  ...
+# Subtest: refuses: swap two receipts -> order
+ok 7 - refuses: swap two receipts -> order
+  ---
+  duration_ms: 3.887461
+  type: 'test'
+  ...
+# Subtest: refuses: flip a status -> receipts_root_mismatch
+ok 8 - refuses: flip a status -> receipts_root_mismatch
+  ---
+  duration_ms: 77.137517
+  type: 'test'
+  ...
+# Subtest: refuses: change a cumulativeGasUsed -> receipts_root_mismatch
+ok 9 - refuses: change a cumulativeGasUsed -> receipts_root_mismatch
+  ---
+  duration_ms: 80.239193
+  type: 'test'
+  ...
+# Subtest: refuses: tamper log data (bloom kept) -> receipts_root_mismatch
+ok 10 - refuses: tamper log data (bloom kept) -> receipts_root_mismatch
+  ---
+  duration_ms: 74.965708
+  type: 'test'
+  ...
+# Subtest: refuses: tamper log topic, RPC bloom absent -> bloom_mismatch,receipts_root_mismatch
+ok 11 - refuses: tamper log topic, RPC bloom absent -> bloom_mismatch,receipts_root_mismatch
+  ---
+  duration_ms: 81.512936
+  type: 'test'
+  ...
+# Subtest: refuses: RPC logsBloom lies -> bloom_mismatch
+ok 12 - refuses: RPC logsBloom lies -> bloom_mismatch
+  ---
+  duration_ms: 3.985571
+  type: 'test'
+  ...
+# Subtest: refuses: deposit without depositNonce -> deposit_fields
+ok 13 - refuses: deposit without depositNonce -> deposit_fields
+  ---
+  duration_ms: 2.932296
+  type: 'test'
+  ...
+# Subtest: refuses: deposit without version (post-Canyon) -> deposit_fields
+ok 14 - refuses: deposit without version (post-Canyon) -> deposit_fields
+  ---
+  duration_ms: 2.526398
+  type: 'test'
+  ...
+# Subtest: refuses: deposit version 2 -> deposit_fields
+ok 15 - refuses: deposit version 2 -> deposit_fields
+  ---
+  duration_ms: 2.859886
+  type: 'test'
+  ...
+# Subtest: refuses: deposit fields on 0x2 -> deposit_fields
+ok 16 - refuses: deposit fields on 0x2 -> deposit_fields
+  ---
+  duration_ms: 2.854436
+  type: 'test'
+  ...
+# Subtest: refuses: blob type 0x3 on Base -> unsupported_type
+ok 17 - refuses: blob type 0x3 on Base -> unsupported_type
+  ---
+  duration_ms: 3.239805
+  type: 'test'
+  ...
+# Subtest: refuses: EIP-8130 0x79 (everest inactive) -> unsupported_type
+ok 18 - refuses: EIP-8130 0x79 (everest inactive) -> unsupported_type
+  ---
+  duration_ms: 6.001621
+  type: 'test'
+  ...
+# Subtest: refuses: unknown type 0x7d -> unsupported_type
+ok 19 - refuses: unknown type 0x7d -> unsupported_type
+  ---
+  duration_ms: 2.329689
+  type: 'test'
+  ...
+# Subtest: refuses: pre-Byzantium root field -> pre_byzantium
+ok 20 - refuses: pre-Byzantium root field -> pre_byzantium
+  ---
+  duration_ms: 2.511708
+  type: 'test'
+  ...
+# Subtest: refuses: removed log -> removed_log
+ok 21 - refuses: removed log -> removed_log
+  ---
+  duration_ms: 2.417888
+  type: 'test'
+  ...
+# Subtest: refuses: logIndex gap -> order
+ok 22 - refuses: logIndex gap -> order
+  ---
+  duration_ms: 2.425638
+  type: 'test'
+  ...
+# Subtest: refuses: non-canonical quantity -> bad_field
+ok 23 - refuses: non-canonical quantity -> bad_field
+  ---
+  duration_ms: 2.347409
+  type: 'test'
+  ...
+# Subtest: refuses: receipt names another block -> wrong_block
+ok 24 - refuses: receipt names another block -> wrong_block
+  ---
+  duration_ms: 2.334639
+  type: 'test'
+  ...
+# Subtest: refuses: header receiptsRoot tampered -> header_hash
+ok 25 - refuses: header receiptsRoot tampered -> header_hash
+  ---
+  duration_ms: 2.310969
+  type: 'test'
+  ...
+# Subtest: refuses: header and hash both replaced (expected hash is authenticated) -> header_hash
+ok 26 - refuses: header and hash both replaced (expected hash is authenticated) -> header_hash
+  ---
+  duration_ms: 2.327609
+  type: 'test'
+  ...
+# Subtest: refuses: wrong expected block hash -> header_hash
+ok 27 - refuses: wrong expected block hash -> header_hash
+  ---
+  duration_ms: 2.305359
+  type: 'test'
+  ...
+# Subtest: refuses: tx binding mismatch -> tx_binding
+ok 28 - refuses: tx binding mismatch -> tx_binding
+  ---
+  duration_ms: 2.348349
+  type: 'test'
+  ...
+# Subtest: refuses: missing receipts list -> bad_input
+ok 29 - refuses: missing receipts list -> bad_input
+  ---
+  duration_ms: 2.302589
+  type: 'test'
+  ...
+# Subtest: Regolith-window deposit rule: nonce required, version forbidden (quirk path selected by timestamp)
+ok 30 - Regolith-window deposit rule: nonce required, version forbidden (quirk path selected by timestamp)
+  ---
+  duration_ms: 2.516048
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2156.834381
+[memory-guard] exit=0 peakTreeRssMiB=168 minHostAvailableMiB=20028
+[memory-guard] at peak: node:110 node:58
+[queue] EXIT 0

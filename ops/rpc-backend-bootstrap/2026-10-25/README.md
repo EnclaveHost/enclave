@@ -2,16 +2,13 @@
 
 **Bootstrap is deployed; the public RPC replacement is not active yet.** No production consumer was switched. The existing Metal0 control, guestd, and custody services were preserved. This directory records the actual deployment adapter and its review/fixes; it is not a claim of a complete decentralized RPC fleet.
 
-## Latest update — October 25, 20:17 UTC
-The earlier status sections below are historical. Ethereum passed six operational readiness gates over 720 seconds;
-the old identity check remained incomplete because this pruned node cannot return the genesis block body. The corrected read-only diagnostic is installed at a new versioned path and its live window is running; the 89-case suite and all five fault-injection checks passed, with a separately documented reporting-wrapper error retained in the evidence. The complete stack
-is still INCOMPLETE, with Base disabled and historical coverage not yet accepted.
-The real pinned Helios light client synchronized against our own Ethereum pair using a checkpoint corroborated once
-by four independent checkpoint services. Verified contract reads now work after the bounded proof-window correction;
-see [the live proof-window evidence](l1-proof-window/README.md). These are preparatory checks, not a consumer cutover.
-EL alone restarted and recovered; the consensus client, Base downloader and existing apps were preserved.
-The full Base binary build hit its 1792 MiB cgroup limit at 19:57; completed compilation objects are retained. A 2560 MiB retry also exceeded its guard. A reviewed 4096 MiB retry is waiting for sufficient capacity without reducing the 16 GiB host floor or displacing apps. The snapshot download continues without a restart: at 20:06, 86/116 archives and 88.34/770.80 GB of the current run (11.5%), with a download-only estimate of about 13 h 36 min. This estimate excludes extraction, extra historical data, validation and cutover.
-The full A1 live read passed at 19:58: it authenticated the Base anchor at block 52,866,960 through our own Helios/EL pair. This is within the configured changeset retention floor of 52,500,000. Base state reconstruction and validation against that anchor remain outstanding; implementation/admin pins are observed, not yet checked against approved version pins.
+## Latest update — October 25, 20:26 UTC
+
+Ethereum passed all seven operational gates over a720-second live window: synchronized execution, non-optimistic consensus, paired/fresh heads and finality, advancing head, custody64 and mainnet identity under the documented pruned-genesis check. [Exact evidence](evidence/l1-readiness-2026/README.md). The full stack remains INCOMPLETE: Base is disabled and historical coverage is not yet accepted.
+
+Own Helios proof reads and the full A1 anchor read also passed separately: Base anchor52,866,960 is within the held changeset floor52,500,000. These are preparatory checks; state validation at that anchor, derivation catch-up and production consumer cutover remain outstanding. Observed implementation/admin pins have not been compared against approved-version pins.
+
+The Base download continues without restart (98.73/770.80GB of the current run at20:19; estimated13h27download-only, excluding extraction, extra history and validation). The optimized client build exceeded1792MiB and2560MiB caps. Its4096MiB retry is waiting for sufficient host memory; completed objects are retained and the16GiB host floor remains enforced. No apps or VM allocations were displaced. Prepared OP receipt verification is tested offline, with live integration still pending.
 
 ## Current status — October 25, 19:34 UTC (supersedes stale "current" statements below)
 
