@@ -166,8 +166,8 @@ func main() {
 	// code IT loaded) the build's statement, used only for this front's own records.
 	var appSha []byte
 	appFromCode := false
-	if _, err := os.Stat(*appWasmPath); err == nil {
-		id, how, err := loadedAppID(*appBundlePath, *appWasmPath, *appShaPath)
+	if _, err := os.Stat(*appWasmPath); err == nil || nativeDesktopFront {
+		id, how, err := loadedAppIDForBuild(*appBundlePath, *appWasmPath, *appShaPath)
 		if err != nil {
 			die("app identity: %v", err)
 		}

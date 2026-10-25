@@ -85,6 +85,7 @@ const (
 // every backend ends a domain the same way; this file supplies what reclamation DOES here.
 
 type domain struct {
+	native           *nativeDomain
 	SecretDeployment string              `json:"-"`
 	AppConfig        []byte              `json:"-"` // copied only from the measured bundle
 	Ports            []string            `json:"ports,omitempty"`
@@ -173,6 +174,7 @@ func (d *domain) state() contract.State { return d.lifecycle().State() }
 type reporter func(rd []byte) (report, certs []byte, err error)
 
 type monitor struct {
+	native  *nativeGuest
 	vtpm    *vtpmclient.Client // guest-owned hardware report channel; nil on unchanged legacy images
 	mu      sync.Mutex
 	doms    map[int]*domain
@@ -292,6 +294,9 @@ func main() {
 		os.Exit(1)
 	}
 	// the boot nonce on its own line (the ready line's shape is parsed elsewhere): a reboot shows up in the log as a new one
+	if nativeDesktopBuild {
+		must(m.initNativeGuest())
+	}
 	fmt.Printf("MON boot %s\n", m.boot)
 	fmt.Printf("MON ready control_port=%d snp=%v transport=%s\n", *control, m.snp, transport)
 	slots := make(chan struct{}, maxControlConns)
@@ -445,8 +450,17 @@ func readLine(br *bufio.Reader, max int) ([]byte, error) {
 }
 
 func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
-	if m.noDomains != "" {
-		return nil, fmt.Errorf("refused: %s", m.noDomains)
+	m.mu.Lock()
+	refusal := m.noDomains
+	m.mu.Unlock()
+	if refusal != "" {
+		return nil, fmt.Errorf("refused: %s", refusal)
+	}
+	if nativeDesktopBuild && m.native == nil {
+		return nil, fmt.Errorf("native guest has not established its resource boundary")
+	}
+	if m.native != nil && req.Probe {
+		return nil, fmt.Errorf("native guest accepts only its fixed desktop controller")
 	}
 	if req.Name != "" && !certNameOK(req.Name) {
 		return nil, fmt.Errorf("name %q is not <8 lowercase hex>.<zone>", req.Name)
@@ -467,12 +481,16 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	// and is refused.
 	artifact := app
 	var manifest *contract.Manifest
-	if man, art, err := contract.Parse(app); err == nil {
+	parse := contract.Parse
+	if m.native != nil {
+		parse = contract.ParseDesktop
+	}
+	if man, art, err := parse(app); err == nil {
 		manifest, artifact = &man, art
 		if req.Label == "" {
 			req.Label = man.Label
 		}
-	} else if err != contract.ErrNotBundle {
+	} else if err != contract.ErrNotBundle || m.native != nil {
 		return nil, fmt.Errorf("bundle refused: %w", err)
 	}
 	var appConfig []byte
@@ -535,6 +553,12 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if manifest != nil {
 		d.Ports = append([]string(nil), manifest.Ports...)
 	}
+	if m.native != nil {
+		if err := m.prepareNative(d, *manifest, artifact); err != nil {
+			return nil, err
+		}
+		d.native.bundle = app
+	}
 	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
@@ -553,6 +577,18 @@ func (m *monitor) start(d *domain, app []byte) error {
 		m.abandon(d, "failed to start: "+err.Error())
 		return err
 	}
+	if d.native != nil {
+		if err := os.Mkdir(d.dir, 0755); err != nil {
+			return fail(err)
+		}
+		d.native.dirOwned = true
+		// domexec starts chrooted here. Give that root its own mount so it
+		// can make the entire domain private before starting native helpers.
+		if err := syscall.Mount(d.dir, d.dir, "", syscall.MS_BIND, ""); err != nil {
+			return fail(err)
+		}
+		d.trackNativeMount(d.dir)
+	}
 	for _, sub := range []string{"plat", "run", "tmp", "proc"} {
 		if err := os.MkdirAll(filepath.Join(d.dir, sub), 0o755); err != nil {
 			return fail(err)
@@ -562,6 +598,14 @@ func (m *monitor) start(d *domain, app []byte) error {
 	// cannot change what the monitor will name.
 	if err := os.WriteFile(filepath.Join(d.dir, "app.wasm"), app, 0o444); err != nil {
 		return fail(err)
+	}
+	if d.native != nil {
+		// The front independently derives the same AppID from the complete
+		// measured bundle and verifies that its component is what will run.
+		if err := os.WriteFile(filepath.Join(d.dir, "app.bundle"), d.native.bundle, 0444); err != nil {
+			return fail(err)
+		}
+		d.native.bundle = nil
 	}
 	if err := os.WriteFile(filepath.Join(d.dir, "app.sha256"), []byte(d.AppSha), 0o444); err != nil {
 		return fail(err)
@@ -615,14 +659,21 @@ func (m *monitor) start(d *domain, app []byte) error {
 	// the platform tree (runtime, front, domexec) read-only, and the monitor's socket, are all the
 	// domain gets from outside itself
 	platAt := filepath.Join(d.dir, "plat")
-	if err := syscall.Mount(m.plat, platAt, "", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
+	platFlags := uintptr(syscall.MS_BIND | syscall.MS_REC)
+	if d.native != nil {
+		// The native platform's runtime files are regular files. Its resource
+		// submounts belong only in the supervisor's private /native tree.
+		platFlags = syscall.MS_BIND
+	}
+	if err := syscall.Mount(m.plat, platAt, "", platFlags, ""); err != nil {
 		return fail(fmt.Errorf("bind %s: %w", m.plat, err))
 	}
+	d.trackNativeMount(platAt)
 	if err := syscall.Mount("", platAt, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_REC, ""); err != nil {
 		return fail(fmt.Errorf("remount ro %s: %w", platAt, err))
 	}
 	runAt := filepath.Join(d.dir, "run")
-	if d.Inference != nil {
+	if d.Inference != nil || d.native != nil {
 		runAt = filepath.Join(runAt, "front")
 		if err := os.Mkdir(runAt, 0700); err != nil {
 			return fail(err)
@@ -635,6 +686,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if err := syscall.Mount("/run/monitor.sock", sockAt, "", syscall.MS_BIND, ""); err != nil {
 		return fail(fmt.Errorf("bind report socket: %w", err))
 	}
+	d.trackNativeMount(sockAt)
 	// /run is the FRONT's alone (0700, its uid): it creates its listen socket there and reaches the report socket bind-mounted
 	// there, and the runtime (another uid) can do neither - not replace the front's socket, not ask for a report
 	if err := os.Chown(runAt, d.FrontUID, d.FrontUID); err != nil {
@@ -643,17 +695,30 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if err := os.Chmod(runAt, 0o700); err != nil {
 		return fail(err)
 	}
-	if err := m.cgroup(d); err != nil {
+	if d.native == nil {
+		if err := m.cgroup(d); err != nil {
+			return fail(err)
+		}
+	} else if err := m.setupNative(d); err != nil {
 		return fail(err)
 	}
 	// CLONE_INTO_CGROUP: the domain is inside its share before its first instruction. Writing
 	// cgroup.procs after starting it would race the workloads domexec forks, and whatever won that race
 	// would run outside the limit.
-	cgFD, err := os.Open(d.cgroup)
-	if err != nil {
-		return fail(fmt.Errorf("opening cgroup: %w", err))
+	var groupFD int
+	if d.native == nil {
+		cgFD, err := os.Open(d.cgroup)
+		if err != nil {
+			return fail(fmt.Errorf("opening cgroup: %w", err))
+		}
+		defer cgFD.Close()
+		groupFD = int(cgFD.Fd())
+	} else {
+		groupFD = d.native.group.FD()
+		if groupFD < 0 {
+			return fail(fmt.Errorf("native cgroup already terminal"))
+		}
 	}
-	defer cgFD.Close()
 
 	// THE NULL DEVICE for the domain's quiet workload (domexec.c NULL_FD, fd 3): opened HERE, in the guest's own root,
 	// because domexec starts already chrooted into the domain's directory, which has no /dev and must not get one (no
@@ -683,6 +748,9 @@ func (m *monitor) start(d *domain, app []byte) error {
 	mode := "app"
 	args := []string{strconv.Itoa(d.ID), fmt.Sprintf("%d:%d", d.UID, d.FrontUID), mode, strconv.Itoa(d.MemMiB)} // domexec: <runtime uid>:<front uid>
 	switch {
+	case d.native != nil:
+		args[2] = "native"
+		args = append(args, "8000", strconv.Itoa(d.native.vcpus))
 	case d.Probe:
 		args[2] = "probe"
 	case d.Mode == "run":
@@ -700,7 +768,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 		Unshareflags: syscall.CLONE_NEWNS,
 		Setpgid:      true,
 		UseCgroupFD:  true,
-		CgroupFD:     int(cgFD.Fd()),
+		CgroupFD:     groupFD,
 	}
 	return m.launch(d, cmd, ln)
 }
@@ -832,6 +900,10 @@ func (m *monitor) retire(d *domain, why string) {
 // unmount until the processes are actually gone, because a live process holds those mounts busy.
 func (d *domain) release() {
 	d.lifecycle().Reclaim(func() {
+		if d.native != nil {
+			d.releaseNative()
+			return
+		}
 		if d.ln != nil {
 			d.ln.Close() // the port stops answering at once, ahead of the slower cleanup below
 		}
@@ -1656,7 +1728,7 @@ func raisePtraceScopeWith(path string, want int, write func(string, []byte, os.F
 // Shield's broker is reachable by the runtime in /run/enclave-shield. Its
 // report and TLS sockets remain behind a distinct 0700, front-owned directory.
 func (d *domain) frontPath(name string) string {
-	if d.Inference != nil {
+	if d.Inference != nil || d.native != nil {
 		return filepath.Join(d.dir, "run", "front", name)
 	}
 	return filepath.Join(d.dir, "run", name)

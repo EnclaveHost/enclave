@@ -172,6 +172,17 @@ sh_pipe *sh_pipe_open(const char *host, int port, int *err) {
         if (connect(fd, (struct sockaddr *)&un, sizeof un) != 0) {
             close(fd); if (err) *err = SH_ERR_IO; return NULL;
         }
+        /* A pathname or socket file owner is not server authentication. The
+         * measured local broker runs as root in the guest's user namespace;
+         * check the connected peer before any protocol bytes can be sent.
+         * This identifies only that broker, not its remote worker or the VM.
+         * There is deliberately no environment override or TCP fallback. */
+        struct ucred peer;
+        socklen_t peer_len = sizeof peer;
+        if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &peer, &peer_len) != 0 ||
+            peer_len != sizeof peer || peer.uid != 0) {
+            close(fd); if (err) *err = SH_ERR_IO; return NULL;
+        }
         sh_pipe *p = (sh_pipe *)calloc(1, sizeof *p);
         if (!p) { close(fd); if (err) *err = SH_ERR_NOMEM; return NULL; }
         p->fd = fd;

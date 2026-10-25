@@ -89,6 +89,7 @@ const CID_RE = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-k
  */
 export function derive({ record, component }) {
   const r = record || {};
+  if (Object.hasOwn(r, "desktop")) throw new Error("desktop requires the experimental V8 tooling; no desktop runtime is admitted here");
   if (!DERIVATIONS.includes(r.derivation)) throw new Error(`unknown derivation ${JSON.stringify(r.derivation ?? null)}`);
   const v2 = r.derivation === DERIVATION_V2;
   const v3 = r.derivation === DERIVATION_V3;

@@ -18,8 +18,9 @@
 
    Every PowerShell fragment is produced by a pure function so it can be read and tested without a
    host. `run` is injected: production passes a real PowerShell runner, tests pass recorded answers.
-   Nothing in this file executes anything by itself, and NONE OF IT HAS RUN ON HYPER-V: the recipe
-   ran on the box; this port of it has only run against the fakes in the tests.
+   Nothing in this file executes anything by itself. The dedicated desktop path has run on NucBox
+   through definition, pinned media, monitor readiness and failure cleanup. That qualification
+   stops before worker admission and app delivery; mocked tests do not prove owner release or GPU work.
 
    THREE RULES IT KEEPS.
 
@@ -42,6 +43,10 @@ import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.
 import fs from "node:fs";
 import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
 import { GCS_KEY, EGRESS_VSOCK_PORT } from "./egress.mjs";
+import { validateDesktopPlatform, validateDesktopMapping } from "./desktop-platform.mjs";
+import { desktopMediaScript, checkDesktopMedia } from "./desktop-media.mjs";
+import { desktopVmMemMiB, DESKTOP_MEMORY_RULE } from "./desktop-memory.mjs";
+import { DESKTOP_WORKER_SERVICE_GUID } from "./desktop-worker-transport.mjs";
 
 /** The preflight check egress adds (egress.mjs): its hv_sock service is registered, read and never written. */
 export const EGRESS_CHECK = "hv_sock egress service (vsock 9443) registered";
@@ -265,7 +270,7 @@ export function notesFor({ id, name, instanceId, appId, imageRole = "legacy" }, 
     ...(imageRole !== "legacy" ? { imageRole } : {}) })).toString("base64url");
 }
 /** The pinned images a partition may start from (F3, shield-profile.mjs ImageLauncher). */
-export const IMAGE_ROLES = Object.freeze(["legacy", "shield-direct", "gpu"]);
+export const IMAGE_ROLES = Object.freeze(["legacy", "shield-direct", "gpu", "desktop"]);
 /** -> { owned, identity }: owned means the ownership marker is present; identity only when it parses completely. */
 export function parseNotes(notes, { marker = OWNER_MARKER } = {}) {
   const MANAGER_NOTES_PREFIX = notesPrefixFor(marker), OWNER_MARKER_ = marker;
@@ -706,20 +711,29 @@ export const CMD = {
    */
   removeById: ({ vmId, marker = OWNER_MARKER }) => ps(`
     ${ENUMERABLE}
-    $v = $null; try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop } catch { $v = $null };
+    function FindRemovalVm {
+      try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop; if ($v) { return $v } } catch {};
+      <# A failed lookup is not absence. Enumeration must succeed before saying gone. #>
+      $matches = @(Get-VM -ErrorAction Stop | Where-Object { [string]$_.Id -eq ${q(vmId)} });
+      if ($matches.Count -gt 1) { throw 'duplicate VM Id in removal inventory' };
+      if ($matches.Count -eq 1) { return $matches[0] };
+      return $null
+    };
+    $v = FindRemovalVm;
     if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
     if (-not ${OWNED("$v", marker)}) { @{found=$true; removed=$false; error='not ours: the ownership marker is absent'} | ConvertTo-Json -Compress; exit 0 };
     try {
       Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
       $dl = (Get-Date).AddSeconds(20);
-      while ((Get-Date) -lt $dl -and [string](Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
+      while ((Get-Date) -lt $dl -and [string](FindRemovalVm).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
       $last = '';
       for ($a = 0; $a -lt 5; $a++) {
-        $now = Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue;
+        $now = FindRemovalVm;
         if (-not $now) { break };
+        if (-not ${OWNED("$now", marker)}) { throw 'ownership marker changed during removal' };
         try { Remove-VM -VM $now -Force -ErrorAction Stop } catch { $last = [string]$_.Exception.Message; Start-Sleep -Seconds 2 }
       };
-      if (Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
+      if (FindRemovalVm) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
       else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
     } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
 
@@ -903,6 +917,8 @@ const VTPM_NOTE = "Windows makes a vTPM for a VBS VM and the guest-state key pro
   + "PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.";
 
 export class WmiHyperVLauncher {
+  #desktopPlatform = null;
+  get desktopPlatform() { return this.#desktopPlatform; }
   /**
    * @param run  async (script) => { code, stdout, stderr }   injected; nothing here spawns anything
    * @param imagePath / imageSha256  the IGVM the worker loads, and the hash it must have, checked on the host
@@ -921,7 +937,7 @@ export class WmiHyperVLauncher {
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
                 prefix = DEFAULT_VM_PREFIX, pipeFor = null, serve = null, startTransport = null,
                 startEgress = null, egressService = null, startPackage = null, packageService = null,
-                startCustody = null, custodyService = null, custodyImageSha256 = null, imageRole = "legacy" }) {
+                startCustody = null, custodyService = null, custodyImageSha256 = null, imageRole = "legacy", desktopPlatform = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -961,6 +977,9 @@ export class WmiHyperVLauncher {
     // THE APP AND ITS RELAY (wmiserve-run.mjs, enclave-5d), opt-in: { exe, bundleDir, portFor?, readyTimeoutMs?, run? }.
     // Without it this launcher boots the VM and stops there, exactly as before (no relay, and the domain stays starting).
     this.serve = serve;
+    // The hook receives this spawn's verified mapping as well as its VM id;
+    // native transports bind the worker claim to the app/profile/allocation.
+    if (startTransport !== null && typeof startTransport !== "function") throw new Error("startTransport must be a function");
     this.startTransport = startTransport;
     // OUTBOUND HTTPS (egress.mjs), opt-in: (vmId, deploymentId, mapping) -> { exited, stop } | null, run after the VM
     // starts and before the app is served; null when this mapping gets none. egressService is the hv_sock service GUID
@@ -986,13 +1005,25 @@ export class WmiHyperVLauncher {
     this.startCustody = startCustody;
     this.custodyService = custodyService ? String(custodyService).toLowerCase() : null;
     this.custodyImageSha256 = custodyImageSha256 ? String(custodyImageSha256) : null;
-    // WHICH PINNED IMAGE THIS LAUNCHER STARTS (F3): "legacy" (every existing path), "shield-direct" (owner-committed
-    // packages only: its front ends any domain that receives none) or "gpu". It is stated on every handle and in the VM's
+    // WHICH PINNED IMAGE THIS LAUNCHER STARTS (F3): legacy, shield-direct, gpu or the separately configured desktop.
+    // Shield-direct accepts owner-committed packages; desktop requires its complete native platform. The role is in the VM's
     // Notes, and a launcher never starts a spawn of the other kind.
     if (!IMAGE_ROLES.includes(imageRole)) throw new Error(`imageRole must be one of ${IMAGE_ROLES.join(", ")}`);
     if (imageRole !== "shield-direct" && (startPackage || startCustody))
       throw new Error("only the Shield-direct image carries owner-committed packages or custody: this launcher's image is " + imageRole);
     this.imageRole = imageRole;
+    if (imageRole === "desktop") {
+      this.#desktopPlatform = validateDesktopPlatform(desktopPlatform);
+      if (boot !== BOOT_LINUX_DIRECT || this.imageSha256 !== this.#desktopPlatform.igvmSha256)
+        throw new Error("native desktop requires its pinned linux-direct IGVM");
+      if (!startTransport || !startEgress || !egressService || !serve?.exe || !serve?.bundleDir)
+        throw new Error("native desktop requires worker transport, egress and app delivery");
+      if (!guestStateMasterSha256 || !hypervUtilitiesSha256)
+        throw new Error("native desktop requires pinned guest-state master and Hyper-V utilities");
+      this.serve = Object.freeze({ ...serve });
+    } else if (desktopPlatform !== null) {
+      throw new Error("a native desktop platform belongs only to the desktop image role");
+    }
   }
 
   async #ps(script) {
@@ -1078,6 +1109,13 @@ export class WmiHyperVLauncher {
         detail: `${GCS_KEY}\\${this.custodyService} (vsock port 9445) is ${got.custodyService === true ? "registered" : "NOT registered"}`
               + ": the custody-authorization bridge binds this partition's service there. Reported only; registering it is an explicit activation step, and this manager never writes the registry." }] : []),
     ];
+    if (this.imageRole === "desktop") {
+      let registered = false;
+      try { registered = (await this.#ps(`@{registered=[bool](Test-Path -LiteralPath ${q(GCS_KEY + "\\" + DESKTOP_WORKER_SERVICE_GUID)})} | ConvertTo-Json -Compress`)).registered === true; }
+      catch { /* unavailable is not registered */ }
+      checks.push({ name: "native desktop worker service (vsock 19595) registered", ok: registered,
+        detail: "read-only registration check; this launcher never writes the registry" });
+    }
     return { ok: checks.every((c) => c.ok), checks };
   }
 
@@ -1111,6 +1149,27 @@ export class WmiHyperVLauncher {
    * VM nobody owns.
    */
   async start(mapping, { instanceId, identity = null, guestReadySec = 25, appMemoryMiB = null, bootstrap = null, custody = null, volumes = [] } = {}) {
+    // Snapshot and rederive before the first await. A caller cannot change the
+    // bundle, measured record or allocation while preflight is in progress.
+    const native = this.imageRole === "desktop";
+    let nativeMemory = null;
+    if (native) {
+      if (!this.#desktopPlatform || this.boot !== BOOT_LINUX_DIRECT || this.imageSha256 !== this.#desktopPlatform.igvmSha256)
+        throw new Error("native desktop platform differs from the launcher's image");
+      if (volumes?.length) throw new Error("native desktop does not admit legacy model-volume disks");
+      if (bootstrap != null || custody != null)
+        throw new Error("native desktop does not use the Shield-direct package or custody path");
+      mapping = validateDesktopMapping(mapping, this.#desktopPlatform);
+      if (!identity || identity.name !== mapping.record.secretDeployment || identity.appId !== mapping.appId || identity.instanceId !== instanceId
+          || typeof identity.id !== "string" || !identity.id)
+        throw new Error("native desktop deployment identity differs from its measured mapping");
+      identity = Object.freeze({ id: identity.id, name: identity.name, instanceId, appId: mapping.appId });
+      const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
+      if (appMiB < mapping.record.policy.memMiB) throw new Error("allocated app RAM is below its catalog minimum");
+      nativeMemory = { appMiB, vmMiB: desktopVmMemMiB(appMiB) };
+    } else if (mapping?.record?.desktop != null) {
+      throw new Error("native desktop requires its dedicated qualified image; this WMI launcher does not support desktop admission");
+    }
     if (this.imageRole === "shield-direct" && !bootstrap)
       throw new Error("the Shield-direct image starts only owner-committed packages: its front ends a domain that receives none");
     if (this.imageRole !== "shield-direct" && (bootstrap || custody))
@@ -1163,8 +1222,8 @@ export class WmiHyperVLauncher {
     const appMiB = appMemoryMiB ?? mapping.record.policy.memMiB;
     if (!Number.isSafeInteger(appMiB) || appMiB < mapping.record.policy.memMiB)
       throw new Error("allocated app RAM is below its catalog minimum");
-    const memMiB = type1VmMemMiB(appMiB, {name:identity?.name, appId:mapping.appId});
-    let created = null, served = null, transport = null, egress = null, pkg = null, cust = null;
+    const memMiB = nativeMemory?.vmMiB ?? type1VmMemMiB(appMiB, {name:identity?.name, appId:mapping.appId});
+    let created = null, served = null, transport = null, egress = null, pkg = null, cust = null, desktopMedia = null;
     try {
       created = await this.#ps(CMD.defineType1({ marker: this.marker,
         name, memMiB, vcpus, notes, pipe, boot: this.boot,
@@ -1184,6 +1243,12 @@ export class WmiHyperVLauncher {
           throw new Error(`the attached disks read back as ${JSON.stringify(att?.diskPaths ?? null)}, not this run's model volumes`);
       }
 
+      if (native) {
+        if (created.tpmEnabled !== true) throw new Error("native desktop requires its vTPM");
+        const args = { vmId: created.id, name, notes, media: this.#desktopPlatform.media };
+        desktopMedia = checkDesktopMedia(await this.#ps(desktopMediaScript(args)), args);
+      }
+
       // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
       const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE, marker: this.marker }));
       if (started.state !== "Running")
@@ -1197,6 +1262,7 @@ export class WmiHyperVLauncher {
       const con = started.console || {};
       if (con.connected !== true)
         throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
+      if (native && con.sawUntil !== true) throw new Error("native desktop monitor did not report ready");
       const booted = Number(con.bytes) > 0;
       if (!booted)
         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
@@ -1209,10 +1275,23 @@ export class WmiHyperVLauncher {
       const uefi = this.boot === BOOT_UEFI;
       // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
       // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
-      if (this.startTransport) transport = await this.startTransport(created.id);
+      if (this.startTransport) transport = await this.startTransport(created.id, mapping);
+      let nativeTransportEnded = false;
+      if (native) {
+        if (typeof transport?.stop !== "function" || typeof transport?.exited?.then !== "function")
+          throw new Error("native desktop worker transport did not start");
+        transport.exited.then(() => { nativeTransportEnded = true; }, () => { nativeTransportEnded = true; });
+      }
       // OUTBOUND HTTPS (egress.mjs): the partition's bridge and egress endpoint, now that the VM runs and before its app is
       // served; the hook decides which mappings get one (main.mjs: secret deployments) and answers null for the rest
       if (this.startEgress) egress = (await this.startEgress(created.id, identity?.name ?? null, mapping, { bootstrap: !!bootstrap })) || null;
+      if (native) {
+        if (typeof egress?.stop !== "function" || typeof egress?.exited?.then !== "function")
+          throw new Error("native desktop egress transport did not start");
+        egress.exited.then(() => { nativeTransportEnded = true; }, () => { nativeTransportEnded = true; });
+        await Promise.resolve();
+        if (nativeTransportEnded) throw new Error("native desktop transport exited before app delivery");
+      }
       // ...and the exact package bytes the node verified, for the Shield-direct front to verify again itself (vsock 9446)
       if (bootstrap) {
         if (!egress) throw new Error("an owner-committed startup package needs egress, and the egress hook started none");
@@ -1221,6 +1300,7 @@ export class WmiHyperVLauncher {
         pkg = await this.startPackage(created.id, identity?.name ?? null, bootstrap);
       }
       if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB, appMemoryMiB, certName: certNameFor(identity && identity.name) });
+      if (native && (nativeTransportEnded || !served)) throw new Error("native desktop transport or app delivery failed");
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
@@ -1230,8 +1310,10 @@ export class WmiHyperVLauncher {
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+               ...(native ? { desktop: { profileSha256: this.#desktopPlatform.profileSha256, runtimeId: this.#desktopPlatform.runtimeId,
+                 gpuMilli: mapping.record.desktop.gpuMilli }, media: desktopMedia } : {}),
                memory: { policyMiB: mapping.record.policy.memMiB, appMiB, vmMiB: memMiB,
-                         rule: memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
+                         rule: native ? DESKTOP_MEMORY_RULE : memMiB === 512 ? "qualified pinned readiness witness: 512 MiB" : `align2(max(${TYPE1_VM_MEM_FLOOR_MIB}, app + ${TYPE1_VM_MEM_OVERHEAD_MIB}))` },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,
@@ -1250,10 +1332,14 @@ export class WmiHyperVLauncher {
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
                stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served, transport, egress, package: pkg, custody: cust, disks: disks.map((k) => k.child) }) };
     } catch (e) {
-      if (transport) await transport.stop();
-      if (egress) await egress.stop().catch(() => {});
-      if (cust) await cust.stop().catch(() => {});
-      if (pkg) await pkg.stop().catch(() => {});
+      // A carrier failure must not strand the VM or replace the launch error.
+      if (transport) {
+        try { await transport.stop(); }
+        catch (x) { e.transportCleanup = { closed: false, error: String(x?.message ?? x) }; }
+      }
+      if (egress) { try { await egress.stop(); } catch { /* VM cleanup must still run. */ } }
+      if (cust) { try { await cust.stop(); } catch { /* VM cleanup must still run. */ } }
+      if (pkg) { try { await pkg.stop(); } catch { /* VM cleanup must still run. */ } }
       if (served) { e.relay = await this.#closeServed(served); }       // before its VM goes
       const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
       let swept;
@@ -1314,11 +1400,15 @@ export class WmiHyperVLauncher {
 
   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
   async stop(handle) {
-    if (handle?.transport) await handle.transport.stop();
+    let transportError = null;
+    if (handle?.transport) {
+      try { await handle.transport.stop(); }
+      catch (x) { transportError = new Error(`worker transport cleanup failed: ${String(x?.message ?? x)}`); transportError.code = "stop_failed"; }
+    }
     // its egress path has nothing to carry once the domain stops; it ends before the VM goes, and never blocks that
-    if (handle?.egress) await handle.egress.stop().catch(() => {});
-    if (handle?.custody) await handle.custody.stop().catch(() => {});
-    if (handle?.package) await handle.package.stop().catch(() => {});
+    if (handle?.egress) { try { await handle.egress.stop(); } catch { /* VM cleanup must still run. */ } }
+    if (handle?.custody) { try { await handle.custody.stop(); } catch { /* VM cleanup must still run. */ } }
+    if (handle?.package) { try { await handle.package.stop(); } catch { /* VM cleanup must still run. */ } }
     // The relay and report service first (wmiserve closes on a stdin line), then the VM. Its outcome is REPORTED on the
     // result and never blocks the removal: a relay that will not close is killed, and the VM must go either way.
     const relay = handle && handle.wmiserve ? await this.#closeServed(handle.wmiserve) : null;
@@ -1327,8 +1417,8 @@ export class WmiHyperVLauncher {
       // recovered as live by the next manager, and a VM left Off is one nobody owns (63's P2).
       if (!GUID.test(String(handle.vmId))) throw Object.assign(new Error(`not a VM Id: ${handle.vmId}`), { code: "stop_failed" });
       const r = await this.#ps(CMD.removeById({ vmId: handle.vmId, marker: this.marker }));
-      if (r && r.found === true && r.removed !== true) {
-        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r.error || "unknown"}`);
+      if (!(r?.found === false && r.removed === false) && !(r?.found === true && r.removed === true)) {
+        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r?.error || "removal was not confirmed"}`);
         e.code = "stop_failed"; throw e;
       }
       if (handle.name) this.created.delete(handle.name);
@@ -1343,8 +1433,12 @@ export class WmiHyperVLauncher {
       if (handle.disks?.length || (handle.recovered === true && handle.name && this.guestStateRunDir))
         out.disks = await this.#ps(CMD.removeRunDisks({ paths: handle.disks?.length ? handle.disks : null, runDir: this.guestStateRunDir, vmId: handle.vmId, name: handle.name ?? null }))
           .catch((x) => ({ removed: [], failed: [{ error: x.message }] }));
+      // Removal still happens if the carrier fails. Keep the caller's
+      // reservation until it can also confirm carrier cleanup on a retry.
+      if (transportError) { transportError.cleanup = out; throw transportError; }
       return out;
     }
+    if (transportError) throw transportError;
     if (!handle || !handle.name) return { stopped: false, reason: "no handle" };
     // by NAME only for a name in THIS instance's scope (a VM-id-less handle): never another instance's VM
     if (!String(handle.name).startsWith(this.prefix)) throw Object.assign(new Error(`${handle.name} is not in this instance's scope (${this.prefix})`), { code: "stop_failed" });

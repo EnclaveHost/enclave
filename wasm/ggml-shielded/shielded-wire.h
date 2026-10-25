@@ -113,6 +113,9 @@ typedef struct {
     size_t   len;
 } sh_reply;
 
+/* unix:/absolute/path connects only to a guest-local broker whose connected
+ * SO_PEERCRED UID is 0. This is local peer identity, not remote attestation.
+ * Refusal returns SH_ERR_IO without sending protocol data or falling back. */
 sh_pipe *sh_pipe_open(const char *host, int port, int *err);
 void     sh_pipe_close(sh_pipe *p);
 /* Nonblocking transport liveness only; never an integrity assertion. */

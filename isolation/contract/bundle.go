@@ -45,6 +45,9 @@ const MaxConfigBytes = 32 << 10
 // Public app configuration is measured with the artifact. Base64 keeps the bundle
 // canonical across JSON encoders; it is not encryption or a secret channel.
 func (m Manifest) AppConfig() ([]byte, error) {
+	if err := m.ValidateDesktop(); err != nil {
+		return nil, err
+	}
 	if m.SecretDeployment != "" && (!regexp.MustCompile(`^0x[0-9a-f]{64}$`).MatchString(m.SecretDeployment) || m.ConfigBase64 == "") {
 		return nil, errors.New("secrets require a deployment-bound configuration bundle")
 	}
@@ -76,6 +79,7 @@ func (m Manifest) AppConfig() ([]byte, error) {
 }
 
 type Manifest struct {
+	Desktop          *Desktop   `json:"desktop,omitempty"`
 	SecretDeployment string     `json:"secretDeployment,omitempty"`
 	ConfigBase64     string     `json:"configBase64,omitempty"`
 	Inference        *Inference `json:"inference,omitempty"`
@@ -153,6 +157,11 @@ func Build(m Manifest, artifact []byte) ([]byte, error) {
 	if m.ABI == "" {
 		m.ABI = ABI
 	}
+	if m.Desktop != nil {
+		if _, err := m.AppConfig(); err != nil {
+			return nil, err
+		}
+	}
 	mb, err := Canonical(m)
 	if err != nil {
 		return nil, err
@@ -184,6 +193,10 @@ var ErrNotBundle = errors.New("not a bundle")
 // and an artifact hash that does not match the bytes, so anything Parse accepts has exactly one
 // byte form and one ID.
 func Parse(b []byte) (Manifest, []byte, error) {
+	return parseBundle(b, false)
+}
+
+func parseBundle(b []byte, allowDesktop bool) (Manifest, []byte, error) {
 	var m Manifest
 	if !IsBundle(b) {
 		return m, nil, ErrNotBundle
@@ -219,6 +232,9 @@ func Parse(b []byte) (Manifest, []byte, error) {
 	}
 	if m.ABI != ABI {
 		return m, nil, fmt.Errorf("bundle abi %q is not %q", m.ABI, ABI)
+	}
+	if m.Desktop != nil && !allowDesktop {
+		return m, nil, errors.New("masked desktop bundles require a qualified desktop runtime; this parser does not admit them")
 	}
 	if err := m.Inference.Validate(); err != nil {
 		return m, nil, err
