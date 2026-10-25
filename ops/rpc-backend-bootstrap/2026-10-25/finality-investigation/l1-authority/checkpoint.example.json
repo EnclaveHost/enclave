@@ -1,0 +1,11 @@
+{
+  "format": "enclave-l1-checkpoint/v1",
+  "network": "mainnet",
+  "root": "0x0000000000000000000000000000000000000000000000000000000000000001",
+  "slot": 0,
+  "sources": [
+    {"kind": "own-lighthouse", "ref": "EXAMPLE ONLY: /eth/v1/beacon/headers/finalized on our loopback Lighthouse", "observedAt": "EXAMPLE"},
+    {"kind": "independent-beacon-node", "ref": "EXAMPLE ONLY: a second, root-chosen operator's finalized root", "observedAt": "EXAMPLE"}
+  ],
+  "recordedAt": "EXAMPLE (root fills in; this file is refused as-is: slot 0 is older than any max age)"
+}

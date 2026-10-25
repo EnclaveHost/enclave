@@ -1,0 +1,136 @@
+[queue] START available=21595MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-c8tqm778/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-c8tqm778/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-c8tqm778/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-fc1lqv33/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-fc1lqv33/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-fc1lqv33/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-ojfsj41z/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-ojfsj41z/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-ojfsj41z/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-7ra46pkw/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-7ra46pkw/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-7ra46pkw/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-gu3mzc96/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-gu3mzc96/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-gu3mzc96/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-kothl26z/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-kothl26z/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-kothl26z/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-i81zu1gv/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-i81zu1gv/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-i81zu1gv/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-xd3kn2ml/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-xd3kn2ml/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-xd3kn2ml/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-as83dcau/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-as83dcau/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-as83dcau/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-lwoc6po2/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-lwoc6po2/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-lwoc6po2/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-e2o2rlwh/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-e2o2rlwh/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-e2o2rlwh/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-xgll4d52/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-xgll4d52/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-xgll4d52/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-p87dxgvg/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-p87dxgvg/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-p87dxgvg/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:20: ResourceWarning: unclosed file <_io.BufferedReader name='/tmp/l1a-w0obncq7/helios'>
+  self.sha = hashlib.sha256(open(self.bin, "rb").read()).hexdigest()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:32: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-w0obncq7/checkpoint.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cp, open(self.cfg["checkpointFile"], "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/l1-authority/test_l1_authority.py:34: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/l1a-w0obncq7/config.json' mode='w' encoding='UTF-8'>
+  json.dump(self.cfg, open(p, "w"))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.
+----------------------------------------------------------------------
+Ran 14 tests in 0.682s
+
+OK
+<sys>:0: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 39569)>
+[memory-guard] exit=0 peakTreeRssMiB=38 minHostAvailableMiB=21558
+[memory-guard] at peak: python3:38
+[queue] EXIT 0

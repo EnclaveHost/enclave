@@ -1,0 +1,14 @@
+{
+  "format": "enclave-l1-authority/v1",
+  "network": "mainnet",
+  "binary": {"path": "/opt/rpc-runtime/helios", "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"},
+  "consensusRpc": "http://127.0.0.1:5052",
+  "executionRpc": "http://127.0.0.1:8545",
+  "listen": {"ip": "127.0.0.1", "port": 8550},
+  "dataDir": "/var/lib/enclave-l1-authority/data",
+  "homeDir": "/var/lib/enclave-l1-authority/home",
+  "checkpointFile": "/etc/enclave-l1-authority/checkpoint.json",
+  "maxCheckpointAgeSec": 604800,
+  "maxFinalizedAgeSec": 1800,
+  "logFilter": "info"
+}

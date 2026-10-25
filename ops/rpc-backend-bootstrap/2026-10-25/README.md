@@ -66,3 +66,11 @@ Official submission endpoint reference: https://github.com/base/node/blob/main/.
 The active Metal0 network agent (release808f691d0) has no hostServices configuration yet. Its registry identity is `0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be`, derived from its registered endpoint. The active control image is `dist-leasegas-deabf8f90` with no chainVerifier member. HTTPS proof serving and the staged verifier image have not been activated.
 
 Metal0 currently sends app-funded leases to `https://134.209.248.172`, whose eu-central lease relay is running. The proposed host-local port8549 relay does not exist on Metal0. Minipc's earlier local-relay migration is a separate installation. Replacing public RPC reads in the control guest alone therefore cannot complete the lease path: the actual relay's authority and broadcast path, and its intended host placement, must also migrate. No relay key or service was changed during this inventory. Public whitelisted receipts are in `evidence/live-metal0-*.json`.
+
+## Bootstrap update — October 25, 16:01 UTC
+
+Ethereum's snapshot completed at15:21 and its client is executing the remaining blocks. Lighthouse reached the current head but remains execution-optimistic. Base's ordered download is running (about4.1% at15:59). Neither chain has passed production readiness; no consumer was switched.
+
+Corrected a live startup defect: specifying only the transaction-lookup prune flag caused both pinned clients to overwrite the entire snapshot retention profile. The launcher now passes all validated settings. The exact damaged Ethereum profile was repaired, with its original bytes retained, and the first controlled restart preserved all settings and file ownership. The native process reported a shutdown timeout warning before exiting successfully; startup reconciled its interrupted indexing range and resumed execution. See prune-recovery/logs/prune-live-recovery-1556.json and prune-recovery/REVIEW.md. A second live restart awaits catch-up; the two-client offline restart tests passed.
+
+The source-only L1 authority experiments are explicitly not production authority. Their root review records the unapproved trust changes, missing binary provenance and successful-sync gates. Detailed work continuation is in evidence/continuation-1601.md.
