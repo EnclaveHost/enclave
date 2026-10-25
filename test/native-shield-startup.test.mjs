@@ -17,7 +17,7 @@ const release={schema:'enclave-desktop-release/1',controllerCid:record.cid,contr
  runtimeId:record.runtimeId,igvmSha256:'55'.repeat(32),profileSha256:record.desktop.profileSha256,launchMeasurement:'66'.repeat(32),
  minimumCpuMilli:250,policy:{cpuPercent:record.policy.cpuPercent,vcpus:record.policy.vcpus}};
 const image={measurement:release.launchMeasurement,runtimeId:release.runtimeId,igvmSha256:release.igvmSha256,
- profileSha256:release.profileSha256,controllerSha256:release.controllerSha256,nativeDesktop:true,
+ profileSha256:release.profileSha256,controllerSha256:release.controllerSha256,nativeDesktop:true,identity:{signer:'91'.repeat(32),productId:1818455653,moduleId:1734437220},
  configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true};
 const policy={desktop:release,images:[image]},id=record.secretDeployment,runner='0x'+'22'.repeat(32);
 const row={id,appRef:`catalog://${record.catalog.app}/${record.catalog.version}`,configCid:'{}',isPublic:true,
@@ -45,7 +45,7 @@ test('native expectation refuses changed pins, bytes, resources and manager iden
  for(const changed of [{...inputs,component:Buffer.from('not-wasm')},{...inputs,config:'{"egress":"public-web","changed":true}'}])
   assert.ok(expect({desktopInputs:changed}).skip);
  assert.ok(expect({row:{...row,gpuMilli:500}}).skip);assert.ok(expect({version:{...version,memMb:record.policy.memMiB+1024}}).skip);
- for(const key of ['nativeDesktop','configBundleV5','secretsV1','configSocketServer','protectedPorts'])
+ for(const key of ['identity','nativeDesktop','configBundleV5','secretsV1','configSocketServer','protectedPorts'])
   assert.ok(expect({policy:{desktop:release,images:[{...image,[key]:false}]}}).skip,key);
  assert.ok(expect({policy:{gpu:{runtimeId:release.runtimeId}}}).skip,'never falls back to GPU inference policy');
 });

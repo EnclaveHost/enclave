@@ -31,6 +31,8 @@ const options = { skip: !haveOpenssl && "openssl absent" };
 const world = haveOpenssl ? makeVbsWorld(tmpdir("vweb-shield-app-")) : null;
 const other = haveOpenssl ? makeVbsWorld(tmpdir("vweb-shield-app-other-")) : null;   // another node: another boot, another IDKS
 const IMAGE = "ab".repeat(32), APP = "cd".repeat(32);
+const IDENTITY = { signer: "91".repeat(32), productId: 1818455653, moduleId: 1734437220 };
+const IMAGE_IDENTITIES = [{ measurement: IMAGE, identity: IDENTITY }];
 const RUNTIME = { name: "wasmtime", version: "48.0.1", execution: "jit", targetIsa: "x86_64", hostIsa: "x86_64", cpuFeatures: "host-detected", wx: "enforced", cache: "none" };
 const RID = runtimeId(RUNTIME);
 
@@ -53,12 +55,13 @@ test("runtimeIdWeb and bind2Web (over @noble) equal the contract's runtimeId and
 
 // ---- the synthetic node: host session + app document + the guest's report -------------------------------------------------------
 // The paravisor's HCLA envelope around a VBS report (relay/vbs-vm-report.mjs layout), signed by `signer`.
-function vbsReport(input, { signer = world.idks.privateKey, debug = 0, enabledVtl = 5, guestVtl = 2, svn = 0, image = IMAGE } = {}) {
+function vbsReport(input, { signer = world.idks.privateKey, debug = 0, enabledVtl = 5, guestVtl = 2, svn = 0, image = IMAGE, identity = IDENTITY } = {}) {
   const claims = Buffer.from(JSON.stringify({ "user-data": input.toString("hex") })), env = Buffer.alloc(1236 + claims.length);
   const w = (o, n) => env.writeUInt32LE(n, o);
   w(0, 0x414c4348); w(4, 2); w(8, env.length); w(12, 2); w(1216, 20 + claims.length); w(1220, 1); w(1224, 1); w(1228, 1); w(1232, claims.length); claims.copy(env, 1236);
   const r = env.subarray(32, 592); [560, 1, 1, 256, 0, 2].forEach((n, i) => r.writeUInt32LE(n, i * 4)); sha(claims).copy(r, 24); Buffer.from(image, "hex").copy(r, 120);
   r.writeUInt32LE(enabledVtl, 216); r.writeUInt32LE(debug, 220); r.writeUInt32LE(guestVtl, 224); r.writeUInt32LE(svn, 228);
+  Buffer.from(identity.signer, "hex").copy(r, 152); r.writeUInt32LE(identity.productId, 232); r.writeUInt32LE(identity.moduleId, 236);
   sign("sha256", r.subarray(0, 304), { key: signer, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 }).copy(r, 304);
   return env;
 }
@@ -85,14 +88,14 @@ function fixture(o = {}) {
   return { doc: appDoc({ handshakeSpki, nonce, ...o }), handshakeSpki, nonce, expectedAppSha256: APP, expectedRuntimeId: hex(RID),
            hostSession: { evidence: hs.evidence, nonce: hs.nonce, transportKeySpki: world.transport.spki, expectedCredential: hs.credential, mintedFor: { ekCert: world.ek.cert, aikName: world.aik.name } } };
 }
-const P = () => ({ ekRoots: world.ca.bundlePem, allowedMeasurements: [IMAGE] });
+const P = () => ({ ekRoots: world.ca.bundlePem, allowedMeasurements: [IMAGE], imageIdentities: IMAGE_IDENTITIES });
 // the browser side of one input: the host session verified by the browser build, the IDKS read from that same log, then the app
 async function web(input, policy = P(), platforms = "attested") {
   const host = await verifyHvNodeEvidenceWeb(input.hostSession, { ekRoots: policy.ekRoots });
   if (!host.ok || !host.admissible) return { host };
   const k = vsmKey(parseTcgLog(Buffer.from(input.hostSession.evidence.log, "base64")).events, "IDKS");
   const app = await verifyShieldAppEvidenceWeb({ ...input, idks: k ? { modulus: k.modulus, exponent: k.exponent } : null, boot: host.boot },
-                                               { allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn, platforms });
+                                               { allowedMeasurements: policy.allowedMeasurements, imageIdentities: policy.imageIdentities, minimumGuestSvn: policy.minimumGuestSvn, platforms });
   return { host, app };
 }
 async function same(input, policy = P()) {
@@ -161,6 +164,20 @@ test("parity with verifyShieldAppPolicy's platform rule: pinned TPM/firmware pai
   }
 });
 
+test('relay/browser identity parity: authentic reports with high SVN cannot choose another release authority', options, async () => {
+  const policy = { ...P(), minimumGuestSvn: 13 };
+  for (const patch of [{ signer: '92'.repeat(32) }, { productId: 1 }, { moduleId: 1 }]) {
+    const { n, w } = await same(fixture({ report: { svn: 100, identity: { ...IDENTITY, ...patch } } }), policy);
+    assert.equal(n.ok, false); failsAt(w, 'app-image-identity');
+    assert.equal(w.app.checks['app-signature'], true); assert.equal(w.app.checks['app-svn'], true);
+  }
+  const { n } = await same(fixture({ report: { svn: 13 } }), policy); assert.equal(n.ok, true);
+  for (const imageIdentities of [null, [], [{ measurement: IMAGE, identity: { ...IDENTITY, moduleId: -1 } }]])
+    failsAt((await same(fixture(), { ...P(), imageIdentities })).w, 'app-image-identity');
+  const legacy = await same(fixture(), { ...P(), imageIdentities: undefined });
+  assert.equal(legacy.n.ok, true); assert.equal(legacy.w.app.checks['app-image-identity'], undefined);
+});
+
 // ---- the flow against a stand-in relay + TPM + guest ------------------------------------------------------------------------
 // The stub plays the relay, the node's TPM and the app's partition: the host's two POSTs as in the host test, then the app GET,
 // answered with a report over the nonce in its URL. It refuses a `this` (a browser's fetch throws "Illegal invocation").
@@ -190,7 +207,7 @@ function standIn(w, { app = {}, host = {}, status = null } = {}) {
       const body = { name: "nucbox-test", mode: "hv-node", deployment: m[1], nonce: m[2], fetchedAt: "2026-10-15T12:00:00.000Z",
                      document: appDoc({ handshakeSpki, nonce, ...(app.doc || {}) }), handshakeSpki: b64(handshakeSpki),
                      expected: { source: "derived by this relay from the deployment's catalog entry and config, not by the app", appSha256: APP, runtimeId: hex(RID) },
-                     policy: { source: "this relay's Shield app policy (the operator's own list)", measurements: [IMAGE], minimumGuestSvn: 0, platforms: "attested" } };
+                     policy: { source: "this relay's Shield app policy (the operator's own list)", measurements: [IMAGE], imageIdentities: IMAGE_IDENTITIES, minimumGuestSvn: 0, platforms: "attested" } };
       return answer(200, app.mutate ? app.mutate(body) : body);
     }
     return answer(404, { error: "not_found" });
@@ -286,7 +303,7 @@ function replayCapture({ status = null } = {}) {
     if (m) {
       if (status) return answer(status, { error: "busy", message: "checked moments ago" });
       return answer(200, { name: "nucbox-k11-4", mode: "hv-node", deployment: m[1], nonce: m[2], document: appDoc({ handshakeSpki, nonce: Buffer.from(m[2], "hex"), report: { signer: NO_IDKS } }),
-                           handshakeSpki: b64(handshakeSpki), expected: { source: "relay", appSha256: APP, runtimeId: hex(RID) }, policy: { source: "operator", measurements: [IMAGE], minimumGuestSvn: 0, platforms: "attested" } });
+                           handshakeSpki: b64(handshakeSpki), expected: { source: "relay", appSha256: APP, runtimeId: hex(RID) }, policy: { source: "operator", measurements: [IMAGE], imageIdentities: IMAGE_IDENTITIES, minimumGuestSvn: 0, platforms: "attested" } });
     }
     const nonce = JSON.parse(calls[0].init.body).nonce;
     if (url.endsWith("/attestation")) return answer(200, { name: "nucbox-k11-4", mode: "hv-node", session: "s1", nonce, keys: { ek: minted.ekCert, ekChain: [], aikPub: ev.quote.aikPub, aikName: b64(Buffer.from(minted.aikName, "hex")) } });
@@ -345,7 +362,7 @@ test("BUNDLED (esbuild, node:crypto aliased to the throwing shim, Buffer from th
     const k = vsmKey(parseTcgLog(Buffer.from(f.hostSession.evidence.log, "base64")).events, "IDKS"), boot = verifyHvNodeEvidence(f.hostSession, { ekRoots: world.ca.bundlePem }).boot;
     const w = readBack(await W.verifyShieldAppEvidenceWeb({ doc: readBack(f.doc), handshakeSpki: toU8(f.handshakeSpki), nonce: toU8(f.nonce), expectedAppSha256: f.expectedAppSha256, expectedRuntimeId: f.expectedRuntimeId,
                                                             idks: { modulus: toU8(k.modulus), exponent: toU8(k.exponent) }, boot: readBack(boot) },
-                                                          { allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0, platforms: "attested" }));
+                                                          { allowedMeasurements: policy.allowedMeasurements, imageIdentities: policy.imageIdentities, minimumGuestSvn: policy.minimumGuestSvn ?? 0, platforms: "attested" }));
     const n = verifyVbsAppEvidence(f, policy);
     assert.equal(w.ok, n.ok, `relay ${n.reason ?? "ok"} / bundle ${w.reason ?? "ok"}`); assert.equal(w.reason, n.reason);
     return w;
@@ -353,6 +370,8 @@ test("BUNDLED (esbuild, node:crypto aliased to the throwing shim, Buffer from th
   const ok = await one(fixture()); assert.equal(ok.ok, true, ok.reason); for (const c of SHIELD_APP_CHECKS) assert.equal(ok.checks[c.key], true, c.key);
   assert.equal((await one(fixture({ report: { signer: other.idks.privateKey } }))).checks["app-signature"], false);
   assert.equal((await one(fixture({ report: { debug: 1 } }))).checks["app-isolation"], false);
+  assert.equal((await one(fixture({ report: { svn: 100, identity: { ...IDENTITY, signer: '92'.repeat(32) } } }))).checks['app-image-identity'], false);
+  assert.equal((await one(fixture(), { ...P(), imageIdentities: null })).checks['app-image-identity'], false);
   assert.equal((await one(fixture({ bindTo: { nonce: randomBytes(32) } }))).checks["app-binding"], false);
   assert.equal((await one(fixture(), { ...P(), allowedMeasurements: ["ef".repeat(32)] })).checks["app-measurement"], false);
   fs.rmSync(path.dirname(out), { recursive: true, force: true });

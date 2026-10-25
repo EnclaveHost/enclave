@@ -21,7 +21,7 @@ const row = { id: base.record.secretDeployment, appRef: `catalog://${base.record
   cpuMilli: 500, gpuMilli: 750, isPublic: true, configCid: JSON.stringify({ isolation: { require: BACKEND } }) };
 const nativeImage = { measurement: release.launchMeasurement, runtimeId: release.runtimeId,
   igvmSha256: release.igvmSha256, profileSha256: release.profileSha256, controllerSha256: release.controllerSha256,
-  nativeDesktop: true, configBundleV5: true, secretsV1: true, configSocketServer: true, protectedPorts: true };
+  nativeDesktop: true, identity: { signer: '91'.repeat(32), productId: 1818455653, moduleId: 1734437220 }, configBundleV5: true, secretsV1: true, configSocketServer: true, protectedPorts: true };
 function deps() {
   return { policy: { desktop: structuredClone(release), images: [structuredClone(nativeImage)] }, secretsRequired: true,
     readCatalog: async () => ({ app: { active: true }, version: { ...version } }),
@@ -82,7 +82,7 @@ test('native image admission selects one full approved release and refuses legac
     const p = structuredClone(d.policy); p.images[0][key] = '99'.repeat(32);
     assert.deepEqual(admittedImages(p, expected), [], key);
   }
-  for (const key of ['nativeDesktop', 'configBundleV5', 'secretsV1', 'configSocketServer', 'protectedPorts']) {
+  for (const key of ['identity', 'nativeDesktop', 'configBundleV5', 'secretsV1', 'configSocketServer', 'protectedPorts']) {
     const p = structuredClone(d.policy); delete p.images[0][key];
     assert.deepEqual(admittedImages(p, expected), [], key);
   }

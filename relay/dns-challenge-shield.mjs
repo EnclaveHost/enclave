@@ -48,6 +48,7 @@ import { runtimeId, validateRuntimeIdentity, bind2 } from "./vbs-runtime.mjs";
 import { parseTcgLog, vsmKey } from "./vbs-tcglog.mjs";
 import { rsaKeyFromModulus } from "./vbs-verify.mjs";
 import { verifyVbsVmReport } from "./vbs-vm-report.mjs";
+import { imageIdentityPins } from "./vbs-image-identity.mjs";
 import { vbsAppReportEnvelope, vbsAppUserData } from "./vbs-app-core.mjs";
 import { VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-tpm.mjs";
 
@@ -214,13 +215,15 @@ export function createShieldChallengeAuth({ policy, zone, registryEntry, recover
       if (!sessions.length) return deny(403, "no live Shield host session on this responder: the host must attest its TPM boot here first");
       // the report check verifyShieldAppPolicy -> verifyVbsAppEvidence runs, with its inputs: the admitted images for this
       // runtime, this push's binding and app, the policy's minimum SVN
-      const measurements = policy.images.filter((i) => i.runtimeId === rid).map((i) => i.measurement);
+      const imageCandidates = policy.images.filter((i) => i.runtimeId === rid);
+      const measurements = imageCandidates.map((i) => i.measurement);
       if (!measurements.length) return deny(403, "Shield attestation refused: runtime has no admitted image");
       let envelope;
       try { const e = vbsAppReportEnvelope(doc); if (e.reason) return deny(403, `Shield attestation refused: ${e.reason}`); envelope = e.envelope; }
       catch (e) { return deny(403, `Shield attestation refused: ${String(e?.message || e).slice(0, 160)}`); }
       const reportCheck = { envelope, expectedUserData: vbsAppUserData(bind2(spki, nonce, ridBytes), doc.appSha256),
-                            allowedMeasurements: measurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0 };
+                            allowedMeasurements: measurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0,
+                            imageIdentities: imageIdentityPins(imageCandidates) };
       let why = "VBS report signature failed: no live host session's IDKS signed this report";
       for (const [hostId, s] of sessions) {
         if (s.idksKey) {

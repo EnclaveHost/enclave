@@ -59,3 +59,39 @@ test('requires fixed-width guest input even when malformed claims are signed', (
   for (const value of ['', 'ff', null, nonce.toString('hex').toUpperCase()])
     assert.equal(check(fixture(() => {}, c => { c['user-data'] = value; })).ok, false);
 });
+
+const identity = { signer: '91'.repeat(32), productId: 1818455653, moduleId: 1734437220 };
+const signedIdentity = (patch = {}, edit = () => {}) => fixture(r => {
+  const i = { ...identity, ...patch };
+  Buffer.from(i.signer, 'hex').copy(r, 152); r.writeUInt32LE(i.productId, 232); r.writeUInt32LE(i.moduleId, 236);
+  r.writeUInt32LE(100, 228); edit(r);
+});
+test('release authority is pinned to the same measurement even with a genuine IDKS signature and high SVN', () => {
+  const policy = { minimumGuestSvn: 13, imageIdentities: [{ measurement, identity }] };
+  const accepted = check(signedIdentity(), policy);
+  assert.equal(accepted.ok, true, accepted.reason); assert.deepEqual(accepted.identity, identity);
+  for (const patch of [{ signer: '92'.repeat(32) }, { signer: '00'.repeat(32) }, { productId: 1 }, { moduleId: 1 }]) {
+    const denied = check(signedIdentity(patch), policy);
+    assert.equal(denied.ok, false); assert.equal(denied.checks.signature, true);
+    assert.equal(denied.checks.svn, true); assert.equal(denied.checks['image-identity'], false);
+  }
+  const other = 'b2'.repeat(32);
+  const crossed = { allowedMeasurements: [measurement, other], imageIdentities: [
+    { measurement, identity: { ...identity, signer: '92'.repeat(32) } }, { measurement: other, identity }] };
+  assert.equal(check(signedIdentity(), crossed).ok, false, 'cannot mix one measurement and another image authority');
+  assert.equal(check(signedIdentity(), { ...policy, allowedMeasurements: [other] }).ok, false, 'identity never substitutes for measurement pin');
+  const corrupt = signedIdentity(); corrupt[32 + 152] ^= 1;
+  const forgery = check(corrupt, policy); assert.equal(forgery.checks.signature, false);
+});
+test('identity policy is optional only for legacy callers and otherwise fails closed on malformed pins', () => {
+  assert.equal(check(fixture()).checks['image-identity'], undefined);
+  const pin = { measurement, identity };
+  for (const imageIdentities of [null, [], {}, [null], [identity], new Array(1),
+    [{ ...pin, extra: true }], [{ ...pin, identity: { ...identity, extra: true } }],
+    ...['', '00'.repeat(32), 'AB'.repeat(32), 0].map(signer => [{ ...pin, identity: { ...identity, signer } }]),
+    ...[-1, 0x100000000, 1.5, '1', null].flatMap(n => ['productId', 'moduleId'].map(k => [{ ...pin, identity: { ...identity, [k]: n } }])),
+    new Array(257).fill(pin)]) {
+    const denied = check(signedIdentity(), { imageIdentities });
+    assert.equal(denied.ok, false); assert.equal(denied.checks.inputs, false);
+  }
+});

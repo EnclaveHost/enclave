@@ -26,6 +26,7 @@ import { sha256 as nobleSha256 } from "@noble/hashes/sha2";
 import { TECH } from "../envelope.mjs";
 import { canonical, validateRuntimeIdentity } from "../../isolation/contract/runtime.mjs";
 import { vbsVmReportWith } from "../../relay/vbs-vm-report-core.mjs";
+import { validImageIdentities } from "../../relay/vbs-image-identity.mjs";
 import { vbsAppDocChecks, vbsAppReportEnvelope, vbsAppUserData, platformsValid, platformAdmitted } from "../../relay/vbs-app-core.mjs";
 import { runAsync } from "../../relay/hvnode-core.mjs";
 import { verifyShieldHostSessionWith, SHIELD_CHECK_ORDER, SHIELD_CHECK_LABELS, SHIELD_OMISSION_LABELS } from "./shield-host.mjs";
@@ -70,6 +71,7 @@ export const SHIELD_APP_CHECKS = Object.freeze([
   ["app-isolation", "partition is VBS-isolated at the expected level and not debuggable (VTL 2 guest, VTL 5 enabled, policy 0)"],
   ["app-svn", "the partition's guest SVN is at or above the operator's floor"],
   ["app-measurement", "partition image measurement is on the operator's list"],
+  ["app-image-identity", "image signer, product and module match the operator's pins for this measurement (when required)"],
   ["app-binding", "the report binds the app's TLS key, this page's nonce, the runtime and the app (user data recomputed here)"],
   ["app-document", "the app's document is ABI/2, answers this page's nonce and names the TLS key the node stated"],
   ["app-identity", "the app is the one the deployment names (its SHA-256, derived by the relay from the catalog)"],
@@ -107,20 +109,23 @@ export async function verifyShieldAppEvidenceWeb({ doc, handshakeSpki, nonce, ex
     if (!idks) refuse("authenticated boot log contains no IDKS");
     const userData = pre.rid ? vbsAppUserData(bind2Web(handshakeSpki, nonce, pre.rid), expectedAppSha256) : Buffer.alloc(64);
     const r = await runAsync(REPORT.vbsVmReportChecks({ envelope: env.envelope, idksPublicKey: idks, expectedUserData: userData,
-                                                        allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0 }), OPS);
+                                                        allowedMeasurements: policy.allowedMeasurements, minimumGuestSvn: policy.minimumGuestSvn ?? 0,
+                                                        imageIdentities: policy.imageIdentities }), OPS);
     checks["app-report"] = r.checks.envelope; checks["app-isolation"] = r.checks.vtl; checks["app-svn"] = r.checks.svn; checks["app-measurement"] = r.checks.measurement;
+    checks["app-image-identity"] = r.checks["image-identity"];
     checks["app-binding"] = pre.rid ? r.checks["user-data"] : undefined;   // with no runtime id there is nothing to recompute
     checks["app-signature"] = idks ? r.checks.signature : false;
     if (!r.ok) refuse(r.reason);
     if (r.checks.inputs === false) {   // the policy itself is unusable: no list, or no floor, to hold the report to
       if (!Array.isArray(policy.allowedMeasurements) || !policy.allowedMeasurements.length || !policy.allowedMeasurements.every((x) => typeof x === "string" && HEX64.test(x))) checks["app-measurement"] = false;
       const floor = policy.minimumGuestSvn ?? 0; if (!Number.isSafeInteger(floor) || floor < 0) checks["app-svn"] = false;
+      if (policy.imageIdentities !== undefined && !validImageIdentities(policy.imageIdentities)) checks["app-image-identity"] = false;
       return { ok: false, reason, checks };
     }
     checks["app-platform"] = platformAdmitted(policy.platforms, boot);
     if (!checks["app-platform"]) refuse(platformsValid(policy.platforms) ? "authenticated TPM/platform pair is not admitted" : 'explicit TPM identity and platform firmware pins (or "attested") are required');
     if (reason !== null) return { ok: false, reason, checks };
-    return { ok: true, checks, measurement: r.measurement, guestSvn: r.guestSvn, rid: pre.rid };
+    return { ok: true, checks, measurement: r.measurement, guestSvn: r.guestSvn, identity: r.identity, rid: pre.rid };
   } catch (e) { refuse(e && e.message ? e.message : String(e)); return { ok: false, reason, checks }; }
 }
 
@@ -190,6 +195,7 @@ export async function verifyShieldAppWith(deps, { apiBase = "https://api.enclave
     if (!pol || typeof pol !== "object" || !Array.isArray(pol.measurements) || !pol.measurements.length || pol.measurements.length > MAX_POLICY_ENTRIES || !pol.measurements.every((m) => typeof m === "string" && HEX64.test(m)))
       return error("the answer carries no usable image list (policy.measurements)");
     if (!Number.isSafeInteger(pol.minimumGuestSvn) || pol.minimumGuestSvn < 0) return error("the answer carries no usable guest SVN floor (policy.minimumGuestSvn)");
+    if (pol.imageIdentities !== undefined && !validImageIdentities(pol.imageIdentities)) return error("the answer carries no usable image signer/product/module pins (policy.imageIdentities)");
     if (!platformsValid(pol.platforms) || (Array.isArray(pol.platforms) && pol.platforms.length > MAX_POLICY_ENTRIES)) return error('the answer carries no usable platform policy (policy.platforms: "attested" or pins)');
     let handshakeSpki;
     try { handshakeSpki = b64field(answer.handshakeSpki, 4096, "handshakeSpki"); } catch (e) { return error(`the answer: ${e.message}`); }
@@ -199,7 +205,8 @@ export async function verifyShieldAppWith(deps, { apiBase = "https://api.enclave
 
     // ---- 3. the relay's own rules for an app, in this page
     const v = await verifyShieldAppEvidenceWeb({ doc, handshakeSpki, nonce, expectedAppSha256: exp.appSha256, expectedRuntimeId: exp.runtimeId, idks, boot },
-                                               { allowedMeasurements: pol.measurements, minimumGuestSvn: pol.minimumGuestSvn, platforms: pol.platforms });
+                                               { allowedMeasurements: pol.measurements, minimumGuestSvn: pol.minimumGuestSvn,
+                                                 imageIdentities: pol.imageIdentities, platforms: pol.platforms });
     Object.assign(checks, v.checks);
     const rt = doc.runtime;
     if (checks["app-runtime"]) facts.push(["Runtime", `${rt.name} ${rt.version} (${rt.execution}, ${rt.targetIsa} on ${rt.hostIsa}, W^X ${rt.wx}, cache ${rt.cache}, CPU features ${rt.cpuFeatures})`]);
@@ -208,6 +215,8 @@ export async function verifyShieldAppWith(deps, { apiBase = "https://api.enclave
                ["Platform policy", pol.platforms === "attested" ? "attested: any TPM chained to the pinned roots, on a boot that passed the host checks" : `${pol.platforms.length} pinned TPM/firmware pair(s)`]);
     if (!v.ok) return refuse(v.reason);
     facts.push(["Image measurement (on the operator's list)", v.measurement], ["Guest SVN", String(v.guestSvn)]);
+    if (pol.imageIdentities !== undefined) facts.push(["Image signer (pinned for this measurement)", v.identity.signer],
+      ["Image product / module", `${v.identity.productId} / ${v.identity.moduleId}`]);
     reasons = [...omissions.map((o) => `OMITTED (${o}): ${SHIELD_APP_OMISSION_LABELS[o] || o}`), ...host.verdict.reasons.filter((r) => r.startsWith("WARNING: "))];
     return verdict("limited", `This app's Enclave Shield partition on ${name} answered this page's nonce with a report signed by the VSM identity key of the boot the host's TPM just quoted: `
       + "a VBS-isolated partition (VTL 2 guest, VTL 5 enabled, not debuggable) running an image on the operator's list, bound to the app's TLS key, the runtime and the app the deployment names; "

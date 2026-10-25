@@ -73,18 +73,19 @@ async function hostSession(auth, w = world, { signer = operator, idksOf = w, end
 }
 
 // the guest: its P-256 TLS key, its push, and the m3 monitor's document (launcher envelope + the guest's VBS report)
-function vbsReport(input, { signer, image = IMAGE }) {
+function vbsReport(input, { signer, image = IMAGE, identity = null }) {
   const claims = Buffer.from(JSON.stringify({ "user-data": input.toString("hex") })), env = Buffer.alloc(1236 + claims.length);
   const w32 = (o, n) => env.writeUInt32LE(n, o);
   w32(0, 0x414c4348); w32(4, 2); w32(8, env.length); w32(12, 2); w32(1216, 20 + claims.length); w32(1220, 1); w32(1224, 1); w32(1228, 1); w32(1232, claims.length); claims.copy(env, 1236);
   const r = env.subarray(32, 592); [560, 1, 1, 256, 0, 2].forEach((n, i) => r.writeUInt32LE(n, i * 4)); sha(claims).copy(r, 24); Buffer.from(image, "hex").copy(r, 120);
   r.writeUInt32LE(5, 216); r.writeUInt32LE(0, 220); r.writeUInt32LE(2, 224); r.writeUInt32LE(0, 228);
+  if (identity) { Buffer.from(identity.signer, "hex").copy(r, 152); r.writeUInt32LE(identity.productId, 232); r.writeUInt32LE(identity.moduleId, 236); r.writeUInt32LE(100, 228); }
   sign("sha256", r.subarray(0, 304), { key: signer, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 }).copy(r, 304);
   return env;
 }
 const guestKey = () => { const k = generateKeyPairSync("ec", { namedCurve: "prime256v1" }); return { ...k, spki: k.publicKey.export({ type: "spki", format: "der" }) }; };
 function push({ key = guestKey(), owner = OWNER, deploymentId = DEP, op = "set", app = APP, runtime = RUNTIME, docApp = app, bindNonce, bindKey, image = IMAGE,
-                signer = world.idks.privateKey, format = SHIELD_DOC_FORMAT, tier = "T0-hv", method = "POST", nonceOwner = owner, docRuntime = runtime } = {}) {
+                signer = world.idks.privateKey, identity = null, format = SHIELD_DOC_FORMAT, tier = "T0-hv", method = "POST", nonceOwner = owner, docRuntime = runtime } = {}) {
   const p = { v: 1, op, name: `_acme-challenge.${challengeLabel(deploymentId, owner)}.${ZONE}`, value: "A".repeat(43), deploymentId, owner,
               ts: Math.floor(Date.now() / 1000), spki: b64(key.spki) };
   const nonce = pushNonce({ ...p, owner: nonceOwner });
@@ -92,7 +93,7 @@ function push({ key = guestKey(), owner = OWNER, deploymentId = DEP, op = "set",
   const input = Buffer.concat([bind2(bindKey || key.spki, bindNonce || nonce, rid), Buffer.from(app, "hex")]);
   const launcher = { format: "hyperv-partition-domain/v1", signed: "launcher" };
   p.attestation = { abi: ABI2, format, tier, nonce: hex(nonce), transportKey: p.spki, appSha256: docApp, runtime: docRuntime,
-                    report: b64(Buffer.from(JSON.stringify({ ...launcher, vbsVmReport: b64(vbsReport(input, { signer, image })) }))) };
+                    report: b64(Buffer.from(JSON.stringify({ ...launcher, vbsVmReport: b64(vbsReport(input, { signer, image, identity })) }))) };
   const raw = Buffer.from(JSON.stringify(p));
   const sig = sign("sha256", Buffer.concat([Buffer.from(PUSH_SIG_PREFIX), raw]), { key: key.privateKey, dsaEncoding: "der" }).toString("base64");
   return { raw, sig, method, p, key };
@@ -755,4 +756,17 @@ test("the real responder process end to end (synthetic TPM, guest and chain on l
   // the old legacy zones are not served by this responder
   assert.equal((await dnsAsk(dnsPort, "_acme-challenge.abcd1234.app.enclave.host", true)).readUInt16BE(2) & 15, 5);
   assert.doesNotMatch(log, /unhandledRejection|uncaughtException/);
+});
+
+
+test('DNS authority checks image signer/product/module before issuing an authorization', options, async () => {
+  const identity = { signer: '91'.repeat(32), productId: 1818455653, moduleId: 1734437220 };
+  const pol = policy(world); pol.minimumGuestSvn = 13; pol.images[0].identity = identity;
+  const auth = responder(world, ZONE, pol);
+  await (await hostSession(auth)).attest();
+  assert.equal((await auth.authorize(push({ identity }))).ok, true);
+  for (const patch of [{ signer: '92'.repeat(32) }, { productId: 1 }, { moduleId: 1 }]) {
+    const v = await auth.authorize(push({ identity: { ...identity, ...patch } }));
+    assert.equal(v.ok, false); assert.match(v.why, /image signer\/product\/module identity is not pinned/);
+  }
 });

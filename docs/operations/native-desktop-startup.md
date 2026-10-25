@@ -55,9 +55,11 @@ hardware or authorize real owner secrets.
 
 ## Release gates still open
 
-The candidate NucBox report's guest SVN 0 differs from the recipe's SVN 13.
-Resolve the producer/report identity and verify the real hardware chain; do not
-lower the admission floor. The combined graphics platform now has a reproducible
+The matched NucBox diagnostic established SHA384/P384 identity signing and
+authenticated guest SVN 13. The final graphics candidate is still unsigned:
+use an explicitly authorized release key, pin its identity, and obtain fresh
+evidence from the final signed image without lowering the admission floor.
+The combined graphics platform now has a reproducible
 initrd/IGVM and independently validated image mapping. Exercise enrollment,
 certificate issuance, sealed secret delivery, masked GPU operations and Moonlight
 on the admitted hardware image before publication. One earlier local native
@@ -66,6 +68,41 @@ The existing graphics driver supports OpenGL/Vulkan through Mesa with trusted
 CPU rendering and a bounded masked integer-affine compute path. General GPU
 rendering, gaming performance and API conformance are not established by these
 startup tests.
+
+### Image release authority
+
+Native desktop admission now requires `identity` on the same `policy.images`
+entry that pins its runtime, launch measurement and desktop capabilities:
+
+```json
+"identity": {
+  "signer": "<64 lowercase hex characters: SHA256 of the 104-byte CNG public blob>",
+  "productId": 1818455653,
+  "moduleId": 1734437220
+}
+```
+
+Those IDs illustrate the diagnostic identity; they do not authorize a production
+release. Choose and pin the release authority independently of the guest report.
+An all-zero signer is refused. IDs must be unsigned 32-bit integers. A valid
+IDKS signature and high SVN under a different release signer cannot satisfy the
+pin. Neither can a signer pinned for another measurement. Existing measurement,
+runtime, platform, nonce and TLS-key checks remain required.
+
+The shared report verifier accepts `imageIdentities`, a bounded list of
+`{ measurement, identity }` records. The relay derives these from its selected
+image candidates, and the fresh-report endpoint carries the same records to the
+browser. The browser applies the shared check and shows the pinned authority.
+The DNS responder also checks the pins before authorizing certificate challenges.
+Legacy image sets may omit identity pins; native desktop candidates cannot.
+Mixed pinned/unpinned candidate sets are refused rather than treating missing
+identities as wildcards. Malformed, empty or null explicit lists are refused.
+
+Tests cover authentic synthetic reports with different signer/product/module,
+crossed measurement/authority pairs, high SVN, actual TLS startup probes, DNS
+authorization, fresh-report forwarding, and Node/browser/bundled-browser parity.
+These changes only implement policy enforcement; they do not install a release
+key, change a live policy, or approve the diagnostic key for production.
 
 ## Combined graphics platform probe
 

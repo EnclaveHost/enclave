@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { verifyVbsAppEvidence } from './vbs-app-verify.mjs';
 import { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
 import { shieldImageCandidates } from './shield-image-candidates.mjs';
+import { imageIdentityPins } from './vbs-image-identity.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 // policy.hosts: the host names admitted to the Shield market, or "*" (the open market, 2026-10-11): any hv-node whose
@@ -34,6 +35,7 @@ export function verifyShieldAppPolicy(input, policy = {}) {
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,
       allowedMeasurements: candidates.map(p => p.measurement),
+      imageIdentities: imageIdentityPins(candidates),
       minimumGuestSvn: policy.minimumGuestSvn ?? 0,
     });
     if (!v.ok) return v;

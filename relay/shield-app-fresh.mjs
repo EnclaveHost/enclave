@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import { expectedShieldApp } from './shield-app-verifier.mjs';
 import { shieldImageCandidates } from './shield-app-policy.mjs';
+import { imageIdentityPins } from './vbs-image-identity.mjs';
 
 const DEP = /^0x[0-9a-f]{64}$/;
 const fail = (code, message, extra = {}) => Object.assign(new Error(message), { code, ...extra });
@@ -50,6 +51,9 @@ export function createShieldAppFresh({ hub, policyFile = '', policy: supplied = 
       if (!d || d.active !== true || d.isPublic !== true || String(d.runner || '').toLowerCase() !== String(host.id || '').toLowerCase() ||
           Number(d.leaseUntil) * 1000 <= now()) throw fail('not_here', `${id} is not a public deployment leased to ${name} now`);
       const expected = await expect(d, { policy, readCatalog, readConfig, fetchVerified, allowPendingOwner: isOwnerDeployment(host, d), secretsRequired: hasSecrets(d.id) });
+      const candidates = shieldImageCandidates(policy, expected);
+      if (!candidates.length) throw fail('attestation_failed', 'runtime has no admitted image');
+      const imageIdentities = imageIdentityPins(candidates);
       let r;
       try { r = await hub.request(`tunnel://${name}`, { method: 'GET', path: `/v1/shield/evidence?deployment=${id}&nonce=${nonce.toString('hex')}` }); }
       catch (e) { throw fail('timeout', `the host did not answer: ${e.message}`); }
@@ -65,7 +69,8 @@ export function createShieldAppFresh({ hub, policyFile = '', policy: supplied = 
       if (proof.doc.nonce !== nonce.toString('hex')) throw fail('attestation_failed', 'the host\'s app report answers another nonce');
       return { document: proof.doc, handshakeSpki: proof.handshakeSpki,
         expected: { source: 'derived by this relay from the deployment\'s catalog entry and configuration, not stated by the app', appSha256: expected.appSha256, runtimeId: expected.runtimeId },
-        policy: { source: 'this relay\'s Enclave Shield app policy (the operator\'s own list of admitted images)', measurements: admittedImages(policy, expected),
+        policy: { source: 'this relay\'s Enclave Shield app policy (the operator\'s own list of admitted images)', measurements: candidates.map(p => p.measurement),
+                  ...(imageIdentities === undefined ? {} : { imageIdentities }),
                   minimumGuestSvn: policy.minimumGuestSvn ?? 0, platforms: policy.platforms } };
     } finally { busy.delete(name); }
   };
