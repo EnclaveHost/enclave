@@ -14,6 +14,7 @@
 // (LeaseReader carries its own copy of this logic at 921d60c2b; worker B owns the whole-operation deadline fix there.
 //  The two are to be unified by root when B's fix composes.)
 import { encodeFunctionData, decodeFunctionResult } from 'viem';
+import { isAttestedVerifier } from './attested-verifier-brand.mjs';
 import { rpcEndpoint } from './rpc-identity.mjs';
 
 const lc = (s) => String(s).toLowerCase();
@@ -27,7 +28,8 @@ const hexBlock = (b) => '0x' + b.toString(16);
  * remote URL is refused: a remote "verifier" is one unverified server.
  */
 export function verifierEndpoint(v) {
-  if (v && typeof v === 'object' && typeof v.request === 'function') return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: 'verifier' };
+  if (v && typeof v === 'object' && typeof v.request === 'function')
+    return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: isAttestedVerifier(v) ? 'attested verifier' : 'verifier', attested: isAttestedVerifier(v) };
   const url = typeof v === 'string' ? v : v?.url;
   let e; try { e = rpcEndpoint(url); } catch (err) { throw new Error('verifier endpoint: ' + err.message); }
   if (!e.loopback) throw new Error('the verifier must be a local endpoint (loopback); a remote server is not a verifier');
@@ -151,7 +153,7 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
       alive();
       if (!floor || b > floor.number) floor = { number: b, hash: h.hash };
       return { blockNumber: b, blockHash: h.hash, stateRoot: h.stateRoot, timestamp: h.timestamp, value,
-        evidence: { authority: 'local-verifier', tier: 'unsafe', finality: 'none', blockNumber: String(b), blockHash: h.hash, stateRoot: h.stateRoot, verifier: v.label } };
+        evidence: { authority: v.attested ? 'attested-verifier' : 'local-verifier', localProof: !v.attested, tier: 'unsafe', finality: 'none', blockNumber: String(b), blockHash: h.hash, stateRoot: h.stateRoot, verifier: v.label } };
     })();
     // a REFERENCED timer (always cleared on settlement): an unref'd one would let a hung read outlive the event loop unsettled
     const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(fail('chain_timeout', `no verified snapshot within ${deadlineMs} ms`)), deadlineMs); });

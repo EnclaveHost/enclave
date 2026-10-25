@@ -72,6 +72,19 @@ export function rpcEndpoint(raw, { loopbackPorts = true } = {}) {
 const label = (u, host) => `${u.protocol}//${host}${u.port ? `:${u.port}` : ''}`;
 
 /** A name for an RPC URL that is safe in logs and evidence: scheme, canonical host and port only. */
+/** A WITNESS source endpoint (rpc-runtime proofSources, the witness gateway's upstreams): rpcEndpoint's rules, plus plain
+ *  http at a PRIVATE IPv4 literal (10/8, 172.16/12, 192.168/16: the operator's own node on a guest's host link). Witnesses
+ *  are verified against signed roots, so such a source is as untrusted as any other; never use this for an authority. */
+export function witnessSourceEndpoint(raw) {
+  let u; try { u = new URL(String(raw)); } catch { throw new RpcUrlError('url'); }
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(u.hostname), o = m ? m.slice(1).map(Number) : null;
+  const priv = !!o && !o.some((x) => x > 255) && (o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168));
+  if (u.protocol !== 'http:' || !priv) return rpcEndpoint(raw);
+  if (u.username || u.password || u.hash || String(raw).includes('#')) throw new RpcUrlError('secret');
+  const port = u.port || '80';
+  return { url: u, host: u.hostname, loopback: false, privateLiteral: true, port, identity: `private:${u.hostname}:${port}`, label: `http://${u.hostname}${u.port ? `:${u.port}` : ''}` };
+}
+
 export function rpcLabel(raw) {
   try { const u = new URL(String(raw)); const c = canonicalHost(u.hostname); return c ? label(u, c.host) : 'rpc'; } catch { return 'rpc'; }
 }

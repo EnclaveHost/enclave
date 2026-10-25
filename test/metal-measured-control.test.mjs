@@ -141,7 +141,17 @@ test("gsup: the legacy path is untouched; the direct branch runs only for metal.
   // and the reviewed metal host policy (6f2c7da4, network/metal-host-policy.mjs): the fw_cfg wallet-policy names, after the flavor
   const HOSTED = "  ...HOST_POLICY_ENV,\n";
   assert.equal(legacy(now).split(HOSTED).length, 2, "...the metal host policy's names, once, right after the flavor");
-  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(VERIFIED, "supEnv").replace(HOSTED, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical to the reviewed base, only wrapped in if (!CONTROL)");
+  // and the reviewed f04efa124 (pending shielded GPU price): the image's expected GPU count, once, after the flavor capacity
+  const GPU = "  ...(SHIELDED_GPU_EXPECTED > 0 ? { SHIELDED_GPU_EXPECTED: String(SHIELDED_GPU_EXPECTED) } : {}),\n";
+  assert.equal(legacy(now).split(GPU).length, 2, "...the expected shielded GPU count, once");
+  // and the reviewed a7fc374f4 (metal0 control): the MEASURED custody v1/v2 vaults, exactly these immutable addresses, once
+  const CUSTODY = "  // Secret custody (docs/security/secret-custody.md): the vault whose custodians this box's registry key authorizes\n"
+    + "  // releases to (supervisor authorizeCustody). Measured here, never from fw_cfg: the vault on Base is immutable.\n"
+    + "  CUSTODY_VAULT: '0x08074300f75e78212ae10ebd14984f78e17811a6',\n  CUSTODY_CHAIN_ID: '8453',\n"
+    + "  // custody v2: the host-run custodians' vault (docs/security/secret-custody-v2.md), measured like v1's\n"
+    + "  CUSTODY_VAULT_V2: '0xe48699b8401564aace7a814ae4569b67a3f7eef5',\n";
+  assert.equal(legacy(now).split(CUSTODY).length, 2, "...the measured custody vaults, once");
+  assert.equal(legacy(now).replace(/\n}\n\n$/, "\n\n").replace(VERIFIED, "supEnv").replace(HOSTED, "").replace(GPU, "").replace(CUSTODY, ""), legacy(head), "the legacy supervisor and agent launch is otherwise byte-identical to the reviewed base, only wrapped in if (!CONTROL)");
   assert.match(now, /if \(CONTROL === 'direct'\) await startDirectControl\(\)/);
   assert.match(now, /if \(!CONTROL\) \{\nconst supEnv = \{/);
   assert.match(now, /const MODE {9}= CONTROL \? \(cmdMode \|\| 'snp'\) : \(fw\.mode \|\| cmdMode \|\| 'snp'\);/);

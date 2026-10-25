@@ -1,0 +1,17 @@
+{
+  "metal/guest/chain-verifier.mjs": "8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb",
+  "metal/guest/gsup.mjs": "b8882af954b84f1b6a77974dd1f90c8e11dfff527db3c17bf482fefd5d87e24d",
+  "metal/guest/measured-control.mjs": "6489bf13273172105139c599dbbff4c29b9b1f317a88f6fe46bd2669375666a7",
+  "network/lease-reader.mjs": "edd22ed61e464ea4747d6af3ecb5fb36b8925ab441c8b7a89f17fad82c4da738",
+  "network/rpc-identity.mjs": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1",
+  "network/rpc-runtime.mjs": "ed7054cbada3c6d8fc783c5cb290be4fb6cb244126af8b27637130ed38856d10",
+  "network/verified-chain.mjs": "f2d52b208271e6b727604f6941df1b76a8dcaf792c3e74bfaee0bc9238f4cad9",
+  "network/wg-provider/main.mjs": "6dcd0a2122bb7748f9fd4460ca45a2d7388c392c151dca0e824f4f1ed3d5d50d",
+  "network/witness-gateway.mjs": "feea378e84dd5a4db239a9cda4aa5f9c5b3ee9364626ee88adbced70c5abb873",
+  "test/metal-measured-control.test.mjs": "462c477bb044fbaca6393b7127550d128c9d5fa739bc1af57115eb4f54935eea",
+  "network/attested-verifier-brand.mjs": "5229c8ec4a67632a3c323307e4cf89a657c0799d6589448dac9c77caa9501191",
+  "network/attested-verifier-client.mjs": "6410c12220948e148add650f8988570ee173badcd62ece7940ff976fa8bb8e5a",
+  "network/wg-provider/attested-authority.mjs": "069b98e6d4ef8dd7b7cab27fe6c7853759e9bbcd4c8b45d9ca7938ab0eae4beb",
+  "test/attested-chain-verifier.test.mjs": "e439642ae156b00c0d69114627b424e36539a30376bc6d23e2cb63b2b515f957",
+  "test/helpers/loopback-verifier.mjs": "8895443b0d528090072e8ddf291f0b89041ebf76698b001a165ba14809f11537"
+}

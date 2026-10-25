@@ -52,7 +52,7 @@ import { createWitnessGateway, WITNESS_METHODS } from './witness-gateway.mjs';
 import { s3WitnessCache } from './s3-witness-cache.mjs';
 import { takeRuntimeLock } from './runtime-lock.mjs';
 import { createGossipHeadSource, procIdentity, signalOwned } from './gossip-head-source.mjs';
-import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
+import { rpcEndpoint, rpcLabel, witnessSourceEndpoint } from './rpc-identity.mjs';
 
 export const CONFIG_FORMAT = 'enclave-rpc-runtime/v2';
 export const STATUS_FORMAT = 'enclave-rpc-runtime-status/v1';
@@ -165,7 +165,7 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } = 
   const port = int('verifier.port', raw.verifier.port, 1, 65535);
   const seen = new Set();
   for (const [i, u] of ups.entries()) {
-    let e; try { e = rpcEndpoint(u); } catch (x) { fail(`proofSources.untrusted[${i}]: ${x.message}`); }
+    let e; try { e = witnessSourceEndpoint(u); } catch (x) { fail(`proofSources.untrusted[${i}]: ${x.message}`); }
     if (e.url.search) fail(`proofSources.untrusted[${i}] carries a query string (no credentials in this config)`);
     if (seen.has(e.url.href)) fail(`proofSources.untrusted[${i}] repeats a source`); seen.add(e.url.href);
     if (e.loopback && Number(e.port) === port) fail(`proofSources.untrusted[${i}] is the verifier's own port (a verifier cannot be its own witness source)`);
