@@ -1,0 +1,141 @@
+{
+  "files": [
+    {
+      "path": "isolation/contract/catalog/derive_vectors.json",
+      "sha256": "68fa9a919925660e07b8f59a265648f7592b21c19a96d3c1507d35d85dcd884f",
+      "bytes": 37200
+    },
+    {
+      "path": "isolation/contract/catalog/desktop_vectors.json",
+      "sha256": "a3130755cad554a6f10e139c7bbff1a6202ee5bc07e815d796ae2abdd7e59639",
+      "bytes": 795782
+    },
+    {
+      "path": "package.json",
+      "sha256": "176365e77ddfe0cef859d07a2916e702f177854f34b23abfd1b806df9200de93",
+      "bytes": 4100
+    },
+    {
+      "path": "windows/vbslike/manager/backend-hcs.mjs",
+      "sha256": "083bae7e3a8177c9ddf277ff81f30f1d8e43c108ab6dd1f8da91835650612139",
+      "bytes": 13053
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-admission.test.mjs",
+      "sha256": "c05d9cf0fb54f9d761eb5bec55d868f37e2ddbdc481fba6be3639e75eb9d0757",
+      "bytes": 11407
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-config.test.mjs",
+      "sha256": "a26aa8c50e26bf18458563c0fcefa188526237755aaa61952d88176412b1ab7b",
+      "bytes": 4538
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-launcher.test.mjs",
+      "sha256": "2b7544993b235c451e99d504a3ee1ae5053cb8379bf5b3a9e52d981482291697",
+      "bytes": 14406
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-manager.test.mjs",
+      "sha256": "28dc64faeb9a885b40f1b714dab8bbbcc5db3aeb7bdd0291b08a2a452df68920",
+      "bytes": 14728
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-media.test.mjs",
+      "sha256": "1e50ac28736956241683d5d6fff98060aff38d729d737f5a33d3cb0ea2027198",
+      "bytes": 16337
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-memory.test.mjs",
+      "sha256": "e61bcd7159acdaa86bc4586b91b94895aee9c7753e5ba1140697b33d5a5621c4",
+      "bytes": 710
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-platform.test.mjs",
+      "sha256": "85dddf35aa20d315f92fc9323d8fdd9b2d3c858199d6d9b7ba73aaf3bb40560d",
+      "bytes": 16999
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-router.test.mjs",
+      "sha256": "f68ddcf1a2ebcda614723420674a7b571089385283ec8046c0526ef93ae21264",
+      "bytes": 3685
+    },
+    {
+      "path": "windows/vbslike/manager/desktop-worker-transport.test.mjs",
+      "sha256": "363f0e656f91d1ad26f433c7c665eeba773bcdc5c6864221ff43af57c2e1777e",
+      "bytes": 12367
+    },
+    {
+      "path": "windows/vbslike/manager/entrypoint.test.mjs",
+      "sha256": "3e0fc40e1b4a0540e40a26ea0265a86f32d12a3751bb10e90e108e080428c8ba",
+      "bytes": 8644
+    },
+    {
+      "path": "windows/vbslike/manager/fake-hyperv.mjs",
+      "sha256": "aad36b6725b41ede1ff53798d894e2e135bb451419266ce426bbc804a0255019",
+      "bytes": 4419
+    },
+    {
+      "path": "windows/vbslike/manager/liveness.test.mjs",
+      "sha256": "f58c3d2f0ef79c5c4bf92e7a14ee358ec6f979265f3582155e3f5d7be0997d65",
+      "bytes": 5447
+    },
+    {
+      "path": "windows/vbslike/manager/memory-share.test.mjs",
+      "sha256": "acba46ab2a529f83afc9ba7044d13e44282a938dfd513c73b10357a537c6d7a9",
+      "bytes": 634
+    },
+    {
+      "path": "windows/vbslike/manager/protected-ports.test.mjs",
+      "sha256": "d2cb6c9a383faf2ef5c49dad0daf196adcdf94ad0c3347c5bffd0cbdaf6f728e",
+      "bytes": 2064
+    },
+    {
+      "path": "windows/vbslike/manager/restart.test.mjs",
+      "sha256": "2ce076e0ef41518666497e8b7ae83d10f6021e2c8bd7e1fd15a23673ba138fbd",
+      "bytes": 16135
+    },
+    {
+      "path": "windows/vbslike/manager/server.test.mjs",
+      "sha256": "4b32fd461c72709721cccaba23d59f4ac8987c1a85bf3b81b7220ae84c76fccb",
+      "bytes": 42822
+    },
+    {
+      "path": "windows/vbslike/manager/shield-profile.test.mjs",
+      "sha256": "f80d00e86146f9a07fcd14a4ce745c1018ecbbd13381702f7b0377f303961f29",
+      "bytes": 5529
+    },
+    {
+      "path": "windows/vbslike/manager/testdata/desktop-platform/candidate.json",
+      "sha256": "5a1d1b0ecade165ef4edc5553871569489a0999ee5800476c13a6bc59f806861",
+      "bytes": 1994
+    },
+    {
+      "path": "windows/vbslike/manager/testdata/desktop-platform/profile.json",
+      "sha256": "0036cf9866d663e19bbc2323d8673b4c0ec4d194f2e517e3686270ea92302c40",
+      "bytes": 1066
+    },
+    {
+      "path": "windows/vbslike/manager/testdata/fake-wmiserve.mjs",
+      "sha256": "1a91f363ed76c168ea7d2a27463cb2c4ce0c6d0067485ad7d52bc1639dd07694",
+      "bytes": 4319
+    },
+    {
+      "path": "windows/vbslike/manager/wmi-launcher.test.mjs",
+      "sha256": "8c6f43c9094e0107378ce9783291768b4e4fe33de31ca0222355339a10aae0bc",
+      "bytes": 75397
+    },
+    {
+      "path": "windows/vbslike/manager/wmiserve-run.test.mjs",
+      "sha256": "def33c780fa16ee30890bde7c9059194888bf68bab30a67d5b9bec97d77702d6",
+      "bytes": 9663
+    }
+  ],
+  "testCommand": [
+    "node",
+    "--experimental-vm-modules",
+    "--test",
+    "windows/vbslike/manager/*.test.mjs"
+  ],
+  "runtimeSource": "92 pinned installed modules with prepared overlay applied; no canonical runtime substitutions"
+}

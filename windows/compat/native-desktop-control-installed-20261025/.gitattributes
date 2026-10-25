@@ -1,0 +1,2 @@
+# Unified-diff context blank lines intentionally contain one leading space.
+control.patch whitespace=-blank-at-eol

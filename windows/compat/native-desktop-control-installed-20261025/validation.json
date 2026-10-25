@@ -1,0 +1,78 @@
+{
+  "schema": "native-control-compat-validation/1",
+  "productionActivated": false,
+  "managerTests": {
+    "tests": 281,
+    "pass": 281,
+    "fail": 0,
+    "skipped": 0
+  },
+  "packagingTests": {
+    "tests": 8,
+    "pass": 8
+  },
+  "installedSources": 92,
+  "newPathsAbsent": 17,
+  "hostReadOnlyObservedUTC": [
+    "2026-10-25T16:41:47.3896384Z",
+    "2026-10-25T16:41:49.5563353Z"
+  ],
+  "legacyAdaptedBaseline": {
+    "tests": 70,
+    "pass": 69,
+    "fail": 1,
+    "failedTest": "failed start retains cleanup handles and holds GPU capacity until carrier stop succeeds"
+  },
+  "legacyAdaptedOverlay": {
+    "tests": 70,
+    "pass": 70,
+    "fail": 0
+  },
+  "priorNodeOnlyQualification": {
+    "tests": 112,
+    "pass": 111,
+    "fail": 1,
+    "preExistingFailure": true
+  },
+  "runtimeClosure": {
+    "modules": 109,
+    "missingRelativeImports": 0
+  },
+  "assembledQualification": {
+    "productionActivated": false,
+    "testFiles": [
+      "windows/vbslike/manager/desktop-admission.test.mjs",
+      "windows/vbslike/manager/desktop-config.test.mjs",
+      "windows/vbslike/manager/desktop-launcher.test.mjs",
+      "windows/vbslike/manager/desktop-manager.test.mjs",
+      "windows/vbslike/manager/desktop-media.test.mjs",
+      "windows/vbslike/manager/desktop-memory.test.mjs",
+      "windows/vbslike/manager/desktop-platform.test.mjs",
+      "windows/vbslike/manager/desktop-router.test.mjs",
+      "windows/vbslike/manager/desktop-worker-transport.test.mjs",
+      "windows/vbslike/manager/entrypoint.test.mjs",
+      "windows/vbslike/manager/liveness.test.mjs",
+      "windows/vbslike/manager/memory-share.test.mjs",
+      "windows/vbslike/manager/protected-ports.test.mjs",
+      "windows/vbslike/manager/restart.test.mjs",
+      "windows/vbslike/manager/server.test.mjs",
+      "windows/vbslike/manager/shield-profile.test.mjs",
+      "windows/vbslike/manager/wmi-launcher.test.mjs",
+      "windows/vbslike/manager/wmiserve-run.test.mjs"
+    ],
+    "exitCode": 0,
+    "runtimeModules": 109,
+    "manifestSha256": "63055ea9561808ad10c8ac0ed92ec862ec1f373fe2c982510cc7c43aae01d168",
+    "qualificationSha256": "520c61d82dad2ba6d7ff77758b073da9558599f78734fad1737bb71aa6b01b44",
+    "nodeVersion": "v22.23.3"
+  },
+  "limitations": [
+    "Host boundaries are injected in manager tests; no combined native manager hardware launch was run.",
+    "No production configuration, service, owner secret, wallet or catalog changes.",
+    "CPU Mesa plus bounded masked GPU operations remains the graphics implementation; universal hardware graphics is not established."
+  ],
+  "next": [
+    "Disposable signed-v9 VM launch through this exact manager/launcher with purchased CPU readback.",
+    "Update public v9 release/config pins, then complete owner/catalog integration and desktop/Moonlight acceptance."
+  ]
+}
