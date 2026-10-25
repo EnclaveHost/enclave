@@ -74,7 +74,7 @@ before(async () => {
         return json(res, 200, { token: `tok:${b.hash}:${v.owner.toLowerCase()}`, address: v.owner.toLowerCase(), expiry: b.expiry });
       } catch (e) { return json(res, e.status || 401, { error: e.code || "unauthorized", message: e.message }); }
     }
-    if ((u.pathname === "/add-wasm" || u.pathname === "/add-json") && req.method === "POST") {
+    if ((u.pathname === "/add-wasm" || u.pathname === "/add-json" || u.pathname === "/add-image") && req.method === "POST") {
       const raw = await body(req);
       const hash = createHash("sha256").update(raw).digest("hex");
       if (req.headers["x-upload-token"] !== `tok:${hash}:${req.headers["x-upload-address"]}`)
@@ -104,7 +104,8 @@ function cli(args, { env = {}, dir } = {}) {
       env: { PATH: process.env.PATH, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config"),
              ENCLAVE_API_BASE: relayUrl, ENCLAVE_RPC: chain.rpc, ENCLAVE_ADDRESS_BOOK: P.book,
              ENCLAVE_SESSION_DIR: dir ?? path.join(tmp, "sessions"),
-             ENCLAVE_IPFS_UPLOAD: `${relayUrl}/add-wasm`, ENCLAVE_IPFS_JSON_UPLOAD: `${relayUrl}/add-json`, ...env },
+             ENCLAVE_IPFS_UPLOAD: `${relayUrl}/add-wasm`, ENCLAVE_IPFS_JSON_UPLOAD: `${relayUrl}/add-json`,
+             ENCLAVE_IPFS_IMAGE_UPLOAD: `${relayUrl}/add-image`, ...env },
     });
     let out = "", err = "";
     p.stdout.on("data", (d) => out += d); p.stderr.on("data", (d) => err += d);
@@ -172,6 +173,16 @@ test("agent flow: session new -> owner signs the link -> resume-wait -> publish,
   assert.match(r3.out, /environments\s+staging/);
   assert.match(r3.out, /apps\s+mine-staging/);
   assert.ok(r3.out.includes(vault) && r3.out.includes(owner.address));
+
+  // A catalog image can be pinned before publishing, with no wallet key.
+  const image = path.join(tmp, "logo.png");
+  fs.writeFileSync(image, Buffer.from("test image bytes"));
+  const imageUpload = await cli(["upload", image, "--type", "image", "--yes", "--json"]);
+  ok(imageUpload, "image upload");
+  const uploaded = JSON.parse(imageUpload.out);
+  assert.equal(uploaded.sha256, createHash("sha256").update(fs.readFileSync(image)).digest("hex"));
+  assert.equal(pins.at(-1).owner, owner.address.toLowerCase());
+  assert.ok(hits.includes("POST /add-image"));
 
   // publish through the session: the upload token is session-signed, the vault is the publisher
   const wasm = path.join(tmp, "app.wasm");

@@ -77,6 +77,7 @@ const DEFAULTS = {
   SESSION_VAULT_FACTORY_ADDRESS: "0x1F5c887c0cDF491b16AB6c449abAfDF9B2ec9C9C",
   ipfsUpload: env.ENCLAVE_IPFS_UPLOAD || "https://ipfs.enclave.host/add-wasm",
   ipfsJsonUpload: env.ENCLAVE_IPFS_JSON_UPLOAD || "https://ipfs.enclave.host/add-json",
+  ipfsImageUpload: env.ENCLAVE_IPFS_IMAGE_UPLOAD || "https://ipfs.enclave.host/add-image",
   appDomain: "app.enclave.host",
 };
 
@@ -2729,6 +2730,30 @@ async function walletUploadToken(account, hash, expiry) {
 const pinJson = (account, buf) =>
   pinBytes(account, buf, DEFAULTS.ipfsJsonUpload, "application/json", "config.json");
 
+// Pin catalog assets without publishing an immutable version. This uses the
+// same session authorization as publish, including refusal without fallback.
+async function cmdUpload(rest) {
+  const f = flags(rest, { val: ["--type"] });
+  const file = f._[0];
+  const types = {
+    wasm: [DEFAULTS.ipfsUpload, "application/wasm"],
+    json: [DEFAULTS.ipfsJsonUpload, "application/json"],
+    image: [DEFAULTS.ipfsImageUpload, "application/octet-stream"],
+  };
+  if (!file || !Object.hasOwn(types, f.type))
+    throw new Error("usage: enclave upload <file> --type wasm|json|image");
+  const bytes = fs.readFileSync(file);
+  const sess = await sessionForCommand();
+  if (sess) await sessionRequire(sess, "api.upload");
+  const account = sess ?? loadKey();
+  const [url, contentType] = types[f.type];
+  if (!(await confirm(`upload ${file} (${bytes.length} bytes) as ${f.type}?`))) return say("aborted");
+  const cid = await pinBytes(account, bytes, url, contentType, file);
+  const result = { cid, bytes: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex") };
+  if (opt.json) return jout(result);
+  say(`pinned ipfs://${cid}`);
+}
+
 async function cmdPublish(rest) {
   const say=(...parts)=>opt.json?console.error(...parts):console.log(...parts);
   catalogWriteAllowed();   // before anything is pinned: the version would go to a catalog this CLI cannot vouch for
@@ -4749,6 +4774,9 @@ ${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.op
                              with the record (rev-11 ledgers)
 
 catalog
+  upload <file> --type wasm|json|image
+                             pin an app, config or catalog image using the
+                             active session's api.upload permission
   publish <app.wasm> --slug S [--version V --name N --desc D --config JSON|--config-file FILE]
           [--storage-plan FILE] verify copies on independent adapters before publishing;
                                 requires --wallet and --contract-pins
@@ -5984,7 +6012,7 @@ const COMMANDS = {
   "rate-cap": cmdRateCap, cap: cmdRateCap,
   refund: cmdRefund, cancel: cmdRefund, transfer: cmdTransfer,
   secrets: cmdSecrets, config: cmdConfig, custody: cmdCustodyHere, bootstrap: cmdBootstrap,
-  publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
+  upload: cmdUpload, publish: cmdPublish, apps: cmdApps, artifact: cmdArtifact,
   pricing: cmdPricing, availability: cmdAvailability, gpu: cmdGpu, account: cmdAccount,
   encvol: cmdEncvol, host: cmdHost, session: cmdSession, hosts: cmdHosts,
   "app-token": cmdAppToken, "cpu-profile": cmdCpuProfile, signer: cmdSigner, "lease-gas": cmdLeaseGas, history: cmdHistory,
