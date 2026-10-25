@@ -1,4 +1,4 @@
-# Reviewed integration results, 2026-10-25 22:31 UTC
+# Reviewed integration results, 2026-10-25 22:25 UTC
 
 Actual full baseline: Python33+2+1, Node8, all passed, zero skips. All33 negative controls were killed by genuine expected assertion failures:25 Python guard removals with explicit named tests and8 JS guard removals. Root foreground job root-a1-a2-mutants-fixed-2225 exited0; peak141MiB, minimum host available21578MiB. The earlier failed Node baseline (missing dependency environment) is retained and is not counted as a kill.
 

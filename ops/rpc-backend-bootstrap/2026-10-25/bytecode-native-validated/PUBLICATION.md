@@ -1,6 +1,6 @@
-# base-bytecode-check: native unit validation PASSED (root run 2202); release build PENDING; no live DB run
+# base-bytecode-check: native tests and release build PASSED; no live DB run
 
-This is the source and evidence only.
+This is the source and evidence only. The subsequent optimized build and actual Ubuntu guest ABI/refusal smoke passed; see `release-evidence/README.md`. No real snapshot scan has occurred.
 - **Excluded:** build cache, cargo home, target directory, binaries, keys.
 - **Unchanged:** OPEN_GAPS (`bytecodes-content-unverified`) and the published `a2-a4-prepared/`. There is **no** production
   permission.
@@ -43,7 +43,7 @@ This is the source and evidence only.
   - EIP-7702;
   - code hash;
   - account completeness;
-  - a real MDBX DB built in a temp directory and scanned read-only, with `mdbx.dat` unchanged.
+  - a real MDBX DB built in a temp directory and scanned read-only, with `mdbx.dat` size and modification time unchanged (the test does not compare a full file hash).
 
 **NOT tested:**
 - any real or live Base datadir;
