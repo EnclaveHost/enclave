@@ -347,7 +347,47 @@ HISTORY_FLAGS = (('receipts', 'receipts'), ('account_history', 'account-history'
 def _uint(v):
     return isinstance(v, int) and not isinstance(v, bool) and v >= 0
 
-def prune_args(profile):
+# Base history retention (base-retention-stage review). eth_getLogs in the pinned reth (7134be3) reads receipts AND
+# transactions (tx hash via transaction_by_id, rpc-eth-types/src/logs_utils.rs:104-138), checks only the lowest
+# Transactions static file (static_file/manager.rs:1224-1231) and silently skips a block whose receipts are absent
+# (rpc/rpc/src/eth/filter.rs:1282-1284). A distance profile deletes whole static files once they fall behind
+# (prune/src/segments/mod.rs:32-71), and bodies may lag receipts (segments/user/bodies.rs:112-125), so a distance profile
+# can drop the required range and briefly answer getLogs with silently missing logs. For Base, receipts, bodies and the
+# tx-hash lookup are therefore kept from a reviewed absolute block (chain.json baseRetention.historyFromBlock).
+RETENTION_SEGMENTS = {'receipts': 'receipts', 'bodies_history': 'bodies'}
+DISTANCE_UPGRADE_MAX = 500000       # a reviewed downloader distance profile (<= one static file) may be upgraded to 'before'
+
+def history_from_block(cfg, required=True):
+    r = cfg.get('baseRetention')
+    if r is None and not required:
+        return None
+    assert isinstance(r, dict) and _uint(r.get('historyFromBlock')) and r['historyFromBlock'] > 0, \
+        'Base history retention start (baseRetention.historyFromBlock) not configured'
+    return r['historyFromBlock']
+
+def history_files_present(datadir, profile, history_from):
+    """The static files holding history_from must exist for receipts and transactions (whole-file layout)."""
+    bpf = (profile.get('static_files') or {}).get('blocks_per_file') or {}
+    for seg in ('receipts', 'transactions'):
+        n = bpf.get(seg)
+        assert _uint(n) and n > 0, f'snapshot {seg} static-file size missing'
+        start = history_from // n * n
+        name = f'static_file_{seg}_{start}_{start + n - 1}'
+        assert pathlib.Path(datadir, 'static_files', name).is_file(), \
+            f'Base {seg} history from block {history_from} absent ({name}): refusing to serve incomplete logs'
+
+def _before_args(name, flag, mode, history_from):
+    """Keep at least [history_from, tip]: before <= history_from as is; an unchanged downloader distance upgraded."""
+    if isinstance(mode, dict) and set(mode) == {'before'} and _uint(mode['before']):
+        assert 0 < mode['before'] <= history_from, f'{name} retention would drop required Base history'
+        return [f'--prune.{flag}.before', str(mode['before'])]
+    if mode == 'full' and name == 'transaction_lookup':
+        return [f'--prune.{flag}.before', str(history_from)]
+    assert isinstance(mode, dict) and set(mode) == {'distance'} and _uint(mode['distance']) \
+        and RETAINED_BLOCKS <= mode['distance'] <= DISTANCE_UPGRADE_MAX, f'{name} retention profile not reviewed for Base history'
+    return [f'--prune.{flag}.before', str(history_from)]
+
+def prune_args(profile, history_from=None):
     """Complete prune CLI equal to the persisted snapshot profile (lookup kept for the retained range).
 
     Pinned reth/base-reth (launch/common.rs save_pruning_config) REPLACES the whole [prune] section of reth.toml
@@ -369,10 +409,15 @@ def prune_args(profile):
             '--prune.sender-recovery.full']
     for name, flag in HISTORY_FLAGS:
         mode = segments.get(name)
+        if history_from is not None and name in RETENTION_SEGMENTS:
+            args += _before_args(name, flag, mode, history_from)
+            continue
         assert isinstance(mode, dict) and set(mode) == {'distance'} and _uint(mode['distance']) \
             and mode['distance'] >= RETAINED_BLOCKS, 'bounded history retention too short'
         args += [f'--prune.{flag}.distance', str(mode['distance'])]
     lookup = segments.get('transaction_lookup')
+    if history_from is not None:
+        return args + _before_args('transaction_lookup', 'transaction-lookup', lookup, history_from)
     # Downloads omit the lookup index ('full' = none kept); the client rebuilds the retained range.
     if lookup == 'full':
         distance = RETAINED_BLOCKS
@@ -391,7 +436,8 @@ def run(side):
     if side in ('el', 'base'):
         profile = tomllib.loads(pathlib.Path(datadir, 'reth.toml').read_text())
         assert profile.get('static_files', {}).get('blocks_per_file'), 'snapshot segment sizes missing'
-        prune = prune_args(profile)
+        history_from = history_from_block(CONFIG, required=False) if side == 'base' else None
+        prune = prune_args(profile, history_from)
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': datadir, 'TMPDIR': base + ('/tmp-cl' if side == 'cl' else '/tmp')}
     jwt = '/etc/enclave-rpc/jwt.hex'
     if side == 'el':
@@ -423,6 +469,8 @@ def run(side):
                   '--wss-checkpoint', ck['root'] + ':' + str(ck['epoch'])]
     elif side == 'base':
         origin = coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
+        history_from = history_from_block(CONFIG)
+        history_files_present(datadir, profile, history_from)
         ready = l1_ready()
         so = origin['safeL1Origin']
         assert ready['l1Finalized'] >= max(so['number'], origin['toBlock']), 'reviewed coverage range above our L1 finalized'

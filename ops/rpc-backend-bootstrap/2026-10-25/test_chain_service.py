@@ -109,6 +109,7 @@ def client_persists_prune(profile_text, argv):
             elif parts == ['minimum-distance']: cli['minimum_pruning_distance'] = int(argv[i + 1]); i += 1
             elif parts[1] == 'full': cli['segments'][FLAG_SEGMENT[parts[0]]] = 'full'
             elif parts[1] == 'distance': cli['segments'][FLAG_SEGMENT[parts[0]]] = {'distance': int(argv[i + 1])}; i += 1
+            elif parts[1] == 'before': cli['segments'][FLAG_SEGMENT[parts[0]]] = {'before': int(argv[i + 1])}; i += 1
             else: raise AssertionError('flag outside the model: ' + f)
         i += 1
     if seen and doc.get('prune') != cli:
@@ -123,7 +124,7 @@ def render(doc):
     plain = {k: v for k, v in seg.items() if isinstance(v, str)}
     if plain: out += ['[prune.segments]'] + [f'{k} = "{v}"' for k, v in plain.items()]
     for k, v in seg.items():
-        if isinstance(v, dict): out += [f'[prune.segments.{k}]', f"distance = {v['distance']}"]
+        if isinstance(v, dict): out += [f'[prune.segments.{k}]'] + [f'{m} = {n}' for m, n in v.items()]
     out += ['[static_files.blocks_per_file]'] + [f'{k} = {v}' for k, v in doc['static_files']['blocks_per_file'].items()]
     return '\n'.join(out) + '\n'
 
@@ -135,17 +136,26 @@ INTENDED = {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': 
     'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000},
     **{n: {'distance': 140000} for n in ('receipts', 'account_history', 'storage_history', 'bodies_history')}}}
 
+HISTORY_FROM = 52_515_705       # route-source relay/lease-generation.mjs LEDGER16D_FROM_BLOCK
+EXPECTED_BASE_PRUNE = ['--prune.block-interval', '5', '--prune.minimum-distance', '10064', '--prune.sender-recovery.full',
+                       '--prune.receipts.before', str(HISTORY_FROM), '--prune.account-history.distance', '140000',
+                       '--prune.storage-history.distance', '140000', '--prune.bodies.before', str(HISTORY_FROM),
+                       '--prune.transaction-lookup.before', str(HISTORY_FROM)]
+INTENDED_BASE = {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {
+    'sender_recovery': 'full', 'transaction_lookup': {'before': HISTORY_FROM}, 'receipts': {'before': HISTORY_FROM},
+    'bodies_history': {'before': HISTORY_FROM}, **{n: {'distance': 140000} for n in ('account_history', 'storage_history')}}}
 BOUND_HASH = '0x' + 'ab' * 32
 BOUND = {'l1Block': 1, 'blobSlot': 2, 'toBlock': 20000, 'safeL1Origin': {'number': 3601, 'hash': BOUND_HASH}}
 
 class PruneProfileTests(unittest.TestCase):
     def launch(self, side, profile_text):
         mnt = '/srv/enclave-base-holder' if side == 'base' else '/srv/enclave-l1-pair'
-        cfg = {'baseBootstrap': {'coverageVerified': True, 'l1Block': 1, 'blobSlot': 2}}
+        cfg = {'baseBootstrap': {'coverageVerified': True, 'l1Block': 1, 'blobSlot': 2}, 'baseRetention': {'historyFromBlock': HISTORY_FROM}}
         beacon = {'/eth/v2/beacon/blocks/2': {'message': {'body': {'blob_kzg_commitments': ['x']}}}, '/eth/v1/beacon/blobs/2': ['x']}
         with patch.object(c, 'mount', return_value=mnt), patch.object(Path, 'is_file', return_value=True), \
                 patch.object(Path, 'read_text', return_value=profile_text), patch.object(c, 'binary', side_effect=lambda n: '/pinned/' + n), \
                 patch.object(c, 'CONFIG', cfg), patch.object(c, 'coverage_activation', return_value=BOUND), \
+                patch.object(c, 'history_files_present'), \
                 patch.object(c, 'l1_ready', return_value={'l1Finalized': 30000}), \
                 patch.object(c, 'rpc', side_effect=lambda port, m, p: {'hash': BOUND_HASH} if m == 'eth_getBlockByNumber' else []), \
                 patch.object(c, 'beacon', side_effect=beacon.__getitem__), patch.object(c.os, 'execve', side_effect=Executed) as exe:
@@ -160,17 +170,18 @@ class PruneProfileTests(unittest.TestCase):
         self.assertEqual(c.prune_args(c.tomllib.loads(SNAPSHOT_PROFILE)), EXPECTED_PRUNE)
 
     def test_persisted_rewrite_then_second_launch_keeps_every_segment(self):
-        for side in ('el', 'base'):
+        # L1 keeps the distance profile; Base keeps receipts/bodies/lookup from the reviewed absolute block.
+        for side, expected, intended in (('el', EXPECTED_PRUNE, INTENDED), ('base', EXPECTED_BASE_PRUNE, INTENDED_BASE)):
             with self.subTest(side=side):
                 first = self.launch(side, SNAPSHOT_PROFILE)
-                self.assertEqual(self.prune_part(first), EXPECTED_PRUNE)
+                self.assertEqual(self.prune_part(first), expected)
                 self.assertFalse({'--full', '--minimal'} & set(first))
                 persisted = client_persists_prune(SNAPSHOT_PROFILE, first)
-                self.assertEqual(persisted['prune'], INTENDED)
+                self.assertEqual(persisted['prune'], intended)
                 second = self.launch(side, render(persisted))
-                self.assertEqual(self.prune_part(second), EXPECTED_PRUNE)
+                self.assertEqual(self.prune_part(second), expected)
                 third = client_persists_prune(render(persisted), second)
-                self.assertEqual(third['prune'], INTENDED)   # fixed point: no further loss across restarts
+                self.assertEqual(third['prune'], intended)   # fixed point: no further loss across restarts
 
     def test_old_lookup_only_argv_reproduces_the_defect(self):
         persisted = client_persists_prune(SNAPSHOT_PROFILE, ['--prune.transaction-lookup.distance', '140000'])
@@ -201,5 +212,83 @@ class PruneProfileTests(unittest.TestCase):
         for name, (text, msg) in cases.items():
             with self.subTest(name), self.assertRaisesRegex(AssertionError, msg):
                 c.prune_args(c.tomllib.loads(text))
+
+
+class BaseRetentionTests(unittest.TestCase):
+    """Base history from the reviewed block: whole-file layout, never reduced, fail-closed when absent."""
+    PROFILE = SNAPSHOT_PROFILE.replace('headers = 500000', 'headers = 500000\nreceipts = 500000\ntransactions = 500000')
+
+    def args(self, text, hf=HISTORY_FROM):
+        return c.prune_args(c.tomllib.loads(text), hf)
+
+    def test_downloader_profile_upgrades_to_before(self):
+        self.assertEqual(self.args(self.PROFILE), EXPECTED_BASE_PRUNE)
+
+    def test_before_at_or_below_start_is_kept_never_raised(self):
+        text = self.PROFILE.replace('[prune.segments.receipts]\ndistance = 140000', '[prune.segments.receipts]\nbefore = 52000000')
+        a = self.args(text)
+        self.assertEqual(a[a.index('--prune.receipts.before') + 1], '52000000')
+        for seg, flag in (('receipts', 'receipts'), ('bodies_history', 'bodies')):
+            bad = self.PROFILE.replace(f'[prune.segments.{seg}]\ndistance = 140000', f'[prune.segments.{seg}]\nbefore = {HISTORY_FROM + 1}')
+            with self.subTest(seg), self.assertRaisesRegex(AssertionError, 'would drop required Base history'):
+                self.args(bad)
+
+    def test_unreviewed_base_profiles_refused(self):
+        cases = {'receipts full': self.PROFILE.replace('[prune.segments.receipts]\ndistance = 140000\n', '').replace('transaction_lookup = "full"', 'transaction_lookup = "full"\nreceipts = "full"'),
+                 'short distance': self.PROFILE.replace('[prune.segments.bodies_history]\ndistance = 140000', '[prune.segments.bodies_history]\ndistance = 139999'),
+                 'larger distance (never silently reduced)': self.PROFILE.replace('[prune.segments.receipts]\ndistance = 140000', '[prune.segments.receipts]\ndistance = 900000'),
+                 'lookup before above start': self.PROFILE.replace('transaction_lookup = "full"', f'transaction_lookup = {{ before = {HISTORY_FROM + 5} }}')}
+        for name, text in cases.items():
+            with self.subTest(name), self.assertRaises(AssertionError):
+                self.args(text)
+
+    def test_l1_profile_unchanged_and_before_still_refused_without_history_policy(self):
+        self.assertEqual(c.prune_args(c.tomllib.loads(SNAPSHOT_PROFILE)), EXPECTED_PRUNE)
+        with self.assertRaisesRegex(AssertionError, 'retention too short'):
+            c.prune_args(c.tomllib.loads(render({'prune': INTENDED_BASE, 'static_files': {'blocks_per_file': {'headers': 500000}}})))
+
+    def test_history_start_config_required(self):
+        for cfg in ({}, {'baseRetention': {}}, {'baseRetention': {'historyFromBlock': 0}},
+                    {'baseRetention': {'historyFromBlock': True}}, {'baseRetention': {'historyFromBlock': '52515705'}}):
+            with self.subTest(cfg=cfg), self.assertRaisesRegex(AssertionError, 'not configured'):
+                c.history_from_block(cfg)
+        self.assertIsNone(c.history_from_block({}, required=False))
+        self.assertEqual(c.history_from_block({'baseRetention': {'historyFromBlock': HISTORY_FROM}}), HISTORY_FROM)
+
+    def test_static_files_covering_start_must_exist(self):
+        import tempfile, shutil
+        d = tempfile.mkdtemp(prefix='ret-', dir=__import__('os').environ.get('TEST_TMP'))
+        try:
+            prof = c.tomllib.loads(self.PROFILE)
+            (Path(d) / 'static_files').mkdir()
+            with self.assertRaisesRegex(AssertionError, 'receipts history from block 52515705 absent'):
+                c.history_files_present(d, prof, HISTORY_FROM)
+            # names exactly as the real manifest's chunk_output_files (static_files/static_file_<seg>_<start>_<end>)
+            (Path(d) / 'static_files' / 'static_file_receipts_52500000_52999999').write_bytes(b'')
+            with self.assertRaisesRegex(AssertionError, 'transactions history from block 52515705 absent'):
+                c.history_files_present(d, prof, HISTORY_FROM)
+            (Path(d) / 'static_files' / 'static_file_transactions_52500000_52999999').write_bytes(b'')
+            c.history_files_present(d, prof, HISTORY_FROM)
+            # a datadir whose 52.5M file was already pruned (lowest file 53M) is refused
+            with self.assertRaisesRegex(AssertionError, 'absent'):
+                c.history_files_present(d, prof, 53_100_000)          # its file (53,000,000-53,499,999) is absent
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_base_start_requires_retention_and_files_after_coverage(self):
+        cfg = {'baseBootstrap': {'coverageVerified': True}}
+        with patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', return_value=True), \
+                patch.object(Path, 'read_text', return_value=self.PROFILE), patch.object(c, 'CONFIG', cfg), \
+                patch.object(c, 'coverage_activation', return_value=BOUND), patch.object(c, 'l1_ready') as ready:
+            with self.assertRaisesRegex(AssertionError, 'not configured'):
+                c.run('base')
+            ready.assert_not_called()
+        cfg = {'baseBootstrap': {'coverageVerified': True}, 'baseRetention': {'historyFromBlock': HISTORY_FROM}}
+        with patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', autospec=True, side_effect=lambda p: not str(p).startswith('/srv/enclave-base-holder/data/static_files')), \
+                patch.object(Path, 'read_text', return_value=self.PROFILE), patch.object(c, 'CONFIG', cfg), \
+                patch.object(c, 'coverage_activation', return_value=BOUND), patch.object(c, 'l1_ready') as ready:
+            with self.assertRaisesRegex(AssertionError, 'refusing to serve incomplete logs'):
+                c.run('base')
+            ready.assert_not_called()
 
 if __name__=='__main__':unittest.main()
