@@ -10,15 +10,14 @@
 // single attempt (never retried here), and nothing when the node is already busy with evidence reads.
 import fs from 'node:fs';
 import { expectedShieldApp } from './shield-app-verifier.mjs';
+import { shieldImageCandidates } from './shield-app-policy.mjs';
 
-const HEX64 = /^[0-9a-f]{64}$/, DEP = /^0x[0-9a-f]{64}$/;
+const DEP = /^0x[0-9a-f]{64}$/;
 const fail = (code, message, extra = {}) => Object.assign(new Error(message), { code, ...extra });
 
 // the image measurements a policy admits for an expected app (shield-app-policy.mjs verifyShieldAppPolicy's candidates)
 export function admittedImages(policy, expected) {
-  return (Array.isArray(policy?.images) ? policy.images : []).filter((p) => HEX64.test(p?.measurement || '') && p.runtimeId === expected.runtimeId &&
-    (!expected.requiresConfigBundleV5 || p.configBundleV5 === true) && (!expected.requiresSecretsV1 || p.secretsV1 === true) &&
-    (!expected.requiresConfigSocketServer || p.configSocketServer === true)).map((p) => p.measurement);
+  return shieldImageCandidates(policy, expected).map(p => p.measurement);
 }
 
 // the public deployments a box serves now: active, public, leased to this box's registry id, the lease not yet expired

@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { verifyVbsAppEvidence } from './vbs-app-verify.mjs';
 import { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
+import { validateDesktopRelease } from './shield-desktop-release.mjs';
 
 const HEX = /^[0-9a-f]{64}$/;
 // policy.hosts: the host names admitted to the Shield market, or "*" (the open market, 2026-10-11): any hv-node whose
@@ -13,6 +14,28 @@ export const shieldHostAdmitted = (policy, name) => !!policy && !!name &&
   (policy.hosts === '*' || (Array.isArray(policy.hosts) && policy.hosts.includes(name)));
 // platformsValid / platformAdmitted: relay/vbs-app-core.mjs (shared with the browser verifier), re-exported here unchanged
 export { platformsValid, platformAdmitted } from './vbs-app-core.mjs';
+
+// Used both by the verifier and by the fresh-report endpoint. Native images
+// cannot satisfy a legacy expectation, even when a runtime hash is reused.
+// The node's report never chooses this release or its launch measurement.
+export function shieldImageCandidates(policy, expected) {
+  const desktop = policy?.desktop == null ? null : validateDesktopRelease(policy.desktop);
+  const native = expected?.requiresDesktop === true;
+  if (expected?.requiresDesktop !== undefined && typeof expected.requiresDesktop !== 'boolean') return [];
+  if (native && (!desktop || expected.runtimeId !== desktop.runtimeId)) return [];
+  if (!native && desktop && expected?.runtimeId === desktop.runtimeId) return [];
+  return (Array.isArray(policy?.images) ? policy.images : []).filter(p =>
+    HEX.test(p?.measurement || '') && p.runtimeId === expected?.runtimeId &&
+    (!expected.requiresConfigBundleV5 || p.configBundleV5 === true) &&
+    (!expected.requiresSecretsV1 || p.secretsV1 === true) &&
+    (!expected.requiresConfigSocketServer || p.configSocketServer === true) &&
+    (native ? p.nativeDesktop === true && p.measurement === desktop.launchMeasurement &&
+      p.igvmSha256 === desktop.igvmSha256 && p.profileSha256 === desktop.profileSha256 &&
+      p.controllerSha256 === desktop.controllerSha256 && p.configBundleV5 === true &&
+      p.secretsV1 === true && p.configSocketServer === true && p.protectedPorts === true
+      : p.nativeDesktop !== true && (!desktop || p.measurement !== desktop.launchMeasurement)));
+}
+
 export function verifyShieldAppPolicy(input, policy = {}) {
   const no = reason => ({ ok: false, reason });
   try {
@@ -25,10 +48,7 @@ export function verifyShieldAppPolicy(input, policy = {}) {
       return no('explicit image/runtime pairs are required');
     // Caller must obtain these expected identities independently from the
     // deployment and its catalog artifact, not from the app's report.
-    const candidates = images.filter(p => p.runtimeId === input?.expectedRuntimeId &&
-      (!input.requiresConfigBundleV5 || p.configBundleV5 === true) &&
-      (!input.requiresSecretsV1 || p.secretsV1 === true) &&
-      (!input.requiresConfigSocketServer || p.configSocketServer === true));
+    const candidates = shieldImageCandidates(policy, { ...input, runtimeId: input?.expectedRuntimeId });
     if (!candidates.length) return no('runtime has no admitted image');
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,

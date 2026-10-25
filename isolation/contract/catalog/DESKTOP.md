@@ -222,9 +222,40 @@ requires native capabilities and staged secrets, and emits the measured V8
 body without separate configuration fields. Existing CPU and inference
 planning remains the default when no desktop release is supplied.
 
-These are preparatory interfaces: the node Host does not yet load or pass a
-desktop release, and relay expectation, evidence-policy and sealed-secret
-release integration are still pending. No live admission policy is enabled by
-these changes. Manager/relay derivation parity and native planner-to-manager
-request checks are automated; real owner release and GPU execution remain
-acceptance gates.
+The node Host does not yet load or pass a desktop release. No live admission
+policy is enabled by these changes. Manager/relay derivation parity and native
+planner-to-manager request checks are automated; real owner release and GPU
+execution remain acceptance gates.
+
+### Relay verification and sealed release
+
+An operator can explicitly add the release as `policy.desktop` in a Shield app
+policy. Native selection requires its exact controller CID. The relay derives
+the app identity from the catalog, verified component bytes, resolved public
+configuration and ledger resources using the shared release helper. Native
+expectations require staged secrets and carry `requiresDesktop: true` through
+certificate and sealed-release verification.
+
+The corresponding `policy.images` entry must contain the release's `runtimeId`,
+`igvmSha256`, `profileSha256`, and `controllerSha256`, with `measurement` equal
+to `launchMeasurement`. It must explicitly set `nativeDesktop`,
+`configBundleV5`, `secretsV1`, `configSocketServer`, and `protectedPorts` to
+`true`. One entry must satisfy all pins and capabilities. A native image cannot
+satisfy a legacy expectation, and a legacy image cannot satisfy a native one.
+The fresh-report endpoint uses the same candidate selection as the verifier.
+TPM/platform authentication, nonce/key binding and `minimumGuestSvn` remain
+required; this path does not lower an SVN floor to admit a candidate build.
+
+The secret courier admits purchased GPU resources only for an independently
+derived native desktop expectation. Ordinary inference workloads still cannot
+receive sealed secrets. Operator signature, replay prevention, live lease,
+custody, authenticated host session and guest evidence are checked before any
+secret bytes are read. Ledger and session are rechecked immediately before
+sealing to the guest's key. The host carries the signed ciphertext.
+
+Tests exercise actual operator signatures, guest-key sealing and relay response
+signatures, including refused proof, replay and changed ledger/session cases.
+Separate synthetic signed VBS reports test native image selection, nonce
+binding and the SVN floor. These are software tests, not NucBox attestation or
+owner-release acceptance. Node certificate/adoption pin propagation and
+privacy-agent enrollment still need native integration before activation.

@@ -79,6 +79,30 @@ test('startup command proof requires the exact image to admit every required fea
   assert.equal(verifyShieldAppPolicy(f,{...p,images}).ok,false);
  }
 });
+test('native desktop policy verifies the signed report against one independently pinned release',options,()=>{
+ const f={...fixture(),requiresDesktop:true,requiresConfigBundleV5:true,requiresSecretsV1:true,requiresConfigSocketServer:true};
+ const p=shieldPolicy(f);
+ p.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
+  runtimeId:f.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
+  minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
+ Object.assign(p.images[0],{nativeDesktop:true,igvmSha256:p.desktop.igvmSha256,profileSha256:p.desktop.profileSha256,
+  controllerSha256:p.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
+ const accepted=verifyShieldAppPolicy(f,p);
+ assert.equal(accepted.ok,true,accepted.reason);
+ for(const key of ['launchMeasurement','runtimeId','igvmSha256','profileSha256','controllerSha256']){
+  const changed=structuredClone(p);changed.desktop[key]='99'.repeat(32);
+  assert.equal(verifyShieldAppPolicy(f,changed).ok,false,key);
+ }
+ for(const key of ['nativeDesktop','configBundleV5','secretsV1','configSocketServer','protectedPorts']){
+  const changed=structuredClone(p);changed.images[0][key]=false;
+  assert.equal(verifyShieldAppPolicy(f,changed).ok,false,key);
+ }
+ assert.equal(verifyShieldAppPolicy({...f,requiresDesktop:false},p).ok,false,'native image cannot satisfy a legacy expectation');
+ assert.equal(verifyShieldAppPolicy({...f,requiresDesktop:undefined},p).ok,false,'role cannot be omitted');
+ assert.equal(verifyShieldAppPolicy(f,{...p,desktop:undefined}).ok,false,'image flags alone cannot approve a native release');
+ assert.equal(verifyShieldAppPolicy(f,{...p,minimumGuestSvn:6}).ok,false,'native path preserves the SVN floor');
+ assert.equal(verifyShieldAppPolicy({...f,nonce:randomBytes(32)},p).ok,false,'still verifies the report binding');
+});
 test('open market: platforms "attested" admits any TPM chained to the pinned roots, never a wrong root or a bad boot',options,()=>{
  const f=fixture(),p={...shieldPolicy(f),platforms:'attested'};
  const v=verifyShieldAppPolicy(f,p);assert.equal(v.ok,true,v.reason);assert.match(v.scope,/attested VBS platform/);
