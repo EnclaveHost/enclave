@@ -1,11 +1,11 @@
 {
  "format": "enclave-attested-guest-verify/v1",
  "bundle": "guest",
- "imageCommit": "e0dfe98aa",
- "bundleSha256": "a9476d411c01c32f9bd9e9c7f37e85e17e71618c85d6bcf62b4c1a0a379b571d",
+ "imageCommit": "0235e7d9659f1ccbf9f258bd03593d26f32f3f3a",
+ "bundleSha256": "d954ecf8228691f33f171edffe03c1d4c0837745c300ff5c1378d558e2fef46f",
  "inputs": {
   "metal/guest/chain-verifier.mjs": "8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb",
-  "metal/guest/lease-gas-conduit.bundle.mjs": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5",
+  "metal/guest/lease-gas-conduit.bundle.mjs": "f88f2dc92c261c9f5c25cf069e655951418d00777d785379981346eb2b883339",
   "metal/guest/measured-control.mjs": "6489bf13273172105139c599dbbff4c29b9b1f317a88f6fe46bd2669375666a7",
   "metal/guest/owner-nomination.mjs": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
   "node_modules/@noble/curves/esm/_shortw_utils.js": "094e48b0cc55194c806e67bbb039622929d1380a424c3c24007bde12cd9eaad3",

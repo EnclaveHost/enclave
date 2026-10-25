@@ -8,14 +8,17 @@
 //         LeaseReader;
 //       - the host-services admission policy (anchored digest, the book's CURRENT owner, sequence, replay/rollback, bans and
 //         persisted refusals, network/platform-host-policy.mjs, unchanged) via ONE verified snapshot of the same client.
-//     An RPC list, a policy RPC list, a policy-level chain authority or a paid provider's on-chain writes beside it are refused:
-//     no mixed authority, no fallback. The provider checks the attestation, not proofs (labelled attested-verifier,
-//     localProof false). A paid provider is NOT supported in this mode (its qualification sends need a submission route this
-//     authority does not offer) - refused, never silently degraded.
+//     An RPC list, a policy RPC list or a policy-level chain authority beside it are refused: no mixed authority, no
+//     fallback. The provider checks the attestation, not proofs (labelled attested-verifier, localProof false).
+//     A PAID provider's on-chain sends (setHost, qualify) need cfg.txBackend: the operator's OWN Base node (loopback or
+//     private IPv4 literal) for submission, the pending nonce and fee hints only, bound to the verifier's head before
+//     anything is signed; state, simulation, nonce and receipts stay the attested verifier's (attested-submission.mjs).
+//     Without it (or with an invalid one) a paid provider refuses to start; an unpaid one must not name it.
 //
 // cfg.attestedVerifier = { unsafeSigner, replicas: [{ url, configFile (absolute: that replica's reviewed direct config JSON),
 //   measurements: [96 hex], minTcb: { <product line>: { ...TCB fields } } }], collateral: { dir (absolute, pre-seeded AMD files:
 //   amd/<product>-cert_chain.pem, amd/<product>-crl.der, vcek/<product>-<chip>-<tcb>.der), kds?: true }, reattestSec?, timeoutMs? }
+// cfg.txBackend (paid only) = { url, maxFeePerGasWei?, maxPriorityFeePerGasWei?, maxGas? } (attested-submission.mjs providerTxBackend)
 // No configuration can name a trust root: AMD's pinned ARK is the only one (test roots are programmatic only).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,6 +27,7 @@ import { fileCollateral, httpCollateral, layeredCollateral } from '../../verifie
 import { resolveHostPolicyConfig } from '../platform-host-policy-config.mjs';
 import { createHostPolicyRuntime, verifiedHostSnapshot, fileStore } from '../host-policy-runtime.mjs';
 import { hostServicesPolicyEnv } from './host-services-config.mjs';
+import { providerTxBackend } from './attested-submission.mjs';
 
 const bad = (m) => { throw new Error(`provider chain authority: ${m}`); };
 const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -38,18 +42,22 @@ export function providerCollateral(c, { http = httpCollateral } = {}) {
   return c.kds ? layeredCollateral(file, http()) : file;
 }
 
-/** -> { mode, rpc, leaseReaderOptions, verifier|null, describe }. testRoots: PROGRAMMATIC ONLY (tests); main.mjs never passes it. */
+/** -> { mode, rpc, leaseReaderOptions, verifier|null, txBackend|null, describe }. testRoots: PROGRAMMATIC ONLY (tests); main.mjs never passes it. */
 export function providerChainAuthority(cfg, { readFile = (p) => fs.readFileSync(p, 'utf8'), testRoots = null, collateral = null, verifyNow = null, log = () => {} } = {}) {
   const a = cfg.chainAuthority;
   if (a === undefined || a === null || a === 'quorum') {
     if (cfg.attestedVerifier !== undefined) bad('attestedVerifier is set but chainAuthority is not "attested-verifier"');
+    if (cfg.txBackend !== undefined) bad('txBackend is only used with chainAuthority "attested-verifier" (the RPC quorum submits as before): remove it');
     if (!Array.isArray(cfg.rpc) || cfg.rpc.length < 2) throw new Error('two or more RPC endpoints required');
-    return { mode: 'quorum', rpc: cfg.rpc, leaseReaderOptions: {}, verifier: null, describe: `RPC quorum of ${cfg.rpc.length}` };
+    return { mode: 'quorum', rpc: cfg.rpc, leaseReaderOptions: {}, verifier: null, txBackend: null, describe: `RPC quorum of ${cfg.rpc.length}` };
   }
   if (a !== 'attested-verifier') bad('chainAuthority must be quorum or attested-verifier');
   if (cfg.rpc !== undefined) bad('rpc is not used with chainAuthority "attested-verifier" (one explicit authority, no fallback): remove it');
   if (cfg.chainVerifier !== undefined) bad('chainVerifier is not used with chainAuthority "attested-verifier": remove it');
-  if ((cfg.pricePerGiB6 || 0) > 0) bad('a paid provider is not supported with chainAuthority "attested-verifier": its on-chain qualification sends need a submission route this authority does not offer');
+  const paid = (cfg.pricePerGiB6 || 0) > 0;
+  if (paid && cfg.txBackend === undefined) bad('a paid provider with chainAuthority "attested-verifier" needs txBackend: the operator\'s own Base node (loopback or private IPv4 literal) for its on-chain sends; nothing is sent through any other server');
+  if (!paid && cfg.txBackend !== undefined) bad('txBackend is set but this provider is not paid (it sends nothing on chain): remove it');
+  const txBackend = paid ? providerTxBackend(cfg.txBackend) : null;
   const v = cfg.attestedVerifier;
   if (!plain(v)) bad('attestedVerifier: { unsafeSigner, replicas, collateral, reattestSec?, timeoutMs? } is required');
   for (const k of Object.keys(v)) if (!['unsafeSigner', 'replicas', 'collateral', 'reattestSec', 'timeoutMs'].includes(k)) bad(`attestedVerifier: unknown field ${k}`);
@@ -63,8 +71,8 @@ export function providerChainAuthority(cfg, { readFile = (p) => fs.readFileSync(
   const reattestMs = v.reattestSec === undefined ? undefined : Number(v.reattestSec) * 1000;
   const verifier = createAttestedVerifier({ replicas, unsafeSigner: v.unsafeSigner, collateral: collateral || providerCollateral(v.collateral),
     allowTestRoots: !!testRoots, log, ...(verifyNow ? { verifyNow } : {}), ...(reattestMs !== undefined ? { reattestMs } : {}), ...(v.timeoutMs !== undefined ? { timeoutMs: v.timeoutMs } : {}) });
-  return { mode: 'attested-verifier', rpc: [], leaseReaderOptions: { authority: 'verifier', verifier }, verifier,
-    describe: `attested remote verifier, ${replicas.length} replica(s) by failover (no quorum)` };
+  return { mode: 'attested-verifier', rpc: [], leaseReaderOptions: { authority: 'verifier', verifier }, verifier, txBackend,
+    describe: `attested remote verifier, ${replicas.length} replica(s) by failover (no quorum)${txBackend ? `; on-chain sends through the own backend ${txBackend.label} (submission and hints only)` : ''}` };
 }
 
 /**

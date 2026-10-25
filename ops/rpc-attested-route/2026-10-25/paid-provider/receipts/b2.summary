@@ -1,0 +1,8 @@
+[b2] submission 13e61d2e43716df83489df9e97e31c881d84bf99 synthetic c223fa55c6381bc9e028ec1def90156ce93e408c e2e 9236edbd9fe262ed5afc7ca48012e66d8dc707ef
+[b2] pinned binaries verified
+[b2] relay-consumer-source ab371cbc22e02575bf4b121ac6358a271f91ae2c dirty=0
+[suite] b2-suites: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source head d69bc38a6ef9a996fa583bd1bbb4aafcdba66f71 dirty=7; ssh/scp/sftp -> denial stubs (rc 97)
+[suite] b2-suites: files=3 tests=21 pass=21 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] b2-e2e-again: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/attested-route-source head d69bc38a6ef9a996fa583bd1bbb4aafcdba66f71 dirty=7; ssh/scp/sftp -> denial stubs (rc 97)
+[suite] b2-e2e-again: files=1 tests=3 pass=3 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[b2] rc=0

@@ -7,6 +7,8 @@
 // config: {operatorKeyFile, publicAddress, uplink, roles, pricePerGiB6, region, kind, hostId, ports:{exit,guard,control},
 //          bootstrap: "explicit" | "legacy" (default), authorityPins, directories:[...],
 //          rpc:[two or more https], addressBook, relay, checkers:[...], zone, probeZone, stateDir,
+//          chainAuthority, attestedVerifier, txBackend,   (attested-authority.mjs: the quorum, or the attested verifier
+//                                            [+ a paid provider's own Base node for its sends])
 //          budget:{monthlyBytes, stopAt},   (budget: outbound bytes this month; at stopAt the provider stops accepting)
 //          proofKeyFile,                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
 //                                            [kind community, hostId], co-signs receipts with that host's proof key)
@@ -32,6 +34,7 @@ import {createWalletClient} from 'viem';
 import {resolveProviderBootstrap} from '../service-index.mjs';
 import {providerHostServices,hostServicesPolicyEnv,providerDnsPlan} from './host-services-config.mjs';
 import {providerChainAuthority,providerHostPolicyRuntime} from './attested-authority.mjs';
+import {createAttestedSubmitter} from './attested-submission.mjs';
 import {probeDns} from './dns-probe.mjs';
 import {resolveHostPolicyConfig} from '../platform-host-policy-config.mjs';
 import {createHostPolicyRuntime,fileStore} from '../host-policy-runtime.mjs';
@@ -56,7 +59,7 @@ if(rulesetOnly){process.stdout.write(ruleset({publicAddress:cfg.publicAddress,up
 // EVERY chain read (registry, leases, owner signatures AND the host-services admission policy) - never mixed, no fallback
 const chainAuth=providerChainAuthority(cfg,{log});
 if(checkOnly){
- console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+ console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,...(chainAuth.txBackend?{txBackend:chainAuth.txBackend.label}:{}),mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
   pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes,
   hostServices:hostServices&&{zone:hostServices.zone,platformHostPolicy:typeof hostServices.platformHostPolicy==='string'?hostServices.platformHostPolicy:'explicit',maxHosts:hostServices.maxHosts,dnsHosts:hostServices.dns?.hosts.length||0,
    ...(hostServices.dns?{conntrack:conntrack||null}:{})}}));
@@ -76,7 +79,8 @@ log(`chain authority: ${chainAuth.describe}`);
 const paid=(cfg.pricePerGiB6||0)>0;
 if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
 const leases=new LeaseReader({...(chainAuth.mode==='attested-verifier'?{}:{rpc:cfg.rpc}),addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuth.leaseReaderOptions});
-// raw RPC clients exist only under the RPC quorum (a paid provider's on-chain writes); the attested authority has none
+// raw RPC clients exist only under the RPC quorum (a paid provider's on-chain writes); the attested authority has none (its
+// paid sends go through attested-submission.mjs)
 const clients=chainAuth.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
 // Owner signatures use the same fresh chain quorum and explicit factory binding.
 const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
@@ -152,8 +156,14 @@ if(paid){
  setInterval(()=>void provider.meterSample().catch(e=>log('meter: '+e.message)),15000).unref?.();
  // On chain, this host offers network service at its record's price, and the checkers' current attestations of it are
  // submitted while it serves (each lasts at most 5 minutes); the operator key pays the gas.
- const wallet=createWalletClient({account,chain:base,transport:http(cfg.rpc[0],{timeout:15000})}),[client]=clients;
+ // Under the attested authority: every read, the simulation, the nonce and the receipt from the attested verifier; the
+ // operator's own Base node only submits (bound to the verifier's head), with the pending nonce and fee hints. A signed send
+ // is kept durably and re-broadcast as the same bytes until the verifier resolves it (attested-submission.mjs).
+ const submitter=chainAuth.mode==='attested-verifier'?createAttestedSubmitter({verifier:chainAuth.verifier,backend:chainAuth.txBackend,account,stateFile:path.resolve(stateDir,'onchain-send.json'),log}):null;
+ if(submitter)log(`on chain: sends ${JSON.stringify(submitter.describe())}`);
+ const {wallet,client}=submitter||{wallet:createWalletClient({account,chain:base,transport:http(cfg.rpc[0],{timeout:15000})}),client:clients[0]};
  const onchain=async()=>{
+  if(submitter)await submitter.settle();
   const connectivity=leases.authorityPins?.connectivity??await connectivityAddress(client,boot.addressBook);if(!connectivity||/^0x0{40}$/i.test(connectivity))return;
   if(await ensureHost({wallet,client,connectivity,hostId:cfg.hostId,pricePerGiB6:cfg.pricePerGiB6}))log(`on chain: offering network service at ${cfg.pricePerGiB6} per GiB`);
   const d=await directories.providers({hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}});const mine=d?.providers?.find(e=>e.record?.record?.providerId===providerId);

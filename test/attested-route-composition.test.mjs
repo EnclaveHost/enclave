@@ -94,7 +94,8 @@ test('the provider authority is ONE explicit choice: the quorum is unchanged; mi
   const g = await guest({ verifierPort: Number(new URL(lv.url).port) });
   const c = attestedCfg(g);
   for (const [over, re] of [[{ rpc: ['https://a.example', 'https://b.example'] }, /rpc is not used/], [{ chainVerifier: 'http://127.0.0.1:1/' }, /chainVerifier is not used/],
-    [{ pricePerGiB6: 5 }, /paid provider is not supported/],
+    [{ pricePerGiB6: 5 }, /paid provider with chainAuthority "attested-verifier" needs txBackend/],
+    [{ pricePerGiB6: 5, txBackend: { url: 'https://mainnet.base.org/' } }, /address literal/], [{ txBackend: { url: 'http://127.0.0.1:8545/' } }, /not paid/],
     [{ attestedVerifier: { ...c.attestedVerifier, roots: [] } }, /unknown field roots/],
     [{ attestedVerifier: { ...c.attestedVerifier, replicas: [{ ...c.attestedVerifier.replicas[0], status: 'attested' }] } }, /trust roots and statuses are never configured/],
     [{ attestedVerifier: { ...c.attestedVerifier, replicas: [{ ...c.attestedVerifier.replicas[0], configFile: 'r.json' }] } }, /absolute path/],

@@ -1,11 +1,11 @@
 {
  "format": "enclave-attested-guest-verify/v1",
  "bundle": "verify",
- "imageCommit": "e0dfe98aa",
- "bundleSha256": "86a3e099dd5163e3276187106c6aee9de80a33536851269c8e60342c65dfa2f4",
+ "imageCommit": "0235e7d9659f1ccbf9f258bd03593d26f32f3f3a",
+ "bundleSha256": "00b88784578f53930b68f296fb9cfec0347a62c3f23380e0049190bf903b5ac0",
  "inputs": {
   "metal/guest/chain-verifier.mjs": "8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb",
-  "metal/guest/lease-gas-conduit.bundle.mjs": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5",
+  "metal/guest/lease-gas-conduit.bundle.mjs": "f88f2dc92c261c9f5c25cf069e655951418d00777d785379981346eb2b883339",
   "metal/guest/measured-control.mjs": "6489bf13273172105139c599dbbff4c29b9b1f317a88f6fe46bd2669375666a7",
   "metal/guest/owner-nomination.mjs": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
   "metal/measured-control-verify.mjs": "2137d39e9dfb17d79ae8540c54ff28531bdd1b503ce8af4189f170a8a8f6b341",
