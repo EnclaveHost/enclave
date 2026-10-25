@@ -18,6 +18,7 @@ import { lsGet, lsSet, emit, on, esc } from "./util.js";
 import { minPctsOf } from "./pricing.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { connectWallet, personalSign } from "./wallet.js";
+import { requestUploadToken } from "./upload-token.js";
 
 /* `filter` is the store tab. It opens on "featured": the approved list with the
    standing campaigns (or the editorial pick) lifted to the front, NOT a
@@ -397,12 +398,11 @@ export async function signedUploadToken(bytes){
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(b => b.toString(16).padStart(2, "0")).join("");
   const expiry = Math.floor(Date.now() / 1000) + 300;
   try {
-    const signature = await personalSign(`enclave-upload:${hash}:${expiry}`);
-    const r = await fetch(Enclave.base + "/apps/upload-token", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ hash, expiry, signature }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.token) throw new EnclaveError("upload authorization failed: " + (j.message || j.error || ("HTTP " + r.status)), 0);
-    return { token: j.token, address: j.address, expiry };
+    const { currentSession, hostAuthorization } = await import("./sessions.js");
+    const current = await currentSession();
+    return await requestUploadToken({ url: Enclave.base + "/apps/upload-token", hash, expiry,
+      owner: Enclave.address, sessionPresent: !!current, authorize: hostAuthorization,
+      signMessage: personalSign });
   } catch(err){
     if (err && (err.code === 4001 || /reject|denied|declin|cancell/i.test(err.message || ""))) throw new EnclaveError("upload canceled: you declined the wallet signature.", 0);
     throw (err instanceof EnclaveError) ? err : new EnclaveError("upload authorization failed: " + (err.message || err), 0);
