@@ -921,9 +921,16 @@ def cmd_powerdown(manifest, wait_s=2280):
             if 'return' in msg or 'error' in msg:
                 return msg
 
-    f.readline()                                # greeting
-    cmd('qmp_capabilities')
-    st = (cmd('query-status') or {}).get('return', {}).get('status')
+    try:                                        # bounded by the 10 s socket timeout: a QEMU that never greets (still
+        if not f.readline():                    # preallocating, wedged) is a controlled failure, never a traceback
+            raise OSError('QMP closed before greeting')
+        cmd('qmp_capabilities')
+        st = (cmd('query-status') or {}).get('return', {}).get('status')
+    except (OSError, ValueError) as e:
+        f.close()
+        s.close()
+        print(f'powerdown: QMP handshake failed ({e or type(e).__name__}); systemd will SIGTERM QEMU', flush=True)
+        return 1
     if st != 'running':
         print(f'powerdown: VM status {st!r} (paused on I/O error?); cannot ACPI-shutdown, systemd will SIGTERM QEMU')
         return 1
@@ -1121,15 +1128,32 @@ def write_json_atomic(path, obj, mode=0o600):
     os.replace(tmp, path)
 
 
+# QMP reachability. Before the guard's FIRST successful monitor connection QEMU may still be preallocating guest RAM
+# (64 GiB at ~400 MB/s ~ 160 s) and does not accept: the guard keeps polling storage and the watchdog, tries one fresh
+# QMP_INITIAL_HANDSHAKE_S handshake per poll, and fails closed after QMP_INITIAL_GRACE_S, or at once when the capacity
+# decision is not 'ok'. After a successful connection the runtime policy is unchanged (QMP_RECONNECT_GRACE_S, pause).
+QMP_INITIAL_GRACE_S = 300
+QMP_INITIAL_HANDSHAKE_S = 1
+QMP_RECONNECT_GRACE_S = 60
+
+
 class Qmp:
-    def __init__(self, path, timeout=10):
-        self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.s.settimeout(timeout)
-        self.s.connect(path)
-        self.f = self.s.makefile('rwb')
-        if not self.f.readline():
-            raise OSError('QMP closed before greeting')
-        self.cmd('qmp_capabilities')
+    def __init__(self, path, timeout=10, handshake_timeout=None):
+        """handshake_timeout bounds connect + greeting + qmp_capabilities (default: timeout). Any failure closes the
+        socket AND its makefile before raising: a leaked half-open connection stays in QEMU's monitor accept queue, and
+        a few of them fill it (EAGAIN on every later connect)."""
+        self.s, self.f = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM), None
+        try:
+            self.s.settimeout(timeout if handshake_timeout is None else handshake_timeout)
+            self.s.connect(path)
+            self.f = self.s.makefile('rwb')
+            if not self.f.readline():
+                raise OSError('QMP closed before greeting')
+            self.cmd('qmp_capabilities')
+            self.s.settimeout(timeout)
+        except BaseException:
+            self.close()
+            raise
 
     def cmd(self, name, args=None):
         msg = {'execute': name}
@@ -1141,14 +1165,18 @@ class Qmp:
             line = self.f.readline()
             if not line:
                 raise OSError(f'QMP closed during {name}')
-            r = json.loads(line)
+            try:
+                r = json.loads(line)
+            except ValueError:
+                raise OSError(f'QMP sent a malformed reply during {name}') from None
             if 'return' in r:
                 return r['return']
             if 'error' in r:
                 raise OSError(f"QMP {name}: {r['error']}")
 
     def close(self):
-        self.f.close()                         # the makefile holds a socket reference: close both or QEMU keeps
+        if self.f is not None:
+            self.f.close()                     # the makefile holds a socket reference: close both or QEMU keeps
         self.s.close()                         # the (single-client) monitor connection open
 
 
@@ -1178,8 +1206,8 @@ class GuardIO:
     def qemu_present(self):
         return os.path.exists(self.m['paths']['guardQmp'])
 
-    def qmp(self):
-        return Qmp(self.m['paths']['guardQmp'])
+    def qmp(self, handshake_timeout=None):
+        return Qmp(self.m['paths']['guardQmp'], handshake_timeout=handshake_timeout)
 
     def mode(self):
         return guard_mode(self.m)
@@ -1236,11 +1264,20 @@ def guard_loop(m, msha, io, max_loops=None):
                 return 0
         elif q is None:
             try:
-                q, seen, absent_since = io.qmp(), True, None
+                # before the first successful monitor: one fresh short handshake per poll (QEMU accepts the monitor
+                # only after preallocating guest RAM); after it: the unchanged runtime reconnect
+                q = io.qmp() if seen else io.qmp(QMP_INITIAL_HANDSHAKE_S)
+                seen, absent_since = True, None
             except OSError as e:
                 absent_since = absent_since if absent_since is not None else now
-                if decision == 'pause' or now - absent_since > 60:
-                    io.log(f'FAIL-CLOSED: cannot reach the guard QMP monitor ({e}); exiting so the VM unit stops')
+                if seen:
+                    unsafe, grace = decision == 'pause', QMP_RECONNECT_GRACE_S
+                else:                           # initial startup: never wait while capacity is not ok
+                    unsafe, grace = decision != 'ok', QMP_INITIAL_GRACE_S
+                if unsafe or now - absent_since > grace:
+                    io.log(f'FAIL-CLOSED: cannot reach the guard QMP monitor ({e}); '
+                           f"{'capacity ' + decision if unsafe else f'no monitor within {grace} s'}"
+                           f"{'' if seen else ' (QEMU startup)'}; exiting so the VM unit stops")
                     return 3
         state = 'armed'
         if q is not None:

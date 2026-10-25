@@ -119,7 +119,7 @@ class FakeIO:
     def qemu_present(self):
         return self.present(self.i)
 
-    def qmp(self):
+    def qmp(self, handshake_timeout=None):
         if self.qmps is None:
             raise OSError('no socket')
         return self.qmps
@@ -169,10 +169,14 @@ class GuardLoop(unittest.TestCase):
         io = FakeIO([300], qmp=None)
         self.assertEqual(pv.guard_loop(v2_min(), 'S', io, max_loops=3), 3)
 
-    def test_unreachable_qmp_60s_exits_3(self):
+    def test_unreachable_qmp_initial_300s_exits_3(self):
+        # before the first successful monitor the bounded startup grace is 300 s (QEMU preallocates guest RAM first);
+        # the 60 s reconnect grace after a connection is covered in test_guard_startup.py
         io = FakeIO([10**6], qmp=None)
-        self.assertEqual(pv.guard_loop(v2_min(), 'S', io, max_loops=100), 3)
-        self.assertGreater(io.i, 50)
+        self.assertIsNone(pv.guard_loop(v2_min(), 'S', io, max_loops=301))
+        io = FakeIO([10**6], qmp=None)
+        self.assertEqual(pv.guard_loop(v2_min(), 'S', io, max_loops=400), 3)
+        self.assertEqual(io.i, 301)
 
     def test_qmp_error_while_present_exits_3(self):
         io = FakeIO([10**6], qmp=FakeQmp([], fail_on=('query-status',)))
