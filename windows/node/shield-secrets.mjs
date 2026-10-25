@@ -3,7 +3,7 @@ import {startupEgressReady} from './startup-egress.mjs';
 import https from 'node:https';
 const ID=/^0x[0-9a-f]{64}$/;
 const message=(id,endpoint,ts)=>`enclave-shield-secrets:${id}:${endpoint}:${ts}`;
-export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetch,log=()=>{},exchangeTimeoutMs=20000,egressReady=id=>startupEgressReady(id,{configFile:process.env.ENCLAVE_STARTUP_EGRESS_CONFIG,routeFile:process.env.ENCLAVE_EGRESS_APP_ROUTES})}){
+export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetch,log=()=>{},exchangeTimeoutMs=20000,egressReady=(id,required)=>startupEgressReady(id,{configFile:process.env.ENCLAVE_STARTUP_EGRESS_CONFIG,routeFile:process.env.ENCLAVE_EGRESS_APP_ROUTES,required})}){
  const done=new Set(),retry=new Map();let active=false;
  const inventory=async()=>{const r=await fetchImpl(base+'/vms',{signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('manager inventory unavailable');return (await r.json()).vms;};
  async function target(id){
@@ -44,7 +44,7 @@ export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetc
      retry.set(v.id,Date.now()+15000);
      const ts=Math.floor(Date.now()/1000),ep=endpoint.replace(/\/+$/,''),opSig=await sign(message(v.name,ep,ts));
      try{
-      if(!await egressReady(v.name)){log(`sealed secrets for ${v.name.slice(0,10)} waiting for its startup egress route`);continue;}
+      if(!await egressReady(v.name,v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)){log(`sealed secrets for ${v.name.slice(0,10)} waiting for its startup egress route`);continue;}
       const r=await fetchImpl(relayBase.replace(/\/+$/,'')+'/v1/secrets/shield-release',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:v.name,endpoint:ep,ts,opSig}),signal:AbortSignal.timeout(90000)});
       const b=await r.json();if(!r.ok||b.ok!==true)throw Error(`relay HTTP ${r.status}`);
       done.add(v.id);retry.delete(v.id);log(`sealed secrets delivered to ${v.name.slice(0,10)} (${b.count} names)`);

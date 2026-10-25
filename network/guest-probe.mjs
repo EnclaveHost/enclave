@@ -74,7 +74,7 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,d
     const verdict=await verifySnp(doc,response.spki,nonce,{...linux,appSha:expected.appSha256,hostData:deploymentId,mode:'trusted'});
     verified=verdict.gateOpen===true&&verdict.verdict==='attested';if(!verified)throw new Error('SNP guest proof refused: '+JSON.stringify(verdict));
   }else if(shield&&hostSession){
-    const verdict=verifyShieldAppPolicy({doc,handshakeSpki:response.spki,nonce,expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,hostSession,requiresConfigBundleV5:expected.requiresConfigBundleV5,requiresSecretsV1:expected.requiresSecretsV1,requiresConfigSocketServer:expected.requiresConfigSocketServer},shield);
+    const verdict=verifyShieldAppPolicy({doc,handshakeSpki:response.spki,nonce,expectedAppSha256:expected.appSha256,expectedRuntimeId:expected.runtimeId,hostSession,requiresDesktop:expected.requiresDesktop,requiresConfigBundleV5:expected.requiresConfigBundleV5,requiresSecretsV1:expected.requiresSecretsV1,requiresConfigSocketServer:expected.requiresConfigSocketServer},shield);
     verified=verdict.ok===true;if(!verified)throw new Error('Shield guest proof refused: '+verdict.reason);
   }else if(pvm&&String(doc.format||'').startsWith('enclave-pvm-app-evidence/')){
     // a pVM host's app: a fresh AVF certificate over OUR nonce, rooted at Google's attestation roots, for the pinned build and
