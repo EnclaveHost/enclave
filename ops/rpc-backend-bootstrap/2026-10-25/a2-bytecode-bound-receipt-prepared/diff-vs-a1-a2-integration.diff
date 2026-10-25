@@ -1,0 +1,342 @@
+--- a1-a2-integration/a2a4.py	2026-10-25 14:55:50.590705176 -0700
++++ a2-bytecode-integration/a2a4.py	2026-10-25 15:29:03.352951918 -0700
+@@ -687,6 +687,18 @@
+ # G-a stays OPEN until the prepared checker (bytecode-check/, NOT built) is built, its tests pass and a live run passed under root review.
+ # Prepared code is not a release gate: removing this entry is a reviewed source change, never a config switch.
+ OPEN_GAPS = ['bytecodes-content-unverified']
++# a2-bytecode-integration (PREPARED; see README.md there). The gap above is closed for ONE database ONLY by bytecode_gap_closed():
++# a v2 receipt (below) from the SOURCE-pinned checker, bound to this DB, this A4 result, this download receipt and an unchanged
++# mutation journal. None = no v2 checker has been built and tested: the gap cannot close (the frozen behaviour). The tested
++# release 42d692d4... (bytecode-native-validation) emits v1 only, which lacks in-transaction table counts, a row digest and the
++# checkpoints it scanned at: a v1 receipt is bound as EVIDENCE but never closes the gap.
++BYTECODE_CHECKER_V2_SHA256 = None
++BYTECODE_V1_KEYS = {'format', 'rows', 'tag0', 'tag2', 'tag4', 'nonCanonicalPadding', 'failures', 'paddingShortDupn', 'firstFailures',
++                    'accountsWithCode', 'missingCode', 'readError', 'ok'}
++BYTECODE_V2_KEYS = BYTECODE_V1_KEYS | {'bytecodesEntries', 'hashedAccountsEntries', 'accountsScanned', 'rowsDigest', 'codeHashesDigest',
++                                      'mdbxTxnId', 'checkpoints', 'datadir'}
++CHECKPOINT_KEYS = ('headers', 'bodies', 'execution', 'merkle-execute', 'finish')
++CHECKER_CAP = 256 << 20
+ 
+ 
+ def db_identity(c, base):
+@@ -696,44 +708,142 @@
+             'checkpointsSha256': hashlib.sha256(cps.encode()).hexdigest(), 'headerN': authenticate(c, read_header(c, base, c['N']))['blockHash']}
+ 
+ 
++def _count(r, k):
++    v = r.get(k)
++    if type(v) is not int or v < 0:
++        refuse('checker_receipt', f'{k}={v!r} is not a non-negative integer')
++    return v
++
++
++def check_bytecode_receipt(c, r):
++    """-> 'v1' | 'v2'. The checker's own `ok` is never trusted alone: every count is re-derived/cross-checked here."""
++    if not isinstance(r, dict) or r.get('format') not in ('base-bytecode-check/v1', 'base-bytecode-check/v2'):
++        refuse('checker_receipt', f'unknown receipt format {r.get("format") if isinstance(r, dict) else type(r).__name__}')
++    if r.get('ok') is not True or r.get('failures') != 0 or r.get('missingCode') != 0 or not r.get('rows'):
++        refuse('bytecodes_failed', f'bytecode check failed: failures={r.get("failures")} missingCode={r.get("missingCode")} rows={r.get("rows")} ok={r.get("ok")}')
++    v = 'v2' if r['format'].endswith('/v2') else 'v1'
++    if set(r) != (BYTECODE_V2_KEYS if v == 'v2' else BYTECODE_V1_KEYS):
++        refuse('checker_receipt', f'receipt keys differ from the {v} schema: {sorted(set(r) ^ (BYTECODE_V2_KEYS if v == "v2" else BYTECODE_V1_KEYS))}')
++    rows = _count(r, 'rows')
++    if _count(r, 'failures') or _count(r, 'missingCode') or _count(r, 'paddingShortDupn') or r['firstFailures'] != {} or r['readError'] is not None:
++        refuse('bytecodes_failed', 'failures/missing code/short DUPN padding/read error present')
++    if _count(r, 'tag0') + _count(r, 'tag2') + _count(r, 'tag4') != rows or _count(r, 'nonCanonicalPadding') > r['tag2']:
++        refuse('checker_receipt', 'tag counts do not add up to the scanned rows')
++    if _count(r, 'accountsWithCode') == 0:
++        refuse('checker_receipt', 'no account with code was checked for completeness (empty/unscanned HashedAccounts)')
++    if v == 'v2':
++        if rows != _count(r, 'bytecodesEntries'):
++            refuse('checker_receipt', f'scanned {rows} Bytecodes rows but the table holds {r["bytecodesEntries"]} (same transaction)')
++        if _count(r, 'accountsScanned') != _count(r, 'hashedAccountsEntries') or r['accountsWithCode'] > r['accountsScanned']:
++            refuse('checker_receipt', 'HashedAccounts scan incomplete (scanned != table entries, or more code accounts than accounts)')
++        if not all(re.fullmatch(r'[0-9a-f]{64}', str(r[k])) for k in ('rowsDigest', 'codeHashesDigest')) or _count(r, 'mdbxTxnId') == 0:
++            refuse('checker_receipt', 'row/code-hash digests or the MDBX transaction id are missing')
++        cp = r['checkpoints']
++        if not isinstance(cp, dict) or set(cp) != set(CHECKPOINT_KEYS) or any(type(cp[k]) is not int or cp[k] != c['N'] for k in CHECKPOINT_KEYS):
++            refuse('checker_receipt', f'the scan transaction was not at N on every stage checkpoint: {cp}')
++        if r['datadir'] != c['datadir']:
++            refuse('checker_receipt', 'the receipt names another datadir')
++    return v
++
++
++def journal_digest(w):
++    p = w / 'mutation-journal.jsonl'
++    b = p.read_bytes() if p.exists() else b''
++    return {'records': len(b.splitlines()), 'sha256': hashlib.sha256(b).hexdigest()}
++
++
++def _trusted_sha(path, what, cap):
++    return hashlib.sha256(_read_trusted(path, what, cap)).hexdigest()
++
++
++def private_checker(c, w):
++    """Read the configured checker ONCE, compare with its config pin, and return a private 0500 copy in the 0700 workdir: the
++    executed bytes are exactly the hashed bytes (no path re-resolution between the pin check and exec)."""
++    b = _read_trusted(c['bytecodeChecker'], 'bytecode checker', CHECKER_CAP)
++    sha = hashlib.sha256(b).hexdigest()
++    if sha != c['bytecodeCheckerSha256']:
++        refuse('checker_pin', 'bytecode checker binary differs from its pin')
++    d = w / 'bin'; d.mkdir(mode=0o700, exist_ok=True)
++    p = d / f'bytecode-checker-{sha}'
++    if not p.exists():
++        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o500)
++        with os.fdopen(fd, 'wb') as f:
++            f.write(b)
++    if sha256(p) != sha:
++        refuse('checker_pin', 'the private checker copy differs from the pinned bytes')
++    return p, sha
++
++
+ def step_bytecodes(c, base, w):
+     """Run the pinned read-only checker over ALL Bytecodes rows of THIS DB at N with clients stopped; bind the result."""
+     a4 = load(w, 'a4-rebuilt.json')
+     for k in ('bytecodeChecker', 'bytecodeCheckerSha256'):
+         if not c.get(k):
+             refuse('no_checker', 'bytecodeChecker/bytecodeCheckerSha256 not configured: the checker is prepared source only (G-a open)')
+-    if sha256(c['bytecodeChecker']) != c['bytecodeCheckerSha256']:
+-        refuse('checker_pin', 'bytecode checker binary differs from its pin')
+-    gate_static(c, base)                                  # units stopped, receipt, prune config, capability
++    exe, csha = private_checker(c, w)
++    gate_static(c, base)                                  # units stopped, no openers, receipt, prune config, capability
++    j = journal(w)                                        # step order: A4's merkle rebuild must be the LAST mutation of this DB
++    if not j or j[-1]['state'] != 'finished' or j[-1].get('rc') != 0 or j[-1]['argv'][2:4] != ['stage', 'run'] or j[-1]['argv'][-1] != 'merkle':
++        refuse('bytecode_order', 'the last journaled mutation is not the finished A4 merkle rebuild: the DB may have changed after A4')
+     if head_checkpoints(c, base)['execution'] != c['N']:
+         refuse('not_at_n', 'the DB is not at N')
+     before = db_identity(c, base)
+     if before['headerN'] != a4['blockHash']:
+         refuse('header_changed', 'header N differs from A4')
+     timeout = c['timeouts']['bytecodeSec']
+-    d = w / 'cmd'; d.mkdir(mode=0o700, exist_ok=True); out_p = d / f'bytecodes-{now().strftime("%Y%m%dT%H%M%S%fZ")}.json'
+-    with open(out_p, 'xb') as o:
+-        p = subprocess.Popen([c['bytecodeChecker'], c['datadir']], stdin=subprocess.DEVNULL, stdout=o, stderr=subprocess.DEVNULL, start_new_session=True)
++    d = w / 'cmd'; d.mkdir(mode=0o700, exist_ok=True); tag = now().strftime("%Y%m%dT%H%M%S%fZ")
++    out_p, err_p = d / f'bytecodes-{tag}.json', d / f'bytecodes-{tag}.err'
++    argv = [str(exe), c['datadir']]                       # exact invocation: one positional argument, empty environment
++    with open(out_p, 'xb') as o, open(err_p, 'xb') as e:
++        p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=o, stderr=e, env={}, start_new_session=True)
+         t0, over = time.monotonic(), False
+         while not exited_unreaped(p.pid):
+-            if time.monotonic() - t0 > timeout or out_p.stat().st_size > (1 << 20):
++            if time.monotonic() - t0 > timeout or out_p.stat().st_size > (1 << 20) or err_p.stat().st_size > STDERR_CAP:
+                 over = True; break
+             time.sleep(0.05)
+         rc, stray = settle_owned(p, over, GRACE_SEC)
+         if over or rc is None or stray or out_p.stat().st_size > (1 << 20):
+             refuse('bounded', 'bytecode checker exceeded its time/output bound or left group members')
++    raw = out_p.read_bytes()
+     try:
+-        r = json.loads(out_p.read_text())
++        r = json.loads(raw)
+     except Exception:
+         refuse('checker_output', 'checker printed no JSON receipt')
+-    if rc != 0 or r.get('format') != 'base-bytecode-check/v1' or r.get('ok') is not True or r.get('failures') != 0 or r.get('missingCode') != 0 or not r.get('rows'):
+-        refuse('bytecodes_failed', f'bytecode check failed: rc={rc} failures={r.get("failures")} missingCode={r.get("missingCode")}')
++    if rc != 0:
++        refuse('bytecodes_failed', f'bytecode check failed: rc={rc} failures={r.get("failures") if isinstance(r, dict) else None} '
++               f'missingCode={r.get("missingCode") if isinstance(r, dict) else None}')
++    version = check_bytecode_receipt(c, r)
+     after = db_identity(c, base)
+     if after != before:
+         refuse('db_changed', 'the DB changed while the checker ran: the result cannot be bound')
+     save(w, 'bytecodes-verified.json', {'at': now().isoformat(), 'identity': before, 'a4Sha256': sha256(w / 'a4-rebuilt.json'),
+-                                        'checkerSha256': c['bytecodeCheckerSha256'], 'result': r})
+-    return {k: r[k] for k in ('rows', 'tag2', 'tag4', 'nonCanonicalPadding', 'accountsWithCode')}
++                                        'checkerSha256': csha, 'argv': ['<checker>', c['datadir']], 'env': {}, 'receiptVersion': version,
++                                        'receiptSha256': hashlib.sha256(raw).hexdigest(), 'receiptFile': out_p.name, 'journal': journal_digest(w),
++                                        'downloadReceiptSha256': _trusted_sha(c['downloadReceipt'], 'receipt', 1 << 20),
++                                        'manifestSha256': MANIFEST_SHA, 'result': r})
++    return {k: r[k] for k in ('rows', 'tag2', 'tag4', 'nonCanonicalPadding', 'accountsWithCode')} | {'receiptVersion': version}
++
++
++def bound_bytecodes(c, base, w):
++    """release: the bytecode receipt must still describe THIS DB, THIS A4 result, THIS download receipt and an unchanged journal."""
++    bv = load(w, 'bytecodes-verified.json', need=False)
++    if bv is None:
++        refuse('bytecode_receipt', 'no bound bytecode verification (step bytecodes) for this DB')
++    if bv['a4Sha256'] != sha256(w / 'a4-rebuilt.json') or bv['identity'] != db_identity(c, base) or bv.get('journal') != journal_digest(w) \
++            or bv.get('downloadReceiptSha256') != _trusted_sha(c['downloadReceipt'], 'receipt', 1 << 20) or bv.get('manifestSha256') != MANIFEST_SHA:
++        refuse('bytecode_receipt_stale', 'the bytecode verification was for another DB state, A4 result, download receipt or mutation journal')
++    raw = (w / 'cmd' / str(bv.get('receiptFile', ''))).read_bytes() if (w / 'cmd' / str(bv.get('receiptFile', ''))).is_file() else b''
++    if hashlib.sha256(raw).hexdigest() != bv.get('receiptSha256') or json.loads(raw) != bv['result']:
++        refuse('bytecode_receipt_stale', 'the stored checker receipt differs from the bound one')
++    if check_bytecode_receipt(c, bv['result']) != bv.get('receiptVersion'):
++        refuse('bytecode_receipt_stale', 'receipt version changed')
++    return bv
++
++
++def bytecode_gap_closed(c, bv):
++    """True ONLY for a v2 receipt from the SOURCE-pinned v2 checker (config pin == source pin). Otherwise the gap stays open."""
++    return (BYTECODE_CHECKER_V2_SHA256 is not None and bv['checkerSha256'] == BYTECODE_CHECKER_V2_SHA256 == c['bytecodeCheckerSha256']
++            and bv['receiptVersion'] == 'v2' and check_bytecode_receipt(c, bv['result']) == 'v2')
+ 
+ 
+ def step_release(c, base, w):
+@@ -741,14 +851,12 @@
+     a1 = gate_a1(c)                                   # A1 re-run (or original-game recheck) before derivation is allowed
+     gate_static(c, base)                              # db_identity below reads the DB
+     bind_a1(w, a1)                                    # the SAME initial receipt/N/root/game as A2, not an older L1 block
+-    bv = load(w, 'bytecodes-verified.json', need=False)
+-    if bv is None:
+-        refuse('bytecode_receipt', 'no bound bytecode verification (step bytecodes) for this DB')
+-    if bv['a4Sha256'] != sha256(w / 'a4-rebuilt.json') or bv['identity'] != db_identity(c, base):
+-        refuse('bytecode_receipt_stale', 'the bytecode verification was for another DB state or another A4 result')
+-    if OPEN_GAPS:
+-        refuse('open_gaps', f'derivation stays blocked: {OPEN_GAPS} (a missing client capability, not bypassable by config)')
+-    save(w, 'm10-launch.json', {'bootstrapAnchor': f'{c["N"]}:{a4["blockHash"]}', 'at': now().isoformat()})
++    bv = bound_bytecodes(c, base, w)
++    gaps = [g for g in OPEN_GAPS if not (g == 'bytecodes-content-unverified' and bytecode_gap_closed(c, bv))]
++    if gaps:
++        refuse('open_gaps', f'derivation stays blocked: {gaps} (a missing client capability, not bypassable by config)')
++    save(w, 'm10-launch.json', {'bootstrapAnchor': f'{c["N"]}:{a4["blockHash"]}', 'at': now().isoformat(),
++                                'bytecodes': {k: bv[k] for k in ('checkerSha256', 'receiptSha256', 'receiptVersion')}})
+ 
+ 
+ STEPS = {'plan': step_plan, 'a2': step_a2, 'a3': step_a3, 'a4': step_a4, 'bytecodes': step_bytecodes, 'release': step_release}
+--- a1-a2-integration/test/test_a2a4.py	2026-10-25 15:10:22.159717277 -0700
++++ a2-bytecode-integration/test/test_a2a4.py	2026-10-25 15:29:29.609839652 -0700
+@@ -68,6 +68,12 @@
+             'finishedAt': (at + datetime.timedelta(seconds=5)).isoformat()}
+ 
+ 
++V1_GOOD = {'format': 'base-bytecode-check/v1', 'rows': 10, 'tag0': 0, 'tag2': 9, 'tag4': 1, 'nonCanonicalPadding': 0, 'failures': 0,
++           'paddingShortDupn': 0, 'firstFailures': {}, 'accountsWithCode': 12, 'missingCode': 0, 'readError': None, 'ok': True}
++V2_GOOD = dict(V1_GOOD, format='base-bytecode-check/v2', bytecodesEntries=10, hashedAccountsEntries=40, accountsScanned=40, rowsDigest='ab' * 32,
++               codeHashesDigest='cd' * 32, mdbxTxnId=7, checkpoints={k: N for k in ('headers', 'bodies', 'execution', 'merkle-execute', 'finish')})
++
++
+ PRUNE_OK = '[prune.segments]\naccount_history = { before = 52500000 }\nstorage_history = { before = 52500000 }\n'
+ 
+ 
+@@ -337,8 +343,7 @@
+         self.state = self.st()                        # keep the RUNTIME post-unwind/post-rebuild DB, never the setUp fixture
+         self.assertEqual((self.state['cp']['execution'], self.state['cp']['merkle-execute']), (N, N))
+         self.refused('release', 'bytecode_receipt'); self.refused('bytecodes', 'no_checker')
+-        good = {'format': 'base-bytecode-check/v1', 'rows': 10, 'tag0': 0, 'tag2': 9, 'tag4': 1, 'nonCanonicalPadding': 0, 'failures': 0,
+-                'missingCode': 0, 'accountsWithCode': 12, 'ok': True}
++        good = dict(V1_GOOD)                          # the REAL v1 schema of base-bytecode-check main.rs/lib.rs Report::json()
+         self.checker(dict(good, failures=1, ok=False)); rec = self.refused('bytecodes', 'bytecodes_failed'); self.assertIn('failures=1 ', rec['refused'])
+         self.checker(dict(good, missingCode=2, ok=False)); rec = self.refused('bytecodes', 'bytecodes_failed'); self.assertIn('missingCode=2', rec['refused'])
+         self.checker(dict(good, failures=1)); rec = self.refused('bytecodes', 'bytecodes_failed'); self.assertIn('failures=1 ', rec['refused'])   # ok=true is not trusted alone
+@@ -551,5 +556,85 @@
+         self.setUp(); self.use_recheck(initial=ini); rec = self.refused('plan', 'a1_pins'); self.assertIn(A.MAINNET['asr'], rec['refused'])
+ 
+ 
++class BytecodeGate(Case):
++    """a2-bytecode-integration: the bytecode gap closes ONLY for a v2 receipt of the SOURCE-pinned checker bound to this DB."""
++    def ready(self, receipt, rc=0):
++        for st in ('a2', 'a3', 'a4'):
++            r, rec = self.run_step(st); self.assertEqual(r, 0, (st, rec))
++        self.state = self.st(); self.checker(dict(receipt, datadir=self.cfg['datadir']) if receipt.get('format', '').endswith('/v2') else receipt)
++        if rc:
++            p = pathlib.Path(self.cfg['bytecodeChecker']); p.write_text(p.read_text() + f'exit {rc}\n'); self.cfg['bytecodeCheckerSha256'] = A.sha256(p)
++
++    def setUp(self):
++        super().setUp(); A.BYTECODE_CHECKER_V2_SHA256 = None          # every (re-)setUp starts from today's source pin: None
++
++    def tearDown(self):
++        A.BYTECODE_CHECKER_V2_SHA256 = None; super().tearDown()
++
++    def test_v2_receipt_of_the_source_pinned_checker_closes_the_gap_for_this_db(self):
++        self.ready(V2_GOOD); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']
++        rc, rec = self.run_step('bytecodes'); self.assertEqual(rc, 0, rec); self.assertEqual(rec['result']['receiptVersion'], 'v2')
++        rc, rec = self.run_step('release'); self.assertEqual(rc, 0, rec)
++        m = json.loads((self.d / 'work/m10-launch.json').read_text()); self.assertEqual(m['bytecodes']['receiptVersion'], 'v2')
++        bv = json.loads((self.d / 'work/bytecodes-verified.json').read_text()); self.assertEqual((bv['env'], bv['argv'][1]), ({}, self.cfg['datadir']))
++
++    def test_the_gap_stays_open_without_a_v2_receipt_of_the_source_pinned_checker(self):
++        self.ready(V1_GOOD); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']     # even if v1 bytes were pinned
++        self.assertEqual(self.run_step('bytecodes')[0], 0); self.refused('release', 'open_gaps')
++        self.setUp(); self.ready(V2_GOOD); self.assertEqual(self.run_step('bytecodes')[0], 0)
++        self.refused('release', 'open_gaps')                                                  # source pin None (today)
++        A.BYTECODE_CHECKER_V2_SHA256 = '0' * 64; self.refused('release', 'open_gaps')          # config-pinned != source-pinned
++        self.assertFalse((self.d / 'work/m10-launch.json').exists())
++
++    def test_missing_malformed_empty_or_unscanned_results_refuse(self):
++        cases = [(dict(V2_GOOD, missingCode=1), 'bytecodes_failed'), (dict(V2_GOOD, rows=0, tag2=0, tag4=0, bytecodesEntries=0), 'bytecodes_failed'),
++                 (dict(V2_GOOD, ok=False), 'bytecodes_failed'), (dict(V2_GOOD, firstFailures={'00': 'E_HASH'}), 'bytecodes_failed'),
++                 (dict(V2_GOOD, readError='Bytecodes: io'), 'bytecodes_failed'), (dict(V2_GOOD, paddingShortDupn=1), 'bytecodes_failed'),
++                 (dict(V2_GOOD, tag2=8), 'checker_receipt'), (dict(V2_GOOD, rows=True, tag0=0, tag2=0, tag4=1, bytecodesEntries=1), 'checker_receipt'),
++                 (dict(V2_GOOD, nonCanonicalPadding=10), 'checker_receipt'), (dict(V2_GOOD, accountsWithCode=0), 'checker_receipt'),
++                 (dict(V2_GOOD, bytecodesEntries=11), 'checker_receipt'), (dict(V2_GOOD, accountsScanned=39), 'checker_receipt'),
++                 (dict(V2_GOOD, accountsWithCode=41), 'checker_receipt'), (dict(V2_GOOD, rowsDigest=''), 'checker_receipt'),
++                 (dict(V2_GOOD, mdbxTxnId=0), 'checker_receipt'), (dict(V2_GOOD, checkpoints=dict(V2_GOOD['checkpoints'], execution=N + 1)), 'checker_receipt'),
++                 (dict(V2_GOOD, checkpoints={'execution': N}), 'checker_receipt'), (dict(V2_GOOD, extra=1), 'checker_receipt'),
++                 ({k: v for k, v in V1_GOOD.items() if k != 'readError'}, 'checker_receipt'), (dict(V2_GOOD, format='base-bytecode-check/v3'), 'checker_receipt')]
++        for receipt, code in cases:
++            with self.subTest(code=code, receipt={k: receipt[k] for k in receipt if receipt.get(k) != V2_GOOD.get(k)}):
++                self.setUp(); self.ready(receipt); self.refused('bytecodes', code)
++                self.assertFalse((self.d / 'work/bytecodes-verified.json').exists(), 'a refused check binds nothing')
++        self.setUp(); self.ready(V2_GOOD, rc=1); self.refused('bytecodes', 'bytecodes_failed')        # exit 1 with an "ok" JSON
++
++    def test_another_datadir_in_the_receipt_refuses(self):
++        for st in ('a2', 'a3', 'a4'): self.assertEqual(self.run_step(st)[0], 0)
++        self.state = self.st(); self.checker(dict(V2_GOOD, datadir='/srv/other')); self.refused('bytecodes', 'checker_receipt')
++
++    def test_wrong_binary_and_untrusted_binary_refuse_before_any_scan(self):
++        self.ready(V2_GOOD); self.cfg['bytecodeCheckerSha256'] = '0' * 64; self.refused('bytecodes', 'checker_pin')
++        self.setUp(); self.ready(V2_GOOD); os.chmod(self.cfg['bytecodeChecker'], 0o775); self.refused('bytecodes', 'untrusted_file')
++        self.assertFalse(list((self.d / 'work/cmd').glob('bytecodes-*.json')), 'no checker ran')
++
++    def test_step_order_and_a_db_mutated_after_a4_or_after_the_scan(self):
++        self.refused('bytecodes', 'order')                                                     # no A4 result
++        self.setUp(); self.ready(V2_GOOD)
++        A.journal_append(self.d / 'work', {'seq': 99, 'state': 'started', 'argv': ['b', 'reth', 'stage', 'unwind', 'to-block', str(N)]})
++        A.journal_append(self.d / 'work', {'seq': 99, 'state': 'finished', 'rc': 0, 'argv': ['b', 'reth', 'stage', 'unwind', 'to-block', str(N)]})
++        self.refused('bytecodes', 'bytecode_order')                                            # a mutation after A4's rebuild
++        self.setUp(); self.ready(V2_GOOD); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']
++        self.assertEqual(self.run_step('bytecodes')[0], 0)
++        A.journal_append(self.d / 'work', {'seq': 99, 'state': 'finished', 'rc': 0, 'argv': ['b', 'reth', 'stage', 'run', 'merkle']})
++        self.refused('release', 'bytecode_receipt_stale')                                      # journal changed after the scan
++
++    def test_stale_db_download_receipt_or_stored_receipt_refuse_release(self):
++        def bound():
++            self.setUp(); self.ready(V2_GOOD); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']
++            self.assertEqual(self.run_step('bytecodes')[0], 0)
++        bound(); (self.d / 'datadir/db/mdbx.dat').write_bytes(b'changed'); self.refused('release', 'bytecode_receipt_stale')
++        bound(); self.state['cp']['finish'] = N + 1; self.refused('release', 'bytecode_receipt_stale')
++        bound(); self.receipt['note'] = 'rewritten'; self.refused('release', 'bytecode_receipt_stale')   # passes gate_download, other bytes
++        bound(); f = next((self.d / 'work/cmd').glob('bytecodes-*.json')); f.write_text(json.dumps(dict(V2_GOOD, datadir=self.cfg['datadir'], rows=10)) + ' ')
++        self.refused('release', 'bytecode_receipt_stale')
++        bound(); v = json.loads((self.d / 'work/bytecodes-verified.json').read_text()); v['receiptVersion'] = 'v1'
++        (self.d / 'work/bytecodes-verified.json').write_text(json.dumps(v)); self.refused('release', 'bytecode_receipt_stale')
++
++
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)
+--- ../a1-a2-integration/mutants.sh	2026-10-25 15:21:31.441961899 -0700
++++ mutants.sh	2026-10-25 15:29:59.064929946 -0700
+@@ -3,7 +3,7 @@
+ #  1. Inputs: SHA256SUMS must verify (the baseline and every mutant run on exactly these bytes; the sha of SHA256SUMS is logged).
+ #  2. Preflight (no test runs): exactly the 33 EXPECTED names, unique; every anchor matches its pristine file exactly once and
+ #     differs from its replacement; every Python mutant names >= 1 test.
+-#  3. Baseline ONCE, unmutated copy: test_a2a4 through mutrun.py all-pass (every test passes; count == 33, 0 errors/skips),
++#  3. Baseline ONCE, unmutated copy: test_a2a4 through mutrun.py all-pass (every test passes; count == 40 in a2-bytecode-integration, 0 errors/skips),
+ #     test_receipt_writer + test_pinned_manifest (rc 0, bare "OK"), node a1-gate suite clean per taplog.py. Every mapped test id
+ #     must be among the baseline's passing tests.
+ #  4. 25 Python mutants: run ONLY the mapped test(s) exercising that guard (mutrun.py kill): killed only if every mapped test ran
+@@ -45,11 +45,11 @@
+ copy
+ (cd "$T" && timeout 1800 python3 -u "$H/mutrun.py" "$T" all-pass "$L/baseline-py.verdict.json" </dev/null) > "$L/baseline-py.log" 2>&1 \
+   || abort "PYTHON BASELINE NOT CLEAN (see $L/baseline-py.log)"
+-python3 - "$L/baseline-py.verdict.json" "$L/preflight.json" <<'PY' || abort "BASELINE COUNT/MAPPING MISMATCH (expected 33 passing tests incl. every mapped id)"
++python3 - "$L/baseline-py.verdict.json" "$L/preflight.json" <<'PY' || abort "BASELINE COUNT/MAPPING MISMATCH (expected 40 passing tests incl. every mapped id)"
+ import json, sys
+ v, m = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+ ids = {i for t in m['mapping'].values() for i in t}
+-sys.exit(0 if v['verdict'] == 'baseline-clean' and v['testsRun'] == 33 and ids <= set(v['ran']) else 1)
++sys.exit(0 if v['verdict'] == 'baseline-clean' and v['testsRun'] == 40 and ids <= set(v['ran']) else 1)
+ PY
+ for s in test_receipt_writer test_pinned_manifest; do
+   (cd "$T" && timeout 600 python3 -u "test/$s.py" </dev/null) > "$L/baseline-$s.log" 2>&1; r=$?
+@@ -60,7 +60,7 @@
+   || abort "NODE BASELINE NOT CLEAN (see $L/baseline-node.tap)"
+ NT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tests"])' "$L/baseline-node.verdict.json")
+ [ "$NT" = 8 ] || abort "NODE BASELINE ran $NT tests, expected 8"
+-echo "baseline OK (python 33 + 2 + 1, node $NT)"
++echo "baseline OK (python 40 + 2 + 1, node $NT)"
+ apply() { # <file> <from> <to>
+   python3 - "$1" "$2" "$3" <<'PY'
+ import sys; p,a,b=sys.argv[1:]; s=open(p).read(); assert s.count(a)==1 and a!=b; open(p,'w').write(s.replace(a,b))

@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: every t-subset of a 3-of-5 split recovers the secret; every share verifies against the commitments
+ok 1 - every t-subset of a 3-of-5 split recovers the secret; every share verifies against the commitments
+  ---
+  duration_ms: 27.731172
+  type: 'test'
+  ...
+# Subtest: t-1 shares do not determine the secret: any value is consistent with them
+ok 2 - t-1 shares do not determine the secret: any value is consistent with them
+  ---
+  duration_ms: 1.891326
+  type: 'test'
+  ...
+# Subtest: a tampered share fails verification, and combining with it gives a wrong secret
+ok 3 - a tampered share fails verification, and combining with it gives a wrong secret
+  ---
+  duration_ms: 3.045376
+  type: 'test'
+  ...
+# Subtest: combine refuses too few shares and duplicate indices
+ok 4 - combine refuses too few shares and duplicate indices
+  ---
+  duration_ms: 1.395239
+  type: 'test'
+  ...
+# Subtest: redistribution 3-of-5 -> 2-of-4 keeps the secret and C_0 without anyone combining it
+ok 5 - redistribution 3-of-5 -> 2-of-4 keeps the secret and C_0 without anyone combining it
+  ---
+  duration_ms: 41.391165
+  type: 'test'
+  ...
+# Subtest: redistribution refuses a dealer that re-shares something other than its share
+ok 6 - redistribution refuses a dealer that re-shares something other than its share
+  ---
+  duration_ms: 5.173259
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 149.955435

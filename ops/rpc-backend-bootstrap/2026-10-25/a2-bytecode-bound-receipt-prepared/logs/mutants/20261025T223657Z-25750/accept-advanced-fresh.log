@@ -1,0 +1,34 @@
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+{"step": "plan", "ok": false, "refused": "a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one"}
+test_an_advanced_anchor_refuses_release_with_the_documented_code (test_a2a4.Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code) ... FAIL
+test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves (test_a2a4.Recheck.test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves) ... FAIL
+
+======================================================================
+FAIL: test_an_advanced_anchor_refuses_release_with_the_documented_code (test_a2a4.Gates.test_an_advanced_anchor_refuses_release_with_the_documented_code)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 304, in test_an_advanced_anchor_refuses_release_with_the_documented_code
+    self.a1['N'] = str(N + 3600); self.refused('plan', 'a1_anchor_advanced')
+                                  ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 130, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one
+
+======================================================================
+FAIL: test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves (test_a2a4.Recheck.test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 441, in test_the_original_game_passes_after_the_latest_anchor_advanced_and_n_never_moves
+    self.a1['N'] = str(N + 9000); self.refused('plan', 'a1_anchor_advanced')       # frozen behaviour (fresh-initial) kept
+                                  ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 130, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : a1_anchor: A1 anchor (N/outputRoot/game) differs from the planned one
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.066s
+
+FAILED (failures=2)
+{"mode": "kill", "verdict": "killed", "testsRun": 2}

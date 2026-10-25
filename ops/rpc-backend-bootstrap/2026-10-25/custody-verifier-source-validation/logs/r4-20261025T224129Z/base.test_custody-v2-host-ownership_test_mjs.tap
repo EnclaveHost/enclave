@@ -1,0 +1,28 @@
+TAP version 13
+# Subtest: custody reads accepted host ownership from a fresh agreeing block, separately from payout
+ok 1 - custody reads accepted host ownership from a fresh agreeing block, separately from payout
+  ---
+  duration_ms: 12.771059
+  type: 'test'
+  ...
+# Subtest: stale, disagreeing, or legacy ownership reads never fall back to payout
+ok 2 - stale, disagreeing, or legacy ownership reads never fall back to payout
+  ---
+  duration_ms: 2.942167
+  type: 'test'
+  ...
+# Subtest: a measured authority pin cannot be replaced by a different vault authority
+ok 3 - a measured authority pin cannot be replaced by a different vault authority
+  ---
+  duration_ms: 0.989122
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 136.976327

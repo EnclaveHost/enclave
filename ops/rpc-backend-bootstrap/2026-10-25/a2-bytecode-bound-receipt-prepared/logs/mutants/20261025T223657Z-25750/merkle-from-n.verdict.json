@@ -1,0 +1,16 @@
+{
+ "errors": 0,
+ "expectedFailures": 0,
+ "mode": "kill",
+ "outcomes": {
+  "Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero": "fail"
+ },
+ "ranTwice": [],
+ "requested": [
+  "Gates.test_plan_ok_lists_chunked_unwind_to_exactly_n_and_full_merkle_from_zero"
+ ],
+ "skipped": 0,
+ "testsRun": 1,
+ "unexpectedSuccesses": 0,
+ "verdict": "killed"
+}

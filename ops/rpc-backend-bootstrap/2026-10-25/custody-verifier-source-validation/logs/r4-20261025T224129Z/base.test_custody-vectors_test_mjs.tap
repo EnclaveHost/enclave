@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: custody vectors: the JS reference reproduces the pinned fixture, and the Go copy is identical
+ok 1 - custody vectors: the JS reference reproduces the pinned fixture, and the Go copy is identical
+  ---
+  duration_ms: 38.387679
+  type: 'test'
+  ...
+# Subtest: custody vectors: the responses open and combine to the bundle's env (JS side)
+ok 2 - custody vectors: the responses open and combine to the bundle's env (JS side)
+  ---
+  duration_ms: 21.172184
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 131.956516

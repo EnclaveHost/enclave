@@ -1,0 +1,45 @@
+test_refuses_without_real_success_or_exact_argv (__main__.Writer.test_refuses_without_real_success_or_exact_argv) ... /usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpvnp09grr'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "enclave-rpc-base-snapshot.service last invocation did not succeed: inactive/exit-code/0"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpk_t4p_u5'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "enclave-rpc-base-snapshot.service last invocation did not succeed: inactive/success/1"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp4fne6wyh'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "enclave-rpc-base-snapshot.service last invocation did not succeed: active/success/0"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpu6bdfn7y'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "unlisted token '--with-rocksdb'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpqiv9sg4b'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "unlisted token '--with-txs-since'"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpa6wl9hui'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "marker must be the empty root-owned file the unit touched"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpz79u5kq_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "ExecStart record not parseable (multiple ExecStart lines or unknown format)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp4r8_5rin'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "manifest bytes differ from the pin"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpma5mmtv_'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "ExecMainCode '2' is not a normal exit (CLD_EXITED=1)"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmpguji09vc'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "InvocationID missing or malformed: cannot attribute the result to one invocation"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp9mjub6w4'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "InvocationID missing or malformed: cannot attribute the result to one invocation"}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/tmp/tmp_zpjiz4v'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"ok": false, "refused": "the base binary on disk is not the pinned 9c44836d...: verification cannot be attributed to the audited client"}
+ok
+test_writes_a_receipt_the_harness_accepts_shape_of (__main__.Writer.test_writes_a_receipt_the_harness_accepts_shape_of) ... {"ok": true, "archives": 134, "profile": "final-h48000000-s52500000"}
+{"ok": false, "refused": "[Errno 17] File exists: '/tmp/tmpjdeprlw5/r.json'"}
+ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.688s
+
+OK

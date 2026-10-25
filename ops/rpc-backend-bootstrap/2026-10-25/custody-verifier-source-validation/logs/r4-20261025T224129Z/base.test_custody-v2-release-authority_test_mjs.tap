@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: release reads the vault-pinned ledger and host registry without consulting the book
+ok 1 - release reads the vault-pinned ledger and host registry without consulting the book
+  ---
+  duration_ms: 15.331579
+  type: 'test'
+  ...
+# Subtest: legacy or disagreeing release authorities cannot trigger a mutable-book fallback
+ok 2 - legacy or disagreeing release authorities cannot trigger a mutable-book fallback
+  ---
+  duration_ms: 5.208749
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 161.719773

@@ -1,0 +1,23 @@
+{"step": "plan", "ok": false, "refused": "a1_receipt: initial_sha: initial receipt sha256 7b929d5bba8360319ae8f969339bbacf061d818cf1bd4493fdef367888c9f3fc != configured 1111111111111111111111111111111111111111111111111111111111111111"}
+test_initial_receipt_pin_and_file_trust (test_a2a4.Recheck.test_initial_receipt_pin_and_file_trust) ... FAIL
+
+======================================================================
+FAIL: test_initial_receipt_pin_and_file_trust (test_a2a4.Recheck.test_initial_receipt_pin_and_file_trust)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 520, in test_initial_receipt_pin_and_file_trust
+    self.rk_refused(lambda t: t.cfg.update(a1InitialSha256='1' * 64), 'pinned initial', 'a1_initial_pin')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 469, in rk_refused
+    self.setUp(); self.use_recheck(); mutate(self); rec = self.refused('plan', code); self.assertIn(sub, rec['refused']); return rec
+                                                          ~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/tmp/tmp.t9DLcapkg4/test/test_a2a4.py", line 130, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : a1_receipt: initial_sha: initial receipt sha256 7b929d5bba8360319ae8f969339bbacf061d818cf1bd4493fdef367888c9f3fc != configured 1111111111111111111111111111111111111111111111111111111111111111
+
+----------------------------------------------------------------------
+Ran 1 test in 0.032s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

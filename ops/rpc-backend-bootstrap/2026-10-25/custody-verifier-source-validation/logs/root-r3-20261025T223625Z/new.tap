@@ -1,0 +1,135 @@
+TAP version 13
+# Subtest: legacy default and explicit quorum are unchanged; verifier settings are refused there
+ok 1 - legacy default and explicit quorum are unchanged; verifier settings are refused there
+  ---
+  duration_ms: 1.659498
+  type: 'test'
+  ...
+# Subtest: verifier mode refuses mixed or public-fallback configuration
+ok 2 - verifier mode refuses mixed or public-fallback configuration
+  ---
+  duration_ms: 1.31423
+  type: 'test'
+  ...
+# Subtest: a verifier is never one vote in a quorum (v1 and v2 readers)
+not ok 3 - a verifier is never one vote in a quorum (v1 and v2 readers)
+  ---
+  duration_ms: 1.782836
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:82:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /one chain authority/. Input:
+    
+    'Error: chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'
+  stack: |-
+    createQuorumReader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/custody/v2/quorum.mjs:45:25)
+    file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:88:23
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:88:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:88:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: v1 reads go through the verifier at head - confirmations and see a revoked (paused) policy at once
+ok 4 - v1 reads go through the verifier at head - confirmations and see a revoked (paused) policy at once
+  ---
+  duration_ms: 30.675745
+  type: 'test'
+  ...
+# Subtest: a stale verifier head and a rolled-back checkpoint fail closed
+not ok 5 - a stale verifier head and a rolled-back checkpoint fail closed
+  ---
+  duration_ms: 3.131486
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:105:1'
+  failureType: 'testCodeFailure'
+  error: 'chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'
+  code: 'chain_verifier_unsupported'
+  stack: |-
+    createQuorumReader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/custody/v2/quorum.mjs:45:25)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:110:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: verifier outage fails closed and never falls back to another server
+not ok 6 - verifier outage fails closed and never falls back to another server
+  ---
+  duration_ms: 0.804554
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:118:1'
+  failureType: 'testCodeFailure'
+  error: 'chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'
+  code: 'chain_verifier_unsupported'
+  stack: |-
+    createQuorumReader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/custody/v2/quorum.mjs:45:25)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:122:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: no finality is invented: safe/finalized are refused, a wrong chain pin is refused
+not ok 7 - no finality is invented: safe/finalized are refused, a wrong chain pin is refused
+  ---
+  duration_ms: 0.685484
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:126:1'
+  failureType: 'testCodeFailure'
+  error: 'chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'
+  code: 'chain_verifier_unsupported'
+  stack: |-
+    createQuorumReader (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/custody/v2/quorum.mjs:45:25)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/tree-patched/test/custody-chain-source.test.mjs:130:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: v2 refuses the verifier (alone or mixed): requireCanonical is not enforced by the pinned verifier
+ok 8 - v2 refuses the verifier (alone or mixed): requireCanonical is not enforced by the pinned verifier
+  ---
+  duration_ms: 0.596735
+  type: 'test'
+  ...
+# Subtest: wrong-branch / A-B-A negative: a hash read is never translated to a block number
+ok 9 - wrong-branch / A-B-A negative: a hash read is never translated to a block number
+  ---
+  duration_ms: 1.579377
+  type: 'test'
+  ...
+# Subtest: v1 daemon config (pure): legacy unchanged; verifier needs RPC settings ABSENT, blank is refused
+ok 10 - v1 daemon config (pure): legacy unchanged; verifier needs RPC settings ABSENT, blank is refused
+  ---
+  duration_ms: 1.28017
+  type: 'test'
+  ...
+# Subtest: the real custodian daemon refuses a mixed or blank verifier config before any key, file or network use
+ok 11 - the real custodian daemon refuses a mixed or blank verifier config before any key, file or network use
+  ---
+  duration_ms: 941.83804
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 7
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1309.829904

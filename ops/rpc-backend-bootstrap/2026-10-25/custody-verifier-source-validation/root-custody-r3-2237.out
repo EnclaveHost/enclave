@@ -1,0 +1,8 @@
+[queue] START available=22686MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+new 1
+base 1
+patched 1
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/custody-rpc-stage/logs/root-r3-20261025T223625Z
+[memory-guard] exit=1 peakTreeRssMiB=246 minHostAvailableMiB=22359
+[memory-guard] at peak: node:87 node:86 node:58 python3:13 timeout:2
+[queue] EXIT 1
