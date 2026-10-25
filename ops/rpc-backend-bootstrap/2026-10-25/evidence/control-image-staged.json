@@ -1,0 +1,11 @@
+{
+  "staged": "/home/steven/enclave-prod/dist-rpc-ec56a70f1",
+  "activated": false,
+  "runtimeCommit": "ec56a70f143cf1bb6bbdd52228401bcf24eca05b",
+  "sha256": {
+    "initramfs.cpio.gz": "7848676bf806ee03ca27634ac48481d6d48d6c6d002642c87278c4d5e3ada34c",
+    "vmlinuz": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7",
+    "manifest.json": "2ba70ceab25ae5ebadc8c17013de5e0eacf86f777ef25ea2675220fd495fea80"
+  },
+  "measurement": "c24429415c85fca9d55cd9ba9b6f2337579d59c6ea2f2bd66656302ac0f96afd0193534f1ac38c3882b32acf9c0744f7"
+}

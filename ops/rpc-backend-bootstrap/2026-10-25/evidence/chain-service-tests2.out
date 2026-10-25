@@ -1,0 +1,20 @@
+[queue] START available=21307MiB required=18432MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1536MiB
+test_base_requires_explicit_origin_coverage (__main__.GateTests.test_base_requires_explicit_origin_coverage) ... ok
+test_fresh_start_refuses_old_checkpoint (__main__.GateTests.test_fresh_start_refuses_old_checkpoint) ... ok
+test_healthy_pair_has_blob_evidence (__main__.GateTests.test_healthy_pair_has_blob_evidence) ... ok
+test_missing_blob_is_not_readiness (__main__.GateTests.test_missing_blob_is_not_readiness) ... ok
+test_optimistic_pair_is_not_readiness (__main__.GateTests.test_optimistic_pair_is_not_readiness) ... ok
+test_readonly_data_refused (__main__.GateTests.test_readonly_data_refused) ... ok
+test_restricted_root_writable_data (__main__.GateTests.test_restricted_root_writable_data) ... ok
+test_resume_survives_old_checkpoint (__main__.GateTests.test_resume_survives_old_checkpoint) ... {"starting": "cl", "datadir": "/srv/enclave-l1-pair/cl", "publicExecutionRpc": false}
+ok
+test_stale_pair_is_not_readiness (__main__.GateTests.test_stale_pair_is_not_readiness) ... ok
+test_wrong_volume_refused (__main__.GateTests.test_wrong_volume_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.003s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

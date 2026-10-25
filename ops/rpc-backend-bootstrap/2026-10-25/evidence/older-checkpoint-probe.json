@@ -1,0 +1,14 @@
+[
+  {
+    "url": "https://mainnet.checkpoint.sigp.io",
+    "error": "HTTP Error 500: Internal Server Error"
+  },
+  {
+    "url": "https://beaconstate.ethstaker.cc",
+    "error": "HTTP Error 500: Internal Server Error"
+  },
+  {
+    "url": "https://beaconstate-mainnet.chainsafe.io",
+    "error": "HTTP Error 500: Internal Server Error"
+  }
+]
