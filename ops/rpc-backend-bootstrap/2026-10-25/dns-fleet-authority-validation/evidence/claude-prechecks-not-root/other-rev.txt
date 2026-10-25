@@ -1,0 +1,8 @@
+## tree pre: 8477 tracked (9 symlinks) verified by content/target; overlaid 2, added 2, links 2, generated 0; execBitMismatch 0; failures 7
+## TREE FAIL: content differs custody/chain.mjs
+## TREE FAIL: content differs custody/custodian-daemon.mjs
+## TREE FAIL: content differs custody/v2/quorum.mjs
+## TREE FAIL: unexpected file custody/chain-source.mjs
+## TREE FAIL: unexpected file custody/custodian-config.mjs
+## TREE FAIL: unexpected file docs/network/custody-local-verifier.md
+## TREE FAIL: unexpected file test/custody-chain-source.test.mjs

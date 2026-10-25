@@ -1,0 +1,19 @@
+[queue] START available=23404MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## tree pre: 8481 tracked (9 symlinks) verified by content/target; overlaid 2, added 2, links 2, generated 0; execBitMismatch 0; failures 0
+## node v22.23.3
+## [0] build relay/network-runtime.bundle.mjs in the private tree (esbuild from node_modules -> /home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules)
+{"outfile":"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-remaining-stage/tree/relay/network-runtime.bundle.mjs","sha256":"36cc949f0eb7cf5969e5b74b25f5d39bf4574bf8ee9c2bc4f699a7c8fb89a189"}
+36cc949f0eb7cf5969e5b74b25f5d39bf4574bf8ee9c2bc4f699a7c8fb89a189  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-remaining-stage/tree/relay/network-runtime.bundle.mjs
+## tree post: 8481 tracked (9 symlinks) verified by content/target; overlaid 2, added 2, links 2, generated 2; execBitMismatch 0; failures 0
+## [1] unchanged suites
+PASS	test/fleet.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/relay-chain-authority.test.mjs	rc=0	pass=11	fail=0	skipped=0	todo=0	cancelled=0
+## [2] candidate suites
+PASS	test/relay-fleet-chain-authority.test.mjs	rc=0	pass=6	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/dns-relay-chain-authority.smoke.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+## tree post: 8481 tracked (9 symlinks) verified by content/target; overlaid 2, added 2, links 2, generated 2; execBitMismatch 0; failures 0
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-remaining-stage/logs/root-dns-review-20261025T230924Z
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=264 minHostAvailableMiB=22448
+[memory-guard] at peak: node:114 node:82 node:62 bash:4 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,19 @@
+{
+ "rev": "e78a764d1df935fbc74b27348b82115803b885ce",
+ "overlaid": {
+  "relay/fleet.mjs": "3f6d79003754e728f36b2069182b1a61f5676b01ff05eaaae036e87e35ac33f2",
+  "relay/dns-relay.js": "d775a7bdb52408c2a164421cad71cf3681912075af61452146abe47edd203c31"
+ },
+ "added": {
+  "test/relay-fleet-chain-authority.test.mjs": "fda019c548f110674a197e4bce7101987eb954aaad510ab5ee396be7653eb6f8",
+  "test/dns-relay-chain-authority.smoke.test.mjs": "88ee9c8fcdd63bf8e6d2d2c2b856fe7783c82af3eee2ed9be01aa8bca24f130a"
+ },
+ "symlinks": {
+  "node_modules": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules",
+  "network/node_modules": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/network/node_modules"
+ },
+ "generatedAfterBuild": [
+  "relay/network-runtime.bundle.mjs",
+  "relay/network-runtime.bundle.mjs.manifest.json"
+ ]
+}

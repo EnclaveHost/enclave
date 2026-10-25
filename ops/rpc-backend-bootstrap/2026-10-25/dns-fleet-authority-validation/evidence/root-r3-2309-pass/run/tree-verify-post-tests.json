@@ -1,0 +1,29 @@
+{
+ "rev": "e78a764d1df935fbc74b27348b82115803b885ce",
+ "phase": "post",
+ "tracked": 8481,
+ "trackedSymlinks": 9,
+ "overlaid": [
+  "relay/dns-relay.js",
+  "relay/fleet.mjs"
+ ],
+ "added": [
+  "test/dns-relay-chain-authority.smoke.test.mjs",
+  "test/relay-fleet-chain-authority.test.mjs"
+ ],
+ "symlinks": [
+  "network/node_modules",
+  "node_modules"
+ ],
+ "generated": {
+  "relay/network-runtime.bundle.mjs.manifest.json": "870987100153a92ae2ab847d21640d1419719834fbb57f9681991df963072793",
+  "relay/network-runtime.bundle.mjs": "36cc949f0eb7cf5969e5b74b25f5d39bf4574bf8ee9c2bc4f699a7c8fb89a189"
+ },
+ "permissionBits": "not compared (tree intentionally read-only); see info",
+ "info": {
+  "execBitMismatch": 0,
+  "writableFiles": 8472,
+  "readOnlyFiles": 0
+ },
+ "failures": []
+}

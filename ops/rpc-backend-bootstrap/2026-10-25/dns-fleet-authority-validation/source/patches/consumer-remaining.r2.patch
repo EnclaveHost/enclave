@@ -1,0 +1,302 @@
+--- a/relay/fleet.mjs
++++ b/relay/fleet.mjs
+@@ -204,6 +204,15 @@
+ //              re-reads. No-op in static mode.
+ export function createFleet(cfg, log = () => {}) {
+   let origins = cfg.staticList;
++  // THE CHAIN CLIENT for registry, book and ledger reads: cfg.chainClient when the daemon injected its ONE chain authority
++  // (relay/relay-chain-authority.mjs, e.g. the local proof-backed verifier; cfg.baseRpc is then never used and nothing
++  // falls back to it), else the legacy BASE_RPC provider client, exactly as before.
++  async function chainClient() {
++    if (cfg.chainClient) return cfg.chainClient;
++    const { createPublicClient, http } = await import("viem");
++    const { base } = await import("viem/chains");
++    return createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
++  }
+ 
+   // Shared on-chain runner resolver (used by relay.js's app-subdomain fallback,
+   // fix 1c). Reads EnclaveDeployments lazily + cached; maps a deployment id (full
+@@ -219,11 +228,7 @@
+   const _endpointIdCache = new Map();
+   let _ledger = { rows: [], at: 0 };
+   async function runnerClient() {
+-    if (!_runnerClient) {
+-      const { createPublicClient, http } = await import("viem");
+-      const { base } = await import("viem/chains");
+-      _runnerClient = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
+-    }
++    if (!_runnerClient) _runnerClient = await chainClient();
+     return _runnerClient;
+   }
+   async function loadHash() {
+@@ -517,11 +522,7 @@
+   let client = null;
+   let registryAddress = cfg.registryAddress;   // env fallback; the book (below) overrides
+   async function readRegistry() {
+-    if (!client) {
+-      const { createPublicClient, http } = await import("viem");
+-      const { base } = await import("viem/chains");
+-      client = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
+-    }
++    if (!client) client = await chainClient();
+     // ADDRESS_BOOK_ADDRESS set: resolve the registry from the on-chain book
+     // each cycle, so a registry redeploy reaches the relay boxes with one
+     // owner tx instead of hand-editing /etc/nan-relay/*.env (the drift that
+--- a/relay/dns-relay.js
++++ b/relay/dns-relay.js
+@@ -53,7 +53,7 @@
+ import http from "node:http";
+ import { createHmac, timingSafeEqual } from "node:crypto";
+ import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
+-import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions } from "./network-runtime.bundle.mjs";
++import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions, relayChainAuthority } from "./network-runtime.bundle.mjs";
+ import { isBoxHost } from "./boxhost.js";
+ import { authorizePush, parseMeasurements, createShieldChallengeAuth, isShieldPush, shieldRegistryBinding,
+   shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, createAppZoneShield, LeaseReader, chainAuthorityFromEnv, judge as attestationJudge } from "./network-runtime.bundle.mjs";
+@@ -82,6 +82,11 @@
+ }
+ 
+ const CFG = fleetConfig();
++// The fleet's registry/book/ledger reads use the relay's chain authority (relay/relay-chain-authority.mjs): unset, the
++// legacy BASE_RPC client (unchanged); ENCLAVE_CHAIN_AUTHORITY=verifier, the ONE local-verifier client - a mixed selection
++// (BASE_RPC or another provider setting alongside it) stops the daemon here, never resolved by dropping one.
++try { const rc = relayChainAuthority(process.env); if (rc) CFG.chainClient = rc.client; }
++catch (e) { console.error(`fatal: chain authority: ${e.message}`); process.exit(1); }
+ if (!READ_ONLY && !ATTESTED && !CFG.registryAddress && !CFG.staticList.length) {
+   console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
+   process.exit(1);
+--- /dev/null
++++ b/test/relay-fleet-chain-authority.test.mjs
+@@ -0,0 +1,138 @@
++// relay/fleet.mjs registry reads through an injected chain authority (the DNS relay's relayChainAuthority client):
++// offline, no network - globalThis.fetch is replaced by a spy that records and refuses, so ANY provider request is seen.
++// What this proves: endpoint selection (no public RPC is contacted when the authority is injected, and nothing falls back
++// to BASE_RPC). It does NOT prove anything about proof/finality: that is the verifier's own property (unsafe tier, no L1
++// finality), tested in test/chain-authority.test.mjs and test/relay-chain-authority.test.mjs.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { fleetConfig, createFleet } from "../relay/fleet.mjs";
++import { relayChainSelection } from "../relay/relay-chain-authority.mjs";
++
++const REG = "0x" + "12".repeat(20), OP = "0x" + "34".repeat(20);
++const ROWS = [{ endpoint: "https://h1.example.com/", operator: OP, active: true, caps: 0n }, { endpoint: "https://gone.example.com", operator: OP, active: false, caps: 0n }];
++function fetchSpy() {
++  const urls = []; const real = globalThis.fetch;
++  globalThis.fetch = async (u) => { urls.push(String(u?.url ?? u)); throw new Error("offline test: no network"); };
++  return { urls, restore: () => { globalThis.fetch = real; } };
++}
++function fakeChain({ fail = false } = {}) {
++  const calls = [];
++  return { calls, readContract: async ({ address, functionName, args }) => {
++    calls.push(functionName);
++    if (fail) throw new Error("verifier unavailable");
++    assert.equal(address.toLowerCase(), REG);
++    if (functionName === "registrySchema") return 1n;
++    if (functionName === "count") return BigInt(ROWS.length);
++    if (functionName === "getPage") return args[0] === 0n ? ROWS : [];
++    throw new Error(`unexpected ${functionName}`);
++  } };
++}
++const cfgOf = (extra = {}) => ({ ...fleetConfig({ REGISTRY_ADDRESS: REG, TRUSTED_OPERATORS: OP, REGISTRY_POLL_SEC: "3600" }), ...extra });
++
++test("injected chain authority: every registry read goes to it, no provider URL is contacted", async () => {
++  const spy = fetchSpy(), chain = fakeChain();
++  const fleet = createFleet(cfgOf({ chainClient: chain }));
++  try {
++    await fleet.start();
++    assert.deepEqual(fleet.origins(), ["https://h1.example.com"]);
++    assert.equal(fleet.operatorForEndpoint("https://h1.example.com"), OP);
++    assert.equal(fleet.operatorForEndpoint("https://gone.example.com"), null, "inactive rows grant nothing");
++    assert.ok(chain.calls.includes("count") && chain.calls.includes("getPage"));
++    assert.deepEqual(spy.urls, [], "no BASE_RPC / public RPC request");
++  } finally { fleet.stop(); spy.restore(); }
++});
++
++test("injected authority outage fails closed: empty fleet, no fallback to BASE_RPC", async () => {
++  const spy = fetchSpy();
++  const fleet = createFleet(cfgOf({ chainClient: fakeChain({ fail: true }), baseRpc: "https://mainnet.base.org" }));
++  try {
++    await fleet.start();
++    assert.deepEqual(fleet.origins(), []);
++    assert.equal(fleet.operatorForEndpoint("https://h1.example.com"), null);
++    assert.deepEqual(spy.urls, [], "the legacy provider is never tried");
++  } finally { fleet.stop(); spy.restore(); }
++});
++
++test("legacy default unchanged: without an injected authority the fleet reads BASE_RPC (default mainnet.base.org)", async () => {
++  const spy = fetchSpy();
++  const cfg = cfgOf();
++  assert.equal(cfg.baseRpc, "https://mainnet.base.org");
++  const fleet = createFleet(cfg);
++  try {
++    await fleet.start();                                  // the spy refuses: refresh() keeps the (empty) last known fleet
++    assert.deepEqual(fleet.origins(), []);
++    assert.ok(spy.urls.length > 0 && spy.urls.every((u) => u.startsWith("https://mainnet.base.org")), JSON.stringify(spy.urls));
++  } finally { fleet.stop(); spy.restore(); }
++});
++
++test("the DNS relay's selection: unset keeps the legacy path; verifier + BASE_RPC is refused, not resolved", () => {
++  assert.equal(relayChainSelection({}), null);
++  assert.throws(() => relayChainSelection({ ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:8545", BASE_RPC: "https://mainnet.base.org" }), /BASE_RPC/);
++  assert.throws(() => relayChainSelection({ ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "https://mainnet.base.org" }), /loopback|verifier/i, "a public URL is never the verifier");
++  const a = relayChainSelection({ ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:8545" });
++  assert.equal(a.mode, "verifier"); assert.equal(typeof a.client.readContract, "function");
++});
++
++// ---- address book + deployments ledger (the SECOND client site, runnerClient) and outage AFTER a healthy refresh ----
++import { keccak256, stringToBytes } from "viem";
++const BOOK = "0x" + "56".repeat(20), DEP = "0x" + "78".repeat(20), DEP_ID = "0x" + "9a".repeat(32);
++const KEY_REGISTRY = "0x7265676973747279000000000000000000000000000000000000000000000000";
++const KEY_DEPLOYMENTS = "0x6465706c6f796d656e7473" + "0".repeat(42);
++const H1 = "https://h1.example.com";
++function fakeBookChain() {
++  const st = { down: false, calls: [] };
++  const answer = ({ address, functionName, args }) => {
++    const a = address.toLowerCase();
++    if (a === BOOK && functionName === "addr") return args[0] === KEY_REGISTRY ? REG : args[0] === KEY_DEPLOYMENTS ? DEP : "0x" + "00".repeat(20);
++    if (a === REG) return { registrySchema: 1n, count: BigInt(ROWS.length), getPage: args?.[0] === 0n ? ROWS : [] }[functionName];
++    if (a === DEP) return { deploymentsSchema: 2n, count: 1n,
++      getPage: [{ id: DEP_ID, runner: keccak256(stringToBytes(H1)), leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 86400) }] }[functionName];
++    return undefined;
++  };
++  return { st, readContract: async (q) => {
++    st.calls.push(`${q.address.toLowerCase()}.${q.functionName}`);
++    if (st.down) throw new Error("verifier unavailable");
++    const v = answer(q); if (v === undefined) throw new Error(`unexpected ${q.address}.${q.functionName}`); return v;
++  } };
++}
++const bookCfg = (extra = {}) => ({ ...fleetConfig({ ADDRESS_BOOK_ADDRESS: BOOK, TRUSTED_OPERATORS: OP, REGISTRY_POLL_SEC: "3600" }), ...extra });
++
++test("address book and deployments ledger are read through the injected authority (both client sites)", async () => {
++  const spy = fetchSpy(), chain = fakeBookChain();
++  const fleet = createFleet(bookCfg({ chainClient: chain }));
++  try {
++    await fleet.start();
++    assert.deepEqual(fleet.origins(), [H1], "registry resolved from the book, rows read at that registry");
++    assert.ok(chain.st.calls.includes(`${BOOK}.addr`) && chain.st.calls.includes(`${REG}.getPage`));
++    assert.equal(await fleet.runnerEndpointFor(DEP_ID), H1, "the ledger's runner resolves to the in-fleet endpoint");
++    assert.ok(chain.st.calls.includes(`${DEP}.deploymentsSchema`) && chain.st.calls.includes(`${DEP}.getPage`), "ledger reads used the injected client");
++    assert.deepEqual(spy.urls, [], "no BASE_RPC / public RPC request from either client site");
++  } finally { fleet.stop(); spy.restore(); }
++});
++
++test("outage AFTER a healthy refresh: no public fallback; the INHERITED stale-cache behaviour is kept and documented", async () => {
++  const spy = fetchSpy(), chain = fakeBookChain(), logs = [];
++  // registryPollSec 0.05 -> the existing refresh interval fires every 50 ms (fleet.mjs start())
++  const fleet = createFleet(bookCfg({ chainClient: chain, registryPollSec: 0.05 }), (m) => logs.push(m));
++  const realNow = Date.now;
++  try {
++    await fleet.start();
++    assert.deepEqual(fleet.origins(), [H1]);
++    assert.equal(await fleet.runnerEndpointFor(DEP_ID), H1);          // fills the 10 s ledger cache
++    chain.st.down = true; const before = chain.st.calls.length;
++    await new Promise((r) => setTimeout(r, 300));
++    assert.ok(chain.st.calls.length > before, "refreshes kept asking the injected authority");
++    assert.deepEqual(spy.urls, [], "no public RPC fallback during the outage");
++    // INHERITED (unchanged fleet.mjs refresh(), :~600): a failed registry read keeps the LAST KNOWN fleet, with no expiry,
++    // so origins and operatorForEndpoint stay at the pre-outage answer. This is NOT fail-closed for an existing fleet.
++    assert.deepEqual(fleet.origins(), [H1]);
++    assert.equal(fleet.operatorForEndpoint(H1), OP);
++    assert.ok(logs.some((m) => /registry read failed \(keeping 1 known\)/.test(m)), logs.join("\n"));
++    // INHERITED ledger cache (ledgerRows, 10 s): within it the pre-outage runner answer is served; past it the failed read
++    // makes runnerEndpointFor answer null (the caller's probe path), never a provider read.
++    assert.equal(await fleet.runnerEndpointFor(DEP_ID), H1, "inside the 10 s ledger cache: cached answer");
++    Date.now = () => realNow() + 11_000;
++    assert.equal(await fleet.runnerEndpointFor(DEP_ID), null, "past the cache: null, not a fallback");
++    assert.deepEqual(spy.urls, []);
++  } finally { Date.now = realNow; fleet.stop(); spy.restore(); }
++});
+--- /dev/null
++++ b/test/dns-relay-chain-authority.smoke.test.mjs
+@@ -0,0 +1,91 @@
++// Startup smoke of the REAL relay/dns-relay.js against the REAL generated relay/network-runtime.bundle.mjs (built in this
++// private tree by the launcher; the test refuses to run without it). Loopback only: every chain server is a local fake on
++// 127.0.0.1, DNS/API listeners bind 127.0.0.1 on free ports, the platform host policy is off. Run under `unshare -rn`
++// with lo up (the launcher), so no external network exists at all. Asserts:
++//   mixed selection (verifier + BASE_RPC): exit 1 at startup, "fatal: chain authority", no listener, no chain request;
++//   clean verifier: the fleet's registry read arrives at the fake LOCAL VERIFIER (eth_call to REGISTRY_ADDRESS) and the
++//     fake legacy BASE_RPC server is never contacted;
++//   legacy (no verifier env): the same read arrives at the BASE_RPC server (default path unchanged).
++// Endpoint selection only: the fake verifier proves nothing; proof/finality are the verifier's own (other suites).
++import test from "node:test";
++import assert from "node:assert/strict";
++import { spawn } from "node:child_process";
++import fs from "node:fs";
++import http from "node:http";
++import net from "node:net";
++import path from "node:path";
++import { fileURLToPath } from "node:url";
++
++const RELAY = path.join(path.dirname(fileURLToPath(import.meta.url)), "../relay");
++const REG = "0x" + "12".repeat(20);
++const freePort = () => new Promise((res, rej) => { const s = net.createServer(); s.on("error", rej); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => res(p)); }); });
++function fakeRpc() {             // minimal JSON-RPC: count() -> 0 (empty registry), anything else -> error; records requests
++  const seen = [];
++  const srv = http.createServer((req, res) => {
++    let b = ""; req.on("data", (c) => { b += c; if (b.length > 1 << 20) req.destroy(); });
++    req.on("end", () => {
++      let j; try { j = JSON.parse(b); } catch { res.writeHead(400).end(); return; }
++      const one = (q) => { seen.push({ method: q.method, to: q.params?.[0]?.to?.toLowerCase?.() ?? null, data: q.params?.[0]?.data ?? null });
++        if (q.method === "eth_call" && String(q.params?.[0]?.data || "").startsWith("0x06661abd")) return { jsonrpc: "2.0", id: q.id, result: "0x" + "00".repeat(32) };   // count()
++        if (q.method === "eth_chainId") return { jsonrpc: "2.0", id: q.id, result: "0x2105" };
++        return { jsonrpc: "2.0", id: q.id, error: { code: -32000, message: "fake: not served" } }; };
++      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(Array.isArray(j) ? j.map(one) : one(j)));
++    });
++  });
++  return new Promise((r) => srv.listen(0, "127.0.0.1", () => r({ seen, url: `http://127.0.0.1:${srv.address().port}`, close: () => new Promise((c) => srv.close(c)) })));
++}
++async function startRelay(extra, { until = null, timeoutMs = 20_000 } = {}) {
++  const [dns, api] = [await freePort(), await freePort()];
++  const env = { PATH: process.env.PATH, HOME: process.env.HOME || "/tmp", REGISTRY_ADDRESS: REG, TRUSTED_OPERATORS: "0x" + "34".repeat(20),
++    IP_ZONE: "ip.test.invalid", APP_ZONE: "app.test.invalid", NS_NAME: "ns1.test.invalid", DNS_PORT: String(dns), DNS_BIND: "127.0.0.1",
++    DNS_API_PORT: String(api), DNS_API_BIND: "127.0.0.1", DNS_TXT_KEY: "smoke-test-key-0123456789abcdef", ENCLAVE_PLATFORM_HOST_POLICY: "off", ...extra }; // gitleaks:allow -- fixed synthetic smoke-test value; never a deployed credential
++  const child = spawn(process.execPath, [path.join(RELAY, "dns-relay.js")], { cwd: RELAY, env, stdio: ["ignore", "pipe", "pipe"] });
++  let out = "", err = ""; child.stdout.on("data", (d) => { out += d; }); child.stderr.on("data", (d) => { err += d; });
++  const exited = new Promise((r) => child.on("exit", (code) => r(code)));
++  const t0 = Date.now();
++  while (Date.now() - t0 < timeoutMs) {
++    const code = await Promise.race([exited, new Promise((r) => setTimeout(() => r(undefined), 100))]);
++    if (code !== undefined) return { code, out, err };
++    if (until && until()) break;
++  }
++  child.kill("SIGKILL"); await exited;
++  return { code: null, out, err, timedOut: !(until && until()) };
++}
++
++test("the generated network-runtime bundle is present and exports relayChainAuthority", async () => {
++  const b = path.join(RELAY, "network-runtime.bundle.mjs");
++  assert.ok(fs.existsSync(b), "build it first: (cd relay && node build-network.mjs)");
++  assert.equal(typeof (await import(b)).relayChainAuthority, "function");
++});
++
++test("mixed selection (verifier + BASE_RPC) stops dns-relay at startup before any listener or chain request", async () => {
++  const v = await fakeRpc(), legacy = await fakeRpc();
++  try {
++    const r = await startRelay({ ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url, BASE_RPC: legacy.url });
++    assert.equal(r.code, 1, r.out + r.err);
++    assert.match(r.err, /fatal: chain authority: .*BASE_RPC/, r.err);
++    assert.doesNotMatch(r.out, /\[dns-relay\] (udp|tcp) |challenge-push api/, "no listener was opened");
++    assert.deepEqual([v.seen.length, legacy.seen.length], [0, 0], "no chain server was contacted");
++  } finally { await v.close(); await legacy.close(); }
++});
++
++test("clean verifier selection: the fleet's registry read goes to the local verifier, never to BASE_RPC", async () => {
++  const v = await fakeRpc();
++  try {
++    const r = await startRelay({ ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: v.url },
++      { until: () => v.seen.some((q) => q.method === "eth_call" && q.to === REG && String(q.data).startsWith("0x06661abd")) });
++    assert.notEqual(r.timedOut, true, `no registry read reached the verifier: ${r.out}${r.err}`);
++    assert.equal(r.code, null, `dns-relay exited: ${r.out}${r.err}`);
++    assert.match(r.out, /on-chain fleet: EnclaveRegistry/);
++    assert.ok(v.seen.every((q) => q.method !== "eth_sendRawTransaction"));
++  } finally { await v.close(); }
++});
++
++test("legacy (no verifier env): the same read goes to BASE_RPC - default path unchanged", async () => {
++  const legacy = await fakeRpc();
++  try {
++    const r = await startRelay({ BASE_RPC: legacy.url }, { until: () => legacy.seen.some((q) => q.method === "eth_call" && q.to === REG) });
++    assert.notEqual(r.timedOut, true, `no registry read reached BASE_RPC: ${r.out}${r.err}`);
++    assert.equal(r.code, null, `dns-relay exited: ${r.out}${r.err}`);
++  } finally { await legacy.close(); }
++});
