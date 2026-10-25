@@ -149,32 +149,9 @@ func DialContext(ctx context.Context, cid, port uint32) (*Conn, error) {
 		return nil, fmt.Errorf("vsock connect %d:%d: %w", cid, port, e)
 	}
 	if e == syscall.EINPROGRESS {
-		rc, err := f.SyscallConn()
-		if err != nil {
+		if err := waitConnected(f); err != nil {
 			f.Close()
-			return nil, err
-		}
-		var serr error
-		first := true
-		werr := rc.Write(func(fd uintptr) bool {
-			if first { // writability is only meaningful once the poller has reported it
-				first = false
-				return false
-			}
-			v, err := syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_ERROR)
-			if err != nil {
-				serr = err
-			} else if v != 0 {
-				serr = syscall.Errno(v)
-			}
-			return true
-		})
-		if werr == nil {
-			werr = serr
-		}
-		if werr != nil {
-			f.Close()
-			return nil, fmt.Errorf("vsock connect %d:%d: %w", cid, port, werr)
+			return nil, fmt.Errorf("vsock connect %d:%d: %w", cid, port, err)
 		}
 	}
 	if !stop() || ctx.Err() != nil {
@@ -182,4 +159,42 @@ func DialContext(ctx context.Context, cid, port uint32) (*Conn, error) {
 		return nil, ctx.Err()
 	}
 	return &Conn{File: f, remote: Addr{cid, port}}, nil
+}
+
+// Check connection state before asking the edge-triggered poller to wait.
+// Blindly returning false on the first callback can discard an already-delivered
+// writable event. SO_ERROR==0 alone is also insufficient while connect is pending;
+// getpeername distinguishes a connected socket from ENOTCONN without decoding
+// sockaddr_vm (which the syscall package does not support).
+func waitConnected(f *os.File) error {
+	raw, err := f.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var inner error
+	err = raw.Write(func(fd uintptr) bool {
+		n, e := syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_ERROR)
+		if e != nil {
+			inner = e
+			return true
+		}
+		if n != 0 {
+			inner = syscall.Errno(n)
+			return true
+		}
+		var peer [128]byte
+		size := uint32(len(peer))
+		_, _, e2 := syscall.Syscall(syscall.SYS_GETPEERNAME, fd, uintptr(unsafe.Pointer(&peer[0])), uintptr(unsafe.Pointer(&size)))
+		if e2 == syscall.ENOTCONN {
+			return false
+		}
+		if e2 != 0 {
+			inner = e2
+		}
+		return true
+	})
+	if err != nil {
+		return err
+	}
+	return inner
 }

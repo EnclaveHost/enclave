@@ -133,7 +133,11 @@ static void probe_report_as_root(void) {
     if (fd < 0) return;
     struct sockaddr_un sa = {0};
     sa.sun_family = AF_UNIX;
+#ifdef NATIVE_DESKTOP
+    strncpy(sa.sun_path, "/run/front/monitor.sock", sizeof sa.sun_path - 1);
+#else
     strncpy(sa.sun_path, "/run/monitor.sock", sizeof sa.sun_path - 1);
+#endif
     if (connect(fd, (struct sockaddr *)&sa, sizeof sa) != 0) {
         printf("DOM%s report_as_root=no-socket (%s)\n", dom_id, strerror(errno));
         close(fd);
@@ -199,6 +203,13 @@ static void config_argument(char **args) {
 #define SECCOMP_FD 4
 static int seccomp_fd = -1;
 
+#include "native-domain.h"
+#ifdef NATIVE_DESKTOP
+#define NATIVE_ON 1
+#else
+#define NATIVE_ON 0
+#endif
+
 /* quiet: the child's stdin, stdout and stderr are the null device (NULL_FD). It is TENANT code (the runtime serving or
  * running the app), and this process's stdout is the monitor's, which is the guest console the HOST reads
  * (monitor/main.go runs this with cmd.Stdout/Stderr = its own): nothing an app prints (a request, its config, a panic)
@@ -238,7 +249,7 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
             if (con >= 0) dprintf(con, "DOM%s ERROR the runtime's seccomp filter could not be installed: %s\n", dom_id, strerror(errno));
             _exit(1);
         }
-        if (filter) {   /* the filter is on: the positive line on the console, and the statement to the monitor */
+        if (filter == 1) {   /* the controller filter is on: the positive line on the console, and the statement to the monitor */
             char st[160], hex[65];
             unsigned rules = 0;
             int n = app_seccomp_statement(st, sizeof st);
@@ -276,7 +287,7 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
             for (int j=0; fixed[j]; j++) envp[i++]=(char *)fixed[j];
             envp[i++]=shield_workers; envp[i++]=shield_vram; envp[i]=NULL;
         }
-        if (filter && app_config_env[0]) {
+        if (filter == 1 && app_config_env[0]) {
             size_t n = 0; while (envp[n]) n++;
             envp[n] = app_config_env; envp[n + 1] = NULL;
         }
@@ -310,6 +321,11 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (front_uid == uid) { printf("DOM%s ERROR the front and the runtime must not share a uid (%u)\n", dom_id, (unsigned)uid); return 2; }
+#ifdef NATIVE_DESKTOP
+    native_args(argc, argv, uid, front_uid);
+#else
+    if (argc > 3 && !strcmp(argv[3], "native")) { printf("DOM%s ERROR native mode requires its dedicated image\n", dom_id); return 2; }
+#endif
     /* the null device the monitor opened for us (NULL_FD, above): it must BE the null device (char 1:3), or the domain
      * does not start - a quiet workload with anything else on its stdio could reach the console or a file */
     struct stat nst;
@@ -325,9 +341,14 @@ int main(int argc, char **argv) {
         seccomp_fd = SECCOMP_FD;
     }
 
-    if (mount("proc", "/proc", "proc", 0, 0) != 0) die("mount /proc");   /* this PID namespace only */
+    if (NATIVE_ON && mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL)) die("native mount privacy");
+    if (mount("proc", "/proc", "proc", NATIVE_ON ? MS_NOSUID | MS_NODEV | MS_NOEXEC : 0,
+              NATIVE_ON ? "hidepid=2" : NULL) != 0) die("mount /proc");   /* this PID namespace only */
     if (mount("tmpfs", "/tmp", "tmpfs", 0, "size=64m,mode=1777") != 0) die("mount /tmp");
     lo_up();
+#ifdef NATIVE_DESKTOP
+    native_policy();
+#endif
     probe_report_as_root();
 
     /* Both workloads run in these namespaces, with this root: the runtime as the domain's uid, the front as its own
@@ -362,7 +383,7 @@ int main(int argc, char **argv) {
                          "-listen-unix", "/run/front.sock", "-report-unix", "/run/monitor.sock",
                          "-upstream", upstream, "-app-sha", "/app.sha256", "-app-mode", "run",
                          "-cert-name-file", "/cert.name", NULL};
-    if (argc > 3 && strcmp(argv[3], "run") == 0) {
+    if (NATIVE_ON || (argc > 3 && strcmp(argv[3], "run") == 0)) {
         run_port = argc > 5 ? atoi(argv[5]) : 0;
         if (run_port < 1 || run_port > 49999) {
             printf("DOM%s ERROR run mode needs the bundle's HTTP port in 1-49999\n", dom_id);
@@ -393,9 +414,10 @@ int main(int argc, char **argv) {
     sa_term.sa_handler = on_term;
     sigaction(SIGTERM, &sa_term, NULL);
 
-    pid_t shield_pid = -1;
+    pid_t shield_pid = -1, native_pid = -1, gateway_pid = -1;
     struct stat profile_st;
     if (stat("/shield.profile", &profile_st) == 0) {
+        if (NATIVE_ON) die("native desktop cannot use raw inference transport");
         if (!S_ISREG(profile_st.st_mode) || profile_st.st_uid != 0 || (profile_st.st_mode & 0222)) die("Shield profile permissions");
         FILE *f = fopen("/shield.profile", "r");
         int milli=0; char extra=0;
@@ -424,6 +446,14 @@ int main(int argc, char **argv) {
         run_front[4]="/run/front/front.sock"; run_front[6]="/run/front/monitor.sock";
         run_front[2]="/plat/rt-shield/runtime.json";
     } else if (errno != ENOENT) die("stat Shield profile");
+#ifdef NATIVE_DESKTOP
+    front[4]="/run/front/front.sock"; front[6]="/run/front/monitor.sock";
+    run_front[4]="/run/front/front.sock"; run_front[6]="/run/front/monitor.sock";
+    /* These children are born before any owner-release pipe exists. */
+    native_pid = native_supervisor();
+    char *gateway[] = {"/native-gateway", NULL};
+    gateway_pid = spawn(gateway, 1002, 1, 2);
+#endif
     char **base = run_port ? run : rt;
     char *shield_app[64]; int ai=0;
     for (int i=0; base[i]; i++) {
@@ -465,6 +495,7 @@ int main(int argc, char **argv) {
         char **secret_front = run_port ? run_front : front;
         int j=0;while(secret_front[j])j++;secret_front[j++]="-shield-secrets-fd";secret_front[j++]="7";secret_front[j]=NULL;
     } else if (errno != ENOENT) die("secret deployment stat");
+    if (NATIVE_ON && (!public_web || secret_pipe[0] < 0)) die("native controller requires sealed secret and public-web egress");
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
         if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* the probe states no filter */
@@ -494,8 +525,8 @@ int main(int argc, char **argv) {
         pid_t w = wait(&st);
         if (w < 0 && errno == EINTR) continue;   /* the SIGTERM we forwarded, not a child exiting */
         if (w < 0 && errno == ECHILD) break;
-        if (w == rt_pid || w == front_pid || w == shield_pid) {
-            printf("DOM%s ERROR %s exited status=%d\n", dom_id, w == rt_pid ? "runtime" : w == front_pid ? "front" : "Shield broker",
+        if (w == rt_pid || w == front_pid || w == shield_pid || w == native_pid || w == gateway_pid) {
+            printf("DOM%s ERROR %s exited status=%d\n", dom_id, w == rt_pid ? "runtime" : w == front_pid ? "front" : w == native_pid ? "native supervisor" : w == gateway_pid ? "native gateway" : "Shield broker",
                    WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st));
             break;
         }
