@@ -194,3 +194,37 @@ readiness, cleanup failure and legacy regressions. Native node planning,
 owner-release/controller execution, Moonlight routing, real GPU quality and
 performance, and wallet publication still require completion and end-to-end
 qualification. The app remains a draft and the existing compute menus remain.
+
+## Independently approved desktop release
+
+The shared `relay/shield-desktop-release.mjs` validates an explicit public
+`enclave-desktop-release/1` record. Its exact fields are `schema`,
+`controllerCid`, `controllerSha256`, `runtimeId`, `igvmSha256`,
+`profileSha256`, `launchMeasurement`, `minimumCpuMilli`, and
+`policy: {cpuPercent, vcpus}`. Hashes are nonzero lowercase SHA-256 values;
+the IGVM file hash and VBS launch measurement are distinct pins. This record
+does not authorize a host or attest hardware.
+
+`desktopRecordFor` builds the V8 identity from that release and a public catalog
+purchase. It checks CPU/GPU shares, catalog memory, the exact HTTP/Moonlight
+port set, `egress: "public-web"`, and absence of external volumes. Configuration
+uses the existing `appConfigText` serialization, with store `_media` omitted;
+the serialized bytes are measured as base64. `deriveApprovedDesktop` separately
+checks the record's release pins and the portable Wasm controller's content
+hash. Callers must build from independent ledger/catalog inputs; supplying an
+arbitrary record to the derivation function is not purchase authorization.
+
+The node's `isolationPlan` accepts an optional independently approved
+`desktopRelease`. Only an exact controller CID match selects V8. The native
+planner preserves the common tenant, public-app and catalog gates, compares
+manager health against the approved runtime/image/profile/controller hashes,
+requires native capabilities and staged secrets, and emits the measured V8
+body without separate configuration fields. Existing CPU and inference
+planning remains the default when no desktop release is supplied.
+
+These are preparatory interfaces: the node Host does not yet load or pass a
+desktop release, and relay expectation, evidence-policy and sealed-secret
+release integration are still pending. No live admission policy is enabled by
+these changes. Manager/relay derivation parity and native planner-to-manager
+request checks are automated; real owner release and GPU execution remain
+acceptance gates.
