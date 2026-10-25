@@ -1,0 +1,33 @@
+ok   package copies == stage originals (24 files)
+ok   package logs == work logs (16 files)
+ok   build-a artifacts.sha256 == build-b artifacts.sha256  [0297f274]
+ok   out/a: every artifact on disk == receipt (5 files)
+ok   out/b: every artifact on disk == receipt (5 files)
+ok   initramfs sha256 = 3720a663
+ok   vmlinuz == production base vmlinuz
+ok   the measurement agrees in artifact, receipt and the three job logs  [{"artifact MEASUREMENT": "4287b65e", "measurement-B.txt": "4287b65e", "attimg3-b1a.out": "4287b65e", "attimg3-b1b.out": "4287b65e", "attimg3-v1.out": "4287b65e"}]
+ok   cmdline = base template + ' metal.control=direct'  [console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct]
+ok   verifier record: ok, commit, 45/45 checks  [45/45]
+ok   verifier hostAdmissionBundle == git 0235e7d96:windows/node/host-admission.bundle.mjs  [91d7b852]
+ok   verifier hostPolicyBundle == git 0235e7d96:metal/guest/host-policy.bundle.mjs  [ef2c2772]
+ok   build-a overlay unittest: Ran 19, OK, no skip
+ok   build-b overlay unittest: Ran 19, OK, no skip
+ok   attimg3-g0: rc 0, CLONE-OK, loopback-only namespace proved, 0 ssh
+ok   attimg3-b1a: rc 0, BUILD-OK-a, loopback-only namespace proved, 0 ssh
+ok   attimg3-b1b: rc 0, BUILD-OK-b, loopback-only namespace proved, 0 ssh
+ok   attimg3-v1: rc 0, VERIFY-OK, loopback-only namespace proved, 0 ssh
+ok   g0: fixpoint patch empty
+ok   p2 rebuilt bundles == committed blobs at 0235e7d96 (8 files)
+ok   source repo (c0's REPO) holds the commit with the recorded tree
+ok   attested-verifier-source holds the commit with the recorded tree
+ok   a remote-tracking branch contains the commit (last fetch; the remote itself not contacted)  [github/fix/rpc-attested-verifier-20261025]
+ok   overlay tool at the commit sha256 10db3d3d (as the reviewed ec56 build)
+ok   local input manifest.json (dist-sdshield-2857356cd) sha256 cc2571bb5b0c85b5
+ok   local input initramfs.cpio.gz (dist-sdshield-2857356cd) sha256 516d766d9e31f07c
+ok   local input vmlinuz (dist-sdshield-2857356cd) sha256 1a3a02d5a982946e
+ok   local input OVMF.amdsev.fd (fwbuild) sha256 142589cc4882f29a
+ok   local input initramfs.cpio.gz (dist-leasegas-deabf8f90) sha256 c190c040485974a8
+ok   chain-verifier-inputs PINS.sha256 (7 natives) verify  [b626c161]
+
+PACKAGE-CHECK 30/30 OK
+[memory-guard] exit=0 peakTreeRssMiB=28 minHostAvailableMiB=87665
