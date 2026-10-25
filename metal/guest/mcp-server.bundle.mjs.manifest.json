@@ -2,8 +2,8 @@
   "bundle": "metal/guest/mcp-server.bundle.mjs",
   "entry": "mcp/server.mjs",
   "bundleEntry": "metal/guest/mcp-server-entry.mjs",
-  "sha256": "36bce583bae33693a1d2468e22b6e0bce30c3baab32baac5a88abd7da70029e9",
-  "bytes": 4385238,
+  "sha256": "6b5c52b2c74b328de66698a05beb5d5632f9bc9e570d64f4122c72773d57db6f",
+  "bytes": 4385819,
   "inputs": {
     "cli/independent-capacity.mjs": "02d7b65fbaccd4927c6f3aa39d4bf53c21ac7011bd3b7db791e7eecc22d608a5",
     "cli/independent-host.mjs": "2efd94d8dc0dd33c717f41c07165cd17080b3b2145f36be3a40819268b01d101",
@@ -2542,7 +2542,7 @@
     "sdk/storage/replicas.mjs": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
     "sdk/storage/upload-auth.mjs": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
     "site/js/core/upload-auth.js": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
-    "windows/node/host-admission.bundle.mjs": "efaf6fdb3f647bde1bcbe3421569c84a3be15cb46ca0e7de6a1f8f30c1c7fd24",
+    "windows/node/host-admission.bundle.mjs": "91d7b85213bff0c61a98521d9107acb963fca5b1cbc78c8acc2c6608b311487e",
     "windows/node/host-identity.mjs": "ff9e46d9bcec08ff50ab04f0f4581845050b70e5c68debb64ec3cdf255822668",
     "windows/node/session-api-auth.mjs": "5920ece87c022f3597c8306614cfb7370c4865b14f48bce48c631bfecd51c9cb"
   },

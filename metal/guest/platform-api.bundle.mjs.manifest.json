@@ -1,8 +1,8 @@
 {
   "bundle": "metal/guest/platform-api.bundle.mjs",
   "entry": "metal/guest/platform-api-entry.mjs",
-  "sha256": "238a45db7e47860d4a9fb9c09a188ca40a848d396b5fc64e6da8da193cfd46de",
-  "bytes": 8817104,
+  "sha256": "6dd3f79be4e48f24467fce5bbd6e6ed8281f427aca006f339cad3a5ad7ccdfa7",
+  "bytes": 8817433,
   "inputs": {
     "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
     "custody/v2/quorum.mjs": "7c6e56c7a8e2f1fff432a0380a2a770b0f405efe0e1635a294710a65dbc906bd",
@@ -484,7 +484,7 @@
     "relay/mcp.js": "9d2a3511bb385205e0705f5ef2ecfc592734453c9dd9a62dffeea53d700090f8",
     "relay/measurement-predict.mjs": "a6372f419adcb7241cf50e6391e5af95a944688de67725b1e9c6880d1a8ef335",
     "relay/net-guard.mjs": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
-    "relay/network-runtime.bundle.mjs": "cba503db3eb8f96b9220380438fa6b9d277d8efe1140765b3b1bf18030c6e37f",
+    "relay/network-runtime.bundle.mjs": "b69c4765fa01c94d3e5220253d6da5235622e0f50928a9c188f0366b3170c925",
     "relay/node_modules/@hexagon/base64/src/base64.js": "c81768c67f6f461b01d10ec24c6c4da71e2f12b3c96e32c62146c98c69685101",
     "relay/node_modules/@levischuck/tiny-cbor/esm/cbor/cbor.js": "05fb423e2662d96d4c7cc3984e537b1e8da16e9620a4b9e8e996482b11e2b2d7",
     "relay/node_modules/@levischuck/tiny-cbor/esm/cbor/cbor_internal.js": "67aaaf7f485ebd50624fe577a60eb63c55f8e7402abcde872a81466df6e07cda",
