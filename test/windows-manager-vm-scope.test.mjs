@@ -3,7 +3,8 @@
 // own Notes marker (wmi-launcher.mjs markerFor). Checked in both directions:
 //   - the INSTALLED production manager (release 2026.10.12.47 = commit c2bc3cc6, whose wmi-launcher.mjs hashes to the
 //     installed file) does not survey, parse or own a canary VM;
-//   - the new default manager behaves the same, and its default Notes and scripts are byte-identical to the installed ones;
+//   - the new default manager keeps the installed Notes, survey and ownership rules;
+//     removal additionally requires successful inventory before treating a failed lookup as absence;
 //   - the canary instance does not survey, recover or own a production VM.
 // Survey and ownership filters are evaluated from each version's own generated PowerShell. Fixture-only: no VM is touched.
 import { test } from "node:test";
@@ -68,7 +69,7 @@ test("markerFor: the default prefix keeps the production marker; a scoped prefix
   for (const other of ["enclave-app-t-", "canary-", "enclave-Canary-", "x"]) assert.equal(NEW.markerFor(other), NEW.OWNER_MARKER);
 });
 
-test("the INSTALLED production manager (c2bc3cc6) does not survey, parse or own a canary VM; default Notes and scripts are byte-identical", async (t) => {
+test("the INSTALLED production manager (c2bc3cc6) does not survey, parse or own a canary VM; default namespace rules are preserved", async (t) => {
   const old = await loadInstalled();
   if (!old) { t.skip(`git object ${INSTALLED_COMMIT} unavailable here`); return; }
   try {
@@ -76,7 +77,10 @@ test("the INSTALLED production manager (c2bc3cc6) does not survey, parse or own 
     const O = old.mod;
     // byte compatibility of the default (production) instance with what is installed
     assert.equal(S(NEW.CMD.survey({ prefix: NEW.DEFAULT_VM_PREFIX })), S(O.CMD.survey({ prefix: NEW.DEFAULT_VM_PREFIX })));
-    assert.equal(S(NEW.CMD.removeById({ vmId: "5db6d4eb-1619-4936-9d60-c7e3ca67f3a8" })), S(O.CMD.removeById({ vmId: "5db6d4eb-1619-4936-9d60-c7e3ca67f3a8" })));
+    // The removal algorithm now fails closed on an unavailable inventory.
+    // Its ownership predicate must still use the installed namespace exactly.
+    assert.equal(ownedFilter(NEW.CMD.removeById({ vmId: "5db6d4eb-1619-4936-9d60-c7e3ca67f3a8" })).toString(),
+                 ownedFilter(O.CMD.removeById({ vmId: "5db6d4eb-1619-4936-9d60-c7e3ca67f3a8" })).toString());
     const id = identity(1);
     assert.equal(NEW.notesFor(id), O.notesFor(id), "legacy-role Notes unchanged");
     assert.deepEqual(NEW.parseNotes(O.notesFor(id)), O.parseNotes(O.notesFor(id)));
