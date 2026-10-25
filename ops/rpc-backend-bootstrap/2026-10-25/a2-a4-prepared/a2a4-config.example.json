@@ -1,0 +1,29 @@
+{
+  "datadir": "/ABS/base/datadir",
+  "baseBinary": "/opt/enclave-rpc/bin/base",
+  "baseBinarySha256": "<64 hex of the pinned base binary>",
+  "rethConfig": "/ABS/a2a4/reth.reviewed.toml",
+  "workdir": "/ABS/a2a4/work",
+  "a1Evidence": "/ABS/fresh-a1-run/a1-evidence.json",
+  "a1MaxAgeSec": 900,
+  "N": 52866960,
+  "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+  "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "inPlaceReviewed": false,
+  "unwindChunk": 10000,
+  "serviceUnits": [],
+  "anchorModule": "/ABS/source/ops/rpc-backend-bootstrap/2026-10-25/finality-investigation/anchor-bootstrap-review/anchor-bootstrap.mjs",
+  "depsRoot": "/ABS/source",
+  "node": "/usr/bin/node",
+  "minFreeBytes": 50000000000,
+  "downloadReceipt": "/root/<receipt dir>/base-snapshot-completion-receipt.json",
+  "manifestPath": "/opt/enclave-rpc/snapshots/base-1792886410-manifest.json",
+  "snapshotMarker": "/srv/enclave-base-holder/snapshot-complete",
+  "timeouts": {
+    "unwindChunkSec": 21600,
+    "merkleSec": 259200,
+    "bytecodeSec": 43200
+  },
+  "bytecodeChecker": "",
+  "bytecodeCheckerSha256": ""
+}

@@ -1,0 +1,20 @@
+[queue] START available=20744MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+baseline OK
+mutant merkle-from-n killed
+mutant no-empty-read-check killed
+mutant no-open-gaps killed
+mutant no-a1-age killed
+mutant no-journal-guard killed
+mutant no-blake3-list-check killed
+mutant no-checkpoints-flag killed
+mutant no-final-profile-check killed
+mutant no-exact-selection killed
+mutant db-before-units killed
+mutant no-v2-enforcement killed
+mutant no-orphan-reap killed
+mutant no-post-exit-size killed
+logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/a2-a4-execution/logs/mutants/20261025T214030Z
+MUTANTS rc=0
+[memory-guard] exit=0 peakTreeRssMiB=105 minHostAvailableMiB=19599
+[memory-guard] at peak: node:68 python3:31 bash:4 bash:2
+[queue] EXIT 0
