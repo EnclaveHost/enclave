@@ -42,8 +42,9 @@ def validate_policy(before,after,m):
     if new['desktop']!=m['desktopRelease']:
         raise ValueError('desktop release differs from prepared identity')
     image=m['nativeImage'];release=m['desktopRelease']
-    if image.get('nativeDesktop') is not True or image.get('minimumGuestSvn')!=13:
-        raise ValueError('native image must enforce SVN 13')
+    svn=image.get('minimumGuestSvn')
+    if image.get('nativeDesktop') is not True or type(svn) is not int or not 13<=svn<=0xffffffff:
+        raise ValueError('native image must enforce a uint32 SVN floor of at least 13')
     for name in ['runtimeId','igvmSha256','profileSha256','controllerSha256']:
         if image[name]!=release[name]:raise ValueError('native image/release mismatch: '+name)
     if image['measurement']!=release['launchMeasurement']:

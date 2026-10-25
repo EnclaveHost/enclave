@@ -1,6 +1,18 @@
 # Native desktop control activation
 
 Status: **preparation only; production native activation has not happened**.
+The API transaction accepts an integer per-image SVN floor from 13 through the
+uint32 maximum, allowing the signed SVN15 candidate without weakening the original
+minimum. Its manifest and additive-policy checks still pin the exact new image and
+preserve every existing image. Apply/rollback tests cover both the historical SVN13
+payload and the SVN15 payload; invalid types and floors below 13 fail before writes.
+
+The 23:16 UTC inventory now contains the Sia storage application and the readiness
+witness. The historical retirement and recovery allowlists name the earlier upload
+adapter. They are not a current maintenance plan and must not be used to retire
+Sia. Its current ownership, persistent storage and recovery path must be reviewed
+before changing the shared production manager.
+
 The code, runner-file and API-file transactions are tested. On October 25,
 19:09–19:21 UTC, the combined Windows task/configuration handoff passed normal
 activation, manager-start failure, and partial-launch recovery in isolation.
