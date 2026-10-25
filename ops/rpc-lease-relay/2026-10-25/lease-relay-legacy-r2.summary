@@ -1,0 +1,235 @@
+# Subtest: the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+ok 1 - the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+# Subtest: the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+ok 2 - the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+# Subtest: routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+ok 3 - routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+# Subtest: a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+ok 4 - a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+# Subtest: estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+ok 5 - estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+# Subtest: submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+ok 6 - submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+# Subtest: an invalid selection refuses every method and every action: nothing falls back
+ok 7 - an invalid selection refuses every method and every action: nothing falls back
+# Subtest: lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+ok 8 - lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+# Subtest: app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+ok 9 - app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+# Subtest: guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+ok 10 - guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+# Subtest: relay revalidates authority after startup and spends nothing without an honest quorum
+ok 11 - relay revalidates authority after startup and spends nothing without an honest quorum
+# Subtest: a funded relay works through one lying or down RPC and confirms payment through the honest quorum
+ok 12 - a funded relay works through one lying or down RPC and confirms payment through the honest quorum
+# Subtest: an HTTP timeout does not release the relay queue or its capacity while a send remains pending
+ok 13 - an HTTP timeout does not release the relay queue or its capacity while a send remains pending
+# Subtest: reviewed pins and distinct RPC identities are required before signing
+ok 14 - reviewed pins and distinct RPC identities are required before signing
+# Subtest: a lying first RPC (executor) cannot obtain an authorization without an honest quorum, including preflight
+ok 15 - a lying first RPC (executor) cannot obtain an authorization without an honest quorum, including preflight
+# Subtest: a lying first RPC (ledger) cannot obtain an authorization without an honest quorum, including preflight
+ok 16 - a lying first RPC (ledger) cannot obtain an authorization without an honest quorum, including preflight
+# Subtest: a lying first RPC (code) cannot obtain an authorization without an honest quorum, including preflight
+ok 17 - a lying first RPC (code) cannot obtain an authorization without an honest quorum, including preflight
+# Subtest: a lying first RPC (chain) cannot obtain an authorization without an honest quorum, including preflight
+ok 18 - a lying first RPC (chain) cannot obtain an authorization without an honest quorum, including preflight
+# Subtest: a lying first RPC (height) cannot obtain an authorization without an honest quorum, including preflight
+ok 19 - a lying first RPC (height) cannot obtain an authorization without an honest quorum, including preflight
+# Subtest: authority is rechecked at a fresh block on every call; stale unanimous answers are refused
+ok 20 - authority is rechecked at a fresh block on every call; stale unanimous answers are refused
+# Subtest: all authority calls bind the same canonical block hash
+ok 21 - all authority calls bind the same canonical block hash
+# Subtest: preflight accepts a covered lease and refuses a one-wei reserve, without applying its delegation
+ok 22 - preflight accepts a covered lease and refuses a one-wei reserve, without applying its delegation
+# Subtest: two honest RPCs tolerate a liar or outage; a zero-ETH self-hosted app claims and renews from its reserve
+ok 23 - two honest RPCs tolerate a liar or outage; a zero-ETH self-hosted app claims and renews from its reserve
+# Subtest: a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands
+ok 24 - a sponsored release right after the host's own transaction: the authorization names the account's CURRENT nonce and lands
+# Subtest: a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why
+ok 25 - a key transaction that never reaches a verified block: nothing is signed, nothing is sent, the refusal says why
+# Subtest: a journal refusal of the FIRST signed lease: NotPersisted, and no relay receives anything
+ok 26 - a journal refusal of the FIRST signed lease: NotPersisted, and no relay receives anything
+# Subtest: a journal refusal on the SECOND relay's lease: the first (journaled) lease was sent, the second reaches no relay
+ok 27 - a journal refusal on the SECOND relay's lease: the first (journaled) lease was sent, the second reaches no relay
+# Subtest: the host's RPCs cannot confirm its OWN landed claim for a while: re-checked, verified by the quorum, NOT 'another operation'
+ok 28 - the host's RPCs cannot confirm its OWN landed claim for a while: re-checked, verified by the quorum, NOT 'another operation'
+# Subtest: when its receipt never verifies, a consumed nonce is still NonceConsumed - never a blind success
+ok 29 - when its receipt never verifies, a consumed nonce is still NonceConsumed - never a blind success
+# Subtest: discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured
+ok 30 - discovery: two designated relays verified; the fleet's ad excluded, the impostor rejected, an administrator's ban honoured
+# Subtest: a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve
+ok 31 - a ZERO-ETH host with no relay of its own: cold claim, relay A LOST, renew and release through relay B - each paid by the app's reserve
+# Subtest: operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once
+ok 32 - operator authority is judged at EVERY signature: the cached relay list never carries it; a fresh ban, an unusable or undecided policy refuse at once
+# Subtest: both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH
+ok 33 - both designated relays lost: the operation fails NotRelayed within a bound, nothing is sent, the host still holds no ETH
+# Subtest: the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced
+ok 34 - the packaged role: only the pinned bytes run, no key in configuration, the key is created once and never replaced
+# Subtest: zero-ETH host: registered through the existing host paymaster, then claim / renew / stop-release / move, all paid by the app's reserve via two relays
+ok 35 - zero-ETH host: registered through the existing host paymaster, then claim / renew / stop-release / move, all paid by the app's reserve via two relays
+# Subtest: self-hosted rate-0 app on its owner's own box: claim/renew paid by the app; a third-party host is refused before any transaction
+ok 36 - self-hosted rate-0 app on its owner's own box: claim/renew paid by the app; a third-party host is refused before any transaction
+# Subtest: a claim by an already-delegated host carries no authorization (calibration sample)
+ok 37 - a claim by an already-delegated host carries no authorization (calibration sample)
+# Subtest: a signed lease lands once; replay and a different relay payee are refused without spending
+ok 38 - a signed lease lands once; replay and a different relay payee are refused without spending
+# Subtest: relay economics from receipts: payment vs the relay transaction's own cost (L2 only; anvil has no L1 fee)
+ok 39 - relay economics from receipts: payment vs the relay transaction's own cost (L2 only; anvil has no L1 fee)
+# Subtest: the local relay setting is loopback-only, explicit, and the host's own relay comes FIRST; remote relays become optional
+ok 40 - the local relay setting is loopback-only, explicit, and the host's own relay comes FIRST; remote relays become optional
+# Subtest: a ZERO-ETH host claims, renews and releases through its OWN relay (the release artifact), with every other relay unreachable
+ok 41 - a ZERO-ETH host claims, renews and releases through its OWN relay (the release artifact), with every other relay unreachable
+# Subtest: the host relay restarts on its own send record and key: same payee, nothing unresolved, serving again
+ok 42 - the host relay restarts on its own send record and key: same payee, nothing unresolved, serving again
+# Subtest: the endpoint rule: a private IPv4 literal on the host link, explicit port, bare origin, bound payee and operator
+ok 43 - the endpoint rule: a private IPv4 literal on the host link, explicit port, bare origin, bound payee and operator
+# Subtest: the environment form: origin,payee,operator entries separated by ';' (1 to 4), canonical round trip, refusals
+ok 44 - the environment form: origin,payee,operator entries separated by ';' (1 to 4), canonical round trip, refusals
+# Subtest: the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration
+ok 45 - the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration
+# Subtest: a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses
+ok 46 - a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses
+# Subtest: conduit ABSENT: the transit, both guest environments and the bound direct-config digest are byte-identical to main's
+ok 47 - conduit ABSENT: the transit, both guest environments and the bound direct-config digest are byte-identical to main's
+# Subtest: conduit PRESENT: checked form only; the legacy fw_cfg path and the HOST_DATA-bound direct path reach the same validated loader
+ok 48 - conduit PRESENT: checked form only; the legacy fw_cfg path and the HOST_DATA-bound direct path reach the same validated loader
+# Subtest: Windows: the read-only config check reports pinned relays exactly; --expect-pinned refuses anything else
+ok 49 - Windows: the read-only config check reports pinned relays exactly; --expect-pinned refuses anything else
+# Subtest: what stays refused: service-index discovery still drops private endpoints (a remote ad can never name the host link)
+ok 50 - what stays refused: service-index discovery still drops private endpoints (a remote ad can never name the host link)
+# Subtest: who admits a relay ROLE: the platform host policy gate, keyed by the host's registered endpoint - never the host ownership extension
+ok 51 - who admits a relay ROLE: the platform host policy gate, keyed by the host's registered endpoint - never the host ownership extension
+# Subtest: the relay is the packaged host role serving the MOVED key's payee, with its signed statement
+ok 52 - the relay is the packaged host role serving the MOVED key's payee, with its signed statement
+# Subtest: Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable
+ok 53 - Linux and Windows factories: claim, renew and release through ONLY the pinned relay, app-paid, zero host ETH, DigitalOcean unreachable
+# Subtest: refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect
+ok 54 - refused BEFORE ANY SIGNATURE: another payee, forged/stale/other-chain/other-executor statements, a fresh ban, an unreadable or missing policy, policy off, a redirect
+# Subtest: after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain
+ok 55 - after signing: an unverifiable relay receipt is not success and its durable journal entry is held; a lost answer is settled from the chain
+# Subtest: a start error with no exit event is finalized once and restarted after its backoff (the old supervisor kept the dead child forever)
+ok 56 - a start error with no exit event is finalized once and restarted after its backoff (the old supervisor kept the dead child forever)
+# Subtest: 'error' and 'exit' for the same child end it exactly once; 'error' on a running child only logs; a throwing spawn is handled
+ok 57 - 'error' and 'exit' for the same child end it exactly once; 'error' on a running child only logs; a throwing spawn is handled
+# Subtest: stop() while a gate check is pending starts nothing afterwards and clears the pending restart
+ok 58 - stop() while a gate check is pending starts nothing afterwards and clears the pending restart
+# Subtest: the restart backoff doubles up to its cap, and gate checks every 5 ms never bypass it
+ok 59 - the restart backoff doubles up to its cap, and gate checks every 5 ms never bypass it
+# Subtest: relay.heapMiB is the V8 heap cap (--max-old-space-size); relay.memoryMiB is the same cap under its earlier name
+ok 60 - relay.heapMiB is the V8 heap cap (--max-old-space-size); relay.memoryMiB is the same cap under its earlier name
+# Subtest: host.endpoint is the EXACT registered endpoint (the runner's rule): a path such as /t/metal0 is accepted; http, credentials, query, fragment and whitespace are refused
+ok 61 - host.endpoint is the EXACT registered endpoint (the runner's rule): a path such as /t/metal0 is accepted; http, credentials, query, fragment and whitespace are refused
+# Subtest: REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts
+not ok 62 - REAL gate: a relay host cold-starts from an imported signed policy with every fleet mirror refused; a fleet-only host never starts
+# Subtest: REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good
+ok 63 - REAL gate: the admin's anchored ban stops the relay (sticky); the next anchored policy restarts it; stop() ends it for good
+# Subtest: REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, SIGTERM exits 0
+ok 64 - REAL gate, ACTUAL `run` CLI process at a registered PATH endpoint: it stays up while the admin's ban refuses the relay, the admin's unban starts it, SIGTERM exits 0
+# Subtest: the chain module's four lease-gas imports are exported by this tree's self-contained runtime bundle
+ok 65 - the chain module's four lease-gas imports are exported by this tree's self-contained runtime bundle
+# Subtest: the migration's node settings load in the runtime bundle as local-first + the alternate; the previous ones as before; tampering refuses
+ok 66 - the migration's node settings load in the runtime bundle as local-first + the alternate; the previous ones as before; tampering refuses
+# Subtest: before the move: settings naming the source first relay through it; no operator ETH
+ok 67 - before the move: settings naming the source first relay through it; no operator ETH
+# Subtest: the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central
+ok 68 - the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central
+# Subtest: the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key
+ok 69 - the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key
+# Subtest: the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH
+ok 70 - the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH
+# Subtest: the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again
+ok 71 - the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again
+# Subtest: settings without a local relay (a rollback of the settings) relay through the configured relays as before; the source is gone: the alternate serves
+ok 72 - settings without a local relay (a rollback of the settings) relay through the configured relays as before; the source is gone: the alternate serves
+# Subtest: only an explicit admit pays a relay: unusable, undecided, behind, banned and unlisted operators are refused
+ok 73 - only an explicit admit pays a relay: unusable, undecided, behind, banned and unlisted operators are refused
+# Subtest: judgeRelayOperators and relayAdmission decide fresh on every call and never cache an admit
+ok 74 - judgeRelayOperators and relayAdmission decide fresh on every call and never cache an admit
+# Subtest: a policy GATE goes through the shared operatorDecider adapter: behind refreshes once, a failed refresh refuses
+ok 75 - a policy GATE goes through the shared operatorDecider adapter: behind refreshes once, a failed refresh refuses
+# Subtest: the cached ENDPOINT list carries no authority: a ban 31 s later is refused at the next signature (root's fake clock)
+ok 76 - the cached ENDPOINT list carries no authority: a ban 31 s later is refused at the next signature (root's fake clock)
+# Subtest: the release directory holds exactly the manifest's files and the manifest's inputs are this tree's files
+ok 77 - the release directory holds exactly the manifest's files and the manifest's inputs are this tree's files
+# Subtest: the configuration check passes only with every setting explicit and valid, and reads no key
+ok 78 - the configuration check passes only with every setting explicit and valid, and reads no key
+# Subtest: the configuration check reads the send record: exactly {} or one {nonce, raw, hash}; anything else fails clearly
+ok 79 - the configuration check reads the send record: exactly {} or one {nonce, raw, hash}; anything else fails clearly
+# Subtest: the unit copies a 0440 credential 0600 into its private runtime directory, before the check, and the check accepts only the copy
+ok 80 - the unit copies a 0440 credential 0600 into its private runtime directory, before the check, and the check accepts only the copy
+# Subtest: through the symlinked release the artifact starts only with --preserve-symlinks-main (the unit's ExecStart)
+ok 81 - through the symlinked release the artifact starts only with --preserve-symlinks-main (the unit's ExecStart)
+# Subtest: the installed artifact relays a zero-ETH host's claim and release; bounded under bad requests; measured memory
+ok 82 - the installed artifact relays a zero-ETH host's claim and release; bounded under bad requests; measured memory
+# Subtest: the artifact's own CLI refuses a key above its float cap before relaying anything
+ok 83 - the artifact's own CLI refuses a key above its float cap before relaying anything
+# Subtest: the artifact's own CLI refuses to start without the durable send record (LEASE_RELAY_STATE)
+ok 84 - the artifact's own CLI refuses to start without the durable send record (LEASE_RELAY_STATE)
+# Subtest: the artifact refuses to relay against a chain head ahead of its own clock
+ok 85 - the artifact refuses to relay against a chain head ahead of its own clock
+# Subtest: the FIRST provider down at startup and throughout: the service starts on the quorum and lands a zero-ETH host's claim
+ok 86 - the FIRST provider down at startup and throughout: the service starts on the quorum and lands a zero-ETH host's claim
+# Subtest: a provider on another chain is outvoted, not obeyed
+ok 87 - a provider on another chain is outvoted, not obeyed
+# Subtest: the primary accepts the raw transaction then loses its reply (and then every provider does): one transaction, landed, verified by its own hash
+ok 88 - the primary accepts the raw transaction then loses its reply (and then every provider does): one transaction, landed, verified by its own hash
+# Subtest: an unknown outcome that never landed: the restarted relay re-broadcasts the SAME bytes, signs nothing new at that nonce, then serves again
+ok 89 - an unknown outcome that never landed: the restarted relay re-broadcasts the SAME bytes, signs nothing new at that nonce, then serves again
+# Subtest: the primary accepts the raw transaction, its reply is lost and it sits UNMINED: nothing else is signed until that nonce resolves
+ok 90 - the primary accepts the raw transaction, its reply is lost and it sits UNMINED: nothing else is signed until that nonce resolves
+# Subtest: a send record signed by ANOTHER key is refused at startup, never re-broadcast
+ok 91 - a send record signed by ANOTHER key is refused at startup, never re-broadcast
+# Subtest: a malformed or partial send record refuses startup: never read as empty, never overwritten, nothing signed or broadcast
+ok 92 - a malformed or partial send record refuses startup: never read as empty, never overwritten, nothing signed or broadcast
+# Subtest: the empty state is exactly {} (or no file yet): the relay starts, serves, and leaves exactly {}
+ok 93 - the empty state is exactly {} (or no file yet): the relay starts, serves, and leaves exactly {}
+# Subtest: the relay service refuses: no digest, a wrong digest, a group/world-readable key, a float above its cap
+ok 94 - the relay service refuses: no digest, a wrong digest, a group/world-readable key, a float above its cap
+# Subtest: within its float, the service relays a zero-ETH host's claim and is reimbursed in the same transaction
+ok 95 - within its float, the service relays a zero-ETH host's claim and is reimbursed in the same transaction
+# Subtest: relayChainMode: exactly one authority; mixed, incomplete and unknown selections refuse (no fallback)
+ok 96 - relayChainMode: exactly one authority; mixed, incomplete and unknown selections refuse (no fallback)
+# Subtest: startRelayService refuses a mixed or non-local selection before reading its record or key or contacting anything
+ok 97 - startRelayService refuses a mixed or non-local selection before reading its record or key or contacting anything
+# Subtest: startRelayService under the verifier reads its balance through the verifier only: an unreachable verifier refuses the start (never a provider)
+ok 98 - startRelayService under the verifier reads its balance through the verifier only: an unreachable verifier refuses the start (never a provider)
+# Subtest: the unit's ExecStartPre check: the verifier selection is accepted alone and refused mixed, incomplete or non-local
+ok 99 - the unit's ExecStartPre check: the verifier selection is accepted alone and refused mixed, incomplete or non-local
+# Subtest: the hosted relay role: relay.chainVerifier + relay.txBackend is its own authority, never mixed with relay.rpc/quorum
+ok 100 - the hosted relay role: relay.chainVerifier + relay.txBackend is its own authority, never mixed with relay.rpc/quorum
+# Subtest: a matching-field receipt in ANOTHER domain, or with an unrecorded domain, is not the recorded lease's success
+ok 101 - a matching-field receipt in ANOTHER domain, or with an unrecorded domain, is not the recorded lease's success
+# Subtest: relay refuses, BEFORE spending: arbitrary contract, wrong executor, other reserve, bad signature, wrong payee, underpayment, bad bodies
+ok 102 - relay refuses, BEFORE spending: arbitrary contract, wrong executor, other reserve, bad signature, wrong payee, underpayment, bad bodies
+# Subtest: relay: parallel requests for three deployments sharing ONE 7702 authorization all land, sent one at a time
+ok 103 - relay: parallel requests for three deployments sharing ONE 7702 authorization all land, sent one at a time
+# Subtest: host: a 'refuse' relay first never yields a false success; the honest relay behind it lands the claim
+ok 104 - host: a 'refuse' relay first never yields a false success; the honest relay behind it lands the claim
+# Subtest: host: a 'hang' relay first never yields a false success; the honest relay behind it lands the claim
+ok 105 - host: a 'hang' relay first never yields a false success; the honest relay behind it lands the claim
+# Subtest: host: a 'unrelated' relay first never yields a false success; the honest relay behind it lands the claim
+ok 106 - host: a 'unrelated' relay first never yields a false success; the honest relay behind it lands the claim
+# Subtest: host: a 'reverted' relay first never yields a false success; the honest relay behind it lands the claim
+ok 107 - host: a 'reverted' relay first never yields a false success; the honest relay behind it lands the claim
+# Subtest: host: a 'spoof' relay first never yields a false success; the honest relay behind it lands the claim
+ok 108 - host: a 'spoof' relay first never yields a false success; the honest relay behind it lands the claim
+# Subtest: host: a relay that lands the lease but loses (500) or delays its answer: the host finds it on chain, nothing lands twice
+ok 109 - host: a relay that lands the lease but loses (500) or delays its answer: the host finds it on chain, nothing lands twice
+# Subtest: host: a refusal the HOST verifies stops at once (no relay asked); a nonce consumed by ANOTHER operation is not this one's success
+ok 110 - host: a refusal the HOST verifies stops at once (no relay asked); a nonce consumed by ANOTHER operation is not this one's success
+# Subtest: control: an allowed claim goes through the real client and relay and lands on chain, paid by the app's reserve
+ok 111 - control: an allowed claim goes through the real client and relay and lands on chain, paid by the app's reserve
+# Subtest: a refusal that lands AFTER the operator queue's check, while the real client is reading its relay, stops the SIGNED lease before the relay: no POST, nothing on chain
+ok 112 - a refusal that lands AFTER the operator queue's check, while the real client is reading its relay, stops the SIGNED lease before the relay: no POST, nothing on chain
+# Subtest: decision window with the real client: a refusal during openForUs means the claim never reaches the client at all
+ok 113 - decision window with the real client: a refusal during openForUs means the claim never reaches the client at all
+# Subtest: source: supervisor.js wires the client's onSigned exactly as this test does
+ok 114 - source: supervisor.js wires the client's onSigned exactly as this test does
+# tests 114
+# pass 113
+# fail 1
+# cancelled 0
+# skipped 0
+# duration_ms 443884.191777
+rc=1

@@ -167,7 +167,15 @@ test("the unit copies a 0440 credential 0600 into its private runtime directory,
   assert.equal(ok.status, 0, ok.stderr); assert.match(ok.stdout, /lease relay configuration ok/);
 });
 
-function serve(extraEnv = {}, args = ["--preserve-symlinks-main"]) {
+// the node flags exactly as the unit's ExecStart runs the artifact (so the measured memory is the deployed process's);
+// LEASE_RELAY_MEASURE_NODE_ARGS (measurement runs only) replaces them to compare a candidate flag set
+const UNIT_NODE_ARGS = (() => {
+  const m = /^ExecStart=\/usr\/bin\/node((?: --[^\s]+)*) \/opt\/enclave-lease-relay\/current\/lease-relay\.mjs$/m.exec(fs.readFileSync(path.join(REPO, "relay/systemd/enclave-lease-relay.service"), "utf8"));
+  if (!m) throw new Error("the unit's ExecStart is not /usr/bin/node [--flags] /opt/enclave-lease-relay/current/lease-relay.mjs");
+  return m[1].trim().split(/\s+/).filter(Boolean);
+})();
+const MEASURE_ARGS = process.env.LEASE_RELAY_MEASURE_NODE_ARGS ? process.env.LEASE_RELAY_MEASURE_NODE_ARGS.split(/\s+/).filter(Boolean) : UNIT_NODE_ARGS;
+function serve(extraEnv = {}, args = MEASURE_ARGS) {
   const child = spawn(process.execPath, [...args, path.join(rel, "current/lease-relay.mjs")], { cwd: path.join(rel, "current"),
     env: { PATH: process.env.PATH, NODE_EXTRA_CA_CERTS: ca, ...env, ...extraEnv }, stdio: ["ignore", "pipe", "pipe"] });
   let out = "", peak = 0, rss = 0;
@@ -221,7 +229,7 @@ test("the installed artifact relays a zero-ETH host's claim and release; bounded
     assert.equal((await (await fetch(`${url}/v1/info`)).json()).payee, payee, "still serving after the burst");
     assert.equal(await W.pc.getBalance({ address: payee }), left, "no bad request cost the relay gas");
     const m = relay.memory();
-    console.log(`# lease relay memory: peak RSS ${(m.peakKiB / 1024).toFixed(1)} MiB, RSS after the run ${(m.rssKiB / 1024).toFixed(1)} MiB (claim + release + ${bad.length} refused requests)`);
+    console.log(`# lease relay memory (node ${MEASURE_ARGS.join(" ")}): peak RSS ${(m.peakKiB / 1024).toFixed(1)} MiB, RSS after the run ${(m.rssKiB / 1024).toFixed(1)} MiB (claim + release + ${bad.length} refused requests)`);
     // the unit's MemoryMax must leave at least 2x the measured peak (startup, two operations and a refusal burst)
     const unitMax = /^MemoryMax=(\d+)M$/m.exec(fs.readFileSync(path.join(REPO, "relay/systemd/enclave-lease-relay.service"), "utf8"));
     assert.ok(unitMax, "the unit sets MemoryMax in MiB");

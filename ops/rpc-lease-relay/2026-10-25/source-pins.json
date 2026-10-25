@@ -1,0 +1,16 @@
+{
+  "client/lease-executor-client.mjs": "4f4c416cbe5d3bd00a07d3605146a8e45a0af3345c7435d1c8881bc37f3db379",
+  "docs/network/lease-relay-release.md": "dd2291adc32bbda0f51613f83ef87c95cf75d74d4f0e87656fae0fcdbb0536eb",
+  "network/host-services/lease-relay-host.mjs": "f25c7af37e534a137a3aa88b46b029fd8eb5d2771198c3f2deba6e308e24a5c2",
+  "network/lease-relay-check.mjs": "e45e433cadf21291c0c36263e1dfaf341ab9b72ad34c401e60a77a7c6028098a",
+  "network/lease-relay-service.mjs": "02da137ee87d1004b57580c76cdbd3bae4ac022df7b41c1fb14424503ec90a3b",
+  "relay/lease-relay.env.example": "a10fb34dc59388c4fc6730e31e206e841b99eb1843c2d744251a435135c74bf7",
+  "relay/systemd/enclave-lease-relay.service": "34204bc4de8ee6ba12111ecc12bd85cb1119324a200f0ed338814c791f13c379",
+  "test/helpers/verifier-runtime.mjs": "20d8f8235e182e20ec80d805919f20f2e603a4d26a60481ec7e889ab649d4e9e",
+  "test/lease-gas-verifier.e2e.test.mjs": "590e23bfe47ffa492492d51c3c30f89baffd92a6303f41afd288e15d309cfc7b",
+  "test/lease-pinned-relay-config.test.mjs": "84a03631544796cb2743747d64b210cdabea7dbc68208c707744d8ffdba57ba7",
+  "test/lease-relay-host-policy.test.mjs": "15ea12db34c5a6079b90bb1a7cbe44f62493cc7bec45e5c85774939f823cf30e",
+  "test/lease-relay-release.test.mjs": "0d9020206f83f02d432fe8da2b23f3184fdf9c8f0cd9dd709fdcc5c94843dcb7",
+  "test/lease-relay-verifier-config.test.mjs": "f85a888c8809cecfaea52af424e30d9f90e1acf1a78c870f0cb5eeeb68b30db4",
+  "test/lease-relay-verifier.e2e.test.mjs": "f1dcede7ecfd264e56ab32257c8178c532224fcb1c75fef0329b916742de592c"
+}

@@ -50,8 +50,10 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 RestrictNamespaces=yes
 LockPersonality=yes
 SystemCallArchitectures=native
-# measured (test/lease-relay-release.test.mjs, docs/network/lease-relay-release.md): set from the measured peak, with margin
-MemoryMax=192M
+# measured (test/lease-relay-release.test.mjs, docs/network/lease-relay-release.md): at least twice the measured peak. Node
+# v22.23.3, 2026-10-25: 13 runs peaked at 92.2-104.6 MiB (base and verifier-authority builds alike), so 192M no longer left
+# 2x; 224M does (2.14x the worst run). Template value only: an installed unit changes only by its own reviewed rollout.
+MemoryMax=224M
 TasksMax=64
 LimitNOFILE=4096
 

@@ -128,6 +128,21 @@ export function reasonOf(e) {
   return (e?.shortMessage || e?.message || String(e)).split("\n")[0].slice(0, 300);
 }
 
+/** A node's own words for a failed JSON-RPC call: viem keeps them in `details` (its message is generic, "RPC Request
+ *  failed."), and a revert's raw `data`. -> "" when there are none. */
+export function rpcDetails(e) {
+  const out = [];
+  for (let x = e; x && out.length < 2; x = x.cause) {
+    if (typeof x.details === "string" && x.details && !out.includes(x.details)) out.push(x.details);
+    const d = typeof x.data === "string" ? x.data : x.data?.data;
+    if (typeof d === "string" && /^0x[0-9a-f]+$/i.test(d) && d.length > 2) out.push(`data ${d.slice(0, 74)}`);
+  }
+  return out.join("; ").slice(0, 300);
+}
+/** A revert's data from a node that puts it in its message text only (the pinned Helios: "execution reverted: <hex>"),
+ *  as an object reasonOf() decodes; null when there is none. */
+const textRevert = (e) => { const m = /execution reverted: (?:0x)?([0-9a-f]{8,})/i.exec(rpcDetails(e)); return m ? { data: `0x${m[1]}` } : null; };
+
 /** POLICY eligibility (the reserve's statusOf) - not a promise the money suffices; see preflight(). */
 export async function policy({ client, reserve, id, kind, enclaveId = ZERO32, operator }) {
   const [st, availableWei, epochLeftWei, maxPerOpWei] = await client.readContract({ address: reserve, abi: RESERVE_ABI, functionName: "statusOf",
@@ -275,11 +290,16 @@ export async function checkRelayRequest({ client, pinned, payee, signed, priorit
   return { data, authorizationList: delegated ? undefined : [authorization], fees, expectedCharge };
 }
 
+/** EIP-7702 PER_EMPTY_ACCOUNT_COST: the intrinsic gas one authorization adds to its transaction. */
+const AUTHORIZATION_INTRINSIC_GAS = 25_000n;
 const definiteRejection = (m) => /insufficient funds|intrinsic gas|exceeds block gas|invalid sender|invalid signature|max fee per gas less than block base fee|fee cap|transaction type not supported/i.test(m);
 const alreadyKnown = (m) => /already known|known transaction|already imported/i.test(m);
-/** Broadcast the IDENTICAL signed bytes to every provider of the quorum set (never a re-signature).
+/** Broadcast the IDENTICAL signed bytes to every provider of the quorum set (never a re-signature); under the local
+ *  verifier authority its one client routes them to the operator's bound own backend only (network/chain-authority.mjs).
  *  -> "accepted" (a provider answered this hash or knows it) | "rejected" (every provider refused definitively: nothing
- *  can be pending) | "unknown" (no clear answer: the bytes may be in a mempool - resolved from the chain, never re-signed) */
+ *  can be pending) | "unknown" (no clear answer: the bytes may be in a mempool - resolved from the chain, never re-signed).
+ *  None of these is inclusion: "accepted" is a submission acknowledgement only (an own backend may still fail to forward
+ *  it to the sequencer); a lease is landed only by a receipt verified through the relay's authority. */
 export async function broadcastRaw(rpc, raw, hash) {
   const rs = await Promise.allSettled(rpc.peers.map((p) => rpc.request(p.client, "eth_sendRawTransaction", [raw])));
   let accepted = 0, rejected = 0;
@@ -297,7 +317,7 @@ export async function broadcastRaw(rpc, raw, hash) {
  *  unresolved (its nonce not yet consumed on the quorum), nothing new is signed - its bytes are re-broadcast instead. */
 export async function relayLease({ client: singleClient, clients = [singleClient], wallet, pinned, signed,
   quorum, confirmations = 0, maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now,
-  gas = 600_000n, receiptTimeoutMs = 120_000, sentState = null }) {
+  gas = 600_000n, receiptTimeoutMs = 120_000, sentState = null, submitGate = null }) {
   const verified = await verifiedLeaseAuthority({ clients, deployment: pinned, quorum, confirmations, maxBlockAgeSecs,
     allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now });
   pinned = verified.pins;
@@ -318,13 +338,53 @@ export async function relayLease({ client: singleClient, clients = [singleClient
   const tx = { account: wallet.account, to: signed.operator, data: c.data, authorizationList: c.authorizationList, gas,
                nonce, maxPriorityFeePerGas: c.fees.priorityFee, maxFeePerGas: c.fees.maxFeePerGas };
   try {
-    await rpc.agree(rpc.peers, async ({ client: peer }) => {
-      await rpc.request(peer, "eth_call", [formatTransactionRequest(tx),
-        { blockHash: verified.block.hash, requireCanonical: true }]);
-      return true;
-    }, "relay simulation");
-  } catch (e) { throw new LeaseRefusal("Simulation", `simulation: ${reasonOf(e)}`); }
+    if (rpc.authority === "local-verifier") {
+      // ONE authority: its own answer (a revert's reason), not a vote. The pinned verifier executes a call WITHOUT its
+      // EIP-7702 authorization list (its call environment drops it, so a type-4 call cannot succeed there), so the
+      // authorization's exact effect is applied as a state override instead: the operator's code becomes the designator of
+      // the pinned executor and its account nonce advances by one - what this authorization (checked above: the operator's
+      // signature, this chain, the proven account nonce, the pinned executor) does before execution - and the gas its
+      // intrinsic cost takes is withheld. Without an authorization the exact transaction is simulated as it is.
+      // The price likewise: the pinned verifier drops an EIP-1559 request's maxFeePerGas (it reads only gasPrice) and then
+      // refuses every priced call ("priority fee is greater than max fee"). So the simulation carries, as gasPrice, the
+      // effective price the signed transaction would pay IN THE ANCHOR BLOCK it is simulated in: that block's base fee +
+      // the priority fee (its max fee, 2 x base + priority, does not bind there). GASPRICE, BASEFEE and the reimbursement
+      // are then those of an inclusion in the anchor block. This is not a promise about the block that actually includes
+      // it: a later base fee changes the effective price (bounded by the signed max fee) and the charge, which the reserve
+      // computes on chain at inclusion and checkRelayRequest bounded beforehand (the owner's caps, the signed maximum).
+      const auth = c.authorizationList?.[0], peer = rpc.peers[0].client, at = { blockHash: verified.block.hash, requireCanonical: true };
+      const priced = { ...tx, maxFeePerGas: undefined, maxPriorityFeePerGas: undefined, gasPrice: c.fees.effective };
+      const sim = auth ? { ...priced, authorizationList: undefined, gas: gas - AUTHORIZATION_INTRINSIC_GAS } : priced;
+      const override = auth ? [{ [signed.operator]: { code: designator(pinned.executor), nonce: `0x${(BigInt(auth.nonce) + 1n).toString(16)}` } }] : [];
+      if (auth) {
+        // NEVER vacuous: a call to a plain account "succeeds" without running any code. The overridden operator must run the
+        // executor's code first (its nonceOf answers one word, this lease's nonce); otherwise nothing is simulated or signed.
+        const word = await rpc.request(peer, "eth_call", [{ from: payee, to: signed.operator,
+          data: encodeFunctionData({ abi: EXECUTOR_ABI, functionName: "nonceOf", args: [signed.lease.id] }) }, at, ...override]);
+        if (!/^0x[0-9a-f]{64}$/i.test(String(word)) || BigInt(word) !== signed.lease.nonce)
+          throw new LeaseRefusal("Simulation", `simulation: the verifier did not run the delegated executor code under the authorization's override (nonceOf answered ${String(word).slice(0, 20)}): nothing was signed`);
+      }
+      await rpc.request(peer, "eth_call", [formatTransactionRequest(sim), at, ...override]);
+    } else {
+      await rpc.agree(rpc.peers, async ({ client: peer }) => {
+        await rpc.request(peer, "eth_call", [formatTransactionRequest(tx),
+          { blockHash: verified.block.hash, requireCanonical: true }]);
+        return true;
+      }, "relay simulation");
+    }
+  } catch (e) {
+    if (e instanceof LeaseRefusal) throw e;
+    const local = rpc.authority === "local-verifier", text = local ? textRevert(e) : null;
+    const why = text ? reasonOf(text) : reasonOf(e), more = local ? rpcDetails(e) : "";
+    throw new LeaseRefusal("Simulation", `simulation: ${why}${more && !why.includes(more) ? ` (${more})` : ""}`);
+  }
   verified.assertFresh();
+  // the submission route's own gate (the local verifier's: a fresh head and the own backend bound to it), BEFORE any
+  // signature or durable record: a refusal here leaves nothing signed, recorded or sent
+  if (submitGate) {
+    try { await submitGate(); }
+    catch (e) { throw new LeaseRefusal(e?.code || "SubmitRouteUnavailable", `nothing was signed or sent: ${String(e?.message || e).slice(0, 300)}`); }
+  }
   const raw = await wallet.account.signTransaction({ chainId: pinned.chainId, type: c.authorizationList ? "eip7702" : "eip1559", nonce, to: signed.operator,
     data: c.data, value: 0n, gas, maxFeePerGas: c.fees.maxFeePerGas, maxPriorityFeePerGas: c.fees.priorityFee,
     ...(c.authorizationList ? { authorizationList: c.authorizationList } : {}) });
@@ -345,7 +405,7 @@ export async function relayLease({ client: singleClient, clients = [singleClient
       sentState?.set(null);
       return { hash, receipt, paid, expectedCharge: c.expectedCharge, broadcast: outcome };
     } catch (e) {
-      if (Date.now() >= deadline) throw new Error(`lease ${hash} is not quorum-confirmed (broadcast ${outcome}): ${reasonOf(e)}; it stays this relay's unresolved transaction`);
+      if (Date.now() >= deadline) throw new Error(`lease ${hash} is not ${rpc.authority === "local-verifier" ? "confirmed by a verifier-checked receipt" : "quorum-confirmed"} (broadcast ${outcome}${outcome === "accepted" ? ": acknowledged, not included" : ": not acknowledged; it may or may not be pending"}): ${reasonOf(e)}; it stays this relay's unresolved transaction (re-broadcast as the same bytes, never re-signed)`);
       await sleep(500);
     }
   }
@@ -374,7 +434,7 @@ export const RELAY_SEND_RECORD_MAX_BYTES = 64 * 1024;
 export async function startLeaseRelay({ client, clients = [client], wallet, deployment, quorum, confirmations = 0,
   maxBlockAgeSecs, allowLoopbackHttp = false, rpcTimeoutMs, now, host = "127.0.0.1", port = 0,
                                         maxBody = 4096, maxConcurrent = 4, requestTimeoutMs = 60_000, receiptTimeoutMs = 120_000, log = () => {}, stateFile = null,
-                                        descriptor = null }) {
+                                        descriptor = null, submitGate = null, bodyTimeoutMs = 10_000 }) {
   const options = { clients, deployment, quorum, confirmations, maxBlockAgeSecs, allowLoopbackHttp, timeoutMs: rpcTimeoutMs, now };
   // this key's last signed, not-yet-resolved transaction: persisted strictly (temp, fsync, rename, dir fsync) BEFORE its
   // broadcast when a stateFile is configured, so a restarted relay re-broadcasts those bytes instead of signing anew
@@ -410,16 +470,27 @@ export async function startLeaseRelay({ client, clients = [client], wallet, depl
   };
   if (descriptor !== null && (!Buffer.isBuffer(descriptor) || descriptor.length > 4096)) throw new Error("the relay descriptor must be at most 4096 bytes");
   const server = http.createServer(async (req, res) => {
-    const reply = (status, body) => { if (res.writableEnded) return; res.writeHead(status, { "content-type": "application/json" });
+    // Two separate bounds. RECEIPT: the whole request (headers and body) within bodyTimeoutMs of its arrival, or 408 and
+    // the connection is cut (a slow or idle uploader holds nothing). PROCESSING: once a complete body is in, that timer
+    // is gone and only requestTimeoutMs bounds the answer (withTimeout below) - a relay job waiting for its receipt keeps
+    // the client's connection however idle it is, instead of being cut by a socket idle timeout (the 10 s cut it had).
+    let cut = false;
+    const receipt = setTimeout(() => {
+      cut = true;
+      if (res.writableEnded) return req.destroy();
+      res.once("finish", () => req.destroy());       // the 408 is written out, then the connection is cut
+      reply(408, { error: "timeout" });
+    }, bodyTimeoutMs);
+    const reply = (status, body) => { clearTimeout(receipt); if (res.writableEnded) return; res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(body, (_k, v) => (typeof v === "bigint" ? v.toString() : v))); };
-    req.setTimeout(10_000, () => { reply(408, { error: "timeout" }); req.destroy(); });
+    res.once("close", () => clearTimeout(receipt));
     if (req.method === "GET" && req.url === "/v1/info")
       return reply(200, { chainId: pinned.chainId, reserve: pinned.reserve, executor: pinned.executor, payee: wallet.account.address, canonicalLength: CANONICAL_LENGTH,
         statement: await signedStatement() });
     // the exact descriptor bytes this relay's service-index advertisement commits to (its sha256), when it has one
     if (req.method === "GET" && req.url === "/v1/descriptor") {
       if (!descriptor) return reply(404, { error: "not_found" });
-      res.writeHead(200, { "content-type": "application/json" }); return res.end(descriptor);
+      clearTimeout(receipt); res.writeHead(200, { "content-type": "application/json" }); return res.end(descriptor);
     }
     if (req.method !== "POST" || req.url !== "/v1/lease") return reply(404, { error: "not_found" });
     if (inflight >= maxConcurrent) return reply(503, { error: "busy" });
@@ -428,11 +499,14 @@ export async function startLeaseRelay({ client, clients = [client], wallet, depl
     try {
       const chunks = []; let size = 0;
       for await (const c of req) { size += c.length; if (size > maxBody) return reply(413, { error: "too_large" }); chunks.push(c); }
+      if (cut) return;                                 // cut by the receipt bound while reading (req.destroyed is no sign: a
+                                                       // fully read request auto-destroys)
+      clearTimeout(receipt);                           // the complete body is in: from here only requestTimeoutMs bounds the answer
       let signed;
       try { signed = parseRelayRequest(JSON.parse(Buffer.concat(chunks).toString())); } catch (e) { return reply(400, { error: e.code || "bad_json", message: String(e.message).slice(0, 200) }); }
       // one send at a time from this key (its account nonce), and therefore per operator too
       // A timed-out HTTP response must not unlock this key while the original job can still broadcast.
-      pendingJob = sendQueue.then(() => relayLease({ ...options, rpcTimeoutMs, wallet, pinned, signed, sentState, receiptTimeoutMs }));
+      pendingJob = sendQueue.then(() => relayLease({ ...options, rpcTimeoutMs, wallet, pinned, signed, sentState, receiptTimeoutMs, submitGate }));
       sendQueue = pendingJob.catch(() => {});
       const r = await withTimeout(pendingJob, requestTimeoutMs, "relay");
       log(`[relay] ${r.receipt.status} ${r.hash} paid ${r.paid?.chargedWei ?? "none"}`);

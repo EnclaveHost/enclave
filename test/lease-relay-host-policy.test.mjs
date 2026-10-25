@@ -247,7 +247,10 @@ test("REAL gate: a relay host cold-starts from an imported signed policy with ev
   const s = a.running.status();
   assert.equal(s.refusal, null); assert.equal(s.platformHostPolicy.serving, true, JSON.stringify(s.platformHostPolicy));
   assert.equal(s.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(s.platformHostPolicy.runtime.anchor, "anchored");
-  assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), "the gate tried the fleet mirrors, and they were refused");
+  if (PRODUCTION_MIRRORS.length) assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), "the gate tried the fleet mirrors, and they were refused");
+  // the production configuration names NO fleet mirror (network/platform-host-policy-config.mjs, since 6f2c7da46): then the
+  // imported carrier alone admitted the relay, and nothing at all went to a fleet address (no hidden mirror fallback)
+  else assert.deepEqual(denied, [], "no fleet mirror is configured: nothing reached a fleet address");
 
   const c = await startRelayHost("c", { carriers: null });           // the production default alone: fleet mirrors only
   await sleep(5000);

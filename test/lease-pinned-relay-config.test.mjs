@@ -99,7 +99,18 @@ test("the shared loader: pinned relays may be the ONLY route; partial or invalid
   assert.throws(() => loadLeaseGasConfig({ env: ENV(), ...BINDING }), /require ENCLAVE_LEASE_GAS_RELAYS/, "no route at all: refused, never operator-paid");
   // absent: the exact fields as before (no pinnedRelays key)
   const plain = loadLeaseGasConfig({ env: ENV({ ENCLAVE_LEASE_GAS_RELAYS: "https://relay.example.org" }), ...BINDING });
-  assert.deepEqual(Object.keys(plain).sort(), ["allowLoopbackHttp", "clients", "deployment", "localRelays", "quorum", "relayDiscovery", "relays", "reserve", "rpcTimeoutMs"]);
+  // (plus `authority`, which names the chain authority the reads go to: the configured RPC quorum here)
+  assert.deepEqual(Object.keys(plain).sort(), ["allowLoopbackHttp", "authority", "clients", "deployment", "localRelays", "quorum", "relayDiscovery", "relays", "reserve", "rpcTimeoutMs"]);
+  assert.equal(plain.authority, "rpc-quorum");
+  assert.equal(plain.clients.length, RPCS.length); assert.equal(plain.quorum, 2);
+  // the host's explicit local-verifier selection: ONE verifier client, required 1; the configured RPCs are never built
+  const verified = loadLeaseGasConfig({ env: ENV({ ENCLAVE_LEASE_GAS_RELAYS: "https://relay.example.org", ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:28590/" }), ...BINDING });
+  assert.deepEqual(Object.keys(verified).sort(), Object.keys(plain).sort());
+  assert.equal(verified.authority, "local-verifier");
+  assert.equal(verified.clients.length, 1); assert.equal(verified.quorum, 1);
+  assert.ok(verified.clients[0][Symbol.for("enclave.chain-authority.local-verifier")], "the verifier client, marked in-process");
+  // a verifier URL without the explicit selection is refused, never silently ignored or mixed
+  assert.throws(() => loadLeaseGasConfig({ env: ENV({ ENCLAVE_LEASE_GAS_RELAYS: "https://relay.example.org", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:28590/" }), ...BINDING }), /is not verifier/);
 });
 
 test("a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses", async () => {
