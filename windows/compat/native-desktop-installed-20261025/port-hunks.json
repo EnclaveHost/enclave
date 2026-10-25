@@ -1,0 +1,226 @@
+[
+  {
+    "commit": "2d8dd6071",
+    "file": "windows/node/isolation-client.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "c8bcfa572",
+    "file": "windows/vbslike/datapath/node-bridge.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "c8bcfa572",
+    "file": "windows/vbslike/datapath/node-bridge.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "c8bcfa572",
+    "file": "windows/vbslike/datapath/node-bridge.mjs",
+    "hunk": 2,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "9de738f42",
+    "file": "windows/node/host.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 3,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "9de738f42",
+    "file": "windows/node/host.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "9de738f42",
+    "file": "windows/node/host.mjs",
+    "hunk": 2,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "9de738f42",
+    "file": "windows/node/host.mjs",
+    "hunk": 3,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "9de738f42",
+    "file": "windows/node/host.mjs",
+    "hunk": 4,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "9de738f42",
+    "file": "windows/node/isolation-client.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/agent.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/agent.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/agent.mjs",
+    "hunk": 2,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/host.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/hvcert.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/hvcert.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/hvcert.mjs",
+    "hunk": 2,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/hvcert.mjs",
+    "hunk": 3,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/hvcert.mjs",
+    "hunk": 4,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/network-enroll.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/network-enroll.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/network-enroll.mjs",
+    "hunk": 2,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/network-enroll.mjs",
+    "hunk": 3,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/shield-secrets.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/shield-secrets.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "windows/node/startup-egress.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "network/shield-expectation.mjs",
+    "hunk": 0,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  },
+  {
+    "commit": "4d6524ac8",
+    "file": "network/shield-expectation.mjs",
+    "hunk": 1,
+    "trimmedLeadingContext": 0,
+    "trimmedTrailingContext": 0,
+    "originalBytesPreservedOutsideHunk": true
+  }
+]

@@ -1,0 +1,28 @@
+{
+  "schema": "enclave-native-node-port-validation/1",
+  "scope": "Offline installed-source compatibility port; no running-service change",
+  "nodeVersion": "v22.23.3",
+  "modifiedModules": 9,
+  "newModules": 9,
+  "unchangedInstalledModules": 83,
+  "nativeChecksPassed": 31,
+  "combinedChecks": {
+    "total": 112,
+    "passed": 111,
+    "failed": 1,
+    "skipped": 0
+  },
+  "baselineComparison": {
+    "tests": 15,
+    "unchangedOutcomes": 15,
+    "preexistingFailure": "an ISOLATED deployment provisioning with no instance id yet (held on a manager 503) holds its share too"
+  },
+  "preparationRefusalChecksPassed": 6,
+  "preparedOverlayMatchesTestedModules": true,
+  "allTestsPassed": false,
+  "productionActivated": false,
+  "managerCompatibilityComplete": false,
+  "nativePurchasedCpuQuotaIntegrated": false,
+  "ownerRelease": false,
+  "published": false
+}

@@ -1,0 +1,354 @@
+--- installed/network/shield-expectation.mjs
++++ candidate/network/shield-expectation.mjs
+@@ -1,8 +1,11 @@
++import { desktopExpectation } from './desktop-expectation.mjs';
+ // The app expectation a Windows (Enclave Shield) host's privacy agent pins for one leased deployment, from the node
+ // manager's record of the partition it launched: shared by the platform's SSH reconcile (reconcile-shield-apps.mjs) and
+ // the host's own enrollment (windows/node/tuna-enroll.mjs), so both pin exactly the same thing.
+ //
+-// A record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
++// Native V8 enrollment independently derives a starting/ready identity using the
++// approved desktop release, public configuration and rehashed controller bytes.
++// A legacy record is used only when it is running and ready, names the lease's CURRENT catalog app and version, carries that
+ // version's catalog CID (and, for a raw-leaf CID, a component sha256 equal to the CID's digest), and runs the runtime the
+ // agent's admitted Shield policy pins; so a partition from before an upgrade is never pinned. The agent still verifies
+ // every proof against the policy itself, and the relay derives its own expectation from the chain before it routes.
+@@ -18,13 +21,18 @@
+ /** The catalog reference of a lease's appRef, or null. */
+ export const catalogRef = appRef => { const m = String(appRef || '').match(/^catalog:\/\/(0x[0-9a-f]{64})\/(\d+)$/i); return m ? { app: m[1].toLowerCase(), version: Number(m[2]) } : null; };
+ /**
+- * shieldExpectation({ row, version, vms, policy, previous }) -> { expected } | { wait } | { skip }:
++ * shieldExpectation({ row, version, vms, policy, previous, desktopInputs }) -> { expected } | { wait } | { skip }:
+  * row = the ledger deployment (id, appRef, configCid), version = its catalog version record ({ cid }), vms = the
+  * manager's /vms list, policy = the admitted Shield policy, previous = the expectation pinned before (or null).
+  */
+-export function shieldExpectation({ row, version, vms, policy, previous = null }) {
++export function shieldExpectation({ row, version, vms, policy, previous = null, desktopInputs }) {
+   const id = String(row.id).toLowerCase(), appRef = String(row.appRef), ref = catalogRef(appRef);
+   if (!ref) return { skip: `appRef ${appRef} is not a catalog reference` };
++  if (policy?.desktop?.controllerCid === version?.cid)
++    return desktopExpectation({row,version,vms,policy,inputs:desktopInputs});
++  // A V8 partition may never inherit the legacy GPU-inference approval path.
++  if (vms.some(v=>String(v.name).toLowerCase()===id&&(v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)))
++    return {skip:'native desktop has no independently approved controller release'};
+   const vm = vms.filter(v => String(v.name).toLowerCase() === id && v.status === 'running' && v.appReady === true && !v.launching &&
+       String(v.catalog?.app).toLowerCase() === ref.app && Number(v.catalog?.version) === ref.version && v.cid === String(version?.cid))
+     .sort((x, y) => Number(y.startedAt) - Number(x.startedAt))[0];
+--- installed/windows/node/agent.mjs
++++ candidate/windows/node/agent.mjs
+@@ -1049,6 +1049,7 @@
+       log('[network] enrollment: off (independent mode needs ENCLAVE_NETWORK_DIRECTORIES: the public directories to use)');
+     else if (netReady) {
+       const { createNetworkEnroll, fileSha256 } = await import('./network-enroll.mjs');
++      const { nativeEnrollmentInputs } = await import('./desktop-inputs.mjs');
+       const chainMod = await import('./chain.mjs');
+       const relayBase = ID.mode === 'relay' ? ID.relayHttp : ID.relayBase;
+       let enroll = null, enrolling = false, lastEnrollError = '', enrollWaiting = 0;
+@@ -1077,6 +1078,7 @@
+               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+               { timeout: 30000, windowsHide: true }, () => res())); },
+             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
++            desktopInputs: (row, version) => nativeEnrollmentInputs(host, row, version),
+             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
+                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
+             log: (m) => log('[network]', m) });
+@@ -1141,6 +1143,7 @@
+         const certs = createHvCertPass({
+           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
+           runtimeId: rec => Number(rec.gpuShare) > 0 ? host.managerInference?.runtimeId : host.cfg.isolationRuntimeId,
++          desktopRelease: host.desktopRelease,
+           endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }), ...(ID.mode === 'relay' ? {} : { base: host.cfg.relayBase }),
+           served: (owner) => host.servingScope() === "market" || host.ownerSet().has(owner), log: (m) => log(m) });
+         let running = false;
+--- installed/windows/node/host.mjs
++++ candidate/windows/node/host.mjs
+@@ -22,6 +22,8 @@
+ import path from "node:path";
+ import http from "node:http";
+ import * as chain from "./chain.mjs";
++import { desktopReleaseFromEnv, desktopAdoptionRefusal } from './desktop-release.mjs';
++import { DESKTOP_DERIVATION } from '../../relay/shield-desktop-derive.mjs';
+ import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
+ import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
+ import { worldOf } from "./appframe.mjs";
+@@ -215,6 +217,9 @@
+     // other code path can half-enable it: the deployed build has no such config and is unaffected.
+     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
+     this.cfg.isolationRuntimeId = this.cfg.isolationRuntimeId || process.env.ENCLAVE_ISOLATION_RUNTIME_ID || "";
++    // Snapshot independent operator pins once. A manager cannot supply or replace
++    // this release through /health; changing it requires a host restart.
++    Object.defineProperty(this, "desktopRelease", { value: desktopReleaseFromEnv(), enumerable: true });
+     // host:port of the manager's data plane. Without it the app zone has no splicer, so an
+     // isolated deployment is refused at the route rather than served through this agent.
+     this.cfg.isolationDataAddr  = this.cfg.isolationDataAddr  || process.env.ENCLAVE_ISOLATION_DATA_ADDR || "";
+@@ -1100,6 +1105,7 @@
+       waf: envRead ? (envOpts.waf || {}) : null,
+       volumes,
+       runtimeId: this.cfg.isolationRuntimeId,
++      desktopRelease: this.desktopRelease,
+       require: envRead && chain.isolationForBackend(envOpts, this.isolationBackend) ? this.isolationBackend : (envOpts.isolationRequire ?? null),
+       manager: managerHealth,
+       appConfigCid: envRead ? String(envOpts.configCid || "") : null,
+@@ -1214,7 +1220,8 @@
+     // What this partition must run, when an owner committed it: recorded before the spawn so the adoption checks below
+     // and a restart judge the manager's view against it, and so the names come only from this package.
+     const startup = plan.startup || null;
+-    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null });
++    this.#record(id, { startup, startupVerifiedAt: startup ? Date.now() : null,
++      desktopRecord: plan.derivation === DESKTOP_DERIVATION ? plan.spawn.derive : null });
+ 
+     // A lapsed hosting lease or readiness timeout may already have retired the
+     // ended VM. Keep its service cooldown before reconcile can spawn an absent
+@@ -1243,10 +1250,11 @@
+     let stale = await IsolationManagerClient.staleVersion(client, id, body.derive).catch(() => null);
+     // ...and for an owner-committed startup, a domain running ANOTHER AppID (the same catalog version with an older
+     // package's config, say) is not adopted either: the version check above cannot see a config change.
+-    if (!stale && startup) {
++    // Native desktop records additionally bind configuration/resources and independent release pins.
++    if (!stale && (startup || plan.derivation === DESKTOP_DERIVATION)) {
+       const held = await client.findByName(id).catch(() => undefined);
+       if (held === undefined) return this.#record(id, { status: "provisioning", reason: "isolation: the manager could not be asked which app it holds" });
+-      const wrong = held ? startupAdoptionRefusal(held, startup) : null;
++      const wrong = held ? (startupAdoptionRefusal(held, startup) || desktopAdoptionRefusal(held, plan, this.desktopRelease)) : null;
+       if (wrong) stale = `${held.id}: ${wrong}`;
+     }
+     if (stale) {
+@@ -1424,12 +1432,13 @@
+       return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
+                                 ...(inst.id ? { isolationHeld: inst.id } : {}) });
+     }
+-    // THE OWNER'S COMMITMENT, on the manager's own view of what it started or adopted: anything else is retired, never
++    // Recheck the owner commitment or native planned identity after reconcile, closing an adoption race.
++    // Anything else is retired, never
+     // routed, and the deployment waits (provisioning) for the next pass to start the committed app.
+-    const notCommitted = startupAdoptionRefusal(inst, startup);
++    const notCommitted = startupAdoptionRefusal(inst, startup) || desktopAdoptionRefusal(inst, plan, this.desktopRelease);
+     if (notCommitted) {
+       this.log(`${id.slice(0, 10)} isolation: ${notCommitted}; retiring it`);
+-      const gone = await this.#retireIsolated(id, `owner-committed startup: ${notCommitted}`);
++      const gone = await this.#retireIsolated(id, `planned identity: ${notCommitted}`);
+       return this.#record(id, { status: "provisioning", isolation: null, reason: `isolation: ${notCommitted}`
+         + (gone ? "" : "; it could not be confirmed removed, so nothing new is started"), ...(gone || !inst.id ? {} : { isolationHeld: inst.id }) });
+     }
+--- installed/windows/node/hvcert.mjs
++++ candidate/windows/node/hvcert.mjs
+@@ -32,6 +32,11 @@
+ import { runtimeId } from "../../isolation/contract/runtime.mjs";
+ import { appHostFor, requestCert } from "./apptls.mjs";
+ 
++import { validateDesktopRelease } from "../../relay/shield-desktop-release.mjs";
++import { DESKTOP_DERIVATION } from "../../relay/shield-desktop-derive.mjs";
++import { desktopAdoptionRefusal } from "./desktop-release.mjs";
++import { BOOT_STATEMENTS } from "../vbslike/verify/boot-statements.mjs";
++
+ const HEX64 = /^[0-9a-f]{64}$/;
+ 
+ /**
+@@ -57,7 +62,7 @@
+  * manager's own readiness rule uses (server.mjs #judgeReadiness), taken from `view`. It refuses, before judging, a view
+  * without a launcher key or the partition it signs for, and a runtime that is not the pinned one.
+  */
+-export function hvJudge(view, pinnedRuntimeId) {
++export function hvJudge(view, pinnedRuntimeId, { desktopRecord, desktopRelease } = {}) {
+   return async (doc, spki, nonce, want) => {
+     const no = (why) => ({ verdict: "reject", reasons: [why] });
+     if (!view) return no("no manager view of the partition to judge it against");
+@@ -71,7 +76,16 @@
+     let rid;
+     try { rid = Buffer.from(runtimeId(doc && doc.runtime)).toString("hex"); } catch (e) { return no(`the domain states no admissible runtime identity: ${e.message}`); }
+     if (rid !== pin) return no(`the domain states runtime ${rid.slice(0, 16)}…, not the pinned ${pin.slice(0, 16)}…`);
+-    const gi = view.guestIdentity;
++    const native = desktopRecord != null || view.derivation === DESKTOP_DERIVATION || view.imageRole === "desktop" || view.desktop != null;
++    if (native) {
++      const why = desktopAdoptionRefusal(view, { derivation: DESKTOP_DERIVATION, spawn: { derive: desktopRecord } }, desktopRelease);
++      if (why) return no(why);
++      if (pin !== desktopRelease.runtimeId) return no("native desktop certificate runtime differs from the approved release");
++      const fixed = BOOT_STATEMENTS["linux-direct"];
++      if (view.guestIdentity?.partition !== fixed.partition || view.guestIdentity?.guestImageKind !== fixed.guestImageKind)
++        return no("native desktop launch statement differs from linux-direct");
++    }
++    const gi = native ? BOOT_STATEMENTS["linux-direct"] : view.guestIdentity;
+     const statement = gi && gi.partition ? { expectedStatement: { partition: gi.partition, guestImageKind: gi.guestImageKind },
+                                             expectedImageSha256: view.image } : {};
+     return judgeHv({ doc, spki, nonce, expectedAppSha256: want.appSha, launcherKey: view.launcherKey,
+@@ -117,7 +131,8 @@
+ export const CERT_RETRY_BASE_MS = 30_000;
+ 
+ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint, sign, base, zone = "app.enclave.host",
+-                                   served = () => false, log = () => {}, now = Date.now, _ensure = ensureGuestCert, _deps } = {}) {
++                                   served = () => false, log = () => {}, now = Date.now, desktopRelease, _ensure = ensureGuestCert, _deps } = {}) {
++  const approvedDesktop = desktopRelease == null ? null : validateDesktopRelease(desktopRelease);
+   const st = new Map();       // id -> { instanceId, key, name, serial, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, why }
+   const transport = viewTransport(client);
+   const issue = issuer({ endpoint, sign, base });
+@@ -127,9 +142,12 @@
+     if (s && s.instanceId === iso.instance && s.backoffUntil && t < s.backoffUntil) return;
+     if (s && s.instanceId === iso.instance && s.renewAt && t < s.renewAt) return;           // installed and fresh
+     try {
+-      const selectedPin = typeof pinned === "function" ? pinned(rec) : pinned;
++      const native = rec.desktopRecord != null || (approvedDesktop && rec.cid === approvedDesktop.controllerCid);
++      if (native && (!approvedDesktop || rec.desktopRecord?.derivation !== DESKTOP_DERIVATION))
++        throw new Error("native desktop certificate needs an independently pinned planned record");
++      const selectedPin = native ? approvedDesktop.runtimeId : typeof pinned === "function" ? pinned(rec) : pinned;
+       const got = await _ensure({ transport, dataAddr, instanceId: iso.instance, expectAppId: iso.appId, deploymentId: id, name,
+-        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin)(doc, spki, nonce, want),
++        judge: (doc, spki, nonce, want) => hvJudge(transport.seen(iso.instance), selectedPin, native ? { desktopRecord: rec.desktopRecord, desktopRelease: approvedDesktop } : {})(doc, spki, nonce, want),
+         judgeOk: ["monitor-signed"], requirePrediction: false, issue, ...(_deps ? { _deps } : {}) });
+       st.set(id, { ...got, instanceId: iso.instance });
+       log(got.reused
+--- installed/windows/node/isolation-client.mjs
++++ candidate/windows/node/isolation-client.mjs
+@@ -102,6 +102,12 @@
+       throw new Error("hasSecrets must be stated: absent secrets must be KNOWN absent, not assumed");
+     const b = { image, name, cpuShare, gpuShare, appPort, ports, config, configCid, egress, derive,
+                 isPublic, hasSecrets };
++    if (derive.derivation === "enclave-catalog-bundle/8") {
++      if (config !== "" || configCid !== "") throw new Error("native desktop configuration must be carried in its measured record");
++      // The V8 record carries configBase64. Do not inject the legacy empty
++      // configuration fields as a second, unmeasured configuration source.
++      delete b.config; delete b.configCid;
++    }
+     if (id) b.id = id;
+     if (hosts) b.hosts = hosts;
+     // an owner-committed startup package (base64), for a Shield-direct partition's own verification (shield-startup.mjs)
+@@ -211,6 +217,10 @@
+       appId: o.appId ?? null,
+       runtimeId: o.runtimeId ?? null,
+       recordSha256: o.recordSha256 ?? null,
++      derivation: typeof o.derivation === "string" ? o.derivation : null,
++      componentSha256: typeof o.componentSha256 === "string" ? o.componentSha256 : null,
++      desktop: o.desktop && typeof o.desktop === "object" && !Array.isArray(o.desktop)
++        ? { profile: o.desktop.profile, profileSha256: o.desktop.profileSha256, gpuMilli: o.desktop.gpuMilli } : null,
+       // the owner-committed package a Shield-direct partition was given (server.mjs), for the node's adoption check
+       bootstrapSha256: typeof o.bootstrapSha256 === "string" ? o.bootstrapSha256 : null,
+       // the pinned image it runs on (F3): absent means legacy (a manager or VM from before image selection), and the IGVM
+--- installed/windows/node/network-enroll.mjs
++++ candidate/windows/node/network-enroll.mjs
+@@ -93,7 +93,7 @@
+  * name, endpoint and transportKey are accepted (and unused) so older callers keep working.
+  */
+ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, config, rows, version, vms,
+-                                   fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
++                                   desktopInputs, fetch: fetchFn = globalThis.fetch, restartAgent = async () => {}, log = () => {} }) {
+   if (!config?.enclaveNetwork) throw new Error("the Enclave network configuration (trusted checkers) is required: TUNA is retired");
+   const file = (f) => path.join(agentDir, f);
+   const readJSON = async (f, d) => { try { return JSON.parse(await fs.readFile(f, "utf8")); } catch (e) { if (e.code === "ENOENT") return d; throw e; } };
+@@ -160,7 +160,7 @@
+     }
+     if (retired.length) { changed = true; log(`retired TUNA settings dropped from the config: ${retired.join(", ")}`); }
+     const policy = await readJSON(config.policyFile, null);
+-    if (!policy?.cpu?.runtimeId) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
++    if (!policy?.cpu?.runtimeId && !policy?.desktop) throw new Error(`no admitted Shield policy at ${config.policyFile}`);
+     const now = Math.floor(Date.now() / 1000), me = String(runner).toLowerCase();
+     const mine = (await rows()).filter((d) => String(d.runner).toLowerCase() === me && d.active === true && d.isPublic === true &&
+       Number(d.leaseUntil) > now && ID.test(String(d.id).toLowerCase()));
+@@ -173,7 +173,13 @@
+       if (!catalogRef(row.appRef)) { log(`${short}: not a catalog app; skipped`); continue; }
+       const expectedFile = path.join(dir, "expected.json");
+       const previous = await readJSON(expectedFile, null);
+-      const v = shieldExpectation({ row, version: await version(row.appRef), vms: list, policy, previous });
++      const catalogVersion = await version(row.appRef);
++      let nativeInputs;
++      if (policy?.desktop?.controllerCid === catalogVersion?.cid && desktopInputs) {
++        try { nativeInputs = await desktopInputs(row, catalogVersion); }
++        catch (e) { waiting++; log(`${short}: native inputs unavailable: ${e.message}`); continue; }
++      }
++      const v = shieldExpectation({ row, version: catalogVersion, vms: list, policy, previous, desktopInputs: nativeInputs });
+       if (!v.expected) { if (v.wait) waiting++; log(`${short}: ${v.wait || v.skip}`); continue; }
+       const existing = cfg.apps.find((a) => a.deploymentId === id);
+       await fs.mkdir(dir, { recursive: true });
+@@ -182,11 +188,15 @@
+         if (existing) log(`${short}: expectation now ${v.expected.appRef.split("/").pop()} app ${v.expected.appSha256.slice(0, 8)}`);
+       }
+       if (existing) {
++        if (v.startupEgress === true && existing.startupEgress !== true) { existing.startupEgress = true; changed = true; }
++        else if (previous?.requiresDesktop === true && v.expected.requiresDesktop !== true && existing.startupEgress === true) {
++          delete existing.startupEgress; changed = true;
++        }
+         if (domains) { const n = namesFor(id); if (JSON.stringify(n) !== JSON.stringify(existing.names)) { existing.names = n; changed = true; } }
+         continue;
+       }
+       if (!domains) { log(`${short}: new, but the relay's domain map is unavailable; enrolling next pass`); continue; }
+-      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true });
++      cfg.apps.push({ deploymentId: id, names: namesFor(id), expectedFile, internetMode: "enclave-network", publishToMirror: true, ...(v.startupEgress === true ? { startupEgress: true } : {}) });
+       changed = true; log(`${short}: enrolled on the Enclave network (${namesFor(id).join(", ")})`);
+     }
+     if (changed && cfg.apps.length) {
+--- installed/windows/node/shield-secrets.mjs
++++ candidate/windows/node/shield-secrets.mjs
+@@ -3,7 +3,7 @@
+ import https from 'node:https';
+ const ID=/^0x[0-9a-f]{64}$/;
+ const message=(id,endpoint,ts)=>`enclave-shield-secrets:${id}:${endpoint}:${ts}`;
+-export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetch,log=()=>{},exchangeTimeoutMs=20000,egressReady=id=>startupEgressReady(id,{configFile:process.env.ENCLAVE_STARTUP_EGRESS_CONFIG,routeFile:process.env.ENCLAVE_EGRESS_APP_ROUTES})}){
++export function createShieldSecrets({base,endpoint,relayBase,sign,fetchImpl=fetch,log=()=>{},exchangeTimeoutMs=20000,egressReady=(id,required)=>startupEgressReady(id,{configFile:process.env.ENCLAVE_STARTUP_EGRESS_CONFIG,routeFile:process.env.ENCLAVE_EGRESS_APP_ROUTES,required})}){
+  const done=new Set(),retry=new Map();let active=false;
+  const inventory=async()=>{const r=await fetchImpl(base+'/vms',{signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('manager inventory unavailable');return (await r.json()).vms;};
+  async function target(id){
+@@ -44,7 +44,7 @@
+      retry.set(v.id,Date.now()+15000);
+      const ts=Math.floor(Date.now()/1000),ep=endpoint.replace(/\/+$/,''),opSig=await sign(message(v.name,ep,ts));
+      try{
+-      if(!await egressReady(v.name)){log(`sealed secrets for ${v.name.slice(0,10)} waiting for its startup egress route`);continue;}
++      if(!await egressReady(v.name,v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)){log(`sealed secrets for ${v.name.slice(0,10)} waiting for its startup egress route`);continue;}
+       const r=await fetchImpl(relayBase.replace(/\/+$/,'')+'/v1/secrets/shield-release',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:v.name,endpoint:ep,ts,opSig}),signal:AbortSignal.timeout(90000)});
+       const b=await r.json();if(!r.ok||b.ok!==true)throw Error(`relay HTTP ${r.status}`);
+       done.add(v.id);retry.delete(v.id);log(`sealed secrets delivered to ${v.name.slice(0,10)} (${b.count} names)`);
+--- installed/windows/node/startup-egress.mjs
++++ candidate/windows/node/startup-egress.mjs
+@@ -3,14 +3,15 @@
+ // A command may need outbound storage before binding its HTTP port. Its secret
+ // release waits for an independently attested, lease-bound private circuit.
+ // The guest's own destination allowlist still governs every outbound request.
+-export function startupEgressReady(id,{configFile,routeFile,now=Date.now(),read=readJSON}={}) {
+- if(!configFile&&!routeFile)return true;
++export function startupEgressReady(id,{configFile,routeFile,now=Date.now(),read=readJSON,required=false}={}) {
++ if(!configFile&&!routeFile)return !required;
+  if(!configFile||!routeFile)throw Error('startup egress needs config and routes');
+- // no privacy config yet (the network enrollment writes it with the first app): no app is configured for startup egress, so none waits on it
+- if(read===readJSON&&!fs.existsSync(configFile))return true;
++ // Legacy apps without configuration keep their existing behavior. Native apps
++ // require an explicit startup route even before enrollment writes the first config.
++ if(read===readJSON&&!fs.existsSync(configFile))return !required;
+  const config=read(configFile);
+  if(config.version!==2||!Array.isArray(config.apps))throw Error('invalid startup egress config');
+- if(!config.apps.some(a=>a.deploymentId===id&&a.startupEgress===true))return true;
++ if(!config.apps.some(a=>a.deploymentId===id&&a.startupEgress===true))return !required;
+  const routes=read(routeFile),app=routes.apps?.[id];
+  if(routes.version!==1||!Number.isSafeInteger(routes.expiresAt)||routes.expiresAt<=now||routes.expiresAt>now+120000||!Array.isArray(app?.proxies)||app.proxies.length<1||app.proxies.length>2)return false;
+  return new Set(app.proxies).size===app.proxies.length&&app.proxies.every(p=>/^127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(p)&&Number(p.split(':')[1])<=65535);
+--- installed/windows/vbslike/datapath/node-bridge.mjs
++++ candidate/windows/vbslike/datapath/node-bridge.mjs
+@@ -21,6 +21,8 @@
+ import { spliceStream } from "../../../isolation/m4/guestd/supervisor-splice.mjs";
+ import { createDataPlane } from "./datapath.mjs";
+ import { appConfigText, DERIVATION_V5, DERIVATION_V6, DERIVATION_V7 } from "../manager/derive.mjs";
++import { validateDesktopRelease } from "../../../relay/shield-desktop-release.mjs";
++import { nativeDesktopPlan } from "./desktop-plan.mjs";
+ 
+ export const BACKEND = "hyperv-partition-per-app";
+ export const V1 = "enclave-catalog-bundle/1";
+@@ -130,7 +132,7 @@
+  * -> { ok: false, input, why, unknown }
+  */
+ export function isolationPlan({ deploymentId, deployment, version, appConfig, hasSecrets, waf, volumes, runtimeId,
+-                                require, manager, appConfigCid, configSourceCid, backend = BACKEND } = {}) {
++                                require, manager, appConfigCid, configSourceCid, desktopRelease, backend = BACKEND } = {}) {
+   if (!/^0x[0-9a-f]{64}$/.test(String(deploymentId || ""))) return refused("deploymentId", `${deploymentId} is not a deployment id`);
+   if (!deployment || typeof deployment !== "object") return unknownInput("deployment", "the ledger record");
+   // the tenant's opt-in, then the manager's identity: supervisor.js checks these first, in this order
+@@ -152,6 +154,14 @@
+   if (deployment.isPublic !== true && deployment.isPublic !== false) return unknownInput("deployment.isPublic", "whether the deployment is public");
+   if (deployment.isPublic === false)
+     return refused("deployment.isPublic", "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the partition");
++  if (desktopRelease !== undefined && desktopRelease !== null) {
++    let release;
++    try { release = validateDesktopRelease(desktopRelease); }
++    catch (e) { return refused("desktopRelease", e.message); }
++    if (version.cid === release.controllerCid)
++      return nativeDesktopPlan({ release, deploymentId, deployment, version, appConfig,
++        hasSecrets, waf, volumes, manager, appConfigCid, configSourceCid });
++  }
+   const gpu = Number(deployment.gpuMilli);
+   if (deployment.gpuMilli === undefined || deployment.gpuMilli === null || !Number.isFinite(gpu)) return unknownInput("deployment.gpuMilli", "the deployment's GPU share");
+   const inf = gpu > 0 ? manager.inference : null;
