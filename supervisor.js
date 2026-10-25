@@ -291,7 +291,7 @@ const STATE_FILE         = process.env.STATE_FILE || "/var/lib/enclave/state.jso
 const AUTO_PROVISION       = /^(1|true|on)$/i.test(process.env.AUTO_PROVISION || "");
 const AUTO_PROVISION_HOURS = parseFloat(process.env.AUTO_PROVISION_HOURS || "0");
 const ADMIN_TOKEN          = process.env.ADMIN_TOKEN || "";
-const BASE_RPC       = process.env.BASE_RPC || "https://mainnet.base.org";
+const BASE_RPC       = process.env.BASE_RPC || "https://api.enclave.host/rpc/base";
 // Multi-provider RPC pool: one throttled provider must never fail-close the
 // claim path — the catalog-approval gate and hint evaluation read the chain,
 // and when the single RPC rate-limits, every claim declines "Could not verify

@@ -52,8 +52,8 @@ const ASSUME_YES = args.has("--yes");
 const REPLACE = args.has("--replace");                 // override the live-contract guard on mainnet
 
 const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org", explorer: "https://sepolia.basescan.org" },
-  "base":         { chain: base,        rpc: "https://mainnet.base.org",  explorer: "https://basescan.org" },
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia", explorer: "https://sepolia.basescan.org" },
+  "base":         { chain: base,        rpc: "https://api.enclave.host/rpc/base",  explorer: "https://basescan.org" },
 };
 
 function die(msg) { console.error(`\nERROR: ${msg}\n`); process.exit(1); }
@@ -95,6 +95,8 @@ function compile() {
 // Point the site at the deployment: address + the chain/RPC it lives on, so a
 // testnet deploy yields a working site and a mainnet deploy flips it back.
 function writeSiteConfig(addr, chainId, rpc) {
+  // The deployer may use a credential-bearing RPC_URL; never publish it.
+  rpc = chainId === 8453 ? "https://api.enclave.host/rpc/base" : chainId === 84532 ? "https://api.enclave.host/rpc/base-sepolia" : rpc;
   let html = fs.readFileSync(SITE, "utf8");
   const subs = [
     [/(const APP_CATALOG_ADDRESS\s*=\s*)"[^"]*"/, `$1"${addr}"`,      `APP_CATALOG_ADDRESS="${addr}"`],

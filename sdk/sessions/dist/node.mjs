@@ -44,14 +44,14 @@ var NETWORKS = {
     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     book: "0xab214342d5A490150A4A977063A2f88E21F80907",
     relay: "https://api.enclave.host",
-    rpc: "https://base-rpc.publicnode.com"
+    rpc: "https://api.enclave.host/rpc/base"
   },
   "base-sepolia": {
     chainId: 84532,
     name: "Base Sepolia",
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     relay: "https://api.enclave.host",
-    rpc: "https://base-sepolia-rpc.publicnode.com"
+    rpc: "https://api.enclave.host/rpc/base-sepolia"
   }
 };
 var BOOK_KEY_FACTORY = "sessionVaultFactory";

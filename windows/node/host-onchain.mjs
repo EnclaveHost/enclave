@@ -24,7 +24,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import * as chain from "./chain.mjs";
 
-const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org").split(",");
+const RPCS = (process.env.BASE_RPCS || "https://api.enclave.host/rpc/base,https://base-rpc.publicnode.com,https://base.drpc.org,https://mainnet.base.org").split(",");
 const NAME = process.env.NODE_NAME || "nucbox-k11";
 const ENDPOINT = process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`;
 const key = (process.env.OWNER_KEY || "").trim();

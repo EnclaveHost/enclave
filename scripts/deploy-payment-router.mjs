@@ -63,10 +63,10 @@ const ASSUME_YES = args.has("--yes");
 const REPLACE = args.has("--replace");
 
 const NETWORKS = {
-  "base-sepolia": { chain: baseSepolia, rpc: "https://sepolia.base.org",
+  "base-sepolia": { chain: baseSepolia, rpc: "https://api.enclave.host/rpc/base-sepolia",
                     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
                     explorer: "https://sepolia.basescan.org" },
-  "base":         { chain: base, rpc: "https://mainnet.base.org",
+  "base":         { chain: base, rpc: "https://api.enclave.host/rpc/base",
                     usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
                     explorer: "https://basescan.org" },
 };

@@ -293,7 +293,7 @@ const tunnelHub = createTunnelHub({
 let   REGISTRY_ADDRESS  = (process.env.REGISTRY_ADDRESS || "").trim();   // env fallback; the address book (below) overrides
 let   DEPLOYMENTS_ADDRESS = (process.env.DEPLOYMENTS_ADDRESS || "").trim(); // EnclaveDeployments ledger; book overrides too
 const ADDRESS_BOOK      = (process.env.ADDRESS_BOOK_ADDRESS || "").trim();
-const BASE_RPC          = process.env.BASE_RPC || "https://mainnet.base.org";
+const BASE_RPC          = process.env.BASE_RPC || "https://api.enclave.host/rpc/base";
 const STATIC_ENCLAVES   = (process.env.ENCLAVES || "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
 const PORT              = parseInt(process.env.API_RELAY_PORT || "8100", 10);
 const AVAIL_POLL_SEC    = parseInt(process.env.AVAIL_POLL_SEC || "10", 10);

@@ -114,7 +114,7 @@ function wcProvider(){
       projectId: WALLETCONNECT_PROJECT_ID,
       chains: [BASE_CHAIN],            // Base only: this site signs nothing else
       showQrModal: false,              // we render the pairing code ourselves (qr.js)
-      rpcMap: { [BASE_CHAIN]: "https://mainnet.base.org" },
+      rpcMap: { [BASE_CHAIN]: "https://api.enclave.host/rpc/base" },
       metadata: {
         name: "Enclave",
         description: "Verifiable confidential compute",
@@ -310,7 +310,7 @@ export async function usdcBalanceOf(addr){
     const hex = await Enclave.provider.request({ method: "eth_call", params: [call, "latest"] });
     if (hex && hex !== "0x") return parseInt(hex, 16) / 1e6;
   } catch(_){}
-  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+  const r = await fetch("https://api.enclave.host/rpc/base", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [call, "latest"] }) });
   const j = await r.json(); const hex = j && j.result;
   return (hex && hex !== "0x") ? parseInt(hex, 16) / 1e6 : 0;
@@ -321,7 +321,7 @@ export async function ethBalanceOf(addr){
     const hex = await Enclave.provider.request({ method: "eth_getBalance", params });
     if (hex && hex !== "0x") return Number(BigInt(hex)) / 1e18;
   } catch(_){}
-  const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+  const r = await fetch("https://api.enclave.host/rpc/base", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBalance", params }) });
   const j = await r.json(); const hex = j && j.result;
   return (hex && hex !== "0x") ? Number(BigInt(hex)) / 1e18 : 0;
@@ -372,7 +372,7 @@ async function ensureBaseChainOnConnect(provider){
         await provider.request({ method: "wallet_addEthereumChain", params: [{
           chainId: BASE_CHAIN_HEX, chainName: "Base",
           nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-          rpcUrls: ["https://mainnet.base.org"], blockExplorerUrls: ["https://basescan.org"]
+          rpcUrls: ["https://api.enclave.host/rpc/base"], blockExplorerUrls: ["https://basescan.org"]
         }] });
       } catch(_){}
     }

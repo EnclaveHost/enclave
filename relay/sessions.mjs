@@ -378,9 +378,9 @@ function attestorSetup(a) {
 // ============================================================================
 
 const NETS = {
-  base: { chain: base, rpc: ["https://base-rpc.publicnode.com", "https://mainnet.base.org"],
+  base: { chain: base, rpc: ["https://api.enclave.host/rpc/base", "https://base-rpc.publicnode.com", "https://mainnet.base.org"],
     book: "0xab214342d5A490150A4A977063A2f88E21F80907", ethUsdFeed: "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70" },
-  "base-sepolia": { chain: baseSepolia, rpc: ["https://sepolia.base.org"],
+  "base-sepolia": { chain: baseSepolia, rpc: ["https://api.enclave.host/rpc/base-sepolia", "https://sepolia.base.org"],
     ethUsdFeed: "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1" },
   local: { chain: foundry, rpc: ["http://127.0.0.1:8545"] },
 };
@@ -1246,7 +1246,7 @@ export async function initSessions({ dataDir, JsonStore, alert, log } = {}) {
     maxTipWei: process.env.SESSIONS_MAX_TIP_WEI ? BigInt(process.env.SESSIONS_MAX_TIP_WEI) : undefined,
     ownerOpsPerDay: process.env.SESSIONS_OWNER_OPS_PER_DAY ? Number(process.env.SESSIONS_OWNER_OPS_PER_DAY) : undefined,
     site: process.env.SESSIONS_SITE || "https://enclave.host",
-    publicRpc: process.env.SESSIONS_PUBLIC_RPC || null,
+    publicRpc: process.env.SESSIONS_PUBLIC_RPC || (netName === "local" ? net.rpc[0] : `https://api.enclave.host/rpc/${netName}`),
     store: new JsonStore(path("sessions-index.json"), {}, { durable: false }),
     journal: new JsonStore(path("sessions-relayer.json"), { txs: [] }, { durable: true }),
     attestor: attestorEnv(),
