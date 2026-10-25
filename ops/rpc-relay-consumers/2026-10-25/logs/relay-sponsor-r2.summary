@@ -1,0 +1,9 @@
+ok 1 - success: a fresh key with NO ETH registers through the paymaster; receipt + registry; ONE broadcast, to the own backend only
+ok 2 - refused before broadcast: authorization for another account nonce (409) and one signed by another key (400)
+ok 3 - refused before broadcast: an invalid voucher and an invalid operation signature (handleOps would revert: 422), an unsupported op shape (403)
+# tests 3
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+rc=0
