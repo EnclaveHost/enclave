@@ -10,7 +10,7 @@
 // guest build or a workflow starts reading an excluded path, it fails.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
@@ -73,12 +73,13 @@ test("the pre-existing exemptions are unchanged", () => {
 
 // ---- guards: nothing may BUILD from an excluded path -----------------------
 
+// Inspect repository inputs, including new unignored files, without traversing
+// ignored dependency/build trees or locally preserved consolidation archives.
+const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+  { cwd: ROOT, encoding: "utf8" }).split("\0").filter(Boolean);
 function* walk(dir) {
-  for (const e of readdirSync(path.join(ROOT, dir))) {
-    if (e === ".git" || e === "node_modules") continue;
-    const rel = dir ? `${dir}/${e}` : e;
-    const st = statSync(path.join(ROOT, rel));
-    if (st.isDirectory()) yield* walk(rel); else yield rel;
+  for (const file of sourceFiles) {
+    if (!dir || file.startsWith(`${dir}/`)) yield file;
   }
 }
 
