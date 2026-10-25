@@ -1,5 +1,5 @@
-// Offline V8 tooling only. Deliberately absent from DERIVATIONS and manager
-// spawn: constructing this identity does not establish a working desktop image.
+// V8 has an explicit, opt-in native manager path. It remains absent from the
+// ordinary DERIVATIONS: constructing this identity alone authorizes no launch.
 import { TextDecoder } from "node:util";
 import { ABI, BUNDLE_MAGIC, KIND, COMPONENT_PREAMBLE, MAX_MANIFEST_BYTES,
   MAX_CONFIG_BYTES, canonical, sha256Hex } from "./derive.mjs";

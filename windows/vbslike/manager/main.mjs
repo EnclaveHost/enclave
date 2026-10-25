@@ -22,6 +22,9 @@ import { startPackageTransport, PACKAGE_SERVICE_GUID } from "./package-transport
 import { startCustodyTransport, CUSTODY_SERVICE_GUID } from "./custody-transport.mjs";
 import { readCustodyCallbackKey } from "./custody-key-file.mjs";
 import { DERIVATION_V6, DERIVATION_V7 } from "./derive.mjs";
+import { DESKTOP_DERIVATION } from "./desktop-derive.mjs";
+import { loadDesktopConfig, probeDesktopWorker } from "./desktop-config.mjs";
+import { startDesktopWorkerTransport } from "./desktop-worker-transport.mjs";
 import { PartitionConsoleLogs, consoleTargets, partitionLogDir } from "./console-log.mjs";
 import { loadModelVolumes } from "./model-volumes.mjs";
 
@@ -131,7 +134,7 @@ if (shieldDirect) {
 // the launcher's hook: a secret deployment's partition, or an owner-committed one, gets its egress path; every other mapping gets none
 const egressHook = egress
   ? (vmId, deploymentId, mapping, { bootstrap = false } = {}) =>
-      [DERIVATION_V6,DERIVATION_V7].includes(mapping?.record?.derivation) || (shieldDirect && bootstrap) ? startEgress({ cfg: egress, vmId, deploymentId }) : null
+      [DERIVATION_V6,DERIVATION_V7,DESKTOP_DERIVATION].includes(mapping?.record?.derivation) || (shieldDirect && bootstrap) ? startEgress({ cfg: egress, vmId, deploymentId }) : null
   : null;
 const packageHook = shieldDirect
   ? (vmId, deploymentId, bytes) => startPackageTransport({ bridge: { exe: egress.bridgeExe, sha256: egress.bridgeSha256 }, vmId, deploymentId, bytes })
@@ -254,11 +257,44 @@ if (shieldConfig) {
   setInterval(refresh,15000).unref();
 }
 
+// Optional native desktop configuration is public, bounded and pinned as a
+// whole. It contains no owner secrets; their existing measured release path
+// remains mandatory. Configuration and availability are separate facts.
+let desktopLauncher = null, desktopConfig = null, desktopWorker = null;
+const desktopFile = env("ENCLAVE_DESKTOP_CONFIG"), desktopFileSha = env("ENCLAVE_DESKTOP_CONFIG_SHA256").toLowerCase();
+if (desktopFile || desktopFileSha) {
+  try {
+    if (!launcherOptions || !serve || !egress || !env("NODE_APP_RAM_GB") || !env("NODE_VM_RAM_GB"))
+      throw new Error("desktop needs the legacy launcher, wmiserve, egress and both RAM pools");
+    for (const flag of ["ENCLAVE_CONFIG_BUNDLE_V5", "ENCLAVE_SECRETS_V1", "ENCLAVE_CONFIG_SOCKET_SERVER_V1", "ENCLAVE_PROTECTED_PORTS_V1"])
+      if (env(flag) !== "1") throw new Error(`desktop needs ${flag}=1`);
+    const cfg = loadDesktopConfig(desktopFile, desktopFileSha), admission = cfg.admission;
+    desktopConfig = { platform: cfg.platform, runtime: cfg.runtime };
+    desktopLauncher = new WmiHyperVLauncher({ ...launcherOptions,
+      imageRole: "desktop", imagePath: cfg.imagePath, imageSha256: admission.platform.igvmSha256,
+      desktopPlatform: cfg.platform, boot: "linux-direct", medium: null, mediumSha256: null,
+      startPackage: null, packageService: null, startCustody: null, custodyService: null, custodyImageSha256: null,
+      startTransport: (vmId, mapping) => startDesktopWorkerTransport({ bridge: cfg.bridge, vmId, mapping,
+        runtimeId: admission.platform.runtimeId, workerPort: cfg.workerPort }),
+    });
+    await desktopLauncher.verifyImage();
+    desktopWorker = { ready: false, card: null, error: null };
+    const refresh = async () => {
+      try {
+        const card = await probeDesktopWorker(cfg);
+        Object.assign(desktopWorker, { ready: true, card, error: null, checkedAt: Date.now() });
+      } catch (e) { Object.assign(desktopWorker, { ready: false, card: null, error: e.message, checkedAt: Date.now() }); }
+    };
+    await refresh(); setInterval(refresh, 15000).unref();
+  } catch (e) { console.error(`[winmgr] REFUSING TO START: native desktop configuration: ${e.message}`); process.exit(2); }
+}
+
 // PER-SPAWN IMAGE SELECTION (F3, shield-profile.mjs ImageLauncher): a package -> the Shield-direct image, inference -> the
 // GPU image, everything else -> the legacy image. With neither extra image, the legacy launcher alone, exactly as before.
-const routed = launcher && (directLauncher || gpu) ? new ImageLauncher({ legacy: launcher, shieldDirect: directLauncher, gpu }) : launcher;
+const routed = launcher && (directLauncher || gpu || desktopLauncher) ? new ImageLauncher({ legacy: launcher, shieldDirect: directLauncher, gpu, desktop: desktopLauncher }) : launcher;
 const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer, directBootstrap: !!directLauncher,
   images: { legacy: { igvmSha256: imageSha256.toLowerCase() || null },
+            ...(desktopConfig ? { desktop: desktopConfig } : {}),
             ...(direct ? { shieldDirect: { runtime: direct.runtime, igvmSha256: direct.imageSha256 } } : {}) },
   // only with a launcher whose own pinned image is the stated one (above); without a launcher nothing can start anyway
   custodyV2: custodyV2 && launcherOptions ? custodyV2 : null,
@@ -268,6 +304,7 @@ const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer
   physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
   runtime,
   shield,
+  desktopWorker,
   runtimeId,
   fetchComponent,
   // Enable only with the CPU guest image whose monitor delivers V5 config.

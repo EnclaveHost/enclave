@@ -60,6 +60,7 @@ export class HyperVPartitionBackend {
   /** the launcher's ownership marker (wmi-launcher.mjs markerFor): what this manager's recovery recognises as its own */
   get marker() { return (this.launcher && this.launcher.marker) || undefined; }
   get prefix() { return (this.launcher && this.launcher.prefix) || undefined; }
+  get desktopPlatform() { return this.launcher?.desktopPlatform ?? null; }
   /**
    * Start a domain for an already-derived mapping. Resolves to { pid, endpoint } when a partition
    * really runs; throws otherwise. It never returns a partial success.

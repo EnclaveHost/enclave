@@ -6,7 +6,7 @@ import {ImageLauncher} from './shield-profile.mjs';
 function stub(imageRole, {ok = true, checks = [{name: 'image-pin', ok: true}], delay = 0} = {}) {
   const l = {
     pin: 'sha256:' + (imageRole ?? 'unpinned'), starts: [], stops: [],
-    boundary: 'boundary:' + imageRole, marker: 'marker:' + imageRole, prefix: 'prefix:' + imageRole,
+    boundary: 'boundary:' + imageRole, marker: 'shared-marker', prefix: 'shared-prefix',
     async start(mapping, opts) {
       l.starts.push({mapping, opts});
       await new Promise(r => setTimeout(r, delay));
@@ -153,34 +153,32 @@ test('concurrent mixed spawns each take their own route and leave every pin unch
   assert.equal(il.legacy, ls.legacy); assert.equal(il.gpu, ls.gpu); assert.equal(il.shieldDirect, ls.shieldDirect); assert.equal(il.desktop, ls.desktop);
 });
 
-test('preflight reports desktop checks prefixed and keeps every failure visible', async () => {
+test('desktop preflight is separate and cannot disable existing roles', async () => {
   const legacyResult = {ok: true, checks: [{name: 'image-pin', ok: true}, {name: 'hyperv', ok: true}]};
   const legacy = {...stub(undefined), preflight: async () => legacyResult};
   assert.equal(await new ImageLauncher({legacy}).preflight(), legacyResult);
   assert.equal(await new ImageLauncher({legacy, gpu: stub('gpu')}).preflight(), legacyResult);
+  const desktopResult={ok:false,checks:[{name:'native-worker',ok:false}]};
+  const desktop={...stub('desktop'),preflight:async()=>desktopResult};
+  let r=await new ImageLauncher({legacy,desktop}).preflight();
+  assert.equal(r.ok,true);assert.deepEqual(r.checks,legacyResult.checks);
+  assert.equal(r.roles.desktop,desktopResult);
+  const shieldDirect=stub('shield-direct',{ok:false,checks:[{name:'port-9446',ok:false}]});
+  r=await new ImageLauncher({legacy,shieldDirect,desktop}).preflight();
+  assert.equal(r.ok,false);assert.equal(r.roles.desktop.ok,false);
+  assert.ok(r.checks.some(x=>x.name==='shield-direct image: port-9446'&&!x.ok));
+  r=await new ImageLauncher({legacy,desktop:{...desktop,preflight:async()=>{throw Error('native probe failed');}}}).preflight();
+  assert.equal(r.ok,true);assert.equal(r.roles.desktop.ok,false);
+  assert.match(r.roles.desktop.checks[0].detail,/native probe failed/);
+  r=await new ImageLauncher({legacy,desktop:{...desktop,preflight:async()=>undefined}}).preflight();
+  assert.equal(r.ok,true);assert.equal(r.roles.desktop,undefined);
+  r=await new ImageLauncher({legacy:{...legacy,preflight:async()=>({ok:false,checks:[]})},desktop:stub('desktop')}).preflight();
+  assert.equal(r.ok,false);assert.equal(r.roles.desktop.ok,true);
+});
 
-  const desktop = stub('desktop', {ok: false, checks: [{name: 'image-pin', ok: true}, {name: 'hyperv', ok: false, detail: 'no partition'}, {name: 'native-worker', ok: false}]});
-  let r = await new ImageLauncher({legacy, desktop}).preflight();
-  assert.equal(r.ok, false);
-  assert.deepEqual(r.checks, [...legacyResult.checks,
-    {name: 'desktop image: hyperv', ok: false, detail: 'no partition'}, {name: 'desktop image: native-worker', ok: false}]);
-
-  const shieldDirect = stub('shield-direct', {ok: false, checks: [{name: 'port-9446', ok: false}]});
-  r = await new ImageLauncher({legacy, shieldDirect, desktop}).preflight();
-  assert.equal(r.ok, false);
-  assert.deepEqual(r.checks.map(c => [c.name, c.ok]), [['image-pin', true], ['hyperv', true],
-    ['shield-direct image: port-9446', false], ['desktop image: hyperv', false], ['desktop image: native-worker', false]]);
-
-  // A failing legacy image is not masked by a passing desktop image, and distinct passing checks are still reported.
-  const badLegacy = {...stub(undefined), preflight: async () => ({ok: false, checks: [{name: 'hyperv', ok: false}]})};
-  r = await new ImageLauncher({legacy: badLegacy, desktop: stub('desktop', {checks: [{name: 'hyperv', ok: true}, {name: 'desktop-pin', ok: true}]})}).preflight();
-  assert.equal(r.ok, false);
-  assert.deepEqual(r.checks, [{name: 'hyperv', ok: false}, {name: 'desktop image: desktop-pin', ok: true}]);
-
-  // A passing legacy image with a desktop image that reports nothing usable is not ok.
-  r = await new ImageLauncher({legacy, desktop: {...stub('desktop'), preflight: async () => undefined}}).preflight();
-  assert.equal(r.ok, false);
-  r = await new ImageLauncher({legacy, desktop: stub('desktop')}).preflight();
-  assert.equal(r.ok, true);
-  assert.deepEqual(r.checks, legacyResult.checks);
+test('native image must share the inventory and guest-state cleanup scope',()=>{
+  for(const key of ['prefix','marker','guestStateRunDir','guestStateArchiveDir']){
+    const ls=launchers();ls.desktop[key]='different';
+    assert.throws(()=>new ImageLauncher(ls),new RegExp('share '+key));
+  }
 });

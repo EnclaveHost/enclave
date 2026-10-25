@@ -19,6 +19,11 @@
    ============================================================ */
 import http from "node:http";
 import { appMemoryForShare } from "./memory-share.mjs";
+import { validateDesktopAdmission, desktopSpawnRefusal } from "./desktop-admission.mjs";
+import { deriveDesktop, DESKTOP_DERIVATION } from "./desktop-derive.mjs";
+import { validateDesktopMapping } from "./desktop-platform.mjs";
+import { desktopVmMemMiB } from "./desktop-memory.mjs";
+import { BOOT_STATEMENTS } from "../verify/boot-statements.mjs";
 import { inferenceRefusal } from "./shield-profile.mjs";
 import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
 import crypto from "node:crypto";
@@ -72,6 +77,7 @@ export function refuseUnsupported(req = {}, s = SUPPORTS) {
 }
 
 export class Manager {
+  #desktop = null;
   /**
    * @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict.
    *                    Injected so a test drives it; defaults to ready.mjs's judgeRunning.
@@ -80,7 +86,7 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, directBootstrap = false, custodyV2 = null, images = null } = {}) {
+                egress = null, ramPoolMiB = null, physicalRamPoolMiB = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null } = {}) {
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
@@ -130,6 +136,21 @@ export class Manager {
     // bridge and egress endpoint; this states it on /health and fails a domain whose path exits. Only secret (V6)
     // domains use it, so it is stated only where they are served.
     this.egress = egress && egress.enabled === true && this.secretsEnabled ? { mode: String(egress.mode || "") } : null;
+    this.desktopWorker = desktopWorker;
+    if (images?.desktop != null) {
+      const admission = validateDesktopAdmission(images.desktop);
+      const p = admission.platform, selected = backend.desktopPlatform;
+      if (!this.images.legacy) throw new Error("native desktop admission requires the legacy image pin for distinct image selection");
+      if (!this.protectedPorts || !this.egress || ramPoolMiB === null || physicalRamPoolMiB === null || typeof judgeReady !== "function")
+        throw new Error("native desktop admission needs protected ports, sealed-secret delivery, egress, both RAM pools and a readiness judge");
+      if (!backend.canSurvey) throw new Error("native desktop admission requires authoritative VM inventory");
+      if (!desktopWorker || typeof desktopWorker !== "object") throw new Error("native desktop admission needs worker availability state");
+      if (!selected || ["igvmSha256", "runtimeId", "profileSha256"].some(k => selected[k] !== p[k]))
+        throw new Error("native desktop admission differs from the selected desktop launcher");
+      if ([this.images.legacy?.igvmSha256, this.images.shieldDirect?.igvmSha256, shield?.imageSha256].includes(p.igvmSha256))
+        throw new Error("native desktop needs an image distinct from every existing image role");
+      this.#desktop = admission;
+    }
     // DIRECT SHIELD CUSTODY (custody-transport.mjs; isolation/m2/front/shield_direct_custody.go; main.mjs
     // ENCLAVE_SHIELD_CUSTODY_V2=1): a V6/V7 partition started from an owner-committed custody-v2 package opens its own
     // shares and asks this host, on vsock 9445, only for the operator's signature over its release binding. ON only with
@@ -237,7 +258,7 @@ export class Manager {
                               launcherKey: handle.launcherKey, expectedVmId: handle.launcherVmId, ...statement,
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
                               // judged against ITS image's identity, never another's (F3)
-                              expectRuntime: rec.inference ? this.shield?.runtime
+                              expectRuntime: rec.imageRole === "desktop" ? this.#desktop.runtime : rec.inference ? this.shield?.runtime
                                 : rec.imageRole === "shield-direct" ? this.images.shieldDirect?.runtime ?? undefined : this.runtime ?? undefined,
                               deadlineMs: [DERIVATION_V6,DERIVATION_V7].includes(rec.derivation) ? Math.max(300_000,this.readyDeadlineMs) : this.readyDeadlineMs });
       if (this.domains.get(rec.id) !== rec) return;         // removed, or replaced, while we were judging (63's P3: identity, not presence)
@@ -363,6 +384,10 @@ export class Manager {
     }
     return held;
   }
+  get desktopReady() {
+    return !!this.#desktop && this.desktopWorker?.ready === true && this._preflight?.ok === true
+      && this._preflight?.roles?.desktop?.ok === true && this.inventoryReady;
+  }
   health() {
     return {
       managerEpoch: this.epoch,
@@ -375,7 +400,7 @@ export class Manager {
       // the VM namespace this manager owns (wmi-launcher.mjs markerFor): what a second instance's tooling checks first
       ...(this.backend?.prefix ? { vmScope: { prefix: this.backend.prefix, marker: this.backend.marker ?? null } } : {}),
       backend: this.backend.backend,
-      supports: { ...this.backend.supports, directBootstrap: this.directBootstrap, gpu: !!this.shield?.ready, config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled, ports: this.protectedPorts, encVolumes: this.encVolumes, set: this.wasmSet, mem64: this.memory64,
+      supports: { ...this.backend.supports, directBootstrap: this.directBootstrap, gpu: !!this.shield?.ready || this.desktopReady, ...(this.#desktop ? { desktop: this.desktopReady } : {}), config: this.configEnabled, configCid: this.configEnabled, secrets: this.secretsEnabled, ports: this.protectedPorts, encVolumes: this.encVolumes, set: this.wasmSet, mem64: this.memory64,
                   // outbound HTTPS from a secret domain to its owner's config's origins (egress.mjs). NOT the spawn's
                   // `egress` (a dedicated exit, always refused) and not the node's networkOptions (PARTITION_OFFERS.egress)
                   egress: !!this.egress,
@@ -398,6 +423,12 @@ export class Manager {
         ({ name, bytes: v.entry.imageBytes, backend: v.entry.preload, root: v.entry.verity.root, pin: v.entry.pin, kind: "model" })) : [],
       ...(this.modelVolumes ? { modelVolumesMissing: this.modelVolumes.missing } : {}),
       inference: this.shield ? { ...this.shield, allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.shield.ready ? Math.max(0, 1000-this.gpuAllocated()) : 0 } : null,
+      ...(this.#desktop ? { desktop: {
+        ready: this.desktopReady, runtime: this.#desktop.runtime, runtimeId: this.#desktop.platform.runtimeId,
+        igvmSha256: this.#desktop.platform.igvmSha256, profileSha256: this.#desktop.platform.profileSha256,
+        controllerSha256: this.#desktop.platform.controllerSha256,
+        allocatedGpuMilli: this.gpuAllocated(), freeGpuMilli: this.desktopReady ? Math.max(0, 1000-this.gpuAllocated()) : 0,
+      } } : {}),
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
       // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
       // including hostExcluded:false, because that is the word that must never be lost.
@@ -410,8 +441,8 @@ export class Manager {
       // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
       // consumer, asked for exactly this, and they are right.)
       catalog: {
-        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : []), ...(this.secretsEnabled ? [DERIVATION_V6] : []), ...(this.protectedPorts ? [DERIVATION_V7] : [])],                    // what it can serve: the gate reads this
-        derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
+        derivations: [...SERVES, ...(this.shield?.ready ? [DERIVATION_V4] : []), ...(this.configEnabled ? [DERIVATION_V5] : []), ...(this.secretsEnabled ? [DERIVATION_V6] : []), ...(this.protectedPorts ? [DERIVATION_V7] : []), ...(this.desktopReady ? [DESKTOP_DERIVATION] : [])],
+        derives: [...DERIVATIONS, ...(this.#desktop ? [DESKTOP_DERIVATION] : [])],                   // what it can COMPUTE, byte-exactly: information only
         runtimeId: this.runtimeId || null,
       },
       runtime: { v2SocketServer: false, configSocketServer: this.configSocketServer,
@@ -442,18 +473,25 @@ export class Manager {
       e.status = 503; throw e;
     }
     if (["secrets", "env", "secretValues"].some(k => k in body)) throw badRequest("plaintext secrets are not manager inputs");
+    const native = body.derive?.derivation === DESKTOP_DERIVATION;
+    // Own native inputs before any asynchronous fetch. Later policy checks and
+    // reservation must describe the same request that was validated here.
+    if (native) body = structuredClone(body);
     const d = body.derive || {};
-    if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
+    if (native) {
+      if (!this.desktopReady) throw badRequest("native desktop image or worker is unavailable");
+      const why = desktopSpawnRefusal(d, body); if (why) throw badRequest(why);
+    } else if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
     // Refuse rather than approximate. The identity is right either way - derive() proves that -
     // but a /2 app is a command with its own socket, and serving one needs a runtime this backend
     // does not have. Taking it and running something else would be the worst of both.
     if (d.derivation === "enclave-catalog-bundle/2")
       throw badRequest("this backend derives enclave-catalog-bundle/2 but cannot serve it yet: "
         + "a command serving its own socket needs wasi:sockets inside the partition and an in-guest TLS front");
-    const shieldWhy = inferenceRefusal(d, body, this.shield);
+    const shieldWhy = native ? null : inferenceRefusal(d, body, this.shield);
     if (shieldWhy) throw badRequest(shieldWhy);
     if (d.derivation === DERIVATION_V4 && !this.shield?.ready) throw badRequest("Shield profile unavailable");
-    if (d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled) && !(d.derivation === DERIVATION_V6 && this.secretsEnabled) && !(d.derivation === DERIVATION_V7 && this.protectedPorts))
+    if (!native && d.derivation !== DERIVATION && d.derivation !== DERIVATION_V4 && !(d.derivation === DERIVATION_V5 && this.configEnabled) && !(d.derivation === DERIVATION_V6 && this.secretsEnabled) && !(d.derivation === DERIVATION_V7 && this.protectedPorts))
       throw badRequest("derivation is not served");
     // The new config lives only in the measured record; never ignore a second, unmeasured input.
     if ([DERIVATION_V5,DERIVATION_V6,DERIVATION_V7].includes(d.derivation)) {
@@ -468,13 +506,13 @@ export class Manager {
     }
     // THE IMAGE THIS SPAWN RUNS ON (F3): chosen by the package's presence and the manager's own derivation, nothing else,
     // and the RuntimeID is that image's pin. A package can therefore never be steered onto the legacy image.
-    const role = body.bootstrap !== undefined ? "shield-direct" : d.inference ? "gpu" : "legacy";
+    const role = native ? "desktop" : body.bootstrap !== undefined ? "shield-direct" : d.inference ? "gpu" : "legacy";
     if (role === "shield-direct" && this.directBootstrap && d.runtimeId !== this.images.shieldDirect.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host's Shield-direct image runs ${this.images.shieldDirect.runtimeId}`);
     if (role === "legacy" && this.runtimeId && d.runtimeId !== this.runtimeId)
       throw badRequest(`the mapping is pinned to runtime ${d.runtimeId}, and this host runs ${this.runtimeId}`);
     if ([DERIVATION_V6,DERIVATION_V7].includes(d.derivation) && (body.hasSecrets !== true || body.name !== d.secretDeployment)) throw badRequest("secret deployment differs from spawn identity");
-    const refusal = refuseUnsupported(body, { ...SUPPORTS, gpu: !!this.shield?.ready, secrets: this.secretsEnabled && [DERIVATION_V6,DERIVATION_V7].includes(d.derivation) });
+    const refusal = refuseUnsupported(body, { ...SUPPORTS, ports: native, gpu: native ? this.desktopReady : !!this.shield?.ready, secrets: this.secretsEnabled && (native || [DERIVATION_V6,DERIVATION_V7].includes(d.derivation)) });
     if (refusal) throw badRequest(`this backend does not honour ${refusal}`);
     // MODEL VOLUMES: exactly the names the MEASURED config carries (the monitor mounts those and no others), each a volume
     // of the image's table this host holds; refused, never dropped, as the monitor refuses a domain without its disks
@@ -512,7 +550,9 @@ export class Manager {
     }
 
     const component = await this.fetchComponent(d.cid);
-    const mapping = derive({ record: d, component });     // throws on anything the rule refuses
+    let mapping;
+    try { mapping = native ? validateDesktopMapping(deriveDesktop({ record: d, component }), this.#desktop.platform) : derive({ record: d, component }); }
+    catch (e) { if (native) throw badRequest(e.message); throw e; }
     if (startup) {
       // the exact bytes, for THIS deployment, committing THIS manager's own derivation of the app and its runtime
       let m;
@@ -566,7 +606,8 @@ export class Manager {
     // failed | stopped). The old "guest-booted" was a fifth word no consumer knew, so a booted
     // domain read as dead every tick and was respawned.
     // No await between reservation check and insertion: concurrent fetches cannot oversell.
-    const gpuMilli = mapping.record.inference?.gpuMilli || 0;
+    if (native && !this.desktopReady) throw badRequest("native desktop became unavailable during the component fetch");
+    const gpuMilli = native ? mapping.record.desktop.gpuMilli : mapping.record.inference?.gpuMilli || 0;
     if (gpuMilli + this.gpuAllocated() > 1000) throw badRequest("Shield GPU allocation is full");
     if (memory) {
       if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) {
@@ -576,21 +617,24 @@ export class Manager {
         const e = new Error("the RAM pool cannot fit the full purchased allowance"); e.status = 507; throw e;
       }
     }
-    // All currently served images use the type-1 memory rule. Native V8 must
-    // use its own desktop rule when admission is enabled; it is refused above.
+    // Native desktop partitions use their measured profile allocation policy;
+    // existing roles retain the ordinary type-1 overhead rule.
     let physicalMemoryMiB;
     if (this.physicalRamPoolMiB !== null) {
       const held = this.physicalRamAllocated();
       if (held === null) {
         const e = new Error("physical RAM allocation is unknown until existing partitions are reconciled"); e.status = 503; throw e;
       }
-      physicalMemoryMiB = type1VmMemMiB(memory?.appMiB ?? mapping.record.policy.memMiB, { name, appId: mapping.appId });
+      try { physicalMemoryMiB = native ? desktopVmMemMiB(memory.appMiB)
+        : type1VmMemMiB(memory?.appMiB ?? mapping.record.policy.memMiB, { name, appId: mapping.appId }); }
+      catch (e) { throw badRequest(e.message); }
       if (physicalMemoryMiB > this.physicalRamPoolMiB - held) {
         const e = new Error("the physical RAM pool cannot fit the partition including its overhead"); e.status = 507; throw e;
       }
     }
     const rec = { derivation: mapping.record.derivation, secretDeployment: mapping.record.secretDeployment || null, launching: true, inference: mapping.record.inference || null, gpuMilli, id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
                   componentSha256: mapping.componentSha256, policy: mapping.record.policy, memory,
+                  ...(native ? { desktop: mapping.record.desktop } : {}),
                   ...(physicalMemoryMiB !== undefined ? { physicalMemoryMiB } : {}),
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
                   runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
@@ -623,6 +667,17 @@ export class Manager {
         // Missing/invalid allocation blocks all further physical admission.
         rec.physicalMemoryMiB = Number.isSafeInteger(actual) && actual > 0 ? Math.max(actual, physicalMemoryMiB) : null;
         throw new Error("the launcher did not confirm the reserved physical RAM allocation");
+      }
+      if (native) {
+        const p = this.#desktop.platform, statement = BOOT_STATEMENTS["linux-direct"];
+        if (h?.imageRole !== "desktop" || rec.igvmSha256 !== p.igvmSha256 || h?.desktop?.profileSha256 !== p.profileSha256
+            || h?.desktop?.runtimeId !== p.runtimeId || h?.desktop?.gpuMilli !== gpuMilli
+            || h?.image !== p.igvmSha256 || h?.guestIdentity?.partition !== statement.partition
+            || h?.guestIdentity?.guestImageKind !== statement.guestImageKind || h?.appId !== mapping.appId
+            || h?.memory?.appMiB !== memory.appMiB
+            || typeof h?.transport?.stop !== "function" || typeof h?.transport?.exited?.then !== "function"
+            || typeof h?.egress?.stop !== "function" || typeof h?.egress?.exited?.then !== "function")
+          throw new Error("the launcher did not confirm the pinned native desktop and its transports");
       }
       if (role === "shield-direct") {
         if (h?.imageRole !== "shield-direct") throw new Error(`the launcher started this owner-committed package on the ${h?.imageRole ?? "unstated"} image, not the Shield-direct one`);
@@ -670,8 +725,8 @@ export class Manager {
       // mean the component was delivered, compiled or served: there is no app-readiness handshake
       // on this backend, so there is no evidence for "running" and the record does not claim it.
       // "guest-booted" is a state a reader can act on; "running" would be a guess.
-      rec.status = h && h.appReady === true ? "running" : "starting";
-      rec.appReady = !!(h && h.appReady === true);
+      rec.status = !native && h && h.appReady === true ? "running" : "starting";
+      rec.appReady = !!(!native && h && h.appReady === true);
       rec.startedAt = Date.now(); rec.handle = h;
       if (memory && h?.memory) rec.memory = { ...memory, vmMiB: h.memory.vmMiB };
       // THE RELAY IS A CHILD PROCESS (wmiserve-run.mjs). If it exits while this record stands and no stop is under way,
