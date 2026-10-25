@@ -139,3 +139,30 @@ exact-package case; otherwise that case is explicitly skipped. All filesystem
 mutations in these tests occur in new temporary fixture directories. The full
 service handoff, rollback after an actual service failure and final app
 acceptance remain untested.
+
+## Subsequent live-pool and permanent-release checkpoint
+
+At 17:23–17:25 UTC the exact staged manager launched a separate signed v9 VM
+using the live 16-CPU/96-GiB app pools, a 25% purchase, and the proposed 83-GiB
+physical pool. The 4-CPU, 400% quota, 24-GiB app allowance and 36-GiB partition
+read back correctly. Two fresh app challenges and 26 negatives passed, along
+with a fresh host TPM challenge. The real readiness judge verified the document
+and correctly refused readiness before owner provisioning. Cleanup removed the
+fixture VM and released all reservations. The four production VM inventories,
+worker and host boot were unchanged across that run. `hardware-livepool-v9.json`
+records this evidence. It does not exercise an owner-provisioned app workload;
+the 6-CPU/54-GiB live-pool alternative remains unqualified.
+
+The signed image, three media, bridge, controller and public release/configuration
+files now reside in the dedicated permanent directory recorded in
+`durable-release-v9.json`. All nine files were rehashed there; configuration
+identity and worker protocol/budget validation passed. The directory allows
+SYSTEM and Administrators only. Its inactive environment file supplies the new
+config pin and release path, but the existing runners do not call it. Source,
+runner and configuration hashes and processes remain unchanged. Use this permanent
+configuration for the future handoff, rather than the older test-directory config.
+
+The public controller gateway request returned 404. Normal wallet-authorized
+artifact upload and actual catalog/component retrieval are still required; the
+local fixture fetcher does not establish either. The service/configuration
+handoff and rollback gates above remain open.

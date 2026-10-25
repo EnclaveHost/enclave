@@ -1,0 +1,35 @@
+{
+  "schema": "native-durable-release-checkpoint/1",
+  "passed": true,
+  "target": "C:\\ProgramData\\Enclave\\native-desktop\\releases\\119701c9197ea9c51d79bb254aec8d79243abf6c13263f06e42d9d82e6f91554",
+  "bytes": 3248270731,
+  "fileCount": 9,
+  "protectedAcl": true,
+  "accessSids": [
+    "S-1-5-18",
+    "S-1-5-32-544"
+  ],
+  "configurationPins": {
+    "desktop-config.json": {
+      "sha256": "c8f8eee3fc9015203859f32f8bc5aafceac6ab80cac254de622eed3f2a1c5a89",
+      "bytes": 3524
+    },
+    "desktop-release.json": {
+      "sha256": "ac99b8fbdf2c4d1c8197cb4c491e25f697c600a4f77146882be72289f1aeb113",
+      "bytes": 644
+    }
+  },
+  "environmentSha256": "df53c6a5e30c647cc0b41f7279d853700c7e9ad914dbd33b13b505a04ff3869f",
+  "imageSha256": "119701c9197ea9c51d79bb254aec8d79243abf6c13263f06e42d9d82e6f91554",
+  "profileSha256": "37a6075ccbccc384d4e8b87d4a07ac6debe62c7814f1814b1627ab19b31cdf81",
+  "controllerCid": "bafkreiahoekgs6xusyjhcvhigny6jvht2k4w3vj6tn22bd6spyp4f373ve",
+  "controllerGatewayAvailable": false,
+  "workerProtocol": "1,4,0",
+  "workerBudgetGiB": 12,
+  "activeConfigurationUnchanged": true,
+  "nodeManagerProcessesUnchanged": true,
+  "productionActivated": false,
+  "ownerProvisioned": false,
+  "catalogPublished": false,
+  "scope": "Public release assets staged and independently rehashed at permanent paths. The prepared environment file is not called by either active service runner."
+}
