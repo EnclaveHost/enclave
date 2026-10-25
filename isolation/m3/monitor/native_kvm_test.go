@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -80,9 +82,22 @@ func TestNativeGuestKVM(t *testing.T) {
 		t.Helper()
 		end := time.Now().Add(deadline)
 		var last error
+		nextSnapshot := time.Now().Add(10 * time.Second)
 		for time.Now().Before(end) {
 			if d.state() != contract.Running {
 				t.Fatalf("domain ended before %s", state)
+			}
+			if strings.Contains(string(cmdline), "native.graphics.probe=1") && time.Now().After(nextSnapshot) {
+				pids, _ := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
+				var snapshot []map[string]string
+				for _, pid := range strings.Fields(string(pids)) {
+					comm, _ := os.ReadFile("/proc/" + pid + "/comm")
+					wchan, _ := os.ReadFile("/proc/" + pid + "/wchan")
+					snapshot = append(snapshot, map[string]string{"pid": pid, "comm": strings.TrimSpace(string(comm)), "wchan": strings.TrimSpace(string(wchan))})
+				}
+				encoded, _ := json.Marshal(snapshot)
+				fmt.Printf("NATIVE_STARTUP_SNAPSHOT=%s\n", encoded)
+				nextSnapshot = time.Now().Add(10 * time.Second)
 			}
 			v, e := query(5001, "status")
 			last = e
@@ -90,7 +105,7 @@ func TestNativeGuestKVM(t *testing.T) {
 				return
 			}
 			if e == nil && v["status"] == "failed" {
-				t.Fatal("native supervisor failed")
+				t.Fatalf("native supervisor failed: %v", v)
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -140,6 +155,36 @@ func TestNativeGuestKVM(t *testing.T) {
 	}
 	if waiting != 1 {
 		t.Fatalf("expected one waiting controller release reader; got %d", waiting)
+	}
+	if strings.Contains(string(cmdline), "native.graphics.probe=1") {
+		var desktopPID string
+		for _, pid := range strings.Fields(string(raw)) {
+			p, _ := strconv.Atoi(pid)
+			uid, e := contract.UIDOf(p)
+			cmd, _ := os.ReadFile("/proc/" + pid + "/cmdline")
+			if e == nil && uid == 1000 && bytes.HasPrefix(cmd, []byte("/usr/bin/fluxbox\x00")) {
+				if desktopPID != "" {
+					t.Fatal("ambiguous desktop session")
+				}
+				desktopPID = pid
+			}
+		}
+		if desktopPID == "" {
+			t.Fatal("no running desktop session")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		probe := exec.CommandContext(ctx, "/probe-native-graphics", desktopPID)
+		probe.SysProcAttr = &syscall.SysProcAttr{UseCgroupFD: true, CgroupFD: d.native.group.FD()}
+		out, err := probe.CombinedOutput()
+		if err != nil {
+			t.Fatalf("desktop graphics: %v (%s)", err, out)
+		}
+		var result map[string]any
+		if err = json.Unmarshal(out, &result); err != nil || result["passed"] != true {
+			t.Fatalf("desktop graphics result: %v (%s)", err, out)
+		}
+		fmt.Printf("NATIVE_GRAPHICS_RESULT=%s\n", bytes.TrimSpace(out))
 	}
 	revocation := strings.Contains(string(cmdline), "native.monitor.revoke=1")
 	if revocation {

@@ -64,3 +64,36 @@ The existing graphics driver supports OpenGL/Vulkan through Mesa with trusted
 CPU rendering and a bounded masked integer-affine compute path. General GPU
 rendering, gaming performance and API conformance are not established by these
 startup tests.
+
+## Combined graphics platform probe
+
+The guest-only `TestNativeGuestKVM` accepts `native.graphics.probe=1` in its
+explicit disposable test boot. After the real native desktop reaches readiness,
+it locates the unique UID 1000 Fluxbox process in the domain cgroup. A separate
+static test helper joins that process's namespaces, forks into its PID namespace,
+uses its root and fixed desktop environment, closes inherited descriptors and
+applies the actual desktop role policy. The helper is placed in the same cgroup.
+It is never added to the production platform archive.
+
+`test/fixtures/native-graphics-role.c` is compiled with the app repository's
+`kvm-box/guest/native` include directory; its Python companion is installed only
+in the distinct fixture archive as `/probe-native-graphics.py`. The Go test
+binary and helper use the same current platform sources as the production
+build. The fixture boot still invokes the production verity storage helper;
+it does not edit or bypass the production init's vTPM requirement.
+
+The graphics probe runs standard `vulkaninfo --summary` and `glxinfo -B`, verifies
+the exact Mesa library hashes, launches `vkcube` and `glxgears` on Xorg `:0`, and
+checks their mapped libraries. It identifies the newly managed application
+window through `_NET_CLIENT_LIST`, then checks two changing depth-24 frames.
+Unmapped windows, Fluxbox decorations and ambiguous application windows cannot
+satisfy the check. Each program must change over 1,000 of 43,200 sampled pixels.
+The probe also verifies UID, zero capability sets, seccomp and absent physical
+GPU nodes. Run it both before normal stop and before worker revocation, and
+retain the monitor's process/mount/cgroup cleanup result.
+
+This exercises trusted CPU graphics through the installed standard APIs. It
+performs zero masked GPU operations and cannot replace the separate masked
+compute integrity tests. The lifecycle client remains a privileged fixture;
+the Wasm controller stays blocked on sealed owner provisioning. It therefore
+does not prove real owner authorization, hardware admission or final publication.
