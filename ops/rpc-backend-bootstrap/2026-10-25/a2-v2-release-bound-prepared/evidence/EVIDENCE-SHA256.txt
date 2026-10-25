@@ -1,0 +1,21 @@
+# Evidence sha256 (sources stay in place). Unit r2 PASS receipts, run-r2 logs, coordinator job; mutants 2336 IN PROGRESS (not copied)
+99cbbc3ef71230a2f9d061a0983b4840ccb646049221083bd0bca9e0c2aa3147  logs/root-a2-v2-bound-unit-r2-2336.out
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  logs/root-a2-v2-bound-unit-r2-2336.rc
+e36cc08825dc354dd4784fcc984ae6bf0b87f5167bc07680898610a879511270  logs/root-a2-v2-bound-unit-r2-2336.guard
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  finality-stage/a2-v2-release-bound/logs/run-r2/a1-gate.rc
+0b47217cdd5c3dd2fcd96d3652f3d76c8e9355ab79ef3b05a48c57c85427a0ff  finality-stage/a2-v2-release-bound/logs/run-r2/a1-gate.tap
+cf059295980b55956f3ff0c1eba55230ef4e57f735187b77186e784b704ede5d  finality-stage/a2-v2-release-bound/logs/run-r2/a1-gate.verdict.json
+f9b2c44a68b3236151c9d27ee428476aa31b8807c4793dba2205abb7f84f70bf  finality-stage/a2-v2-release-bound/logs/run-r2/inputs.check
+6cf4e2b17c3b8af088f114e3764db77ccbb82e6e05e68517121e01640ef9fed8  finality-stage/a2-v2-release-bound/logs/run-r2/test_a2a4.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  finality-stage/a2-v2-release-bound/logs/run-r2/test_a2a4.rc
+ea1019eb7c6cd9b5929379d9cf789c781e6f0d7ccb34fad6eb1a5bd1f8e8ac78  finality-stage/a2-v2-release-bound/logs/run-r2/test_pinned_manifest.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  finality-stage/a2-v2-release-bound/logs/run-r2/test_pinned_manifest.rc
+3ff5122804d4bb4f3ffc1c7823554afb8df7a54c2375f5d779c5fb088f24242c  finality-stage/a2-v2-release-bound/logs/run-r2/test_receipt_writer.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  finality-stage/a2-v2-release-bound/logs/run-r2/test_receipt_writer.rc
+512ebf241e67c20574acc75696a2ed0e9f29288f2997a6715de4ecadace10922  jobs/root-a2-v2-bound-validated-2336.sh
+734498b49103540fcccd2ef7a0babd57694a22e9cba066f446ea6a8e65b3a573  jobs/q-exit-status.sh
+aad74af681ddef72d2fe51550d87478aff9a4365298470e2eddc982799179fc7  logs/root-a2-v2-bound-unit-2330.out
+4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865  logs/root-a2-v2-bound-unit-2330.rc
+1388fa74053207e3ee174193a64bb1ef8c235226a844cba78b6b3827ab73e5e7  logs/root-a2-v2-bound-unit-2330.guard
+402433176104631e9d386ec228eb1cc98a1596e27e84924179914eeaf20bc46f  finality-stage/a2-v2-release-bound/SHA256SUMS
+# mutants snapshot at publication time: logs/root-a2-v2-bound-mutants-2336.out has only the [queue] START line; no .rc file; stage logs/mutants/<run>/ holds inputs.check, preflight.json, baseline-py.log only

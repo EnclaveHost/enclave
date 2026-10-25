@@ -1,0 +1,18 @@
+
+running 1 test
+test node::tests::validates_sequencer_key_from_env_child ... FAILED
+
+failures:
+
+---- node::tests::validates_sequencer_key_from_env_child stdout ----
+
+thread 'node::tests::validates_sequencer_key_from_env_child' (40941) panicked at crates/consensus/cli/src/node.rs:969:9:
+assertion failed: args.validate_sequencer_key().is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    node::tests::validates_sequencer_key_from_env_child
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 141 filtered out; finished in 0.00s
+

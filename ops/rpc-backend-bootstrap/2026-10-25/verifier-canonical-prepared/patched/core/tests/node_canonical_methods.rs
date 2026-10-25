@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use alloy::consensus::TrieAccount;
 use alloy::eips::{BlockId, BlockNumberOrTag};
+use alloy::network::Network;
 use alloy::primitives::{Address, Bytes, B256, U256};
 use alloy::rpc::types::{Block, EIP1186StorageProof, Filter, Log};
 use async_trait::async_trait;
@@ -23,7 +24,7 @@ use fx::{blk, hash_id, now, Blk};
 use helios_common::execution_provider::{
     AccountProvider, BlockProvider, ExecutionHintProvider, ExecutionProvider, LogProvider, ReceiptProvider, TransactionProvider,
 };
-use helios_common::{network_spec::NetworkSpec, types::Account};
+use helios_common::types::Account;
 use helios_core::client::{api::HeliosApi, node::Node};
 use helios_core::consensus::{Consensus, TrustedBlockRef};
 use helios_core::execution::providers::block::block_cache::BlockCache;
@@ -81,15 +82,15 @@ impl BlockProvider<Ethereum> for MockExec {
 #[async_trait]
 impl TransactionProvider<Ethereum> for MockExec {
     async fn send_raw_transaction(&self, _bytes: &[u8]) -> Result<B256> { Err(eyre!("unused")) }
-    async fn get_transaction(&self, _hash: B256) -> Result<Option<<Ethereum as NetworkSpec>::TransactionResponse>> { Ok(None) }
-    async fn get_transaction_by_location(&self, id: BlockId, _index: u64) -> Result<Option<<Ethereum as NetworkSpec>::TransactionResponse>> {
+    async fn get_transaction(&self, _hash: B256) -> Result<Option<<Ethereum as Network>::TransactionResponse>> { Ok(None) }
+    async fn get_transaction_by_location(&self, id: BlockId, _index: u64) -> Result<Option<<Ethereum as Network>::TransactionResponse>> {
         self.resolve(id).await?; self.during().await; Ok(None)
     }
 }
 #[async_trait]
 impl ReceiptProvider<Ethereum> for MockExec {
-    async fn get_receipt(&self, _hash: B256) -> Result<Option<<Ethereum as NetworkSpec>::ReceiptResponse>> { Ok(None) }
-    async fn get_block_receipts(&self, id: BlockId) -> Result<Option<Vec<<Ethereum as NetworkSpec>::ReceiptResponse>>> {
+    async fn get_receipt(&self, _hash: B256) -> Result<Option<<Ethereum as Network>::ReceiptResponse>> { Ok(None) }
+    async fn get_block_receipts(&self, id: BlockId) -> Result<Option<Vec<<Ethereum as Network>::ReceiptResponse>>> {
         self.resolve(id).await?; self.during().await; Ok(Some(vec![]))
     }
 }
@@ -97,7 +98,7 @@ impl ReceiptProvider<Ethereum> for MockExec {
 impl LogProvider<Ethereum> for MockExec { async fn get_logs(&self, _f: &Filter) -> Result<Vec<Log>> { Ok(vec![]) } }
 #[async_trait]
 impl ExecutionHintProvider<Ethereum> for MockExec {
-    async fn get_execution_hint(&self, _c: &<Ethereum as NetworkSpec>::TransactionRequest, _v: bool, _id: BlockId) -> Result<HashMap<Address, Account>> { Err(eyre!("unused")) }
+    async fn get_execution_hint(&self, _c: &<Ethereum as Network>::TransactionRequest, _v: bool, _id: BlockId) -> Result<HashMap<Address, Account>> { Err(eyre!("unused")) }
 }
 impl ExecutionProvider<Ethereum> for MockExec {}
 

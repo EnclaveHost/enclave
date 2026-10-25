@@ -1,0 +1,29 @@
+
+running 6 tests
+test sync::anchor::tests::parse_accepts_only_number_colon_hash ... ok
+test sync::anchor::tests::precondition_accepts_head_exactly_n_with_labels_at_or_below_n ... ok
+test sync::anchor::tests::precondition_propagates_execution_layer_errors ... ok
+test sync::anchor::tests::anchored_forkchoice_is_head_over_n_and_requires_n_canonical ... ok
+test sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n ... FAILED
+test sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash ... FAILED
+
+failures:
+
+---- sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n stdout ----
+
+thread 'sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n' (39346) panicked at crates/consensus/engine/src/sync/anchor.rs:242:73:
+called `Result::unwrap_err()` on an `Ok` value: L2BlockInfo { block_info: BlockInfo { hash: 0x46654cbb9f81ba924ff66071721f42c528cfb1ac74d22068893bece75c645144, number: 52746000, parent_hash: 0x0101010101010101010101010101010101010101010101010101010101010101, timestamp: 52746000 }, l1_origin: NumHash { number: 21000500, hash: 0x3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b }, seq_num: 0 }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash stdout ----
+
+thread 'sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash' (39347) panicked at crates/consensus/engine/src/sync/anchor.rs:215:104:
+called `Result::unwrap_err()` on an `Ok` value: L2BlockInfo { block_info: BlockInfo { hash: 0x3fe471916ca5784d2e5b2fd91203f1ce9aa05f5d910adef5bc6ceddd9557854e, number: 52746001, parent_hash: 0x46654cbb9f81ba924ff66071721f42c528cfb1ac74d22068893bece75c645144, timestamp: 52746001 }, l1_origin: NumHash { number: 21000500, hash: 0x3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b3db6be2b }, seq_num: 0 }
+
+
+failures:
+    sync::anchor::tests::precondition_refuses_replayed_snapshot_labels_above_n
+    sync::anchor::tests::precondition_refuses_wrong_number_wrong_hash_and_rpc_claimed_hash
+
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 146 filtered out; finished in 0.00s
+

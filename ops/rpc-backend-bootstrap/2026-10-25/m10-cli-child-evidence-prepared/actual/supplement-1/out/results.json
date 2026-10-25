@@ -1,0 +1,953 @@
+{
+ "format": "m10-cli-child-supplement-results/v1",
+ "binary": "/srv/m10-guest-validation/supplement/cli-child-1/bin/cli-test",
+ "binarySha256": "5575a2c2e3735cd6251583259256db305cbefa56c30c1c2047810b9b5d74fa4a",
+ "runs": [
+  {
+   "label": "case-01",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::advertised_address_defaults_to_listen_address",
+   "argv": [
+    "--exact",
+    "bootnode::tests::advertised_address_defaults_to_listen_address"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "17fa7ddf0d43499442b6690e51ddcf85f670dfdeb4ec9c1ec30e1e8756f7ad04",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-02",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::advertised_address_uses_static_overrides",
+   "argv": [
+    "--exact",
+    "bootnode::tests::advertised_address_uses_static_overrides"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "07f7c0e60d83c8ae04c95614f56b2398b3d1f67518c61c08efc479a768d5ae69",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-03",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::bootstore_can_be_disabled",
+   "argv": [
+    "--exact",
+    "bootnode::tests::bootstore_can_be_disabled"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "e9691f0f86debe09a985bd16a87313da28fd92716e09ba1c3f5e6cb72b88ca92",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-04",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::bootstore_defaults_to_chain_scoped_file",
+   "argv": [
+    "--exact",
+    "bootnode::tests::bootstore_defaults_to_chain_scoped_file"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "cf97a1f719fb3c90631288e468ab75fa17803e969a6e67250198d10c9c3cd337",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-05",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::bootstore_uses_custom_path",
+   "argv": [
+    "--exact",
+    "bootnode::tests::bootstore_uses_custom_path"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "64e9cb30ca83322201cbcd92933f34a2a6560efe7d3da26745530beaa4980398",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-06",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::default_key_path_is_chain_scoped",
+   "argv": [
+    "--exact",
+    "bootnode::tests::default_key_path_is_chain_scoped"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "77d8a167aabc0edd6afd13df5d91a2eb356cdf12e7bd733918acef0a1685e8c5",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-07",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::invalid_bootnode_errors",
+   "argv": [
+    "--exact",
+    "bootnode::tests::invalid_bootnode_errors"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "3885c455eb43a549aecd8f1181d15d17b9d754ee404c73cf439e5854143b7659",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-08",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::parses_enr_output_path",
+   "argv": [
+    "--exact",
+    "bootnode::tests::parses_enr_output_path"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "e3aad9c0962296bb047d27a7934096c719c1b740f80b5b06d09bb1dd783ca6f0",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-09",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::parses_raw_key_into_keypair",
+   "argv": [
+    "--exact",
+    "bootnode::tests::parses_raw_key_into_keypair"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "67d2a8761852c91c631b609e0b22d2d2aced52a329b58444f69183bc9e9094f1",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-10",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::local_enr_uses_advertised_address_and_valid_chain_metadata",
+   "argv": [
+    "--exact",
+    "bootnode::tests::local_enr_uses_advertised_address_and_valid_chain_metadata"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "3dcb4592855ee240259b89a10c874e9b7063b76cbcd27ba96e2967cd30ad4a20",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-11",
+   "kind": "nonIgnored",
+   "name": "node::tests::applies_positive_schedule_to_rollup_config",
+   "argv": [
+    "--exact",
+    "node::tests::applies_positive_schedule_to_rollup_config"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "0cbc04a11611397ad1fd1e5529162df0beff6681184bd5a29bc7c85ab69da3a4",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-12",
+   "kind": "nonIgnored",
+   "name": "bootnode::tests::writes_enr_output_file",
+   "argv": [
+    "--exact",
+    "bootnode::tests::writes_enr_output_file"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "d6638591614fa2c9603423441da1c018f7046ec5ea31a5ddebbbcc6541eca2b7",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-13",
+   "kind": "nonIgnored",
+   "name": "node::tests::bootstrap_anchor_flag::parses_and_is_absent_without_the_flag",
+   "argv": [
+    "--exact",
+    "node::tests::bootstrap_anchor_flag::parses_and_is_absent_without_the_flag"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "3924e8ba7b7c250cf8f73be4d8cb25d015fa733af25cbdba8094854a06ca0c14",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-14",
+   "kind": "nonIgnored",
+   "name": "node::tests::bootstrap_anchor_flag::refuses_malformed_values_and_has_no_env_binding",
+   "argv": [
+    "--exact",
+    "node::tests::bootstrap_anchor_flag::refuses_malformed_values_and_has_no_env_binding"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "2e63cb74fa6f4b1506e7e6a2d774dd2248633c4600e2a15b815d80d4af403931",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-15",
+   "kind": "nonIgnored",
+   "name": "node::tests::bootstrap_anchor_flag::the_embedded_sequencer_args_have_no_bootstrap_anchor_flag",
+   "argv": [
+    "--exact",
+    "node::tests::bootstrap_anchor_flag::the_embedded_sequencer_args_have_no_bootstrap_anchor_flag"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "c787739096a5a47ec5e2cb861140ea9fbdbbe11e10aa5e003ee4130e0b1b0bf3",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-16",
+   "kind": "nonIgnored",
+   "name": "node::tests::da_batch_inbox_override_is_rejected_in_sequencer_mode",
+   "argv": [
+    "--exact",
+    "node::tests::da_batch_inbox_override_is_rejected_in_sequencer_mode"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "81e47cefe26aa2b02aca876baa50acb5473e1988e180cf3066423d3c135200ad",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-17",
+   "kind": "nonIgnored",
+   "name": "node::tests::da_batcher_sender_override_is_rejected_in_sequencer_mode",
+   "argv": [
+    "--exact",
+    "node::tests::da_batcher_sender_override_is_rejected_in_sequencer_mode"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "08f51551aa85b639c3ba9107c6aad7f15346140f55befb25dd8ad2f20cda6ad2",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-18",
+   "kind": "nonIgnored",
+   "name": "node::tests::embedded_consensus_applies_da_batch_inbox_override",
+   "argv": [
+    "--exact",
+    "node::tests::embedded_consensus_applies_da_batch_inbox_override"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "c30f6cae2c0a179e2243e2a11fdda1b249f3abbf7c49b4b2f1a11e6bc1f8a9fb",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-19",
+   "kind": "nonIgnored",
+   "name": "node::tests::embedded_consensus_preserves_da_batcher_sender_override",
+   "argv": [
+    "--exact",
+    "node::tests::embedded_consensus_preserves_da_batcher_sender_override"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "69a32f4e3027ec603eac8b91d673cf180634470d9944ee073bf66c3e9ae0d7a0",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-20",
+   "kind": "nonIgnored",
+   "name": "node::tests::embedded_execution_overrides_preserve_upgrade_signal_context",
+   "argv": [
+    "--exact",
+    "node::tests::embedded_execution_overrides_preserve_upgrade_signal_context"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "483917ec29109b93a1d03b23ed19bfb74abbc24c83c433bcf6dbb10ba920f472",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-21",
+   "kind": "nonIgnored",
+   "name": "node::tests::embedded_sequencer_args_force_sequencer_mode_and_preserve_flags",
+   "argv": [
+    "--exact",
+    "node::tests::embedded_sequencer_args_force_sequencer_mode_and_preserve_flags"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "bb809c72463a86e7d8f18cf04f6a5e8d0ad5f8cbeb547e2933ed2fc38ac18466",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-22",
+   "kind": "nonIgnored",
+   "name": "node::tests::isolated_sequencer_does_not_require_signing_key",
+   "argv": [
+    "--exact",
+    "node::tests::isolated_sequencer_does_not_require_signing_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "6cd3137fc894db919e7494226318ca70862c59261f88ebe849da7b56580e8352",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-23",
+   "kind": "nonIgnored",
+   "name": "node::tests::isolated_sequencer_rejects_signing_key::case_1_raw_key",
+   "argv": [
+    "--exact",
+    "node::tests::isolated_sequencer_rejects_signing_key::case_1_raw_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "ebe33262d1b36e80a4d02ed8671b067494a64046d31639edbb35cb1c0b49699b",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-24",
+   "kind": "nonIgnored",
+   "name": "node::tests::isolated_sequencer_rejects_signing_key::case_2_key_path",
+   "argv": [
+    "--exact",
+    "node::tests::isolated_sequencer_rejects_signing_key::case_2_key_path"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "db61fe3d4da2656a31d120ea06d8597f403a46da74b08ebd1ced8af2dac8690f",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-25",
+   "kind": "nonIgnored",
+   "name": "node::tests::legacy_sequencer_flags_select_operating_mode::case_1_isolated",
+   "argv": [
+    "--exact",
+    "node::tests::legacy_sequencer_flags_select_operating_mode::case_1_isolated"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "4e747b350fd0718a253f594f6d5b9e4e6487f494e47a09e9ba1f760904861eb6",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-26",
+   "kind": "nonIgnored",
+   "name": "node::tests::isolated_sequencer_rejects_signing_key::case_3_remote_endpoint",
+   "argv": [
+    "--exact",
+    "node::tests::isolated_sequencer_rejects_signing_key::case_3_remote_endpoint"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "c61843cc02b7c06a5a6b694823a56765bf7f67200a33c8081e084aae83863cfd",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-27",
+   "kind": "nonIgnored",
+   "name": "node::tests::legacy_sequencer_flags_select_operating_mode::case_2_shadow",
+   "argv": [
+    "--exact",
+    "node::tests::legacy_sequencer_flags_select_operating_mode::case_2_shadow"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "a6c4ae8b1c2ea4054623463cd4a444b4307870970c902ab4affd6561f317f2ac",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-28",
+   "kind": "nonIgnored",
+   "name": "node::tests::parses_da_batcher_sender_override",
+   "argv": [
+    "--exact",
+    "node::tests::parses_da_batcher_sender_override"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "f42b58e03e2fe2ee961e95d38ffc7c9d4b6090ac22186281df021cd0c57a7ca5",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-29",
+   "kind": "nonIgnored",
+   "name": "node::tests::parses_upgrade_signal_args",
+   "argv": [
+    "--exact",
+    "node::tests::parses_upgrade_signal_args"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "ad349e2008870f4af3cf6d907525a55c5f042bbcdf39cc6ec9e3425f7e2bee5d",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-30",
+   "kind": "nonIgnored",
+   "name": "node::tests::shadow_funding_above_deposit_mint_limit_is_rejected",
+   "argv": [
+    "--exact",
+    "node::tests::shadow_funding_above_deposit_mint_limit_is_rejected"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "1dd6d1848a93d447d2fb55a092fbf436560296ccd0ef6ea484e3c659d84de1a3",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-31",
+   "kind": "nonIgnored",
+   "name": "node::tests::shadow_funding_is_accepted_in_shadow_sequencer_mode",
+   "argv": [
+    "--exact",
+    "node::tests::shadow_funding_is_accepted_in_shadow_sequencer_mode"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "f5467275dc2a59a5471e4e846d1a36e809f1940b8eb0a7642a01298865f89592",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-32",
+   "kind": "nonIgnored",
+   "name": "node::tests::shadow_funding_is_rejected_outside_shadow_sequencer_mode",
+   "argv": [
+    "--exact",
+    "node::tests::shadow_funding_is_rejected_outside_shadow_sequencer_mode"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "e5bbb4dd7ad4d122d61bae832676f43b08a812076736e4a3ad8ce6701af412b1",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-33",
+   "kind": "nonIgnored",
+   "name": "node::tests::shadow_sequencer_does_not_require_signing_key",
+   "argv": [
+    "--exact",
+    "node::tests::shadow_sequencer_does_not_require_signing_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "d7d56004c69b45d427b5604fe112e7a2313602588e591808f10b6f83faebbb02",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-34",
+   "kind": "nonIgnored",
+   "name": "node::tests::startup_upgrade_signal_defaults_to_consensus_l1_rpc",
+   "argv": [
+    "--exact",
+    "node::tests::startup_upgrade_signal_defaults_to_consensus_l1_rpc"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "d19a6add271d501488425fc9cf9e2e0245bad216f91aee0cb32177bda9c6a933",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-35",
+   "kind": "nonIgnored",
+   "name": "node::tests::startup_upgrade_signal_prefers_override_l1_rpc",
+   "argv": [
+    "--exact",
+    "node::tests::startup_upgrade_signal_prefers_override_l1_rpc"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "090181c6bc6843e56d6d5e8f6e62734d30b5f5c6013d6a3f753aeb0a7b09902a",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-36",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key::case_1_validator_no_key",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key::case_1_validator_no_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "9ed82a041294aefbf61ea7ca2c40b23dcc56a7d7c52bc88725eae96d86ef3889",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-37",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key::case_2_sequencer_no_key",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key::case_2_sequencer_no_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "8c0089ced8ec204a983e7a7ede8b3c90d688e2198f7df110ac51ff3692d33efa",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-38",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key::case_3_sequencer_raw_key",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key::case_3_sequencer_raw_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "45318104a9fce7fa7126fb836ffffbb9495769c13c60e26e5b389f0fd37ae422",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-39",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key::case_4_sequencer_key_path",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key::case_4_sequencer_key_path"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "7b36c859510d5947170182817842580e8a7f6016107e520b33a0f204854b9b7f",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-40",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key::case_5_sequencer_remote_endpoint",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key::case_5_sequencer_remote_endpoint"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "cf8da36257d99c317d3ddd4660678f0b887a8d6de4187381296302495fba4f86",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-41",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key_from_env::case_1_raw_key",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env::case_1_raw_key"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "d4edf36429f4b480d952d3f2e983c3fb37e88af495f443e34d709dd8682597ff",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-42",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key_from_env::case_2_key_path",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env::case_2_key_path"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "89287ab5235f2d6111b30e258da08b4f290702893d7dbdb18f20427846f591e5",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-43",
+   "kind": "nonIgnored",
+   "name": "node::tests::zero_signal_clears_existing_rollup_config",
+   "argv": [
+    "--exact",
+    "node::tests::zero_signal_clears_existing_rollup_config"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "117333bd4748726621239d53884541e1f2338da3b865acf899ce902c8b053d27",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-44",
+   "kind": "nonIgnored",
+   "name": "node::tests::zero_signal_for_unscheduled_rollup_upgrade_is_counted_as_clear",
+   "argv": [
+    "--exact",
+    "node::tests::zero_signal_for_unscheduled_rollup_upgrade_is_counted_as_clear"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "b1773105589309c64110f6e00bac4c6562c46da953ac90df38cbb0710c3bd0b6",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "case-45",
+   "kind": "nonIgnored",
+   "name": "node::tests::validates_sequencer_key_from_env::case_3_remote_endpoint",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env::case_3_remote_endpoint"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "61c417265abb3c6bffa0dcbc148fa690525e78cb8955405ff519378f97e28f4a",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "child-raw_key",
+   "kind": "child",
+   "name": "node::tests::validates_sequencer_key_from_env_child",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env_child",
+    "--ignored"
+   ],
+   "envKeys": [
+    "BASE_NODE_P2P_SEQUENCER_KEY",
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {
+    "BASE_NODE_P2P_SEQUENCER_KEY": "33deb83fb8bbfb48f50a9755ea41122f4a60eaf0f6f9aed68a0adb24375d67b2"
+   },
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "27e19733857064ff8aedbd7a47d18d0f65a1c763196e0540a135b04e60869fe2",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "child-key_path",
+   "kind": "child",
+   "name": "node::tests::validates_sequencer_key_from_env_child",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env_child",
+    "--ignored"
+   ],
+   "envKeys": [
+    "BASE_NODE_P2P_SEQUENCER_KEY_PATH",
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {
+    "BASE_NODE_P2P_SEQUENCER_KEY_PATH": "7a82b5f7a4faa4bb5e7db67e601b5c063320bd37178ed4440626586a83accaaf"
+   },
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "27e19733857064ff8aedbd7a47d18d0f65a1c763196e0540a135b04e60869fe2",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "child-remote_endpoint",
+   "kind": "child",
+   "name": "node::tests::validates_sequencer_key_from_env_child",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env_child",
+    "--ignored"
+   ],
+   "envKeys": [
+    "BASE_NODE_P2P_SIGNER_ADDRESS",
+    "BASE_NODE_P2P_SIGNER_ENDPOINT",
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {
+    "BASE_NODE_P2P_SIGNER_ADDRESS": "20c4cee9017b917aefc8fdd8331244fd1c2edd175cd739ad596d3300c6c037cd",
+    "BASE_NODE_P2P_SIGNER_ENDPOINT": "a76d8c3e94eba61fc46b5cc05fc51e5f6df1d0f46d901d32e9c27bb251f155ae"
+   },
+   "rc": 0,
+   "timedOut": false,
+   "stdoutSha256": "27e19733857064ff8aedbd7a47d18d0f65a1c763196e0540a135b04e60869fe2",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+   "label": "control-no-env",
+   "kind": "control",
+   "name": "node::tests::validates_sequencer_key_from_env_child",
+   "argv": [
+    "--exact",
+    "node::tests::validates_sequencer_key_from_env_child",
+    "--ignored"
+   ],
+   "envKeys": [
+    "HOME",
+    "LANG",
+    "PATH"
+   ],
+   "envValueSha256": {},
+   "rc": 101,
+   "timedOut": false,
+   "stdoutSha256": "71f95a3c8c31c4aac510290138a1150d9530b87070d2639088b30f7a81c6b471",
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+ ]
+}
