@@ -50,3 +50,9 @@ actual 16-CPU/96-GiB live pools: 25% share, 4 CPUs, 24-GiB app allowance and a
 36-GiB VM. `durable-release-v9.json` records the separate permanent asset directory
 and its new config pin. Neither checkpoint activates production or supplies owner
 provisioning; see the appended activation checkpoint for the remaining gates.
+
+`runner_config.py` now prepares and transactionally applies the two minimal service
+runner hooks, preserving all other captured bytes and checking six unchanged
+configuration inputs. Sixteen Windows tests pass, including real CMD success and
+failure behavior; the live guard refused writes. `runner-config-v9.json` records
+the scope. Complete task handoff/app recovery and API activation remain pending.
