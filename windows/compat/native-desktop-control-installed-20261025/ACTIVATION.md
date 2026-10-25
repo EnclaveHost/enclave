@@ -317,3 +317,90 @@ the running production API. All 17 source/policy/dependency checks and service
 PID/restart readbacks matched before and after. No production service was stopped
 and no real service activation/rollback was exercised. Combined handoff, recovery
 and final desktop acceptance remain open.
+
+## Scoped retirement and scheduled-task rehearsal
+
+`retire_managed.py` supplies the narrow retirement step between stopping Node and
+stopping Shield. `prepare` accepts the read-only activation inspection and binds
+the two reviewed app/witness records to their manager epoch, manager PID/start
+time, manager instance IDs, names, app IDs and Hyper-V IDs. It refuses additional
+apps, unready records, unmatched host inventory or an unverified code baseline.
+The initial plan must be prepared from a new inspection during maintenance
+preparation; the historical plans in the evidence are not current authorization.
+
+```powershell
+python retire_managed.py prepare --inspection inspection.json --plan retirement-plan.json
+```
+
+After the interruption has been arranged, disable Update, disable and stop Node,
+and confirm the node/updater processes are absent. Keep the original Shield task
+and manager alive for scoped removal. The retirement command checks those
+conditions itself; it never changes a task's state:
+
+```powershell
+python retire_managed.py retire --plan retirement-plan.json --journal 'C:\ProgramData\Enclave\native-retirement-v9.json'
+```
+
+It rechecks the process identity, manager epoch and full manager inventory before
+each request. It sends DELETE only to the fixed loopback manager endpoint, without
+proxies or redirects, for the reviewed app first and witness second. A successful
+HTTP response must contain `ok: true`. A subsequent manager listing and independent
+successful `Get-VM` enumeration must both establish absence before the journal
+marks that target complete. No `Remove-VM`, lease-release, wallet or signing
+operation is part of this tool. Concurrent maintenance by another operator must
+still be excluded: the installed DELETE endpoint has no atomic epoch precondition.
+
+A failed request, missing response, epoch change, unexpected new record or failed
+host enumeration halts the sequence with a `needs-inspection` journal. It does
+not retire the next target, start services, guess that a timeout means removal,
+or automatically repeat an uncertain request. A lost response can mean the VM
+was actually removed; inspect the owning manager and Hyper-V before recovery.
+An existing journal is never overwritten/reused. This journal records retirement;
+it cannot restore a guest's memory/session state.
+
+After both targets are explicitly confirmed gone, disable/stop Shield and use
+the already-tested code and runner transactions. Start the updated manager before
+Node. Before enabling Node, require the new epoch, empty attributed inventory,
+`canStart: true`, `desktop.ready: true`, the exact v9 identity hashes, the unchanged
+16-CPU/98304-MiB app pools, physical pool 84992 MiB, zero allocated CPU/GPU/physical
+memory, and the expected worker readiness. If startup fails before Node is enabled,
+leave admissions stopped, restore both file journals under their stopped-task
+guards, and start the original manager before Node. Restore Update's captured
+enabled state only after verification.
+
+Failure after Node is enabled requires a new inventory and a recovery plan for
+the instances that the new manager created. The original retirement plan must
+not be reused. This preparer intentionally refuses partial/unready inventories;
+it does not yet automate that recovery case. Do not stop a manager with ambiguous
+managed instances and then assume their reservations/relays can be recovered by
+restarting. Combined file/task handoff and real app recovery remain unqualified.
+
+`qualification/rehearse-task-lifecycle.ps1` was executed on NucBox with three
+disposable SYSTEM scheduled tasks in a separate task folder. Harmless Node
+workers ran through CMD loops shaped like the installed runners. Five recorded
+steps exercised original startup, stopping admissions while the manager stays
+alive, stopping the manager with no remaining descendants, refusal after a failed
+environment hook, and restoration with manager-before-node ordering. All fixture
+tasks/processes were removed without needing an explicit process kill. Production
+process/task/VM inventories matched across that 18:09:31–18:09:45 UTC rehearsal.
+The script refuses reuse of its fixture directory/task path and never executes
+the real production runners. It is task-lifecycle evidence, not VM or app recovery.
+
+Eleven retirement tests pass locally and on Windows Python 3.14.5. They use the
+actual hash-pinned installed Manager/HTTP server with a simulated Hyper-V backend:
+they prove protocol handling and refusal boundaries, not hardware removal. The
+real Windows guard also refused the running production Node/Update tasks. The
+first Windows fixture run failed because stdin used CRLF; the fixture parser was
+corrected, and the final run passed with zero remaining fixture processes. The
+failed run is retained in the evidence. `handoff-boundaries-v9.json` records pins
+and the scope of both rehearsals.
+
+At 18:17 UTC the production code pins still matched and the node/manager retained
+their original PIDs/start times. The application VM had nevertheless changed from
+`3b3a309a-7d6c-4ee4-bf68-e6d0ddd858fe` to
+`3adac528-f53f-48fb-a445-11533476e688`. Node logs show RPC renewal failures followed
+by automatic lease-expiry retirement at 18:11:30, after the task rehearsal ended.
+The replacement was app-ready at inspection. This is another continuity exception,
+not a claim that production availability was uninterrupted or that the RPC cause
+has been established. Lease/RPC reliability still needs resolution before a
+controlled cutover and meaningful recovery acceptance.
