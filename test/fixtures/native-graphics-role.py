@@ -75,10 +75,16 @@ try:
    time.sleep(1)
    maps=Path('/proc/'+str(p.pid)+'/maps').read_text();assert str(lib) in maps
    if name=='glxgears':assert str(gallium) in maps
-   first=frame(window);time.sleep(.7);second=frame(window)
-   changed=sum(a!=b for a,b in zip(first,second));assert len(first)==len(second) and changed>1000,(name,changed)
+   first=frame(window);samples=[];deadline=time.monotonic()+8
+   while True:
+    time.sleep(.23);second=frame(window)
+    changed=sum(a!=b for a,b in zip(first,second));assert len(first)==len(second)
+    samples.append(changed)
+    if changed>1000:break
+    assert time.monotonic()<deadline,(name,'no changing frame within 8 seconds',samples)
+    assert p.poll() is None,(name,p.stderr.read())
    digest=lambda pixels:hashlib.sha256(b''.join(x.to_bytes(4,'little') for x in pixels)).hexdigest()
-   results.append({'program':name,'sampledPixels':len(first),'changedPixels':changed,'frameSha256':[digest(first),digest(second)],'driverMapped':True})
+   results.append({'program':name,'sampledPixels':len(first),'changedPixels':changed,'motionSamples':samples,'frameSha256':[digest(first),digest(second)],'driverMapped':True})
   finally:
    p.terminate()
    try:p.communicate(timeout=5)
