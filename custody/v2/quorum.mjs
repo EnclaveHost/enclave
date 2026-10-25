@@ -5,6 +5,7 @@ import { rpcEndpoint } from '../../network/rpc-identity.mjs';
 const fail = (code, message) => Object.assign(new Error(message), {code, status:503});
 const fingerprint = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? `n${v}` : v instanceof Uint8Array ? `x${bytesToHex(v)}` : v);
 const hashPattern = /^0x[0-9a-fA-F]{64}$/;
+const VERIFIER_MARK = Symbol.for('enclave.chain-authority.local-verifier');   // network/chain-authority.mjs VERIFIER_CLIENT
 export const MAX_RPCS = 16;
 // Policy bounds: finite, and small enough that a misconfiguration cannot silently disable freshness or block forever.
 const POLICY = { confirmations: [0, 1000], timeoutMs: [1, 300_000], maxAgeSec: [0, 7 * 86400], maxFutureSec: [0, 3600] };
@@ -38,6 +39,10 @@ export function createQuorumReader({clients, minAgree, chainId=null, confirmatio
     if (!c || typeof c !== 'object' || needs.some((m) => typeof c[m] !== 'function')) throw Error(`chain: RPC client ${i + 1} is malformed (needs ${needs.join(', ')})`);
   });
   if (new Set(clients).size !== clients.length) throw Error('chain: distinct RPC clients required');
+  // v2 needs strict same-block evidence ({blockHash, requireCanonical: true}); the pinned verifier drops requireCanonical,
+  // and a hash->number translation is not equivalent (A-B-A reorg). Refused, alone or mixed (custody/chain-source.mjs).
+  if (clients.some((c) => !!c[VERIFIER_MARK]))
+    throw Object.assign(Error('chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)'), {code: 'chain_verifier_unsupported'});
   // A client that exposes its transport URL (viem http) is identified by it; a custom transport without one is known by
   // its object identity only. An exposed URL that is not a valid http(s) URL is refused, never ignored.
   const origins = clients.flatMap((c) => {

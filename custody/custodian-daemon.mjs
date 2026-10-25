@@ -29,6 +29,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { openKeyFile, sealKeyFile, generateKeys, readKeyFile, writeKeyFile } from "./keystore.mjs";
 import { createChainReader, VAULT_ABI } from "./chain.mjs";
+import { custodyChainSource } from "./chain-source.mjs";
+import { custodianConfigFromEnv } from "./custodian-config.mjs";
 import { createCustodian, serveCustodian } from "./custodian.mjs";
 import { productionVerifiers } from "./verifiers.mjs";
 import { makeDeal, receiveDeals } from "./reshare.mjs";
@@ -50,13 +52,7 @@ function keys() {
   return openKeyFile(readKeyFile(env.CUSTODY_KEYFILE || die("CUSTODY_KEYFILE is required")), passphrase());
 }
 function config() {
-  const vault = String(env.CUSTODY_VAULT || "").toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(vault)) die("CUSTODY_VAULT must be the vault's address");
-  const rpcs = String(env.CUSTODY_RPCS || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const minAgree = parseInt(env.CUSTODY_MIN_AGREE || "2", 10);
-  if (rpcs.length < minAgree) die(`CUSTODY_RPCS names ${rpcs.length} RPC(s) and CUSTODY_MIN_AGREE is ${minAgree}`);
-  const maxAgeSec = env.CUSTODY_MAX_AGE_SEC === "off" ? null : parseInt(env.CUSTODY_MAX_AGE_SEC || "120", 10);
-  return { vault, rpcs, minAgree, maxAgeSec, chainId: parseInt(env.CUSTODY_CHAIN_ID || "8453", 10), stateDir: path.resolve(env.CUSTODY_STATE_DIR || "custodian-state") };
+  try { return custodianConfigFromEnv(env); } catch (e) { die(e.message); }
 }
 
 // high-water marks survive a restart: an RPC that serves an older state after the restart is still refused
@@ -69,6 +65,12 @@ function fileHighWater(dir) {
     get: (id) => m[id] || null,
     set: (id, v) => { m[id] = v; const tmp = f + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(m), { mode: 0o600 }); fs.renameSync(tmp, f); },
   };
+}
+
+// the chain reader for this configuration: the legacy RPC quorum (default, unchanged) or the explicit local verifier
+function readerFor(c, extra = {}) {
+  const src = custodyChainSource(c);
+  return { src, reader: createChainReader({ rpcs: src.rpcs, clients: src.clients, minAgree: src.minAgree, vault: c.vault, ...extra }) };
 }
 
 const cmd = process.argv[2];
@@ -85,20 +87,22 @@ if (cmd === "keygen") {
 } else if (cmd === "serve") {
   const c = config(), k = keys();
   const collateral = cachedCollateral({ dir: path.join(c.stateDir, "amd"), upstream: httpCollateral({ timeoutMs: 8000 }) });
+  const { src, reader: chainReader } = readerFor(c, { maxAgeSec: c.maxAgeSec });
   const custodian = createCustodian({ chainId: c.chainId, vault: c.vault, encPrivateKey: k.encPrivateKey,
-    chain: createChainReader({ rpcs: c.rpcs, vault: c.vault, minAgree: c.minAgree, maxAgeSec: c.maxAgeSec }),
+    chain: chainReader,
     verifiers: productionVerifiers({ collateral }), highWater: fileHighWater(c.stateDir) });
   const [host, port] = String(env.CUSTODY_LISTEN || "127.0.0.1:8787").split(":");
   // behind the TLS proxy every request comes from the proxy: CUSTODY_CLIENT_HEADER names the header it sets (x-forwarded-for)
   const hdr = String(env.CUSTODY_CLIENT_HEADER || "").toLowerCase();
   const clientOf = hdr ? (req) => String(req.headers[hdr] || "").split(",")[0].trim() || req.socket.remoteAddress : undefined;
   const srv = await serveCustodian(custodian, { host, port: Number(port), clientOf, info: { vault: c.vault, chainId: c.chainId, operator: k.operator } });
-  console.log(`custodian: share key 0x${k.encKey.slice(0, 16)}…, operator ${k.operator}, vault ${c.vault}, ${c.rpcs.length} RPCs (${c.minAgree} must agree), listening on ${host}:${srv.address().port}`);
+  console.log(`custodian: share key 0x${k.encKey.slice(0, 16)}…, operator ${k.operator}, vault ${c.vault}, ${src.mode === "verifier" ? "the local verifier (one authority, unsafe tier, no L1 finality)" : `${c.rpcs.length} RPCs (${c.minAgree} must agree)`}, listening on ${host}:${srv.address().port}`);
 } else if (["approve-epoch", "deal", "receive"].includes(cmd)) {
   const c = config(), k = keys();
   const account = privateKeyToAccount(k.operatorPrivateKey);
-  const reader = createChainReader({ rpcs: c.rpcs, vault: c.vault, minAgree: c.minAgree });
-  const wallet = createWalletClient({ account, chain: { ...base, id: c.chainId }, transport: http(c.rpcs[0]) });
+  const { src, reader } = readerFor(c);
+  // verifier: prepared through the verifier, sent ONLY to the bound own backend (refused without one); quorum: unchanged
+  const wallet = createWalletClient({ account, chain: { ...base, id: c.chainId }, transport: src.mode === "verifier" ? src.authority.transport : http(c.rpcs[0]) });
   const send = async (abi, functionName, args) => {
     const hash = await wallet.writeContract({ address: c.vault, abi, functionName, args });
     console.log(`custodian: ${functionName} sent ${hash}`);
