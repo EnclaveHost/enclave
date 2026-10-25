@@ -99,6 +99,25 @@ APIs and performs zero masked GPU operations. The lifecycle client remains a pri
 the Wasm controller stays blocked on sealed owner provisioning. It therefore
 does not prove real owner authorization, hardware admission or final publication.
 
+For startup diagnosis, the disposable test boot can add `native.startup.probe=1`.
+It records elapsed readiness time, fixed per-process CPU/I/O accounting and
+cgroup pressure counters, including a final snapshot on failure. It does not
+read process memory, command lines, environment, descriptor targets or service
+logs. This flag is handled only in the test binary and adds no production
+logging or readiness bypass. The fixture waits up to 125 seconds for the
+supervisor's bounded 120-second startup; every production readiness check still
+has to pass.
+
+A controlled run limiting only the disposable QEMU model device to 32 MiB/s
+failed with the old 55/60-second deadlines, while model verification was still
+in progress. With 115/120-second deadlines, the same limit reached readiness
+in 80 seconds, drew changing OpenGL and Vulkan frames, and removed the domain
+and cgroup on stop. Only nsinit and supervisor changed in the root filesystem;
+26,029 other paths, including the graphics libraries, were identical. Nine
+supervisor checks also cover the actual two-minute deadline and stop during
+startup. The evidence is `native-graphics-startup-v1`; it does not establish
+the cause of the original uninstrumented timeout or general startup reliability.
+
 Adding `native.graphics.masked=1` runs the bounded affine compute and integrity
 case through the real native monitor, guest worker broker and host
 `serveDesktopWorker` transport. The distinct fixture archive must additionally
