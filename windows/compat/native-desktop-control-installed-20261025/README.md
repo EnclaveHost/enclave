@@ -73,3 +73,13 @@ backend, locally and on Windows. A separate real scheduled-task rehearsal verifi
 child-process shutdown, failed-hook refusal and manager-first recovery using
 disposable workers. `handoff-boundaries-v9.json` and `ACTIVATION.md` distinguish
 these component proofs from the still-pending combined handoff and real app recovery.
+
+`recover_managed.py` handles reviewed partial app/witness launches under the updated
+manager before rollback. It binds public manager identities to independent host
+ownership Notes, requires stopped admissions and the updated code pins, and checks
+manager/host absence plus zero reservations. Twenty tests pass locally and on
+Windows against the staged HTTP implementation with simulated VM removal; eight
+PowerShell checks exercise ownership decoding and redaction. Live read-only
+inspection confirms the original source baseline and VM bindings. See
+`recovery-boundaries-v9.json` and the recovery procedure in `ACTIVATION.md` for
+scope and unresolved integration gates.

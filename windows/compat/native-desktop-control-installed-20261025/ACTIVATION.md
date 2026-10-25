@@ -370,8 +370,9 @@ enabled state only after verification.
 
 Failure after Node is enabled requires a new inventory and a recovery plan for
 the instances that the new manager created. The original retirement plan must
-not be reused. This preparer intentionally refuses partial/unready inventories;
-it does not yet automate that recovery case. Do not stop a manager with ambiguous
+not be reused. The initial retirement preparer intentionally refuses partial or
+unready inventories; `recover_managed.py`, described below, handles reviewed
+partial records under the updated manager. Do not stop a manager with ambiguous
 managed instances and then assume their reservations/relays can be recovered by
 restarting. Combined file/task handoff and real app recovery remain unqualified.
 
@@ -404,3 +405,68 @@ The replacement was app-ready at inspection. This is another continuity exceptio
 not a claim that production availability was uninterrupted or that the RPC cause
 has been established. Lease/RPC reliability still needs resolution before a
 controlled cutover and meaningful recovery acceptance.
+
+## Cleanup after a failed updated-manager launch
+
+`recover_managed.py` provides the scoped removal component of rollback after Node
+has been started. It requires the updated control hashes, Node and Update already
+disabled/stopped, and the exact updated manager process still running. It accepts
+zero, one or both of the existing reviewed app/witness records. It refuses new
+apps, launching or recovered records, duplicate identities and unknown ownership.
+This scope is the maintenance handoff before the new desktop app is published;
+it is not a general cleanup command for arbitrary marketplace apps.
+
+Capture new evidence with both inspection scripts beside each other:
+
+```powershell
+.\inspect-activation.ps1 -ManifestPath .\manifest.json -ExpectedState after | Set-Content -Encoding UTF8 recovery-inspection.json
+python recover_managed.py prepare --inspection recovery-inspection.json --plan new-recovery-plan.json
+python recover_managed.py recover --plan new-recovery-plan.json --journal 'C:\ProgramData\Enclave\native-recovery-v9.json'
+```
+
+The plan binds manager epoch/process, record ID, deployment name, app ID, instance
+ID and host VM ID. A failed launch may retain its VM handle privately while its
+public record has no VM ID. `inspect-managed-inventory.ps1` independently decodes
+only public manager ownership fields from candidate VM Notes, so that case can be
+bound without guessing a name. It also handles confirmed host absence, including
+a launch that never created a VM. Bare/malformed ownership markers, an unmarked
+`enclave-app-` name, an orphan VM or conflicting ownership all prevent removal.
+Unrelated Notes are never exported. The complete unrelated VM ID set is checked
+before and after each request; any change stops the sequence.
+
+Every DELETE goes through the still-owning loopback manager, which holds the
+worker, egress and launcher handles. The helper never directly deletes a VM or
+controls tasks, leases, wallets, code or configuration. HTTP success must be
+followed by manager absence and independent host absence. Completion additionally
+requires zero allocated CPU, physical RAM and GPU reservations. A host removal
+followed by bridge-cleanup failure remains an uncertain failed record; a successful
+reply with a surviving VM is also a failure. Neither permits the next removal.
+
+Failures leave a `needs-inspection` journal with the interrupted phase and the
+confirmed completed targets. Existing journals cannot be reused. After a lost
+response, inspect fresh manager/host state and prepare a new plan only when all
+remaining ownership is unambiguous. A restarted manager, orphan VM, running launch
+or unknown allocation requires investigation; this tool does not bypass those
+refusals. DELETE still has no atomic epoch/VM-incarnation precondition, so exclude
+concurrent operators and keep admissions disabled throughout maintenance.
+
+Only after cleanup reaches `cleared` may the maintenance procedure stop/disable
+Shield, verify all service descendants absent, roll back the runner and code
+journals, and start the original manager before Node. Restore the captured updater
+state after actual app/witness route checks. This procedure recreates instances;
+it cannot restore guest memory or an interrupted session.
+
+`recovery-boundaries-v9.json` records 20 recovery tests on Linux and Windows Python
+3.14.5 against the actual staged Manager/HTTP source with an in-memory Hyper-V
+boundary. The tests exercise retained private handles, actual manager ownership
+survey, no-VM launches, partial/empty inventories, reservation release, failed
+cleanup, lost responses, stale epochs and unrelated VM changes. Eight PowerShell
+inspection checks cover empty/single inventories, decoded ownership, redaction
+and malformed candidates. Initial Windows fixture failures exposed array-wrapping,
+mock-variable scope and test-expression grouping issues; those failed logs are
+retained alongside the passing run. Live inspection separately verifies the
+original 109 source/absence pins, the two public ownership bindings and unchanged
+process identities. The updated-state inspection correctly fails against the
+unmodified production tree. No production DELETE or task operation was executed.
+These are component tests; combined service/file handoff, actual failed-launch
+hardware cleanup and final provisioned app acceptance remain to be qualified.

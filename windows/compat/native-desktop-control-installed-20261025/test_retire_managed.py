@@ -159,6 +159,8 @@ class RetirementTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'not serving'):rm.prepare(inspection)
         inspection=copy.deepcopy(self.inspection);inspection['baselineMatches']=False
         with self.assertRaisesRegex(ValueError,'baseline'):rm.prepare(inspection)
+        inspection=copy.deepcopy(self.inspection);inspection['expectedCodeState']='after'
+        with self.assertRaisesRegex(ValueError,'baseline'):rm.prepare(inspection)
 
     def test_live_guard_refuses_without_stopping_running_production(self):
         # On Linux this checks the platform refusal. On Windows it calls only the
