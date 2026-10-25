@@ -1,0 +1,110 @@
+{
+  "apply": true,
+  "started": 1792966388.9717705,
+  "availableBeforeKiB": 21500312,
+  "items": [
+    {
+      "source": "/tmp/claude-1000/-home-steven-Projects-enclave/2502245f-8429-4cab-92b0-2cd51aac30e8",
+      "references": [],
+      "unreadableProc": 550,
+      "bytes": 572393962,
+      "entries": 16545,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/2502245f-8429-4cab-92b0-2cd51aac30e8",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/2502245f-8429-4cab-92b0-2cd51aac30e8.manifest.json"
+    },
+    {
+      "source": "/tmp/enclavedns-aur",
+      "references": [],
+      "unreadableProc": 555,
+      "status": "retained",
+      "reason": "hardlinked file: /tmp/enclavedns-aur/src/enclavedns-client-0.1.0/target/release/build/httparse-8ae895bf1ac98748/build-script-build"
+    },
+    {
+      "source": "/tmp/urlprobe",
+      "references": [],
+      "unreadableProc": 554,
+      "status": "retained",
+      "reason": "hardlinked file: /tmp/urlprobe/target/debug/build/urlprobe/b54115dbfe1f69ec/out/urlprobe"
+    },
+    {
+      "source": "/tmp/go-build314875697",
+      "references": [],
+      "unreadableProc": 555,
+      "bytes": 270500295,
+      "entries": 1507,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/go-build314875697",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/go-build314875697.manifest.json"
+    },
+    {
+      "source": "/tmp/go-build2883938849",
+      "references": [],
+      "unreadableProc": 554,
+      "bytes": 92123798,
+      "entries": 708,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/go-build2883938849",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/go-build2883938849.manifest.json"
+    },
+    {
+      "source": "/tmp/go-build3079425436",
+      "references": [],
+      "unreadableProc": 555,
+      "bytes": 65275453,
+      "entries": 777,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/go-build3079425436",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/go-build3079425436.manifest.json"
+    },
+    {
+      "source": "/tmp/head-src",
+      "references": [],
+      "unreadableProc": 555,
+      "status": "retained",
+      "reason": "hardlinked file: /tmp/head-src/target/wasm32-wasip2/release/build/ipns-publisher/47afdd1e1a18e973/out/ipns_publisher.wasm"
+    },
+    {
+      "source": "/tmp/rpa-src",
+      "references": [],
+      "unreadableProc": 555,
+      "bytes": 118888316,
+      "entries": 6065,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/rpa-src",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/rpa-src.manifest.json"
+    },
+    {
+      "source": "/tmp/claude-1000/-home-steven-Projects-enclave/ea984051-2406-474d-8dae-2c2f504ea89d/scratchpad/dl-jdk",
+      "references": [],
+      "unreadableProc": 558,
+      "bytes": 207475420,
+      "entries": 4,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/dl-jdk",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/dl-jdk.manifest.json"
+    },
+    {
+      "source": "/tmp/claude-1000/-home-steven-Projects-enclave/ea984051-2406-474d-8dae-2c2f504ea89d/scratchpad/jdk21",
+      "references": [],
+      "unreadableProc": 556,
+      "bytes": 361147248,
+      "entries": 542,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/jdk21",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/jdk21.manifest.json"
+    },
+    {
+      "source": "/tmp/claude-1000/-home-steven-Projects-enclave/ea984051-2406-474d-8dae-2c2f504ea89d/scratchpad/mingw",
+      "references": [],
+      "unreadableProc": 557,
+      "bytes": 168968872,
+      "entries": 3436,
+      "status": "archived",
+      "destination": "/vm/enclave-volumes/build-tmp-recovery/20261025/mingw",
+      "manifest": "/vm/enclave-volumes/build-tmp-recovery/20261025/mingw.manifest.json"
+    }
+  ],
+  "finished": 1792966401.561207,
+  "availableAfterKiB": 23304028
+}
