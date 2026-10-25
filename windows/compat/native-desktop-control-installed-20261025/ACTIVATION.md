@@ -1,8 +1,15 @@
 # Native desktop control activation
 
-Status: **preparation only; production has not been changed**. The code, runner-file and API-file transactions
-are tested. The complete service/configuration handoff and rollback have not yet
-been rehearsed and are not ready for unattended execution.
+Status: **preparation only; production native activation has not happened**.
+The code, runner-file and API-file transactions are tested. On October 25,
+19:09–19:21 UTC, the combined Windows task/configuration handoff passed normal
+activation, manager-start failure, and partial-launch recovery in isolation.
+All six transactions rolled back, and the final 19:23 readback verified 109
+code paths and both runners. Production task/process/VM snapshots were unchanged.
+See [the rehearsal scope](qualification/COMBINED.md) and
+[its qualification record](qualification/combined-v9.json). Admissions and VM
+operations were simulated; production recovery and owner desktop acceptance
+remain required. This is not an unattended production activation procedure.
 
 ## Verified current impact
 
@@ -77,8 +84,8 @@ code still requires a fresh, policy-authorized app launch.
 
 ## Handoff work that remains
 
-1. Rehearse the complete task/configuration handoff and its failure paths on
-   isolated services. Keep the existing worker, networking, lease relay, storage
+1. Preserve the qualified task/configuration handoff and failure recovery order
+   demonstrated by the isolated rehearsal. Keep the existing worker, networking, lease relay, storage
    VM, control VM and host boot untouched. Pause the scheduled updater during
    the actual maintenance window; restore its original enabled state afterward.
 2. Use fresh read-only inventory and source/configuration hashes to bind the
@@ -94,8 +101,9 @@ code still requires a fresh, policy-authorized app launch.
    tasks and absent processes. Apply the pinned code transaction and separately
    pinned public native config/release inputs, preserving unrelated configuration
    and the existing CPU/application RAM pools. `runner_config.py` provides the narrow two-file configuration transaction
-   and fixture-tested rollback described below. The complete service handoff
-   has not yet been exercised.
+   and fixture-tested rollback described below. The combined service handoff
+   passed with isolated SYSTEM tasks and simulated VM operations; actual app
+   recovery still requires verification during the maintenance window.
 5. Start the manager first and require correct legacy and native pins, worker
    readiness, complete inventory and zero stale reservations. Start the node
    afterward. Require the existing app and witness to regain serving status and
@@ -137,9 +145,10 @@ running production tasks without attempting any writes or service actions.
 
 Use `NATIVE_COMPAT_INSTALLED_SNAPSHOT` and `NATIVE_COMPAT_PREPARED` to run the
 exact-package case; otherwise that case is explicitly skipped. All filesystem
-mutations in these tests occur in new temporary fixture directories. The full
-service handoff, rollback after an actual service failure and final app
-acceptance remain untested.
+mutations in these tests occur in new temporary fixture directories. The combined
+isolated service handoff subsequently passed all three scenarios, including an
+injected manager exit before its listener opened. Hardware failure recovery and
+final owner-provisioned app acceptance remain untested.
 
 ## Subsequent live-pool and permanent-release checkpoint
 
@@ -165,8 +174,9 @@ configuration for the future handoff, rather than the older test-directory confi
 
 The public controller gateway request returned 404. Normal wallet-authorized
 artifact upload and actual catalog/component retrieval are still required; the
-local fixture fetcher does not establish either. The service/configuration
-handoff and rollback gates above remain open.
+local fixture fetcher does not establish either. The isolated service/configuration
+handoff is now qualified; production maintenance, recovery, and acceptance gates
+above remain open.
 
 ## Runner configuration transaction
 
