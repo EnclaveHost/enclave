@@ -1,0 +1,10 @@
+[queue] START available=20709MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+.....................{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+...............
+----------------------------------------------------------------------
+Ran 36 tests in 0.322s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=53 minHostAvailableMiB=20658
+[memory-guard] at peak: python3:53
+[queue] EXIT 0
