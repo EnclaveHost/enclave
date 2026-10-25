@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "failed": [],
+  "acceptance": [],
+  "scopeMemoryPeakMiB": 2199,
+  "error": null
+}
+[memory-guard] exit=0 peakTreeRssMiB=696 minHostAvailableMiB=85306
+[memory-guard] at peak: qemu-system-x86:506 node:89 node:70 python3:28 timeout:2
