@@ -23,6 +23,8 @@ import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
 import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
+import { desktopReleaseFromEnv, desktopAdoptionRefusal } from './desktop-release.mjs';
+import { DESKTOP_DERIVATION } from '../../relay/shield-desktop-derive.mjs';
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
 import { fetchSecrets, secretsExist } from "./secrets.mjs";
@@ -215,6 +217,9 @@ export class Host {
     // other code path can half-enable it: the deployed build has no such config and is unaffected.
     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
     this.cfg.isolationRuntimeId = this.cfg.isolationRuntimeId || process.env.ENCLAVE_ISOLATION_RUNTIME_ID || "";
+    // Snapshot independent operator pins once. A manager cannot supply or replace
+    // this release through /health; changing it requires a host restart.
+    Object.defineProperty(this, "desktopRelease", { value: desktopReleaseFromEnv(), enumerable: true });
     // host:port of the manager's data plane. Without it the app zone has no splicer, so an
     // isolated deployment is refused at the route rather than served through this agent.
     this.cfg.isolationDataAddr  = this.cfg.isolationDataAddr  || process.env.ENCLAVE_ISOLATION_DATA_ADDR || "";
@@ -1142,6 +1147,7 @@ export class Host {
       waf: envRead ? (envOpts.waf || {}) : null,
       volumes,
       runtimeId: this.cfg.isolationRuntimeId,
+      desktopRelease: this.desktopRelease,
       require: envRead && chain.isolationForBackend(envOpts, this.isolationBackend) ? this.isolationBackend : (envOpts.isolationRequire ?? null),
       manager: managerHealth,
       appConfigCid: envRead ? String(envOpts.configCid || "") : null,
@@ -1281,10 +1287,11 @@ export class Host {
     let stale = await IsolationManagerClient.staleVersion(client, id, body.derive).catch(() => null);
     // ...and for an owner-committed startup, a domain running ANOTHER AppID (the same catalog version with an older
     // package's config, say) is not adopted either: the version check above cannot see a config change.
-    if (!stale && startup) {
+    // Native desktop records additionally bind configuration/resources and independent release pins.
+    if (!stale && (startup || plan.derivation === DESKTOP_DERIVATION)) {
       const held = await client.findByName(id).catch(() => undefined);
       if (held === undefined) return this.#record(id, { status: "provisioning", reason: "isolation: the manager could not be asked which app it holds" });
-      const wrong = held ? startupAdoptionRefusal(held, startup) : null;
+      const wrong = held ? (startupAdoptionRefusal(held, startup) || desktopAdoptionRefusal(held, plan, this.desktopRelease)) : null;
       if (wrong) stale = `${held.id}: ${wrong}`;
     }
     if (stale) {
@@ -1428,12 +1435,13 @@ export class Host {
       return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
                                 ...(inst.id ? { isolationHeld: inst.id } : {}) });
     }
-    // THE OWNER'S COMMITMENT, on the manager's own view of what it started or adopted: anything else is retired, never
+    // Recheck the owner commitment or native planned identity after reconcile, closing an adoption race.
+    // Anything else is retired, never
     // routed, and the deployment waits (provisioning) for the next pass to start the committed app.
-    const notCommitted = startupAdoptionRefusal(inst, startup);
+    const notCommitted = startupAdoptionRefusal(inst, startup) || desktopAdoptionRefusal(inst, plan, this.desktopRelease);
     if (notCommitted) {
       this.log(`${id.slice(0, 10)} isolation: ${notCommitted}; retiring it`);
-      const gone = await this.#retireIsolated(id, `owner-committed startup: ${notCommitted}`);
+      const gone = await this.#retireIsolated(id, `planned identity: ${notCommitted}`);
       return this.#record(id, { status: "provisioning", isolation: null, reason: `isolation: ${notCommitted}`
         + (gone ? "" : "; it could not be confirmed removed, so nothing new is started"), ...(gone || !inst.id ? {} : { isolationHeld: inst.id }) });
     }
