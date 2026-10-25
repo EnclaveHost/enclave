@@ -204,6 +204,15 @@ function warnIfUnauthenticated(cfg, log) {
 //              re-reads. No-op in static mode.
 export function createFleet(cfg, log = () => {}) {
   let origins = cfg.staticList;
+  // THE CHAIN CLIENT for registry, book and ledger reads: cfg.chainClient when the daemon injected its ONE chain authority
+  // (relay/relay-chain-authority.mjs, e.g. the local proof-backed verifier; cfg.baseRpc is then never used and nothing
+  // falls back to it), else the legacy BASE_RPC provider client, exactly as before.
+  async function chainClient() {
+    if (cfg.chainClient) return cfg.chainClient;
+    const { createPublicClient, http } = await import("viem");
+    const { base } = await import("viem/chains");
+    return createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
+  }
 
   // Shared on-chain runner resolver (used by relay.js's app-subdomain fallback,
   // fix 1c). Reads EnclaveDeployments lazily + cached; maps a deployment id (full
@@ -219,11 +228,7 @@ export function createFleet(cfg, log = () => {}) {
   const _endpointIdCache = new Map();
   let _ledger = { rows: [], at: 0 };
   async function runnerClient() {
-    if (!_runnerClient) {
-      const { createPublicClient, http } = await import("viem");
-      const { base } = await import("viem/chains");
-      _runnerClient = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
-    }
+    if (!_runnerClient) _runnerClient = await chainClient();
     return _runnerClient;
   }
   async function loadHash() {
@@ -517,11 +522,7 @@ export function createFleet(cfg, log = () => {}) {
   let client = null;
   let registryAddress = cfg.registryAddress;   // env fallback; the book (below) overrides
   async function readRegistry() {
-    if (!client) {
-      const { createPublicClient, http } = await import("viem");
-      const { base } = await import("viem/chains");
-      client = createPublicClient({ chain: base, transport: http(cfg.baseRpc) });
-    }
+    if (!client) client = await chainClient();
     // ADDRESS_BOOK_ADDRESS set: resolve the registry from the on-chain book
     // each cycle, so a registry redeploy reaches the relay boxes with one
     // owner tx instead of hand-editing /etc/nan-relay/*.env (the drift that

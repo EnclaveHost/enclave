@@ -53,7 +53,7 @@ import net from "node:net";
 import http from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createFleet, fleetConfig, fetchJson, installProcessGuards } from "./fleet.mjs";
-import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions } from "./network-runtime.bundle.mjs";
+import { createHostPolicyRuntime, resolveHostPolicyConfig, endpointAdmissions, relayChainAuthority } from "./network-runtime.bundle.mjs";
 import { isBoxHost } from "./boxhost.js";
 import { authorizePush, parseMeasurements, createShieldChallengeAuth, isShieldPush, shieldRegistryBinding,
   shieldRegistryEntry, createAppZoneAuthority, createLedgerIndex, createAppZoneShield, LeaseReader, chainAuthorityFromEnv, judge as attestationJudge } from "./network-runtime.bundle.mjs";
@@ -82,6 +82,11 @@ if ((process.env.APP_CHALLENGE_AUTH && !APP_CHALLENGE) || (APP_CHALLENGE && (!RE
 }
 
 const CFG = fleetConfig();
+// The fleet's registry/book/ledger reads use the relay's chain authority (relay/relay-chain-authority.mjs): unset, the
+// legacy BASE_RPC client (unchanged); ENCLAVE_CHAIN_AUTHORITY=verifier, the ONE local-verifier client - a mixed selection
+// (BASE_RPC or another provider setting alongside it) stops the daemon here, never resolved by dropping one.
+try { const rc = relayChainAuthority(process.env); if (rc) CFG.chainClient = rc.client; }
+catch (e) { console.error(`fatal: chain authority: ${e.message}`); process.exit(1); }
 if (!READ_ONLY && !ATTESTED && !CFG.registryAddress && !CFG.staticList.length) {
   console.error("fatal: set REGISTRY_ADDRESS (on-chain discovery) or ENCLAVES (static list)");
   process.exit(1);
