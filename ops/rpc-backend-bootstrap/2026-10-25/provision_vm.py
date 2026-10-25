@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Enclave RPC backend VM: one persistent local QEMU/KVM guest (Ubuntu noble cloud image) that will host the L1 pair
 (reth v2.8.0 + Lighthouse v8.3.2) and the Base holder (base v1.5.1) on ext4 filesystems inside NEW qcow2 images
-on the local HDD (/mnt/usb, ntfs3). Public chain data only: no confidential compute, no NVMe cache (0 of the 250 GB cap).
+on the local HDD (/mnt/usb, ntfs3) for v1 manifests. Public chain data only, no confidential compute. v1 used no NVMe; the
+former 250 GB NVMe cap no longer applies (2026-10-25 user override; see v2 below).
 
 Commands (python3 -I provision_vm.py <cmd>):
   plan                      read-only: every host check + the exact layout and QEMU argv; creates nothing
@@ -14,6 +15,17 @@ Commands (python3 -I provision_vm.py <cmd>):
                             reviewed copy commands (prints only; runs nothing)
   launch MANIFEST SHA256    unit ExecStart: re-check the host, then exec QEMU (never run by hand)
   powerdown MANIFEST        unit ExecStop: ACPI powerdown over QMP and wait for the guest to halt
+  guard MANIFEST SHA256     v2 only, guard unit ExecStart: bounded thin-provisioning guard (never run by hand)
+  resume-for-shutdown MANIFEST
+                            v2 only, operator: after the guard paused the VM at its pause threshold, resume it ONLY to
+                            ACPI-power it down; the guard then pauses again only at the hard floor
+
+v2 manifests (2026-10-25 user override: NVMe chain STORAGE authorized, the former 250 GB NVMe cap removed) are written
+only by the reviewed migration adapter, never by prepare. They pin an explicit backing policy per disk (mount, fs UUID,
+source, leaf disk model + rotational) checked at every launch. 'bounded' backings (NVMe) are thin provisioned: launch
+needs free >= floor + pause margin + shutdown margin + start headroom, and the guard unit (Requires/BindsTo of the VM
+unit) pauses ONLY this VM over its own QMP monitor before the floor, after first asking for an ACPI powerdown. v1
+manifests render and behave exactly as before.
 
 Operator sequence (root reviews first):
   plan -> prepare -> verify -> systemctl --user daemon-reload -> systemctl --user start enclave-rpc-production-vm
@@ -41,8 +53,10 @@ import uuid
 from pathlib import Path
 
 FORMAT = 'enclave-rpc-backend-vm/v1'
+FORMAT_V2 = 'enclave-rpc-backend-vm/v2'
 NAME = 'enclave-rpc-production'
 UNIT = 'enclave-rpc-production-vm.service'
+GUARD_UNIT = 'enclave-rpc-production-guard.service'
 HOME = Path(os.path.expanduser('~'))
 STATE_DIR = HOME / '.local/state' / NAME            # POSIX fs: the 0600 key cannot live on ntfs3 (fmask=0022)
 UNIT_PATH = HOME / '.config/systemd/user' / UNIT
@@ -64,7 +78,7 @@ OS_BYTES = 32 * GIB
 L1_BYTES = 4_000_000_000_000
 BASE_BYTES = 3_100_000_000_000
 HDD_FREE_MARGIN = 500_000_000_000
-NVME_CAP = 250_000_000_000
+NVME_CAP = 250_000_000_000                          # v1 plan output only (historical; removed for v2 on 2026-10-25)
 
 GUEST_IP = '10.0.2.15'
 GUEST_ADMIN = 'rpcadmin'
@@ -264,8 +278,8 @@ def paths(uid):
             'osDisk': HDD_DIR + '/os.qcow2'}
 
 
-def blockdev(node, driver, filename, read_only=False):
-    d = {'driver': driver, 'node-name': node, 'read-only': read_only, 'discard': 'ignore', 'detect-zeroes': 'off',
+def blockdev(node, driver, filename, read_only=False, discard='ignore'):
+    d = {'driver': driver, 'node-name': node, 'read-only': read_only, 'discard': discard, 'detect-zeroes': 'off',
          'cache': {'direct': False, 'no-flush': False},
          'file': {'driver': 'file', 'filename': filename, 'locking': 'on', 'aio': 'threads'}}
     return json.dumps(d, sort_keys=True, separators=(',', ':'))
@@ -281,16 +295,21 @@ def qemu_argv(m):
          '-sandbox', 'on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny', '-msg', 'timestamp=on',
          '-chardev', f"socket,id=con0,path={p['console']},server=on,wait=off,logfile={p['consoleLog']},logappend=on",
          '-serial', 'chardev:con0',
-         '-qmp', f"unix:{p['qmp']},server=on,wait=off",
-         '-object', 'rng-random,id=rng0,filename=/dev/urandom', '-device', 'virtio-rng-pci,rng=rng0',
-         '-device', 'virtio-scsi-pci,id=scsi0',
-         '-blockdev', blockdev('os0', 'qcow2', d['os']['path']),
-         '-device', f"scsi-hd,bus=scsi0.0,drive=os0,serial={d['os']['serial']},bootindex=0,werror=stop,rerror=stop"]
+         '-qmp', f"unix:{p['qmp']},server=on,wait=off"]
+    if is_v2(m):
+        # a second QMP monitor owned by the guard unit, so the guard never competes with powerdown/operators
+        a += ['-chardev', f"socket,id=qmpg,path={p['guardQmp']},server=on,wait=off", '-mon', 'chardev=qmpg,mode=control']
+    a += ['-object', 'rng-random,id=rng0,filename=/dev/urandom', '-device', 'virtio-rng-pci,rng=rng0',
+          '-device', 'virtio-scsi-pci,id=scsi0',
+          '-blockdev', blockdev('os0', 'qcow2', d['os']['path'], discard=disk_discard(m, d['os'])),
+          '-device', f"scsi-hd,bus=scsi0.0,drive=os0,serial={d['os']['serial']},bootindex=0,werror=stop,rerror=stop"]
     for r in DISK_ROLES:
         x = d[r['role']]
-        # rotation_rate=7200: the host verified at prepare/launch that the backing disk is rotational
-        a += ['-blockdev', blockdev(r['role'] + '0', 'qcow2', x['path']),
-              '-device', f"scsi-hd,bus=scsi0.0,drive={r['role']}0,serial={x['serial']},rotation_rate=7200,werror=stop,rerror=stop"]
+        # v1: rotation_rate=7200 because the host verified at prepare/launch that the backing disk is rotational.
+        # v2: the backing policy's guestRotationRate (7200 HDD, 1 NVMe), verified against the leaf disks at launch.
+        rate = m['backings'][x['backing']]['guestRotationRate'] if is_v2(m) else 7200
+        a += ['-blockdev', blockdev(r['role'] + '0', 'qcow2', x['path'], discard=disk_discard(m, x)),
+              '-device', f"scsi-hd,bus=scsi0.0,drive={r['role']}0,serial={x['serial']},rotation_rate={rate},werror=stop,rerror=stop"]
     a += ['-blockdev', blockdev('seed0', 'raw', p['seedIso'], read_only=True),
           '-device', 'scsi-cd,bus=scsi0.0,drive=seed0',
           '-netdev', f'user,id=net0,ipv6=off,net=10.0.2.0/24,host=10.0.2.2,dhcpstart={GUEST_IP},dns=10.0.2.3,'
@@ -527,10 +546,14 @@ def render_ssh_config(m):
 
 def render_unit(m, manifest_sha):
     p = m['paths']
-    return f"""# rendered by provision_vm.py ({FORMAT}). prepare never enables or starts this unit.
-[Unit]
-Description=Enclave RPC backend VM ({NAME}: reth+lighthouse L1, Base holder; local HDD images)
-StartLimitIntervalSec=3600
+    if is_v2(m):
+        head = (f"# rendered by provision_vm.py ({FORMAT_V2}) from a migration-adapter manifest; never enabled or started "
+                f"by a script.\n[Unit]\nDescription=Enclave RPC backend VM ({NAME}: reth+lighthouse L1, Base holder; "
+                f"per-disk backing policy)\nRequires={GUARD_UNIT}\nBindsTo={GUARD_UNIT}\nAfter={GUARD_UNIT}\n")
+    else:
+        head = (f"# rendered by provision_vm.py ({FORMAT}). prepare never enables or starts this unit.\n[Unit]\n"
+                f"Description=Enclave RPC backend VM ({NAME}: reth+lighthouse L1, Base holder; local HDD images)\n")
+    return head + f"""StartLimitIntervalSec=3600
 StartLimitBurst=3
 
 [Service]
@@ -782,8 +805,10 @@ def load_manifest(path, want_sha=None):
     if want_sha and sha256_text(text) != want_sha:
         refuse('manifest differs from the sha256 pinned in the unit')
     m = json.loads(text)
-    if m.get('format') != FORMAT or m.get('uid') != os.getuid():
+    if m.get('format') not in (FORMAT, FORMAT_V2) or m.get('uid') != os.getuid():
         refuse('manifest format/uid mismatch')
+    if is_v2(m):
+        validate_v2(m)
     return m, sha256_text(text)
 
 
@@ -795,6 +820,8 @@ def check_images(m):
         info = json.loads(run(['/usr/bin/qemu-img', 'info', '--output=json', '-U', d['path']]))
         if info.get('format') != 'qcow2' or info.get('virtual-size') != d['bytes'] or 'backing-filename' in info:
             refuse(f"{d['path']} is not the expected standalone qcow2")
+    if is_v2(m):
+        return check_capacity(m)
     grow = sum(max(0, d['bytes'] - os.stat(d['path']).st_blocks * 512) for d in m['disks'].values())
     vfs = os.statvfs(HDD_MOUNT)
     if vfs.f_bavail * vfs.f_frsize < grow + 100_000_000_000:
@@ -804,7 +831,13 @@ def check_images(m):
 def cmd_verify():
     m, msha = load_manifest(paths(os.getuid())['manifest'])
     p = m['paths']
-    check_hdd(need_dir_absent=False)
+    if is_v2(m):
+        for b in used_backings(m).values():
+            check_backing(b)
+        if Path(p['guardUnitPath']).read_text() != render_guard_unit(m, msha):
+            refuse('guard unit file differs from its render')
+    else:
+        check_hdd(need_dir_absent=False)
     check_images(m)
     if sha256_file(p['launcher']) != m['files']['launcher']:
         refuse('installed launcher differs from the manifest')
@@ -841,7 +874,12 @@ def cmd_launch(manifest, want_sha):
     if own_cgroup_limits() != (str(MEMORY_MAX), '0'):
         refuse(f'unit cgroup memory.max/swap.max are {own_cgroup_limits()}, not ({MEMORY_MAX}, 0): no uncapped VM')
     check_kvm()
-    check_hdd(need_dir_absent=False)
+    if is_v2(m):
+        for b in used_backings(m).values():
+            check_backing(b)
+        check_guard_armed(m, want_sha)
+    else:
+        check_hdd(need_dir_absent=False)
     check_images(m)
     check_memory()
     check_ports()
@@ -892,16 +930,418 @@ def cmd_powerdown(manifest, wait_s=2280):
     cmd('system_powerdown')
     print(f'powerdown: ACPI powerdown sent, waiting up to {wait_s}s for the guest to halt', flush=True)
     deadline = time.monotonic() + wait_s
-    s.settimeout(30)
+    # v2: keep watching the bounded backings while the guest shuts down (the guard may be the reason we are stopping)
+    bounded = {n: b for n, b in used_backings(m).items() if b['growth'] == 'bounded'} if is_v2(m) else {}
+    s.settimeout(1 if bounded else 30)
     while time.monotonic() < deadline:
         try:
-            if not f.readline():
+            if not s.recv(65536):
                 print('powerdown: QEMU exited after guest shutdown')
                 return 0
         except (socket.timeout, TimeoutError):
-            continue
+            pass
+        if bounded:
+            budget = guard_mode(m) == 'shutdown-budget'
+            for n, b in sorted(bounded.items()):
+                t = thresholds(b['capacity'])
+                try:
+                    free = fs_free(b['mount'])
+                except OSError:
+                    free = None
+                if free is None or free <= (t['floor'] if budget else t['pause']):
+                    cmd('stop')
+                    print(f"powerdown: {b['mount']} free {free} at/below {'floor' if budget else 'pause threshold'} "
+                          'during shutdown: VM PAUSED; systemd will SIGTERM QEMU (crash-consistent stop)', flush=True)
+                    return 1
     print('powerdown: guest did not halt in time; systemd will SIGTERM QEMU')
     return 1
+
+
+# ---- v2: per-disk backing policies + bounded thin provisioning ----------------------------------------------------------
+# A 4 TB virtual L1 cannot be guaranteed full growth on the NVMe, so a 'bounded' backing makes NO full-growth claim:
+#   floor     never planned to be crossed (operator policy, not a user cap: >= 300 GB free stays for the host and
+#             other apps)
+#   pause     floor + pauseMarginBytes: the guard pauses the VM (QMP stop). The margin is the budget for ONE
+#             operator `resume-for-shutdown` plus poll overshoot; it is NOT a guarantee that a guest shutdown fits.
+#   shutdown  pause + shutdownMarginBytes, or earlier when the measured 60 s growth rate would reach `pause` within
+#             shutdownLeadSeconds: the guard asks for an ACPI powerdown and keeps watching.
+#   start     shutdown + startHeadroomBytes: launch and the guard's own start refuse below this.
+# Errors fail closed: a failed identity/free-space check pauses the VM; if the guard cannot reach QEMU it exits 3 and the
+# VM unit (BindsTo) is stopped through powerdown, which itself pauses at the threshold while waiting.
+BACKING_KINDS = {'hdd': {'growth': 'full', 'rotational': True}, 'nvme': {'growth': 'bounded', 'rotational': False}}
+CAPACITY_KEYS = ('floorBytes', 'pauseMarginBytes', 'shutdownMarginBytes', 'startHeadroomBytes', 'shutdownLeadSeconds',
+                 'pollSeconds')
+V2_PATHS = ('guardQmp', 'guardStatus', 'guardMode', 'guardUnitPath')
+
+
+def is_v2(m):
+    return m.get('format') == FORMAT_V2
+
+
+def disk_discard(m, d):
+    return m['backings'][d['backing']]['discard'] if is_v2(m) else 'ignore'
+
+
+def used_backings(m):
+    return {d['backing']: m['backings'][d['backing']] for d in m['disks'].values()}
+
+
+def validate_v2(m):
+    """Structural checks only (no host access): every disk names a known policy with complete, sane fields."""
+    for k in V2_PATHS:
+        if not isinstance(m['paths'].get(k), str):
+            refuse(f'v2 manifest lacks paths.{k}')
+    for name, b in m.get('backings', {}).items():
+        kind = BACKING_KINDS.get(b.get('kind'))
+        if kind is None or b.get('growth') != kind['growth'] or b.get('discard') not in ('ignore', 'unmap'):
+            refuse(f'backing {name}: unknown kind/growth/discard')
+        if b.get('guestRotationRate') != (7200 if kind['rotational'] else 1):
+            refuse(f'backing {name}: guestRotationRate must match its kind')
+        if not b.get('dir', '').startswith(b.get('mount', '//').rstrip('/') + '/') or not b.get('leafDisks'):
+            refuse(f'backing {name}: dir must be inside its mount and leaf disks must be pinned')
+        if kind['growth'] == 'bounded':
+            c = b.get('capacity') or {}
+            if any(not isinstance(c.get(k), int) or c[k] <= 0 for k in CAPACITY_KEYS):
+                refuse(f'backing {name}: capacity needs positive integers {CAPACITY_KEYS}')
+    for role, d in m['disks'].items():
+        b = m.get('backings', {}).get(d.get('backing'))
+        if b is None or not d['path'].startswith(b['dir'] + '/'):
+            refuse(f'disk {role}: no backing policy, or its path is outside the policy dir')
+
+
+def leaf_disks(dev_name):
+    p = Path('/sys/class/block') / dev_name
+    if not p.exists():
+        refuse(f'/sys/class/block/{dev_name} missing')
+    slaves = sorted(os.listdir(p / 'slaves')) if (p / 'slaves').is_dir() else []
+    if slaves:
+        return sorted({leaf for s in slaves for leaf in leaf_disks(s)})
+    return [whole_disk(dev_name)]
+
+
+def fs_uuid_of(source):
+    real, d = os.path.realpath(source), Path('/dev/disk/by-uuid')
+    hits = sorted(e.name for e in d.iterdir() if os.path.realpath(e) == real) if d.is_dir() else []
+    return hits[0] if len(hits) == 1 else None
+
+
+def describe_backing(mount):
+    """Read-only identity of the filesystem mounted exactly at `mount`."""
+    m = mount_entry(mount)
+    if m is None:
+        refuse(f'{mount} is not mounted')
+    if not m['source'].startswith('/dev/'):
+        refuse(f"{mount} source {m['source']} is not a block device")
+    leaves = []
+    for disk in leaf_disks(os.path.basename(os.path.realpath(m['source']))):
+        q = Path('/sys/block') / disk
+        model = (q / 'device/model').read_text().strip() if (q / 'device/model').exists() else ''
+        leaves.append({'name': disk, 'model': model, 'rotational': (q / 'queue/rotational').read_text().strip() == '1'})
+    return {'mount': mount, 'fstype': m['fstype'], 'source': m['source'], 'fsUuid': fs_uuid_of(m['source']),
+            'leafDisks': leaves, 'rw': 'rw' in m['opts'] and 'rw' in m['superOpts']}
+
+
+def fs_free(mount):
+    v = os.statvfs(mount)
+    return v.f_bavail * v.f_frsize
+
+
+def check_backing(b):
+    got = describe_backing(b['mount'])
+    if not got['rw']:
+        refuse(f"{b['mount']} is not mounted read-write")
+    for k in ('fstype', 'fsUuid', 'leafDisks'):
+        if got[k] != b[k]:
+            refuse(f"{b['mount']} {k} is {got[k]!r}; the {b['kind']} policy pins {b[k]!r}")
+    if os.path.realpath(got['source']) != os.path.realpath(b['source']):
+        refuse(f"{b['mount']} is mounted from {got['source']}, the policy pins {b['source']}")
+    if any(leaf['rotational'] != BACKING_KINDS[b['kind']]['rotational'] for leaf in got['leafDisks']):
+        refuse(f"{b['mount']} leaf disks {got['leafDisks']} contradict kind {b['kind']}")
+    try:
+        st = os.lstat(b['dir'])
+    except OSError as e:
+        refuse(f"backing dir {b['dir']}: {e}")
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or st.st_dev != os.stat(b['mount']).st_dev:
+        refuse(f"{b['dir']} is not a real directory of this user on the {b['mount']} filesystem")
+    return dict(got, freeBytes=fs_free(b['mount']))
+
+
+def thresholds(cap):
+    pause = cap['floorBytes'] + cap['pauseMarginBytes']
+    shutdown = pause + cap['shutdownMarginBytes']
+    return {'floor': cap['floorBytes'], 'pause': pause, 'shutdown': shutdown, 'start': shutdown + cap['startHeadroomBytes']}
+
+
+def check_capacity(m):
+    out = {}
+    for name, b in sorted(used_backings(m).items()):
+        free = fs_free(b['mount'])
+        if b['growth'] == 'full':      # the v1 HDD rule, now only over the disks that still live on this backing
+            grow = sum(max(0, d['bytes'] - os.stat(d['path']).st_blocks * 512)
+                       for d in m['disks'].values() if d['backing'] == name)
+            if free < grow + 100_000_000_000:
+                refuse(f"{b['mount']} cannot absorb the remaining sparse growth {grow} + 100 GB (ENOSPC would pause the VM)")
+        else:
+            t = thresholds(b['capacity'])
+            if free < t['start']:
+                refuse(f"{b['mount']} free {free} < start threshold {t['start']} (floor {t['floor']}, pause {t['pause']}, "
+                       f"shutdown {t['shutdown']}): bounded thin provisioning refuses to start; free space first")
+        out[name] = free
+    return out
+
+
+def guard_decide(free, rate, mode, t, lead_s):
+    """Pure policy. free None = measurement failed -> pause (fail closed). rate = bytes/s consumed (>= 0)."""
+    if free is None:
+        return 'pause'
+    if free <= (t['floor'] if mode == 'shutdown-budget' else t['pause']):
+        return 'pause'
+    if mode == 'shutdown-budget':
+        return 'ok'                    # an operator-requested powerdown is already running under the hard floor
+    if free <= t['shutdown'] or (rate > 0 and (free - t['pause']) / rate < lead_s):
+        return 'shutdown'
+    return 'ok'
+
+
+def guard_mode(m):
+    try:
+        d = json.loads(Path(m['paths']['guardMode']).read_text())
+    except (OSError, ValueError):
+        return None
+    return d.get('mode') if isinstance(d, dict) else None
+
+
+def write_json_atomic(path, obj, mode=0o600):
+    tmp = f'{path}.tmp-{os.getpid()}'
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
+    with os.fdopen(fd, 'w') as f:
+        f.write(canonical(obj))
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+class Qmp:
+    def __init__(self, path, timeout=10):
+        self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.s.settimeout(timeout)
+        self.s.connect(path)
+        self.f = self.s.makefile('rwb')
+        if not self.f.readline():
+            raise OSError('QMP closed before greeting')
+        self.cmd('qmp_capabilities')
+
+    def cmd(self, name, args=None):
+        msg = {'execute': name}
+        if args is not None:
+            msg['arguments'] = args
+        self.f.write(json.dumps(msg).encode() + b'\n')
+        self.f.flush()
+        while True:
+            line = self.f.readline()
+            if not line:
+                raise OSError(f'QMP closed during {name}')
+            r = json.loads(line)
+            if 'return' in r:
+                return r['return']
+            if 'error' in r:
+                raise OSError(f"QMP {name}: {r['error']}")
+
+    def close(self):
+        self.f.close()                         # the makefile holds a socket reference: close both or QEMU keeps
+        self.s.close()                         # the (single-client) monitor connection open
+
+
+def sd_notify(msg):
+    addr = os.environ.get('NOTIFY_SOCKET')
+    if not addr:
+        return False
+    addr = '\0' + addr[1:] if addr.startswith('@') else addr
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM | socket.SOCK_CLOEXEC) as s:
+        s.connect(addr)
+        s.sendall(msg.encode())
+    return True
+
+
+class GuardIO:
+    """Real host effects for guard_loop; tests substitute every method."""
+
+    def __init__(self, m):
+        self.m = m
+
+    def check(self, b):
+        check_backing(b)
+
+    def free(self, mount):
+        return fs_free(mount)
+
+    def qemu_present(self):
+        return os.path.exists(self.m['paths']['guardQmp'])
+
+    def qmp(self):
+        return Qmp(self.m['paths']['guardQmp'])
+
+    def mode(self):
+        return guard_mode(self.m)
+
+    def notify(self, msg):
+        sd_notify(msg)
+
+    def status(self, obj):
+        write_json_atomic(self.m['paths']['guardStatus'], obj)
+
+    def log(self, msg):
+        print('ENCLAVE-RPC-GUARD: ' + msg, flush=True)
+
+    now = staticmethod(time.monotonic)
+    sleep = staticmethod(time.sleep)
+
+
+def guard_loop(m, msha, io, max_loops=None):
+    """Returns the process exit code: 0 QEMU gone after being seen, 3 fail closed (cannot act on QEMU)."""
+    bounded = {n: b for n, b in used_backings(m).items() if b['growth'] == 'bounded'}
+    t = {n: thresholds(b['capacity']) for n, b in bounded.items()}
+    poll = min([b['capacity']['pollSeconds'] for b in bounded.values()] or [5])
+    lead = min([b['capacity']['shutdownLeadSeconds'] for b in bounded.values()] or [0])
+    hist = {n: [] for n in bounded}
+    q, seen, absent_since, shutdown_sent, loops, last = None, False, None, False, 0, None
+    while max_loops is None or loops < max_loops:
+        loops += 1
+        now, decision, why, frees, rates = io.now(), 'ok', [], {}, {}
+        try:
+            for b in used_backings(m).values():
+                io.check(b)
+            mode = io.mode()
+            for n, b in sorted(bounded.items()):
+                free = io.free(b['mount'])
+                h = hist[n]
+                h.append((now, free))
+                while len(h) > 1 and now - h[0][0] > 60:
+                    h.pop(0)
+                rate = max(0.0, (h[0][1] - free) / (now - h[0][0])) if now - h[0][0] >= 10 else 0.0
+                frees[n], rates[n] = free, round(rate)
+                d = guard_decide(free, rate, mode, t[n], lead)
+                if d != 'ok':
+                    why.append(f'{n} free {free} rate {round(rate)} B/s -> {d}')
+                decision = max(decision, d, key=('ok', 'shutdown', 'pause').index)
+        except Exception as e:                  # noqa: BLE001 - any measurement failure fails closed
+            mode, decision = None, 'pause'
+            why.append(f'check failed: {e}')
+        present = io.qemu_present()
+        if not present:
+            q = None
+            if seen:
+                io.status({'state': 'stopped', 'manifestSha': msha, 'free': frees, 'reasons': why})
+                io.log('QEMU gone; guard exits')
+                return 0
+        elif q is None:
+            try:
+                q, seen, absent_since = io.qmp(), True, None
+            except OSError as e:
+                absent_since = absent_since if absent_since is not None else now
+                if decision == 'pause' or now - absent_since > 60:
+                    io.log(f'FAIL-CLOSED: cannot reach the guard QMP monitor ({e}); exiting so the VM unit stops')
+                    return 3
+        state = 'armed'
+        if q is not None:
+            try:
+                st = q.cmd('query-status')['status']
+                if decision == 'pause':
+                    if st == 'running':
+                        q.cmd('stop')
+                        io.log('PAUSED VM: ' + '; '.join(why) + ' -- operator: free space and `cont`, or '
+                               '`provision_vm.py resume-for-shutdown`; a paused VM cannot ACPI-shutdown')
+                    state = 'paused'
+                elif decision == 'shutdown':
+                    if not shutdown_sent and st == 'running':
+                        q.cmd('system_powerdown')
+                        shutdown_sent = True
+                        io.log('ACPI POWERDOWN requested: ' + '; '.join(why))
+                    state = 'shutdown-requested'
+            except OSError as e:
+                q = None
+                if not io.qemu_present():
+                    continue
+                io.log(f'FAIL-CLOSED: guard QMP failed ({e}); exiting so the VM unit stops')
+                return 3
+        cur = {'state': state, 'manifestSha': msha, 'free': frees, 'rateBytesPerS': rates, 'mode': mode,
+               'reasons': why, 'thresholds': t, 'qemuSeen': seen, 'wallTime': time.time()}
+        io.status(cur)
+        if (state, tuple(why)) != last:
+            io.notify(f'STATUS={state}: ' + ('; '.join(why) or 'within bounds'))
+            last = (state, tuple(why))
+        io.notify('WATCHDOG=1')
+        io.sleep(poll)
+    return None
+
+
+def cmd_guard(manifest, want_sha):
+    m, msha = load_manifest(manifest, want_sha)
+    if not is_v2(m):
+        refuse('the guard runs only for v2 manifests')
+    try:
+        os.unlink(m['paths']['guardMode'])     # a shutdown budget never survives a guard restart
+    except FileNotFoundError:
+        pass
+    for b in used_backings(m).values():
+        check_backing(b)
+    check_capacity(m)
+    io = GuardIO(m)
+    io.status({'state': 'armed', 'manifestSha': msha, 'wallTime': time.time(), 'reasons': ['start admission passed']})
+    sd_notify('READY=1')
+    return guard_loop(m, msha, io)
+
+
+def check_guard_armed(m, want_sha):
+    try:
+        st = json.loads(Path(m['paths']['guardStatus']).read_text())
+    except (OSError, ValueError):
+        refuse(f'{GUARD_UNIT} has not written its status: no unguarded start')
+    if st.get('manifestSha') != want_sha or st.get('state') != 'armed' or time.time() - st.get('wallTime', 0) > 30:
+        refuse(f'{GUARD_UNIT} status is not a fresh `armed` for this manifest: no unguarded start')
+
+
+def cmd_resume_for_shutdown(manifest):
+    m, msha = load_manifest(manifest)
+    if not is_v2(m):
+        refuse('resume-for-shutdown is v2 only')
+    for b in used_backings(m).values():
+        if b['growth'] == 'bounded' and fs_free(b['mount']) <= thresholds(b['capacity'])['floor']:
+            refuse(f"{b['mount']} is at/below the hard floor: free space first (or stop QEMU: crash-consistent)")
+    q = Qmp(m['paths']['qmp'])
+    if q.cmd('query-status')['status'] != 'paused':
+        refuse('VM is not paused')
+    write_json_atomic(m['paths']['guardMode'], {'mode': 'shutdown-budget', 'manifestSha': msha,
+                                                'at': datetime.datetime.now(datetime.timezone.utc).isoformat()})
+    q.cmd('cont')
+    q.cmd('system_powerdown')
+    q.close()
+    print('resumed ONLY for ACPI powerdown; the guard now pauses again at the hard floor. Then: '
+          f'systemctl --user stop {UNIT} (a paused VM is stopped by SIGTERM: crash-consistent)')
+
+
+def render_guard_unit(m, manifest_sha):
+    p = m['paths']
+    return f"""# rendered by provision_vm.py ({FORMAT_V2}): bounded thin-provisioning guard for {UNIT}
+[Unit]
+Description=Enclave RPC VM capacity guard (pauses or powers down ONLY {UNIT} before its NVMe floor)
+PartOf={UNIT}
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/python3 -I {p['launcher']} guard {p['manifest']} {manifest_sha}
+WatchdogSec=30
+TimeoutAbortSec=10
+TimeoutStopSec=30
+Restart=no
+TimeoutStartSec=120
+MemoryMax=256M
+NoNewPrivileges=yes
+UMask=0077
+"""
 
 
 # ---- after first boot ---------------------------------------------------------------------------------------------------
@@ -974,6 +1414,10 @@ def main(argv):
             cmd_launch(argv[1], argv[2])
         elif argv[:1] == ['powerdown'] and len(argv) == 2:
             return cmd_powerdown(argv[1])
+        elif argv[:1] == ['guard'] and len(argv) == 3:
+            return cmd_guard(argv[1], argv[2])
+        elif argv[:1] == ['resume-for-shutdown'] and len(argv) == 2:
+            cmd_resume_for_shutdown(argv[1])
         else:
             print(__doc__, file=sys.stderr)
             return 64
