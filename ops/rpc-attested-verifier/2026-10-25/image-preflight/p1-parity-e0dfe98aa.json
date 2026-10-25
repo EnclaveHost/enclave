@@ -1,0 +1,108 @@
+{
+  "commit": "e0dfe98aa4536976394bf6f2f16c670f0b95ea7c",
+  "bundles": {
+    "metal/guest/lease-gas-conduit.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 418,
+      "nodeModulesInputs": 411,
+      "trackedChecked": 7,
+      "stale": [
+        {
+          "path": "network/rpc-identity.mjs",
+          "recorded": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+          "atCommit": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1"
+        }
+      ],
+      "notTracked": []
+    },
+    "metal/guest/mcp-server.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 2539,
+      "nodeModulesInputs": 2444,
+      "trackedChecked": 95,
+      "stale": [
+        {
+          "path": "network/lease-reader.mjs",
+          "recorded": "a7c23474df4ef8a307c9c7b63f27c7bda2af02fc7c9786cc424545ebfa133d9c",
+          "atCommit": "edd22ed61e464ea4747d6af3ecb5fb36b8925ab441c8b7a89f17fad82c4da738"
+        },
+        {
+          "path": "network/rpc-identity.mjs",
+          "recorded": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+          "atCommit": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1"
+        },
+        {
+          "path": "network/verified-chain.mjs",
+          "recorded": "cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4",
+          "atCommit": "f2d52b208271e6b727604f6941df1b76a8dcaf792c3e74bfaee0bc9238f4cad9"
+        }
+      ],
+      "notTracked": []
+    },
+    "metal/guest/platform-api.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 2221,
+      "nodeModulesInputs": 2105,
+      "trackedChecked": 115,
+      "stale": [
+        {
+          "path": "metal/guest/chain-verifier.mjs",
+          "recorded": "868bba6221f0bab59e6cd38740b7bd1101f9ebe162bc3c197c4288e255570a11",
+          "atCommit": "8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb"
+        },
+        {
+          "path": "metal/guest/measured-control.mjs",
+          "recorded": "230a32869ae30b2eb76da67517a16c5e65e2cffd91a76e799559af15160b43d2",
+          "atCommit": "6489bf13273172105139c599dbbff4c29b9b1f317a88f6fe46bd2669375666a7"
+        },
+        {
+          "path": "network/rpc-identity.mjs",
+          "recorded": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+          "atCommit": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1"
+        },
+        {
+          "path": "network/verified-chain.mjs",
+          "recorded": "cc1f88706d1e4da9fe9048ba3e4b6dbd755edca0752ef39c8a873aaaf9427df4",
+          "atCommit": "f2d52b208271e6b727604f6941df1b76a8dcaf792c3e74bfaee0bc9238f4cad9"
+        }
+      ],
+      "notTracked": [
+        "relay/network-runtime.bundle.mjs"
+      ]
+    },
+    "windows/node/lease-gas-runtime.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 430,
+      "nodeModulesInputs": 411,
+      "trackedChecked": 19,
+      "stale": [
+        {
+          "path": "client/lease-executor-authority.mjs",
+          "recorded": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+          "atCommit": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca"
+        },
+        {
+          "path": "network/lease-executor-authority.mjs",
+          "recorded": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+          "atCommit": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca"
+        },
+        {
+          "path": "network/lease-gas-runtime.mjs",
+          "recorded": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+          "atCommit": "eb78a2e6838f9b04d79017ea77a7e4e4cbd06c2af21e6aa77a000e2d6229ec77"
+        },
+        {
+          "path": "network/rpc-identity.mjs",
+          "recorded": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
+          "atCommit": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1"
+        },
+        {
+          "path": "network/service-index.mjs",
+          "recorded": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+          "atCommit": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221"
+        }
+      ],
+      "notTracked": []
+    }
+  }
+}

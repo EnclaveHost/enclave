@@ -50646,6 +50646,16 @@ var init_esm3 = __esm({
   }
 });
 
+// network/attested-verifier-brand.mjs
+var KEY, BRAND, isAttestedVerifier;
+var init_attested_verifier_brand = __esm({
+  "network/attested-verifier-brand.mjs"() {
+    KEY = /* @__PURE__ */ Symbol.for("enclave.attested-verifier.brand/v1");
+    BRAND = globalThis[KEY] instanceof WeakSet ? globalThis[KEY] : globalThis[KEY] = /* @__PURE__ */ new WeakSet();
+    isAttestedVerifier = (o) => !!o && typeof o === "object" && BRAND.has(o);
+  }
+});
+
 // network/rpc-identity.mjs
 function canonicalHost(hostname) {
   const host = String(hostname).toLowerCase().replace(/\.+$/, "");
@@ -50719,7 +50729,8 @@ var init_rpc_identity = __esm({
 
 // network/verified-chain.mjs
 function verifierEndpoint(v) {
-  if (v && typeof v === "object" && typeof v.request === "function") return { request: (m, p, ms2, signal) => v.request(m, p, ms2, signal), label: "verifier" };
+  if (v && typeof v === "object" && typeof v.request === "function")
+    return { request: (m, p, ms2, signal) => v.request(m, p, ms2, signal), label: isAttestedVerifier(v) ? "attested verifier" : "verifier", attested: isAttestedVerifier(v) };
   const url = typeof v === "string" ? v : v?.url;
   let e;
   try {
@@ -50860,7 +50871,7 @@ function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlock
         stateRoot: h3.stateRoot,
         timestamp: h3.timestamp,
         value,
-        evidence: { authority: "local-verifier", tier: "unsafe", finality: "none", blockNumber: String(b4), blockHash: h3.hash, stateRoot: h3.stateRoot, verifier: v.label }
+        evidence: { authority: v.attested ? "attested-verifier" : "local-verifier", localProof: !v.attested, tier: "unsafe", finality: "none", blockNumber: String(b4), blockHash: h3.hash, stateRoot: h3.stateRoot, verifier: v.label }
       };
     })();
     const deadline = new Promise((_3, reject) => {
@@ -50893,6 +50904,7 @@ var lc, HASH, fail, hexBlock, PINNED_METHODS;
 var init_verified_chain = __esm({
   "network/verified-chain.mjs"() {
     init_esm3();
+    init_attested_verifier_brand();
     init_rpc_identity();
     lc = (s) => String(s).toLowerCase();
     HASH = /^0x[0-9a-fA-F]{64}$/;
@@ -82851,6 +82863,7 @@ var fields, bookABI, deploymentABI, schemaABI, registryV1ABI, errText, rateLimit
 var init_lease_reader = __esm({
   "network/lease-reader.mjs"() {
     init_esm3();
+    init_attested_verifier_brand();
     init_chains2();
     init_route_record();
     init_connectivity_chain();
@@ -82885,6 +82898,7 @@ var init_lease_reader = __esm({
         Object.defineProperty(this, "authority", { value: authority, enumerable: true });
         if (authority === "verifier") {
           this.verifier = verifierEndpoint2(verifier);
+          this.verifierAttested = isAttestedVerifier(verifier);
           Object.defineProperty(this, "authorityPins", { value: authorityPins === void 0 ? null : validateNetworkAuthorities(authorityPins), enumerable: true });
           this.clients = Object.freeze([]);
           this.labels = [];
@@ -82983,7 +82997,7 @@ var init_lease_reader = __esm({
       //  * One RPC never wins alone; there is no fallback to a first answer.
       // What this reader's answers are worth, for evidence and status pages (never "independent").
       authorityInfo() {
-        return this.authority === "verifier" ? { authority: "local-verifier", head: "sequencer-signed Base unsafe head", tier: "unsafe", finality: "none", execution: "proof-backed (maintained Base EVM)", providerQuorum: false, last: this.lastEvidence } : { authority: "provider-quorum", head: "provider-reported", tier: "provider-reported", finality: "none", execution: "provider eth_call", providerQuorum: true, independentOfProviders: false };
+        return this.authority === "verifier" ? { authority: this.verifierAttested ? "attested-verifier" : "local-verifier", localProof: !this.verifierAttested, head: "sequencer-signed Base unsafe head", tier: "unsafe", finality: "none", execution: "proof-backed (maintained Base EVM)", providerQuorum: false, last: this.lastEvidence } : { authority: "provider-quorum", head: "provider-reported", tier: "provider-reported", finality: "none", execution: "provider eth_call", providerQuorum: true, independentOfProviders: false };
       }
       agreed(read2, failures = []) {
         if (this.authority === "verifier") return this.verifiedRead(read2, failures);
@@ -83166,7 +83180,7 @@ var init_lease_reader = __esm({
           op2.assertOpen();
           if (b4 < this.lastBlock) throw new Error(`block ${b4} is older than block ${this.lastBlock} accepted meanwhile`);
           this.lastBlock = b4;
-          this.lastEvidence = { authority: "local-verifier", tier: "unsafe", blockNumber: String(b4), blockHash: first.hash, stateRoot: first.stateRoot, timestamp: first.timestamp };
+          this.lastEvidence = { authority: this.verifierAttested ? "attested-verifier" : "local-verifier", localProof: !this.verifierAttested, tier: "unsafe", blockNumber: String(b4), blockHash: first.hash, stateRoot: first.stateRoot, timestamp: first.timestamp };
           return { ...value, hash: first.hash, blockNumber: String(b4), timestamp: first.timestamp };
         }).catch((e) => {
           if (e?.readerBug) throw e;

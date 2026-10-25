@@ -1654,11 +1654,11 @@ function re(e) {
   }
   return r;
 }
-function B(e, { strict: t = true } = {}) {
+function O(e, { strict: t = true } = {}) {
   return !e || typeof e != "string" ? false : t ? /^0x[0-9a-fA-F]*$/.test(e) : e.startsWith("0x");
 }
 function ye(e) {
-  return B(e, { strict: false }) ? Math.ceil((e.length - 2) / 2) : e.length;
+  return O(e, { strict: false }) ? Math.ceil((e.length - 2) / 2) : e.length;
 }
 function vt(e, t) {
   return t?.(e) ? e : e && typeof e == "object" && "cause" in e && e.cause !== void 0 ? vt(e.cause, t) : t ? null : e;
@@ -1714,9 +1714,9 @@ function Tr(e, t = {}) {
   return It(r, t);
 }
 function At(e, t = {}) {
-  return typeof e == "number" || typeof e == "bigint" ? Nr(e, t) : typeof e == "boolean" ? Br(e, t) : B(e) ? Ct(e, t) : Ie(e, t);
+  return typeof e == "number" || typeof e == "bigint" ? Br(e, t) : typeof e == "boolean" ? Or(e, t) : O(e) ? Ct(e, t) : Ie(e, t);
 }
-function Br(e, t = {}) {
+function Or(e, t = {}) {
   let r = new Uint8Array(1);
   return r[0] = Number(e), typeof t.size == "number" ? (A(r, { size: t.size }), $(r, { size: t.size })) : r;
 }
@@ -1738,12 +1738,12 @@ function Ct(e, t = {}) {
   }
   return a;
 }
-function Nr(e, t) {
+function Br(e, t) {
   let r = Ee(e, t);
   return Ct(r);
 }
 function Ie(e, t = {}) {
-  let r = Or.encode(e);
+  let r = Nr.encode(e);
   return typeof t.size == "number" ? (A(r, { size: t.size }), $(r, { dir: "right", size: t.size })) : r;
 }
 function Lr(e, t = false) {
@@ -1822,7 +1822,7 @@ function qr(e, t = 24) {
   Pe(r);
 }
 function C(e, t) {
-  let r = t || "hex", n = Gt(B(e, { strict: false }) ? At(e) : e);
+  let r = t || "hex", n = Gt(O(e, { strict: false }) ? At(e) : e);
   return r === "bytes" ? n : St(n);
 }
 function ce(e, t) {
@@ -1978,7 +1978,7 @@ function bn(e, { published: t = false } = {}) {
   let n = lr({ record: r, digest: e.digest, rpcs: e.rpcs, relays: e.relays, reserve: e.reserve, quorum: e.quorum, pinnedRelays: e.pinnedRelays }, { published: t });
   return n.chainId !== e.chainId && l("transit chainId differs from its record"), n;
 }
-var u, De, je, f, O, ue, le, J, Y, We, qe, Ye, Qe, tt, ot, pr, ct, X, Q, L, ee, de, k, _, U, F, M, pe, h, z, H, fe, D, ut, j, lt, te, pt, wr, xr, br, vr, he, Ir, yt, gt, wt, ne, xt, ge, bt, we, g, W, G, Et, xe, V, oe, be, ve, Cr, Rr, Se, Or, S, $e, ae, Pt, Tt, Ot, Bt, Nt, Lt, _r, Re, ie, Ft, zr, K, Hr, Dr, jr, Wr, Ht, Dt, jt, Wt, Gr, Vr, Mt, zt, Oe, Kr, Gt, Vt, Be, se, qt, N, Ne, Le, ke, Jr, Ue, _e, Yr, Kt, Zr, Xr, Jt, R, Zt, wa, xa, rn, nn, Fa, on, er, an, Me, Ma, za, ze, sn, or, ei, ar, ti, un, ri, ni, w, oi, He, ui, sr, cr, l, mn, hn;
+var u, De, je, f, N, ue, le, J, Y, We, qe, Ye, Qe, tt, ot, pr, ct, X, Q, L, ee, de, k, _, U, F, M, pe, h, z, H, fe, D, ut, j, lt, te, pt, wr, xr, br, vr, he, Ir, yt, gt, wt, ne, xt, ge, bt, we, g, W, G, Et, xe, V, oe, be, ve, Cr, Rr, Se, Nr, S, $e, ae, Pt, Tt, Nt, Ot, Bt, Lt, _r, Re, ie, Ft, zr, K, Hr, Dr, jr, Wr, Ht, Dt, jt, Wt, Gr, Vr, Mt, zt, Ne, Kr, Gt, Vt, Oe, se, qt, B, Be, Le, ke, Jr, Ue, _e, Yr, Kt, Zr, Xr, Jt, R, Zt, wa, xa, rn, nn, Fa, on, er, an, Me, Ma, za, ze, sn, or, ei, ar, ti, un, ri, ni, w, oi, He, ui, sr, cr, l, mn, hn;
 var init_lease_gas_conduit_bundle = __esm({
   "metal/guest/lease-gas-conduit.bundle.mjs"() {
     u = (e, t, r) => () => {
@@ -1992,7 +1992,7 @@ var init_lease_gas_conduit_bundle = __esm({
     je = u(() => {
       De = "1.2.3";
     });
-    O = u(() => {
+    N = u(() => {
       je();
       f = class e extends Error {
         constructor(t, r = {}) {
@@ -2017,7 +2017,7 @@ var init_lease_gas_conduit_bundle = __esm({
       ct = /* @__PURE__ */ new Set(["indexed"]), X = /* @__PURE__ */ new Set(["calldata", "memory", "storage"]);
     });
     de = u(() => {
-      O();
+      N();
       L = class extends f {
         constructor({ type: t }) {
           super("Unknown type.", { metaMessages: [`Type "${t}" is not a valid ABI type. Perhaps you forgot to include a struct signature?`] }), Object.defineProperty(this, "name", { enumerable: true, configurable: true, writable: true, value: "UnknownTypeError" });
@@ -2029,7 +2029,7 @@ var init_lease_gas_conduit_bundle = __esm({
       };
     });
     pe = u(() => {
-      O();
+      N();
       k = class extends f {
         constructor({ param: t }) {
           super("Invalid ABI parameter.", { details: t }), Object.defineProperty(this, "name", { enumerable: true, configurable: true, writable: true, value: "InvalidParameterError" });
@@ -2053,7 +2053,7 @@ var init_lease_gas_conduit_bundle = __esm({
       };
     });
     fe = u(() => {
-      O();
+      N();
       h = class extends f {
         constructor({ signature: t, type: r }) {
           super(`Invalid ${r} signature.`, { details: t }), Object.defineProperty(this, "name", { enumerable: true, configurable: true, writable: true, value: "InvalidSignatureError" });
@@ -2069,7 +2069,7 @@ var init_lease_gas_conduit_bundle = __esm({
       };
     });
     ut = u(() => {
-      O();
+      N();
       D = class extends f {
         constructor({ type: t }) {
           super("Circular reference detected.", { metaMessages: [`Struct "${t}" is a circular reference.`] }), Object.defineProperty(this, "name", { enumerable: true, configurable: true, writable: true, value: "CircularReferenceError" });
@@ -2077,7 +2077,7 @@ var init_lease_gas_conduit_bundle = __esm({
       };
     });
     lt = u(() => {
-      O();
+      N();
       j = class extends f {
         constructor({ current: t, depth: r }) {
           super("Unbalanced parentheses.", { metaMessages: [`"${t.trim()}" has too many ${r > 0 ? "opening" : "closing"} parentheses.`], details: `Depth "${r}"` }), Object.defineProperty(this, "name", { enumerable: true, configurable: true, writable: true, value: "InvalidParenthesisError" });
@@ -2177,12 +2177,12 @@ var init_lease_gas_conduit_bundle = __esm({
       xe();
       ve();
       Se();
-      Or = new TextEncoder();
+      Nr = new TextEncoder();
       S = { zero: 48, nine: 57, A: 65, F: 70, a: 97, f: 102 };
     });
     Lt = u(() => {
       ae = BigInt(4294967295), Pt = BigInt(32);
-      Tt = (e, t, r) => e << r | t >>> 32 - r, Ot = (e, t, r) => t << r | e >>> 32 - r, Bt = (e, t, r) => t << r - 32 | e >>> 64 - r, Nt = (e, t, r) => e << r - 32 | t >>> 64 - r;
+      Tt = (e, t, r) => e << r | t >>> 32 - r, Nt = (e, t, r) => t << r | e >>> 32 - r, Ot = (e, t, r) => t << r - 32 | e >>> 64 - r, Bt = (e, t, r) => e << r - 32 | t >>> 64 - r;
     });
     Ft = u(() => {
       _r = new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68;
@@ -2200,8 +2200,8 @@ var init_lease_gas_conduit_bundle = __esm({
         for (let a = 0; a < 7; a++) t = (t << K ^ (t >> Dr) * Wr) % jr, t & Hr && (o ^= K << (K << BigInt(a)) - K);
         jt.push(o);
       }
-      Wt = Rt(jt, true), Gr = Wt[0], Vr = Wt[1], Mt = (e, t, r) => r > 32 ? Bt(e, t, r) : Tt(e, t, r), zt = (e, t, r) => r > 32 ? Nt(e, t, r) : Ot(e, t, r);
-      Oe = class e extends ie {
+      Wt = Rt(jt, true), Gr = Wt[0], Vr = Wt[1], Mt = (e, t, r) => r > 32 ? Ot(e, t, r) : Tt(e, t, r), zt = (e, t, r) => r > 32 ? Bt(e, t, r) : Nt(e, t, r);
+      Ne = class e extends ie {
         constructor(t, r, n, o = false, a = 24) {
           if (super(), this.pos = 0, this.posOut = 0, this.finished = false, this.destroyed = false, this.enableXOF = false, this.blockLen = t, this.suffix = r, this.outputLen = n, this.enableXOF = o, this.rounds = a, Ae(n), !(0 < t && t < 200)) throw new Error("only keccak-f1600 function is supported");
           this.state = new Uint8Array(200), this.state32 = _t(this.state);
@@ -2259,9 +2259,9 @@ var init_lease_gas_conduit_bundle = __esm({
           let { blockLen: r, suffix: n, outputLen: o, rounds: a, enableXOF: i } = this;
           return t || (t = new e(r, n, o, i, a)), t.state32.set(this.state32), t.pos = this.pos, t.posOut = this.posOut, t.finished = this.finished, t.rounds = a, t.suffix = n, t.outputLen = o, t.enableXOF = i, t.destroyed = this.destroyed, t;
         }
-      }, Kr = (e, t, r) => Ut(() => new Oe(t, e, r)), Gt = Kr(1, 136, 256 / 8);
+      }, Kr = (e, t, r) => Ut(() => new Ne(t, e, r)), Gt = Kr(1, 136, 256 / 8);
     });
-    Be = u(() => {
+    Oe = u(() => {
       Vt();
       ne();
       $e();
@@ -2275,8 +2275,8 @@ var init_lease_gas_conduit_bundle = __esm({
         }
       };
     });
-    Ne = u(() => {
-      N = class extends Map {
+    Be = u(() => {
+      B = class extends Map {
         constructor(t) {
           super(), Object.defineProperty(this, "maxSize", { enumerable: true, configurable: true, writable: true, value: void 0 }), this.maxSize = t;
         }
@@ -2296,20 +2296,20 @@ var init_lease_gas_conduit_bundle = __esm({
     ke = u(() => {
       qt();
       $e();
+      Oe();
       Be();
-      Ne();
       _e();
-      Le = new N(8192);
+      Le = new B(8192);
     });
     _e = u(() => {
-      Ne();
+      Be();
       ke();
-      Jr = /^0x[a-fA-F0-9]{40}$/, Ue = new N(8192);
+      Jr = /^0x[a-fA-F0-9]{40}$/, Ue = new B(8192);
     });
     wt();
     ke();
     _e();
-    Be();
+    Oe();
     Yr = Object.freeze(["localhost", "127.0.0.1", "[::1]"]);
     Kt = new Set(Yr);
     Zr = /^\[::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})\]$/;
@@ -2446,6 +2446,10 @@ var init_owner_nomination = __esm({
 });
 
 // metal/guest/chain-verifier.mjs
+function privateIPv4(host) {
+  const m3 = IPV4.exec(String(host)), o = m3 ? m3.slice(1).map(Number) : null;
+  return !!o && !o.some((x) => x > 255) && (o[0] === 10 || o[0] === 172 && o[1] >= 16 && o[1] <= 31 || o[0] === 192 && o[1] === 168);
+}
 function checkTxBackendUrl(raw) {
   let u3;
   try {
@@ -2465,7 +2469,7 @@ function checkTxBackendUrl(raw) {
 function bad2(m3) {
   throw new Error(`chainVerifier: ${m3}`);
 }
-function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
+function checkChainVerifier(raw, { allowLoopbackHttp = false, allowExpose = false } = {}) {
   if (!plain(raw)) bad2("must be an object");
   if ("witnessArchive" in raw) bad2("witnessArchive is not offered in the guest (its base image has no curl with --aws-sigv4); remove it");
   if ("witnessCache" in raw) bad2("witnessCache is not offered (no reviewed NVMe budget kind for a local witness cache)");
@@ -2482,7 +2486,8 @@ function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
       bad2(`proofSources[${i}] must be a URL`);
     }
     const loop3 = x.protocol === "http:" && allowLoopbackHttp && (x.hostname === "127.0.0.1" || x.hostname === "[::1]");
-    if (x.protocol !== "https:" && !loop3 || x.username || x.password || x.search || x.hash) bad2(`proofSources[${i}] must be https without credentials, query or fragment`);
+    const priv = x.protocol === "http:" && privateIPv4(x.hostname);
+    if (x.protocol !== "https:" && !loop3 && !priv || x.username || x.password || x.search || x.hash) bad2(`proofSources[${i}] must be https (or http at a private IPv4 literal) without credentials, query or fragment`);
     if (seen.has(x.href)) bad2(`proofSources[${i}] repeats a source`);
     seen.add(x.href);
     return String(u3);
@@ -2510,6 +2515,13 @@ function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
     limits = Object.freeze(limits);
   }
   const txBackend = raw.txBackend === void 0 || raw.txBackend === null ? null : checkTxBackendUrl(raw.txBackend);
+  let expose = null;
+  if (raw.expose !== void 0 && raw.expose !== null) {
+    if (!allowExpose) bad2("expose is offered only inside a HOST_DATA-bound direct config (a host-level or fw_cfg setting is not bound by any report)");
+    if (raw.expose !== VERIFIER_EXPOSE) bad2(`expose must be "${VERIFIER_EXPOSE}"`);
+    if (txBackend) bad2('expose "attested" is a read-only verifier: it takes no txBackend (nothing is submitted through it)');
+    expose = VERIFIER_EXPOSE;
+  }
   return Object.freeze({
     format: CHAIN_VERIFIER_FORMAT,
     unsafeSigner: raw.unsafeSigner.toLowerCase(),
@@ -2517,10 +2529,11 @@ function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
     port: port2,
     ...gossip ? { gossip } : {},
     ...limits ? { limits } : {},
-    ...txBackend ? { txBackend } : {}
+    ...txBackend ? { txBackend } : {},
+    ...expose ? { expose } : {}
   });
 }
-var CHAIN_VERIFIER_FORMAT, CHAIN_VERIFIER_IMAGE_FILE, CHAIN_AUTHORITY_NAMES, GUEST_RESERVED_PORTS, VERIFIER_PORT_RANGE, KEYS2, IPV4, ADDR2, plain, int;
+var CHAIN_VERIFIER_FORMAT, CHAIN_VERIFIER_IMAGE_FILE, CHAIN_AUTHORITY_NAMES, GUEST_RESERVED_PORTS, VERIFIER_PORT_RANGE, KEYS2, VERIFIER_EXPOSE, IPV4, ADDR2, plain, int;
 var init_chain_verifier = __esm({
   "metal/guest/chain-verifier.mjs"() {
     CHAIN_VERIFIER_FORMAT = "enclave-chain-verifier/v1";
@@ -2528,7 +2541,8 @@ var init_chain_verifier = __esm({
     CHAIN_AUTHORITY_NAMES = Object.freeze(["ENCLAVE_CHAIN_AUTHORITY", "ENCLAVE_CHAIN_VERIFIER", "ENCLAVE_CHAIN_TX_BACKEND"]);
     GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095, 8096]);
     VERIFIER_PORT_RANGE = Object.freeze([5e4, 57999]);
-    KEYS2 = ["format", "unsafeSigner", "proofSources", "port", "gossip", "limits", "txBackend"];
+    KEYS2 = ["format", "unsafeSigner", "proofSources", "port", "gossip", "limits", "txBackend", "expose"];
+    VERIFIER_EXPOSE = "attested";
     IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
     ADDR2 = /^0x[0-9a-fA-F]{40}$/;
     plain = (o) => !!o && typeof o === "object" && !Array.isArray(o);
@@ -2599,6 +2613,10 @@ function canonicalDirectConfig(raw) {
     "controlPort"
   ], "direct config");
   if (raw.format !== CONFIG_FORMAT) bad3(`direct config format must be ${CONFIG_FORMAT}`);
+  if (raw.chainVerifier && typeof raw.chainVerifier === "object" && raw.chainVerifier.expose !== void 0 && raw.chainVerifier.expose !== null) {
+    for (const k4 of ["leaseGas", "mcp", "platformApi", "ownerNomination", "nativeControl"])
+      if (raw[k4] !== void 0 && raw[k4] !== null) bad3(`chainVerifier.expose "attested" is a verifier-only guest: remove ${k4}`);
+  }
   if (raw.chainId !== CHAIN_ID) bad3(`direct config chainId must be ${CHAIN_ID}`);
   only(raw.contracts, [...REQUIRED_CONTRACTS, ...OPTIONAL_CONTRACTS], "direct config contracts");
   const contracts3 = {};
@@ -2665,7 +2683,7 @@ function canonicalDirectConfig(raw) {
   let chainVerifier = null;
   if (raw.chainVerifier !== void 0) {
     try {
-      chainVerifier = checkChainVerifier(raw.chainVerifier);
+      chainVerifier = checkChainVerifier(raw.chainVerifier, { allowExpose: true });
     } catch (e) {
       bad3(e.message);
     }
@@ -2801,6 +2819,27 @@ function directMcp(raw, { contracts: contracts3, controlPort }) {
     sessionScan: { fromBlock: sc2.fromBlock, chunk: sc2.chunk, maxChunks: sc2.maxChunks },
     usdc: raw.usdc === null ? null : raw.usdc.toLowerCase()
   };
+}
+function checkVerifierRequest(buf2) {
+  const no2 = (status, error) => {
+    throw Object.assign(new Error(error), { status, error });
+  };
+  let q3;
+  try {
+    q3 = JSON.parse(Buffer.from(buf2).toString("utf8"));
+  } catch {
+    no2(400, "not_json");
+  }
+  if (Array.isArray(q3)) no2(400, "batch_refused");
+  if (!q3 || typeof q3 !== "object" || q3.jsonrpc !== "2.0" || typeof q3.method !== "string") no2(400, "not_jsonrpc");
+  if (!(typeof q3.id === "number" && Number.isSafeInteger(q3.id)) && !(typeof q3.id === "string" && q3.id.length <= 64)) no2(400, "bad_id");
+  if (!READ_METHODS.has(q3.method)) no2(403, "method_refused");
+  if (q3.params !== void 0 && (!Array.isArray(q3.params) || q3.params.length > 4)) no2(400, "bad_params");
+  const p = q3.params || [];
+  if (q3.method === "eth_getTransactionCount" && p[1] === "pending") no2(403, "pending_refused");
+  if ((q3.method === "eth_call" || q3.method === "eth_estimateGas") && p.length > 2) no2(403, "state_override_refused");
+  for (const k4 of Object.keys(q3)) if (!["jsonrpc", "id", "method", "params"].includes(k4)) no2(400, "unknown_field");
+  return q3;
 }
 function directPlatformApi(raw, { controlPort }) {
   only(raw, PA_FIELDS, "platformApi");
@@ -3043,8 +3082,8 @@ function createControlFront({
   if (native) {
     if (!statement.native || !Array.isArray(native.names) || native.names.join() !== statement.native.names.join() || native.caSha256 !== statement.native.caSha256 || native.upstream?.host !== "127.0.0.1" || !Number.isInteger(native.upstream?.port) || !HOSTNAME.test(String(native.apiHost)) || native.names.includes(native.apiHost) || Object.keys(sni).some((n) => native.names.includes(n.toLowerCase()))) bad3("front native names must be the statement's bound names and CA, to the platform API role, with no SNI certificate of their own");
   } else if (statement.native) bad3("the statement names native control names but the front was given none");
-  for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== "127.0.0.1" || !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)))
-    bad3("front routes are exact /<name> paths to a 127.0.0.1 service under a fixed path");
+  for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port) || (r.jsonrpc === void 0 ? !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)) : r.jsonrpc !== JSONRPC_FILTER || r.path !== CHAIN_VERIFIER_ROUTE || r.rewrite !== "/"))
+    bad3("front routes are exact /<name> paths to a 127.0.0.1 service under a fixed path (a JSON-RPC route: only the chain verifier's, filtered)");
   for (const r of hostRoutes) if (!HOSTNAME.test(String(r.host)) || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port)) bad3("front host routes name a DNS host and a 127.0.0.1 service");
   for (const r of prefixRoutes) if (!/^\/[a-z0-9-]+\/$/.test(String(r.prefix)) || r.upstream?.host !== "127.0.0.1" || !Number.isInteger(r.upstream?.port)) bad3("front prefix routes are /<name>/ to a 127.0.0.1 service");
   const hostOfReq = (req) => String(req.headers.host || "").toLowerCase().replace(/:\d+$/, "").replace(/\.+$/, "");
@@ -3093,6 +3132,67 @@ function createControlFront({
     if (mode3 !== "snp") return { format: EVIDENCE_FORMAT, statement: statementText, report: null, unattested: `mode ${mode3}: no hardware report`, certificate: certPem };
     const { report, certs } = await reporter(reportDataFor(statementText, nonce3));
     return { format: EVIDENCE_FORMAT, statement: statementText, report: report.toString("base64"), ...certs && certs.length ? { certs: certs.toString("base64") } : {}, certificate: certPem };
+  };
+  const verifierRpc = (req, res, route, u3) => {
+    if (req.method !== "POST") return json2(res, 405, { error: "method" });
+    if (u3.search) return json2(res, 400, { error: "no_query" });
+    const len = Number(req.headers["content-length"]);
+    if (req.headers["transfer-encoding"] || !Number.isSafeInteger(len) || len < 1) return json2(res, 411, { error: "length_required" });
+    if (len > MAX_VERIFIER_REQUEST_BYTES) return json2(res, 413, { error: "too_large" });
+    if (!/^application\/json(;|$)/i.test(String(req.headers["content-type"] || ""))) return json2(res, 415, { error: "json_only" });
+    const chunks = [];
+    let size10 = 0, done = false;
+    req.on("data", (c) => {
+      size10 += c.length;
+      if (size10 > len) {
+        done = true;
+        json2(res, 413, { error: "too_large" });
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on("end", () => {
+      if (done) return;
+      done = true;
+      const body3 = Buffer.concat(chunks);
+      try {
+        checkVerifierRequest(body3);
+      } catch (e) {
+        return json2(res, e.status || 400, { error: e.error || "refused" });
+      }
+      const up2 = http.request({
+        host: route.upstream.host,
+        port: route.upstream.port,
+        method: "POST",
+        path: route.rewrite,
+        headers: { "content-type": "application/json", "content-length": body3.length }
+      }, (r) => {
+        let got = 0;
+        const out = [];
+        r.on("data", (c) => {
+          got += c.length;
+          if (got > MAX_VERIFIER_ANSWER_BYTES) {
+            r.destroy();
+            if (!res.headersSent) json2(res, 502, { error: "answer_too_large" });
+            else res.destroy();
+          } else out.push(c);
+        });
+        r.on("end", () => {
+          if (res.headersSent) return;
+          const b4 = Buffer.concat(out);
+          res.writeHead(r.statusCode || 502, { "content-type": "application/json", "content-length": b4.length, "cache-control": "no-store" });
+          res.end(b4);
+        });
+        r.on("error", () => {
+          if (!res.headersSent) json2(res, 502, { error: "service_unreachable" });
+        });
+      });
+      up2.setTimeout(3e4, () => up2.destroy(new Error("verifier timeout")));
+      up2.on("error", () => {
+        if (!res.headersSent) json2(res, 502, { error: "service_unreachable" });
+      });
+      res.on("close", () => up2.destroy());
+      up2.end(body3);
+    });
   };
   const json2 = (res, status, body3) => {
     const b4 = Buffer.from(JSON.stringify(body3));
@@ -3182,6 +3282,7 @@ function createControlFront({
       }
     }
     const route = routeOf(req, u3.pathname), to3 = route ? route.upstream : upstream;
+    if (route?.jsonrpc === JSONRPC_FILTER) return verifierRpc(req, res, route, u3);
     if (route && route.host) {
       headers.host = route.host;
       headers["x-enclave-client-ip"] = String(req.socket.remoteAddress || "").replace(/^::ffff:/, "");
@@ -3252,7 +3353,7 @@ async function serveMain(argv) {
   if (cfg3.native && fs2.existsSync(cfg3.native.certificateFile)) await front.installNativeCertificate(fs2.readFileSync(cfg3.native.certificateFile, "utf8")).then((r) => console.log(`[control] native control certificate for ${r.names.join(", ")} until ${r.validTo}`), (e) => console.error(`[control] installed native certificate refused: ${e.message}`));
   front.listen(cfg3.port, "0.0.0.0", () => console.log(`[control] measured control front on :${cfg3.port} (mode ${cfg3.mode}); evidence at ${EVIDENCE_PATH}`));
 }
-var CONFIG_FORMAT, STATEMENT_FORMAT, EVIDENCE_FORMAT, DOMAIN, EVIDENCE_PATH, CHAIN_ID, sha2562, sha256Hex2, CONTROL_ROLE, MAX_STATEMENT_BYTES, ControlError, bad3, deepFreeze, ADDR3, ZERO_ADDR2, HEX64, REQUIRED_CONTRACTS, OPTIONAL_CONTRACTS, IPV42, hostOf, intIn, NATIVE_NAMES, CARRIER_BASE, MAX_CARRIERS, SELF_CARRIER, MCP_FIELDS, PA_FIELDS, HOSTNAME, PLATFORM_API_ROLE_ENV, SECRET_NAME, LOOPBACK_URL, configDigest, hostDataHex, GUEST_PATHS, DIRECT_FLAVOR_KEYS, jwkThumbprint, bindingFor, NATIVE_CERT_PATH, MAX_NATIVE_CHAIN_BYTES, NATIVE_BODY_MS, PEM_CERT, HOP;
+var CONFIG_FORMAT, STATEMENT_FORMAT, EVIDENCE_FORMAT, DOMAIN, EVIDENCE_PATH, CHAIN_ID, sha2562, sha256Hex2, CONTROL_ROLE, MAX_STATEMENT_BYTES, ControlError, bad3, deepFreeze, ADDR3, ZERO_ADDR2, HEX64, REQUIRED_CONTRACTS, OPTIONAL_CONTRACTS, IPV42, hostOf, intIn, NATIVE_NAMES, CARRIER_BASE, MAX_CARRIERS, SELF_CARRIER, MCP_FIELDS, CHAIN_VERIFIER_ROUTE, JSONRPC_FILTER, CHAIN_VERIFIER_READ_METHODS, READ_METHODS, MAX_VERIFIER_REQUEST_BYTES, MAX_VERIFIER_ANSWER_BYTES, PA_FIELDS, HOSTNAME, PLATFORM_API_ROLE_ENV, SECRET_NAME, LOOPBACK_URL, configDigest, hostDataHex, GUEST_PATHS, DIRECT_FLAVOR_KEYS, jwkThumbprint, bindingFor, NATIVE_CERT_PATH, MAX_NATIVE_CHAIN_BYTES, NATIVE_BODY_MS, PEM_CERT, HOP;
 var init_measured_control = __esm({
   "metal/guest/measured-control.mjs"() {
     init_lease_gas_conduit_bundle();
@@ -3304,6 +3405,27 @@ var init_measured_control = __esm({
     MAX_CARRIERS = 16;
     SELF_CARRIER = /^(10\.0\.2\.2|127(\.[0-9]{1,3}){3}|0\.0\.0\.0|localhost)$/i;
     MCP_FIELDS = ["port", "managementDirectories", "capacityDirectories", "capacityCold", "maxHosts", "storagePlan", "grantFrontend", "sessionScan", "usdc"];
+    CHAIN_VERIFIER_ROUTE = "/chain-verifier";
+    JSONRPC_FILTER = "chain-verifier-readonly";
+    CHAIN_VERIFIER_READ_METHODS = Object.freeze([
+      "eth_chainId",
+      "eth_blockNumber",
+      "eth_getBlockByNumber",
+      "eth_getBlockByHash",
+      "eth_call",
+      "eth_estimateGas",
+      "eth_getBalance",
+      "eth_getCode",
+      "eth_getStorageAt",
+      "eth_getTransactionCount",
+      "eth_getTransactionReceipt",
+      "eth_getBlockReceipts",
+      "eth_getTransactionByHash",
+      "eth_getLogs"
+    ]);
+    READ_METHODS = new Set(CHAIN_VERIFIER_READ_METHODS);
+    MAX_VERIFIER_REQUEST_BYTES = 64 * 1024;
+    MAX_VERIFIER_ANSWER_BYTES = 16 * 1024 * 1024;
     PA_FIELDS = ["apiPort", "peerPort", "hostname", "members", "measurements", "minTcb", "admins", "recovery", "archives", "archiveMs", "relayEnv", "leaseMs"];
     HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
     PLATFORM_API_ROLE_ENV = Object.freeze(["AUTH_DATA_DIR", "API_RELAY_PORT", "API_RELAY_BIND", "STATE_DIRECTORY", "PLATFORM_API_ROLE", "PATH", "NODE_OPTIONS", "NODE_EXTRA_CA_CERTS"]);
@@ -32047,9 +32169,20 @@ var init_quorum = __esm({
   }
 });
 
+// network/attested-verifier-brand.mjs
+var KEY, BRAND, isAttestedVerifier;
+var init_attested_verifier_brand = __esm({
+  "network/attested-verifier-brand.mjs"() {
+    KEY = /* @__PURE__ */ Symbol.for("enclave.attested-verifier.brand/v1");
+    BRAND = globalThis[KEY] instanceof WeakSet ? globalThis[KEY] : globalThis[KEY] = /* @__PURE__ */ new WeakSet();
+    isAttestedVerifier = (o) => !!o && typeof o === "object" && BRAND.has(o);
+  }
+});
+
 // network/verified-chain.mjs
 function verifierEndpoint(v) {
-  if (v && typeof v === "object" && typeof v.request === "function") return { request: (m3, p, ms2, signal) => v.request(m3, p, ms2, signal), label: "verifier" };
+  if (v && typeof v === "object" && typeof v.request === "function")
+    return { request: (m3, p, ms2, signal) => v.request(m3, p, ms2, signal), label: isAttestedVerifier(v) ? "attested verifier" : "verifier", attested: isAttestedVerifier(v) };
   const url2 = typeof v === "string" ? v : v?.url;
   let e;
   try {
@@ -32190,7 +32323,7 @@ function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlock
         stateRoot: h4.stateRoot,
         timestamp: h4.timestamp,
         value,
-        evidence: { authority: "local-verifier", tier: "unsafe", finality: "none", blockNumber: String(b4), blockHash: h4.hash, stateRoot: h4.stateRoot, verifier: v.label }
+        evidence: { authority: v.attested ? "attested-verifier" : "local-verifier", localProof: !v.attested, tier: "unsafe", finality: "none", blockNumber: String(b4), blockHash: h4.hash, stateRoot: h4.stateRoot, verifier: v.label }
       };
     })();
     const deadline = new Promise((_3, reject) => {
@@ -32223,6 +32356,7 @@ var lc, HASH, fail2, hexBlock, PINNED_METHODS;
 var init_verified_chain = __esm({
   "network/verified-chain.mjs"() {
     init_esm2();
+    init_attested_verifier_brand();
     init_rpc_identity();
     lc = (s) => String(s).toLowerCase();
     HASH = /^0x[0-9a-fA-F]{64}$/;
@@ -193746,7 +193880,7 @@ function parseWireGuardConfig(text2) {
   if (peers.length !== 1) problems.push("exactly one [Peer] section is supported");
   const I3 = ifaces[0]?.values || /* @__PURE__ */ new Map(), P3 = peers[0]?.values || /* @__PURE__ */ new Map(), one = (m3, k32) => (m3.get(k32) || [])[0];
   const privateKey = one(I3, "privatekey");
-  if (!KEY.test(privateKey || "")) problems.push("[Interface] PrivateKey must be a WireGuard key");
+  if (!KEY22.test(privateKey || "")) problems.push("[Interface] PrivateKey must be a WireGuard key");
   const addresses2 = (I3.get("address") || []).map(cidr);
   if (!addresses2.length || addresses2.some((a) => !a)) problems.push("[Interface] Address must list tunnel addresses");
   const a4 = addresses2.filter((a) => a?.kind === 4), a62 = addresses2.filter((a) => a?.kind === 6);
@@ -193760,9 +193894,9 @@ function parseWireGuardConfig(text2) {
   const mtuRaw = one(I3, "mtu"), mtu = mtuRaw === void 0 ? 0 : Number(mtuRaw);
   if (mtuRaw !== void 0 && (!Number.isInteger(mtu) || mtu < 1280 || mtu > 1500)) problems.push("[Interface] MTU must be 1280-1500");
   const publicKey = one(P3, "publickey");
-  if (!KEY.test(publicKey || "")) problems.push("[Peer] PublicKey must be a WireGuard key");
+  if (!KEY22.test(publicKey || "")) problems.push("[Peer] PublicKey must be a WireGuard key");
   const psk = one(P3, "presharedkey");
-  if (psk !== void 0 && !KEY.test(psk)) problems.push("[Peer] PresharedKey must be a WireGuard key");
+  if (psk !== void 0 && !KEY22.test(psk)) problems.push("[Peer] PresharedKey must be a WireGuard key");
   const ep2 = one(P3, "endpoint");
   const parsedEndpoint = ep2 ? endpoint(ep2) : null;
   if (!parsedEndpoint) problems.push("[Peer] Endpoint must be host:port (an outbound-only VPN still needs its server address)");
@@ -194178,7 +194312,8 @@ function createQuorumReader2({
   };
 }
 function verifierEndpoint22(v) {
-  if (v && typeof v === "object" && typeof v.request === "function") return { request: (m3, p, ms2, signal) => v.request(m3, p, ms2, signal), label: "verifier" };
+  if (v && typeof v === "object" && typeof v.request === "function")
+    return { request: (m3, p, ms2, signal) => v.request(m3, p, ms2, signal), label: isAttestedVerifier2(v) ? "attested verifier" : "verifier", attested: isAttestedVerifier2(v) };
   const url2 = typeof v === "string" ? v : v?.url;
   let e;
   try {
@@ -194319,7 +194454,7 @@ function createVerifiedSnapshot2({ verifier, chainId, confirmations = 2, maxBloc
         stateRoot: h32.stateRoot,
         timestamp: h32.timestamp,
         value,
-        evidence: { authority: "local-verifier", tier: "unsafe", finality: "none", blockNumber: String(b4), blockHash: h32.hash, stateRoot: h32.stateRoot, verifier: v.label }
+        evidence: { authority: v.attested ? "attested-verifier" : "local-verifier", localProof: !v.attested, tier: "unsafe", finality: "none", blockNumber: String(b4), blockHash: h32.hash, stateRoot: h32.stateRoot, verifier: v.label }
       };
     })();
     const deadline = new Promise((_3, reject) => {
@@ -196272,7 +196407,7 @@ async function main(argv) {
   process.stdout.write(JSON.stringify(r) + "\n");
   return r.status === "taken" ? 2 : 0;
 }
-var require2, __create2, __defProp2, __getOwnPropDesc2, __getOwnPropNames2, __getProtoOf2, __hasOwnProp2, __require2, __esm2, __commonJS2, __export2, __copyProps2, __toESM2, version7, init_version7, BaseError7, init_errors9, bytesRegex7, integerRegex7, isTupleRegex3, init_regex5, tupleRegex3, init_formatAbiParameter3, init_formatAbiParameters3, init_formatAbiItem5, errorSignatureRegex3, eventSignatureRegex3, functionSignatureRegex3, structSignatureRegex3, constructorSignatureRegex3, fallbackSignatureRegex3, receiveSignatureRegex3, modifiers3, eventModifiers3, functionModifiers3, init_signatures3, InvalidAbiItemError3, UnknownTypeError3, UnknownSolidityTypeError3, init_abiItem5, InvalidAbiParameterError3, InvalidAbiParametersError3, InvalidParameterError3, SolidityProtectedKeywordError3, InvalidModifierError3, InvalidFunctionModifierError3, InvalidAbiTypeParameterError3, init_abiParameter3, InvalidSignatureError3, UnknownSignatureError3, InvalidStructSignatureError3, init_signature3, CircularReferenceError3, init_struct3, InvalidParenthesisError3, init_splitParameters3, parameterCache3, init_cache3, abiParameterWithoutTupleRegex3, abiParameterWithTupleRegex3, dynamicIntegerRegex3, protectedKeywordsRegex3, init_utils19, typeWithoutTupleRegex3, init_structs3, init_parseAbi3, init_parseAbiItem3, init_parseAbiParameter3, init_parseAbiParameters3, init_exports3, init_getAction3, init_formatAbiItem22, init_isHex3, init_size3, version22, init_version22, errorConfig3, BaseError22, init_base4, AbiConstructorNotFoundError3, AbiConstructorParamsNotFoundError3, AbiDecodingDataSizeInvalidError3, AbiDecodingDataSizeTooSmallError3, AbiDecodingZeroDataError3, AbiEncodingArrayLengthMismatchError3, AbiEncodingBytesSizeMismatchError3, AbiEncodingLengthMismatchError3, AbiErrorInputsNotFoundError3, AbiErrorNotFoundError3, AbiErrorSignatureNotFoundError3, AbiEventSignatureEmptyTopicsError3, AbiEventSignatureNotFoundError3, AbiEventNotFoundError3, AbiFunctionNotFoundError3, AbiFunctionOutputsNotFoundError3, AbiFunctionSignatureNotFoundError3, AbiItemAmbiguityError3, BytesSizeMismatchError5, DecodeLogDataMismatch3, DecodeLogTopicsMismatch3, InvalidAbiEncodingTypeError3, InvalidAbiDecodingTypeError3, InvalidArrayError5, InvalidDefinitionTypeError3, UnsupportedPackedAbiType3, init_abi3, FilterTypeNotSupportedError3, init_log5, SliceOffsetOutOfBoundsError7, SizeExceedsPaddingSizeError7, InvalidBytesLengthError3, init_data3, init_pad3, IntegerOutOfRangeError5, InvalidBytesBooleanError5, InvalidHexBooleanError3, InvalidHexValueError5, SizeOverflowError7, init_encoding4, init_trim3, init_fromHex3, hexes8, encoder11, init_toHex3, encoder22, charCodeMap5, init_toBytes3, U32_MASK643, _32n3, shrSH2, shrSL2, rotrSH2, rotrSL2, rotrBH2, rotrBL2, rotlSH3, rotlSL3, rotlBH3, rotlBL3, add3L2, add3H2, add4L2, add4H2, add5L2, add5H2, init_u643, crypto22, init_cryptoNode3, isLE4, swap32IfBE3, Hash4, init_utils22, _0n15, _1n15, _2n11, _7n3, _256n3, _0x71n3, SHA3_PI3, SHA3_ROTL3, _SHA3_IOTA3, IOTAS3, SHA3_IOTA_H3, SHA3_IOTA_L3, rotlH3, rotlL3, Keccak3, gen3, keccak_2563, init_sha33, init_keccak2563, hash8, init_hashSignature3, init_normalizeSignature3, toSignature3, init_toSignature3, init_toSignatureHash3, toEventSelector3, init_toEventSelector3, InvalidAddressError5, init_address5, LruMap5, init_lru5, checksumAddressCache3, init_getAddress3, addressRegex5, isAddressCache3, init_isAddress3, init_concat4, init_slice3, arrayRegex5, bytesRegex22, integerRegex22, init_regex22, init_encodeAbiParameters3, toFunctionSelector3, init_toFunctionSelector3, init_getAbiItem3, docsPath17, init_encodeEventTopics3, init_createFilterRequestScope3, init_createContractEventFilter3, init_parseAccount3, docsPath22, init_prepareEncodeFunctionData3, init_encodeFunctionData3, panicReasons3, solidityError3, solidityPanic3, init_solidity3, NegativeOffsetError5, PositionOutOfBoundsError5, RecursiveReadLimitExceededError5, init_cursor7, staticCursor5, init_cursor22, init_fromBytes3, sizeOfLength5, sizeOfOffset5, init_decodeAbiParameters3, init_decodeErrorResult3, stringify5, init_stringify3, init_formatAbiItemWithArgs3, etherUnits3, gweiUnits3, weiUnits3, init_unit5, init_formatUnits3, init_formatEther3, init_formatGwei3, AccountStateConflictError3, StateAssignmentConflictError3, init_stateOverride5, FeeConflictError3, InvalidLegacyVError3, InvalidSerializableTransactionError3, InvalidSerializedTransactionTypeError3, InvalidSerializedTransactionError3, InvalidStorageKeySizeError4, TransactionExecutionError3, TransactionNotFoundError3, TransactionReceiptNotFoundError3, TransactionReceiptRevertedError3, WaitForTransactionReceiptTimeoutError3, init_transaction6, getContractAddress5, getUrl3, init_utils32, CallExecutionError3, ContractFunctionExecutionError3, ContractFunctionRevertedError3, ContractFunctionZeroDataError3, CounterfactualDeploymentFailedError3, RawContractError3, init_contract5, HttpRequestError3, WebSocketRequestError3, RpcRequestError3, SocketClosedError3, TimeoutError3, init_request3, unknownErrorCode3, RpcError3, ProviderRpcError5, ParseRpcError3, InvalidRequestRpcError3, MethodNotFoundRpcError3, InvalidParamsRpcError3, InternalRpcError3, InvalidInputRpcError3, ResourceNotFoundRpcError3, ResourceUnavailableRpcError3, TransactionRejectedRpcError3, MethodNotSupportedRpcError3, LimitExceededRpcError3, JsonRpcVersionUnsupportedError3, UserRejectedRequestError3, UnauthorizedProviderError3, UnsupportedProviderMethodError3, ProviderDisconnectedError3, ChainDisconnectedError3, SwitchChainError3, UnsupportedNonOptionalCapabilityError3, UnsupportedChainIdError3, DuplicateIdError3, UnknownBundleIdError3, BundleTooLargeError3, AtomicReadyWalletRejectedUpgradeError3, AtomicityNotSupportedError3, WalletConnectSessionSettlementError3, UnknownRpcError3, init_rpc3, EXECUTION_REVERTED_ERROR_CODE3, init_getContractError3, init_publicKeyToAddress3, HashMD3, SHA256_IV3, SHA384_IV3, SHA512_IV3, init_md3, SHA256_K3, SHA256_W3, SHA2563, K5122, SHA512_Kh2, SHA512_Kl2, SHA512_W_H2, SHA512_W_L2, SHA5122, SHA3842, sha25616, sha5123, sha3843, init_sha23, HMAC3, hmac3, init_hmac3, _0n22, _1n22, hasHexBuiltin4, hexes22, asciis4, isPosBig3, bitMask3, u8n3, u8fr3, validatorFns3, init_utils42, _0n32, _1n32, _2n22, _3n6, _4n5, _5n4, _8n4, FIELD_FIELDS3, init_modular3, _0n42, _1n42, pointPrecomputes3, pointWindowSizes3, init_curve3, DERErr3, DER3, _0n52, _1n52, _2n32, _3n22, _4n22, init_weierstrass3, init_shortw_utils3, os2ip3, init_hash_to_curve3, secp256k1_exports3, secp256k1P3, secp256k1N3, _0n62, _1n62, _2n42, divNearest3, Fpk13, secp256k13, TAGGED_HASH_PREFIXES3, pointToBytes3, numTo32b3, modP3, modN3, Point4, GmulAdd3, num4, schnorr3, isoMap3, mapSWU3, secp256k1_hasher3, hashToCurve3, encodeToCurve3, init_secp256k13, init_recoverPublicKey3, init_recoverAddress3, init_toRlp3, init_hashAuthorization3, init_recoverAuthorizationAddress3, EstimateGasExecutionError3, init_estimateGas6, ExecutionRevertedError3, FeeCapTooHighError4, FeeCapTooLowError3, NonceTooHighError3, NonceTooLowError3, NonceMaxValueError3, InsufficientFundsError3, IntrinsicGasTooHighError3, IntrinsicGasTooLowError3, TransactionTypeNotSupportedError3, TipAboveFeeCapError4, UnknownNodeError3, init_node3, init_getNodeError3, init_getEstimateGasError3, init_extract3, init_formatter3, rpcTransactionType3, defineTransactionRequest3, init_transactionRequest3, init_stateOverride22, maxInt85, maxInt165, maxInt245, maxInt325, maxInt405, maxInt485, maxInt565, maxInt645, maxInt725, maxInt805, maxInt885, maxInt965, maxInt1045, maxInt1125, maxInt1205, maxInt1285, maxInt1365, maxInt1445, maxInt1525, maxInt1605, maxInt1685, maxInt1765, maxInt1845, maxInt1925, maxInt2005, maxInt2085, maxInt2165, maxInt2245, maxInt2325, maxInt2405, maxInt2485, maxInt2565, minInt85, minInt165, minInt245, minInt325, minInt405, minInt485, minInt565, minInt645, minInt725, minInt805, minInt885, minInt965, minInt1045, minInt1125, minInt1205, minInt1285, minInt1365, minInt1445, minInt1525, minInt1605, minInt1685, minInt1765, minInt1845, minInt1925, minInt2005, minInt2085, minInt2165, minInt2245, minInt2325, minInt2405, minInt2485, minInt2565, maxUint85, maxUint165, maxUint245, maxUint325, maxUint405, maxUint485, maxUint565, maxUint645, maxUint725, maxUint805, maxUint885, maxUint965, maxUint1045, maxUint1125, maxUint1205, maxUint1285, maxUint1365, maxUint1445, maxUint1525, maxUint1605, maxUint1685, maxUint1765, maxUint1845, maxUint1925, maxUint2005, maxUint2085, maxUint2165, maxUint2245, maxUint2325, maxUint2405, maxUint2485, maxUint2565, init_number4, init_assertRequest3, BaseFeeScalarError3, Eip1559FeesNotSupportedError3, MaxFeePerGasTooLowError3, init_fee3, BlockNotFoundError3, init_block5, transactionType3, defineTransaction3, init_transaction22, defineBlock3, init_block22, init_getBlock3, init_getGasPrice3, init_estimateMaxPriorityFeePerGas3, init_estimateFeesPerGas3, init_formatBlockParameter3, init_getTransactionCount3, init_blobsToCommitments3, init_blobsToProofs3, sha25622, init_sha2565, init_sha25622, init_commitmentToVersionedHash3, init_commitmentsToVersionedHashes3, blobsPerTransaction3, bytesPerFieldElement3, fieldElementsPerBlob3, bytesPerBlob3, maxBytesPerTransaction3, init_blob5, versionedHashVersionKzg3, init_kzg3, BlobSizeTooLargeError3, EmptyBlobError3, InvalidVersionedHashSizeError3, InvalidVersionedHashVersionError3, init_blob22, init_toBlobs3, init_toBlobSidecars3, init_getTransactionType3, init_getTransactionError3, init_getChainId3, init_fillTransaction3, defaultParameters3, eip1559NetworkCache3, supportsFillTransaction3, init_prepareTransactionRequest3, init_estimateGas22, init_estimateContractGas3, init_isAddressEqual3, init_log22, docsPath32, init_decodeEventLog3, init_parseEventLogs3, init_getLogs3, init_getContractEvents3, docsPath42, init_decodeFunctionResult3, version32, init_version32, init_errors22, BaseError32, init_Errors3, charCodeMap22, init_bytes6, init_hex4, bigIntSuffix3, init_Json3, decoder4, encoder32, InvalidBytesBooleanError22, InvalidBytesTypeError3, SizeOverflowError22, SliceOffsetOutOfBoundsError22, SizeExceedsPaddingSizeError22, init_Bytes3, encoder42, hexes32, IntegerOutOfRangeError22, InvalidHexTypeError3, InvalidHexValueError22, InvalidLengthError3, SizeOverflowError32, SliceOffsetOutOfBoundsError32, SizeExceedsPaddingSizeError32, init_Hex3, init_Withdrawal3, init_BlockOverrides3, multicall3Abi3, batchGatewayAbi3, universalResolverErrors3, universalResolverResolveAbi3, universalResolverReverseAbi3, textResolverAbi3, addressResolverAbi3, erc1271Abi3, erc6492SignatureValidatorAbi3, erc20Abi3, erc20Abi_bytes323, erc1155Abi3, erc721Abi3, erc4626Abi3, init_abis3, aggregate3Signature3, init_contract22, deploylessCallViaBytecodeBytecode3, deploylessCallViaFactoryBytecode3, erc6492SignatureValidatorByteCode3, multicall3Bytecode3, init_contracts4, ChainDoesNotSupportContract3, ChainMismatchError3, ChainNotFoundError3, ClientChainNotConfiguredError3, InvalidChainIdError4, init_chain3, docsPath52, init_encodeDeployData3, init_getChainContractAddress3, init_getCallError3, init_withResolvers3, schedulerCache3, init_createBatchScheduler3, OffchainLookupError3, OffchainLookupResponseMalformedError3, OffchainLookupSenderMismatchError3, init_ccip5, init_decodeFunctionData3, docsPath62, init_encodeErrorResult3, docsPath72, init_encodeFunctionResult3, localBatchGatewayUrl3, init_localBatchGatewayRequest3, ccip_exports3, offchainLookupSignature3, offchainLookupAbiItem3, init_ccip22, requestOptionsId3, requestOptionsIds3, init_call3, init_readContract3, init_simulateContract3, listenersCache3, cleanupCache3, callbackCount3, init_observe3, init_wait3, init_poll3, promiseCache5, responseCache3, init_withCache3, cacheKey4, init_getBlockNumber3, init_getFilterChanges3, init_uninstallFilter3, init_watchContractEvent3, AccountNotFoundError3, AccountTypeNotSupportedError3, init_account3, init_assertCurrentChain3, init_sendRawTransaction3, supportsWalletNamespace5, init_sendTransaction3, init_writeContract3, init_getContract3, BundleFailedError3, init_calls3, init_withRetry3, receiptStatuses3, defineTransactionReceipt3, init_transactionReceipt3, fallbackMagicIdentifier3, fallbackTransactionErrorMagicIdentifier3, init_sendCalls3, init_getCallsStatus3, WaitForCallsStatusTimeoutError3, init_waitForCallsStatus3, size42, index3, buffer3, init_uid3, init_createClient3, init_errors32, init_encodedLabelToLabelhash3, init_namehash3, init_encodeLabelhash3, init_labelhash3, init_packetToBytes3, init_getEnsAddress3, EnsAvatarInvalidMetadataError3, EnsAvatarInvalidNftUriError3, EnsAvatarUriResolutionError3, EnsAvatarUnsupportedNamespaceError3, EnsInvalidChainIdError3, init_ens3, networkRegex3, ipfsHashRegex3, base64Regex3, dataURIRegex3, init_utils52, init_parseAvatarRecord3, init_getEnsText3, init_getEnsAvatar3, init_getEnsName3, init_getEnsResolver3, init_createAccessList3, init_createBlockFilter3, init_createEventFilter3, init_createPendingTransactionFilter3, init_getBalance4, init_getBlobBaseFee3, init_getBlockReceipts3, init_getBlockTransactionCount3, init_getCode3, init_getDelegation3, Eip712DomainNotFoundError3, init_eip7123, abi3, init_getEip712Domain4, init_feeHistory3, init_getFeeHistory3, init_getFilterLogs3, init_encodePacked3, init_isBytes3, init_getContractAddress3, init_assertTransaction3, init_serializeAccessList3, init_serializeTransaction3, init_serializeAuthorizationList3, init_verifyAuthorization3, promiseCache22, init_withDedupe3, init_buildRequest3, init_ccipTunnel3, init_defineChain3, init_extractChain3, init_fromRlp3, init_isHash3, Rho1603, Id1603, Pi1603, idxLR3, idxL3, idxR3, shifts1603, shiftsL1603, shiftsR1603, Kl1603, Kr1603, BUF_1603, RIPEMD1603, ripemd1607, init_legacy3, ripemd16022, init_ripemd1605, init_ripemd16022, init_toEventHash3, init_toEventSignature3, init_toFunctionHash3, init_toFunctionSignature3, nonceManager3, init_nonceManager3, init_withTimeout3, idCache3, init_id3, init_http5, socketClientCache3, init_socket3, require_constants3, require_buffer_util3, require_limiter3, require_permessage_deflate3, require_validation3, require_receiver3, require_sender3, require_event_target3, require_extension4, require_websocket3, require_stream3, require_subprotocol3, require_websocket_server3, wrapper_exports3, import_stream3, import_extension5, import_permessage_deflate3, import_receiver3, import_sender3, import_subprotocol3, import_websocket3, import_websocket_server3, wrapper_default3, init_wrapper3, init_utils62, esm_exports8, WebSocket32, init_esm11, init_webSocket5, init_compat3, presignMessagePrefix3, init_strings3, init_toPrefixedMessage3, init_hashMessage3, InvalidDomainError3, InvalidPrimaryTypeError3, InvalidStructTypeError3, init_typedData5, init_typedData22, init_hashTypedData3, erc6492MagicBytes3, zeroHash3, init_bytes22, init_isErc6492Signature3, LruMap22, init_lru22, caches3, checksum6, init_Caches3, init_Hash3, InvalidError3, InvalidPrefixError4, InvalidCompressedPrefixError3, InvalidUncompressedPrefixError3, InvalidSerializedSizeError5, init_PublicKey3, addressRegex22, InvalidAddressError22, InvalidInputError3, InvalidChecksumError3, init_Address3, arrayRegex22, bytesRegex32, integerRegex32, maxInt822, maxInt1622, maxInt2422, maxInt3222, maxInt4022, maxInt4822, maxInt5622, maxInt6422, maxInt7222, maxInt8022, maxInt8822, maxInt9622, maxInt10422, maxInt11222, maxInt12022, maxInt12822, maxInt13622, maxInt14422, maxInt15222, maxInt16022, maxInt16822, maxInt17622, maxInt18422, maxInt19222, maxInt20022, maxInt20822, maxInt21622, maxInt22422, maxInt23222, maxInt24022, maxInt24822, maxInt25622, minInt822, minInt1622, minInt2422, minInt3222, minInt4022, minInt4822, minInt5622, minInt6422, minInt7222, minInt8022, minInt8822, minInt9622, minInt10422, minInt11222, minInt12022, minInt12822, minInt13622, minInt14422, minInt15222, minInt16022, minInt16822, minInt17622, minInt18422, minInt19222, minInt20022, minInt20822, minInt21622, minInt22422, minInt23222, minInt24022, minInt24822, minInt25622, maxUint822, maxUint1622, maxUint2422, maxUint3222, maxUint4022, maxUint4822, maxUint5622, maxUint6422, maxUint7222, maxUint8022, maxUint8822, maxUint9622, maxUint10422, maxUint11222, maxUint12022, maxUint12822, maxUint13622, maxUint14422, maxUint15222, maxUint16022, maxUint16822, maxUint17622, maxUint18422, maxUint19222, maxUint20022, maxUint20822, maxUint21622, maxUint22422, maxUint23222, maxUint24022, maxUint24822, maxUint25622, init_Solidity3, sizeOfLength22, sizeOfOffset22, init_abiParameters3, staticCursor22, NegativeOffsetError22, PositionOutOfBoundsError22, RecursiveReadLimitExceededError22, init_cursor32, DataSizeTooSmallError3, ZeroDataError3, ArrayLengthMismatchError3, BytesSizeMismatchError22, LengthMismatchError3, InvalidArrayError22, InvalidTypeError3, init_AbiParameters3, init_Rlp3, InvalidSerializedSizeError22, MissingPropertiesError4, InvalidRError3, InvalidSError3, InvalidYParityError4, InvalidVError3, init_Signature3, init_Authorization3, init_Secp256k13, SignatureErc8010_exports3, magicBytes6, suffixParameters3, InvalidWrappedSignatureError5, init_SignatureErc80103, init_erc80103, init_isErc8010Signature3, init_parseErc6492Signature3, init_parseErc8010Signature3, init_recoverMessageAddress3, init_recoverTypedDataAddress3, init_serializeErc6492Signature3, init_serializeErc8010Signature3, init_verifyHash5, init_verifyMessage5, init_verifyTypedData5, init_getSerializedTransactionType3, init_parseTransaction3, InvalidDecimalNumberError3, init_unit22, init_parseUnits3, init_parseEther3, init_parseGwei3, init_utils72, init_proof3, init_getProof3, init_getStorageAt3, init_getTransaction3, init_getTransactionConfirmations3, init_getTransactionReceipt3, init_multicall3, init_simulateBlocks3, init_abiItem22, AmbiguityError3, NotFoundError3, init_AbiItem3, init_AbiConstructor3, init_AbiFunction3, ethAddress3, zeroAddress3, init_address22, getBalanceCode3, init_simulateCalls3, SignatureErc6492_exports3, magicBytes22, universalSignatureValidatorBytecode3, universalSignatureValidatorAbi3, InvalidWrappedSignatureError22, init_SignatureErc64923, init_erc64923, init_serializeSignature3, VerificationError4, init_verifyHash22, init_verifyMessage22, init_verifyTypedData22, init_watchBlockNumber3, init_waitForTransactionReceipt3, init_watchBlocks3, init_watchEvent3, init_watchPendingTransactions3, prefixRegex3, suffixRegex3, init_parseSiweMessage3, init_validateSiweMessage3, init_verifySiweMessage3, init_sendRawTransactionSync3, init_public3, init_createPublicClient3, init_dropTransaction3, init_dumpState3, init_getAutomine3, init_getTxpoolContent3, init_getTxpoolStatus3, init_impersonateAccount3, init_increaseTime3, init_inspectTxpool3, init_loadState3, init_mine3, init_removeBlockTimestampInterval3, init_reset3, init_revert3, init_sendUnsignedTransaction3, init_setAutomine3, init_setBalance3, init_setBlockGasLimit3, init_setBlockTimestampInterval3, init_setCode3, init_setCoinbase3, init_setIntervalMining3, init_setLoggingEnabled3, init_setMinGasPrice3, init_setNextBlockBaseFeePerGas3, init_setNextBlockTimestamp3, init_setNonce3, init_setRpcUrl3, init_setStorageAt3, init_snapshot3, init_stopImpersonatingAccount3, init_test3, init_createTestClient3, init_addChain3, init_deployContract3, init_getAddresses3, init_getCapabilities3, init_getPermissions3, init_prepareAuthorization3, init_requestAddresses3, init_requestPermissions3, init_sendCallsSync3, supportsWalletNamespace22, init_sendTransactionSync3, init_showCallsStatus3, init_signAuthorization4, init_signMessage4, init_signTransaction4, init_signTypedData4, init_switchChain3, init_watchAsset3, init_writeContractSync3, init_wallet3, init_createWalletClient3, init_createTransport3, init_custom3, init_fallback3, UrlRequiredError3, init_transport3, signalId3, signalIds3, init_http22, init_webSocket22, ProviderRpcError22, init_eip11933, docsPath82, init_decodeDeployData3, init_fromBlobs3, init_sidecarsToVersionedHashes3, SLIP44_MSB3, init_toCoinType3, init_defineKzg3, init_setupKzg3, init_compactSignatureToSignature3, init_parseCompactSignature3, init_parseSignature3, init_recoverTransactionAddress3, init_serializeCompactSignature3, init_signatureToCompactSignature3, esm_exports22, init_esm22, zeroG2, init_g2, zeroGGalileoTestnet2, init_gGalileoTestnet2, zeroGMainnet2, init_gMainnet2, zeroGTestnet2, init_gTestnet2, fireChain2, init_ireChain2, abey2, init_abey2, gasPerPubdataDefault2, maxBytecodeSize2, init_number22, formatters4, init_formatters4, InvalidEip712TransactionError2, init_transaction32, init_isEip712Transaction2, init_assertEip712Transaction2, serializers4, init_serializers4, BytecodeLengthExceedsMaxSizeError2, BytecodeLengthInWordsMustBeOddError2, BytecodeLengthMustBeDivisibleBy32Error2, init_bytecode2, init_hashBytecode2, getEip712Domain22, init_getEip712Domain22, chainConfig6, init_chainConfig6, abstract2, init_abstract2, abstractTestnet2, init_abstractTestnet2, acala2, init_acala2, acria2, init_acria2, adf2, init_adf2, adi2, init_adi2, agungTestnet2, init_agungTestnet2, aioz2, init_aioz2, alephZero2, init_alephZero2, alephZeroTestnet2, init_alephZeroTestnet2, alienx2, init_alienX2, alienxHalTestnet2, init_alienXHalTestnet2, alpenTestnet2, init_alpenTestnet2, contracts2, init_contracts22, formatters22, init_formatters22, serializers22, init_serializers22, chainConfig22, init_chainConfig22, sourceId70, ancient82, init_ancient82, sourceId210, ancient8Sepolia2, init_ancient8Sepolia2, anvil2, init_anvil2, sourceId310, apeChain2, init_apeChain2, apexTestnet2, init_apexTestnet2, apollo2, init_apollo2, arbitrum2, init_arbitrum2, arbitrumGoerli2, init_arbitrumGoerli2, arbitrumNova2, init_arbitrumNova2, arbitrumSepolia2, init_arbitrumSepolia2, arc2, init_arc2, arcTestnet2, init_arcTestnet2, arenaz2, init_arenaz2, areonNetwork2, init_areonNetwork2, areonNetworkTestnet2, init_areonNetworkTestnet2, areum2, init_areum2, artelaTestnet2, init_artelaTestnet2, arthera2, init_arthera2, artheraTestnet2, init_artheraTestnet2, assetChain2, init_assetChain2, assetChainTestnet2, init_assetChainTestnet2, astar2, init_astar2, astarZkEVM2, init_astarZkEVM2, astarZkyoto2, init_astarZkyoto2, atletaOlympia2, init_atletaOlympia2, aurora2, init_aurora2, auroraTestnet2, init_auroraTestnet2, auroria2, init_auroria2, autheoTestnet2, init_autheoTestnet2, avalanche2, init_avalanche2, avalancheFuji2, init_avalancheFuji2, sourceId410, b33, init_b32, sourceId510, b3Sepolia2, init_b3Sepolia2, bahamut2, init_bahamut2, sourceId610, base2, basePreconf2, init_base22, basecampTestnet2, init_basecampTestnet2, sourceId72, baseGoerli2, init_baseGoerli2, sourceId82, baseSepolia2, baseSepoliaPreconf2, init_baseSepolia2, battlechainTestnet2, init_battlechainTestnet2, beam2, init_beam2, beamTestnet2, init_beamTestnet2, bearNetworkChainMainnet2, init_bearNetworkChainMainnet2, bearNetworkChainTestnet2, init_bearNetworkChainTestnet2, berachain2, init_berachain2, berachainBepolia2, init_berachainBepolia2, berachainTestnet2, init_berachainTestnet2, berachainTestnetbArtio2, init_berachainTestnetbArtio2, bevmMainnet2, init_bevmMainnet2, bifrost2, init_bifrost2, birdlayer2, init_birdlayer2, bitgert2, init_bitgert2, bitkub2, init_bitkub2, bitkubTestnet2, init_bitkubTestnet2, bitlayer2, init_bitlayer2, bitlayerTestnet2, init_bitlayerTestnet2, bitrock2, init_bitrock2, bitTorrent2, init_bitTorrent2, bitTorrentTestnet2, init_bitTorrentTestnet2, sourceId92, blast2, init_blast2, sourceId102, blastSepolia2, init_blastSepolia2, sourceId112, bob2, init_bob2, boba2, init_boba2, bobaSepolia2, init_bobaSepolia2, sourceId122, bobSepolia2, init_bobSepolia2, boolBetaMainnet2, init_boolBetaMainnet2, botanix2, init_botanix2, botanixTestnet2, init_botanixTestnet2, bounceBit2, init_bounceBit2, bounceBitTestnet2, init_bounceBitTestnet2, bronos2, init_bronos2, bronosTestnet2, init_bronosTestnet2, bsc2, init_bsc2, bscGreenfield2, init_bscGreenfield2, bscTestnet2, init_bscTestnet2, bsquared2, init_bsquared2, bsquaredTestnet2, init_bsquaredTestnet2, btr2, init_btr2, btrTestnet2, init_btrTestnet2, bxn2, init_bxn2, bxnTestnet2, init_bxnTestnet2, cannon2, init_cannon2, canto2, init_canto2, fees2, init_fees2, init_utils82, formatters32, init_formatters32, serializers32, MAX_MAX_FEE_PER_GAS2, init_serializers32, chainConfig32, init_chainConfig32, celo2, init_celo2, sourceId132, celoAlfajores2, init_celoAlfajores2, sourceId142, celoSepolia2, init_celoSepolia2, chang2, init_chang2, chiliz2, init_chiliz2, chips2, init_chips2, citrate2, init_citrate2, citrea2, init_citrea2, citreaTestnet2, init_citreaTestnet2, classic2, init_classic2, sourceId152, codex2, init_codex2, sourceId162, codexTestnet2, init_codexTestnet2, coinbit2, init_coinbit2, coinex2, init_coinex2, confluxESpace2, init_confluxESpace2, confluxESpaceTestnet2, init_confluxESpaceTestnet2, coreDao2, init_coreDao2, coreTestnet12, init_coreTestnet12, coreTestnet22, init_coreTestnet22, sourceId172, corn2, init_corn2, sourceId182, cornTestnet2, init_cornTestnet2, cpchain2, init_cpchain2, crab2, init_crab2, creatorTestnet2, init_creatorTestnet2, creditCoin3Devnet2, init_creditCoin3Devnet2, creditCoin3Mainnet2, init_creditCoin3Mainnet2, creditCoin3Testnet2, init_creditCoin3Testnet2, cronos2, init_cronos2, cronosTestnet2, init_cronosTestnet2, cronoszkEVM2, init_cronoszkEVM2, cronoszkEVMTestnet2, init_cronoszkEVMTestnet2, crossbell2, init_crossbell2, crossfi2, init_crossfi2, curtis2, init_curtis2, cyber2, init_cyber2, cyberTestnet2, init_cyberTestnet2, dailyNetwork2, init_dailyNetwork2, dailyNetworkTestnet2, init_dailyNetworkTestnet2, darwinia2, init_darwinia2, datahavenTestnet2, init_datahavenTestnet2, dbkchain2, init_dbkchain2, dchain2, init_dchain2, dchainTestnet2, init_dchainTestnet2, defichainEvm2, init_defichainEvm2, defichainEvmTestnet2, init_defichainEvmTestnet2, degen2, init_degen2, dfk2, init_dfk2, diode2, init_diode2, disChain2, init_disChain2, dodochainTestnet2, init_dodochainTestnet2, dogechain2, init_dogechain2, domaTestnet2, init_domaTestnet2, donatuz2, init_donatuz2, dosChain2, init_dosChain2, dosChainTestnet2, init_dosChainTestnet2, dreyerxMainnet2, init_dreyerxMainnet2, init_utils92, dreyerxTestnet2, init_dreyerxTestnet2, dustboyIoT2, init_dustboyIoT2, dymension2, init_dymension2, eden2, init_eden2, edexa2, init_edexa2, edexaTestnet2, init_edexaTestnet2, edgeless2, init_edgeless2, edgelessTestnet2, init_edgelessTestnet2, edgeware2, init_edgeware2, edgewareTestnet2, init_edgewareTestnet2, eduChain2, init_eduChain2, eduChainTestnet2, init_eduChainTestnet2, elastos2, init_elastos2, elastosTestnet2, init_elastosTestnet2, electroneum2, init_electroneum2, electroneumTestnet2, init_electroneumTestnet2, elysiumTestnet2, init_elysiumTestnet2, energy2, init_energy2, eni2, init_eni2, eniTestnet2, init_eniTestnet2, enuls2, init_enuls2, eon2, init_eon2, eos2, init_eos2, eosTestnet2, init_eosTestnet2, eteria2, init_eteria2, etherlink2, init_etherlink2, etherlinkShadownetTestnet2, init_etherlinkShadownetTestnet2, etherlinkTestnet2, init_etherlinkTestnet2, ethernity2, init_ethernity2, etp2, init_etp2, evmos2, init_evmos2, evmosTestnet2, init_evmosTestnet2, excelonMainnet2, init_excelonMainnet2, expanse2, init_expanse2, exsat2, init_exSat2, exsatTestnet2, init_exSatTestnet2, fantom2, init_fantom2, fantomSonicTestnet2, init_fantomSonicTestnet2, fantomTestnet2, init_fantomTestnet2, fibo2, init_fibo2, filecoin2, init_filecoin2, filecoinCalibration2, init_filecoinCalibration2, filecoinHyperspace2, init_filecoinHyperspace2, flame2, init_flame2, flare2, init_flare2, flareTestnet2, init_flareTestnet2, flowMainnet2, init_flowMainnet2, flowPreviewnet2, init_flowPreviewnet2, flowTestnet2, init_flowTestnet2, fluence2, init_fluence2, fluenceStage2, init_fluenceStage2, fluenceTestnet2, init_fluenceTestnet2, fluent2, init_fluent2, fluentDevnet2, init_fluentDevnet2, fluentTestnet2, init_fluentTestnet2, sourceId192, form2, init_form2, forma2, init_forma2, sourceId202, formTestnet2, init_formTestnet2, forta2, init_forta2, foundry2, init_foundry2, sourceId212, fraxtal2, init_fraxtal2, sourceId222, fraxtalTestnet2, init_fraxtalTestnet2, sourceId232, funkiMainnet2, init_funkiMainnet2, sourceId242, funkiSepolia2, init_funkiSepolia2, fuse2, init_fuse2, fuseSparknet2, init_fuseSparknet2, fusion2, init_fusion2, fusionTestnet2, init_fusionTestnet2, sourceId252, garnet2, init_garnet2, gatechain2, init_gatechain2, geist2, init_geist2, genesys2, init_genesys2, gensyn2, init_gensyn2, sourceId262, giwaSepolia2, giwaSepoliaPreconf2, init_giwaSepolia2, glideL1Protocol2, init_glideL1Protocol2, glideL2Protocol2, init_glideL2Protocol2, gnosis2, init_gnosis2, gnosisChiado2, init_gnosisChiado2, goat2, init_goat2, gobi2, init_gobi2, goChain2, init_goChain2, godwoken2, init_godwoken2, goerli2, init_goerli2, graphite2, init_graphite2, graphiteTestnet2, init_graphiteTestnet2, grav2, init_grav2, gravity2, init_gravity2, gunz2, init_gunz2, guruNetwork2, init_guruNetwork2, guruTestnet2, init_guruTestnet2, ham2, init_ham2, happychainTestnet2, init_happychainTestnet2, haqqMainnet2, init_haqqMainnet2, haqqTestedge22, init_haqqTestedge22, hardhat2, init_hardhat2, harmonyOne2, init_harmonyOne2, hashkey2, init_hashKeyChain2, hashkeyTestnet2, init_hashkeyChainTestnet2, haustTestnet2, init_haustTestnet2, hedera2, init_hedera2, hederaPreviewnet2, init_hederaPreviewnet2, hederaTestnet2, init_hederaTestnet2, hela2, init_hela2, heliosTestnet2, init_heliosTestnet2, hemi2, init_hemi2, hemiSepolia2, init_hemiSepolia2, henesys2, init_henesys2, holesky2, init_holesky2, hoodi2, init_hoodi2, horizenTestnet2, init_horizenTestnet2, hpb2, init_hpb2, hpp2, init_hpp2, hppSepolia2, init_hppSepolia2, sourceId272, huddle01Mainnet2, init_huddle01Mainnet2, sourceId282, huddle01Testnet2, init_huddle01Testnet2, humanity2, init_humanity2, humanityTestnet2, init_humanityTestnet2, humanode2, init_humanode2, humanodeTestnet52, init_humanodeTestnet52, hychain2, init_hychain2, hychainTestnet2, init_hychainTestnet2, hyperEvm2, init_hyperEvm2, hyperliquidEvmTestnet2, init_hyperliquidEvmTestnet2, icbNetwork2, init_icbNetwork2, idchain2, init_idchain2, igra2, init_igra2, immutableZkEvm2, init_immutableZkEvm2, immutableZkEvmTestnet2, init_immutableZkEvmTestnet2, inEVM2, init_inEVM2, initVerse2, init_initVerse2, initVerseGenesis2, init_initVerseGenesis2, injective2, init_injective2, injectiveTestnet2, init_injectiveTestnet2, sourceId292, ink2, init_ink2, sourceId302, inkSepolia2, init_inkSepolia2, iota2, init_iota2, iotaTestnet2, init_iotaTestnet2, iotex2, init_iotex2, iotexTestnet2, init_iotexTestnet2, iSunCoin2, init_iSunCoin2, jasmyChain2, init_jasmyChain2, jasmyChainTestnet2, init_jasmyChainTestnet2, jbc2, init_jbc2, jbcTestnet2, init_jbcTestnet2, jocMainnet2, init_jocMainnet2, jocTestnet2, init_jocTestnet2, jovay2, init_jovay2, jovaySepolia2, init_jovaySepolia2, juneo2, init_juneo2, juneoBCH1Chain2, init_juneoBCH1Chain2, juneoDAI1Chain2, init_juneoDAI1Chain2, juneoDOGE1Chain2, init_juneoDOGE1Chain2, juneoEUR1Chain2, init_juneoEUR1Chain2, juneoGLD1Chain2, init_juneoGLD1Chain2, juneoLINK1Chain2, init_juneoLINK1Chain2, juneoLTC1Chain2, init_juneoLTC1Chain2, juneomBTC1Chain2, init_juneomBTC1Chain2, juneoSGD1Chain2, init_juneoSGD1Chain2, juneoSocotraTestnet2, init_juneoSocotraTestnet2, juneoUSD1Chain2, init_juneoUSD1Chain2, juneoUSDT1Chain2, init_juneoUSDT1Chain2, kaia2, init_kaia2, kairos2, init_kairos2, kakarotSepolia2, init_kakarotSepolia2, kakarotStarknetSepolia2, init_kakarotStarknetSepolia2, kardiaChain2, init_kardiaChain2, karura2, init_karura2, katana2, init_katana2, kava2, init_kava2, kavaTestnet2, init_kavaTestnet2, kcc2, init_kcc2, kii2, init_kii2, kiiTestnetOro2, init_kiiTestnet2, kinto2, init_kinto2, klaytn2, init_klaytn2, klaytnBaobab2, init_klaytnBaobab2, koi2, init_koi2, kroma2, init_kroma2, kromaSepolia2, init_kromaSepolia2, krown2, init_krown2, l3x2, init_l3x2, l3xTestnet2, init_l3xTestnet2, ladyChain2, init_ladyChain2, lavita2, init_lavita2, lens2, init_lens2, lensTestnet2, init_lensTestnet2, lestnet2, init_lestnet2, lightlinkPegasus2, init_lightlinkPegasus2, lightlinkPhoenix2, init_lightlinkPhoenix2, init_estimateGas32, chainConfig42, init_chainConfig42, linea2, init_linea2, lineaGoerli2, init_lineaGoerli2, lineaSepolia2, init_lineaSepolia2, lineaTestnet2, init_lineaTestnet2, sourceId312, lisk2, init_lisk2, sourceId322, liskSepolia2, init_liskSepolia2, loadAlphanet2, init_loadAlphanet2, localhost2, init_localhost2, loop2, init_loop2, lukso2, init_lukso2, luksoTestnet2, init_luksoTestnet2, lumiaMainnet2, init_lumiaMainnet2, lumiaTestnet2, init_lumiaTestnet2, lumoz2, init_lumoz2, lumozTestnet2, init_lumozTestnet2, luxeports2, init_luxeports2, lycan2, init_lycan2, lyra2, init_lyra2, mainnet2, init_mainnet2, mandala2, init_mandala2, manta2, init_manta2, mantaSepoliaTestnet2, init_mantaSepoliaTestnet2, mantaTestnet2, init_mantaTestnet2, mantle2, init_mantle2, mantleSepoliaTestnet2, init_mantleSepoliaTestnet2, mantleTestnet2, init_mantleTestnet2, mantraDuKongEVMTestnet2, init_mantraDuKongEVMTestnet2, mantraEVM2, init_mantraEVM2, mapProtocol2, init_mapProtocol2, matchain2, init_matchain2, matchainTestnet2, init_matchainTestnet2, mchVerse2, init_mchVerse2, sourceId332, megaeth2, init_megaeth2, megaethTestnet2, init_megaethTestnet2, mekong2, init_mekong2, meld2, init_meld2, memecore2, init_memecore2, formicarium2, init_memecoreFormicariumTestnet2, merlin2, init_merlin2, merlinErigonTestnet2, init_merlinErigonTestnet2, metachain2, init_metachain2, metachainIstanbul2, init_metachainIstanbul2, metadium2, init_metadium2, sourceId342, metalL22, init_metalL22, meter2, init_meter2, meterTestnet2, init_meterTestnet2, metis2, init_metis2, metisGoerli2, init_metisGoerli2, metisSepolia2, init_metisSepolia2, mev2, init_mev2, mevTestnet2, init_mevTestnet2, mezo2, init_mezo2, mezoTestnet2, init_mezoTestnet2, mint2, init_mint2, mintSepoliaTestnet2, init_mintSepoliaTestnet2, mitosisTestnet2, init_mitosisTestnet2, mizuhikiTestnetAwaji2, init_mizuhikiTestnetAwaji2, sourceId352, mode2, init_mode2, sourceId362, modeTestnet2, init_modeTestnet2, monad2, init_monad2, monadTestnet2, init_monadTestnet2, moonbaseAlpha2, init_moonbaseAlpha2, moonbeam2, init_moonbeam2, moonbeamDev2, init_moonbeamDev2, moonriver2, init_moonriver2, morph2, init_morph2, morphHolesky2, init_morphHolesky2, morphSepolia2, init_morphSepolia2, nahmii2, init_nahmii2, nautilus2, init_nautilus2, near2, init_near2, nearTestnet2, init_nearTestnet2, neonDevnet2, init_neonDevnet2, neonMainnet2, init_neonMainnet2, neoxMainnet2, init_neoxMainnet2, neoxT42, init_neoxT42, newton2, init_newton2, nexi2, init_nexi2, nexilix2, init_nexilix2, nibiru2, init_nibiru2, nitrographTestnet2, init_nitrographTestnet2, nomina2, init_nomina2, oasisTestnet2, init_oasisTestnet2, oasys2, init_oasys2, odysseyTestnet2, init_odysseyTestnet2, okc2, init_okc2, omax2, init_omax2, omni2, init_omni2, omniOmega2, init_omniOmega2, oneWorld2, init_oneWorld2, oortMainnetDev2, init_oortmainnetDev2, sourceId372, opBNB2, init_opBNB2, sourceId382, opBNBTestnet2, init_opBNBTestnet2, openledger2, init_openledger2, sourceId392, optimism2, init_optimism2, sourceId402, optimismGoerli2, init_optimismGoerli2, sourceId412, optimismSepolia2, init_optimismSepolia2, optopia2, init_optopia2, optopiaTestnet2, init_optopiaTestnet2, orderly2, init_orderly2, orderlySepolia2, init_orderlySepolia2, otimDevnet2, init_otimDevnet2, palm2, init_palm2, palmTestnet2, init_palmTestnet2, paseoPassetHub2, init_paseoPassetHub2, peaq2, init_peaq2, sourceId422, pgn2, init_pgn2, sourceId432, pgnTestnet2, init_pgnTestnet2, phoenix2, init_phoenix2, planq2, init_planq2, plasma2, init_plasma2, plasmaDevnet2, init_plasmaDevnet2, plasmaTestnet2, init_plasmaTestnet2, playfiAlbireo2, init_playfiAlbireo2, plinga2, init_plinga2, sourceId442, plume2, init_plume2, sourceId452, plumeDevnet2, init_plumeDevnet2, sourceId462, plumeMainnet2, init_plumeMainnet2, sourceId472, plumeSepolia2, init_plumeSepolia2, sourceId482, plumeTestnet2, init_plumeTestnet2, polterTestnet2, init_polterTestnet2, polygon2, init_polygon2, polygonAmoy2, init_polygonAmoy2, polygonMumbai2, init_polygonMumbai2, polygonZkEvm2, init_polygonZkEvm2, polygonZkEvmCardona2, init_polygonZkEvmCardona2, polygonZkEvmTestnet2, init_polygonZkEvmTestnet2, polynomial2, init_polynomial2, polynomialSepolia2, init_polynomialSepolia2, potos2, init_potos2, potosTestnet2, init_potosTestnet2, premiumBlockTestnet2, init_premiumBlock2, pulsechain2, init_pulsechain2, pulsechainV42, init_pulsechainV42, pumpfiTestnet2, init_pumpfiTestnet2, sourceId492, pyrope2, init_pyrope2, ql12, init_ql12, qMainnet2, init_qMainnet2, qTestnet2, init_qTestnet2, quai2, init_quai2, quaiTestnet2, init_quaiTestnet2, radius2, init_radius2, radiusTestnet2, init_radiusTestnet2, reactiveTestnet2, init_reactiveTestnet2, real2, init_real2, redbellyMainnet2, init_redbellyMainnet2, redbellyTestnet2, init_redbellyTestnet2, reddio2, init_reddio2, reddioSepolia2, init_reddioSepolia2, sourceId502, redstone2, init_redstone2, rei2, init_rei2, reyaNetwork2, init_reyaNetwork2, rise2, init_rise2, riseTestnet2, init_riseTestnet2, rivalz2, init_rivalz2, rollux2, init_rollux2, rolluxTestnet2, init_rolluxTestnet2, ronin2, init_ronin2, root2, init_root2, rootPorcini2, init_rootPorcini2, rootstock2, init_rootstock2, rootstockTestnet2, init_rootstockTestnet2, sourceId512, rss32, init_rss32, sourceId522, rss3Sepolia2, init_rss3Sepolia2, saakuru2, init_saakuru2, saga2, init_saga2, saigon2, init_saigon2, sanko2, init_sanko2, sapphire2, init_sapphire2, sapphireTestnet2, init_sapphireTestnet2, satoshiVM2, init_satoshivm2, satoshiVMTestnet2, init_satoshivmTestnet2, scroll2, init_scroll2, scrollSepolia2, init_scrollSepolia2, sei2, init_sei2, seismicDevnet2, init_seismicDevnet2, seiTestnet2, init_seiTestnet2, sentrix2, init_sentrix2, sentrixTestnet2, init_sentrixTestnet2, sepolia2, init_sepolia2, sourceId532, shape2, init_shape2, sourceId542, shapeSepolia2, init_shapeSepolia2, shardeum2, init_shardeum2, shardeumSphinx2, init_shardeumSphinx2, shibarium2, init_shibarium2, shibariumTestnet2, init_shibariumTestnet2, shiden2, init_shiden2, shimmer2, init_shimmer2, shimmerTestnet2, init_shimmerTestnet2, sidraChain2, init_sidra2, silentData2, init_silentdata2, silicon2, init_silicon2, siliconSepolia2, init_siliconSepolia2, sixProtocol2, init_sixProtocol2, skaleBlockBrawlers2, init_brawl2, skaleCalypso2, init_calypso2, skaleCalypsoTestnet2, init_calypsoTestnet2, skaleCryptoBlades2, init_cryptoBlades2, skaleCryptoColosseum2, init_cryptoColosseum2, skaleEuropa2, init_europa2, skaleEuropaTestnet2, init_europaTestnet2, skaleExorde2, init_exorde2, skaleHumanProtocol2, init_humanProtocol2, skaleNebula2, init_nebula2, skaleNebulaTestnet2, init_nebulaTestnet2, skaleRazor2, init_razor2, skaleBase2, init_skaleBase2, skaleBaseSepoliaTestnet2, init_skaleBaseSepoliaTestnet2, skaleTitan2, init_titan2, skaleTitanTestnet2, init_titanTestnet2, sketchpad2, init_sketchpad2, sourceId552, snax2, init_snax2, sourceId562, snaxTestnet2, init_snaxTestnet2, somnia2, init_somnia2, somniaTestnet2, init_somniaTestnet2, sourceId572, soneium2, init_soneium2, sourceId582, soneiumMinato2, init_soneiumMinato2, songbird2, init_songbird2, songbirdTestnet2, init_songbirdTestnet2, sonic2, init_sonic2, sonicBlazeTestnet2, init_sonicBlazeTestnet2, sonicTestnet2, init_sonicTestnet2, sophon2, init_sophon2, sophonTestnet2, init_sophonTestnet2, sova2, init_sova2, sovaSepolia2, init_sovaSepolia2, spicy2, init_spicy2, stable3, init_stable2, stableTestnet2, init_stableTestnet2, statusSepolia2, init_statusNetworkSepolia2, step2, init_step2, story2, init_story2, storyAeneid2, init_storyAeneid2, storyOdyssey2, init_storyOdyssey2, storyTestnet2, init_storyTestnet2, stratis2, init_stratis2, subtensorEvm2, init_subtensorEvm2, superlumio2, init_superlumio2, superposition2, init_superposition2, sourceId592, superseed2, init_superseed2, sourceId602, superseedSepolia2, init_superseedSepolia2, surgeTestnet2, init_surgeTestnet2, swan2, init_swan2, swanProximaTestnet2, init_swanProximaTestnet2, swanSaturnTestnet2, init_swanSaturnTestnet2, swellchain2, init_swellchain2, swellchainTestnet2, init_swellchainTestnet2, swissdlt2, init_swissdlt2, syscoin2, init_syscoin2, syscoinTestnet2, init_syscoinTestnet2, tac2, init_tac2, tacSPB2, init_tacSPB2, taiko2, init_taiko2, taikoHekla2, init_taikoHekla2, taikoHoodi2, init_taikoHoodi2, taikoJolnir2, init_taikoJolnir2, taikoKatla2, init_taikoKatla2, taikoTestnetSepolia2, init_taikoTestnetSepolia2, taraxa2, init_taraxa2, taraxaTestnet2, init_taraxaTestnet2, teaSepolia2, init_teaSepolia2, telcoinTestnet2, init_telcoinTestnet2, telos2, init_telos2, telosTestnet2, init_telosTestnet2, Fp2562, p256_a2, p256_b2, p2562, Fp3842, p384_a2, p384_b2, p3842, Fp5212, p521_a2, p521_b2, p5212, init_nist2, secp256r12, init_p2562, init_P2562, encoder52, integerToCharacter2, characterToInteger2, init_Base642, init_Authentication2, init_WebAuthnP2562, MultisigConfig_exports2, maxOwners2, maxOwnerSignatureBytes2, signatureTypeByte2, zeroSalt2, accountDomain2, configDomain, signatureDomain2, InvalidConfigError2, init_MultisigConfig2, SignatureEnvelope_exports2, serializedP256Type2, serializedWebAuthnType2, serializedKeychainType2, serializedKeychainV2Type2, serializedMultisigType2, magicBytes32, types5, CoercionError2, MissingPropertiesError22, InvalidSerializedError3, VerificationError22, init_SignatureEnvelope2, InvalidPrefixError22, init_TempoAddress2, init_AuthorizationTempo2, tip20Prefix2, init_TokenId2, channelIdParameters2, domainSeparatorParameters2, voucherHashParameters2, eip712DomainTypehash2, nameHash2, versionHash2, voucherTypehash2, init_Channel2, KeyAuthorization_exports2, InvalidWitnessSizeError2, InvalidAdminMarkerError2, init_KeyAuthorization2, init_Period2, init_PoolId2, init_AbiEvent2, transferBlocked2, init_ReceivePolicyReceipt2, init_RpcSchemaTempo2, init_Tick2, init_TokenRole2, toRpcType5, fromRpcType5, init_Transaction4, Transaction_exports4, toRpcType22, fromRpcType22, init_Transaction22, fromRpcType32, toRpcType32, init_TransactionReceipt3, fromRpcType42, toRpcType42, init_TransactionReceipt22, init_TransactionRequest3, TransactionRequest_exports3, init_TransactionRequest22, InvalidStorageKeySizeError22, init_AccessList2, exponents2, init_Value2, FeeCapTooHighError22, InvalidChainIdError22, InvalidSerializedError22, TipAboveFeeCapError22, init_TxEnvelope2, TxEnvelopeTempo_exports2, feePayerMagic2, serializedType2, type2, CallsEmptyError2, InvalidValidityWindowError2, init_TxEnvelopeTempo2, init_VirtualAddress2, init_VirtualMaster2, init_ZoneId2, init_ZoneRpcAuthentication2, init_tempo3, accountKeychain3, addressRegistry2, nonce2, receivePolicyGuard2, signatureVerifier3, stablecoinDex2, tip202, tip20ChannelReserve2, tip20Factory2, tip403Registry2, feeManager2, feeAmm2, validatorConfig2, validatorConfigV22, abis2, init_Abis2, init_Transaction32, init_Account2, accountKeychain22, signatureVerifier22, init_Addresses2, hardforks2, init_Hardfork2, init_utils102, signatureTypes2, spendPolicies2, init_accessKey2, init_Formatters2, concurrentCounts2, init_concurrent2, maxExpirySecs2, chainConfig52, init_chainConfig52, tempo2, init_tempo22, tempoDevnet2, init_tempoDevnet2, tempoLocalnet2, init_tempoLocalnet2, tempoModerato2, init_tempoModerato2, tenet2, init_tenet2, ternoa2, init_ternoa2, thaiChain2, init_thaiChain2, that2, init_that2, theta2, init_theta2, thetaTestnet2, init_thetaTestnet2, thunderCore2, init_thunderCore2, thunderTestnet2, init_thunderTestnet2, tiktrixTestnet2, init_tiktrixTestnet2, tomb2, init_tomb2, treasure2, init_treasure2, treasureTopaz2, init_treasureTopaz2, tron2, init_tron2, tronNile2, init_tronNile2, tronShasta2, init_tronShasta2, ubiq2, init_ubiq2, ultra2, init_ultra2, ultraTestnet2, init_ultraTestnet2, ultron2, init_ultron2, ultronTestnet2, init_ultronTestnet2, sourceId612, unichain2, init_unichain2, sourceId622, unichainSepolia2, init_unichainSepolia2, unique2, init_unique2, uniqueOpal2, init_uniqueOpal2, uniqueQuartz2, init_uniqueQuartz2, unreal2, init_unreal2, valygoNft2, init_valygoNft2, valygoSmartchain2, init_valygoSmartchain2, vana2, init_vana2, vanaMoksha2, init_vanaMoksha2, vanar2, init_vanar2, vechain2, init_vechain2, velas2, init_velas2, viction2, init_viction2, victionTestnet2, init_victionTestnet2, vision2, init_vision2, visionTestnet2, init_visionTestnet2, wanchain2, init_wanchain2, wanchainTestnet2, init_wanchainTestnet2, weaveVMAlphanet2, init_weavevmAlphanet2, wemix2, init_wemix2, wemixTestnet2, init_wemixTestnet2, westendAssetHub2, init_westendAssetHub2, whitechain2, init_whitechain2, whitechainSepolia2, init_whitechainSepolia2, whitechainTestnet2, init_whitechainTestnet2, wmcTestnet2, init_wmcTestnet2, sourceId632, worldchain2, init_worldchain2, sourceId642, worldchainSepolia2, init_worldchainSepolia2, worldLand2, init_worldLand2, xai2, init_xai2, xaiTestnet2, init_xaiTestnet2, xdc2, init_xdc2, xdcTestnet2, init_xdcTestnet2, xgr2, init_xgr2, xLayer2, init_xLayer2, xLayerTestnet2, init_xLayerTestnet2, xoneMainnet2, init_xoneMainnet2, xoneTestnet2, init_xoneTestnet2, xphereMainnet2, init_xphereMainnet2, xphereTestnet2, init_xphereTestnet2, xpla2, init_xpla2, xrOne2, init_xrOne2, xrplevm2, init_xrplevm2, xrplevmDevnet2, init_xrplevmDevnet2, xrplevmTestnet2, init_xrplevmTestnet2, xrSepolia2, init_xrSepolia2, yooldoVerse2, init_yooldoVerse2, yooldoVerseTestnet2, init_yooldoVerseTestnet2, zenchainTestnet2, init_zenchainTestnet2, zeniq2, init_zeniq2, zeroNetwork2, init_zeroNetwork2, zetachain2, init_zetachain2, zetachainAthensTestnet2, init_zetachainAthensTestnet2, zhejiang2, init_zhejiang2, zilliqa2, init_zilliqa2, zilliqaTestnet2, init_zilliqaTestnet2, sourceId652, zircuit2, init_zircuit2, sourceId662, zircuitGarfieldTestnet2, init_zircuitGarfieldTestnet2, zkFair2, init_zkFair2, zkFairTestnet2, init_zkFairTestnet2, zkLinkNova2, init_zkLinkNova2, zkLinkNovaSepoliaTestnet2, init_zkLinkNovaSepoliaTestnet2, zksync2, init_zksync2, zksyncInMemoryNode2, init_zksyncInMemoryNode2, zksyncLocalCustomHyperchain2, init_zksyncLocalCustomHyperchain2, zksyncLocalHyperchain2, init_zksyncLocalHyperchain2, zksyncLocalHyperchainL12, init_zksyncLocalHyperchainL12, zksyncLocalNode2, init_zksyncLocalNode2, zksyncSepoliaTestnet2, init_zksyncSepoliaTestnet2, zkXPLA2, init_zkXPLA2, zkXPLATestnet2, init_zkXPLATestnet2, sourceId672, zora2, init_zora2, sourceId682, zoraSepolia2, init_zoraSepolia2, sourceId692, zoraTestnet2, init_zoraTestnet2, chains_exports2, init_chains2, init_isHex22, init_size22, version42, init_version42, errorConfig22, BaseError42, init_base32, SizeExceedsPaddingSizeError42, init_data22, init_pad22, IntegerOutOfRangeError32, SizeOverflowError42, init_encoding22, init_fromHex22, hexes42, encoder62, init_toHex22, encoder72, charCodeMap32, init_toBytes22, U32_MASK6422, _32n22, rotlSH22, rotlSL22, rotlBH22, rotlBL22, init_u6422, crypto32, init_cryptoNode22, isLE22, swap32IfBE22, Hash22, init_utils112, _0n72, _1n72, _2n52, _7n22, _256n22, _0x71n22, SHA3_PI22, SHA3_ROTL22, _SHA3_IOTA22, IOTAS22, SHA3_IOTA_H22, SHA3_IOTA_L22, rotlH22, rotlL22, Keccak22, gen22, keccak_25622, init_sha322, init_keccak25622, LruMap32, init_lru32, checksumAddressCache22, init_getAddress22, init_concat22, init_publicKeyToAddress22, HashMD22, SHA256_IV22, init_md22, SHA256_K22, SHA256_W22, SHA25622, sha25652, init_sha222, HMAC22, hmac22, init_hmac22, _0n82, _1n82, hasHexBuiltin22, hexes52, asciis22, isPosBig22, bitMask22, u8n22, u8fr22, validatorFns22, init_utils122, _0n92, _1n92, _2n62, _3n32, _4n32, _5n22, _8n22, FIELD_FIELDS22, init_modular22, _0n102, _1n102, pointPrecomputes22, pointWindowSizes22, init_curve22, DERErr22, DER22, _0n112, _1n112, _2n72, _3n42, _4n42, init_weierstrass22, init_shortw_utils22, os2ip22, init_hash_to_curve22, secp256k1_exports22, secp256k1P22, secp256k1N22, _0n122, _1n122, _2n82, divNearest22, Fpk122, secp256k122, TAGGED_HASH_PREFIXES22, pointToBytes22, numTo32b22, modP22, modN22, Point22, GmulAdd22, num22, schnorr22, isoMap22, mapSWU22, secp256k1_hasher22, hashToCurve22, encodeToCurve22, init_secp256k122, init_recoverPublicKey22, init_recoverAddress22, presignMessagePrefix22, init_strings22, init_toPrefixedMessage22, init_hashMessage22, init_recoverMessageAddress22, init_esm32, vbs_policy_exports2, VBS_DEFAULT_EK_ROOTS2, init_vbs_policy2, host_admission_bundle_exports, W6, h3, Yi, B0, C0, ye2, sn2, Gf, Vf, Aa, Ji, R0, N0, Kf, O0, $0, _0, F0, q0, G0, W0, Z6, Wf, X0, Ia, an2, Xi, Qi, Sa, Ta, es, ts, rs, os, ns, is2, ka, Nt2, ss, as, Zf, cs, Q0, us, em, Ba, rm, tw, rw, ow, nw, cn4, aw, Ca, nm, im, sm, fn2, se2, ar2, $t2, We2, Jf, cm, Xf, k3, Z2, Na, ms, dn, yt2, Oa, $a, Ha, La, hs, pn, _a, Ma2, bs, Ht2, ln, za2, Fa2, Ua, cr2, _r2, ja, qa, mn2, Ra, xe2, Da, fm, ys, xs, gs, Ga, Va, zr2, Ka, Wa, Za, ws, hn2, $e2, fw2, dw, K3, pw, fr2, ke2, Ja, mm, bm, ym, xm, gm, wm, yo, vm, hw, ed, Fr2, Ur2, gw, vs, ww, vw, Ew, Aw, Tm, km, Bm, Cm, Pw, Iw, Im, Sm, td, Tw, rc, rd, gt2, kw, Nm, $m, Hm, Lm, od, jr2, Es, ce2, Dt2, Gt2, As, nd, qr2, Bw, id, wt2, Ye2, Dr2, zm, nc32, ad, mr2, Vt2, bn2, Gr2, Um, yn2, Ps, dd, ct2, qm, Gm, ut2, Vm, ac, Km, cc, Is, xn2, uc, pd, Fw, fc, Jm, Xm, ld, Ts, md, X3, Qe2, Qm, eh, th, bd, yd, lc72, En, mc, hc, xd, bc, yc, xc, gc, An, Pn, wc, vc, _t2, nh, Eo, Mt2, In, Sn, Ao, Ec, Ac, Zt2, Kr2, vt2, Wr2, ks, Po, Ww, ze2, Fe2, Tn, kn, Bn, Cn, br2, Et2, Rn, Nn, On, Zr2, Io, $n, So, Hn, Ln, _n, Mn, zn, Fn, Un, jn, qn, Dn, Gn, Vn, Kn, Pc, Bs, Zw, Wn, sh, Ic, yr2, uh, Jw, Yr2, Sc, To, gd, Tc, wd, fh, Pd, Ad, mh, Xw, xr2, vd, Bo, Ed, ph, Qw, Xn, Ge2, Ue2, Co, e5, xh, gh, wh, n5, Os, Ph, $d, Nd, Th, Ch, _d, Er2, Ft2, ne2, Jr2, $s, Md, zd, Hh, l5, zh, Vh, Ms, Rc, qd, Ls, Nc, Fh, Qr, Ar2, Uh, Dd, Ud, Fd, _s, Gd, y5, ei2, w5, v5, E5, Vd, A5, P5, $c, Zh, Hc, Lc, Qh, Kd, Mc, eb, Pr2, At2, ti2, ri2, oi2, ni2, ii, si, ai, ci, Jt2, Pt2, eo, zs, rb, Fs, zc, T5, fi, Fc, AI, PI, II, SI, TI, kI, BI, CI, RI, NI, OI, $I, HI, LI, _I, MI, zI, FI, UI, jI, qI, DI, GI, VI, KI, WI, ZI, YI, JI, XI, QI, eS, tS, rS, oS, nS, iS, sS, aS, cS, uS, fS, dS, pS, lS, mS, hS, bS, yS, xS, gS, wS, vS, ES, AS, PS, IS, SS, TS, kS, BS, CS, RS, NS, OS, $S, HS, LS, _S, MS, zS, FS, US, jS, qS, DS, GS, VS, KS, WS, ZS, YS, JS, XS, QS, eT, tT, rT, oT, nT, iT, sT, aT, cT, uT, pi2, Wd, No, li, oo, Uc, Us, no, jc, Zd, nb, mi, ib, qc, io, Dc, Jd, Xd, Oo, Qd, Kc, Wc, cb, ub, db, lb, ep, Yc, xi, Jc, Xc, tp, hb, rp, op, yb, tu, np, O5, xb, ip, sp, nu, wb, $o, Sr2, vb, iu, su, au, ap, cp, Qt, Eb, Ab, Ib, j3, rt2, Tr2, Cb, pp, _5, Gs, M5, z5, lp, Ii, uu, qs, fu, so, D5, G5, Vs, hu, bu, du, Ds, pu, Ne2, qb, yp, rr2, gu, Gb, wu, Vb, xp, gp, wp, vp, Br2, Kb, Wb, vu, Zb, Yb, Bi, Ws, _o, Zs, Mo, Eu, Ep, Ap, zo, Pp, Ip, Sp, Tp, Su, Tu, ku, Jb, Qb, kp, ey, Cp, ry, Cr2, Js, iy, Z5, oy, sy, X5, ay, Fo, or2, dy, Bu, Np, n2, Uo, Op, Ci, i2, s2, my, a2, Ri, Qs, ea, by, xy, $p, c2, gy, ra, Cu, Ru, Hp, vy, Ou, Lp, _p, Ay, Iy, Hu, Ty, Lu, fo, $i, _u, ky, f2, d2, p2, l2, Oy, Hy, Fp, _y, zy, Uy, Up, qy, jp, qp, Gy, Ky, Zy, Jy, qu, Qy, Du, e1, b2, r1, n1, s1, c1, l1, m1, Dp, y1, g1, Vu, v1, A1, P1, S1, Vp, T1, B1, C1, R1, O1, Kp, Wu, Zu, Yu, $1, _1, Ju, Xu, j1, B2, Qu, q1, ef, Yp, tf, Jp, Xp, Qp, tl, N2, rf, rl, ol, ia, Z1, Y1, af, kH, BH, CH, RH, NH2, OH, $H, HH, LH, _H, MH, zH, FH, UH, jH, qH, DH, GH, VH, KH, WH, ZH, YH, JH, XH, QH, eL, tL, rL, oL, nL, iL, sL, aL, cL, uL, fL, dL, pL, lL, mL, hL, bL, yL, xL, gL, wL, vL, EL, AL, PL, IL, SL, TL, kL, BL, CL, RL, NL, OL, $L, HL, LL, _L, ML, zL, FL, UL, jL, qL, DL, GL, VL, KL, WL, ZL, YL, JL, XL, QL, e_, t_, r_, o_, n_, i_, s_, a_, c_, u_, f_, d_, p_, l_, m_, nl, cf, X1, il, ex, Z22, pf, cl, ul, fl, pl, ll, ff, aa, mf, df, Li, _i, ix, ml, fa, hl, bl, da, yl, El, dx, lx, pa, Al, Pl, hf, hx, bx, yx, Sl, gx, vx, Ax, yf, Ix, Tl, Tx, kl, kx, Cl, lo, Nl, Nx, Hx, Lx, Bt2, _x, g8, zx, ha, Ol, w8, v8, vf, Ux, jx, Dx, Rr2, ba, Vx, Wx, Hl, Yx, Xx, eg, rg, k8, B8, ng, sg, cg, fg, pg, lg, hg, Af, bg, C8, yg, xg, Ct2, _l, Ml, vj, Eg, zl, Fl, ji, jl, W8, Bg, Z8, Y8, Cg, Jo, Ng, Di, yq, xq, Dg, e0, Rf, r0, be2, o0, uv, i0, _6, Ki, Mv, rn2, b0, mt2, B6, w6, $r2, ie2, v62, h0, y0, C6, Ve2, R6, zv, N6, O6, Dv, jf, E6, Gv, Hr2, P6, I6, Kv, gD, Uf, T6, v0, gg, wg, vg, Ll, ya, Pf, L8, If, F8, Sf, Tf, Pg, J8, X8, Q8, ev, tv, Lg, ql, Dl, Vl, iv, Mg, ga, av, Hg, kf, Bf, Wl, cv, pq, Yl, Xl, jg, Rt2, t0, Vg, Cf, Kg, dv, Xg, pv, lv, mv, Qg, en, hv, $f, ae2, Hf, te2, s0, e6, bv, r6, _f, Lf, yv, xv, gv, wv, Hq, Av, Vi, u0, f0, f6, d6, p6, Sv, c6, d0, l6, l0, Rv, m0, h6, b6, Nv, y6, Ov, $v, g6, _v, P0, A0, z6, F6, j6, rE, init_host_admission_bundle, v4mask2, PROVIDER_CHECKS2, idPattern, addressPattern, MODES, app, hex64, U6, keys, amount, networkPolicyMessage2, byoReleaseMessage, byoConfigMessage, byoOwnerMessage, recordHash2, message2, appPattern, addressPattern2, hostABI2, connectivityABI, SocksHttpsAgent, SocksPublicHttpAgent, DirectHttpsAgent, LOOPBACK_HOSTS2, loopbackSet2, MAPPED2, NAT642, dotted2, RpcUrlError2, label2, fields, bookABI, deploymentABI, schemaABI, registryV1ABI, errText2, rateLimited, failureText, maxClients, clientMethods, chainAuthorityFromEnv, hexBlock2, PINNED_METHODS2, reservedFields, LeaseReader, fileWriters, DurableState, RETIRED_PUBLICATION, keptKey, DEFAULT_NETWORK_CHAIN_RPCS, ROLES, CHECKS, QUALIFICATION_MAX_MS2, RECORD_MAX_MS2, ipv4, wgKey, address, app2, exact, port, providerRecordMessage, qualificationMessage22, SECURITY_CHECKS, SECURITY, ALL_CHECKS, ONCHAIN_MAX_S, connectivityQualificationABI, bookABI2, KEY, FORBIDDEN, INTERFACE, PEER, ERC12712, BOOK2, FACTORY, VAULT, addr3, ID3, SIG_TTL, fail7, fingerprint5, hashPattern2, MAX_RPCS2, POLICY2, lc9, HASH3, fail22, hexBlock22, PINNED_METHODS22, POLICY_FORMAT2, ANCHOR_KEYS2, MAX_ENTRIES3, MAX_VALIDITY_SEC2, MAX_STALE_SEC2, KINDS2, ADDR9, H323, ZERO6, lc22, uint2, err7, canonical22, FIELDS4, contentHash2, policyTypedData2, policyDigest2, BOOK_ABI4, ERC127122, OWN_ABI2, REG_ABI2, REGISTRY_KEY2, PLATFORM_POLICY_OFF2, HTTPS2, MAX_POLICY_RESPONSE2, lc32, leaseHostAdmission2, freshAdmissions2, lc42, PRODUCTION_BOOK2, PRODUCTION_HOST_OWNERSHIP2, PRODUCTION_MIRRORS2, PRODUCTION_RPCS2, PRODUCTION_HOST_POLICY2, list3, lc52, NOT_ACTIVATED2, deploymentFields, DEPLOYMENTS_ABI, REGISTRY_ABI, CATALOG_ABI, TCG_MAX_LOG_BYTES2, TCG_MAX_EVENTS2, TCG_MAX_ALGS2, TCG_SHA2562, SIPA_MAX_DEPTH2, SIPA_MAX_NODES2, EV_NO_ACTION2, EV_EVENT_TAG2, EV_EFI_VARIABLE_DRIVER_CONFIG2, SIPA2, SIPA_ID2, SIPA_CONTAINERS2, SIPA_STRINGS2, SIPA_VSM_IDK_INFO2, SIPA_VSM_IDKS_INFO2, toBuf2, scalar2, utf162, sha25662, replayPcrs2, digestRecomputes2, unhashedEvents2, sipaRecords2, sipaFields2, vsmKey2, secureBootFromLog2, bootCounterFromLog2, AVF_ATTESTATION_EXTENSION_OID2, AVF_MAX_CERT_BYTES2, AVF_MAX_CHAIN_CERTS2, AVF_MAX_COMPONENTS2, GOOGLE_ATTESTATION_ROOT_SHA2562, fpHex5, body2, dateOf3, TPM_MANUFACTURERS_ON_DIE2, OID_SAN2, OID_TPM_MANUFACTURER2, TPM_GENERATED_VALUE2, TPM_ST_ATTEST_QUOTE2, TPM_ALG_RSA2, TPM_ALG_SHA2562, TPM_ALG_NULL2, TPM_ALG_AES2, TPM_ALG_CFB2, TPM_ALG_RSASSA2, AIK_REQUIRED_ATTRIBUTES2, TPMA_DECRYPT2, VBS_MAX_REPORT_BYTES2, VBS_MAX_LOG_BYTES2, VBS_MAX_CERT_BYTES2, VBS_MAX_CHAIN_CERTS2, VBS_MAX_ATTEST_BYTES2, VBS_MAX_SIG_BYTES2, VBS_MAX_TPMT_PUBLIC_BYTES2, VBS_MAX_MODULES2, VBS_REQUIRED_PCR122, VBS_QUOTE_PCRS2, VBS_REPLAYED_PCRS2, VBS_FORMAT2, VBS_BIND_DOMAIN2, ENCLAVE_TYPE_VBS2, ENCLAVE_FLAG_FULL_DEBUG_ENABLED2, ENCLAVE_FLAG_DYNAMIC_DEBUG_ENABLED2, ENCLAVE_FLAG_DYNAMIC_DEBUG_ACTIVE2, ENCLAVE_DEBUG_FLAGS2, sha25672, ED25519_SPKI_PREFIX6, hexOf3, eq3, b64url2, unsigned2, VBS_REPORT_SCHEME_SHA256_RSA_PSS2, enclaveMeasurementKey2, fpHex22, dateOf22, toCert2, pemCerts3, b64cap3, IDENTITY_LABEL2, EMPTY3, u32be2, u16be2, HVNODE_MAX_STATEMENT_BYTES2, HVNODE_OMISSIONS2, ED25519_SPKI_PREFIX22, RETIRED_FORMATS2, sha25682, ENV2, NODE_OPS2, ED25519_SPKI_PREFIX32, HV_NODE_REQUIRED_PCR12, ED25519_SPKI_PREFIX42, MAX_REPLY_BYTES2, RELEASE_DOMAIN2, SEAL_INFO2, RESPONSE_DOMAIN2, ED25519_PKCS8_PREFIX2, X25519_PKCS8_PREFIX2, opFresh2, BASE3, META2, REPORT_SIZE3, requireThat2, zero2, ctEqual2, VBS_VM_REPORT_CHECKS2, hash52, equal3, CORE2, OPS2, parseVbsVmReport2, BIND2_DOMAIN3, CACHE_KEY_DOMAIN2, b64Chars, ENVELOPE_BYTES, SHIELD_CHALLENGE_MAX_BYTES, HVNODE_RAD_BODY_MAX_CHARS, SHIELD_ATTEST_MAX_BYTES, V4, REGISTRY_GET_LAYOUTS, MAX_KDS_BYTES2, AMD2, SPL_OID2, LEGACY_WX_RELEASES, SECCOMP_UNSTATED_RELEASES, MAX_RPC_RESPONSE_BYTES, A3, B3, U3, T3, owned, PROFILE_LAYOUT, CONTRACT_PIN_KEYS, zero22, DEFAULT_RPCS, list22, loopback, stable22, BLOCK_HASH, MAX_PEERS, PEER_METHODS, inRange32, REGISTRY_GET;
+var require2, __create2, __defProp2, __getOwnPropDesc2, __getOwnPropNames2, __getProtoOf2, __hasOwnProp2, __require2, __esm2, __commonJS2, __export2, __copyProps2, __toESM2, version7, init_version7, BaseError7, init_errors9, bytesRegex7, integerRegex7, isTupleRegex3, init_regex5, tupleRegex3, init_formatAbiParameter3, init_formatAbiParameters3, init_formatAbiItem5, errorSignatureRegex3, eventSignatureRegex3, functionSignatureRegex3, structSignatureRegex3, constructorSignatureRegex3, fallbackSignatureRegex3, receiveSignatureRegex3, modifiers3, eventModifiers3, functionModifiers3, init_signatures3, InvalidAbiItemError3, UnknownTypeError3, UnknownSolidityTypeError3, init_abiItem5, InvalidAbiParameterError3, InvalidAbiParametersError3, InvalidParameterError3, SolidityProtectedKeywordError3, InvalidModifierError3, InvalidFunctionModifierError3, InvalidAbiTypeParameterError3, init_abiParameter3, InvalidSignatureError3, UnknownSignatureError3, InvalidStructSignatureError3, init_signature3, CircularReferenceError3, init_struct3, InvalidParenthesisError3, init_splitParameters3, parameterCache3, init_cache3, abiParameterWithoutTupleRegex3, abiParameterWithTupleRegex3, dynamicIntegerRegex3, protectedKeywordsRegex3, init_utils19, typeWithoutTupleRegex3, init_structs3, init_parseAbi3, init_parseAbiItem3, init_parseAbiParameter3, init_parseAbiParameters3, init_exports3, init_getAction3, init_formatAbiItem22, init_isHex3, init_size3, version22, init_version22, errorConfig3, BaseError22, init_base4, AbiConstructorNotFoundError3, AbiConstructorParamsNotFoundError3, AbiDecodingDataSizeInvalidError3, AbiDecodingDataSizeTooSmallError3, AbiDecodingZeroDataError3, AbiEncodingArrayLengthMismatchError3, AbiEncodingBytesSizeMismatchError3, AbiEncodingLengthMismatchError3, AbiErrorInputsNotFoundError3, AbiErrorNotFoundError3, AbiErrorSignatureNotFoundError3, AbiEventSignatureEmptyTopicsError3, AbiEventSignatureNotFoundError3, AbiEventNotFoundError3, AbiFunctionNotFoundError3, AbiFunctionOutputsNotFoundError3, AbiFunctionSignatureNotFoundError3, AbiItemAmbiguityError3, BytesSizeMismatchError5, DecodeLogDataMismatch3, DecodeLogTopicsMismatch3, InvalidAbiEncodingTypeError3, InvalidAbiDecodingTypeError3, InvalidArrayError5, InvalidDefinitionTypeError3, UnsupportedPackedAbiType3, init_abi3, FilterTypeNotSupportedError3, init_log5, SliceOffsetOutOfBoundsError7, SizeExceedsPaddingSizeError7, InvalidBytesLengthError3, init_data3, init_pad3, IntegerOutOfRangeError5, InvalidBytesBooleanError5, InvalidHexBooleanError3, InvalidHexValueError5, SizeOverflowError7, init_encoding4, init_trim3, init_fromHex3, hexes8, encoder11, init_toHex3, encoder22, charCodeMap5, init_toBytes3, U32_MASK643, _32n3, shrSH2, shrSL2, rotrSH2, rotrSL2, rotrBH2, rotrBL2, rotlSH3, rotlSL3, rotlBH3, rotlBL3, add3L2, add3H2, add4L2, add4H2, add5L2, add5H2, init_u643, crypto22, init_cryptoNode3, isLE4, swap32IfBE3, Hash4, init_utils22, _0n15, _1n15, _2n11, _7n3, _256n3, _0x71n3, SHA3_PI3, SHA3_ROTL3, _SHA3_IOTA3, IOTAS3, SHA3_IOTA_H3, SHA3_IOTA_L3, rotlH3, rotlL3, Keccak3, gen3, keccak_2563, init_sha33, init_keccak2563, hash8, init_hashSignature3, init_normalizeSignature3, toSignature3, init_toSignature3, init_toSignatureHash3, toEventSelector3, init_toEventSelector3, InvalidAddressError5, init_address5, LruMap5, init_lru5, checksumAddressCache3, init_getAddress3, addressRegex5, isAddressCache3, init_isAddress3, init_concat4, init_slice3, arrayRegex5, bytesRegex22, integerRegex22, init_regex22, init_encodeAbiParameters3, toFunctionSelector3, init_toFunctionSelector3, init_getAbiItem3, docsPath17, init_encodeEventTopics3, init_createFilterRequestScope3, init_createContractEventFilter3, init_parseAccount3, docsPath22, init_prepareEncodeFunctionData3, init_encodeFunctionData3, panicReasons3, solidityError3, solidityPanic3, init_solidity3, NegativeOffsetError5, PositionOutOfBoundsError5, RecursiveReadLimitExceededError5, init_cursor7, staticCursor5, init_cursor22, init_fromBytes3, sizeOfLength5, sizeOfOffset5, init_decodeAbiParameters3, init_decodeErrorResult3, stringify5, init_stringify3, init_formatAbiItemWithArgs3, etherUnits3, gweiUnits3, weiUnits3, init_unit5, init_formatUnits3, init_formatEther3, init_formatGwei3, AccountStateConflictError3, StateAssignmentConflictError3, init_stateOverride5, FeeConflictError3, InvalidLegacyVError3, InvalidSerializableTransactionError3, InvalidSerializedTransactionTypeError3, InvalidSerializedTransactionError3, InvalidStorageKeySizeError4, TransactionExecutionError3, TransactionNotFoundError3, TransactionReceiptNotFoundError3, TransactionReceiptRevertedError3, WaitForTransactionReceiptTimeoutError3, init_transaction6, getContractAddress5, getUrl3, init_utils32, CallExecutionError3, ContractFunctionExecutionError3, ContractFunctionRevertedError3, ContractFunctionZeroDataError3, CounterfactualDeploymentFailedError3, RawContractError3, init_contract5, HttpRequestError3, WebSocketRequestError3, RpcRequestError3, SocketClosedError3, TimeoutError3, init_request3, unknownErrorCode3, RpcError3, ProviderRpcError5, ParseRpcError3, InvalidRequestRpcError3, MethodNotFoundRpcError3, InvalidParamsRpcError3, InternalRpcError3, InvalidInputRpcError3, ResourceNotFoundRpcError3, ResourceUnavailableRpcError3, TransactionRejectedRpcError3, MethodNotSupportedRpcError3, LimitExceededRpcError3, JsonRpcVersionUnsupportedError3, UserRejectedRequestError3, UnauthorizedProviderError3, UnsupportedProviderMethodError3, ProviderDisconnectedError3, ChainDisconnectedError3, SwitchChainError3, UnsupportedNonOptionalCapabilityError3, UnsupportedChainIdError3, DuplicateIdError3, UnknownBundleIdError3, BundleTooLargeError3, AtomicReadyWalletRejectedUpgradeError3, AtomicityNotSupportedError3, WalletConnectSessionSettlementError3, UnknownRpcError3, init_rpc3, EXECUTION_REVERTED_ERROR_CODE3, init_getContractError3, init_publicKeyToAddress3, HashMD3, SHA256_IV3, SHA384_IV3, SHA512_IV3, init_md3, SHA256_K3, SHA256_W3, SHA2563, K5122, SHA512_Kh2, SHA512_Kl2, SHA512_W_H2, SHA512_W_L2, SHA5122, SHA3842, sha25616, sha5123, sha3843, init_sha23, HMAC3, hmac3, init_hmac3, _0n22, _1n22, hasHexBuiltin4, hexes22, asciis4, isPosBig3, bitMask3, u8n3, u8fr3, validatorFns3, init_utils42, _0n32, _1n32, _2n22, _3n6, _4n5, _5n4, _8n4, FIELD_FIELDS3, init_modular3, _0n42, _1n42, pointPrecomputes3, pointWindowSizes3, init_curve3, DERErr3, DER3, _0n52, _1n52, _2n32, _3n22, _4n22, init_weierstrass3, init_shortw_utils3, os2ip3, init_hash_to_curve3, secp256k1_exports3, secp256k1P3, secp256k1N3, _0n62, _1n62, _2n42, divNearest3, Fpk13, secp256k13, TAGGED_HASH_PREFIXES3, pointToBytes3, numTo32b3, modP3, modN3, Point4, GmulAdd3, num4, schnorr3, isoMap3, mapSWU3, secp256k1_hasher3, hashToCurve3, encodeToCurve3, init_secp256k13, init_recoverPublicKey3, init_recoverAddress3, init_toRlp3, init_hashAuthorization3, init_recoverAuthorizationAddress3, EstimateGasExecutionError3, init_estimateGas6, ExecutionRevertedError3, FeeCapTooHighError4, FeeCapTooLowError3, NonceTooHighError3, NonceTooLowError3, NonceMaxValueError3, InsufficientFundsError3, IntrinsicGasTooHighError3, IntrinsicGasTooLowError3, TransactionTypeNotSupportedError3, TipAboveFeeCapError4, UnknownNodeError3, init_node3, init_getNodeError3, init_getEstimateGasError3, init_extract3, init_formatter3, rpcTransactionType3, defineTransactionRequest3, init_transactionRequest3, init_stateOverride22, maxInt85, maxInt165, maxInt245, maxInt325, maxInt405, maxInt485, maxInt565, maxInt645, maxInt725, maxInt805, maxInt885, maxInt965, maxInt1045, maxInt1125, maxInt1205, maxInt1285, maxInt1365, maxInt1445, maxInt1525, maxInt1605, maxInt1685, maxInt1765, maxInt1845, maxInt1925, maxInt2005, maxInt2085, maxInt2165, maxInt2245, maxInt2325, maxInt2405, maxInt2485, maxInt2565, minInt85, minInt165, minInt245, minInt325, minInt405, minInt485, minInt565, minInt645, minInt725, minInt805, minInt885, minInt965, minInt1045, minInt1125, minInt1205, minInt1285, minInt1365, minInt1445, minInt1525, minInt1605, minInt1685, minInt1765, minInt1845, minInt1925, minInt2005, minInt2085, minInt2165, minInt2245, minInt2325, minInt2405, minInt2485, minInt2565, maxUint85, maxUint165, maxUint245, maxUint325, maxUint405, maxUint485, maxUint565, maxUint645, maxUint725, maxUint805, maxUint885, maxUint965, maxUint1045, maxUint1125, maxUint1205, maxUint1285, maxUint1365, maxUint1445, maxUint1525, maxUint1605, maxUint1685, maxUint1765, maxUint1845, maxUint1925, maxUint2005, maxUint2085, maxUint2165, maxUint2245, maxUint2325, maxUint2405, maxUint2485, maxUint2565, init_number4, init_assertRequest3, BaseFeeScalarError3, Eip1559FeesNotSupportedError3, MaxFeePerGasTooLowError3, init_fee3, BlockNotFoundError3, init_block5, transactionType3, defineTransaction3, init_transaction22, defineBlock3, init_block22, init_getBlock3, init_getGasPrice3, init_estimateMaxPriorityFeePerGas3, init_estimateFeesPerGas3, init_formatBlockParameter3, init_getTransactionCount3, init_blobsToCommitments3, init_blobsToProofs3, sha25622, init_sha2565, init_sha25622, init_commitmentToVersionedHash3, init_commitmentsToVersionedHashes3, blobsPerTransaction3, bytesPerFieldElement3, fieldElementsPerBlob3, bytesPerBlob3, maxBytesPerTransaction3, init_blob5, versionedHashVersionKzg3, init_kzg3, BlobSizeTooLargeError3, EmptyBlobError3, InvalidVersionedHashSizeError3, InvalidVersionedHashVersionError3, init_blob22, init_toBlobs3, init_toBlobSidecars3, init_getTransactionType3, init_getTransactionError3, init_getChainId3, init_fillTransaction3, defaultParameters3, eip1559NetworkCache3, supportsFillTransaction3, init_prepareTransactionRequest3, init_estimateGas22, init_estimateContractGas3, init_isAddressEqual3, init_log22, docsPath32, init_decodeEventLog3, init_parseEventLogs3, init_getLogs3, init_getContractEvents3, docsPath42, init_decodeFunctionResult3, version32, init_version32, init_errors22, BaseError32, init_Errors3, charCodeMap22, init_bytes6, init_hex4, bigIntSuffix3, init_Json3, decoder4, encoder32, InvalidBytesBooleanError22, InvalidBytesTypeError3, SizeOverflowError22, SliceOffsetOutOfBoundsError22, SizeExceedsPaddingSizeError22, init_Bytes3, encoder42, hexes32, IntegerOutOfRangeError22, InvalidHexTypeError3, InvalidHexValueError22, InvalidLengthError3, SizeOverflowError32, SliceOffsetOutOfBoundsError32, SizeExceedsPaddingSizeError32, init_Hex3, init_Withdrawal3, init_BlockOverrides3, multicall3Abi3, batchGatewayAbi3, universalResolverErrors3, universalResolverResolveAbi3, universalResolverReverseAbi3, textResolverAbi3, addressResolverAbi3, erc1271Abi3, erc6492SignatureValidatorAbi3, erc20Abi3, erc20Abi_bytes323, erc1155Abi3, erc721Abi3, erc4626Abi3, init_abis3, aggregate3Signature3, init_contract22, deploylessCallViaBytecodeBytecode3, deploylessCallViaFactoryBytecode3, erc6492SignatureValidatorByteCode3, multicall3Bytecode3, init_contracts4, ChainDoesNotSupportContract3, ChainMismatchError3, ChainNotFoundError3, ClientChainNotConfiguredError3, InvalidChainIdError4, init_chain3, docsPath52, init_encodeDeployData3, init_getChainContractAddress3, init_getCallError3, init_withResolvers3, schedulerCache3, init_createBatchScheduler3, OffchainLookupError3, OffchainLookupResponseMalformedError3, OffchainLookupSenderMismatchError3, init_ccip5, init_decodeFunctionData3, docsPath62, init_encodeErrorResult3, docsPath72, init_encodeFunctionResult3, localBatchGatewayUrl3, init_localBatchGatewayRequest3, ccip_exports3, offchainLookupSignature3, offchainLookupAbiItem3, init_ccip22, requestOptionsId3, requestOptionsIds3, init_call3, init_readContract3, init_simulateContract3, listenersCache3, cleanupCache3, callbackCount3, init_observe3, init_wait3, init_poll3, promiseCache5, responseCache3, init_withCache3, cacheKey4, init_getBlockNumber3, init_getFilterChanges3, init_uninstallFilter3, init_watchContractEvent3, AccountNotFoundError3, AccountTypeNotSupportedError3, init_account3, init_assertCurrentChain3, init_sendRawTransaction3, supportsWalletNamespace5, init_sendTransaction3, init_writeContract3, init_getContract3, BundleFailedError3, init_calls3, init_withRetry3, receiptStatuses3, defineTransactionReceipt3, init_transactionReceipt3, fallbackMagicIdentifier3, fallbackTransactionErrorMagicIdentifier3, init_sendCalls3, init_getCallsStatus3, WaitForCallsStatusTimeoutError3, init_waitForCallsStatus3, size42, index3, buffer3, init_uid3, init_createClient3, init_errors32, init_encodedLabelToLabelhash3, init_namehash3, init_encodeLabelhash3, init_labelhash3, init_packetToBytes3, init_getEnsAddress3, EnsAvatarInvalidMetadataError3, EnsAvatarInvalidNftUriError3, EnsAvatarUriResolutionError3, EnsAvatarUnsupportedNamespaceError3, EnsInvalidChainIdError3, init_ens3, networkRegex3, ipfsHashRegex3, base64Regex3, dataURIRegex3, init_utils52, init_parseAvatarRecord3, init_getEnsText3, init_getEnsAvatar3, init_getEnsName3, init_getEnsResolver3, init_createAccessList3, init_createBlockFilter3, init_createEventFilter3, init_createPendingTransactionFilter3, init_getBalance4, init_getBlobBaseFee3, init_getBlockReceipts3, init_getBlockTransactionCount3, init_getCode3, init_getDelegation3, Eip712DomainNotFoundError3, init_eip7123, abi3, init_getEip712Domain4, init_feeHistory3, init_getFeeHistory3, init_getFilterLogs3, init_encodePacked3, init_isBytes3, init_getContractAddress3, init_assertTransaction3, init_serializeAccessList3, init_serializeTransaction3, init_serializeAuthorizationList3, init_verifyAuthorization3, promiseCache22, init_withDedupe3, init_buildRequest3, init_ccipTunnel3, init_defineChain3, init_extractChain3, init_fromRlp3, init_isHash3, Rho1603, Id1603, Pi1603, idxLR3, idxL3, idxR3, shifts1603, shiftsL1603, shiftsR1603, Kl1603, Kr1603, BUF_1603, RIPEMD1603, ripemd1607, init_legacy3, ripemd16022, init_ripemd1605, init_ripemd16022, init_toEventHash3, init_toEventSignature3, init_toFunctionHash3, init_toFunctionSignature3, nonceManager3, init_nonceManager3, init_withTimeout3, idCache3, init_id3, init_http5, socketClientCache3, init_socket3, require_constants3, require_buffer_util3, require_limiter3, require_permessage_deflate3, require_validation3, require_receiver3, require_sender3, require_event_target3, require_extension4, require_websocket3, require_stream3, require_subprotocol3, require_websocket_server3, wrapper_exports3, import_stream3, import_extension5, import_permessage_deflate3, import_receiver3, import_sender3, import_subprotocol3, import_websocket3, import_websocket_server3, wrapper_default3, init_wrapper3, init_utils62, esm_exports8, WebSocket32, init_esm11, init_webSocket5, init_compat3, presignMessagePrefix3, init_strings3, init_toPrefixedMessage3, init_hashMessage3, InvalidDomainError3, InvalidPrimaryTypeError3, InvalidStructTypeError3, init_typedData5, init_typedData22, init_hashTypedData3, erc6492MagicBytes3, zeroHash3, init_bytes22, init_isErc6492Signature3, LruMap22, init_lru22, caches3, checksum6, init_Caches3, init_Hash3, InvalidError3, InvalidPrefixError4, InvalidCompressedPrefixError3, InvalidUncompressedPrefixError3, InvalidSerializedSizeError5, init_PublicKey3, addressRegex22, InvalidAddressError22, InvalidInputError3, InvalidChecksumError3, init_Address3, arrayRegex22, bytesRegex32, integerRegex32, maxInt822, maxInt1622, maxInt2422, maxInt3222, maxInt4022, maxInt4822, maxInt5622, maxInt6422, maxInt7222, maxInt8022, maxInt8822, maxInt9622, maxInt10422, maxInt11222, maxInt12022, maxInt12822, maxInt13622, maxInt14422, maxInt15222, maxInt16022, maxInt16822, maxInt17622, maxInt18422, maxInt19222, maxInt20022, maxInt20822, maxInt21622, maxInt22422, maxInt23222, maxInt24022, maxInt24822, maxInt25622, minInt822, minInt1622, minInt2422, minInt3222, minInt4022, minInt4822, minInt5622, minInt6422, minInt7222, minInt8022, minInt8822, minInt9622, minInt10422, minInt11222, minInt12022, minInt12822, minInt13622, minInt14422, minInt15222, minInt16022, minInt16822, minInt17622, minInt18422, minInt19222, minInt20022, minInt20822, minInt21622, minInt22422, minInt23222, minInt24022, minInt24822, minInt25622, maxUint822, maxUint1622, maxUint2422, maxUint3222, maxUint4022, maxUint4822, maxUint5622, maxUint6422, maxUint7222, maxUint8022, maxUint8822, maxUint9622, maxUint10422, maxUint11222, maxUint12022, maxUint12822, maxUint13622, maxUint14422, maxUint15222, maxUint16022, maxUint16822, maxUint17622, maxUint18422, maxUint19222, maxUint20022, maxUint20822, maxUint21622, maxUint22422, maxUint23222, maxUint24022, maxUint24822, maxUint25622, init_Solidity3, sizeOfLength22, sizeOfOffset22, init_abiParameters3, staticCursor22, NegativeOffsetError22, PositionOutOfBoundsError22, RecursiveReadLimitExceededError22, init_cursor32, DataSizeTooSmallError3, ZeroDataError3, ArrayLengthMismatchError3, BytesSizeMismatchError22, LengthMismatchError3, InvalidArrayError22, InvalidTypeError3, init_AbiParameters3, init_Rlp3, InvalidSerializedSizeError22, MissingPropertiesError4, InvalidRError3, InvalidSError3, InvalidYParityError4, InvalidVError3, init_Signature3, init_Authorization3, init_Secp256k13, SignatureErc8010_exports3, magicBytes6, suffixParameters3, InvalidWrappedSignatureError5, init_SignatureErc80103, init_erc80103, init_isErc8010Signature3, init_parseErc6492Signature3, init_parseErc8010Signature3, init_recoverMessageAddress3, init_recoverTypedDataAddress3, init_serializeErc6492Signature3, init_serializeErc8010Signature3, init_verifyHash5, init_verifyMessage5, init_verifyTypedData5, init_getSerializedTransactionType3, init_parseTransaction3, InvalidDecimalNumberError3, init_unit22, init_parseUnits3, init_parseEther3, init_parseGwei3, init_utils72, init_proof3, init_getProof3, init_getStorageAt3, init_getTransaction3, init_getTransactionConfirmations3, init_getTransactionReceipt3, init_multicall3, init_simulateBlocks3, init_abiItem22, AmbiguityError3, NotFoundError3, init_AbiItem3, init_AbiConstructor3, init_AbiFunction3, ethAddress3, zeroAddress3, init_address22, getBalanceCode3, init_simulateCalls3, SignatureErc6492_exports3, magicBytes22, universalSignatureValidatorBytecode3, universalSignatureValidatorAbi3, InvalidWrappedSignatureError22, init_SignatureErc64923, init_erc64923, init_serializeSignature3, VerificationError4, init_verifyHash22, init_verifyMessage22, init_verifyTypedData22, init_watchBlockNumber3, init_waitForTransactionReceipt3, init_watchBlocks3, init_watchEvent3, init_watchPendingTransactions3, prefixRegex3, suffixRegex3, init_parseSiweMessage3, init_validateSiweMessage3, init_verifySiweMessage3, init_sendRawTransactionSync3, init_public3, init_createPublicClient3, init_dropTransaction3, init_dumpState3, init_getAutomine3, init_getTxpoolContent3, init_getTxpoolStatus3, init_impersonateAccount3, init_increaseTime3, init_inspectTxpool3, init_loadState3, init_mine3, init_removeBlockTimestampInterval3, init_reset3, init_revert3, init_sendUnsignedTransaction3, init_setAutomine3, init_setBalance3, init_setBlockGasLimit3, init_setBlockTimestampInterval3, init_setCode3, init_setCoinbase3, init_setIntervalMining3, init_setLoggingEnabled3, init_setMinGasPrice3, init_setNextBlockBaseFeePerGas3, init_setNextBlockTimestamp3, init_setNonce3, init_setRpcUrl3, init_setStorageAt3, init_snapshot3, init_stopImpersonatingAccount3, init_test3, init_createTestClient3, init_addChain3, init_deployContract3, init_getAddresses3, init_getCapabilities3, init_getPermissions3, init_prepareAuthorization3, init_requestAddresses3, init_requestPermissions3, init_sendCallsSync3, supportsWalletNamespace22, init_sendTransactionSync3, init_showCallsStatus3, init_signAuthorization4, init_signMessage4, init_signTransaction4, init_signTypedData4, init_switchChain3, init_watchAsset3, init_writeContractSync3, init_wallet3, init_createWalletClient3, init_createTransport3, init_custom3, init_fallback3, UrlRequiredError3, init_transport3, signalId3, signalIds3, init_http22, init_webSocket22, ProviderRpcError22, init_eip11933, docsPath82, init_decodeDeployData3, init_fromBlobs3, init_sidecarsToVersionedHashes3, SLIP44_MSB3, init_toCoinType3, init_defineKzg3, init_setupKzg3, init_compactSignatureToSignature3, init_parseCompactSignature3, init_parseSignature3, init_recoverTransactionAddress3, init_serializeCompactSignature3, init_signatureToCompactSignature3, esm_exports22, init_esm22, zeroG2, init_g2, zeroGGalileoTestnet2, init_gGalileoTestnet2, zeroGMainnet2, init_gMainnet2, zeroGTestnet2, init_gTestnet2, fireChain2, init_ireChain2, abey2, init_abey2, gasPerPubdataDefault2, maxBytecodeSize2, init_number22, formatters4, init_formatters4, InvalidEip712TransactionError2, init_transaction32, init_isEip712Transaction2, init_assertEip712Transaction2, serializers4, init_serializers4, BytecodeLengthExceedsMaxSizeError2, BytecodeLengthInWordsMustBeOddError2, BytecodeLengthMustBeDivisibleBy32Error2, init_bytecode2, init_hashBytecode2, getEip712Domain22, init_getEip712Domain22, chainConfig6, init_chainConfig6, abstract2, init_abstract2, abstractTestnet2, init_abstractTestnet2, acala2, init_acala2, acria2, init_acria2, adf2, init_adf2, adi2, init_adi2, agungTestnet2, init_agungTestnet2, aioz2, init_aioz2, alephZero2, init_alephZero2, alephZeroTestnet2, init_alephZeroTestnet2, alienx2, init_alienX2, alienxHalTestnet2, init_alienXHalTestnet2, alpenTestnet2, init_alpenTestnet2, contracts2, init_contracts22, formatters22, init_formatters22, serializers22, init_serializers22, chainConfig22, init_chainConfig22, sourceId70, ancient82, init_ancient82, sourceId210, ancient8Sepolia2, init_ancient8Sepolia2, anvil2, init_anvil2, sourceId310, apeChain2, init_apeChain2, apexTestnet2, init_apexTestnet2, apollo2, init_apollo2, arbitrum2, init_arbitrum2, arbitrumGoerli2, init_arbitrumGoerli2, arbitrumNova2, init_arbitrumNova2, arbitrumSepolia2, init_arbitrumSepolia2, arc2, init_arc2, arcTestnet2, init_arcTestnet2, arenaz2, init_arenaz2, areonNetwork2, init_areonNetwork2, areonNetworkTestnet2, init_areonNetworkTestnet2, areum2, init_areum2, artelaTestnet2, init_artelaTestnet2, arthera2, init_arthera2, artheraTestnet2, init_artheraTestnet2, assetChain2, init_assetChain2, assetChainTestnet2, init_assetChainTestnet2, astar2, init_astar2, astarZkEVM2, init_astarZkEVM2, astarZkyoto2, init_astarZkyoto2, atletaOlympia2, init_atletaOlympia2, aurora2, init_aurora2, auroraTestnet2, init_auroraTestnet2, auroria2, init_auroria2, autheoTestnet2, init_autheoTestnet2, avalanche2, init_avalanche2, avalancheFuji2, init_avalancheFuji2, sourceId410, b33, init_b32, sourceId510, b3Sepolia2, init_b3Sepolia2, bahamut2, init_bahamut2, sourceId610, base2, basePreconf2, init_base22, basecampTestnet2, init_basecampTestnet2, sourceId72, baseGoerli2, init_baseGoerli2, sourceId82, baseSepolia2, baseSepoliaPreconf2, init_baseSepolia2, battlechainTestnet2, init_battlechainTestnet2, beam2, init_beam2, beamTestnet2, init_beamTestnet2, bearNetworkChainMainnet2, init_bearNetworkChainMainnet2, bearNetworkChainTestnet2, init_bearNetworkChainTestnet2, berachain2, init_berachain2, berachainBepolia2, init_berachainBepolia2, berachainTestnet2, init_berachainTestnet2, berachainTestnetbArtio2, init_berachainTestnetbArtio2, bevmMainnet2, init_bevmMainnet2, bifrost2, init_bifrost2, birdlayer2, init_birdlayer2, bitgert2, init_bitgert2, bitkub2, init_bitkub2, bitkubTestnet2, init_bitkubTestnet2, bitlayer2, init_bitlayer2, bitlayerTestnet2, init_bitlayerTestnet2, bitrock2, init_bitrock2, bitTorrent2, init_bitTorrent2, bitTorrentTestnet2, init_bitTorrentTestnet2, sourceId92, blast2, init_blast2, sourceId102, blastSepolia2, init_blastSepolia2, sourceId112, bob2, init_bob2, boba2, init_boba2, bobaSepolia2, init_bobaSepolia2, sourceId122, bobSepolia2, init_bobSepolia2, boolBetaMainnet2, init_boolBetaMainnet2, botanix2, init_botanix2, botanixTestnet2, init_botanixTestnet2, bounceBit2, init_bounceBit2, bounceBitTestnet2, init_bounceBitTestnet2, bronos2, init_bronos2, bronosTestnet2, init_bronosTestnet2, bsc2, init_bsc2, bscGreenfield2, init_bscGreenfield2, bscTestnet2, init_bscTestnet2, bsquared2, init_bsquared2, bsquaredTestnet2, init_bsquaredTestnet2, btr2, init_btr2, btrTestnet2, init_btrTestnet2, bxn2, init_bxn2, bxnTestnet2, init_bxnTestnet2, cannon2, init_cannon2, canto2, init_canto2, fees2, init_fees2, init_utils82, formatters32, init_formatters32, serializers32, MAX_MAX_FEE_PER_GAS2, init_serializers32, chainConfig32, init_chainConfig32, celo2, init_celo2, sourceId132, celoAlfajores2, init_celoAlfajores2, sourceId142, celoSepolia2, init_celoSepolia2, chang2, init_chang2, chiliz2, init_chiliz2, chips2, init_chips2, citrate2, init_citrate2, citrea2, init_citrea2, citreaTestnet2, init_citreaTestnet2, classic2, init_classic2, sourceId152, codex2, init_codex2, sourceId162, codexTestnet2, init_codexTestnet2, coinbit2, init_coinbit2, coinex2, init_coinex2, confluxESpace2, init_confluxESpace2, confluxESpaceTestnet2, init_confluxESpaceTestnet2, coreDao2, init_coreDao2, coreTestnet12, init_coreTestnet12, coreTestnet22, init_coreTestnet22, sourceId172, corn2, init_corn2, sourceId182, cornTestnet2, init_cornTestnet2, cpchain2, init_cpchain2, crab2, init_crab2, creatorTestnet2, init_creatorTestnet2, creditCoin3Devnet2, init_creditCoin3Devnet2, creditCoin3Mainnet2, init_creditCoin3Mainnet2, creditCoin3Testnet2, init_creditCoin3Testnet2, cronos2, init_cronos2, cronosTestnet2, init_cronosTestnet2, cronoszkEVM2, init_cronoszkEVM2, cronoszkEVMTestnet2, init_cronoszkEVMTestnet2, crossbell2, init_crossbell2, crossfi2, init_crossfi2, curtis2, init_curtis2, cyber2, init_cyber2, cyberTestnet2, init_cyberTestnet2, dailyNetwork2, init_dailyNetwork2, dailyNetworkTestnet2, init_dailyNetworkTestnet2, darwinia2, init_darwinia2, datahavenTestnet2, init_datahavenTestnet2, dbkchain2, init_dbkchain2, dchain2, init_dchain2, dchainTestnet2, init_dchainTestnet2, defichainEvm2, init_defichainEvm2, defichainEvmTestnet2, init_defichainEvmTestnet2, degen2, init_degen2, dfk2, init_dfk2, diode2, init_diode2, disChain2, init_disChain2, dodochainTestnet2, init_dodochainTestnet2, dogechain2, init_dogechain2, domaTestnet2, init_domaTestnet2, donatuz2, init_donatuz2, dosChain2, init_dosChain2, dosChainTestnet2, init_dosChainTestnet2, dreyerxMainnet2, init_dreyerxMainnet2, init_utils92, dreyerxTestnet2, init_dreyerxTestnet2, dustboyIoT2, init_dustboyIoT2, dymension2, init_dymension2, eden2, init_eden2, edexa2, init_edexa2, edexaTestnet2, init_edexaTestnet2, edgeless2, init_edgeless2, edgelessTestnet2, init_edgelessTestnet2, edgeware2, init_edgeware2, edgewareTestnet2, init_edgewareTestnet2, eduChain2, init_eduChain2, eduChainTestnet2, init_eduChainTestnet2, elastos2, init_elastos2, elastosTestnet2, init_elastosTestnet2, electroneum2, init_electroneum2, electroneumTestnet2, init_electroneumTestnet2, elysiumTestnet2, init_elysiumTestnet2, energy2, init_energy2, eni2, init_eni2, eniTestnet2, init_eniTestnet2, enuls2, init_enuls2, eon2, init_eon2, eos2, init_eos2, eosTestnet2, init_eosTestnet2, eteria2, init_eteria2, etherlink2, init_etherlink2, etherlinkShadownetTestnet2, init_etherlinkShadownetTestnet2, etherlinkTestnet2, init_etherlinkTestnet2, ethernity2, init_ethernity2, etp2, init_etp2, evmos2, init_evmos2, evmosTestnet2, init_evmosTestnet2, excelonMainnet2, init_excelonMainnet2, expanse2, init_expanse2, exsat2, init_exSat2, exsatTestnet2, init_exSatTestnet2, fantom2, init_fantom2, fantomSonicTestnet2, init_fantomSonicTestnet2, fantomTestnet2, init_fantomTestnet2, fibo2, init_fibo2, filecoin2, init_filecoin2, filecoinCalibration2, init_filecoinCalibration2, filecoinHyperspace2, init_filecoinHyperspace2, flame2, init_flame2, flare2, init_flare2, flareTestnet2, init_flareTestnet2, flowMainnet2, init_flowMainnet2, flowPreviewnet2, init_flowPreviewnet2, flowTestnet2, init_flowTestnet2, fluence2, init_fluence2, fluenceStage2, init_fluenceStage2, fluenceTestnet2, init_fluenceTestnet2, fluent2, init_fluent2, fluentDevnet2, init_fluentDevnet2, fluentTestnet2, init_fluentTestnet2, sourceId192, form2, init_form2, forma2, init_forma2, sourceId202, formTestnet2, init_formTestnet2, forta2, init_forta2, foundry2, init_foundry2, sourceId212, fraxtal2, init_fraxtal2, sourceId222, fraxtalTestnet2, init_fraxtalTestnet2, sourceId232, funkiMainnet2, init_funkiMainnet2, sourceId242, funkiSepolia2, init_funkiSepolia2, fuse2, init_fuse2, fuseSparknet2, init_fuseSparknet2, fusion2, init_fusion2, fusionTestnet2, init_fusionTestnet2, sourceId252, garnet2, init_garnet2, gatechain2, init_gatechain2, geist2, init_geist2, genesys2, init_genesys2, gensyn2, init_gensyn2, sourceId262, giwaSepolia2, giwaSepoliaPreconf2, init_giwaSepolia2, glideL1Protocol2, init_glideL1Protocol2, glideL2Protocol2, init_glideL2Protocol2, gnosis2, init_gnosis2, gnosisChiado2, init_gnosisChiado2, goat2, init_goat2, gobi2, init_gobi2, goChain2, init_goChain2, godwoken2, init_godwoken2, goerli2, init_goerli2, graphite2, init_graphite2, graphiteTestnet2, init_graphiteTestnet2, grav2, init_grav2, gravity2, init_gravity2, gunz2, init_gunz2, guruNetwork2, init_guruNetwork2, guruTestnet2, init_guruTestnet2, ham2, init_ham2, happychainTestnet2, init_happychainTestnet2, haqqMainnet2, init_haqqMainnet2, haqqTestedge22, init_haqqTestedge22, hardhat2, init_hardhat2, harmonyOne2, init_harmonyOne2, hashkey2, init_hashKeyChain2, hashkeyTestnet2, init_hashkeyChainTestnet2, haustTestnet2, init_haustTestnet2, hedera2, init_hedera2, hederaPreviewnet2, init_hederaPreviewnet2, hederaTestnet2, init_hederaTestnet2, hela2, init_hela2, heliosTestnet2, init_heliosTestnet2, hemi2, init_hemi2, hemiSepolia2, init_hemiSepolia2, henesys2, init_henesys2, holesky2, init_holesky2, hoodi2, init_hoodi2, horizenTestnet2, init_horizenTestnet2, hpb2, init_hpb2, hpp2, init_hpp2, hppSepolia2, init_hppSepolia2, sourceId272, huddle01Mainnet2, init_huddle01Mainnet2, sourceId282, huddle01Testnet2, init_huddle01Testnet2, humanity2, init_humanity2, humanityTestnet2, init_humanityTestnet2, humanode2, init_humanode2, humanodeTestnet52, init_humanodeTestnet52, hychain2, init_hychain2, hychainTestnet2, init_hychainTestnet2, hyperEvm2, init_hyperEvm2, hyperliquidEvmTestnet2, init_hyperliquidEvmTestnet2, icbNetwork2, init_icbNetwork2, idchain2, init_idchain2, igra2, init_igra2, immutableZkEvm2, init_immutableZkEvm2, immutableZkEvmTestnet2, init_immutableZkEvmTestnet2, inEVM2, init_inEVM2, initVerse2, init_initVerse2, initVerseGenesis2, init_initVerseGenesis2, injective2, init_injective2, injectiveTestnet2, init_injectiveTestnet2, sourceId292, ink2, init_ink2, sourceId302, inkSepolia2, init_inkSepolia2, iota2, init_iota2, iotaTestnet2, init_iotaTestnet2, iotex2, init_iotex2, iotexTestnet2, init_iotexTestnet2, iSunCoin2, init_iSunCoin2, jasmyChain2, init_jasmyChain2, jasmyChainTestnet2, init_jasmyChainTestnet2, jbc2, init_jbc2, jbcTestnet2, init_jbcTestnet2, jocMainnet2, init_jocMainnet2, jocTestnet2, init_jocTestnet2, jovay2, init_jovay2, jovaySepolia2, init_jovaySepolia2, juneo2, init_juneo2, juneoBCH1Chain2, init_juneoBCH1Chain2, juneoDAI1Chain2, init_juneoDAI1Chain2, juneoDOGE1Chain2, init_juneoDOGE1Chain2, juneoEUR1Chain2, init_juneoEUR1Chain2, juneoGLD1Chain2, init_juneoGLD1Chain2, juneoLINK1Chain2, init_juneoLINK1Chain2, juneoLTC1Chain2, init_juneoLTC1Chain2, juneomBTC1Chain2, init_juneomBTC1Chain2, juneoSGD1Chain2, init_juneoSGD1Chain2, juneoSocotraTestnet2, init_juneoSocotraTestnet2, juneoUSD1Chain2, init_juneoUSD1Chain2, juneoUSDT1Chain2, init_juneoUSDT1Chain2, kaia2, init_kaia2, kairos2, init_kairos2, kakarotSepolia2, init_kakarotSepolia2, kakarotStarknetSepolia2, init_kakarotStarknetSepolia2, kardiaChain2, init_kardiaChain2, karura2, init_karura2, katana2, init_katana2, kava2, init_kava2, kavaTestnet2, init_kavaTestnet2, kcc2, init_kcc2, kii2, init_kii2, kiiTestnetOro2, init_kiiTestnet2, kinto2, init_kinto2, klaytn2, init_klaytn2, klaytnBaobab2, init_klaytnBaobab2, koi2, init_koi2, kroma2, init_kroma2, kromaSepolia2, init_kromaSepolia2, krown2, init_krown2, l3x2, init_l3x2, l3xTestnet2, init_l3xTestnet2, ladyChain2, init_ladyChain2, lavita2, init_lavita2, lens2, init_lens2, lensTestnet2, init_lensTestnet2, lestnet2, init_lestnet2, lightlinkPegasus2, init_lightlinkPegasus2, lightlinkPhoenix2, init_lightlinkPhoenix2, init_estimateGas32, chainConfig42, init_chainConfig42, linea2, init_linea2, lineaGoerli2, init_lineaGoerli2, lineaSepolia2, init_lineaSepolia2, lineaTestnet2, init_lineaTestnet2, sourceId312, lisk2, init_lisk2, sourceId322, liskSepolia2, init_liskSepolia2, loadAlphanet2, init_loadAlphanet2, localhost2, init_localhost2, loop2, init_loop2, lukso2, init_lukso2, luksoTestnet2, init_luksoTestnet2, lumiaMainnet2, init_lumiaMainnet2, lumiaTestnet2, init_lumiaTestnet2, lumoz2, init_lumoz2, lumozTestnet2, init_lumozTestnet2, luxeports2, init_luxeports2, lycan2, init_lycan2, lyra2, init_lyra2, mainnet2, init_mainnet2, mandala2, init_mandala2, manta2, init_manta2, mantaSepoliaTestnet2, init_mantaSepoliaTestnet2, mantaTestnet2, init_mantaTestnet2, mantle2, init_mantle2, mantleSepoliaTestnet2, init_mantleSepoliaTestnet2, mantleTestnet2, init_mantleTestnet2, mantraDuKongEVMTestnet2, init_mantraDuKongEVMTestnet2, mantraEVM2, init_mantraEVM2, mapProtocol2, init_mapProtocol2, matchain2, init_matchain2, matchainTestnet2, init_matchainTestnet2, mchVerse2, init_mchVerse2, sourceId332, megaeth2, init_megaeth2, megaethTestnet2, init_megaethTestnet2, mekong2, init_mekong2, meld2, init_meld2, memecore2, init_memecore2, formicarium2, init_memecoreFormicariumTestnet2, merlin2, init_merlin2, merlinErigonTestnet2, init_merlinErigonTestnet2, metachain2, init_metachain2, metachainIstanbul2, init_metachainIstanbul2, metadium2, init_metadium2, sourceId342, metalL22, init_metalL22, meter2, init_meter2, meterTestnet2, init_meterTestnet2, metis2, init_metis2, metisGoerli2, init_metisGoerli2, metisSepolia2, init_metisSepolia2, mev2, init_mev2, mevTestnet2, init_mevTestnet2, mezo2, init_mezo2, mezoTestnet2, init_mezoTestnet2, mint2, init_mint2, mintSepoliaTestnet2, init_mintSepoliaTestnet2, mitosisTestnet2, init_mitosisTestnet2, mizuhikiTestnetAwaji2, init_mizuhikiTestnetAwaji2, sourceId352, mode2, init_mode2, sourceId362, modeTestnet2, init_modeTestnet2, monad2, init_monad2, monadTestnet2, init_monadTestnet2, moonbaseAlpha2, init_moonbaseAlpha2, moonbeam2, init_moonbeam2, moonbeamDev2, init_moonbeamDev2, moonriver2, init_moonriver2, morph2, init_morph2, morphHolesky2, init_morphHolesky2, morphSepolia2, init_morphSepolia2, nahmii2, init_nahmii2, nautilus2, init_nautilus2, near2, init_near2, nearTestnet2, init_nearTestnet2, neonDevnet2, init_neonDevnet2, neonMainnet2, init_neonMainnet2, neoxMainnet2, init_neoxMainnet2, neoxT42, init_neoxT42, newton2, init_newton2, nexi2, init_nexi2, nexilix2, init_nexilix2, nibiru2, init_nibiru2, nitrographTestnet2, init_nitrographTestnet2, nomina2, init_nomina2, oasisTestnet2, init_oasisTestnet2, oasys2, init_oasys2, odysseyTestnet2, init_odysseyTestnet2, okc2, init_okc2, omax2, init_omax2, omni2, init_omni2, omniOmega2, init_omniOmega2, oneWorld2, init_oneWorld2, oortMainnetDev2, init_oortmainnetDev2, sourceId372, opBNB2, init_opBNB2, sourceId382, opBNBTestnet2, init_opBNBTestnet2, openledger2, init_openledger2, sourceId392, optimism2, init_optimism2, sourceId402, optimismGoerli2, init_optimismGoerli2, sourceId412, optimismSepolia2, init_optimismSepolia2, optopia2, init_optopia2, optopiaTestnet2, init_optopiaTestnet2, orderly2, init_orderly2, orderlySepolia2, init_orderlySepolia2, otimDevnet2, init_otimDevnet2, palm2, init_palm2, palmTestnet2, init_palmTestnet2, paseoPassetHub2, init_paseoPassetHub2, peaq2, init_peaq2, sourceId422, pgn2, init_pgn2, sourceId432, pgnTestnet2, init_pgnTestnet2, phoenix2, init_phoenix2, planq2, init_planq2, plasma2, init_plasma2, plasmaDevnet2, init_plasmaDevnet2, plasmaTestnet2, init_plasmaTestnet2, playfiAlbireo2, init_playfiAlbireo2, plinga2, init_plinga2, sourceId442, plume2, init_plume2, sourceId452, plumeDevnet2, init_plumeDevnet2, sourceId462, plumeMainnet2, init_plumeMainnet2, sourceId472, plumeSepolia2, init_plumeSepolia2, sourceId482, plumeTestnet2, init_plumeTestnet2, polterTestnet2, init_polterTestnet2, polygon2, init_polygon2, polygonAmoy2, init_polygonAmoy2, polygonMumbai2, init_polygonMumbai2, polygonZkEvm2, init_polygonZkEvm2, polygonZkEvmCardona2, init_polygonZkEvmCardona2, polygonZkEvmTestnet2, init_polygonZkEvmTestnet2, polynomial2, init_polynomial2, polynomialSepolia2, init_polynomialSepolia2, potos2, init_potos2, potosTestnet2, init_potosTestnet2, premiumBlockTestnet2, init_premiumBlock2, pulsechain2, init_pulsechain2, pulsechainV42, init_pulsechainV42, pumpfiTestnet2, init_pumpfiTestnet2, sourceId492, pyrope2, init_pyrope2, ql12, init_ql12, qMainnet2, init_qMainnet2, qTestnet2, init_qTestnet2, quai2, init_quai2, quaiTestnet2, init_quaiTestnet2, radius2, init_radius2, radiusTestnet2, init_radiusTestnet2, reactiveTestnet2, init_reactiveTestnet2, real2, init_real2, redbellyMainnet2, init_redbellyMainnet2, redbellyTestnet2, init_redbellyTestnet2, reddio2, init_reddio2, reddioSepolia2, init_reddioSepolia2, sourceId502, redstone2, init_redstone2, rei2, init_rei2, reyaNetwork2, init_reyaNetwork2, rise2, init_rise2, riseTestnet2, init_riseTestnet2, rivalz2, init_rivalz2, rollux2, init_rollux2, rolluxTestnet2, init_rolluxTestnet2, ronin2, init_ronin2, root2, init_root2, rootPorcini2, init_rootPorcini2, rootstock2, init_rootstock2, rootstockTestnet2, init_rootstockTestnet2, sourceId512, rss32, init_rss32, sourceId522, rss3Sepolia2, init_rss3Sepolia2, saakuru2, init_saakuru2, saga2, init_saga2, saigon2, init_saigon2, sanko2, init_sanko2, sapphire2, init_sapphire2, sapphireTestnet2, init_sapphireTestnet2, satoshiVM2, init_satoshivm2, satoshiVMTestnet2, init_satoshivmTestnet2, scroll2, init_scroll2, scrollSepolia2, init_scrollSepolia2, sei2, init_sei2, seismicDevnet2, init_seismicDevnet2, seiTestnet2, init_seiTestnet2, sentrix2, init_sentrix2, sentrixTestnet2, init_sentrixTestnet2, sepolia2, init_sepolia2, sourceId532, shape2, init_shape2, sourceId542, shapeSepolia2, init_shapeSepolia2, shardeum2, init_shardeum2, shardeumSphinx2, init_shardeumSphinx2, shibarium2, init_shibarium2, shibariumTestnet2, init_shibariumTestnet2, shiden2, init_shiden2, shimmer2, init_shimmer2, shimmerTestnet2, init_shimmerTestnet2, sidraChain2, init_sidra2, silentData2, init_silentdata2, silicon2, init_silicon2, siliconSepolia2, init_siliconSepolia2, sixProtocol2, init_sixProtocol2, skaleBlockBrawlers2, init_brawl2, skaleCalypso2, init_calypso2, skaleCalypsoTestnet2, init_calypsoTestnet2, skaleCryptoBlades2, init_cryptoBlades2, skaleCryptoColosseum2, init_cryptoColosseum2, skaleEuropa2, init_europa2, skaleEuropaTestnet2, init_europaTestnet2, skaleExorde2, init_exorde2, skaleHumanProtocol2, init_humanProtocol2, skaleNebula2, init_nebula2, skaleNebulaTestnet2, init_nebulaTestnet2, skaleRazor2, init_razor2, skaleBase2, init_skaleBase2, skaleBaseSepoliaTestnet2, init_skaleBaseSepoliaTestnet2, skaleTitan2, init_titan2, skaleTitanTestnet2, init_titanTestnet2, sketchpad2, init_sketchpad2, sourceId552, snax2, init_snax2, sourceId562, snaxTestnet2, init_snaxTestnet2, somnia2, init_somnia2, somniaTestnet2, init_somniaTestnet2, sourceId572, soneium2, init_soneium2, sourceId582, soneiumMinato2, init_soneiumMinato2, songbird2, init_songbird2, songbirdTestnet2, init_songbirdTestnet2, sonic2, init_sonic2, sonicBlazeTestnet2, init_sonicBlazeTestnet2, sonicTestnet2, init_sonicTestnet2, sophon2, init_sophon2, sophonTestnet2, init_sophonTestnet2, sova2, init_sova2, sovaSepolia2, init_sovaSepolia2, spicy2, init_spicy2, stable3, init_stable2, stableTestnet2, init_stableTestnet2, statusSepolia2, init_statusNetworkSepolia2, step2, init_step2, story2, init_story2, storyAeneid2, init_storyAeneid2, storyOdyssey2, init_storyOdyssey2, storyTestnet2, init_storyTestnet2, stratis2, init_stratis2, subtensorEvm2, init_subtensorEvm2, superlumio2, init_superlumio2, superposition2, init_superposition2, sourceId592, superseed2, init_superseed2, sourceId602, superseedSepolia2, init_superseedSepolia2, surgeTestnet2, init_surgeTestnet2, swan2, init_swan2, swanProximaTestnet2, init_swanProximaTestnet2, swanSaturnTestnet2, init_swanSaturnTestnet2, swellchain2, init_swellchain2, swellchainTestnet2, init_swellchainTestnet2, swissdlt2, init_swissdlt2, syscoin2, init_syscoin2, syscoinTestnet2, init_syscoinTestnet2, tac2, init_tac2, tacSPB2, init_tacSPB2, taiko2, init_taiko2, taikoHekla2, init_taikoHekla2, taikoHoodi2, init_taikoHoodi2, taikoJolnir2, init_taikoJolnir2, taikoKatla2, init_taikoKatla2, taikoTestnetSepolia2, init_taikoTestnetSepolia2, taraxa2, init_taraxa2, taraxaTestnet2, init_taraxaTestnet2, teaSepolia2, init_teaSepolia2, telcoinTestnet2, init_telcoinTestnet2, telos2, init_telos2, telosTestnet2, init_telosTestnet2, Fp2562, p256_a2, p256_b2, p2562, Fp3842, p384_a2, p384_b2, p3842, Fp5212, p521_a2, p521_b2, p5212, init_nist2, secp256r12, init_p2562, init_P2562, encoder52, integerToCharacter2, characterToInteger2, init_Base642, init_Authentication2, init_WebAuthnP2562, MultisigConfig_exports2, maxOwners2, maxOwnerSignatureBytes2, signatureTypeByte2, zeroSalt2, accountDomain2, configDomain, signatureDomain2, InvalidConfigError2, init_MultisigConfig2, SignatureEnvelope_exports2, serializedP256Type2, serializedWebAuthnType2, serializedKeychainType2, serializedKeychainV2Type2, serializedMultisigType2, magicBytes32, types5, CoercionError2, MissingPropertiesError22, InvalidSerializedError3, VerificationError22, init_SignatureEnvelope2, InvalidPrefixError22, init_TempoAddress2, init_AuthorizationTempo2, tip20Prefix2, init_TokenId2, channelIdParameters2, domainSeparatorParameters2, voucherHashParameters2, eip712DomainTypehash2, nameHash2, versionHash2, voucherTypehash2, init_Channel2, KeyAuthorization_exports2, InvalidWitnessSizeError2, InvalidAdminMarkerError2, init_KeyAuthorization2, init_Period2, init_PoolId2, init_AbiEvent2, transferBlocked2, init_ReceivePolicyReceipt2, init_RpcSchemaTempo2, init_Tick2, init_TokenRole2, toRpcType5, fromRpcType5, init_Transaction4, Transaction_exports4, toRpcType22, fromRpcType22, init_Transaction22, fromRpcType32, toRpcType32, init_TransactionReceipt3, fromRpcType42, toRpcType42, init_TransactionReceipt22, init_TransactionRequest3, TransactionRequest_exports3, init_TransactionRequest22, InvalidStorageKeySizeError22, init_AccessList2, exponents2, init_Value2, FeeCapTooHighError22, InvalidChainIdError22, InvalidSerializedError22, TipAboveFeeCapError22, init_TxEnvelope2, TxEnvelopeTempo_exports2, feePayerMagic2, serializedType2, type2, CallsEmptyError2, InvalidValidityWindowError2, init_TxEnvelopeTempo2, init_VirtualAddress2, init_VirtualMaster2, init_ZoneId2, init_ZoneRpcAuthentication2, init_tempo3, accountKeychain3, addressRegistry2, nonce2, receivePolicyGuard2, signatureVerifier3, stablecoinDex2, tip202, tip20ChannelReserve2, tip20Factory2, tip403Registry2, feeManager2, feeAmm2, validatorConfig2, validatorConfigV22, abis2, init_Abis2, init_Transaction32, init_Account2, accountKeychain22, signatureVerifier22, init_Addresses2, hardforks2, init_Hardfork2, init_utils102, signatureTypes2, spendPolicies2, init_accessKey2, init_Formatters2, concurrentCounts2, init_concurrent2, maxExpirySecs2, chainConfig52, init_chainConfig52, tempo2, init_tempo22, tempoDevnet2, init_tempoDevnet2, tempoLocalnet2, init_tempoLocalnet2, tempoModerato2, init_tempoModerato2, tenet2, init_tenet2, ternoa2, init_ternoa2, thaiChain2, init_thaiChain2, that2, init_that2, theta2, init_theta2, thetaTestnet2, init_thetaTestnet2, thunderCore2, init_thunderCore2, thunderTestnet2, init_thunderTestnet2, tiktrixTestnet2, init_tiktrixTestnet2, tomb2, init_tomb2, treasure2, init_treasure2, treasureTopaz2, init_treasureTopaz2, tron2, init_tron2, tronNile2, init_tronNile2, tronShasta2, init_tronShasta2, ubiq2, init_ubiq2, ultra2, init_ultra2, ultraTestnet2, init_ultraTestnet2, ultron2, init_ultron2, ultronTestnet2, init_ultronTestnet2, sourceId612, unichain2, init_unichain2, sourceId622, unichainSepolia2, init_unichainSepolia2, unique2, init_unique2, uniqueOpal2, init_uniqueOpal2, uniqueQuartz2, init_uniqueQuartz2, unreal2, init_unreal2, valygoNft2, init_valygoNft2, valygoSmartchain2, init_valygoSmartchain2, vana2, init_vana2, vanaMoksha2, init_vanaMoksha2, vanar2, init_vanar2, vechain2, init_vechain2, velas2, init_velas2, viction2, init_viction2, victionTestnet2, init_victionTestnet2, vision2, init_vision2, visionTestnet2, init_visionTestnet2, wanchain2, init_wanchain2, wanchainTestnet2, init_wanchainTestnet2, weaveVMAlphanet2, init_weavevmAlphanet2, wemix2, init_wemix2, wemixTestnet2, init_wemixTestnet2, westendAssetHub2, init_westendAssetHub2, whitechain2, init_whitechain2, whitechainSepolia2, init_whitechainSepolia2, whitechainTestnet2, init_whitechainTestnet2, wmcTestnet2, init_wmcTestnet2, sourceId632, worldchain2, init_worldchain2, sourceId642, worldchainSepolia2, init_worldchainSepolia2, worldLand2, init_worldLand2, xai2, init_xai2, xaiTestnet2, init_xaiTestnet2, xdc2, init_xdc2, xdcTestnet2, init_xdcTestnet2, xgr2, init_xgr2, xLayer2, init_xLayer2, xLayerTestnet2, init_xLayerTestnet2, xoneMainnet2, init_xoneMainnet2, xoneTestnet2, init_xoneTestnet2, xphereMainnet2, init_xphereMainnet2, xphereTestnet2, init_xphereTestnet2, xpla2, init_xpla2, xrOne2, init_xrOne2, xrplevm2, init_xrplevm2, xrplevmDevnet2, init_xrplevmDevnet2, xrplevmTestnet2, init_xrplevmTestnet2, xrSepolia2, init_xrSepolia2, yooldoVerse2, init_yooldoVerse2, yooldoVerseTestnet2, init_yooldoVerseTestnet2, zenchainTestnet2, init_zenchainTestnet2, zeniq2, init_zeniq2, zeroNetwork2, init_zeroNetwork2, zetachain2, init_zetachain2, zetachainAthensTestnet2, init_zetachainAthensTestnet2, zhejiang2, init_zhejiang2, zilliqa2, init_zilliqa2, zilliqaTestnet2, init_zilliqaTestnet2, sourceId652, zircuit2, init_zircuit2, sourceId662, zircuitGarfieldTestnet2, init_zircuitGarfieldTestnet2, zkFair2, init_zkFair2, zkFairTestnet2, init_zkFairTestnet2, zkLinkNova2, init_zkLinkNova2, zkLinkNovaSepoliaTestnet2, init_zkLinkNovaSepoliaTestnet2, zksync2, init_zksync2, zksyncInMemoryNode2, init_zksyncInMemoryNode2, zksyncLocalCustomHyperchain2, init_zksyncLocalCustomHyperchain2, zksyncLocalHyperchain2, init_zksyncLocalHyperchain2, zksyncLocalHyperchainL12, init_zksyncLocalHyperchainL12, zksyncLocalNode2, init_zksyncLocalNode2, zksyncSepoliaTestnet2, init_zksyncSepoliaTestnet2, zkXPLA2, init_zkXPLA2, zkXPLATestnet2, init_zkXPLATestnet2, sourceId672, zora2, init_zora2, sourceId682, zoraSepolia2, init_zoraSepolia2, sourceId692, zoraTestnet2, init_zoraTestnet2, chains_exports2, init_chains2, init_isHex22, init_size22, version42, init_version42, errorConfig22, BaseError42, init_base32, SizeExceedsPaddingSizeError42, init_data22, init_pad22, IntegerOutOfRangeError32, SizeOverflowError42, init_encoding22, init_fromHex22, hexes42, encoder62, init_toHex22, encoder72, charCodeMap32, init_toBytes22, U32_MASK6422, _32n22, rotlSH22, rotlSL22, rotlBH22, rotlBL22, init_u6422, crypto32, init_cryptoNode22, isLE22, swap32IfBE22, Hash22, init_utils112, _0n72, _1n72, _2n52, _7n22, _256n22, _0x71n22, SHA3_PI22, SHA3_ROTL22, _SHA3_IOTA22, IOTAS22, SHA3_IOTA_H22, SHA3_IOTA_L22, rotlH22, rotlL22, Keccak22, gen22, keccak_25622, init_sha322, init_keccak25622, LruMap32, init_lru32, checksumAddressCache22, init_getAddress22, init_concat22, init_publicKeyToAddress22, HashMD22, SHA256_IV22, init_md22, SHA256_K22, SHA256_W22, SHA25622, sha25652, init_sha222, HMAC22, hmac22, init_hmac22, _0n82, _1n82, hasHexBuiltin22, hexes52, asciis22, isPosBig22, bitMask22, u8n22, u8fr22, validatorFns22, init_utils122, _0n92, _1n92, _2n62, _3n32, _4n32, _5n22, _8n22, FIELD_FIELDS22, init_modular22, _0n102, _1n102, pointPrecomputes22, pointWindowSizes22, init_curve22, DERErr22, DER22, _0n112, _1n112, _2n72, _3n42, _4n42, init_weierstrass22, init_shortw_utils22, os2ip22, init_hash_to_curve22, secp256k1_exports22, secp256k1P22, secp256k1N22, _0n122, _1n122, _2n82, divNearest22, Fpk122, secp256k122, TAGGED_HASH_PREFIXES22, pointToBytes22, numTo32b22, modP22, modN22, Point22, GmulAdd22, num22, schnorr22, isoMap22, mapSWU22, secp256k1_hasher22, hashToCurve22, encodeToCurve22, init_secp256k122, init_recoverPublicKey22, init_recoverAddress22, presignMessagePrefix22, init_strings22, init_toPrefixedMessage22, init_hashMessage22, init_recoverMessageAddress22, init_esm32, vbs_policy_exports2, VBS_DEFAULT_EK_ROOTS2, init_vbs_policy2, host_admission_bundle_exports, W6, h3, Yi, B0, C0, ye2, sn2, Gf, Vf, Aa, Ji, R0, N0, Kf, O0, $0, _0, F0, q0, G0, W0, Z6, Wf, X0, Ia, an2, Xi, Qi, Sa, Ta, es, ts, rs, os, ns, is2, ka, Nt2, ss, as, Zf, cs, Q0, us, em, Ba, rm, tw, rw, ow, nw, cn4, aw, Ca, nm, im, sm, fn2, se2, ar2, $t2, We2, Jf, cm, Xf, k3, Z2, Na, ms, dn, yt2, Oa, $a, Ha, La, hs, pn, _a, Ma2, bs, Ht2, ln, za2, Fa2, Ua, cr2, _r2, ja, qa, mn2, Ra, xe2, Da, fm, ys, xs, gs, Ga, Va, zr2, Ka, Wa, Za, ws, hn2, $e2, fw2, dw, K3, pw, fr2, ke2, Ja, mm, bm, ym, xm, gm, wm, yo, vm, hw, ed, Fr2, Ur2, gw, vs, ww, vw, Ew, Aw, Tm, km, Bm, Cm, Pw, Iw, Im, Sm, td, Tw, rc, rd, gt2, kw, Nm, $m, Hm, Lm, od, jr2, Es, ce2, Dt2, Gt2, As, nd, qr2, Bw, id, wt2, Ye2, Dr2, zm, nc32, ad, mr2, Vt2, bn2, Gr2, Um, yn2, Ps, dd, ct2, qm, Gm, ut2, Vm, ac, Km, cc, Is, xn2, uc, pd, Fw, fc, Jm, Xm, ld, Ts, md, X3, Qe2, Qm, eh, th, bd, yd, lc72, En, mc, hc, xd, bc, yc, xc, gc, An, Pn, wc, vc, _t2, nh, Eo, Mt2, In, Sn, Ao, Ec, Ac, Zt2, Kr2, vt2, Wr2, ks, Po, Ww, ze2, Fe2, Tn, kn, Bn, Cn, br2, Et2, Rn, Nn, On, Zr2, Io, $n, So, Hn, Ln, _n, Mn, zn, Fn, Un, jn, qn, Dn, Gn, Vn, Kn, Pc, Bs, Zw, Wn, sh, Ic, yr2, uh, Jw, Yr2, Sc, To, gd, Tc, wd, fh, Pd, Ad, mh, Xw, xr2, vd, Bo, Ed, ph, Qw, Xn, Ge2, Ue2, Co, e5, xh, gh, wh, n5, Os, Ph, $d, Nd, Th, Ch, _d, Er2, Ft2, ne2, Jr2, $s, Md, zd, Hh, l5, zh, Vh, Ms, Rc, qd, Ls, Nc, Fh, Qr, Ar2, Uh, Dd, Ud, Fd, _s, Gd, y5, ei2, w5, v5, E5, Vd, A5, P5, $c, Zh, Hc, Lc, Qh, Kd, Mc, eb, Pr2, At2, ti2, ri2, oi2, ni2, ii, si, ai, ci, Jt2, Pt2, eo, zs, rb, Fs, zc, T5, fi, Fc, AI, PI, II, SI, TI, kI, BI, CI, RI, NI, OI, $I, HI, LI, _I, MI, zI, FI, UI, jI, qI, DI, GI, VI, KI, WI, ZI, YI, JI, XI, QI, eS, tS, rS, oS, nS, iS, sS, aS, cS, uS, fS, dS, pS, lS, mS, hS, bS, yS, xS, gS, wS, vS, ES, AS, PS, IS, SS, TS, kS, BS, CS, RS, NS, OS, $S, HS, LS, _S, MS, zS, FS, US, jS, qS, DS, GS, VS, KS, WS, ZS, YS, JS, XS, QS, eT, tT, rT, oT, nT, iT, sT, aT, cT, uT, pi2, Wd, No, li, oo, Uc, Us, no, jc, Zd, nb, mi, ib, qc, io, Dc, Jd, Xd, Oo, Qd, Kc, Wc, cb, ub, db, lb, ep, Yc, xi, Jc, Xc, tp, hb, rp, op, yb, tu, np, O5, xb, ip, sp, nu, wb, $o, Sr2, vb, iu, su, au, ap, cp, Qt, Eb, Ab, Ib, j3, rt2, Tr2, Cb, pp, _5, Gs, M5, z5, lp, Ii, uu, qs, fu, so, D5, G5, Vs, hu, bu, du, Ds, pu, Ne2, qb, yp, rr2, gu, Gb, wu, Vb, xp, gp, wp, vp, Br2, Kb, Wb, vu, Zb, Yb, Bi, Ws, _o, Zs, Mo, Eu, Ep, Ap, zo, Pp, Ip, Sp, Tp, Su, Tu, ku, Jb, Qb, kp, ey, Cp, ry, Cr2, Js, iy, Z5, oy, sy, X5, ay, Fo, or2, dy, Bu, Np, n2, Uo, Op, Ci, i2, s2, my, a2, Ri, Qs, ea, by, xy, $p, c2, gy, ra, Cu, Ru, Hp, vy, Ou, Lp, _p, Ay, Iy, Hu, Ty, Lu, fo, $i, _u, ky, f2, d2, p2, l2, Oy, Hy, Fp, _y, zy, Uy, Up, qy, jp, qp, Gy, Ky, Zy, Jy, qu, Qy, Du, e1, b2, r1, n1, s1, c1, l1, m1, Dp, y1, g1, Vu, v1, A1, P1, S1, Vp, T1, B1, C1, R1, O1, Kp, Wu, Zu, Yu, $1, _1, Ju, Xu, j1, B2, Qu, q1, ef, Yp, tf, Jp, Xp, Qp, tl, N2, rf, rl, ol, ia, Z1, Y1, af, kH, BH, CH, RH, NH2, OH, $H, HH, LH, _H, MH, zH, FH, UH, jH, qH, DH, GH, VH, KH, WH, ZH, YH, JH, XH, QH, eL, tL, rL, oL, nL, iL, sL, aL, cL, uL, fL, dL, pL, lL, mL, hL, bL, yL, xL, gL, wL, vL, EL, AL, PL, IL, SL, TL, kL, BL, CL, RL, NL, OL, $L, HL, LL, _L, ML, zL, FL, UL, jL, qL, DL, GL, VL, KL, WL, ZL, YL, JL, XL, QL, e_, t_, r_, o_, n_, i_, s_, a_, c_, u_, f_, d_, p_, l_, m_, nl, cf, X1, il, ex, Z22, pf, cl, ul, fl, pl, ll, ff, aa, mf, df, Li, _i, ix, ml, fa, hl, bl, da, yl, El, dx, lx, pa, Al, Pl, hf, hx, bx, yx, Sl, gx, vx, Ax, yf, Ix, Tl, Tx, kl, kx, Cl, lo, Nl, Nx, Hx, Lx, Bt2, _x, g8, zx, ha, Ol, w8, v8, vf, Ux, jx, Dx, Rr2, ba, Vx, Wx, Hl, Yx, Xx, eg, rg, k8, B8, ng, sg, cg, fg, pg, lg, hg, Af, bg, C8, yg, xg, Ct2, _l, Ml, vj, Eg, zl, Fl, ji, jl, W8, Bg, Z8, Y8, Cg, Jo, Ng, Di, yq, xq, Dg, e0, Rf, r0, be2, o0, uv, i0, _6, Ki, Mv, rn2, b0, mt2, B6, w6, $r2, ie2, v62, h0, y0, C6, Ve2, R6, zv, N6, O6, Dv, jf, E6, Gv, Hr2, P6, I6, Kv, gD, Uf, T6, v0, gg, wg, vg, Ll, ya, Pf, L8, If, F8, Sf, Tf, Pg, J8, X8, Q8, ev, tv, Lg, ql, Dl, Vl, iv, Mg, ga, av, Hg, kf, Bf, Wl, cv, pq, Yl, Xl, jg, Rt2, t0, Vg, Cf, Kg, dv, Xg, pv, lv, mv, Qg, en, hv, $f, ae2, Hf, te2, s0, e6, bv, r6, _f, Lf, yv, xv, gv, wv, Hq, Av, Vi, u0, f0, f6, d6, p6, Sv, c6, d0, l6, l0, Rv, m0, h6, b6, Nv, y6, Ov, $v, g6, _v, P0, A0, z6, F6, j6, rE, init_host_admission_bundle, KEY2, BRAND2, isAttestedVerifier2, v4mask2, PROVIDER_CHECKS2, idPattern, addressPattern, MODES, app, hex64, U6, keys, amount, networkPolicyMessage2, byoReleaseMessage, byoConfigMessage, byoOwnerMessage, recordHash2, message2, appPattern, addressPattern2, hostABI2, connectivityABI, SocksHttpsAgent, SocksPublicHttpAgent, DirectHttpsAgent, LOOPBACK_HOSTS2, loopbackSet2, MAPPED2, NAT642, dotted2, RpcUrlError2, label2, fields, bookABI, deploymentABI, schemaABI, registryV1ABI, errText2, rateLimited, failureText, maxClients, clientMethods, chainAuthorityFromEnv, hexBlock2, PINNED_METHODS2, reservedFields, LeaseReader, fileWriters, DurableState, RETIRED_PUBLICATION, keptKey, DEFAULT_NETWORK_CHAIN_RPCS, ROLES, CHECKS, QUALIFICATION_MAX_MS2, RECORD_MAX_MS2, ipv4, wgKey, address, app2, exact, port, providerRecordMessage, qualificationMessage22, SECURITY_CHECKS, SECURITY, ALL_CHECKS, ONCHAIN_MAX_S, connectivityQualificationABI, bookABI2, KEY22, FORBIDDEN, INTERFACE, PEER, ERC12712, BOOK2, FACTORY, VAULT, addr3, ID3, SIG_TTL, fail7, fingerprint5, hashPattern2, MAX_RPCS2, POLICY2, lc9, HASH3, fail22, hexBlock22, PINNED_METHODS22, POLICY_FORMAT2, ANCHOR_KEYS2, MAX_ENTRIES3, MAX_VALIDITY_SEC2, MAX_STALE_SEC2, KINDS2, ADDR9, H323, ZERO6, lc22, uint2, err7, canonical22, FIELDS4, contentHash2, policyTypedData2, policyDigest2, BOOK_ABI4, ERC127122, OWN_ABI2, REG_ABI2, REGISTRY_KEY2, PLATFORM_POLICY_OFF2, HTTPS2, MAX_POLICY_RESPONSE2, lc32, leaseHostAdmission2, freshAdmissions2, lc42, PRODUCTION_BOOK2, PRODUCTION_HOST_OWNERSHIP2, PRODUCTION_MIRRORS2, PRODUCTION_RPCS2, PRODUCTION_HOST_POLICY2, list3, lc52, NOT_ACTIVATED2, deploymentFields, DEPLOYMENTS_ABI, REGISTRY_ABI, CATALOG_ABI, TCG_MAX_LOG_BYTES2, TCG_MAX_EVENTS2, TCG_MAX_ALGS2, TCG_SHA2562, SIPA_MAX_DEPTH2, SIPA_MAX_NODES2, EV_NO_ACTION2, EV_EVENT_TAG2, EV_EFI_VARIABLE_DRIVER_CONFIG2, SIPA2, SIPA_ID2, SIPA_CONTAINERS2, SIPA_STRINGS2, SIPA_VSM_IDK_INFO2, SIPA_VSM_IDKS_INFO2, toBuf2, scalar2, utf162, sha25662, replayPcrs2, digestRecomputes2, unhashedEvents2, sipaRecords2, sipaFields2, vsmKey2, secureBootFromLog2, bootCounterFromLog2, AVF_ATTESTATION_EXTENSION_OID2, AVF_MAX_CERT_BYTES2, AVF_MAX_CHAIN_CERTS2, AVF_MAX_COMPONENTS2, GOOGLE_ATTESTATION_ROOT_SHA2562, fpHex5, body2, dateOf3, TPM_MANUFACTURERS_ON_DIE2, OID_SAN2, OID_TPM_MANUFACTURER2, TPM_GENERATED_VALUE2, TPM_ST_ATTEST_QUOTE2, TPM_ALG_RSA2, TPM_ALG_SHA2562, TPM_ALG_NULL2, TPM_ALG_AES2, TPM_ALG_CFB2, TPM_ALG_RSASSA2, AIK_REQUIRED_ATTRIBUTES2, TPMA_DECRYPT2, VBS_MAX_REPORT_BYTES2, VBS_MAX_LOG_BYTES2, VBS_MAX_CERT_BYTES2, VBS_MAX_CHAIN_CERTS2, VBS_MAX_ATTEST_BYTES2, VBS_MAX_SIG_BYTES2, VBS_MAX_TPMT_PUBLIC_BYTES2, VBS_MAX_MODULES2, VBS_REQUIRED_PCR122, VBS_QUOTE_PCRS2, VBS_REPLAYED_PCRS2, VBS_FORMAT2, VBS_BIND_DOMAIN2, ENCLAVE_TYPE_VBS2, ENCLAVE_FLAG_FULL_DEBUG_ENABLED2, ENCLAVE_FLAG_DYNAMIC_DEBUG_ENABLED2, ENCLAVE_FLAG_DYNAMIC_DEBUG_ACTIVE2, ENCLAVE_DEBUG_FLAGS2, sha25672, ED25519_SPKI_PREFIX6, hexOf3, eq3, b64url2, unsigned2, VBS_REPORT_SCHEME_SHA256_RSA_PSS2, enclaveMeasurementKey2, fpHex22, dateOf22, toCert2, pemCerts3, b64cap3, IDENTITY_LABEL2, EMPTY3, u32be2, u16be2, HVNODE_MAX_STATEMENT_BYTES2, HVNODE_OMISSIONS2, ED25519_SPKI_PREFIX22, RETIRED_FORMATS2, sha25682, ENV2, NODE_OPS2, ED25519_SPKI_PREFIX32, HV_NODE_REQUIRED_PCR12, ED25519_SPKI_PREFIX42, MAX_REPLY_BYTES2, RELEASE_DOMAIN2, SEAL_INFO2, RESPONSE_DOMAIN2, ED25519_PKCS8_PREFIX2, X25519_PKCS8_PREFIX2, opFresh2, BASE3, META2, REPORT_SIZE3, requireThat2, zero2, ctEqual2, VBS_VM_REPORT_CHECKS2, hash52, equal3, CORE2, OPS2, parseVbsVmReport2, BIND2_DOMAIN3, CACHE_KEY_DOMAIN2, b64Chars, ENVELOPE_BYTES, SHIELD_CHALLENGE_MAX_BYTES, HVNODE_RAD_BODY_MAX_CHARS, SHIELD_ATTEST_MAX_BYTES, V4, REGISTRY_GET_LAYOUTS, MAX_KDS_BYTES2, AMD2, SPL_OID2, LEGACY_WX_RELEASES, SECCOMP_UNSTATED_RELEASES, MAX_RPC_RESPONSE_BYTES, A3, B3, U3, T3, owned, PROFILE_LAYOUT, CONTRACT_PIN_KEYS, zero22, DEFAULT_RPCS, list22, loopback, stable22, BLOCK_HASH, MAX_PEERS, PEER_METHODS, inRange32, REGISTRY_GET;
 var init_network_runtime_bundle = __esm({
   async "relay/network-runtime.bundle.mjs"() {
     require2 = bundleRequire(import.meta.url);
@@ -196324,12 +196459,12 @@ var init_network_runtime_bundle = __esm({
       mod32
     ));
     init_version7 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/version.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/version.js"() {
         version7 = "1.2.3";
       }
     });
     init_errors9 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/errors.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/errors.js"() {
         init_version7();
         BaseError7 = class _BaseError extends Error {
           constructor(shortMessage, args = {}) {
@@ -196385,30 +196520,30 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_regex5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/regex.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/regex.js"() {
         bytesRegex7 = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
         integerRegex7 = /^u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
         isTupleRegex3 = /^\(.+?\).*?$/;
       }
     });
     init_formatAbiParameter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/formatAbiParameter.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiParameter.js"() {
         init_regex5();
         tupleRegex3 = /^tuple(?<array>(\[(\d*)\])*)$/;
       }
     });
     init_formatAbiParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/formatAbiParameters.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiParameters.js"() {
         init_formatAbiParameter3();
       }
     });
     init_formatAbiItem5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/formatAbiItem.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/formatAbiItem.js"() {
         init_formatAbiParameters3();
       }
     });
     init_signatures3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/runtime/signatures.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/signatures.js"() {
         init_regex5();
         errorSignatureRegex3 = /^error (?<name>[a-zA-Z$_][a-zA-Z0-9$_]*)\((?<parameters>.*?)\)$/;
         eventSignatureRegex3 = /^event (?<name>[a-zA-Z$_][a-zA-Z0-9$_]*)\((?<parameters>.*?)\)$/;
@@ -196432,7 +196567,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_abiItem5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/errors/abiItem.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/errors/abiItem.js"() {
         init_errors9();
         InvalidAbiItemError3 = class extends BaseError7 {
           constructor({ signature }) {
@@ -196479,7 +196614,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_abiParameter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/errors/abiParameter.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/errors/abiParameter.js"() {
         init_errors9();
         InvalidAbiParameterError3 = class extends BaseError7 {
           constructor({ param }) {
@@ -196588,7 +196723,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/errors/signature.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/errors/signature.js"() {
         init_errors9();
         InvalidSignatureError3 = class extends BaseError7 {
           constructor({ signature, type: type22 }) {
@@ -196633,7 +196768,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_struct3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/errors/struct.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/errors/struct.js"() {
         init_errors9();
         CircularReferenceError3 = class extends BaseError7 {
           constructor({ type: type22 }) {
@@ -196651,7 +196786,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_splitParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/errors/splitParameters.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/errors/splitParameters.js"() {
         init_errors9();
         InvalidParenthesisError3 = class extends BaseError7 {
           constructor({ current, depth }) {
@@ -196672,7 +196807,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_cache3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/runtime/cache.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/cache.js"() {
         parameterCache3 = /* @__PURE__ */ new Map([
           // Unnamed
           ["address", { type: "address" }],
@@ -196730,7 +196865,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_utils19 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/runtime/utils.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/utils.js"() {
         init_regex5();
         init_abiItem5();
         init_abiParameter3();
@@ -196745,7 +196880,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_structs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/runtime/structs.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/runtime/structs.js"() {
         init_regex5();
         init_abiItem5();
         init_abiParameter3();
@@ -196757,14 +196892,14 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_parseAbi3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/parseAbi.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/parseAbi.js"() {
         init_signatures3();
         init_structs3();
         init_utils19();
       }
     });
     init_parseAbiItem3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/parseAbiItem.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/parseAbiItem.js"() {
         init_abiItem5();
         init_signatures3();
         init_structs3();
@@ -196772,7 +196907,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_parseAbiParameter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/parseAbiParameter.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/parseAbiParameter.js"() {
         init_abiParameter3();
         init_signatures3();
         init_structs3();
@@ -196780,7 +196915,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_parseAbiParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/human-readable/parseAbiParameters.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/human-readable/parseAbiParameters.js"() {
         init_abiParameter3();
         init_signatures3();
         init_structs3();
@@ -196789,7 +196924,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_exports3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/abitype/dist/esm/exports/index.js"() {
+      "../../../../enclave/node_modules/abitype/dist/esm/exports/index.js"() {
         init_formatAbiItem5();
         init_formatAbiParameters3();
         init_parseAbi3();
@@ -196804,30 +196939,30 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_getAction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/getAction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/getAction.js"() {
       }
     });
     init_formatAbiItem22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/formatAbiItem.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/formatAbiItem.js"() {
         init_abi3();
       }
     });
     init_isHex3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/isHex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/isHex.js"() {
       }
     });
     init_size3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/size.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/size.js"() {
         init_isHex3();
       }
     });
     init_version22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/version.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/version.js"() {
         version22 = "2.53.1";
       }
     });
     init_base4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/base.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/base.js"() {
         init_version22();
         errorConfig3 = {
           getDocsUrl: ({ docsBaseUrl, docsPath: docsPath92 = "", docsSlug }) => docsPath92 ? `${docsBaseUrl ?? "https://viem.sh"}${docsPath92}${docsSlug ? `#${docsSlug}` : ""}` : void 0,
@@ -196907,7 +197042,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_abi3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/abi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/abi.js"() {
         init_formatAbiItem22();
         init_size3();
         init_base4();
@@ -197233,7 +197368,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_log5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/log.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/log.js"() {
         init_base4();
         FilterTypeNotSupportedError3 = class extends BaseError22 {
           constructor(type22) {
@@ -197245,7 +197380,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_data3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/data.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/data.js"() {
         init_base4();
         SliceOffsetOutOfBoundsError7 = class extends BaseError22 {
           constructor({ offset, position, size: size62 }) {
@@ -197265,12 +197400,12 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_pad3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/pad.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/pad.js"() {
         init_data3();
       }
     });
     init_encoding4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/encoding.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/encoding.js"() {
         init_base4();
         IntegerOutOfRangeError5 = class extends BaseError22 {
           constructor({ max, min, signed, size: size62, value }) {
@@ -197302,11 +197437,11 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_trim3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/trim.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/trim.js"() {
       }
     });
     init_fromHex3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/encoding/fromHex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/encoding/fromHex.js"() {
         init_encoding4();
         init_size3();
         init_trim3();
@@ -197314,7 +197449,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_toHex3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/encoding/toHex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/encoding/toHex.js"() {
         init_encoding4();
         init_pad3();
         init_fromHex3();
@@ -197323,7 +197458,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_toBytes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/encoding/toBytes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/encoding/toBytes.js"() {
         init_base4();
         init_isHex3();
         init_pad3();
@@ -197341,7 +197476,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_u643 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/_u64.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/_u64.js"() {
         U32_MASK643 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
         _32n3 = /* @__PURE__ */ BigInt(32);
         shrSH2 = (h32, _l2, s) => h32 >>> s;
@@ -197363,12 +197498,12 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_cryptoNode3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/cryptoNode.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/cryptoNode.js"() {
         crypto22 = nc3 && typeof nc3 === "object" && "webcrypto" in nc3 ? nc3.webcrypto : nc3 && typeof nc3 === "object" && "randomBytes" in nc3 ? nc3 : void 0;
       }
     });
     init_utils22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/utils.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/utils.js"() {
         init_cryptoNode3();
         isLE4 = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
         swap32IfBE3 = isLE4 ? (u3) => u3 : byteSwap323;
@@ -197377,7 +197512,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_sha33 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/sha3.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/sha3.js"() {
         init_u643();
         init_utils22();
         _0n15 = BigInt(0);
@@ -197522,7 +197657,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_keccak2563 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/keccak256.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/keccak256.js"() {
         init_sha33();
         init_isHex3();
         init_toBytes3();
@@ -197530,19 +197665,19 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_hashSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/hashSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/hashSignature.js"() {
         init_toBytes3();
         init_keccak2563();
         hash8 = (value) => keccak2565(toBytes9(value));
       }
     });
     init_normalizeSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/normalizeSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/normalizeSignature.js"() {
         init_base4();
       }
     });
     init_toSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toSignature.js"() {
         init_exports3();
         init_normalizeSignature3();
         toSignature3 = (def) => {
@@ -197556,19 +197691,19 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_toSignatureHash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toSignatureHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toSignatureHash.js"() {
         init_hashSignature3();
         init_toSignature3();
       }
     });
     init_toEventSelector3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toEventSelector.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toEventSelector.js"() {
         init_toSignatureHash3();
         toEventSelector3 = toSignatureHash3;
       }
     });
     init_address5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/address.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/address.js"() {
         init_base4();
         InvalidAddressError5 = class extends BaseError22 {
           constructor({ address: address3 }) {
@@ -197584,7 +197719,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_lru5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/lru.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/lru.js"() {
         LruMap5 = class extends Map {
           constructor(size62) {
             super();
@@ -197619,7 +197754,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_getAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/address/getAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/address/getAddress.js"() {
         init_address5();
         init_toBytes3();
         init_keccak2563();
@@ -197629,7 +197764,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_isAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/address/isAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/address/isAddress.js"() {
         init_lru5();
         init_getAddress3();
         addressRegex5 = /^0x[a-fA-F0-9]{40}$/;
@@ -197637,25 +197772,25 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_concat4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/concat.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/concat.js"() {
       }
     });
     init_slice3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/slice.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/slice.js"() {
         init_data3();
         init_isHex3();
         init_size3();
       }
     });
     init_regex22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/regex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/regex.js"() {
         arrayRegex5 = /^(.*)\[([0-9]*)\]$/;
         bytesRegex22 = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
         integerRegex22 = /^(u?int)(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
       }
     });
     init_encodeAbiParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodeAbiParameters.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodeAbiParameters.js"() {
         init_abi3();
         init_address5();
         init_base4();
@@ -197670,14 +197805,14 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_toFunctionSelector3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toFunctionSelector.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toFunctionSelector.js"() {
         init_slice3();
         init_toSignatureHash3();
         toFunctionSelector3 = (fn22) => slice8(toSignatureHash3(fn22), 0, 4);
       }
     });
     init_getAbiItem3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/getAbiItem.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/getAbiItem.js"() {
         init_abi3();
         init_isHex3();
         init_isAddress3();
@@ -197686,7 +197821,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_encodeEventTopics3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodeEventTopics.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodeEventTopics.js"() {
         init_abi3();
         init_log5();
         init_toBytes3();
@@ -197699,22 +197834,22 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_createFilterRequestScope3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/filters/createFilterRequestScope.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/filters/createFilterRequestScope.js"() {
       }
     });
     init_createContractEventFilter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/createContractEventFilter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/createContractEventFilter.js"() {
         init_encodeEventTopics3();
         init_toHex3();
         init_createFilterRequestScope3();
       }
     });
     init_parseAccount3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/accounts/utils/parseAccount.js"() {
+      "../../../../enclave/node_modules/viem/_esm/accounts/utils/parseAccount.js"() {
       }
     });
     init_prepareEncodeFunctionData3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/prepareEncodeFunctionData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/prepareEncodeFunctionData.js"() {
         init_abi3();
         init_toFunctionSelector3();
         init_formatAbiItem22();
@@ -197723,14 +197858,14 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_encodeFunctionData3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
         init_concat4();
         init_encodeAbiParameters3();
         init_prepareEncodeFunctionData3();
       }
     });
     init_solidity3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/solidity.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/solidity.js"() {
         panicReasons3 = {
           1: "An `assert` condition failed.",
           17: "Arithmetic operation resulted in underflow or overflow.",
@@ -197765,7 +197900,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_cursor7 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/cursor.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/cursor.js"() {
         init_base4();
         NegativeOffsetError5 = class extends BaseError22 {
           constructor({ offset }) {
@@ -197787,7 +197922,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_cursor22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/cursor.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/cursor.js"() {
         init_cursor7();
         staticCursor5 = {
           bytes: new Uint8Array(),
@@ -197951,7 +198086,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_fromBytes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/encoding/fromBytes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/encoding/fromBytes.js"() {
         init_encoding4();
         init_trim3();
         init_fromHex3();
@@ -197959,7 +198094,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_decodeAbiParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/decodeAbiParameters.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/decodeAbiParameters.js"() {
         init_abi3();
         init_getAddress3();
         init_cursor22();
@@ -197975,7 +198110,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_decodeErrorResult3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/decodeErrorResult.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/decodeErrorResult.js"() {
         init_solidity3();
         init_abi3();
         init_slice3();
@@ -197985,7 +198120,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_stringify3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/stringify.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/stringify.js"() {
         stringify5 = (value, replacer, space) => JSON.stringify(value, (key, value_) => {
           const value2 = typeof value_ === "bigint" ? value_.toString() : value_;
           return typeof replacer === "function" ? replacer(key, value2) : value2;
@@ -197993,12 +198128,12 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_formatAbiItemWithArgs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/formatAbiItemWithArgs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/formatAbiItemWithArgs.js"() {
         init_stringify3();
       }
     });
     init_unit5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/unit.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/unit.js"() {
         etherUnits3 = {
           gwei: 9,
           wei: 18
@@ -198014,23 +198149,23 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_formatUnits3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/unit/formatUnits.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/unit/formatUnits.js"() {
       }
     });
     init_formatEther3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/unit/formatEther.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/unit/formatEther.js"() {
         init_unit5();
         init_formatUnits3();
       }
     });
     init_formatGwei3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/unit/formatGwei.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/unit/formatGwei.js"() {
         init_unit5();
         init_formatUnits3();
       }
     });
     init_stateOverride5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/stateOverride.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/stateOverride.js"() {
         init_base4();
         AccountStateConflictError3 = class extends BaseError22 {
           constructor({ address: address3 }) {
@@ -198049,7 +198184,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_transaction6 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/transaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/transaction.js"() {
         init_formatEther3();
         init_formatGwei3();
         init_base4();
@@ -198219,7 +198354,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_utils32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/utils.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/utils.js"() {
         getContractAddress5 = (address3) => address3;
         getUrl3 = (url2) => {
           try {
@@ -198236,7 +198371,7 @@ var init_network_runtime_bundle = __esm({
       }
     });
     init_contract5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/contract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/contract.js"() {
         init_parseAccount3();
         init_solidity3();
         init_decodeErrorResult3();
@@ -198490,7 +198625,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_request3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/request.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/request.js"() {
         init_stringify3();
         init_base4();
         init_utils32();
@@ -198621,7 +198756,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rpc3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/rpc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/rpc.js"() {
         init_base4();
         init_request3();
         unknownErrorCode3 = -1;
@@ -199068,7 +199203,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getContractError3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/errors/getContractError.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/errors/getContractError.js"() {
         init_abi3();
         init_base4();
         init_contract5();
@@ -199078,13 +199213,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_publicKeyToAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js"() {
         init_getAddress3();
         init_keccak2563();
       }
     });
     init_md3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/_md.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/_md.js"() {
         init_utils22();
         HashMD3 = class extends Hash4 {
           constructor(blockLen, outputLen, padOffset, isLE32) {
@@ -199225,7 +199360,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sha23 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/sha2.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/sha2.js"() {
         init_md3();
         init_u643();
         init_utils22();
@@ -199590,7 +199725,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hmac3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/hmac.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/hmac.js"() {
         init_utils22();
         HMAC3 = class extends Hash4 {
           constructor(hash62, _key) {
@@ -199661,7 +199796,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_utils42 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/abstract/utils.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/abstract/utils.js"() {
         _0n22 = /* @__PURE__ */ BigInt(0);
         _1n22 = /* @__PURE__ */ BigInt(1);
         hasHexBuiltin4 = // @ts-ignore
@@ -199686,7 +199821,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_modular3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/abstract/modular.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/abstract/modular.js"() {
         init_utils22();
         init_utils42();
         _0n32 = BigInt(0);
@@ -199718,7 +199853,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_curve3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/abstract/curve.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/abstract/curve.js"() {
         init_modular3();
         init_utils42();
         _0n42 = BigInt(0);
@@ -199728,7 +199863,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_weierstrass3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
         init_curve3();
         init_modular3();
         init_utils42();
@@ -199845,14 +199980,14 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shortw_utils3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/_shortw_utils.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/_shortw_utils.js"() {
         init_hmac3();
         init_utils22();
         init_weierstrass3();
       }
     });
     init_hash_to_curve3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/abstract/hash-to-curve.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/abstract/hash-to-curve.js"() {
         init_modular3();
         init_utils42();
         os2ip3 = bytesToNumberBE3;
@@ -199867,7 +200002,7 @@ ${prettyStateOverride3(stateOverride)}`;
       secp256k1_hasher: () => secp256k1_hasher3
     });
     init_secp256k13 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/secp256k1.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/secp256k1.js"() {
         init_sha23();
         init_utils22();
         init_shortw_utils3();
@@ -199994,7 +200129,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_recoverPublicKey3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/recoverPublicKey.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/recoverPublicKey.js"() {
         init_isHex3();
         init_size3();
         init_fromHex3();
@@ -200002,13 +200137,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_recoverAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/recoverAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/recoverAddress.js"() {
         init_publicKeyToAddress3();
         init_recoverPublicKey3();
       }
     });
     init_toRlp3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/encoding/toRlp.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/encoding/toRlp.js"() {
         init_base4();
         init_cursor22();
         init_toBytes3();
@@ -200016,7 +200151,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hashAuthorization3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/authorization/hashAuthorization.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/authorization/hashAuthorization.js"() {
         init_concat4();
         init_toBytes3();
         init_toHex3();
@@ -200025,13 +200160,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_recoverAuthorizationAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/authorization/recoverAuthorizationAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/authorization/recoverAuthorizationAddress.js"() {
         init_recoverAddress3();
         init_hashAuthorization3();
       }
     });
     init_estimateGas6 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/estimateGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/estimateGas.js"() {
         init_formatEther3();
         init_formatGwei3();
         init_base4();
@@ -200071,7 +200206,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_node3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/node.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/node.js"() {
         init_formatGwei3();
         init_base4();
         ExecutionRevertedError3 = class extends BaseError22 {
@@ -200254,28 +200389,28 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getNodeError3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/errors/getNodeError.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/errors/getNodeError.js"() {
         init_base4();
         init_node3();
       }
     });
     init_getEstimateGasError3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/errors/getEstimateGasError.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/errors/getEstimateGasError.js"() {
         init_estimateGas6();
         init_node3();
         init_getNodeError3();
       }
     });
     init_extract3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/extract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/extract.js"() {
       }
     });
     init_formatter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/formatter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/formatter.js"() {
       }
     });
     init_transactionRequest3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/transactionRequest.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/transactionRequest.js"() {
         init_toHex3();
         init_formatter3();
         rpcTransactionType3 = {
@@ -200289,7 +200424,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_stateOverride22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/stateOverride.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/stateOverride.js"() {
         init_address5();
         init_data3();
         init_stateOverride5();
@@ -200298,7 +200433,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_number4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/number.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/number.js"() {
         maxInt85 = 2n ** (8n - 1n) - 1n;
         maxInt165 = 2n ** (16n - 1n) - 1n;
         maxInt245 = 2n ** (24n - 1n) - 1n;
@@ -200398,7 +200533,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_assertRequest3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/assertRequest.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/assertRequest.js"() {
         init_parseAccount3();
         init_number4();
         init_address5();
@@ -200407,7 +200542,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fee3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/fee.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/fee.js"() {
         init_formatGwei3();
         init_base4();
         BaseFeeScalarError3 = class extends BaseError22 {
@@ -200432,7 +200567,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_block5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/block.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/block.js"() {
         init_base4();
         BlockNotFoundError3 = class extends BaseError22 {
           constructor({ blockHash, blockNumber }) {
@@ -200447,7 +200582,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_transaction22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/transaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/transaction.js"() {
         init_fromHex3();
         init_formatter3();
         transactionType3 = {
@@ -200461,25 +200596,25 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_block22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/block.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/block.js"() {
         init_formatter3();
         init_transaction22();
         defineBlock3 = /* @__PURE__ */ defineFormatter3("block", formatBlock3);
       }
     });
     init_getBlock3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getBlock.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getBlock.js"() {
         init_block5();
         init_toHex3();
         init_block22();
       }
     });
     init_getGasPrice3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getGasPrice.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getGasPrice.js"() {
       }
     });
     init_estimateMaxPriorityFeePerGas3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/estimateMaxPriorityFeePerGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/estimateMaxPriorityFeePerGas.js"() {
         init_fee3();
         init_fromHex3();
         init_getAction3();
@@ -200488,7 +200623,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_estimateFeesPerGas3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/estimateFeesPerGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/estimateFeesPerGas.js"() {
         init_fee3();
         init_getAction3();
         init_estimateMaxPriorityFeePerGas3();
@@ -200497,37 +200632,37 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_formatBlockParameter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/block/formatBlockParameter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/block/formatBlockParameter.js"() {
         init_base4();
         init_toHex3();
       }
     });
     init_getTransactionCount3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getTransactionCount.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getTransactionCount.js"() {
         init_formatBlockParameter3();
         init_fromHex3();
       }
     });
     init_blobsToCommitments3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/blobsToCommitments.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/blobsToCommitments.js"() {
         init_toBytes3();
         init_toHex3();
       }
     });
     init_blobsToProofs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/blobsToProofs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/blobsToProofs.js"() {
         init_toBytes3();
         init_toHex3();
       }
     });
     init_sha2565 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/sha256.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/sha256.js"() {
         init_sha23();
         sha25622 = sha25616;
       }
     });
     init_sha25622 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/sha256.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/sha256.js"() {
         init_sha2565();
         init_isHex3();
         init_toBytes3();
@@ -200535,18 +200670,18 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_commitmentToVersionedHash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/commitmentToVersionedHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/commitmentToVersionedHash.js"() {
         init_toHex3();
         init_sha25622();
       }
     });
     init_commitmentsToVersionedHashes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/commitmentsToVersionedHashes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/commitmentsToVersionedHashes.js"() {
         init_commitmentToVersionedHash3();
       }
     });
     init_blob5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/blob.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/blob.js"() {
         blobsPerTransaction3 = 6;
         bytesPerFieldElement3 = 32;
         fieldElementsPerBlob3 = 4096;
@@ -200557,12 +200692,12 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kzg3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/kzg.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/kzg.js"() {
         versionedHashVersionKzg3 = 1;
       }
     });
     init_blob22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/blob.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/blob.js"() {
         init_kzg3();
         init_base4();
         BlobSizeTooLargeError3 = class extends BaseError22 {
@@ -200600,7 +200735,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_toBlobs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/toBlobs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/toBlobs.js"() {
         init_blob5();
         init_blob22();
         init_cursor22();
@@ -200610,31 +200745,31 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_toBlobSidecars3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/toBlobSidecars.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/toBlobSidecars.js"() {
         init_blobsToCommitments3();
         init_blobsToProofs3();
         init_toBlobs3();
       }
     });
     init_getTransactionType3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/getTransactionType.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/getTransactionType.js"() {
         init_transaction6();
       }
     });
     init_getTransactionError3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/errors/getTransactionError.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/errors/getTransactionError.js"() {
         init_node3();
         init_transaction6();
         init_getNodeError3();
       }
     });
     init_getChainId3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getChainId.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getChainId.js"() {
         init_fromHex3();
       }
     });
     init_fillTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/fillTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/fillTransaction.js"() {
         init_parseAccount3();
         init_fee3();
         init_getTransactionError3();
@@ -200648,7 +200783,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_prepareTransactionRequest3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/prepareTransactionRequest.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/prepareTransactionRequest.js"() {
         init_parseAccount3();
         init_estimateFeesPerGas3();
         init_estimateGas22();
@@ -200678,7 +200813,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_estimateGas22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/estimateGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/estimateGas.js"() {
         init_parseAccount3();
         init_base4();
         init_recoverAuthorizationAddress3();
@@ -200692,7 +200827,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_estimateContractGas3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/estimateContractGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/estimateContractGas.js"() {
         init_parseAccount3();
         init_encodeFunctionData3();
         init_getContractError3();
@@ -200701,17 +200836,17 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_isAddressEqual3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/address/isAddressEqual.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/address/isAddressEqual.js"() {
         init_address5();
         init_isAddress3();
       }
     });
     init_log22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/log.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/log.js"() {
       }
     });
     init_decodeEventLog3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/decodeEventLog.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/decodeEventLog.js"() {
         init_abi3();
         init_cursor7();
         init_size3();
@@ -200722,7 +200857,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_parseEventLogs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/parseEventLogs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/parseEventLogs.js"() {
         init_isAddressEqual3();
         init_toBytes3();
         init_log22();
@@ -200732,7 +200867,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getLogs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getLogs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getLogs.js"() {
         init_encodeEventTopics3();
         init_parseEventLogs3();
         init_toHex3();
@@ -200740,14 +200875,14 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getContractEvents3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getContractEvents.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getContractEvents.js"() {
         init_getAbiItem3();
         init_getAction3();
         init_getLogs3();
       }
     });
     init_decodeFunctionResult3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/decodeFunctionResult.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/decodeFunctionResult.js"() {
         init_abi3();
         init_decodeAbiParameters3();
         init_getAbiItem3();
@@ -200755,17 +200890,17 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_version32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/version.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/version.js"() {
         version32 = "0.1.1";
       }
     });
     init_errors22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/errors.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/errors.js"() {
         init_version32();
       }
     });
     init_Errors3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Errors.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Errors.js"() {
         init_errors22();
         BaseError32 = class _BaseError extends Error {
           static setStaticOptions(options) {
@@ -200890,7 +201025,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bytes6 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/bytes.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/bytes.js"() {
         init_Bytes3();
         charCodeMap22 = {
           zero: 48,
@@ -200903,17 +201038,17 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hex4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/hex.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/hex.js"() {
         init_Hex3();
       }
     });
     init_Json3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Json.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Json.js"() {
         bigIntSuffix3 = "#__bigint";
       }
     });
     init_Bytes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Bytes.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Bytes.js"() {
         init_utils42();
         init_Errors3();
         init_Hex3();
@@ -200986,7 +201121,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Hex3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Hex.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Hex.js"() {
         init_Bytes3();
         init_Errors3();
         init_bytes6();
@@ -201082,18 +201217,18 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Withdrawal3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Withdrawal.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Withdrawal.js"() {
         init_Hex3();
       }
     });
     init_BlockOverrides3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/BlockOverrides.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/BlockOverrides.js"() {
         init_Hex3();
         init_Withdrawal3();
       }
     });
     init_abis3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/abis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/abis.js"() {
         multicall3Abi3 = [
           {
             inputs: [
@@ -203058,12 +203193,12 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_contract22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/contract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/contract.js"() {
         aggregate3Signature3 = "0x82ad56cb";
       }
     });
     init_contracts4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/contracts.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/contracts.js"() {
         deploylessCallViaBytecodeBytecode3 = "0x608060405234801561001057600080fd5b5060405161018e38038061018e83398101604081905261002f91610124565b6000808351602085016000f59050803b61004857600080fd5b6000808351602085016000855af16040513d6000823e81610067573d81fd5b3d81f35b634e487b7160e01b600052604160045260246000fd5b600082601f83011261009257600080fd5b81516001600160401b038111156100ab576100ab61006b565b604051601f8201601f19908116603f011681016001600160401b03811182821017156100d9576100d961006b565b6040528181528382016020018510156100f157600080fd5b60005b82811015610110576020818601810151838301820152016100f4565b506000918101602001919091529392505050565b6000806040838503121561013757600080fd5b82516001600160401b0381111561014d57600080fd5b61015985828601610081565b602085015190935090506001600160401b0381111561017757600080fd5b61018385828601610081565b915050925092905056fe";
         deploylessCallViaFactoryBytecode3 = "0x608060405234801561001057600080fd5b506040516102c03803806102c083398101604081905261002f916101e6565b836001600160a01b03163b6000036100e457600080836001600160a01b03168360405161005c9190610270565b6000604051808303816000865af19150503d8060008114610099576040519150601f19603f3d011682016040523d82523d6000602084013e61009e565b606091505b50915091508115806100b857506001600160a01b0386163b155b156100e1578060405163101bb98d60e01b81526004016100d8919061028c565b60405180910390fd5b50505b6000808451602086016000885af16040513d6000823e81610103573d81fd5b3d81f35b80516001600160a01b038116811461011e57600080fd5b919050565b634e487b7160e01b600052604160045260246000fd5b60005b8381101561015457818101518382015260200161013c565b50506000910152565b600082601f83011261016e57600080fd5b81516001600160401b0381111561018757610187610123565b604051601f8201601f19908116603f011681016001600160401b03811182821017156101b5576101b5610123565b6040528181528382016020018510156101cd57600080fd5b6101de826020830160208701610139565b949350505050565b600080600080608085870312156101fc57600080fd5b61020585610107565b60208601519094506001600160401b0381111561022157600080fd5b61022d8782880161015d565b93505061023c60408601610107565b60608601519092506001600160401b0381111561025857600080fd5b6102648782880161015d565b91505092959194509250565b60008251610282818460208701610139565b9190910192915050565b60208152600082518060208401526102ab816040850160208701610139565b601f01601f1916919091016040019291505056fe";
         erc6492SignatureValidatorByteCode3 = "0x608060405234801561001057600080fd5b5060405161069438038061069483398101604081905261002f9161051e565b600061003c848484610048565b9050806000526001601ff35b60007f64926492649264926492649264926492649264926492649264926492649264926100748361040c565b036101e7576000606080848060200190518101906100929190610577565b60405192955090935091506000906001600160a01b038516906100b69085906105dd565b6000604051808303816000865af19150503d80600081146100f3576040519150601f19603f3d011682016040523d82523d6000602084013e6100f8565b606091505b50509050876001600160a01b03163b60000361016057806101605760405162461bcd60e51b815260206004820152601e60248201527f5369676e617475726556616c696461746f723a206465706c6f796d656e74000060448201526064015b60405180910390fd5b604051630b135d3f60e11b808252906001600160a01b038a1690631626ba7e90610190908b9087906004016105f9565b602060405180830381865afa1580156101ad573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906101d19190610633565b6001600160e01b03191614945050505050610405565b6001600160a01b0384163b1561027a57604051630b135d3f60e11b808252906001600160a01b03861690631626ba7e9061022790879087906004016105f9565b602060405180830381865afa158015610244573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906102689190610633565b6001600160e01b031916149050610405565b81516041146102df5760405162461bcd60e51b815260206004820152603a602482015260008051602061067483398151915260448201527f3a20696e76616c6964207369676e6174757265206c656e6774680000000000006064820152608401610157565b6102e7610425565b5060208201516040808401518451859392600091859190811061030c5761030c61065d565b016020015160f81c9050601b811480159061032b57508060ff16601c14155b1561038c5760405162461bcd60e51b815260206004820152603b602482015260008051602061067483398151915260448201527f3a20696e76616c6964207369676e617475726520762076616c756500000000006064820152608401610157565b60408051600081526020810180835289905260ff83169181019190915260608101849052608081018390526001600160a01b0389169060019060a0016020604051602081039080840390855afa1580156103ea573d6000803e3d6000fd5b505050602060405103516001600160a01b0316149450505050505b9392505050565b600060208251101561041d57600080fd5b508051015190565b60405180606001604052806003906020820280368337509192915050565b6001600160a01b038116811461045857600080fd5b50565b634e487b7160e01b600052604160045260246000fd5b60005b8381101561048c578181015183820152602001610474565b50506000910152565b600082601f8301126104a657600080fd5b81516001600160401b038111156104bf576104bf61045b565b604051601f8201601f19908116603f011681016001600160401b03811182821017156104ed576104ed61045b565b60405281815283820160200185101561050557600080fd5b610516826020830160208701610471565b949350505050565b60008060006060848603121561053357600080fd5b835161053e81610443565b6020850151604086015191945092506001600160401b0381111561056157600080fd5b61056d86828701610495565b9150509250925092565b60008060006060848603121561058c57600080fd5b835161059781610443565b60208501519093506001600160401b038111156105b357600080fd5b6105bf86828701610495565b604086015190935090506001600160401b0381111561056157600080fd5b600082516105ef818460208701610471565b9190910192915050565b828152604060208201526000825180604084015261061e816060850160208701610471565b601f01601f1916919091016060019392505050565b60006020828403121561064557600080fd5b81516001600160e01b03198116811461040557600080fd5b634e487b7160e01b600052603260045260246000fdfe5369676e617475726556616c696461746f72237265636f7665725369676e6572";
@@ -203071,7 +203206,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chain3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/chain.js"() {
         init_base4();
         ChainDoesNotSupportContract3 = class extends BaseError22 {
           constructor({ blockNumber, chain: chain3, contract }) {
@@ -203124,7 +203259,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_encodeDeployData3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodeDeployData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodeDeployData.js"() {
         init_abi3();
         init_concat4();
         init_encodeAbiParameters3();
@@ -203132,29 +203267,29 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getChainContractAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/chain/getChainContractAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/chain/getChainContractAddress.js"() {
         init_chain3();
       }
     });
     init_getCallError3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/errors/getCallError.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/errors/getCallError.js"() {
         init_contract5();
         init_node3();
         init_getNodeError3();
       }
     });
     init_withResolvers3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/promise/withResolvers.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/promise/withResolvers.js"() {
       }
     });
     init_createBatchScheduler3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/promise/createBatchScheduler.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/promise/createBatchScheduler.js"() {
         init_withResolvers3();
         schedulerCache3 = /* @__PURE__ */ new Map();
       }
     });
     init_ccip5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/ccip.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/ccip.js"() {
         init_stringify3();
         init_base4();
         init_utils32();
@@ -203204,7 +203339,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_decodeFunctionData3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/decodeFunctionData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/decodeFunctionData.js"() {
         init_abi3();
         init_slice3();
         init_toFunctionSelector3();
@@ -203213,7 +203348,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_encodeErrorResult3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodeErrorResult.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodeErrorResult.js"() {
         init_abi3();
         init_concat4();
         init_toFunctionSelector3();
@@ -203224,7 +203359,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_encodeFunctionResult3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodeFunctionResult.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodeFunctionResult.js"() {
         init_abi3();
         init_encodeAbiParameters3();
         init_getAbiItem3();
@@ -203232,7 +203367,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_localBatchGatewayRequest3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/localBatchGatewayRequest.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/localBatchGatewayRequest.js"() {
         init_abis3();
         init_solidity3();
         init_decodeFunctionData3();
@@ -203249,7 +203384,7 @@ ${prettyStateOverride3(stateOverride)}`;
       offchainLookupSignature: () => offchainLookupSignature3
     });
     init_ccip22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ccip.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ccip.js"() {
         init_call3();
         init_ccip5();
         init_request3();
@@ -203291,7 +203426,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_call3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/call.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/call.js"() {
         init_exports3();
         init_BlockOverrides3();
         init_parseAccount3();
@@ -203319,7 +203454,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_readContract3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/readContract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/readContract.js"() {
         init_decodeFunctionResult3();
         init_encodeFunctionData3();
         init_getContractError3();
@@ -203328,7 +203463,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_simulateContract3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/simulateContract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/simulateContract.js"() {
         init_parseAccount3();
         init_decodeFunctionResult3();
         init_encodeFunctionData3();
@@ -203338,46 +203473,46 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_observe3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/observe.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/observe.js"() {
         listenersCache3 = /* @__PURE__ */ new Map();
         cleanupCache3 = /* @__PURE__ */ new Map();
         callbackCount3 = 0;
       }
     });
     init_wait3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/wait.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/wait.js"() {
         init_utils32();
       }
     });
     init_poll3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/poll.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/poll.js"() {
         init_wait3();
       }
     });
     init_withCache3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/promise/withCache.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/promise/withCache.js"() {
         promiseCache5 = /* @__PURE__ */ new Map();
         responseCache3 = /* @__PURE__ */ new Map();
       }
     });
     init_getBlockNumber3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getBlockNumber.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getBlockNumber.js"() {
         init_withCache3();
         cacheKey4 = (id2) => `blockNumber.${id2}`;
       }
     });
     init_getFilterChanges3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getFilterChanges.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getFilterChanges.js"() {
         init_parseEventLogs3();
         init_log22();
       }
     });
     init_uninstallFilter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/uninstallFilter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/uninstallFilter.js"() {
       }
     });
     init_watchContractEvent3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/watchContractEvent.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/watchContractEvent.js"() {
         init_abi3();
         init_rpc3();
         init_decodeEventLog3();
@@ -203395,7 +203530,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_account3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/account.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/account.js"() {
         init_base4();
         AccountNotFoundError3 = class extends BaseError22 {
           constructor({ docsPath: docsPath92 } = {}) {
@@ -203421,16 +203556,16 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_assertCurrentChain3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/chain/assertCurrentChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/chain/assertCurrentChain.js"() {
         init_chain3();
       }
     });
     init_sendRawTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/sendRawTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/sendRawTransaction.js"() {
       }
     });
     init_sendTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/sendTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/sendTransaction.js"() {
         init_parseAccount3();
         init_account3();
         init_base4();
@@ -203450,7 +203585,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_writeContract3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/writeContract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/writeContract.js"() {
         init_parseAccount3();
         init_account3();
         init_encodeFunctionData3();
@@ -203493,7 +203628,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getContract3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/getContract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/getContract.js"() {
         init_getAction3();
         init_createContractEventFilter3();
         init_estimateContractGas3();
@@ -203505,7 +203640,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_calls3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/calls.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/calls.js"() {
         init_base4();
         BundleFailedError3 = class extends BaseError22 {
           constructor(result) {
@@ -203524,13 +203659,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_withRetry3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/promise/withRetry.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/promise/withRetry.js"() {
         init_utils32();
         init_wait3();
       }
     });
     init_transactionReceipt3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/transactionReceipt.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/transactionReceipt.js"() {
         init_fromHex3();
         init_formatter3();
         init_log22();
@@ -203543,7 +203678,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sendCalls3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/sendCalls.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/sendCalls.js"() {
         init_parseAccount3();
         init_base4();
         init_rpc3();
@@ -203560,7 +203695,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getCallsStatus3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/getCallsStatus.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/getCallsStatus.js"() {
         init_slice3();
         init_trim3();
         init_fromHex3();
@@ -203569,7 +203704,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_waitForCallsStatus3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js"() {
         init_base4();
         init_calls3();
         init_getAction3();
@@ -203587,30 +203722,30 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_uid3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/uid.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/uid.js"() {
         size42 = 256;
         index3 = size42;
       }
     });
     init_createClient3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/createClient.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/createClient.js"() {
         init_parseAccount3();
         init_uid3();
       }
     });
     init_errors32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/errors.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/errors.js"() {
         init_base4();
         init_contract5();
       }
     });
     init_encodedLabelToLabelhash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/encodedLabelToLabelhash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/encodedLabelToLabelhash.js"() {
         init_isHex3();
       }
     });
     init_namehash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/namehash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/namehash.js"() {
         init_concat4();
         init_toBytes3();
         init_toHex3();
@@ -203619,11 +203754,11 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_encodeLabelhash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/encodeLabelhash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/encodeLabelhash.js"() {
       }
     });
     init_labelhash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/labelhash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/labelhash.js"() {
         init_toBytes3();
         init_toHex3();
         init_keccak2563();
@@ -203631,14 +203766,14 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_packetToBytes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/packetToBytes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/packetToBytes.js"() {
         init_toBytes3();
         init_encodeLabelhash3();
         init_labelhash3();
       }
     });
     init_getEnsAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/ens/getEnsAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/ens/getEnsAddress.js"() {
         init_abis3();
         init_decodeFunctionResult3();
         init_encodeFunctionData3();
@@ -203656,7 +203791,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ens3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/ens.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/ens.js"() {
         init_base4();
         EnsAvatarInvalidMetadataError3 = class extends BaseError22 {
           constructor({ data }) {
@@ -203697,7 +203832,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_utils52 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/avatar/utils.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/avatar/utils.js"() {
         init_readContract3();
         init_ens3();
         networkRegex3 = /(?<protocol>https?:\/\/[^/]*|ipfs:\/|ipns:\/|ar:\/)?(?<root>\/)?(?<subpath>ipfs\/|ipns\/)?(?<target>[\w\-.]+)(?<subtarget>\/.*)?/;
@@ -203707,12 +203842,12 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_parseAvatarRecord3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/avatar/parseAvatarRecord.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/avatar/parseAvatarRecord.js"() {
         init_utils52();
       }
     });
     init_getEnsText3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/ens/getEnsText.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/ens/getEnsText.js"() {
         init_abis3();
         init_decodeFunctionResult3();
         init_encodeFunctionData3();
@@ -203727,14 +203862,14 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getEnsAvatar3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/ens/getEnsAvatar.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/ens/getEnsAvatar.js"() {
         init_parseAvatarRecord3();
         init_getAction3();
         init_getEnsText3();
       }
     });
     init_getEnsName3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/ens/getEnsName.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/ens/getEnsName.js"() {
         init_abis3();
         init_getChainContractAddress3();
         init_errors32();
@@ -203744,7 +203879,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getEnsResolver3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/ens/getEnsResolver.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/ens/getEnsResolver.js"() {
         init_getChainContractAddress3();
         init_toHex3();
         init_packetToBytes3();
@@ -203753,7 +203888,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_createAccessList3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/createAccessList.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/createAccessList.js"() {
         init_parseAccount3();
         init_base4();
         init_toHex3();
@@ -203764,24 +203899,24 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_createBlockFilter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/createBlockFilter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/createBlockFilter.js"() {
         init_createFilterRequestScope3();
       }
     });
     init_createEventFilter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/createEventFilter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/createEventFilter.js"() {
         init_encodeEventTopics3();
         init_toHex3();
         init_createFilterRequestScope3();
       }
     });
     init_createPendingTransactionFilter3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/createPendingTransactionFilter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/createPendingTransactionFilter.js"() {
         init_createFilterRequestScope3();
       }
     });
     init_getBalance4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getBalance.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getBalance.js"() {
         init_abis3();
         init_decodeFunctionResult3();
         init_encodeFunctionData3();
@@ -203791,29 +203926,29 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getBlobBaseFee3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getBlobBaseFee.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getBlobBaseFee.js"() {
       }
     });
     init_getBlockReceipts3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getBlockReceipts.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getBlockReceipts.js"() {
         init_block5();
         init_toHex3();
         init_transactionReceipt3();
       }
     });
     init_getBlockTransactionCount3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getBlockTransactionCount.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getBlockTransactionCount.js"() {
         init_fromHex3();
         init_toHex3();
       }
     });
     init_getCode3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getCode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getCode.js"() {
         init_formatBlockParameter3();
       }
     });
     init_getDelegation3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getDelegation.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getDelegation.js"() {
         init_getAddress3();
         init_size3();
         init_slice3();
@@ -203821,7 +203956,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eip7123 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/eip712.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/eip712.js"() {
         init_base4();
         Eip712DomainNotFoundError3 = class extends BaseError22 {
           constructor({ address: address3 }) {
@@ -203839,7 +203974,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getEip712Domain4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getEip712Domain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getEip712Domain.js"() {
         init_eip7123();
         init_getAction3();
         init_readContract3();
@@ -203863,23 +203998,23 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_feeHistory3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/feeHistory.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/feeHistory.js"() {
       }
     });
     init_getFeeHistory3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getFeeHistory.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getFeeHistory.js"() {
         init_toHex3();
         init_feeHistory3();
       }
     });
     init_getFilterLogs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getFilterLogs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getFilterLogs.js"() {
         init_parseEventLogs3();
         init_log22();
       }
     });
     init_encodePacked3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/encodePacked.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/encodePacked.js"() {
         init_abi3();
         init_address5();
         init_isAddress3();
@@ -203890,11 +204025,11 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_isBytes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/data/isBytes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/data/isBytes.js"() {
       }
     });
     init_getContractAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/address/getContractAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/address/getContractAddress.js"() {
         init_concat4();
         init_isBytes3();
         init_pad3();
@@ -203906,7 +204041,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_assertTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/assertTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/assertTransaction.js"() {
         init_kzg3();
         init_number4();
         init_address5();
@@ -203921,14 +204056,14 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializeAccessList3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/serializeAccessList.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/serializeAccessList.js"() {
         init_address5();
         init_transaction6();
         init_isAddress3();
       }
     });
     init_serializeTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/serializeTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/serializeTransaction.js"() {
         init_transaction6();
         init_serializeAuthorizationList3();
         init_blobsToCommitments3();
@@ -203945,26 +204080,26 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializeAuthorizationList3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/authorization/serializeAuthorizationList.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/authorization/serializeAuthorizationList.js"() {
         init_toHex3();
         init_serializeTransaction3();
       }
     });
     init_verifyAuthorization3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/authorization/verifyAuthorization.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/authorization/verifyAuthorization.js"() {
         init_getAddress3();
         init_isAddressEqual3();
         init_recoverAuthorizationAddress3();
       }
     });
     init_withDedupe3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/promise/withDedupe.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/promise/withDedupe.js"() {
         init_lru5();
         promiseCache22 = /* @__PURE__ */ new LruMap5(8192);
       }
     });
     init_buildRequest3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/buildRequest.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/buildRequest.js"() {
         init_base4();
         init_request3();
         init_rpc3();
@@ -203975,7 +204110,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ccipTunnel3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ccipTunnel.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ccipTunnel.js"() {
         init_abis3();
         init_solidity3();
         init_request3();
@@ -203987,15 +204122,15 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_defineChain3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/chain/defineChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/chain/defineChain.js"() {
       }
     });
     init_extractChain3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/chain/extractChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/chain/extractChain.js"() {
       }
     });
     init_fromRlp3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/encoding/fromRlp.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/encoding/fromRlp.js"() {
         init_base4();
         init_encoding4();
         init_cursor22();
@@ -204004,13 +204139,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_isHash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/isHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/isHash.js"() {
         init_isHex3();
         init_size3();
       }
     });
     init_legacy3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/legacy.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/legacy.js"() {
         init_md3();
         init_utils22();
         Rho1603 = /* @__PURE__ */ Uint8Array.from([
@@ -204121,13 +204256,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ripemd1605 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/hashes/esm/ripemd160.js"() {
+      "../../../../enclave/node_modules/@noble/hashes/esm/ripemd160.js"() {
         init_legacy3();
         ripemd16022 = ripemd1607;
       }
     });
     init_ripemd16022 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/ripemd160.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/ripemd160.js"() {
         init_ripemd1605();
         init_isHex3();
         init_toBytes3();
@@ -204135,27 +204270,27 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_toEventHash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toEventHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toEventHash.js"() {
         init_toSignatureHash3();
       }
     });
     init_toEventSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toEventSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toEventSignature.js"() {
         init_toSignature3();
       }
     });
     init_toFunctionHash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toFunctionHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toFunctionHash.js"() {
         init_toSignatureHash3();
       }
     });
     init_toFunctionSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/hash/toFunctionSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/hash/toFunctionSignature.js"() {
         init_toSignature3();
       }
     });
     init_nonceManager3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/nonceManager.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/nonceManager.js"() {
         init_getTransactionCount3();
         init_lru5();
         nonceManager3 = /* @__PURE__ */ createNonceManager3({
@@ -204164,17 +204299,17 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_withTimeout3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/promise/withTimeout.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/promise/withTimeout.js"() {
         init_utils32();
       }
     });
     init_id3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/rpc/id.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/rpc/id.js"() {
         idCache3 = /* @__PURE__ */ createIdStore3();
       }
     });
     init_http5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/rpc/http.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/rpc/http.js"() {
         init_request3();
         init_utils32();
         init_withTimeout3();
@@ -204183,7 +204318,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_socket3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/rpc/socket.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/rpc/socket.js"() {
         init_request3();
         init_createBatchScheduler3();
         init_withTimeout3();
@@ -204192,7 +204327,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_constants3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/constants.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/constants.js"(exports, module) {
         "use strict";
         var BINARY_TYPES = ["nodebuffer", "arraybuffer", "fragments"];
         var hasBlob = typeof Blob !== "undefined";
@@ -204213,7 +204348,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_buffer_util3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/buffer-util.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/buffer-util.js"(exports, module) {
         "use strict";
         var { EMPTY_BUFFER: EMPTY_BUFFER2 } = require_constants3();
         var FastBuffer = Buffer[Symbol.species];
@@ -204286,7 +204421,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_limiter3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/limiter.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/limiter.js"(exports, module) {
         "use strict";
         var kDone = /* @__PURE__ */ Symbol("kDone");
         var kRun = /* @__PURE__ */ Symbol("kRun");
@@ -204334,7 +204469,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_permessage_deflate3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/permessage-deflate.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/permessage-deflate.js"(exports, module) {
         "use strict";
         var zlib = __require2("zlib");
         var bufferUtil = require_buffer_util3();
@@ -204715,7 +204850,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_validation3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/validation.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/validation.js"(exports, module) {
         "use strict";
         var { isUtf8 } = __require2("buffer");
         var { hasBlob } = require_constants3();
@@ -204914,7 +205049,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_receiver3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/receiver.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/receiver.js"(exports, module) {
         "use strict";
         var { Writable } = __require2("stream");
         var PerMessageDeflate22 = require_permessage_deflate3();
@@ -205535,7 +205670,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_sender3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/sender.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/sender.js"(exports, module) {
         "use strict";
         var { Duplex } = __require2("stream");
         var { randomFillSync: randomFillSync2 } = __require2("crypto");
@@ -206026,7 +206161,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_event_target3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/event-target.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/event-target.js"(exports, module) {
         "use strict";
         var { kForOnEventAttribute, kListener } = require_constants3();
         var kCode = /* @__PURE__ */ Symbol("kCode");
@@ -206253,7 +206388,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_extension4 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/extension.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/extension.js"(exports, module) {
         "use strict";
         var { tokenChars } = require_validation3();
         function push(dest, name, elem) {
@@ -206404,7 +206539,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_websocket3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/websocket.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/websocket.js"(exports, module) {
         "use strict";
         var EventEmitter = __require2("events");
         var https32 = __require2("https");
@@ -207298,7 +207433,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_stream3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/stream.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/stream.js"(exports, module) {
         "use strict";
         var WebSocket42 = require_websocket3();
         var { Duplex } = __require2("stream");
@@ -207394,7 +207529,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_subprotocol3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/subprotocol.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/subprotocol.js"(exports, module) {
         "use strict";
         var { tokenChars } = require_validation3();
         function parse22(header2) {
@@ -207437,7 +207572,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     require_websocket_server3 = __commonJS2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/lib/websocket-server.js"(exports, module) {
+      "../../../../enclave/node_modules/ws/lib/websocket-server.js"(exports, module) {
         "use strict";
         var EventEmitter = __require2("events");
         var http42 = __require2("http");
@@ -207848,7 +207983,7 @@ ${prettyStateOverride3(stateOverride)}`;
       subprotocol: () => import_subprotocol3.default
     });
     init_wrapper3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ws/wrapper.mjs"() {
+      "../../../../enclave/node_modules/ws/wrapper.mjs"() {
         import_stream3 = __toESM2(require_stream3(), 1);
         import_extension5 = __toESM2(require_extension4(), 1);
         import_permessage_deflate3 = __toESM2(require_permessage_deflate3(), 1);
@@ -207861,7 +207996,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_utils62 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/isows/_esm/utils.js"() {
+      "../../../../enclave/node_modules/isows/_esm/utils.js"() {
       }
     });
     esm_exports8 = {};
@@ -207869,7 +208004,7 @@ ${prettyStateOverride3(stateOverride)}`;
       WebSocket: () => WebSocket32
     });
     init_esm11 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/isows/_esm/index.js"() {
+      "../../../../enclave/node_modules/isows/_esm/index.js"() {
         init_wrapper3();
         init_utils62();
         WebSocket32 = (() => {
@@ -207884,23 +208019,23 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_webSocket5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/rpc/webSocket.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/rpc/webSocket.js"() {
         init_request3();
         init_socket3();
       }
     });
     init_compat3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/rpc/compat.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/rpc/compat.js"() {
         init_webSocket5();
       }
     });
     init_strings3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/strings.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/strings.js"() {
         presignMessagePrefix3 = "Ethereum Signed Message:\n";
       }
     });
     init_toPrefixedMessage3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/toPrefixedMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/toPrefixedMessage.js"() {
         init_strings3();
         init_concat4();
         init_size3();
@@ -207908,13 +208043,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hashMessage3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/hashMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/hashMessage.js"() {
         init_keccak2563();
         init_toPrefixedMessage3();
       }
     });
     init_typedData5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/typedData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/typedData.js"() {
         init_stringify3();
         init_base4();
         InvalidDomainError3 = class extends BaseError22 {
@@ -207943,7 +208078,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_typedData22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/typedData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/typedData.js"() {
         init_abi3();
         init_address5();
         init_typedData5();
@@ -207956,7 +208091,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hashTypedData3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/hashTypedData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/hashTypedData.js"() {
         init_encodeAbiParameters3();
         init_concat4();
         init_toHex3();
@@ -207965,19 +208100,19 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bytes22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/bytes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/bytes.js"() {
         erc6492MagicBytes3 = "0x6492649264926492649264926492649264926492649264926492649264926492";
         zeroHash3 = "0x0000000000000000000000000000000000000000000000000000000000000000";
       }
     });
     init_isErc6492Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/isErc6492Signature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/isErc6492Signature.js"() {
         init_bytes22();
         init_slice3();
       }
     });
     init_lru22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/lru.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/lru.js"() {
         LruMap22 = class extends Map {
           constructor(size62) {
             super();
@@ -208010,7 +208145,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Caches3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Caches.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Caches.js"() {
         init_lru22();
         caches3 = {
           checksum: /* @__PURE__ */ new LruMap22(8192)
@@ -208019,7 +208154,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Hash3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Hash.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Hash.js"() {
         init_sha33();
         init_sha2565();
         init_Bytes3();
@@ -208027,7 +208162,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_PublicKey3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/PublicKey.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/PublicKey.js"() {
         init_Bytes3();
         init_Errors3();
         init_Hex3();
@@ -208103,7 +208238,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Address3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Address.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Address.js"() {
         init_Bytes3();
         init_Caches3();
         init_Errors3();
@@ -208148,7 +208283,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Solidity3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Solidity.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Solidity.js"() {
         arrayRegex22 = /^(.*)\[([0-9]*)\]$/;
         bytesRegex32 = /^bytes([1-9]|1[0-9]|2[0-9]|3[0-2])?$/;
         integerRegex32 = /^(u?int)(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?$/;
@@ -208251,7 +208386,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_abiParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/abiParameters.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/abiParameters.js"() {
         init_AbiParameters3();
         init_Address3();
         init_Bytes3();
@@ -208263,7 +208398,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cursor32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/cursor.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/cursor.js"() {
         init_Errors3();
         staticCursor22 = {
           bytes: new Uint8Array(),
@@ -208460,7 +208595,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_AbiParameters3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/AbiParameters.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/AbiParameters.js"() {
         init_exports3();
         init_Address3();
         init_Bytes3();
@@ -208605,7 +208740,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Rlp3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Rlp.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Rlp.js"() {
         init_Bytes3();
         init_Errors3();
         init_Hex3();
@@ -208613,7 +208748,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Signature.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Signature.js"() {
         init_Errors3();
         init_Hex3();
         init_Json3();
@@ -208692,7 +208827,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Authorization3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Authorization.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Authorization.js"() {
         init_Hash3();
         init_Hex3();
         init_Rlp3();
@@ -208700,7 +208835,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Secp256k13 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Secp256k1.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Secp256k1.js"() {
         init_secp256k13();
         init_Address3();
         init_Bytes3();
@@ -208720,7 +208855,7 @@ ${prettyStateOverride3(stateOverride)}`;
       wrap: () => wrap7
     });
     init_SignatureErc80103 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/erc8010/SignatureErc8010.js"() {
+      "../../../../enclave/node_modules/ox/_esm/erc8010/SignatureErc8010.js"() {
         init_AbiParameters3();
         init_Authorization3();
         init_Errors3();
@@ -208743,42 +208878,42 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_erc80103 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/erc8010/index.js"() {
+      "../../../../enclave/node_modules/ox/_esm/erc8010/index.js"() {
         init_SignatureErc80103();
       }
     });
     init_isErc8010Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/isErc8010Signature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/isErc8010Signature.js"() {
         init_erc80103();
       }
     });
     init_parseErc6492Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/parseErc6492Signature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/parseErc6492Signature.js"() {
         init_decodeAbiParameters3();
         init_isErc6492Signature3();
       }
     });
     init_parseErc8010Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/parseErc8010Signature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/parseErc8010Signature.js"() {
         init_erc80103();
         init_toHex3();
         init_isErc8010Signature3();
       }
     });
     init_recoverMessageAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/recoverMessageAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/recoverMessageAddress.js"() {
         init_hashMessage3();
         init_recoverAddress3();
       }
     });
     init_recoverTypedDataAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/recoverTypedDataAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/recoverTypedDataAddress.js"() {
         init_hashTypedData3();
         init_recoverAddress3();
       }
     });
     init_serializeErc6492Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/serializeErc6492Signature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/serializeErc6492Signature.js"() {
         init_bytes22();
         init_encodeAbiParameters3();
         init_concat4();
@@ -208786,41 +208921,41 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializeErc8010Signature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/serializeErc8010Signature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/serializeErc8010Signature.js"() {
         init_erc80103();
         init_toBytes3();
       }
     });
     init_verifyHash5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/verifyHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/verifyHash.js"() {
         init_getAddress3();
         init_isAddressEqual3();
         init_recoverAddress3();
       }
     });
     init_verifyMessage5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/verifyMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/verifyMessage.js"() {
         init_getAddress3();
         init_isAddressEqual3();
         init_recoverMessageAddress3();
       }
     });
     init_verifyTypedData5 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/verifyTypedData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/verifyTypedData.js"() {
         init_getAddress3();
         init_isAddressEqual3();
         init_recoverTypedDataAddress3();
       }
     });
     init_getSerializedTransactionType3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/getSerializedTransactionType.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/getSerializedTransactionType.js"() {
         init_transaction6();
         init_slice3();
         init_fromHex3();
       }
     });
     init_parseTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/transaction/parseTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/transaction/parseTransaction.js"() {
         init_address5();
         init_transaction6();
         init_isAddress3();
@@ -208836,7 +208971,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_unit22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/unit.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/unit.js"() {
         init_base4();
         InvalidDecimalNumberError3 = class extends BaseError22 {
           constructor({ value }) {
@@ -208848,66 +208983,66 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_parseUnits3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/unit/parseUnits.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/unit/parseUnits.js"() {
         init_unit22();
       }
     });
     init_parseEther3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/unit/parseEther.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/unit/parseEther.js"() {
         init_unit5();
         init_parseUnits3();
       }
     });
     init_parseGwei3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/unit/parseGwei.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/unit/parseGwei.js"() {
         init_unit5();
         init_parseUnits3();
       }
     });
     init_utils72 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/index.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/index.js"() {
         init_encodeFunctionData3();
         init_fromHex3();
       }
     });
     init_proof3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/formatters/proof.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/formatters/proof.js"() {
         init_utils72();
       }
     });
     init_getProof3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getProof.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getProof.js"() {
         init_formatBlockParameter3();
         init_proof3();
       }
     });
     init_getStorageAt3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getStorageAt.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getStorageAt.js"() {
         init_formatBlockParameter3();
       }
     });
     init_getTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getTransaction.js"() {
         init_transaction6();
         init_toHex3();
         init_transaction22();
       }
     });
     init_getTransactionConfirmations3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getTransactionConfirmations.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getTransactionConfirmations.js"() {
         init_getAction3();
         init_getBlockNumber3();
         init_getTransaction3();
       }
     });
     init_getTransactionReceipt3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/getTransactionReceipt.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/getTransactionReceipt.js"() {
         init_transaction6();
         init_transactionReceipt3();
       }
     });
     init_multicall3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/multicall.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/multicall.js"() {
         init_abis3();
         init_contracts4();
         init_abi3();
@@ -208922,7 +209057,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_simulateBlocks3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/simulateBlocks.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/simulateBlocks.js"() {
         init_BlockOverrides3();
         init_parseAccount3();
         init_abi3();
@@ -208942,13 +209077,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_abiItem22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/internal/abiItem.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/internal/abiItem.js"() {
         init_Address3();
         init_Errors3();
       }
     });
     init_AbiItem3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/AbiItem.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/AbiItem.js"() {
         init_exports3();
         init_Errors3();
         init_Hash3();
@@ -208995,27 +209130,27 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_AbiConstructor3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/AbiConstructor.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/AbiConstructor.js"() {
         init_AbiItem3();
         init_AbiParameters3();
         init_Hex3();
       }
     });
     init_AbiFunction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/AbiFunction.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/AbiFunction.js"() {
         init_AbiItem3();
         init_AbiParameters3();
         init_Hex3();
       }
     });
     init_address22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/constants/address.js"() {
+      "../../../../enclave/node_modules/viem/_esm/constants/address.js"() {
         ethAddress3 = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
         zeroAddress3 = "0x0000000000000000000000000000000000000000";
       }
     });
     init_simulateCalls3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/simulateCalls.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/simulateCalls.js"() {
         init_AbiConstructor3();
         init_AbiFunction3();
         init_parseAccount3();
@@ -209042,7 +209177,7 @@ ${prettyStateOverride3(stateOverride)}`;
       wrap: () => wrap22
     });
     init_SignatureErc64923 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/erc6492/SignatureErc6492.js"() {
+      "../../../../enclave/node_modules/ox/_esm/erc6492/SignatureErc6492.js"() {
         init_AbiParameters3();
         init_Errors3();
         init_Hex3();
@@ -209106,19 +209241,19 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_erc64923 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/erc6492/index.js"() {
+      "../../../../enclave/node_modules/ox/_esm/erc6492/index.js"() {
         init_SignatureErc64923();
       }
     });
     init_serializeSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/serializeSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/serializeSignature.js"() {
         init_secp256k13();
         init_fromHex3();
         init_toBytes3();
       }
     });
     init_verifyHash22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/verifyHash.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/verifyHash.js"() {
         init_erc64923();
         init_erc80103();
         init_abis3();
@@ -209144,21 +209279,21 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_verifyMessage22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/verifyMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/verifyMessage.js"() {
         init_getAction3();
         init_hashMessage3();
         init_verifyHash22();
       }
     });
     init_verifyTypedData22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/verifyTypedData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/verifyTypedData.js"() {
         init_getAction3();
         init_hashTypedData3();
         init_verifyHash22();
       }
     });
     init_watchBlockNumber3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/watchBlockNumber.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/watchBlockNumber.js"() {
         init_fromHex3();
         init_getAction3();
         init_observe3();
@@ -209168,7 +209303,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_waitForTransactionReceipt3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/waitForTransactionReceipt.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/waitForTransactionReceipt.js"() {
         init_block5();
         init_transaction6();
         init_getAction3();
@@ -209183,7 +209318,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_watchBlocks3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/watchBlocks.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/watchBlocks.js"() {
         init_getAction3();
         init_observe3();
         init_poll3();
@@ -209192,7 +209327,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_watchEvent3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/watchEvent.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/watchEvent.js"() {
         init_abi3();
         init_rpc3();
         init_decodeEventLog3();
@@ -209210,7 +209345,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_watchPendingTransactions3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/public/watchPendingTransactions.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/public/watchPendingTransactions.js"() {
         init_getAction3();
         init_observe3();
         init_poll3();
@@ -209221,19 +209356,19 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_parseSiweMessage3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/siwe/parseSiweMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/siwe/parseSiweMessage.js"() {
         prefixRegex3 = /^(?:(?<scheme>[a-zA-Z][a-zA-Z0-9+-.]*):\/\/)?(?<domain>[a-zA-Z0-9+-.]*(?::[0-9]{1,5})?) (?:wants you to sign in with your Ethereum account:\n)(?<address>0x[a-fA-F0-9]{40})\n\n(?:(?<statement>.*)\n\n)?/;
         suffixRegex3 = /(?:URI: (?<uri>.+))\n(?:Version: (?<version>.+))\n(?:Chain ID: (?<chainId>\d+))\n(?:Nonce: (?<nonce>[a-zA-Z0-9]+))\n(?:Issued At: (?<issuedAt>.+))(?:\nExpiration Time: (?<expirationTime>.+))?(?:\nNot Before: (?<notBefore>.+))?(?:\nRequest ID: (?<requestId>.+))?/;
       }
     });
     init_validateSiweMessage3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/siwe/validateSiweMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/siwe/validateSiweMessage.js"() {
         init_isAddress3();
         init_isAddressEqual3();
       }
     });
     init_verifySiweMessage3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/siwe/verifySiweMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/siwe/verifySiweMessage.js"() {
         init_hashMessage3();
         init_parseSiweMessage3();
         init_validateSiweMessage3();
@@ -209241,13 +209376,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sendRawTransactionSync3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/sendRawTransactionSync.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/sendRawTransactionSync.js"() {
         init_transaction6();
         init_transactionReceipt3();
       }
     });
     init_public3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/decorators/public.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/decorators/public.js"() {
         init_getEnsAddress3();
         init_getEnsAvatar3();
         init_getEnsName3();
@@ -209308,145 +209443,145 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_createPublicClient3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/createPublicClient.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/createPublicClient.js"() {
         init_createClient3();
         init_public3();
       }
     });
     init_dropTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/dropTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/dropTransaction.js"() {
       }
     });
     init_dumpState3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/dumpState.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/dumpState.js"() {
       }
     });
     init_getAutomine3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/getAutomine.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/getAutomine.js"() {
       }
     });
     init_getTxpoolContent3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/getTxpoolContent.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/getTxpoolContent.js"() {
       }
     });
     init_getTxpoolStatus3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/getTxpoolStatus.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/getTxpoolStatus.js"() {
         init_fromHex3();
       }
     });
     init_impersonateAccount3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/impersonateAccount.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/impersonateAccount.js"() {
       }
     });
     init_increaseTime3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/increaseTime.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/increaseTime.js"() {
         init_toHex3();
       }
     });
     init_inspectTxpool3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/inspectTxpool.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/inspectTxpool.js"() {
       }
     });
     init_loadState3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/loadState.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/loadState.js"() {
       }
     });
     init_mine3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/mine.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/mine.js"() {
         init_toHex3();
       }
     });
     init_removeBlockTimestampInterval3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/removeBlockTimestampInterval.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/removeBlockTimestampInterval.js"() {
       }
     });
     init_reset3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/reset.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/reset.js"() {
       }
     });
     init_revert3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/revert.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/revert.js"() {
       }
     });
     init_sendUnsignedTransaction3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/sendUnsignedTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/sendUnsignedTransaction.js"() {
         init_extract3();
         init_transactionRequest3();
       }
     });
     init_setAutomine3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setAutomine.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setAutomine.js"() {
       }
     });
     init_setBalance3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setBalance.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setBalance.js"() {
         init_toHex3();
       }
     });
     init_setBlockGasLimit3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setBlockGasLimit.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setBlockGasLimit.js"() {
         init_toHex3();
       }
     });
     init_setBlockTimestampInterval3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setBlockTimestampInterval.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setBlockTimestampInterval.js"() {
       }
     });
     init_setCode3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setCode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setCode.js"() {
       }
     });
     init_setCoinbase3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setCoinbase.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setCoinbase.js"() {
       }
     });
     init_setIntervalMining3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setIntervalMining.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setIntervalMining.js"() {
       }
     });
     init_setLoggingEnabled3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setLoggingEnabled.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setLoggingEnabled.js"() {
       }
     });
     init_setMinGasPrice3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setMinGasPrice.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setMinGasPrice.js"() {
         init_toHex3();
       }
     });
     init_setNextBlockBaseFeePerGas3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setNextBlockBaseFeePerGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setNextBlockBaseFeePerGas.js"() {
         init_toHex3();
       }
     });
     init_setNextBlockTimestamp3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setNextBlockTimestamp.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setNextBlockTimestamp.js"() {
         init_toHex3();
       }
     });
     init_setNonce3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setNonce.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setNonce.js"() {
         init_toHex3();
       }
     });
     init_setRpcUrl3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setRpcUrl.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setRpcUrl.js"() {
       }
     });
     init_setStorageAt3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/setStorageAt.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/setStorageAt.js"() {
         init_toHex3();
       }
     });
     init_snapshot3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/snapshot.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/snapshot.js"() {
       }
     });
     init_stopImpersonatingAccount3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/test/stopImpersonatingAccount.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/test/stopImpersonatingAccount.js"() {
       }
     });
     init_test3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/decorators/test.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/decorators/test.js"() {
         init_dropTransaction3();
         init_dumpState3();
         init_getAutomine3();
@@ -209480,39 +209615,39 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_createTestClient3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/createTestClient.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/createTestClient.js"() {
         init_createClient3();
         init_test3();
       }
     });
     init_addChain3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/addChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/addChain.js"() {
         init_toHex3();
       }
     });
     init_deployContract3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/deployContract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/deployContract.js"() {
         init_encodeDeployData3();
         init_sendTransaction3();
       }
     });
     init_getAddresses3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/getAddresses.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/getAddresses.js"() {
         init_getAddress3();
       }
     });
     init_getCapabilities3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/getCapabilities.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/getCapabilities.js"() {
         init_parseAccount3();
         init_toHex3();
       }
     });
     init_getPermissions3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/getPermissions.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/getPermissions.js"() {
       }
     });
     init_prepareAuthorization3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/prepareAuthorization.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/prepareAuthorization.js"() {
         init_parseAccount3();
         init_account3();
         init_isAddressEqual3();
@@ -209522,23 +209657,23 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_requestAddresses3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/requestAddresses.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/requestAddresses.js"() {
         init_getAddress3();
       }
     });
     init_requestPermissions3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/requestPermissions.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/requestPermissions.js"() {
       }
     });
     init_sendCallsSync3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/sendCallsSync.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/sendCallsSync.js"() {
         init_getAction3();
         init_sendCalls3();
         init_waitForCallsStatus3();
       }
     });
     init_sendTransactionSync3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/sendTransactionSync.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/sendTransactionSync.js"() {
         init_parseAccount3();
         init_account3();
         init_base4();
@@ -209560,25 +209695,25 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_showCallsStatus3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/showCallsStatus.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/showCallsStatus.js"() {
       }
     });
     init_signAuthorization4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/signAuthorization.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/signAuthorization.js"() {
         init_parseAccount3();
         init_account3();
         init_prepareAuthorization3();
       }
     });
     init_signMessage4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/signMessage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/signMessage.js"() {
         init_parseAccount3();
         init_account3();
         init_toHex3();
       }
     });
     init_signTransaction4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/signTransaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/signTransaction.js"() {
         init_parseAccount3();
         init_account3();
         init_assertCurrentChain3();
@@ -209590,29 +209725,29 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_signTypedData4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/signTypedData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/signTypedData.js"() {
         init_parseAccount3();
         init_account3();
         init_typedData22();
       }
     });
     init_switchChain3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/switchChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/switchChain.js"() {
         init_toHex3();
       }
     });
     init_watchAsset3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/watchAsset.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/watchAsset.js"() {
       }
     });
     init_writeContractSync3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/actions/wallet/writeContractSync.js"() {
+      "../../../../enclave/node_modules/viem/_esm/actions/wallet/writeContractSync.js"() {
         init_sendTransactionSync3();
         init_writeContract3();
       }
     });
     init_wallet3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/decorators/wallet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/decorators/wallet.js"() {
         init_fillTransaction3();
         init_getChainId3();
         init_addChain3();
@@ -209644,24 +209779,24 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_createWalletClient3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/createWalletClient.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/createWalletClient.js"() {
         init_createClient3();
         init_wallet3();
       }
     });
     init_createTransport3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/transports/createTransport.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/transports/createTransport.js"() {
         init_buildRequest3();
         init_uid3();
       }
     });
     init_custom3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/transports/custom.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/transports/custom.js"() {
         init_createTransport3();
       }
     });
     init_fallback3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/transports/fallback.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/transports/fallback.js"() {
         init_node3();
         init_rpc3();
         init_wait3();
@@ -209669,7 +209804,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_transport3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/errors/transport.js"() {
+      "../../../../enclave/node_modules/viem/_esm/errors/transport.js"() {
         init_base4();
         UrlRequiredError3 = class extends BaseError22 {
           constructor() {
@@ -209682,7 +209817,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_http22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/transports/http.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/transports/http.js"() {
         init_request3();
         init_transport3();
         init_createBatchScheduler3();
@@ -209693,7 +209828,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_webSocket22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/clients/transports/webSocket.js"() {
+      "../../../../enclave/node_modules/viem/_esm/clients/transports/webSocket.js"() {
         init_request3();
         init_transport3();
         init_compat3();
@@ -209702,7 +209837,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eip11933 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/types/eip1193.js"() {
+      "../../../../enclave/node_modules/viem/_esm/types/eip1193.js"() {
         ProviderRpcError22 = class extends Error {
           constructor(code, message22) {
             super(message22);
@@ -209725,59 +209860,59 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_decodeDeployData3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/abi/decodeDeployData.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/abi/decodeDeployData.js"() {
         init_abi3();
         init_decodeAbiParameters3();
         docsPath82 = "/docs/contract/decodeDeployData";
       }
     });
     init_fromBlobs3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/fromBlobs.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/fromBlobs.js"() {
         init_cursor22();
         init_toBytes3();
         init_toHex3();
       }
     });
     init_sidecarsToVersionedHashes3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/blob/sidecarsToVersionedHashes.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/blob/sidecarsToVersionedHashes.js"() {
         init_commitmentToVersionedHash3();
       }
     });
     init_toCoinType3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/ens/toCoinType.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/ens/toCoinType.js"() {
         init_ens3();
         SLIP44_MSB3 = 2147483648;
       }
     });
     init_defineKzg3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/kzg/defineKzg.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/kzg/defineKzg.js"() {
       }
     });
     init_setupKzg3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/kzg/setupKzg.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/kzg/setupKzg.js"() {
         init_defineKzg3();
       }
     });
     init_compactSignatureToSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/compactSignatureToSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/compactSignatureToSignature.js"() {
         init_toBytes3();
         init_toHex3();
       }
     });
     init_parseCompactSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/parseCompactSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/parseCompactSignature.js"() {
         init_secp256k13();
         init_toHex3();
       }
     });
     init_parseSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/parseSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/parseSignature.js"() {
         init_secp256k13();
         init_toHex3();
       }
     });
     init_recoverTransactionAddress3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/recoverTransactionAddress.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/recoverTransactionAddress.js"() {
         init_keccak2563();
         init_parseTransaction3();
         init_serializeTransaction3();
@@ -209785,13 +209920,13 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializeCompactSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/serializeCompactSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/serializeCompactSignature.js"() {
         init_secp256k13();
         init_fromHex3();
       }
     });
     init_signatureToCompactSignature3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/utils/signature/signatureToCompactSignature.js"() {
+      "../../../../enclave/node_modules/viem/_esm/utils/signature/signatureToCompactSignature.js"() {
         init_toBytes3();
         init_toHex3();
       }
@@ -210233,7 +210368,7 @@ ${prettyStateOverride3(stateOverride)}`;
       zeroHash: () => zeroHash3
     });
     init_esm22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/index.js"() {
+      "../../../../enclave/node_modules/viem/_esm/index.js"() {
         init_exports3();
         init_getContract3();
         init_waitForCallsStatus3();
@@ -210391,7 +210526,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_g2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/0g.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/0g.js"() {
         init_defineChain3();
         zeroG2 = /* @__PURE__ */ defineChain3({
           id: 16600,
@@ -210413,7 +210548,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gGalileoTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/0gGalileoTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/0gGalileoTestnet.js"() {
         init_defineChain3();
         zeroGGalileoTestnet2 = /* @__PURE__ */ defineChain3({
           id: 16601,
@@ -210435,7 +210570,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/0gMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/0gMainnet.js"() {
         init_defineChain3();
         zeroGMainnet2 = /* @__PURE__ */ defineChain3({
           id: 16661,
@@ -210457,7 +210592,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/0gTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/0gTestnet.js"() {
         init_defineChain3();
         zeroGTestnet2 = /* @__PURE__ */ defineChain3({
           id: 16602,
@@ -210479,7 +210614,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ireChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/5ireChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/5ireChain.js"() {
         init_defineChain3();
         fireChain2 = /* @__PURE__ */ defineChain3({
           id: 995,
@@ -210501,7 +210636,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_abey2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/abey.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/abey.js"() {
         init_defineChain3();
         abey2 = /* @__PURE__ */ defineChain3({
           id: 179,
@@ -210523,14 +210658,14 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_number22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/constants/number.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/constants/number.js"() {
         init_number4();
         gasPerPubdataDefault2 = 50000n;
         maxBytecodeSize2 = maxUint165 * 32n;
       }
     });
     init_formatters4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/formatters.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/formatters.js"() {
         init_fromHex3();
         init_toBytes3();
         init_toHex3();
@@ -210640,7 +210775,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_transaction32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/errors/transaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/errors/transaction.js"() {
         init_base4();
         InvalidEip712TransactionError2 = class extends BaseError22 {
           constructor() {
@@ -210656,11 +210791,11 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_isEip712Transaction2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/utils/isEip712Transaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/utils/isEip712Transaction.js"() {
       }
     });
     init_assertEip712Transaction2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/utils/assertEip712Transaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/utils/assertEip712Transaction.js"() {
         init_address5();
         init_base4();
         init_chain3();
@@ -210670,7 +210805,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializers4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/serializers.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/serializers.js"() {
         init_concat4();
         init_toHex3();
         init_toRlp3();
@@ -210684,7 +210819,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bytecode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/errors/bytecode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/errors/bytecode.js"() {
         init_base4();
         BytecodeLengthExceedsMaxSizeError2 = class extends BaseError22 {
           constructor({ givenLength, maxBytecodeSize: maxBytecodeSize22 }) {
@@ -210704,7 +210839,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hashBytecode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/utils/hashBytecode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/utils/hashBytecode.js"() {
         init_pad3();
         init_toBytes3();
         init_sha25622();
@@ -210713,7 +210848,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_getEip712Domain22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/utils/getEip712Domain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/utils/getEip712Domain.js"() {
         init_toHex3();
         init_number22();
         init_assertEip712Transaction2();
@@ -210751,7 +210886,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chainConfig6 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/zksync/chainConfig.js"() {
+      "../../../../enclave/node_modules/viem/_esm/zksync/chainConfig.js"() {
         init_formatters4();
         init_serializers4();
         init_getEip712Domain22();
@@ -210766,7 +210901,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_abstract2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/abstract.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/abstract.js"() {
         init_defineChain3();
         init_chainConfig6();
         abstract2 = /* @__PURE__ */ defineChain3({
@@ -210809,7 +210944,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_abstractTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/abstractTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/abstractTestnet.js"() {
         init_defineChain3();
         init_chainConfig6();
         abstractTestnet2 = /* @__PURE__ */ defineChain3({
@@ -210850,7 +210985,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_acala2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/acala.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/acala.js"() {
         init_defineChain3();
         acala2 = /* @__PURE__ */ defineChain3({
           id: 787,
@@ -210879,7 +211014,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_acria2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/acria.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/acria.js"() {
         init_defineChain3();
         acria2 = /* @__PURE__ */ defineChain3({
           id: 47,
@@ -210905,7 +211040,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_adf2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/adf.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/adf.js"() {
         init_defineChain3();
         adf2 = /* @__PURE__ */ defineChain3({
           id: 1215,
@@ -210927,7 +211062,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_adi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/adi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/adi.js"() {
         init_defineChain3();
         adi2 = /* @__PURE__ */ defineChain3({
           id: 36900,
@@ -210953,7 +211088,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_agungTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/agungTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/agungTestnet.js"() {
         init_defineChain3();
         agungTestnet2 = /* @__PURE__ */ defineChain3({
           id: 9990,
@@ -210980,7 +211115,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_aioz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/aioz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/aioz.js"() {
         init_defineChain3();
         aioz2 = /* @__PURE__ */ defineChain3({
           id: 168,
@@ -211006,7 +211141,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_alephZero2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/alephZero.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/alephZero.js"() {
         init_defineChain3();
         alephZero2 = /* @__PURE__ */ defineChain3({
           id: 41455,
@@ -211034,7 +211169,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_alephZeroTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/alephZeroTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/alephZeroTestnet.js"() {
         init_defineChain3();
         alephZeroTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2039,
@@ -211064,7 +211199,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_alienX2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/alienX.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/alienX.js"() {
         init_defineChain3();
         alienx2 = /* @__PURE__ */ defineChain3({
           id: 10241024,
@@ -211084,7 +211219,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_alienXHalTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/alienXHalTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/alienXHalTestnet.js"() {
         init_defineChain3();
         alienxHalTestnet2 = /* @__PURE__ */ defineChain3({
           id: 10241025,
@@ -211104,7 +211239,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_alpenTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/alpenTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/alpenTestnet.js"() {
         init_defineChain3();
         alpenTestnet2 = /* @__PURE__ */ defineChain3({
           id: 8150,
@@ -211133,7 +211268,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_contracts22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/op-stack/contracts.js"() {
+      "../../../../enclave/node_modules/viem/_esm/op-stack/contracts.js"() {
         contracts2 = {
           gasPriceOracle: { address: "0x420000000000000000000000000000000000000F" },
           l1Block: { address: "0x4200000000000000000000000000000000000015" },
@@ -211149,7 +211284,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_formatters22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/op-stack/formatters.js"() {
+      "../../../../enclave/node_modules/viem/_esm/op-stack/formatters.js"() {
         init_fromHex3();
         init_block22();
         init_transaction22();
@@ -211201,7 +211336,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializers22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/op-stack/serializers.js"() {
+      "../../../../enclave/node_modules/viem/_esm/op-stack/serializers.js"() {
         init_address5();
         init_isAddress3();
         init_concat4();
@@ -211214,7 +211349,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chainConfig22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/op-stack/chainConfig.js"() {
+      "../../../../enclave/node_modules/viem/_esm/op-stack/chainConfig.js"() {
         init_contracts22();
         init_formatters22();
         init_serializers22();
@@ -211227,7 +211362,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ancient82 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ancient8.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ancient8.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId70 = 1;
@@ -211273,7 +211408,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ancient8Sepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ancient8Sepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ancient8Sepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId210 = 11155111;
@@ -211320,7 +211455,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_anvil2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/anvil.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/anvil.js"() {
         init_defineChain3();
         anvil2 = /* @__PURE__ */ defineChain3({
           id: 31337,
@@ -211340,7 +211475,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_apeChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/apeChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/apeChain.js"() {
         init_defineChain3();
         sourceId310 = 42161;
         apeChain2 = /* @__PURE__ */ defineChain3({
@@ -211375,7 +211510,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_apexTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/apexTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/apexTestnet.js"() {
         init_defineChain3();
         apexTestnet2 = /* @__PURE__ */ defineChain3({
           id: 3993,
@@ -211404,7 +211539,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_apollo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/apollo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/apollo.js"() {
         init_defineChain3();
         apollo2 = /* @__PURE__ */ defineChain3({
           id: 62606,
@@ -211429,7 +211564,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arbitrum2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arbitrum.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arbitrum.js"() {
         init_defineChain3();
         arbitrum2 = /* @__PURE__ */ defineChain3({
           id: 42161,
@@ -211458,7 +211593,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arbitrumGoerli2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arbitrumGoerli.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arbitrumGoerli.js"() {
         init_defineChain3();
         arbitrumGoerli2 = /* @__PURE__ */ defineChain3({
           id: 421613,
@@ -211490,7 +211625,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arbitrumNova2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arbitrumNova.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arbitrumNova.js"() {
         init_defineChain3();
         arbitrumNova2 = /* @__PURE__ */ defineChain3({
           id: 42170,
@@ -211518,7 +211653,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arbitrumSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arbitrumSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arbitrumSepolia.js"() {
         init_defineChain3();
         arbitrumSepolia2 = /* @__PURE__ */ defineChain3({
           id: 421614,
@@ -211552,7 +211687,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arc2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arc.js"() {
         init_defineChain3();
         arc2 = /* @__PURE__ */ defineChain3({
           id: 5042,
@@ -211571,7 +211706,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arcTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arcTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arcTestnet.js"() {
         init_defineChain3();
         arcTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5042002,
@@ -211612,7 +211747,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arenaz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arenaz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arenaz.js"() {
         init_defineChain3();
         arenaz2 = /* @__PURE__ */ defineChain3({
           id: 7897,
@@ -211634,7 +211769,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_areonNetwork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/areonNetwork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/areonNetwork.js"() {
         init_defineChain3();
         areonNetwork2 = /* @__PURE__ */ defineChain3({
           id: 463,
@@ -211663,7 +211798,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_areonNetworkTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/areonNetworkTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/areonNetworkTestnet.js"() {
         init_defineChain3();
         areonNetworkTestnet2 = /* @__PURE__ */ defineChain3({
           id: 462,
@@ -211686,7 +211821,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_areum2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/areum.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/areum.js"() {
         init_defineChain3();
         areum2 = /* @__PURE__ */ defineChain3({
           id: 463,
@@ -211715,7 +211850,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_artelaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/artelaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/artelaTestnet.js"() {
         init_defineChain3();
         artelaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 11822,
@@ -211744,7 +211879,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_arthera2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/arthera.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/arthera.js"() {
         init_defineChain3();
         arthera2 = /* @__PURE__ */ defineChain3({
           id: 10242,
@@ -211772,7 +211907,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_artheraTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/artheraTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/artheraTestnet.js"() {
         init_defineChain3();
         artheraTestnet2 = /* @__PURE__ */ defineChain3({
           id: 10243,
@@ -211801,7 +211936,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_assetChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/assetChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/assetChain.js"() {
         init_defineChain3();
         assetChain2 = /* @__PURE__ */ defineChain3({
           id: 42420,
@@ -211827,7 +211962,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_assetChainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/assetChainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/assetChainTestnet.js"() {
         init_defineChain3();
         assetChainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 42421,
@@ -211858,7 +211993,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_astar2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/astar.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/astar.js"() {
         init_defineChain3();
         astar2 = /* @__PURE__ */ defineChain3({
           id: 592,
@@ -211889,7 +212024,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_astarZkEVM2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/astarZkEVM.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/astarZkEVM.js"() {
         init_defineChain3();
         astarZkEVM2 = /* @__PURE__ */ defineChain3({
           id: 3776,
@@ -211918,7 +212053,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_astarZkyoto2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/astarZkyoto.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/astarZkyoto.js"() {
         init_defineChain3();
         astarZkyoto2 = /* @__PURE__ */ defineChain3({
           id: 6038361,
@@ -211947,7 +212082,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_atletaOlympia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/atletaOlympia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/atletaOlympia.js"() {
         init_defineChain3();
         atletaOlympia2 = /* @__PURE__ */ defineChain3({
           id: 2340,
@@ -211980,7 +212115,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_aurora2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/aurora.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/aurora.js"() {
         init_defineChain3();
         aurora2 = /* @__PURE__ */ defineChain3({
           id: 1313161554,
@@ -212010,7 +212145,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_auroraTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/auroraTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/auroraTestnet.js"() {
         init_defineChain3();
         auroraTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1313161555,
@@ -212035,7 +212170,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_auroria2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/auroria.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/auroria.js"() {
         init_defineChain3();
         auroria2 = /* @__PURE__ */ defineChain3({
           id: 205205,
@@ -212062,7 +212197,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_autheoTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/autheoTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/autheoTestnet.js"() {
         init_defineChain3();
         autheoTestnet2 = /* @__PURE__ */ defineChain3({
           id: 785,
@@ -212091,7 +212226,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_avalanche2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/avalanche.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/avalanche.js"() {
         init_defineChain3();
         avalanche2 = /* @__PURE__ */ defineChain3({
           id: 43114,
@@ -212122,7 +212257,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_avalancheFuji2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/avalancheFuji.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/avalancheFuji.js"() {
         init_defineChain3();
         avalancheFuji2 = /* @__PURE__ */ defineChain3({
           id: 43113,
@@ -212153,7 +212288,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_b32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/b3.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/b3.js"() {
         init_defineChain3();
         sourceId410 = 8453;
         b33 = /* @__PURE__ */ defineChain3({
@@ -212186,7 +212321,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_b3Sepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/b3Sepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/b3Sepolia.js"() {
         init_defineChain3();
         sourceId510 = 168587773;
         b3Sepolia2 = /* @__PURE__ */ defineChain3({
@@ -212220,7 +212355,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bahamut2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bahamut.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bahamut.js"() {
         init_defineChain3();
         bahamut2 = /* @__PURE__ */ defineChain3({
           id: 5165,
@@ -212252,7 +212387,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_base22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/base.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/base.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId610 = 1;
@@ -212316,7 +212451,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_basecampTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/basecampTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/basecampTestnet.js"() {
         init_defineChain3();
         basecampTestnet2 = /* @__PURE__ */ defineChain3({
           id: 123420001114,
@@ -212340,7 +212475,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_baseGoerli2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/baseGoerli.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/baseGoerli.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId72 = 5;
@@ -212387,7 +212522,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_baseSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/baseSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/baseSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId82 = 11155111;
@@ -212453,7 +212588,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_battlechainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/battlechainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/battlechainTestnet.js"() {
         init_defineChain3();
         init_chainConfig6();
         battlechainTestnet2 = /* @__PURE__ */ defineChain3({
@@ -212479,7 +212614,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_beam2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/beam.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/beam.js"() {
         init_defineChain3();
         beam2 = /* @__PURE__ */ defineChain3({
           id: 4337,
@@ -212512,7 +212647,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_beamTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/beamTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/beamTestnet.js"() {
         init_defineChain3();
         beamTestnet2 = /* @__PURE__ */ defineChain3({
           id: 13337,
@@ -212546,7 +212681,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bearNetworkChainMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bearNetworkChainMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bearNetworkChainMainnet.js"() {
         init_defineChain3();
         bearNetworkChainMainnet2 = /* @__PURE__ */ defineChain3({
           id: 641230,
@@ -212570,7 +212705,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bearNetworkChainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bearNetworkChainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bearNetworkChainTestnet.js"() {
         init_defineChain3();
         bearNetworkChainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 751230,
@@ -212595,7 +212730,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_berachain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/berachain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/berachain.js"() {
         init_defineChain3();
         berachain2 = /* @__PURE__ */ defineChain3({
           id: 80094,
@@ -212635,7 +212770,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_berachainBepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/berachainBepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/berachainBepolia.js"() {
         init_defineChain3();
         berachainBepolia2 = /* @__PURE__ */ defineChain3({
           id: 80069,
@@ -212666,7 +212801,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_berachainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/berachainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/berachainTestnet.js"() {
         init_defineChain3();
         berachainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 80085,
@@ -212696,7 +212831,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_berachainTestnetbArtio2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/berachainTestnetbArtio.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/berachainTestnetbArtio.js"() {
         init_defineChain3();
         berachainTestnetbArtio2 = /* @__PURE__ */ defineChain3({
           id: 80084,
@@ -212735,7 +212870,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bevmMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bevmMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bevmMainnet.js"() {
         init_defineChain3();
         bevmMainnet2 = /* @__PURE__ */ defineChain3({
           id: 11501,
@@ -212755,7 +212890,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bifrost2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bifrost.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bifrost.js"() {
         init_defineChain3();
         bifrost2 = /* @__PURE__ */ defineChain3({
           id: 3068,
@@ -212777,7 +212912,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_birdlayer2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/birdlayer.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/birdlayer.js"() {
         init_defineChain3();
         birdlayer2 = /* @__PURE__ */ defineChain3({
           id: 53456,
@@ -212799,7 +212934,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitgert2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitgert.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitgert.js"() {
         init_defineChain3();
         bitgert2 = /* @__PURE__ */ defineChain3({
           id: 32520,
@@ -212829,7 +212964,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitkub2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitkub.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitkub.js"() {
         init_defineChain3();
         bitkub2 = /* @__PURE__ */ defineChain3({
           id: 96,
@@ -212851,7 +212986,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitkubTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitkubTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitkubTestnet.js"() {
         init_defineChain3();
         bitkubTestnet2 = /* @__PURE__ */ defineChain3({
           id: 25925,
@@ -212875,7 +213010,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitlayer2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitlayer.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitlayer.js"() {
         init_defineChain3();
         bitlayer2 = /* @__PURE__ */ defineChain3({
           id: 200901,
@@ -212907,7 +213042,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitlayerTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitlayerTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitlayerTestnet.js"() {
         init_defineChain3();
         bitlayerTestnet2 = /* @__PURE__ */ defineChain3({
           id: 200810,
@@ -212940,7 +213075,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitrock2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitrock.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitrock.js"() {
         init_defineChain3();
         bitrock2 = /* @__PURE__ */ defineChain3({
           id: 7171,
@@ -212962,7 +213097,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitTorrent2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitTorrent.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitTorrent.js"() {
         init_defineChain3();
         bitTorrent2 = /* @__PURE__ */ defineChain3({
           id: 199,
@@ -212989,7 +213124,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bitTorrentTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bitTorrentTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bitTorrentTestnet.js"() {
         init_defineChain3();
         bitTorrentTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1028,
@@ -213011,7 +213146,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_blast2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/blast.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/blast.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId92 = 1;
@@ -213064,7 +213199,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_blastSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/blastSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/blastSepolia.js"() {
         init_defineChain3();
         sourceId102 = 11155111;
         blastSepolia2 = /* @__PURE__ */ defineChain3({
@@ -213099,7 +213234,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bob2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bob.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bob.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId112 = 1;
@@ -213148,7 +213283,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_boba2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/boba.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/boba.js"() {
         init_defineChain3();
         boba2 = /* @__PURE__ */ defineChain3({
           id: 288,
@@ -213177,7 +213312,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bobaSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bobaSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bobaSepolia.js"() {
         init_defineChain3();
         bobaSepolia2 = /* @__PURE__ */ defineChain3({
           id: 28882,
@@ -213201,7 +213336,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bobSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bobSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bobSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId122 = 11155111;
@@ -213251,7 +213386,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_boolBetaMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/boolBetaMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/boolBetaMainnet.js"() {
         init_defineChain3();
         boolBetaMainnet2 = /* @__PURE__ */ defineChain3({
           id: 11100,
@@ -213275,7 +213410,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_botanix2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/botanix.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/botanix.js"() {
         init_defineChain3();
         botanix2 = /* @__PURE__ */ defineChain3({
           id: 3637,
@@ -213297,7 +213432,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_botanixTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/botanixTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/botanixTestnet.js"() {
         init_defineChain3();
         botanixTestnet2 = /* @__PURE__ */ defineChain3({
           id: 3636,
@@ -213319,7 +213454,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bounceBit2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bounceBit.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bounceBit.js"() {
         init_defineChain3();
         bounceBit2 = /* @__PURE__ */ defineChain3({
           id: 6001,
@@ -213339,7 +213474,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bounceBitTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bounceBitTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bounceBitTestnet.js"() {
         init_defineChain3();
         bounceBitTestnet2 = /* @__PURE__ */ defineChain3({
           id: 6e3,
@@ -213359,7 +213494,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bronos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bronos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bronos.js"() {
         init_defineChain3();
         bronos2 = /* @__PURE__ */ defineChain3({
           id: 1039,
@@ -213382,7 +213517,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bronosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bronosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bronosTestnet.js"() {
         init_defineChain3();
         bronosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1038,
@@ -213406,7 +213541,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bsc2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bsc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bsc.js"() {
         init_defineChain3();
         bsc2 = /* @__PURE__ */ defineChain3({
           id: 56,
@@ -213437,7 +213572,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bscGreenfield2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bscGreenfield.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bscGreenfield.js"() {
         init_defineChain3();
         bscGreenfield2 = /* @__PURE__ */ defineChain3({
           id: 1017,
@@ -213461,7 +213596,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bscTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bscTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bscTestnet.js"() {
         init_defineChain3();
         bscTestnet2 = /* @__PURE__ */ defineChain3({
           id: 97,
@@ -213492,7 +213627,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bsquared2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bsquared.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bsquared.js"() {
         init_defineChain3();
         bsquared2 = /* @__PURE__ */ defineChain3({
           id: 223,
@@ -213517,7 +213652,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bsquaredTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bsquaredTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bsquaredTestnet.js"() {
         init_defineChain3();
         bsquaredTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1123,
@@ -213543,7 +213678,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_btr2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/btr.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/btr.js"() {
         init_defineChain3();
         btr2 = /* @__PURE__ */ defineChain3({
           id: 200901,
@@ -213569,7 +213704,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_btrTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/btrTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/btrTestnet.js"() {
         init_defineChain3();
         btrTestnet2 = /* @__PURE__ */ defineChain3({
           id: 200810,
@@ -213599,7 +213734,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bxn2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bxn.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bxn.js"() {
         init_defineChain3();
         bxn2 = /* @__PURE__ */ defineChain3({
           id: 4999,
@@ -213621,7 +213756,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_bxnTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/bxnTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/bxnTestnet.js"() {
         init_defineChain3();
         bxnTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4777,
@@ -213648,7 +213783,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cannon2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cannon.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cannon.js"() {
         init_defineChain3();
         cannon2 = /* @__PURE__ */ defineChain3({
           id: 13370,
@@ -213665,7 +213800,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_canto2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/canto.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/canto.js"() {
         init_defineChain3();
         canto2 = /* @__PURE__ */ defineChain3({
           id: 7700,
@@ -213694,7 +213829,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fees2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/celo/fees.js"() {
+      "../../../../enclave/node_modules/viem/_esm/celo/fees.js"() {
         fees2 = {
           /*
              * Estimates the fees per gas for a transaction.
@@ -213722,12 +213857,12 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_utils82 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/celo/utils.js"() {
+      "../../../../enclave/node_modules/viem/_esm/celo/utils.js"() {
         init_trim3();
       }
     });
     init_formatters32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/celo/formatters.js"() {
+      "../../../../enclave/node_modules/viem/_esm/celo/formatters.js"() {
         init_fromHex3();
         init_block22();
         init_transaction22();
@@ -213789,7 +213924,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_serializers32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/celo/serializers.js"() {
+      "../../../../enclave/node_modules/viem/_esm/celo/serializers.js"() {
         init_number4();
         init_address5();
         init_base4();
@@ -213810,7 +213945,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chainConfig32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/celo/chainConfig.js"() {
+      "../../../../enclave/node_modules/viem/_esm/celo/chainConfig.js"() {
         init_contracts22();
         init_fees2();
         init_formatters32();
@@ -213825,7 +213960,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_celo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/celo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/celo.js"() {
         init_chainConfig32();
         init_defineChain3();
         celo2 = /* @__PURE__ */ defineChain3({
@@ -213858,7 +213993,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_celoAlfajores2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/celoAlfajores.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/celoAlfajores.js"() {
         init_chainConfig32();
         init_defineChain3();
         sourceId132 = 17e3;
@@ -213919,7 +214054,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_celoSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/celoSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/celoSepolia.js"() {
         init_chainConfig32();
         init_defineChain3();
         sourceId142 = 11155111;
@@ -213974,7 +214109,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chang2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/chang.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/chang.js"() {
         init_defineChain3();
         chang2 = /* @__PURE__ */ defineChain3({
           id: 5858,
@@ -213999,7 +214134,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chiliz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/chiliz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/chiliz.js"() {
         init_defineChain3();
         chiliz2 = /* @__PURE__ */ defineChain3({
           id: 88888,
@@ -214032,7 +214167,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chips2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/chips.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/chips.js"() {
         init_defineChain3();
         chips2 = /* @__PURE__ */ defineChain3({
           id: 2882,
@@ -214054,7 +214189,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_citrate2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/citrate.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/citrate.js"() {
         init_defineChain3();
         citrate2 = /* @__PURE__ */ defineChain3({
           id: 40204,
@@ -214071,7 +214206,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_citrea2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/citrea.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/citrea.js"() {
         init_defineChain3();
         citrea2 = /* @__PURE__ */ defineChain3({
           id: 4114,
@@ -214094,7 +214229,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_citreaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/citreaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/citreaTestnet.js"() {
         init_defineChain3();
         citreaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5115,
@@ -214117,7 +214252,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_classic2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/classic.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/classic.js"() {
         init_defineChain3();
         classic2 = /* @__PURE__ */ defineChain3({
           id: 61,
@@ -214140,7 +214275,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_codex2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/codex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/codex.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId152 = 1;
@@ -214187,7 +214322,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_codexTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/codexTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/codexTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId162 = 11155111;
@@ -214235,7 +214370,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_coinbit2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/coinbit.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/coinbit.js"() {
         init_defineChain3();
         coinbit2 = /* @__PURE__ */ defineChain3({
           id: 112,
@@ -214257,7 +214392,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_coinex2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/coinex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/coinex.js"() {
         init_defineChain3();
         coinex2 = /* @__PURE__ */ defineChain3({
           id: 52,
@@ -214279,7 +214414,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_confluxESpace2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/confluxESpace.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/confluxESpace.js"() {
         init_defineChain3();
         confluxESpace2 = /* @__PURE__ */ defineChain3({
           id: 1030,
@@ -214307,7 +214442,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_confluxESpaceTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/confluxESpaceTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/confluxESpaceTestnet.js"() {
         init_defineChain3();
         confluxESpaceTestnet2 = /* @__PURE__ */ defineChain3({
           id: 71,
@@ -214337,7 +214472,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_coreDao2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/coreDao.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/coreDao.js"() {
         init_defineChain3();
         coreDao2 = /* @__PURE__ */ defineChain3({
           id: 1116,
@@ -214367,7 +214502,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_coreTestnet12 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/coreTestnet1.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/coreTestnet1.js"() {
         init_defineChain3();
         coreTestnet12 = /* @__PURE__ */ defineChain3({
           id: 1115,
@@ -214398,7 +214533,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_coreTestnet22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/coreTestnet2.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/coreTestnet2.js"() {
         init_defineChain3();
         coreTestnet22 = /* @__PURE__ */ defineChain3({
           id: 1114,
@@ -214429,7 +214564,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_corn2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/corn.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/corn.js"() {
         init_defineChain3();
         sourceId172 = 1;
         corn2 = /* @__PURE__ */ defineChain3({
@@ -214461,7 +214596,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cornTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cornTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cornTestnet.js"() {
         init_defineChain3();
         sourceId182 = 11155111;
         cornTestnet2 = /* @__PURE__ */ defineChain3({
@@ -214494,7 +214629,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cpchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cpchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cpchain.js"() {
         init_defineChain3();
         cpchain2 = /* @__PURE__ */ defineChain3({
           id: 86608,
@@ -214518,7 +214653,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_crab2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/crab.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/crab.js"() {
         init_defineChain3();
         crab2 = /* @__PURE__ */ defineChain3({
           id: 44,
@@ -214547,7 +214682,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_creatorTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/creatorTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/creatorTestnet.js"() {
         init_defineChain3();
         creatorTestnet2 = /* @__PURE__ */ defineChain3({
           id: 66665,
@@ -214575,7 +214710,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_creditCoin3Devnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/creditCoin3Devnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/creditCoin3Devnet.js"() {
         init_defineChain3();
         creditCoin3Devnet2 = /* @__PURE__ */ defineChain3({
           id: 102032,
@@ -214599,7 +214734,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_creditCoin3Mainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/creditCoin3Mainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/creditCoin3Mainnet.js"() {
         init_defineChain3();
         creditCoin3Mainnet2 = /* @__PURE__ */ defineChain3({
           id: 102030,
@@ -214623,7 +214758,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_creditCoin3Testnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/creditCoin3Testnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/creditCoin3Testnet.js"() {
         init_defineChain3();
         creditCoin3Testnet2 = /* @__PURE__ */ defineChain3({
           id: 102031,
@@ -214647,7 +214782,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cronos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cronos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cronos.js"() {
         init_defineChain3();
         cronos2 = /* @__PURE__ */ defineChain3({
           id: 25,
@@ -214677,7 +214812,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cronosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cronosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cronosTestnet.js"() {
         init_defineChain3();
         cronosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 338,
@@ -214707,7 +214842,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cronoszkEVM2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cronoszkEVM.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cronoszkEVM.js"() {
         init_defineChain3();
         cronoszkEVM2 = /* @__PURE__ */ defineChain3({
           id: 388,
@@ -214736,7 +214871,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cronoszkEVMTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cronoszkEVMTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cronoszkEVMTestnet.js"() {
         init_defineChain3();
         cronoszkEVMTestnet2 = /* @__PURE__ */ defineChain3({
           id: 282,
@@ -214760,7 +214895,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_crossbell2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/crossbell.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/crossbell.js"() {
         init_defineChain3();
         crossbell2 = /* @__PURE__ */ defineChain3({
           id: 3737,
@@ -214792,7 +214927,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_crossfi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/crossfi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/crossfi.js"() {
         init_defineChain3();
         crossfi2 = /* @__PURE__ */ defineChain3({
           id: 4158,
@@ -214816,7 +214951,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_curtis2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/curtis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/curtis.js"() {
         init_defineChain3();
         curtis2 = /* @__PURE__ */ defineChain3({
           id: 33111,
@@ -214838,7 +214973,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cyber2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cyber.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cyber.js"() {
         init_defineChain3();
         cyber2 = /* @__PURE__ */ defineChain3({
           id: 7560,
@@ -214866,7 +215001,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cyberTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/cyberTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/cyberTestnet.js"() {
         init_defineChain3();
         cyberTestnet2 = /* @__PURE__ */ defineChain3({
           id: 111557560,
@@ -214895,7 +215030,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dailyNetwork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dailyNetwork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dailyNetwork.js"() {
         init_defineChain3();
         dailyNetwork2 = /* @__PURE__ */ defineChain3({
           id: 824,
@@ -214919,7 +215054,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dailyNetworkTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dailyNetworkTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dailyNetworkTestnet.js"() {
         init_defineChain3();
         dailyNetworkTestnet2 = /* @__PURE__ */ defineChain3({
           id: 825,
@@ -214943,7 +215078,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_darwinia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/darwinia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/darwinia.js"() {
         init_defineChain3();
         darwinia2 = /* @__PURE__ */ defineChain3({
           id: 46,
@@ -214972,7 +215107,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_datahavenTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/datahavenTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/datahavenTestnet.js"() {
         init_defineChain3();
         datahavenTestnet2 = /* @__PURE__ */ defineChain3({
           id: 55931,
@@ -215001,7 +215136,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dbkchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dbkchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dbkchain.js"() {
         init_defineChain3();
         dbkchain2 = /* @__PURE__ */ defineChain3({
           id: 20240603,
@@ -215023,7 +215158,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dchain.js"() {
         init_chainConfig22();
         init_defineChain3();
         dchain2 = /* @__PURE__ */ defineChain3({
@@ -215050,7 +215185,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dchainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dchainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dchainTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         dchainTestnet2 = /* @__PURE__ */ defineChain3({
@@ -215080,7 +215215,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_defichainEvm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/defichainEvm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/defichainEvm.js"() {
         init_defineChain3();
         defichainEvm2 = /* @__PURE__ */ defineChain3({
           id: 1130,
@@ -215112,7 +215247,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_defichainEvmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/defichainEvmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/defichainEvmTestnet.js"() {
         init_defineChain3();
         defichainEvmTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1131,
@@ -215145,7 +215280,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_degen2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/degen.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/degen.js"() {
         init_defineChain3();
         degen2 = /* @__PURE__ */ defineChain3({
           id: 666666666,
@@ -215172,7 +215307,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dfk2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dfk.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dfk.js"() {
         init_defineChain3();
         dfk2 = /* @__PURE__ */ defineChain3({
           id: 53935,
@@ -215203,7 +215338,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_diode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/diode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/diode.js"() {
         init_defineChain3();
         diode2 = /* @__PURE__ */ defineChain3({
           id: 15,
@@ -215230,7 +215365,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_disChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/disChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/disChain.js"() {
         init_defineChain3();
         disChain2 = /* @__PURE__ */ defineChain3({
           id: 513100,
@@ -215255,7 +215390,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dodochainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dodochainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dodochainTestnet.js"() {
         init_defineChain3();
         dodochainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 53457,
@@ -215278,7 +215413,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dogechain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dogechain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dogechain.js"() {
         init_defineChain3();
         dogechain2 = /* @__PURE__ */ defineChain3({
           id: 2e3,
@@ -215308,7 +215443,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_domaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/domaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/domaTestnet.js"() {
         init_defineChain3();
         domaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 97476,
@@ -215332,7 +215467,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_donatuz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/donatuz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/donatuz.js"() {
         init_defineChain3();
         donatuz2 = /* @__PURE__ */ defineChain3({
           id: 42026,
@@ -215361,7 +215496,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dosChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dosChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dosChain.js"() {
         init_defineChain3();
         dosChain2 = /* @__PURE__ */ defineChain3({
           id: 7979,
@@ -215391,7 +215526,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dosChainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dosChainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dosChainTestnet.js"() {
         init_defineChain3();
         dosChainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 3939,
@@ -215422,7 +215557,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dreyerxMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dreyerxMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dreyerxMainnet.js"() {
         init_defineChain3();
         dreyerxMainnet2 = /* @__PURE__ */ defineChain3({
           id: 23451,
@@ -215447,12 +215582,12 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_utils92 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/utils.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/utils.js"() {
         init_defineChain3();
       }
     });
     init_dreyerxTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dreyerxTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dreyerxTestnet.js"() {
         init_utils92();
         dreyerxTestnet2 = /* @__PURE__ */ defineChain3({
           id: 23452,
@@ -215478,7 +215613,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dustboyIoT2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dustboyIoT.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dustboyIoT.js"() {
         init_defineChain3();
         dustboyIoT2 = /* @__PURE__ */ defineChain3({
           id: 555888,
@@ -215507,7 +215642,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_dymension2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/dymension.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/dymension.js"() {
         init_utils92();
         dymension2 = /* @__PURE__ */ defineChain3({
           id: 1100,
@@ -215534,7 +215669,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eden2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eden.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eden.js"() {
         init_defineChain3();
         eden2 = /* @__PURE__ */ defineChain3({
           id: 714,
@@ -215566,7 +215701,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_edexa2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/edexa.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/edexa.js"() {
         init_defineChain3();
         edexa2 = /* @__PURE__ */ defineChain3({
           id: 5424,
@@ -215588,7 +215723,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_edexaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/edexaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/edexaTestnet.js"() {
         init_defineChain3();
         edexaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1995,
@@ -215611,7 +215746,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_edgeless2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/edgeless.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/edgeless.js"() {
         init_defineChain3();
         edgeless2 = /* @__PURE__ */ defineChain3({
           id: 2026,
@@ -215637,7 +215772,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_edgelessTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/edgelessTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/edgelessTestnet.js"() {
         init_defineChain3();
         edgelessTestnet2 = /* @__PURE__ */ defineChain3({
           id: 202,
@@ -215664,7 +215799,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_edgeware2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/edgeware.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/edgeware.js"() {
         init_defineChain3();
         edgeware2 = /* @__PURE__ */ defineChain3({
           id: 2021,
@@ -215694,7 +215829,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_edgewareTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/edgewareTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/edgewareTestnet.js"() {
         init_defineChain3();
         edgewareTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2022,
@@ -215719,7 +215854,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eduChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eduChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eduChain.js"() {
         init_defineChain3();
         eduChain2 = /* @__PURE__ */ defineChain3({
           id: 41923,
@@ -215745,7 +215880,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eduChainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eduChainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eduChainTestnet.js"() {
         init_defineChain3();
         eduChainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 656476,
@@ -215779,7 +215914,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_elastos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/elastos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/elastos.js"() {
         init_defineChain3();
         elastos2 = /* @__PURE__ */ defineChain3({
           id: 20,
@@ -215801,7 +215936,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_elastosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/elastosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/elastosTestnet.js"() {
         init_defineChain3();
         elastosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 21,
@@ -215823,7 +215958,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_electroneum2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/electroneum.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/electroneum.js"() {
         init_defineChain3();
         electroneum2 = /* @__PURE__ */ defineChain3({
           id: 52014,
@@ -215849,7 +215984,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_electroneumTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/electroneumTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/electroneumTestnet.js"() {
         init_defineChain3();
         electroneumTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5201420,
@@ -215875,7 +216010,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_elysiumTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/elysiumTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/elysiumTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         elysiumTestnet2 = /* @__PURE__ */ defineChain3({
@@ -215903,7 +216038,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_energy2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/energy.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/energy.js"() {
         init_defineChain3();
         energy2 = /* @__PURE__ */ defineChain3({
           id: 246,
@@ -215925,7 +216060,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eni2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eni.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eni.js"() {
         init_defineChain3();
         eni2 = /* @__PURE__ */ defineChain3({
           id: 173,
@@ -215949,7 +216084,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eniTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eniTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eniTestnet.js"() {
         init_defineChain3();
         eniTestnet2 = /* @__PURE__ */ defineChain3({
           id: 6912115,
@@ -215973,7 +216108,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_enuls2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/enuls.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/enuls.js"() {
         init_defineChain3();
         enuls2 = /* @__PURE__ */ defineChain3({
           id: 119,
@@ -215997,7 +216132,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eon2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eon.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eon.js"() {
         init_defineChain3();
         eon2 = /* @__PURE__ */ defineChain3({
           id: 7332,
@@ -216021,7 +216156,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eos.js"() {
         init_defineChain3();
         eos2 = /* @__PURE__ */ defineChain3({
           id: 17777,
@@ -216051,7 +216186,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eosTestnet.js"() {
         init_defineChain3();
         eosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 15557,
@@ -216082,7 +216217,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_eteria2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/eteria.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/eteria.js"() {
         init_defineChain3();
         eteria2 = /* @__PURE__ */ defineChain3({
           id: 140,
@@ -216104,7 +216239,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_etherlink2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/etherlink.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/etherlink.js"() {
         init_defineChain3();
         etherlink2 = /* @__PURE__ */ defineChain3({
           id: 42793,
@@ -216134,7 +216269,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_etherlinkShadownetTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/etherlinkShadownetTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/etherlinkShadownetTestnet.js"() {
         init_defineChain3();
         etherlinkShadownetTestnet2 = /* @__PURE__ */ defineChain3({
           id: 127823,
@@ -216158,7 +216293,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_etherlinkTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/etherlinkTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/etherlinkTestnet.js"() {
         init_defineChain3();
         etherlinkTestnet2 = /* @__PURE__ */ defineChain3({
           id: 128123,
@@ -216182,7 +216317,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ethernity2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ethernity.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ethernity.js"() {
         init_defineChain3();
         ethernity2 = /* @__PURE__ */ defineChain3({
           id: 183,
@@ -216212,7 +216347,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_etp2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/etp.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/etp.js"() {
         init_defineChain3();
         etp2 = /* @__PURE__ */ defineChain3({
           id: 20256789,
@@ -216235,7 +216370,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_evmos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/evmos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/evmos.js"() {
         init_defineChain3();
         evmos2 = /* @__PURE__ */ defineChain3({
           id: 9001,
@@ -216258,7 +216393,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_evmosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/evmosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/evmosTestnet.js"() {
         init_defineChain3();
         evmosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 9e3,
@@ -216282,7 +216417,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_excelonMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/excelonMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/excelonMainnet.js"() {
         init_defineChain3();
         excelonMainnet2 = /* @__PURE__ */ defineChain3({
           id: 22052002,
@@ -216308,7 +216443,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_expanse2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/expanse.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/expanse.js"() {
         init_defineChain3();
         expanse2 = /* @__PURE__ */ defineChain3({
           id: 2,
@@ -216332,7 +216467,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_exSat2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/exSat.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/exSat.js"() {
         init_defineChain3();
         exsat2 = /* @__PURE__ */ defineChain3({
           id: 7200,
@@ -216356,7 +216491,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_exSatTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/exSatTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/exSatTestnet.js"() {
         init_defineChain3();
         exsatTestnet2 = /* @__PURE__ */ defineChain3({
           id: 839999,
@@ -216381,7 +216516,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fantom2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fantom.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fantom.js"() {
         init_defineChain3();
         fantom2 = /* @__PURE__ */ defineChain3({
           id: 250,
@@ -216411,7 +216546,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fantomSonicTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fantomSonicTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fantomSonicTestnet.js"() {
         init_defineChain3();
         fantomSonicTestnet2 = /* @__PURE__ */ defineChain3({
           id: 64240,
@@ -216436,7 +216571,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fantomTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fantomTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fantomTestnet.js"() {
         init_defineChain3();
         fantomTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4002,
@@ -216467,7 +216602,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fibo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fibo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fibo.js"() {
         init_defineChain3();
         fibo2 = /* @__PURE__ */ defineChain3({
           id: 12306,
@@ -216490,7 +216625,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_filecoin2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/filecoin.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/filecoin.js"() {
         init_defineChain3();
         filecoin2 = /* @__PURE__ */ defineChain3({
           id: 314,
@@ -216519,7 +216654,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_filecoinCalibration2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/filecoinCalibration.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/filecoinCalibration.js"() {
         init_defineChain3();
         filecoinCalibration2 = /* @__PURE__ */ defineChain3({
           id: 314159,
@@ -216543,7 +216678,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_filecoinHyperspace2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/filecoinHyperspace.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/filecoinHyperspace.js"() {
         init_defineChain3();
         filecoinHyperspace2 = /* @__PURE__ */ defineChain3({
           id: 3141,
@@ -216567,7 +216702,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_flame2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/flame.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/flame.js"() {
         init_defineChain3();
         flame2 = /* @__PURE__ */ defineChain3({
           id: 253368190,
@@ -216600,7 +216735,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_flare2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/flare.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/flare.js"() {
         init_defineChain3();
         flare2 = /* @__PURE__ */ defineChain3({
           id: 14,
@@ -216630,7 +216765,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_flareTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/flareTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/flareTestnet.js"() {
         init_defineChain3();
         flareTestnet2 = /* @__PURE__ */ defineChain3({
           id: 114,
@@ -216655,7 +216790,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_flowMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/flowMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/flowMainnet.js"() {
         init_defineChain3();
         flowMainnet2 = /* @__PURE__ */ defineChain3({
           id: 747,
@@ -216687,7 +216822,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_flowPreviewnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/flowPreviewnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/flowPreviewnet.js"() {
         init_defineChain3();
         flowPreviewnet2 = /* @__PURE__ */ defineChain3({
           id: 646,
@@ -216719,7 +216854,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_flowTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/flowTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/flowTestnet.js"() {
         init_defineChain3();
         flowTestnet2 = /* @__PURE__ */ defineChain3({
           id: 545,
@@ -216752,7 +216887,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fluence2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fluence.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fluence.js"() {
         init_defineChain3();
         fluence2 = /* @__PURE__ */ defineChain3({
           id: 9999999,
@@ -216781,7 +216916,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fluenceStage2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fluenceStage.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fluenceStage.js"() {
         init_defineChain3();
         fluenceStage2 = /* @__PURE__ */ defineChain3({
           id: 123420000220,
@@ -216811,7 +216946,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fluenceTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fluenceTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fluenceTestnet.js"() {
         init_defineChain3();
         fluenceTestnet2 = /* @__PURE__ */ defineChain3({
           id: 52164803,
@@ -216841,7 +216976,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fluent2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fluent.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fluent.js"() {
         init_defineChain3();
         fluent2 = /* @__PURE__ */ defineChain3({
           id: 25363,
@@ -216867,7 +217002,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fluentDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fluentDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fluentDevnet.js"() {
         init_defineChain3();
         fluentDevnet2 = /* @__PURE__ */ defineChain3({
           id: 20993,
@@ -216893,7 +217028,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fluentTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fluentTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fluentTestnet.js"() {
         init_defineChain3();
         fluentTestnet2 = /* @__PURE__ */ defineChain3({
           id: 20994,
@@ -216919,7 +217054,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_form2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/form.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/form.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId192 = 1;
@@ -216979,7 +217114,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_forma2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/forma.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/forma.js"() {
         init_defineChain3();
         forma2 = /* @__PURE__ */ defineChain3({
           id: 984122,
@@ -217012,7 +217147,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_formTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/formTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/formTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId202 = 11155111;
@@ -217073,7 +217208,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_forta2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/forta.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/forta.js"() {
         init_defineChain3();
         forta2 = /* @__PURE__ */ defineChain3({
           id: 80931,
@@ -217098,7 +217233,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_foundry2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/foundry.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/foundry.js"() {
         init_defineChain3();
         foundry2 = /* @__PURE__ */ defineChain3({
           id: 31337,
@@ -217118,7 +217253,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fraxtal2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fraxtal.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fraxtal.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId212 = 1;
@@ -217167,7 +217302,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fraxtalTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fraxtalTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fraxtalTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId222 = 17e3;
@@ -217217,7 +217352,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_funkiMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/funkiMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/funkiMainnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId232 = 1;
@@ -217245,7 +217380,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_funkiSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/funkiSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/funkiSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId242 = 11155111;
@@ -217279,7 +217414,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fuse2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fuse.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fuse.js"() {
         init_defineChain3();
         fuse2 = /* @__PURE__ */ defineChain3({
           id: 122,
@@ -217305,7 +217440,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fuseSparknet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fuseSparknet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fuseSparknet.js"() {
         init_defineChain3();
         fuseSparknet2 = /* @__PURE__ */ defineChain3({
           id: 123,
@@ -217325,7 +217460,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fusion2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fusion.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fusion.js"() {
         init_defineChain3();
         fusion2 = /* @__PURE__ */ defineChain3({
           id: 32659,
@@ -217354,7 +217489,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_fusionTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/fusionTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/fusionTestnet.js"() {
         init_defineChain3();
         fusionTestnet2 = /* @__PURE__ */ defineChain3({
           id: 46688,
@@ -217383,7 +217518,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_garnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/garnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/garnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId252 = 17e3;
@@ -217434,7 +217569,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gatechain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gatechain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gatechain.js"() {
         init_defineChain3();
         gatechain2 = /* @__PURE__ */ defineChain3({
           id: 86,
@@ -217458,7 +217593,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_geist2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/geist.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/geist.js"() {
         init_defineChain3();
         geist2 = /* @__PURE__ */ defineChain3({
           id: 63157,
@@ -217489,7 +217624,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_genesys2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/genesys.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/genesys.js"() {
         init_defineChain3();
         genesys2 = /* @__PURE__ */ defineChain3({
           id: 16507,
@@ -217513,7 +217648,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gensyn2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gensyn.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gensyn.js"() {
         init_defineChain3();
         gensyn2 = /* @__PURE__ */ defineChain3({
           id: 685689,
@@ -217542,7 +217677,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_giwaSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/giwaSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/giwaSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId262 = 11155111;
@@ -217602,7 +217737,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_glideL1Protocol2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/glideL1Protocol.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/glideL1Protocol.js"() {
         init_defineChain3();
         glideL1Protocol2 = /* @__PURE__ */ defineChain3({
           id: 251,
@@ -217625,7 +217760,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_glideL2Protocol2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/glideL2Protocol.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/glideL2Protocol.js"() {
         init_defineChain3();
         glideL2Protocol2 = /* @__PURE__ */ defineChain3({
           id: 253,
@@ -217648,7 +217783,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gnosis2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gnosis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gnosis.js"() {
         init_defineChain3();
         gnosis2 = /* @__PURE__ */ defineChain3({
           id: 100,
@@ -217682,7 +217817,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gnosisChiado2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gnosisChiado.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gnosisChiado.js"() {
         init_defineChain3();
         gnosisChiado2 = /* @__PURE__ */ defineChain3({
           id: 10200,
@@ -217717,7 +217852,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_goat2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/goat.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/goat.js"() {
         init_defineChain3();
         goat2 = /* @__PURE__ */ defineChain3({
           id: 2345,
@@ -217746,7 +217881,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gobi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gobi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gobi.js"() {
         init_defineChain3();
         gobi2 = /* @__PURE__ */ defineChain3({
           id: 1663,
@@ -217771,7 +217906,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_goChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/goChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/goChain.js"() {
         init_defineChain3();
         goChain2 = /* @__PURE__ */ defineChain3({
           id: 60,
@@ -217795,7 +217930,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_godwoken2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/godwoken.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/godwoken.js"() {
         init_defineChain3();
         godwoken2 = /* @__PURE__ */ defineChain3({
           id: 71402,
@@ -217823,7 +217958,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_goerli2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/goerli.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/goerli.js"() {
         init_defineChain3();
         goerli2 = /* @__PURE__ */ defineChain3({
           id: 5,
@@ -217859,7 +217994,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_graphite2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/graphite.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/graphite.js"() {
         init_defineChain3();
         graphite2 = /* @__PURE__ */ defineChain3({
           id: 440017,
@@ -217883,7 +218018,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_graphiteTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/graphiteTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/graphiteTestnet.js"() {
         init_defineChain3();
         graphiteTestnet2 = /* @__PURE__ */ defineChain3({
           id: 54170,
@@ -217907,7 +218042,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_grav2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/grav.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/grav.js"() {
         init_defineChain3();
         grav2 = /* @__PURE__ */ defineChain3({
           id: 127001,
@@ -217931,7 +218066,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gravity2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gravity.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gravity.js"() {
         init_defineChain3();
         gravity2 = /* @__PURE__ */ defineChain3({
           id: 1625,
@@ -217959,7 +218094,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_gunz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/gunz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/gunz.js"() {
         init_defineChain3();
         gunz2 = /* @__PURE__ */ defineChain3({
           id: 43419,
@@ -217988,7 +218123,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_guruNetwork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/guruNetwork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/guruNetwork.js"() {
         init_defineChain3();
         guruNetwork2 = /* @__PURE__ */ defineChain3({
           id: 260,
@@ -218023,7 +218158,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_guruTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/guruTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/guruTestnet.js"() {
         init_defineChain3();
         guruTestnet2 = /* @__PURE__ */ defineChain3({
           id: 261,
@@ -218052,7 +218187,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ham2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ham.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ham.js"() {
         init_defineChain3();
         ham2 = /* @__PURE__ */ defineChain3({
           id: 5112,
@@ -218079,7 +218214,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_happychainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/happychainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/happychainTestnet.js"() {
         init_defineChain3();
         happychainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 216,
@@ -218112,7 +218247,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_haqqMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/haqqMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/haqqMainnet.js"() {
         init_defineChain3();
         haqqMainnet2 = /* @__PURE__ */ defineChain3({
           id: 11235,
@@ -218138,7 +218273,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_haqqTestedge22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/haqqTestedge2.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/haqqTestedge2.js"() {
         init_defineChain3();
         haqqTestedge22 = /* @__PURE__ */ defineChain3({
           id: 54211,
@@ -218165,7 +218300,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hardhat2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hardhat.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hardhat.js"() {
         init_defineChain3();
         hardhat2 = /* @__PURE__ */ defineChain3({
           id: 31337,
@@ -218182,7 +218317,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_harmonyOne2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/harmonyOne.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/harmonyOne.js"() {
         init_defineChain3();
         harmonyOne2 = /* @__PURE__ */ defineChain3({
           id: 16666e5,
@@ -218211,7 +218346,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hashKeyChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hashKeyChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hashKeyChain.js"() {
         init_defineChain3();
         hashkey2 = /* @__PURE__ */ defineChain3({
           id: 177,
@@ -218242,7 +218377,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hashkeyChainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hashkeyChainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hashkeyChainTestnet.js"() {
         init_defineChain3();
         hashkeyTestnet2 = /* @__PURE__ */ defineChain3({
           id: 133,
@@ -218268,7 +218403,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_haustTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/haustTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/haustTestnet.js"() {
         init_defineChain3();
         haustTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1523903251,
@@ -218294,7 +218429,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hedera2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hedera.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hedera.js"() {
         init_defineChain3();
         hedera2 = /* @__PURE__ */ defineChain3({
           id: 295,
@@ -218321,7 +218456,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hederaPreviewnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hederaPreviewnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hederaPreviewnet.js"() {
         init_defineChain3();
         hederaPreviewnet2 = /* @__PURE__ */ defineChain3({
           id: 297,
@@ -218348,7 +218483,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hederaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hederaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hederaTestnet.js"() {
         init_defineChain3();
         hederaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 296,
@@ -218375,7 +218510,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hela2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hela.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hela.js"() {
         init_defineChain3();
         hela2 = /* @__PURE__ */ defineChain3({
           id: 8668,
@@ -218401,7 +218536,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_heliosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/heliosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/heliosTestnet.js"() {
         init_defineChain3();
         heliosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 42e3,
@@ -218428,7 +218563,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hemi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hemi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hemi.js"() {
         init_defineChain3();
         hemi2 = /* @__PURE__ */ defineChain3({
           id: 43111,
@@ -218456,7 +218591,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hemiSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hemiSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hemiSepolia.js"() {
         init_defineChain3();
         hemiSepolia2 = /* @__PURE__ */ defineChain3({
           id: 743111,
@@ -218483,7 +218618,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_henesys2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/henesys.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/henesys.js"() {
         init_defineChain3();
         henesys2 = /* @__PURE__ */ defineChain3({
           id: 68414,
@@ -218504,7 +218639,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_holesky2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/holesky.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/holesky.js"() {
         init_defineChain3();
         holesky2 = /* @__PURE__ */ defineChain3({
           id: 17e3,
@@ -218537,7 +218672,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hoodi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hoodi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hoodi.js"() {
         init_defineChain3();
         hoodi2 = /* @__PURE__ */ defineChain3({
           id: 560048,
@@ -218565,7 +218700,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_horizenTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/horizenTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/horizenTestnet.js"() {
         init_defineChain3();
         horizenTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2651420,
@@ -218592,7 +218727,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hpb2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hpb.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hpb.js"() {
         init_defineChain3();
         hpb2 = /* @__PURE__ */ defineChain3({
           id: 269,
@@ -218614,7 +218749,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hpp2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hpp.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hpp.js"() {
         init_defineChain3();
         hpp2 = /* @__PURE__ */ defineChain3({
           id: 190415,
@@ -218637,7 +218772,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hppSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hppSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hppSepolia.js"() {
         init_defineChain3();
         hppSepolia2 = /* @__PURE__ */ defineChain3({
           id: 181228,
@@ -218660,7 +218795,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_huddle01Mainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/huddle01Mainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/huddle01Mainnet.js"() {
         init_defineChain3();
         sourceId272 = 42161;
         huddle01Mainnet2 = /* @__PURE__ */ defineChain3({
@@ -218689,7 +218824,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_huddle01Testnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/huddle01Testnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/huddle01Testnet.js"() {
         init_defineChain3();
         sourceId282 = 421614;
         huddle01Testnet2 = /* @__PURE__ */ defineChain3({
@@ -218719,7 +218854,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_humanity2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/humanity.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/humanity.js"() {
         init_defineChain3();
         humanity2 = /* @__PURE__ */ defineChain3({
           id: 6985385,
@@ -218746,7 +218881,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_humanityTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/humanityTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/humanityTestnet.js"() {
         init_defineChain3();
         humanityTestnet2 = /* @__PURE__ */ defineChain3({
           id: 7080969,
@@ -218773,7 +218908,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_humanode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/humanode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/humanode.js"() {
         init_defineChain3();
         humanode2 = /* @__PURE__ */ defineChain3({
           id: 5234,
@@ -218801,7 +218936,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_humanodeTestnet52 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/humanodeTestnet5.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/humanodeTestnet5.js"() {
         init_defineChain3();
         humanodeTestnet52 = /* @__PURE__ */ defineChain3({
           id: 14853,
@@ -218823,7 +218958,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hychain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hychain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hychain.js"() {
         init_defineChain3();
         hychain2 = /* @__PURE__ */ defineChain3({
           id: 2911,
@@ -218843,7 +218978,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hychainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hychainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hychainTestnet.js"() {
         init_defineChain3();
         hychainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 29112,
@@ -218863,7 +218998,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hyperEvm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hyperEvm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hyperEvm.js"() {
         init_defineChain3();
         hyperEvm2 = /* @__PURE__ */ defineChain3({
           id: 999,
@@ -218891,7 +219026,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_hyperliquidEvmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/hyperliquidEvmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/hyperliquidEvmTestnet.js"() {
         init_defineChain3();
         hyperliquidEvmTestnet2 = /* @__PURE__ */ defineChain3({
           id: 998,
@@ -218907,7 +219042,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_icbNetwork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/icbNetwork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/icbNetwork.js"() {
         init_defineChain3();
         icbNetwork2 = /* @__PURE__ */ defineChain3({
           id: 73115,
@@ -218932,7 +219067,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_idchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/idchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/idchain.js"() {
         init_defineChain3();
         idchain2 = /* @__PURE__ */ defineChain3({
           id: 74,
@@ -218959,7 +219094,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_igra2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/igra.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/igra.js"() {
         init_defineChain3();
         igra2 = /* @__PURE__ */ defineChain3({
           id: 38833,
@@ -218985,7 +219120,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_immutableZkEvm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/immutableZkEvm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/immutableZkEvm.js"() {
         init_defineChain3();
         immutableZkEvm2 = /* @__PURE__ */ defineChain3({
           id: 13371,
@@ -219017,7 +219152,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_immutableZkEvmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/immutableZkEvmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/immutableZkEvmTestnet.js"() {
         init_defineChain3();
         immutableZkEvmTestnet2 = /* @__PURE__ */ defineChain3({
           id: 13473,
@@ -219049,7 +219184,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_inEVM2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/inEVM.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/inEVM.js"() {
         init_defineChain3();
         inEVM2 = /* @__PURE__ */ defineChain3({
           id: 2525,
@@ -219079,7 +219214,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_initVerse2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/initVerse.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/initVerse.js"() {
         init_defineChain3();
         initVerse2 = /* @__PURE__ */ defineChain3({
           id: 7233,
@@ -219109,7 +219244,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_initVerseGenesis2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/initVerseGenesis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/initVerseGenesis.js"() {
         init_defineChain3();
         initVerseGenesis2 = /* @__PURE__ */ defineChain3({
           id: 7234,
@@ -219140,7 +219275,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_injective2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/injective.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/injective.js"() {
         init_defineChain3();
         injective2 = /* @__PURE__ */ defineChain3({
           id: 1776,
@@ -219168,7 +219303,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_injectiveTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/injectiveTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/injectiveTestnet.js"() {
         init_defineChain3();
         injectiveTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1439,
@@ -219196,7 +219331,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ink2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ink.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ink.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId292 = 1;
@@ -219252,7 +219387,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_inkSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/inkSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/inkSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId302 = 11155111;
@@ -219301,7 +219436,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_iota2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/iota.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/iota.js"() {
         init_defineChain3();
         iota2 = /* @__PURE__ */ defineChain3({
           id: 8822,
@@ -219335,7 +219470,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_iotaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/iotaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/iotaTestnet.js"() {
         init_defineChain3();
         iotaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1075,
@@ -219364,7 +219499,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_iotex2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/iotex.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/iotex.js"() {
         init_defineChain3();
         iotex2 = /* @__PURE__ */ defineChain3({
           id: 4689,
@@ -219396,7 +219531,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_iotexTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/iotexTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/iotexTestnet.js"() {
         init_defineChain3();
         iotexTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4690,
@@ -219429,7 +219564,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_iSunCoin2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/iSunCoin.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/iSunCoin.js"() {
         init_defineChain3();
         iSunCoin2 = /* @__PURE__ */ defineChain3({
           id: 8017,
@@ -219454,7 +219589,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jasmyChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jasmyChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jasmyChain.js"() {
         init_defineChain3();
         jasmyChain2 = /* @__PURE__ */ defineChain3({
           id: 680,
@@ -219472,7 +219607,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jasmyChainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jasmyChainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jasmyChainTestnet.js"() {
         init_defineChain3();
         jasmyChainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 681,
@@ -219490,7 +219625,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jbc2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jbc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jbc.js"() {
         init_defineChain3();
         jbc2 = /* @__PURE__ */ defineChain3({
           id: 8899,
@@ -219520,7 +219655,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jbcTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jbcTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jbcTestnet.js"() {
         init_defineChain3();
         jbcTestnet2 = /* @__PURE__ */ defineChain3({
           id: 88991,
@@ -219549,7 +219684,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jocMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jocMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jocMainnet.js"() {
         init_defineChain3();
         jocMainnet2 = /* @__PURE__ */ defineChain3({
           id: 81,
@@ -219579,7 +219714,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jocTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jocTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jocTestnet.js"() {
         init_defineChain3();
         jocTestnet2 = /* @__PURE__ */ defineChain3({
           id: 10081,
@@ -219609,7 +219744,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jovay2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jovay.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jovay.js"() {
         init_defineChain3();
         jovay2 = /* @__PURE__ */ defineChain3({
           id: 5734951,
@@ -219635,7 +219770,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_jovaySepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/jovaySepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/jovaySepolia.js"() {
         init_defineChain3();
         jovaySepolia2 = /* @__PURE__ */ defineChain3({
           id: 2019775,
@@ -219661,7 +219796,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneo.js"() {
         init_defineChain3();
         juneo2 = /* @__PURE__ */ defineChain3({
           id: 45003,
@@ -219685,7 +219820,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoBCH1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoBCH1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoBCH1Chain.js"() {
         init_defineChain3();
         juneoBCH1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45013,
@@ -219709,7 +219844,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoDAI1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoDAI1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoDAI1Chain.js"() {
         init_defineChain3();
         juneoDAI1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45004,
@@ -219733,7 +219868,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoDOGE1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoDOGE1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoDOGE1Chain.js"() {
         init_defineChain3();
         juneoDOGE1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45010,
@@ -219757,7 +219892,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoEUR1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoEUR1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoEUR1Chain.js"() {
         init_defineChain3();
         juneoEUR1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45011,
@@ -219781,7 +219916,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoGLD1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoGLD1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoGLD1Chain.js"() {
         init_defineChain3();
         juneoGLD1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45008,
@@ -219805,7 +219940,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoLINK1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoLINK1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoLINK1Chain.js"() {
         init_defineChain3();
         juneoLINK1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45014,
@@ -219829,7 +219964,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoLTC1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoLTC1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoLTC1Chain.js"() {
         init_defineChain3();
         juneoLTC1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45009,
@@ -219853,7 +219988,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneomBTC1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneomBTC1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneomBTC1Chain.js"() {
         init_defineChain3();
         juneomBTC1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45007,
@@ -219877,7 +220012,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoSGD1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoSGD1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoSGD1Chain.js"() {
         init_defineChain3();
         juneoSGD1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45012,
@@ -219901,7 +220036,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoSocotraTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoSocotraTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoSocotraTestnet.js"() {
         init_defineChain3();
         juneoSocotraTestnet2 = /* @__PURE__ */ defineChain3({
           id: 101003,
@@ -219926,7 +220061,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoUSD1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoUSD1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoUSD1Chain.js"() {
         init_defineChain3();
         juneoUSD1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45006,
@@ -219950,7 +220085,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_juneoUSDT1Chain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/juneoUSDT1Chain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/juneoUSDT1Chain.js"() {
         init_defineChain3();
         juneoUSDT1Chain2 = /* @__PURE__ */ defineChain3({
           id: 45005,
@@ -219974,7 +220109,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kaia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kaia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kaia.js"() {
         init_defineChain3();
         kaia2 = /* @__PURE__ */ defineChain3({
           id: 8217,
@@ -220004,7 +220139,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kairos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kairos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kairos.js"() {
         init_defineChain3();
         kairos2 = /* @__PURE__ */ defineChain3({
           id: 1001,
@@ -220035,7 +220170,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kakarotSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kakarotSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kakarotSepolia.js"() {
         init_defineChain3();
         kakarotSepolia2 = /* @__PURE__ */ defineChain3({
           id: 1802203764,
@@ -220061,7 +220196,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kakarotStarknetSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kakarotStarknetSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kakarotStarknetSepolia.js"() {
         init_defineChain3();
         kakarotStarknetSepolia2 = /* @__PURE__ */ defineChain3({
           id: 920637907288165,
@@ -220087,7 +220222,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kardiaChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kardiaChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kardiaChain.js"() {
         init_defineChain3();
         kardiaChain2 = /* @__PURE__ */ defineChain3({
           id: 24,
@@ -220109,7 +220244,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_karura2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/karura.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/karura.js"() {
         init_defineChain3();
         karura2 = /* @__PURE__ */ defineChain3({
           id: 686,
@@ -220138,7 +220273,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_katana2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/katana.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/katana.js"() {
         init_defineChain3();
         katana2 = /* @__PURE__ */ defineChain3({
           id: 747474,
@@ -220171,7 +220306,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kava2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kava.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kava.js"() {
         init_defineChain3();
         kava2 = /* @__PURE__ */ defineChain3({
           id: 2222,
@@ -220203,7 +220338,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kavaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kavaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kavaTestnet.js"() {
         init_defineChain3();
         kavaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2221,
@@ -220235,7 +220370,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kcc2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kcc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kcc.js"() {
         init_defineChain3();
         kcc2 = /* @__PURE__ */ defineChain3({
           id: 321,
@@ -220265,7 +220400,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kii2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kii.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kii.js"() {
         init_defineChain3();
         kii2 = /* @__PURE__ */ defineChain3({
           id: 1783,
@@ -220291,7 +220426,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kiiTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kiiTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kiiTestnet.js"() {
         init_defineChain3();
         kiiTestnetOro2 = /* @__PURE__ */ defineChain3({
           id: 1336,
@@ -220318,7 +220453,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kinto2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kinto.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kinto.js"() {
         init_defineChain3();
         kinto2 = /* @__PURE__ */ defineChain3({
           id: 7887,
@@ -220339,7 +220474,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_klaytn2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/klaytn.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/klaytn.js"() {
         init_defineChain3();
         klaytn2 = /* @__PURE__ */ defineChain3({
           id: 8217,
@@ -220368,7 +220503,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_klaytnBaobab2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/klaytnBaobab.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/klaytnBaobab.js"() {
         init_defineChain3();
         klaytnBaobab2 = /* @__PURE__ */ defineChain3({
           id: 1001,
@@ -220399,7 +220534,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_koi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/koi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/koi.js"() {
         init_defineChain3();
         koi2 = /* @__PURE__ */ defineChain3({
           id: 701,
@@ -220429,7 +220564,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kroma2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kroma.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kroma.js"() {
         init_defineChain3();
         kroma2 = /* @__PURE__ */ defineChain3({
           id: 255,
@@ -220458,7 +220593,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_kromaSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/kromaSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/kromaSepolia.js"() {
         init_defineChain3();
         kromaSepolia2 = /* @__PURE__ */ defineChain3({
           id: 2358,
@@ -220487,7 +220622,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_krown2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/krown.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/krown.js"() {
         init_defineChain3();
         krown2 = /* @__PURE__ */ defineChain3({
           id: 1983,
@@ -220513,7 +220648,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_l3x2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/l3x.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/l3x.js"() {
         init_defineChain3();
         l3x2 = /* @__PURE__ */ defineChain3({
           id: 12324,
@@ -220537,7 +220672,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_l3xTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/l3xTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/l3xTestnet.js"() {
         init_defineChain3();
         l3xTestnet2 = /* @__PURE__ */ defineChain3({
           id: 12325,
@@ -220561,7 +220696,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ladyChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ladyChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ladyChain.js"() {
         init_defineChain3();
         ladyChain2 = /* @__PURE__ */ defineChain3({
           id: 589,
@@ -220583,7 +220718,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lavita2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lavita.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lavita.js"() {
         init_defineChain3();
         lavita2 = /* @__PURE__ */ defineChain3({
           id: 360890,
@@ -220605,7 +220740,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lens2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lens.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lens.js"() {
         init_defineChain3();
         lens2 = /* @__PURE__ */ defineChain3({
           id: 232,
@@ -220627,7 +220762,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lensTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lensTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lensTestnet.js"() {
         init_defineChain3();
         lensTestnet2 = /* @__PURE__ */ defineChain3({
           id: 37111,
@@ -220651,7 +220786,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lestnet.js"() {
         init_defineChain3();
         lestnet2 = /* @__PURE__ */ defineChain3({
           id: 21363,
@@ -220673,7 +220808,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lightlinkPegasus2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lightlinkPegasus.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lightlinkPegasus.js"() {
         init_defineChain3();
         lightlinkPegasus2 = /* @__PURE__ */ defineChain3({
           id: 1891,
@@ -220706,7 +220841,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lightlinkPhoenix2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lightlinkPhoenix.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lightlinkPhoenix.js"() {
         init_defineChain3();
         lightlinkPhoenix2 = /* @__PURE__ */ defineChain3({
           id: 1890,
@@ -220739,7 +220874,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_estimateGas32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/linea/actions/estimateGas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/linea/actions/estimateGas.js"() {
         init_parseAccount3();
         init_account3();
         init_toHex3();
@@ -220750,7 +220885,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_chainConfig42 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/linea/chainConfig.js"() {
+      "../../../../enclave/node_modules/viem/_esm/linea/chainConfig.js"() {
         init_estimateGas32();
         chainConfig42 = {
           fees: {
@@ -220772,7 +220907,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_linea2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/linea.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/linea.js"() {
         init_chainConfig42();
         init_defineChain3();
         linea2 = /* @__PURE__ */ defineChain3({
@@ -220814,7 +220949,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lineaGoerli2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lineaGoerli.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lineaGoerli.js"() {
         init_defineChain3();
         lineaGoerli2 = /* @__PURE__ */ defineChain3({
           id: 59140,
@@ -220844,7 +220979,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lineaSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lineaSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lineaSepolia.js"() {
         init_chainConfig42();
         init_defineChain3();
         lineaSepolia2 = /* @__PURE__ */ defineChain3({
@@ -220885,7 +221020,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lineaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lineaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lineaTestnet.js"() {
         init_defineChain3();
         lineaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 59140,
@@ -220915,7 +221050,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lisk2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lisk.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lisk.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId312 = 1;
@@ -220972,7 +221107,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_liskSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/liskSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/liskSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId322 = 11155111;
@@ -221021,7 +221156,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_loadAlphanet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/loadAlphanet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/loadAlphanet.js"() {
         init_defineChain3();
         loadAlphanet2 = /* @__PURE__ */ defineChain3({
           id: 9496,
@@ -221041,7 +221176,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_localhost2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/localhost.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/localhost.js"() {
         init_defineChain3();
         localhost2 = /* @__PURE__ */ defineChain3({
           id: 1337,
@@ -221058,7 +221193,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_loop2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/loop.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/loop.js"() {
         init_defineChain3();
         loop2 = /* @__PURE__ */ defineChain3({
           id: 15551,
@@ -221084,7 +221219,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lukso2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lukso.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lukso.js"() {
         init_defineChain3();
         lukso2 = /* @__PURE__ */ defineChain3({
           id: 42,
@@ -221118,7 +221253,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_luksoTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/luksoTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/luksoTestnet.js"() {
         init_defineChain3();
         luksoTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4201,
@@ -221152,7 +221287,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lumiaMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lumiaMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lumiaMainnet.js"() {
         init_defineChain3();
         lumiaMainnet2 = /* @__PURE__ */ defineChain3({
           id: 994873017,
@@ -221181,7 +221316,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lumiaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lumiaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lumiaTestnet.js"() {
         init_defineChain3();
         lumiaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1952959480,
@@ -221214,7 +221349,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lumoz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lumoz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lumoz.js"() {
         init_defineChain3();
         lumoz2 = /* @__PURE__ */ defineChain3({
           id: 96370,
@@ -221240,7 +221375,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lumozTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lumozTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lumozTestnet.js"() {
         init_defineChain3();
         lumozTestnet2 = /* @__PURE__ */ defineChain3({
           id: 105363,
@@ -221260,7 +221395,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_luxeports2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/luxeports.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/luxeports.js"() {
         init_defineChain3();
         luxeports2 = /* @__PURE__ */ defineChain3({
           id: 1122,
@@ -221288,7 +221423,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lycan2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lycan.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lycan.js"() {
         init_defineChain3();
         lycan2 = /* @__PURE__ */ defineChain3({
           id: 721,
@@ -221328,7 +221463,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_lyra2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/lyra.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/lyra.js"() {
         init_defineChain3();
         lyra2 = /* @__PURE__ */ defineChain3({
           id: 957,
@@ -221356,7 +221491,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mainnet.js"() {
         init_defineChain3();
         mainnet2 = /* @__PURE__ */ defineChain3({
           id: 1,
@@ -221389,7 +221524,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mandala2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mandala.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mandala.js"() {
         init_defineChain3();
         mandala2 = /* @__PURE__ */ defineChain3({
           id: 595,
@@ -221418,7 +221553,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_manta2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/manta.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/manta.js"() {
         init_defineChain3();
         manta2 = /* @__PURE__ */ defineChain3({
           id: 169,
@@ -221449,7 +221584,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantaSepoliaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantaSepoliaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantaSepoliaTestnet.js"() {
         init_defineChain3();
         mantaSepoliaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 3441006,
@@ -221483,7 +221618,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantaTestnet.js"() {
         init_defineChain3();
         mantaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 3441005,
@@ -221515,7 +221650,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantle2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantle.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantle.js"() {
         init_defineChain3();
         mantle2 = /* @__PURE__ */ defineChain3({
           id: 5e3,
@@ -221545,7 +221680,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantleSepoliaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantleSepoliaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantleSepoliaTestnet.js"() {
         init_defineChain3();
         mantleSepoliaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5003,
@@ -221576,7 +221711,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantleTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantleTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantleTestnet.js"() {
         init_defineChain3();
         mantleTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5001,
@@ -221607,7 +221742,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantraDuKongEVMTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantraDuKongEVMTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantraDuKongEVMTestnet.js"() {
         init_defineChain3();
         mantraDuKongEVMTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5887,
@@ -221631,7 +221766,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mantraEVM2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mantraEVM.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mantraEVM.js"() {
         init_defineChain3();
         mantraEVM2 = /* @__PURE__ */ defineChain3({
           id: 5888,
@@ -221657,7 +221792,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mapProtocol2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mapProtocol.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mapProtocol.js"() {
         init_defineChain3();
         mapProtocol2 = /* @__PURE__ */ defineChain3({
           id: 22776,
@@ -221681,7 +221816,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_matchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/matchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/matchain.js"() {
         init_defineChain3();
         matchain2 = /* @__PURE__ */ defineChain3({
           id: 698,
@@ -221704,7 +221839,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_matchainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/matchainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/matchainTestnet.js"() {
         init_defineChain3();
         matchainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 699,
@@ -221728,7 +221863,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mchVerse2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mchVerse.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mchVerse.js"() {
         init_defineChain3();
         mchVerse2 = /* @__PURE__ */ defineChain3({
           id: 29548,
@@ -221751,7 +221886,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_megaeth2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/megaeth.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/megaeth.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId332 = 1;
@@ -221812,7 +221947,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_megaethTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/megaethTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/megaethTestnet.js"() {
         init_defineChain3();
         megaethTestnet2 = /* @__PURE__ */ defineChain3({
           id: 6343,
@@ -221852,7 +221987,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mekong2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mekong.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mekong.js"() {
         init_defineChain3();
         mekong2 = /* @__PURE__ */ defineChain3({
           id: 7078815900,
@@ -221874,7 +222009,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_meld2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/meld.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/meld.js"() {
         init_defineChain3();
         meld2 = /* @__PURE__ */ defineChain3({
           id: 333000333,
@@ -221900,7 +222035,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_memecore2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/memecore.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/memecore.js"() {
         init_defineChain3();
         memecore2 = /* @__PURE__ */ defineChain3({
           id: 4352,
@@ -221936,7 +222071,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_memecoreFormicariumTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/memecoreFormicariumTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/memecoreFormicariumTestnet.js"() {
         init_defineChain3();
         formicarium2 = /* @__PURE__ */ defineChain3({
           id: 43521,
@@ -221972,7 +222107,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_merlin2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/merlin.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/merlin.js"() {
         init_defineChain3();
         merlin2 = /* @__PURE__ */ defineChain3({
           id: 4200,
@@ -221996,7 +222131,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_merlinErigonTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/merlinErigonTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/merlinErigonTestnet.js"() {
         init_defineChain3();
         merlinErigonTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4203,
@@ -222021,7 +222156,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metachain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metachain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metachain.js"() {
         init_defineChain3();
         metachain2 = /* @__PURE__ */ defineChain3({
           id: 571,
@@ -222048,7 +222183,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metachainIstanbul2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metachainIstanbul.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metachainIstanbul.js"() {
         init_defineChain3();
         metachainIstanbul2 = /* @__PURE__ */ defineChain3({
           id: 1453,
@@ -222076,7 +222211,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metadium2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metadium.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metadium.js"() {
         init_defineChain3();
         metadium2 = /* @__PURE__ */ defineChain3({
           id: 11,
@@ -222100,7 +222235,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metalL22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metalL2.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metalL2.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId342 = 1;
@@ -222153,7 +222288,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_meter2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/meter.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/meter.js"() {
         init_defineChain3();
         meter2 = /* @__PURE__ */ defineChain3({
           id: 82,
@@ -222176,7 +222311,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_meterTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/meterTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/meterTestnet.js"() {
         init_defineChain3();
         meterTestnet2 = /* @__PURE__ */ defineChain3({
           id: 83,
@@ -222200,7 +222335,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metis2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metis.js"() {
         init_defineChain3();
         metis2 = /* @__PURE__ */ defineChain3({
           id: 1088,
@@ -222242,7 +222377,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metisGoerli2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metisGoerli.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metisGoerli.js"() {
         init_defineChain3();
         metisGoerli2 = /* @__PURE__ */ defineChain3({
           id: 599,
@@ -222273,7 +222408,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_metisSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/metisSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/metisSepolia.js"() {
         init_defineChain3();
         metisSepolia2 = /* @__PURE__ */ defineChain3({
           id: 59902,
@@ -222311,7 +222446,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mev2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mev.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mev.js"() {
         init_defineChain3();
         mev2 = /* @__PURE__ */ defineChain3({
           id: 7518,
@@ -222342,7 +222477,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mevTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mevTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mevTestnet.js"() {
         init_defineChain3();
         mevTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4759,
@@ -222374,7 +222509,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mezo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mezo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mezo.js"() {
         init_defineChain3();
         mezo2 = /* @__PURE__ */ defineChain3({
           id: 31612,
@@ -222397,7 +222532,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mezoTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mezoTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mezoTestnet.js"() {
         init_defineChain3();
         mezoTestnet2 = /* @__PURE__ */ defineChain3({
           id: 31611,
@@ -222427,7 +222562,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mint2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mint.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mint.js"() {
         init_defineChain3();
         mint2 = /* @__PURE__ */ defineChain3({
           id: 185,
@@ -222449,7 +222584,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mintSepoliaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mintSepoliaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mintSepoliaTestnet.js"() {
         init_defineChain3();
         mintSepoliaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1686,
@@ -222471,7 +222606,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mitosisTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mitosisTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mitosisTestnet.js"() {
         init_defineChain3();
         mitosisTestnet2 = /* @__PURE__ */ defineChain3({
           id: 124832,
@@ -222493,7 +222628,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mizuhikiTestnetAwaji2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mizuhikiTestnetAwaji.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mizuhikiTestnetAwaji.js"() {
         init_defineChain3();
         mizuhikiTestnetAwaji2 = /* @__PURE__ */ defineChain3({
           id: 6497,
@@ -222522,7 +222657,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_mode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/mode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/mode.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId352 = 1;
@@ -222574,7 +222709,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_modeTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/modeTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/modeTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId362 = 11155111;
@@ -222626,7 +222761,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_monad2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/monad.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/monad.js"() {
         init_defineChain3();
         monad2 = /* @__PURE__ */ defineChain3({
           id: 143,
@@ -222665,7 +222800,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_monadTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/monadTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/monadTestnet.js"() {
         init_defineChain3();
         monadTestnet2 = /* @__PURE__ */ defineChain3({
           id: 10143,
@@ -222698,7 +222833,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_moonbaseAlpha2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/moonbaseAlpha.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/moonbaseAlpha.js"() {
         init_defineChain3();
         moonbaseAlpha2 = /* @__PURE__ */ defineChain3({
           id: 1287,
@@ -222732,7 +222867,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_moonbeam2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/moonbeam.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/moonbeam.js"() {
         init_defineChain3();
         moonbeam2 = /* @__PURE__ */ defineChain3({
           id: 1284,
@@ -222766,7 +222901,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_moonbeamDev2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/moonbeamDev.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/moonbeamDev.js"() {
         init_defineChain3();
         moonbeamDev2 = /* @__PURE__ */ defineChain3({
           id: 1281,
@@ -222786,7 +222921,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_moonriver2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/moonriver.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/moonriver.js"() {
         init_defineChain3();
         moonriver2 = /* @__PURE__ */ defineChain3({
           id: 1285,
@@ -222820,7 +222955,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_morph2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/morph.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/morph.js"() {
         init_defineChain3();
         morph2 = /* @__PURE__ */ defineChain3({
           id: 2818,
@@ -222853,7 +222988,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_morphHolesky2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/morphHolesky.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/morphHolesky.js"() {
         init_defineChain3();
         morphHolesky2 = /* @__PURE__ */ defineChain3({
           id: 2810,
@@ -222877,7 +223012,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_morphSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/morphSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/morphSepolia.js"() {
         init_defineChain3();
         morphSepolia2 = /* @__PURE__ */ defineChain3({
           id: 2710,
@@ -222900,7 +223035,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nahmii2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nahmii.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nahmii.js"() {
         init_defineChain3();
         nahmii2 = /* @__PURE__ */ defineChain3({
           id: 5551,
@@ -222924,7 +223059,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nautilus2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nautilus.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nautilus.js"() {
         init_defineChain3();
         nautilus2 = /* @__PURE__ */ defineChain3({
           id: 22222,
@@ -222945,7 +223080,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_near2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/near.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/near.js"() {
         init_defineChain3();
         near2 = /* @__PURE__ */ defineChain3({
           id: 397,
@@ -222969,7 +223104,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nearTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nearTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nearTestnet.js"() {
         init_defineChain3();
         nearTestnet2 = /* @__PURE__ */ defineChain3({
           id: 398,
@@ -222993,7 +223128,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_neonDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/neonDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/neonDevnet.js"() {
         init_defineChain3();
         neonDevnet2 = /* @__PURE__ */ defineChain3({
           id: 245022926,
@@ -223021,7 +223156,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_neonMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/neonMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/neonMainnet.js"() {
         init_defineChain3();
         neonMainnet2 = /* @__PURE__ */ defineChain3({
           id: 245022934,
@@ -223050,7 +223185,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_neoxMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/neoxMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/neoxMainnet.js"() {
         init_defineChain3();
         neoxMainnet2 = /* @__PURE__ */ defineChain3({
           id: 47763,
@@ -223075,7 +223210,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_neoxT42 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/neoxT4.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/neoxT4.js"() {
         init_defineChain3();
         neoxT42 = /* @__PURE__ */ defineChain3({
           id: 12227332,
@@ -223097,7 +223232,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_newton2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/newton.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/newton.js"() {
         init_defineChain3();
         newton2 = /* @__PURE__ */ defineChain3({
           id: 1012,
@@ -223123,7 +223258,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nexi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nexi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nexi.js"() {
         init_defineChain3();
         nexi2 = /* @__PURE__ */ defineChain3({
           id: 4242,
@@ -223151,7 +223286,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nexilix2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nexilix.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nexilix.js"() {
         init_defineChain3();
         nexilix2 = /* @__PURE__ */ defineChain3({
           id: 240,
@@ -223180,7 +223315,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nibiru2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nibiru.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nibiru.js"() {
         init_defineChain3();
         nibiru2 = /* @__PURE__ */ defineChain3({
           id: 6900,
@@ -223209,7 +223344,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nitrographTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nitrographTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nitrographTestnet.js"() {
         init_defineChain3();
         nitrographTestnet2 = /* @__PURE__ */ defineChain3({
           id: 200024,
@@ -223235,7 +223370,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nomina2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/nomina.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/nomina.js"() {
         init_defineChain3();
         nomina2 = /* @__PURE__ */ defineChain3({
           id: 166,
@@ -223262,7 +223397,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_oasisTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/oasisTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/oasisTestnet.js"() {
         init_defineChain3();
         oasisTestnet2 = /* @__PURE__ */ defineChain3({
           id: 4090,
@@ -223284,7 +223419,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_oasys2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/oasys.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/oasys.js"() {
         init_defineChain3();
         oasys2 = /* @__PURE__ */ defineChain3({
           id: 248,
@@ -223306,7 +223441,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_odysseyTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/odysseyTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/odysseyTestnet.js"() {
         init_defineChain3();
         odysseyTestnet2 = /* @__PURE__ */ defineChain3({
           id: 911867,
@@ -223327,7 +223462,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_okc2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/okc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/okc.js"() {
         init_defineChain3();
         okc2 = /* @__PURE__ */ defineChain3({
           id: 66,
@@ -223356,7 +223491,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_omax2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/omax.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/omax.js"() {
         init_defineChain3();
         omax2 = /* @__PURE__ */ defineChain3({
           id: 311,
@@ -223380,7 +223515,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_omni2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/omni.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/omni.js"() {
         init_defineChain3();
         omni2 = /* @__PURE__ */ defineChain3({
           id: 166,
@@ -223403,7 +223538,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_omniOmega2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/omniOmega.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/omniOmega.js"() {
         init_defineChain3();
         omniOmega2 = /* @__PURE__ */ defineChain3({
           id: 164,
@@ -223426,7 +223561,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_oneWorld2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/oneWorld.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/oneWorld.js"() {
         init_defineChain3();
         oneWorld2 = /* @__PURE__ */ defineChain3({
           id: 309075,
@@ -223450,7 +223585,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_oortmainnetDev2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/oortmainnetDev.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/oortmainnetDev.js"() {
         init_defineChain3();
         oortMainnetDev2 = /* @__PURE__ */ defineChain3({
           id: 9700,
@@ -223473,7 +223608,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_opBNB2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/opBNB.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/opBNB.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId372 = 56;
@@ -223522,7 +223657,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_opBNBTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/opBNBTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/opBNBTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId382 = 97;
@@ -223571,7 +223706,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_openledger2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/openledger.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/openledger.js"() {
         init_defineChain3();
         openledger2 = /* @__PURE__ */ defineChain3({
           id: 1612,
@@ -223591,7 +223726,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_optimism2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/optimism.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/optimism.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId392 = 1;
@@ -223644,7 +223779,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_optimismGoerli2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/optimismGoerli.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/optimismGoerli.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId402 = 5;
@@ -223693,7 +223828,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_optimismSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/optimismSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/optimismSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId412 = 11155111;
@@ -223747,7 +223882,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_optopia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/optopia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/optopia.js"() {
         init_defineChain3();
         optopia2 = /* @__PURE__ */ defineChain3({
           id: 62050,
@@ -223767,7 +223902,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_optopiaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/optopiaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/optopiaTestnet.js"() {
         init_defineChain3();
         optopiaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 62049,
@@ -223787,7 +223922,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_orderly2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/orderly.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/orderly.js"() {
         init_defineChain3();
         orderly2 = /* @__PURE__ */ defineChain3({
           id: 291,
@@ -223807,7 +223942,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_orderlySepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/orderlySepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/orderlySepolia.js"() {
         init_defineChain3();
         orderlySepolia2 = /* @__PURE__ */ defineChain3({
           id: 4460,
@@ -223829,7 +223964,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_otimDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/otimDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/otimDevnet.js"() {
         init_defineChain3();
         otimDevnet2 = /* @__PURE__ */ defineChain3({
           id: 41144114,
@@ -223854,7 +223989,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_palm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/palm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/palm.js"() {
         init_defineChain3();
         palm2 = /* @__PURE__ */ defineChain3({
           id: 11297108109,
@@ -223886,7 +224021,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_palmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/palmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/palmTestnet.js"() {
         init_defineChain3();
         palmTestnet2 = /* @__PURE__ */ defineChain3({
           id: 11297108099,
@@ -223919,7 +224054,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_paseoPassetHub2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/paseoPassetHub.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/paseoPassetHub.js"() {
         init_defineChain3();
         paseoPassetHub2 = /* @__PURE__ */ defineChain3({
           id: 420420422,
@@ -223945,7 +224080,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_peaq2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/peaq.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/peaq.js"() {
         init_defineChain3();
         peaq2 = /* @__PURE__ */ defineChain3({
           id: 3338,
@@ -223985,7 +224120,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_pgn2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/pgn.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/pgn.js"() {
         init_formatters22();
         init_defineChain3();
         sourceId422 = 1;
@@ -224033,7 +224168,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_pgnTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/pgnTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/pgnTestnet.js"() {
         init_formatters22();
         init_defineChain3();
         sourceId432 = 11155111;
@@ -224082,7 +224217,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_phoenix2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/phoenix.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/phoenix.js"() {
         init_defineChain3();
         phoenix2 = /* @__PURE__ */ defineChain3({
           id: 13381,
@@ -224110,7 +224245,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_planq2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/planq.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/planq.js"() {
         init_defineChain3();
         planq2 = /* @__PURE__ */ defineChain3({
           id: 7070,
@@ -224146,7 +224281,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plasma2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plasma.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plasma.js"() {
         init_defineChain3();
         plasma2 = /* @__PURE__ */ defineChain3({
           id: 9745,
@@ -224178,7 +224313,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plasmaDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plasmaDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plasmaDevnet.js"() {
         init_defineChain3();
         plasmaDevnet2 = /* @__PURE__ */ defineChain3({
           id: 9747,
@@ -224204,7 +224339,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plasmaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plasmaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plasmaTestnet.js"() {
         init_defineChain3();
         plasmaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 9746,
@@ -224236,7 +224371,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_playfiAlbireo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/playfiAlbireo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/playfiAlbireo.js"() {
         init_defineChain3();
         init_chainConfig6();
         playfiAlbireo2 = /* @__PURE__ */ defineChain3({
@@ -224267,7 +224402,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plinga2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plinga.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plinga.js"() {
         init_defineChain3();
         plinga2 = /* @__PURE__ */ defineChain3({
           id: 242,
@@ -224294,7 +224429,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plume2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plume.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plume.js"() {
         init_defineChain3();
         sourceId442 = 1;
         plume2 = /* @__PURE__ */ defineChain3({
@@ -224329,7 +224464,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plumeDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plumeDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plumeDevnet.js"() {
         init_defineChain3();
         sourceId452 = 11155111;
         plumeDevnet2 = /* @__PURE__ */ defineChain3({
@@ -224365,7 +224500,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plumeMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plumeMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plumeMainnet.js"() {
         init_defineChain3();
         sourceId462 = 1;
         plumeMainnet2 = /* @__PURE__ */ defineChain3({
@@ -224400,7 +224535,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plumeSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plumeSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plumeSepolia.js"() {
         init_defineChain3();
         sourceId472 = 11155111;
         plumeSepolia2 = /* @__PURE__ */ defineChain3({
@@ -224436,7 +224571,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_plumeTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/plumeTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/plumeTestnet.js"() {
         init_defineChain3();
         sourceId482 = 11155111;
         plumeTestnet2 = /* @__PURE__ */ defineChain3({
@@ -224472,7 +224607,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polterTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polterTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polterTestnet.js"() {
         init_defineChain3();
         polterTestnet2 = /* @__PURE__ */ defineChain3({
           id: 631571,
@@ -224504,7 +224639,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polygon2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polygon.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polygon.js"() {
         init_defineChain3();
         polygon2 = /* @__PURE__ */ defineChain3({
           id: 137,
@@ -224533,7 +224668,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polygonAmoy2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polygonAmoy.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polygonAmoy.js"() {
         init_defineChain3();
         polygonAmoy2 = /* @__PURE__ */ defineChain3({
           id: 80002,
@@ -224562,7 +224697,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polygonMumbai2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polygonMumbai.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polygonMumbai.js"() {
         init_defineChain3();
         polygonMumbai2 = /* @__PURE__ */ defineChain3({
           id: 80001,
@@ -224591,7 +224726,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polygonZkEvm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polygonZkEvm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polygonZkEvm.js"() {
         init_defineChain3();
         polygonZkEvm2 = /* @__PURE__ */ defineChain3({
           id: 1101,
@@ -224619,7 +224754,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polygonZkEvmCardona2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polygonZkEvmCardona.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polygonZkEvmCardona.js"() {
         init_defineChain3();
         polygonZkEvmCardona2 = /* @__PURE__ */ defineChain3({
           id: 2442,
@@ -224648,7 +224783,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polygonZkEvmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polygonZkEvmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polygonZkEvmTestnet.js"() {
         init_defineChain3();
         polygonZkEvmTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1442,
@@ -224677,7 +224812,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polynomial2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polynomial.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polynomial.js"() {
         init_defineChain3();
         polynomial2 = /* @__PURE__ */ defineChain3({
           id: 8008,
@@ -224708,7 +224843,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_polynomialSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/polynomialSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/polynomialSepolia.js"() {
         init_defineChain3();
         polynomialSepolia2 = /* @__PURE__ */ defineChain3({
           id: 80008,
@@ -224739,7 +224874,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_potos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/potos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/potos.js"() {
         init_defineChain3();
         potos2 = /* @__PURE__ */ defineChain3({
           id: 60603,
@@ -224765,7 +224900,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_potosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/potosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/potosTestnet.js"() {
         init_defineChain3();
         potosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 60600,
@@ -224791,7 +224926,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_premiumBlock2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/premiumBlock.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/premiumBlock.js"() {
         init_defineChain3();
         premiumBlockTestnet2 = /* @__PURE__ */ defineChain3({
           id: 23023,
@@ -224813,7 +224948,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_pulsechain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/pulsechain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/pulsechain.js"() {
         init_defineChain3();
         pulsechain2 = /* @__PURE__ */ defineChain3({
           id: 369,
@@ -224847,7 +224982,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_pulsechainV42 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/pulsechainV4.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/pulsechainV4.js"() {
         init_defineChain3();
         pulsechainV42 = /* @__PURE__ */ defineChain3({
           id: 943,
@@ -224881,7 +225016,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_pumpfiTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/pumpfiTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/pumpfiTestnet.js"() {
         init_defineChain3();
         pumpfiTestnet2 = /* @__PURE__ */ defineChain3({
           id: 490092,
@@ -224907,7 +225042,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_pyrope2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/pyrope.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/pyrope.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId492 = 11155111;
@@ -224942,7 +225077,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ql12 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ql1.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ql1.js"() {
         init_defineChain3();
         ql12 = /* @__PURE__ */ defineChain3({
           id: 766,
@@ -224973,7 +225108,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_qMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/qMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/qMainnet.js"() {
         init_defineChain3();
         qMainnet2 = /* @__PURE__ */ defineChain3({
           id: 35441,
@@ -224997,7 +225132,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_qTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/qTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/qTestnet.js"() {
         init_defineChain3();
         qTestnet2 = /* @__PURE__ */ defineChain3({
           id: 35443,
@@ -225022,7 +225157,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_quai2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/quai.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/quai.js"() {
         init_defineChain3();
         quai2 = /* @__PURE__ */ defineChain3({
           id: 9,
@@ -225047,7 +225182,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_quaiTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/quaiTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/quaiTestnet.js"() {
         init_defineChain3();
         quaiTestnet2 = /* @__PURE__ */ defineChain3({
           id: 15e3,
@@ -225072,7 +225207,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_radius2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/radius.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/radius.js"() {
         init_defineChain3();
         radius2 = /* @__PURE__ */ defineChain3({
           id: 723487,
@@ -225094,7 +225229,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_radiusTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/radiusTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/radiusTestnet.js"() {
         init_defineChain3();
         radiusTestnet2 = /* @__PURE__ */ defineChain3({
           id: 72344,
@@ -225116,7 +225251,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_reactiveTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/reactiveTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/reactiveTestnet.js"() {
         init_defineChain3();
         reactiveTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5318007,
@@ -225140,7 +225275,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_real2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/real.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/real.js"() {
         init_defineChain3();
         real2 = /* @__PURE__ */ defineChain3({
           id: 111188,
@@ -225170,7 +225305,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_redbellyMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/redbellyMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/redbellyMainnet.js"() {
         init_defineChain3();
         redbellyMainnet2 = /* @__PURE__ */ defineChain3({
           id: 151,
@@ -225197,7 +225332,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_redbellyTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/redbellyTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/redbellyTestnet.js"() {
         init_defineChain3();
         redbellyTestnet2 = /* @__PURE__ */ defineChain3({
           id: 153,
@@ -225224,7 +225359,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_reddio2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/reddio.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/reddio.js"() {
         init_defineChain3();
         reddio2 = /* @__PURE__ */ defineChain3({
           id: 50342,
@@ -225253,7 +225388,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_reddioSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/reddioSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/reddioSepolia.js"() {
         init_defineChain3();
         reddioSepolia2 = /* @__PURE__ */ defineChain3({
           id: 50341,
@@ -225276,7 +225411,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_redstone2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/redstone.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/redstone.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId502 = 1;
@@ -225326,7 +225461,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rei2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rei.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rei.js"() {
         init_defineChain3();
         rei2 = /* @__PURE__ */ defineChain3({
           id: 47805,
@@ -225353,7 +225488,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_reyaNetwork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/reyaNetwork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/reyaNetwork.js"() {
         init_defineChain3();
         reyaNetwork2 = /* @__PURE__ */ defineChain3({
           id: 1729,
@@ -225376,7 +225511,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rise2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rise.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rise.js"() {
         init_defineChain3();
         rise2 = /* @__PURE__ */ defineChain3({
           id: 4153,
@@ -225404,7 +225539,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_riseTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/riseTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/riseTestnet.js"() {
         init_defineChain3();
         riseTestnet2 = /* @__PURE__ */ defineChain3({
           id: 11155931,
@@ -225433,7 +225568,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rivalz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rivalz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rivalz.js"() {
         init_defineChain3();
         rivalz2 = /* @__PURE__ */ defineChain3({
           id: 753,
@@ -225455,7 +225590,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rollux2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rollux.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rollux.js"() {
         init_defineChain3();
         rollux2 = /* @__PURE__ */ defineChain3({
           id: 570,
@@ -225488,7 +225623,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rolluxTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rolluxTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rolluxTestnet.js"() {
         init_defineChain3();
         rolluxTestnet2 = /* @__PURE__ */ defineChain3({
           id: 57e3,
@@ -225522,7 +225657,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_ronin2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ronin.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ronin.js"() {
         init_defineChain3();
         ronin2 = /* @__PURE__ */ defineChain3({
           id: 2020,
@@ -225549,7 +225684,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_root2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/root.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/root.js"() {
         init_defineChain3();
         root2 = /* @__PURE__ */ defineChain3({
           id: 7668,
@@ -225581,7 +225716,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rootPorcini2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rootPorcini.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rootPorcini.js"() {
         init_defineChain3();
         rootPorcini2 = /* @__PURE__ */ defineChain3({
           id: 7672,
@@ -225614,7 +225749,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rootstock2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rootstock.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rootstock.js"() {
         init_defineChain3();
         rootstock2 = /* @__PURE__ */ defineChain3({
           id: 30,
@@ -225644,7 +225779,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rootstockTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rootstockTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rootstockTestnet.js"() {
         init_defineChain3();
         rootstockTestnet2 = /* @__PURE__ */ defineChain3({
           id: 31,
@@ -225675,7 +225810,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rss32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rss3.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rss3.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId512 = 1;
@@ -225724,7 +225859,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_rss3Sepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/rss3Sepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/rss3Sepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId522 = 11155111;
@@ -225774,7 +225909,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_saakuru2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/saakuru.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/saakuru.js"() {
         init_defineChain3();
         saakuru2 = /* @__PURE__ */ defineChain3({
           id: 7225878,
@@ -225796,7 +225931,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_saga2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/saga.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/saga.js"() {
         init_defineChain3();
         saga2 = /* @__PURE__ */ defineChain3({
           id: 5464,
@@ -225826,7 +225961,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_saigon2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/saigon.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/saigon.js"() {
         init_defineChain3();
         saigon2 = /* @__PURE__ */ defineChain3({
           id: 202601,
@@ -225854,7 +225989,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sanko2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sanko.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sanko.js"() {
         init_defineChain3();
         sanko2 = /* @__PURE__ */ defineChain3({
           id: 1996,
@@ -225882,7 +226017,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sapphire2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sapphire.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sapphire.js"() {
         init_defineChain3();
         sapphire2 = /* @__PURE__ */ defineChain3({
           id: 23294,
@@ -225911,7 +226046,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sapphireTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sapphireTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sapphireTestnet.js"() {
         init_defineChain3();
         sapphireTestnet2 = /* @__PURE__ */ defineChain3({
           id: 23295,
@@ -225935,7 +226070,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_satoshivm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/satoshivm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/satoshivm.js"() {
         init_defineChain3();
         satoshiVM2 = /* @__PURE__ */ defineChain3({
           id: 3109,
@@ -225959,7 +226094,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_satoshivmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/satoshivmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/satoshivmTestnet.js"() {
         init_defineChain3();
         satoshiVMTestnet2 = /* @__PURE__ */ defineChain3({
           id: 3110,
@@ -225984,7 +226119,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_scroll2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/scroll.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/scroll.js"() {
         init_defineChain3();
         scroll2 = /* @__PURE__ */ defineChain3({
           id: 534352,
@@ -226015,7 +226150,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_scrollSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/scrollSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/scrollSepolia.js"() {
         init_defineChain3();
         scrollSepolia2 = /* @__PURE__ */ defineChain3({
           id: 534351,
@@ -226044,7 +226179,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sei2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sei.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sei.js"() {
         init_defineChain3();
         sei2 = /* @__PURE__ */ defineChain3({
           id: 1329,
@@ -226072,7 +226207,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_seismicDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/seismicDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/seismicDevnet.js"() {
         init_defineChain3();
         seismicDevnet2 = /* @__PURE__ */ defineChain3({
           id: 5124,
@@ -226094,7 +226229,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_seiTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/seiTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/seiTestnet.js"() {
         init_defineChain3();
         seiTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1328,
@@ -226124,7 +226259,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sentrix2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sentrix.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sentrix.js"() {
         init_defineChain3();
         sentrix2 = /* @__PURE__ */ defineChain3({
           id: 7119,
@@ -226153,7 +226288,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sentrixTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sentrixTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sentrixTestnet.js"() {
         init_defineChain3();
         sentrixTestnet2 = /* @__PURE__ */ defineChain3({
           id: 7120,
@@ -226183,7 +226318,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sepolia.js"() {
         init_defineChain3();
         sepolia2 = /* @__PURE__ */ defineChain3({
           id: 11155111,
@@ -226216,7 +226351,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shape2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shape.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shape.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId532 = 1;
@@ -226267,7 +226402,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shapeSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shapeSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shapeSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId542 = 11155111;
@@ -226301,7 +226436,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shardeum2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shardeum.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shardeum.js"() {
         init_defineChain3();
         shardeum2 = /* @__PURE__ */ defineChain3({
           id: 8118,
@@ -226323,7 +226458,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shardeumSphinx2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shardeumSphinx.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shardeumSphinx.js"() {
         init_defineChain3();
         shardeumSphinx2 = /* @__PURE__ */ defineChain3({
           id: 8082,
@@ -226345,7 +226480,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shibarium2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shibarium.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shibarium.js"() {
         init_defineChain3();
         shibarium2 = /* @__PURE__ */ defineChain3({
           id: 109,
@@ -226373,7 +226508,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shibariumTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shibariumTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shibariumTestnet.js"() {
         init_defineChain3();
         shibariumTestnet2 = /* @__PURE__ */ defineChain3({
           id: 157,
@@ -226404,7 +226539,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shiden2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shiden.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shiden.js"() {
         init_defineChain3();
         shiden2 = /* @__PURE__ */ defineChain3({
           id: 336,
@@ -226431,7 +226566,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shimmer2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shimmer.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shimmer.js"() {
         init_defineChain3();
         shimmer2 = /* @__PURE__ */ defineChain3({
           id: 148,
@@ -226458,7 +226593,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_shimmerTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/shimmerTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/shimmerTestnet.js"() {
         init_defineChain3();
         shimmerTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1073,
@@ -226486,7 +226621,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sidra2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sidra.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sidra.js"() {
         init_defineChain3();
         sidraChain2 = /* @__PURE__ */ defineChain3({
           id: 97453,
@@ -226511,7 +226646,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_silentdata2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/silentdata.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/silentdata.js"() {
         init_defineChain3();
         silentData2 = /* @__PURE__ */ defineChain3({
           id: 380929,
@@ -226533,7 +226668,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_silicon2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/silicon.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/silicon.js"() {
         init_defineChain3();
         silicon2 = /* @__PURE__ */ defineChain3({
           id: 2355,
@@ -226557,7 +226692,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_siliconSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/siliconSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/siliconSepolia.js"() {
         init_defineChain3();
         siliconSepolia2 = /* @__PURE__ */ defineChain3({
           id: 1722641160,
@@ -226582,7 +226717,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sixProtocol2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sixProtocol.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sixProtocol.js"() {
         init_defineChain3();
         sixProtocol2 = /* @__PURE__ */ defineChain3({
           id: 98,
@@ -226608,7 +226743,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_brawl2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/brawl.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/brawl.js"() {
         init_defineChain3();
         skaleBlockBrawlers2 = /* @__PURE__ */ defineChain3({
           id: 391845894,
@@ -226631,7 +226766,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_calypso2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/calypso.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/calypso.js"() {
         init_defineChain3();
         skaleCalypso2 = /* @__PURE__ */ defineChain3({
           id: 1564830818,
@@ -226661,7 +226796,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_calypsoTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/calypsoTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/calypsoTestnet.js"() {
         init_defineChain3();
         skaleCalypsoTestnet2 = /* @__PURE__ */ defineChain3({
           id: 974399131,
@@ -226690,7 +226825,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cryptoBlades2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/cryptoBlades.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/cryptoBlades.js"() {
         init_defineChain3();
         skaleCryptoBlades2 = /* @__PURE__ */ defineChain3({
           id: 1026062157,
@@ -226715,7 +226850,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_cryptoColosseum2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/cryptoColosseum.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/cryptoColosseum.js"() {
         init_defineChain3();
         skaleCryptoColosseum2 = /* @__PURE__ */ defineChain3({
           id: 1032942172,
@@ -226738,7 +226873,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_europa2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/europa.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/europa.js"() {
         init_defineChain3();
         skaleEuropa2 = /* @__PURE__ */ defineChain3({
           id: 2046399126,
@@ -226766,7 +226901,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_europaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/europaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/europaTestnet.js"() {
         init_defineChain3();
         skaleEuropaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1444673419,
@@ -226795,7 +226930,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_exorde2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/exorde.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/exorde.js"() {
         init_defineChain3();
         skaleExorde2 = /* @__PURE__ */ defineChain3({
           id: 2139927552,
@@ -226818,7 +226953,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_humanProtocol2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/humanProtocol.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/humanProtocol.js"() {
         init_defineChain3();
         skaleHumanProtocol2 = /* @__PURE__ */ defineChain3({
           id: 1273227453,
@@ -226841,7 +226976,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nebula2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/nebula.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/nebula.js"() {
         init_defineChain3();
         skaleNebula2 = /* @__PURE__ */ defineChain3({
           id: 1482601649,
@@ -226869,7 +227004,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nebulaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/nebulaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/nebulaTestnet.js"() {
         init_defineChain3();
         skaleNebulaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 37084624,
@@ -226898,7 +227033,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_razor2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/razor.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/razor.js"() {
         init_defineChain3();
         skaleRazor2 = /* @__PURE__ */ defineChain3({
           id: 278611351,
@@ -226921,7 +227056,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_skaleBase2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/skaleBase.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/skaleBase.js"() {
         init_defineChain3();
         skaleBase2 = /* @__PURE__ */ defineChain3({
           id: 1187947933,
@@ -226944,7 +227079,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_skaleBaseSepoliaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/skaleBaseSepoliaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/skaleBaseSepoliaTestnet.js"() {
         init_defineChain3();
         skaleBaseSepoliaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 324705682,
@@ -226969,7 +227104,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_titan2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/titan.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/titan.js"() {
         init_defineChain3();
         skaleTitan2 = /* @__PURE__ */ defineChain3({
           id: 1350216234,
@@ -226997,7 +227132,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_titanTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/skale/titanTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/skale/titanTestnet.js"() {
         init_defineChain3();
         skaleTitanTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1020352220,
@@ -227026,7 +227161,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sketchpad2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sketchpad.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sketchpad.js"() {
         init_defineChain3();
         sketchpad2 = /* @__PURE__ */ defineChain3({
           id: 984123,
@@ -227054,7 +227189,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_snax2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/snax.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/snax.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId552 = 1;
@@ -227107,7 +227242,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_snaxTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/snaxTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/snaxTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId562 = 11155111;
@@ -227161,7 +227296,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_somnia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/somnia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/somnia.js"() {
         init_defineChain3();
         somnia2 = /* @__PURE__ */ defineChain3({
           id: 5031,
@@ -227191,7 +227326,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_somniaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/somniaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/somniaTestnet.js"() {
         init_defineChain3();
         somniaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 50312,
@@ -227221,7 +227356,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_soneium2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/soneium.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/soneium.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId572 = 1;
@@ -227276,7 +227411,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_soneiumMinato2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/soneiumMinato.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/soneiumMinato.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId582 = 11155111;
@@ -227332,7 +227467,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_songbird2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/songbird.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/songbird.js"() {
         init_defineChain3();
         songbird2 = /* @__PURE__ */ defineChain3({
           id: 19,
@@ -227362,7 +227497,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_songbirdTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/songbirdTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/songbirdTestnet.js"() {
         init_defineChain3();
         songbirdTestnet2 = /* @__PURE__ */ defineChain3({
           id: 16,
@@ -227387,7 +227522,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sonic2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sonic.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sonic.js"() {
         init_defineChain3();
         sonic2 = /* @__PURE__ */ defineChain3({
           id: 146,
@@ -227418,7 +227553,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sonicBlazeTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sonicBlazeTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sonicBlazeTestnet.js"() {
         init_defineChain3();
         sonicBlazeTestnet2 = /* @__PURE__ */ defineChain3({
           id: 57054,
@@ -227448,7 +227583,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sonicTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sonicTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sonicTestnet.js"() {
         init_defineChain3();
         sonicTestnet2 = /* @__PURE__ */ defineChain3({
           id: 64165,
@@ -227472,7 +227607,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sophon2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sophon.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sophon.js"() {
         init_defineChain3();
         init_chainConfig6();
         sophon2 = /* @__PURE__ */ defineChain3({
@@ -227508,7 +227643,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sophonTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sophonTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sophonTestnet.js"() {
         init_defineChain3();
         init_chainConfig6();
         sophonTestnet2 = /* @__PURE__ */ defineChain3({
@@ -227544,7 +227679,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sova2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sova.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sova.js"() {
         init_defineChain3();
         sova2 = /* @__PURE__ */ defineChain3({
           id: 100021,
@@ -227570,7 +227705,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_sovaSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/sovaSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/sovaSepolia.js"() {
         init_defineChain3();
         sovaSepolia2 = /* @__PURE__ */ defineChain3({
           id: 120893,
@@ -227596,7 +227731,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_spicy2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/spicy.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/spicy.js"() {
         init_defineChain3();
         spicy2 = /* @__PURE__ */ defineChain3({
           id: 88882,
@@ -227631,7 +227766,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_stable2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/stable.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/stable.js"() {
         init_defineChain3();
         stable3 = /* @__PURE__ */ defineChain3({
           id: 988,
@@ -227666,7 +227801,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_stableTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/stableTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/stableTestnet.js"() {
         init_defineChain3();
         stableTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2201,
@@ -227701,7 +227836,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_statusNetworkSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/statusNetworkSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/statusNetworkSepolia.js"() {
         init_chainConfig42();
         init_defineChain3();
         statusSepolia2 = /* @__PURE__ */ defineChain3({
@@ -227736,7 +227871,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_step2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/step.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/step.js"() {
         init_defineChain3();
         step2 = /* @__PURE__ */ defineChain3({
           id: 1234,
@@ -227758,7 +227893,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_story2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/story.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/story.js"() {
         init_defineChain3();
         story2 = /* @__PURE__ */ defineChain3({
           id: 1514,
@@ -227798,7 +227933,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_storyAeneid2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/storyAeneid.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/storyAeneid.js"() {
         init_defineChain3();
         storyAeneid2 = /* @__PURE__ */ defineChain3({
           id: 1315,
@@ -227839,7 +227974,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_storyOdyssey2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/storyOdyssey.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/storyOdyssey.js"() {
         init_defineChain3();
         storyOdyssey2 = /* @__PURE__ */ defineChain3({
           id: 1516,
@@ -227863,7 +227998,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_storyTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/storyTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/storyTestnet.js"() {
         init_defineChain3();
         storyTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1513,
@@ -227887,7 +228022,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_stratis2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/stratis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/stratis.js"() {
         init_defineChain3();
         stratis2 = /* @__PURE__ */ defineChain3({
           id: 105105,
@@ -227913,7 +228048,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_subtensorEvm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/subtensorEvm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/subtensorEvm.js"() {
         init_defineChain3();
         subtensorEvm2 = /* @__PURE__ */ defineChain3({
           id: 964,
@@ -227940,7 +228075,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_superlumio2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/superlumio.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/superlumio.js"() {
         init_defineChain3();
         superlumio2 = /* @__PURE__ */ defineChain3({
           id: 8866,
@@ -227962,7 +228097,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_superposition2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/superposition.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/superposition.js"() {
         init_defineChain3();
         superposition2 = /* @__PURE__ */ defineChain3({
           id: 55244,
@@ -227988,7 +228123,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_superseed2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/superseed.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/superseed.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId592 = 1;
@@ -228044,7 +228179,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_superseedSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/superseedSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/superseedSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId602 = 11155111;
@@ -228093,7 +228228,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_surgeTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/surgeTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/surgeTestnet.js"() {
         init_defineChain3();
         surgeTestnet2 = /* @__PURE__ */ defineChain3({
           id: 763375,
@@ -228116,7 +228251,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_swan2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/swan.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/swan.js"() {
         init_defineChain3();
         swan2 = /* @__PURE__ */ defineChain3({
           id: 254,
@@ -228136,7 +228271,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_swanProximaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/swanProximaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/swanProximaTestnet.js"() {
         init_defineChain3();
         swanProximaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 20241133,
@@ -228156,7 +228291,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_swanSaturnTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/swanSaturnTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/swanSaturnTestnet.js"() {
         init_defineChain3();
         swanSaturnTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2024,
@@ -228176,7 +228311,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_swellchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/swellchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/swellchain.js"() {
         init_chainConfig22();
         init_defineChain3();
         swellchain2 = /* @__PURE__ */ defineChain3({
@@ -228207,7 +228342,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_swellchainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/swellchainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/swellchainTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         swellchainTestnet2 = /* @__PURE__ */ defineChain3({
@@ -228239,7 +228374,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_swissdlt2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/swissdlt.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/swissdlt.js"() {
         init_defineChain3();
         swissdlt2 = /* @__PURE__ */ defineChain3({
           id: 94,
@@ -228265,7 +228400,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_syscoin2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/syscoin.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/syscoin.js"() {
         init_defineChain3();
         syscoin2 = /* @__PURE__ */ defineChain3({
           id: 57,
@@ -228298,7 +228433,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_syscoinTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/syscoinTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/syscoinTestnet.js"() {
         init_defineChain3();
         syscoinTestnet2 = /* @__PURE__ */ defineChain3({
           id: 5700,
@@ -228331,7 +228466,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_tac2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tac.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tac.js"() {
         init_defineChain3();
         tac2 = /* @__PURE__ */ defineChain3({
           id: 239,
@@ -228364,7 +228499,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_tacSPB2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tacSPB.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tacSPB.js"() {
         init_defineChain3();
         tacSPB2 = /* @__PURE__ */ defineChain3({
           id: 2391,
@@ -228397,7 +228532,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taiko2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taiko.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taiko.js"() {
         init_defineChain3();
         taiko2 = /* @__PURE__ */ defineChain3({
           id: 167e3,
@@ -228429,7 +228564,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taikoHekla2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taikoHekla.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taikoHekla.js"() {
         init_defineChain3();
         taikoHekla2 = /* @__PURE__ */ defineChain3({
           id: 167009,
@@ -228457,7 +228592,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taikoHoodi2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taikoHoodi.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taikoHoodi.js"() {
         init_defineChain3();
         taikoHoodi2 = /* @__PURE__ */ defineChain3({
           id: 167013,
@@ -228486,7 +228621,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taikoJolnir2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taikoJolnir.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taikoJolnir.js"() {
         init_defineChain3();
         taikoJolnir2 = /* @__PURE__ */ defineChain3({
           id: 167007,
@@ -228514,7 +228649,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taikoKatla2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taikoKatla.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taikoKatla.js"() {
         init_defineChain3();
         taikoKatla2 = /* @__PURE__ */ defineChain3({
           id: 167008,
@@ -228537,7 +228672,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taikoTestnetSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taikoTestnetSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taikoTestnetSepolia.js"() {
         init_defineChain3();
         taikoTestnetSepolia2 = /* @__PURE__ */ defineChain3({
           id: 167005,
@@ -228559,7 +228694,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taraxa2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taraxa.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taraxa.js"() {
         init_defineChain3();
         taraxa2 = /* @__PURE__ */ defineChain3({
           id: 841,
@@ -228580,7 +228715,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_taraxaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/taraxaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/taraxaTestnet.js"() {
         init_defineChain3();
         taraxaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 842,
@@ -228602,7 +228737,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_teaSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/teaSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/teaSepolia.js"() {
         init_defineChain3();
         teaSepolia2 = /* @__PURE__ */ defineChain3({
           id: 10218,
@@ -228624,7 +228759,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_telcoinTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/telcoinTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/telcoinTestnet.js"() {
         init_defineChain3();
         telcoinTestnet2 = /* @__PURE__ */ defineChain3({
           id: 2017,
@@ -228646,7 +228781,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_telos2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/telos.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/telos.js"() {
         init_defineChain3();
         telos2 = /* @__PURE__ */ defineChain3({
           id: 40,
@@ -228675,7 +228810,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_telosTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/telosTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/telosTestnet.js"() {
         init_defineChain3();
         telosTestnet2 = /* @__PURE__ */ defineChain3({
           id: 41,
@@ -228699,7 +228834,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_nist2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/nist.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/nist.js"() {
         init_sha23();
         init_shortw_utils3();
         init_modular3();
@@ -228747,20 +228882,20 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_p2562 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/@noble/curves/esm/p256.js"() {
+      "../../../../enclave/node_modules/@noble/curves/esm/p256.js"() {
         init_nist2();
         secp256r12 = p2562;
       }
     });
     init_P2562 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/P256.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/P256.js"() {
         init_p2562();
         init_Bytes3();
         init_PublicKey3();
       }
     });
     init_Base642 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Base64.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Base64.js"() {
         encoder52 = /* @__PURE__ */ new TextEncoder();
         integerToCharacter2 = /* @__PURE__ */ Object.fromEntries(Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/").map((a, i) => [i, a.charCodeAt(0)]));
         characterToInteger2 = {
@@ -228772,7 +228907,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_Authentication2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/webauthn/Authentication.js"() {
+      "../../../../enclave/node_modules/ox/_esm/webauthn/Authentication.js"() {
         init_Base642();
         init_Bytes3();
         init_Hash3();
@@ -228781,7 +228916,7 @@ ${prettyStateOverride3(stateOverride)}`;
       }
     });
     init_WebAuthnP2562 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/WebAuthnP256.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/WebAuthnP256.js"() {
         init_Authentication2();
       }
     });
@@ -228802,7 +228937,7 @@ ${prettyStateOverride3(stateOverride)}`;
       zeroSalt: () => zeroSalt2
     });
     init_MultisigConfig2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/MultisigConfig.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/MultisigConfig.js"() {
         init_Address3();
         init_Errors3();
         init_Hash3();
@@ -228849,7 +228984,7 @@ ${prettyStateOverride3(stateOverride)}`;
       verify: () => verify52
     });
     init_SignatureEnvelope2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/SignatureEnvelope.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/SignatureEnvelope.js"() {
         init_Address3();
         init_Errors3();
         init_Hex3();
@@ -228918,7 +229053,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_TempoAddress2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/TempoAddress.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/TempoAddress.js"() {
         init_Address3();
         init_Errors3();
         init_Hex3();
@@ -228936,14 +229071,14 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_AuthorizationTempo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/AuthorizationTempo.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/AuthorizationTempo.js"() {
         init_Hex3();
         init_SignatureEnvelope2();
         init_TempoAddress2();
       }
     });
     init_TokenId2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/TokenId.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/TokenId.js"() {
         init_Address3();
         init_Hex3();
         init_TempoAddress2();
@@ -228951,7 +229086,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Channel2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/Channel.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/Channel.js"() {
         init_AbiParameters3();
         init_Hash3();
         init_Hex3();
@@ -228979,7 +229114,7 @@ Provided: ${stringify22(envelope)}`);
       toTuple: () => toTuple52
     });
     init_KeyAuthorization2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/KeyAuthorization.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/KeyAuthorization.js"() {
         init_AbiItem3();
         init_Hash3();
         init_Hex3();
@@ -229011,38 +229146,38 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Period2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/Period.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/Period.js"() {
       }
     });
     init_PoolId2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/PoolId.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/PoolId.js"() {
       }
     });
     init_AbiEvent2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/AbiEvent.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/AbiEvent.js"() {
         init_AbiItem3();
       }
     });
     init_ReceivePolicyReceipt2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/ReceivePolicyReceipt.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/ReceivePolicyReceipt.js"() {
         init_AbiEvent2();
         transferBlocked2 = from182("event TransferBlocked(address indexed token, address indexed receiver, uint64 indexed blockedNonce, uint256 amount, uint8 receiptVersion, bytes receipt)");
       }
     });
     init_RpcSchemaTempo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/RpcSchemaTempo.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/RpcSchemaTempo.js"() {
       }
     });
     init_Tick2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/Tick.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/Tick.js"() {
       }
     });
     init_TokenRole2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/TokenRole.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/TokenRole.js"() {
       }
     });
     init_Transaction4 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Transaction.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Transaction.js"() {
         init_Authorization3();
         init_Hex3();
         init_Signature3();
@@ -229070,7 +229205,7 @@ Provided: ${stringify22(envelope)}`);
       toRpcType: () => toRpcType22
     });
     init_Transaction22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/Transaction.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/Transaction.js"() {
         init_Hex3();
         init_Signature3();
         init_Transaction4();
@@ -229088,7 +229223,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_TransactionReceipt3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/TransactionReceipt.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/TransactionReceipt.js"() {
         fromRpcType32 = {
           "0x0": "legacy",
           "0x1": "eip2930",
@@ -229106,7 +229241,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_TransactionReceipt22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/TransactionReceipt.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/TransactionReceipt.js"() {
         init_TransactionReceipt3();
         fromRpcType42 = {
           ...fromRpcType32,
@@ -229119,7 +229254,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_TransactionRequest3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/TransactionRequest.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/TransactionRequest.js"() {
         init_Authorization3();
         init_Hex3();
         init_Transaction4();
@@ -229131,7 +229266,7 @@ Provided: ${stringify22(envelope)}`);
       toRpc: () => toRpc122
     });
     init_TransactionRequest22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/TransactionRequest.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/TransactionRequest.js"() {
         init_Hex3();
         init_TransactionRequest3();
         init_AuthorizationTempo2();
@@ -229142,7 +229277,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_AccessList2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/AccessList.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/AccessList.js"() {
         init_Address3();
         init_Errors3();
         init_Hash3();
@@ -229161,7 +229296,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Value2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/Value.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/Value.js"() {
         exponents2 = {
           wei: 0,
           gwei: 9,
@@ -229172,7 +229307,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_TxEnvelope2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/core/TxEnvelope.js"() {
+      "../../../../enclave/node_modules/ox/_esm/core/TxEnvelope.js"() {
         init_Errors3();
         init_Value2();
         FeeCapTooHighError22 = class extends BaseError32 {
@@ -229247,7 +229382,7 @@ Provided: ${stringify22(envelope)}`);
       validate: () => validate92
     });
     init_TxEnvelopeTempo2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/TxEnvelopeTempo.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/TxEnvelopeTempo.js"() {
         init_AccessList2();
         init_Address3();
         init_Errors3();
@@ -229290,23 +229425,23 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_VirtualAddress2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/VirtualAddress.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/VirtualAddress.js"() {
       }
     });
     init_VirtualMaster2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/VirtualMaster.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/VirtualMaster.js"() {
       }
     });
     init_ZoneId2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/ZoneId.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/ZoneId.js"() {
       }
     });
     init_ZoneRpcAuthentication2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/ZoneRpcAuthentication.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/ZoneRpcAuthentication.js"() {
       }
     });
     init_tempo3 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/ox/_esm/tempo/index.js"() {
+      "../../../../enclave/node_modules/ox/_esm/tempo/index.js"() {
         init_AuthorizationTempo2();
         init_Channel2();
         init_KeyAuthorization2();
@@ -229331,7 +229466,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Abis2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/Abis.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/Abis.js"() {
         accountKeychain3 = [
           {
             name: "authorizeKey",
@@ -232261,7 +232396,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Transaction32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/Transaction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/Transaction.js"() {
         init_Hex3();
         init_Secp256k13();
         init_Signature3();
@@ -232271,20 +232406,20 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Account2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/Account.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/Account.js"() {
         init_Address3();
         init_PublicKey3();
         init_tempo3();
       }
     });
     init_Addresses2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/Addresses.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/Addresses.js"() {
         accountKeychain22 = "0xaAAAaaAA00000000000000000000000000000000";
         signatureVerifier22 = "0x5165300000000000000000000000000000000000";
       }
     });
     init_Hardfork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/Hardfork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/Hardfork.js"() {
         hardforks2 = [
           "genesis",
           "t0",
@@ -232301,12 +232436,12 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_utils102 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/internal/utils.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/internal/utils.js"() {
         init_utils72();
       }
     });
     init_accessKey2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/actions/accessKey.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/actions/accessKey.js"() {
         init_parseAccount3();
         init_readContract3();
         init_sendTransaction3();
@@ -232535,7 +232670,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_Formatters2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/Formatters.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/Formatters.js"() {
         init_Hex3();
         init_tempo3();
         init_parseAccount3();
@@ -232546,12 +232681,12 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_concurrent2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/internal/concurrent.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/internal/concurrent.js"() {
         concurrentCounts2 = /* @__PURE__ */ new Map();
       }
     });
     init_chainConfig52 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/tempo/chainConfig.js"() {
+      "../../../../enclave/node_modules/viem/_esm/tempo/chainConfig.js"() {
         init_Hex3();
         init_tempo3();
         init_getCode3();
@@ -232719,7 +232854,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tempo22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tempo.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tempo.js"() {
         init_chainConfig52();
         init_defineChain3();
         tempo2 = /* @__PURE__ */ defineChain3({
@@ -232747,7 +232882,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tempoDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tempoDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tempoDevnet.js"() {
         init_chainConfig52();
         init_defineChain3();
         tempoDevnet2 = /* @__PURE__ */ defineChain3({
@@ -232777,7 +232912,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tempoLocalnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tempoLocalnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tempoLocalnet.js"() {
         init_chainConfig52();
         init_defineChain3();
         tempoLocalnet2 = /* @__PURE__ */ defineChain3({
@@ -232797,7 +232932,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tempoModerato2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tempoModerato.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tempoModerato.js"() {
         init_chainConfig52();
         init_defineChain3();
         tempoModerato2 = /* @__PURE__ */ defineChain3({
@@ -232827,7 +232962,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tenet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tenet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tenet.js"() {
         init_defineChain3();
         tenet2 = /* @__PURE__ */ defineChain3({
           id: 1559,
@@ -232853,7 +232988,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_ternoa2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ternoa.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ternoa.js"() {
         init_defineChain3();
         ternoa2 = /* @__PURE__ */ defineChain3({
           id: 752025,
@@ -232875,7 +233010,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_thaiChain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/thaiChain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/thaiChain.js"() {
         init_defineChain3();
         thaiChain2 = /* @__PURE__ */ defineChain3({
           id: 7,
@@ -232904,7 +233039,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_that2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/that.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/that.js"() {
         init_defineChain3();
         that2 = /* @__PURE__ */ defineChain3({
           id: 8428,
@@ -232926,7 +233061,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_theta2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/theta.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/theta.js"() {
         init_defineChain3();
         theta2 = /* @__PURE__ */ defineChain3({
           id: 361,
@@ -232948,7 +233083,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_thetaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/thetaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/thetaTestnet.js"() {
         init_defineChain3();
         thetaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 365,
@@ -232970,7 +233105,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_thunderCore2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/thunderCore.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/thunderCore.js"() {
         init_defineChain3();
         thunderCore2 = /* @__PURE__ */ defineChain3({
           id: 108,
@@ -232998,7 +233133,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_thunderTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/thunderTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/thunderTestnet.js"() {
         init_defineChain3();
         thunderTestnet2 = /* @__PURE__ */ defineChain3({
           id: 997,
@@ -233020,7 +233155,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tiktrixTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tiktrixTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tiktrixTestnet.js"() {
         init_defineChain3();
         tiktrixTestnet2 = /* @__PURE__ */ defineChain3({
           id: 62092,
@@ -233046,7 +233181,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tomb2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tomb.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tomb.js"() {
         init_defineChain3();
         tomb2 = /* @__PURE__ */ defineChain3({
           id: 6969,
@@ -233068,7 +233203,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_treasure2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/treasure.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/treasure.js"() {
         init_defineChain3();
         init_chainConfig6();
         treasure2 = /* @__PURE__ */ defineChain3({
@@ -233103,7 +233238,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_treasureTopaz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/treasureTopaz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/treasureTopaz.js"() {
         init_defineChain3();
         init_chainConfig6();
         treasureTopaz2 = /* @__PURE__ */ defineChain3({
@@ -233138,7 +233273,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tron2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tron.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tron.js"() {
         init_defineChain3();
         tron2 = /* @__PURE__ */ defineChain3({
           id: 728126428,
@@ -233161,7 +233296,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tronNile2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tronNile.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tronNile.js"() {
         init_defineChain3();
         tronNile2 = /* @__PURE__ */ defineChain3({
           id: 3448148188,
@@ -233183,7 +233318,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_tronShasta2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/tronShasta.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/tronShasta.js"() {
         init_defineChain3();
         tronShasta2 = /* @__PURE__ */ defineChain3({
           id: 2494104990,
@@ -233205,7 +233340,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_ubiq2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ubiq.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ubiq.js"() {
         init_defineChain3();
         ubiq2 = /* @__PURE__ */ defineChain3({
           id: 8,
@@ -233227,7 +233362,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_ultra2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ultra.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ultra.js"() {
         init_defineChain3();
         ultra2 = /* @__PURE__ */ defineChain3({
           id: 19991,
@@ -233250,7 +233385,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_ultraTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ultraTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ultraTestnet.js"() {
         init_defineChain3();
         ultraTestnet2 = /* @__PURE__ */ defineChain3({
           id: 18881,
@@ -233274,7 +233409,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_ultron2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ultron.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ultron.js"() {
         init_defineChain3();
         ultron2 = /* @__PURE__ */ defineChain3({
           id: 1231,
@@ -233296,7 +233431,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_ultronTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/ultronTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/ultronTestnet.js"() {
         init_defineChain3();
         ultronTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1230,
@@ -233318,7 +233453,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_unichain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/unichain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/unichain.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId612 = 1;
@@ -233367,7 +233502,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_unichainSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/unichainSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/unichainSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId622 = 11155111;
@@ -233421,7 +233556,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_unique2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/unique.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/unique.js"() {
         init_defineChain3();
         unique2 = /* @__PURE__ */ defineChain3({
           id: 8880,
@@ -233444,7 +233579,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_uniqueOpal2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/uniqueOpal.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/uniqueOpal.js"() {
         init_defineChain3();
         uniqueOpal2 = /* @__PURE__ */ defineChain3({
           id: 8882,
@@ -233468,7 +233603,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_uniqueQuartz2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/uniqueQuartz.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/uniqueQuartz.js"() {
         init_defineChain3();
         uniqueQuartz2 = /* @__PURE__ */ defineChain3({
           id: 8881,
@@ -233491,7 +233626,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_unreal2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/unreal.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/unreal.js"() {
         init_defineChain3();
         unreal2 = /* @__PURE__ */ defineChain3({
           id: 18233,
@@ -233522,7 +233657,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_valygoNft2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/valygoNft.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/valygoNft.js"() {
         init_defineChain3();
         valygoNft2 = defineChain3({
           id: 7773777,
@@ -233559,7 +233694,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_valygoSmartchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/valygoSmartchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/valygoSmartchain.js"() {
         init_defineChain3();
         valygoSmartchain2 = defineChain3({
           id: 7771777,
@@ -233596,7 +233731,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_vana2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/vana.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/vana.js"() {
         init_defineChain3();
         vana2 = /* @__PURE__ */ defineChain3({
           id: 1480,
@@ -233627,7 +233762,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_vanaMoksha2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/vanaMoksha.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/vanaMoksha.js"() {
         init_defineChain3();
         vanaMoksha2 = /* @__PURE__ */ defineChain3({
           id: 14800,
@@ -233659,7 +233794,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_vanar2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/vanar.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/vanar.js"() {
         init_defineChain3();
         vanar2 = /* @__PURE__ */ defineChain3({
           id: 2040,
@@ -233681,7 +233816,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_vechain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/vechain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/vechain.js"() {
         init_defineChain3();
         vechain2 = /* @__PURE__ */ defineChain3({
           id: 100009,
@@ -233706,7 +233841,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_velas2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/velas.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/velas.js"() {
         init_defineChain3();
         velas2 = /* @__PURE__ */ defineChain3({
           id: 106,
@@ -233734,7 +233869,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_viction2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/viction.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/viction.js"() {
         init_defineChain3();
         viction2 = /* @__PURE__ */ defineChain3({
           id: 88,
@@ -233756,7 +233891,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_victionTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/victionTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/victionTestnet.js"() {
         init_defineChain3();
         victionTestnet2 = /* @__PURE__ */ defineChain3({
           id: 89,
@@ -233784,7 +233919,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_vision2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/vision.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/vision.js"() {
         init_defineChain3();
         vision2 = /* @__PURE__ */ defineChain3({
           id: 888888,
@@ -233806,7 +233941,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_visionTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/visionTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/visionTestnet.js"() {
         init_defineChain3();
         visionTestnet2 = /* @__PURE__ */ defineChain3({
           id: 666666,
@@ -233828,7 +233963,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_wanchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/wanchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/wanchain.js"() {
         init_defineChain3();
         wanchain2 = /* @__PURE__ */ defineChain3({
           id: 888,
@@ -233858,7 +233993,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_wanchainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/wanchainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/wanchainTestnet.js"() {
         init_defineChain3();
         wanchainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 999,
@@ -233886,7 +234021,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_weavevmAlphanet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/weavevmAlphanet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/weavevmAlphanet.js"() {
         init_defineChain3();
         weaveVMAlphanet2 = /* @__PURE__ */ defineChain3({
           id: 9496,
@@ -233906,7 +234041,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_wemix2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/wemix.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/wemix.js"() {
         init_defineChain3();
         wemix2 = /* @__PURE__ */ defineChain3({
           id: 1111,
@@ -233926,7 +234061,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_wemixTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/wemixTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/wemixTestnet.js"() {
         init_defineChain3();
         wemixTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1112,
@@ -233948,7 +234083,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_westendAssetHub2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/westendAssetHub.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/westendAssetHub.js"() {
         init_defineChain3();
         westendAssetHub2 = /* @__PURE__ */ defineChain3({
           id: 420420421,
@@ -233972,7 +234107,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_whitechain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/whitechain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/whitechain.js"() {
         init_defineChain3();
         whitechain2 = /* @__PURE__ */ defineChain3({
           testnet: false,
@@ -234004,7 +234139,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_whitechainSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/whitechainSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/whitechainSepolia.js"() {
         init_defineChain3();
         whitechainSepolia2 = /* @__PURE__ */ defineChain3({
           testnet: true,
@@ -234035,7 +234170,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_whitechainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/whitechainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/whitechainTestnet.js"() {
         init_defineChain3();
         whitechainTestnet2 = /* @__PURE__ */ defineChain3({
           testnet: true,
@@ -234061,7 +234196,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_wmcTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/wmcTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/wmcTestnet.js"() {
         init_defineChain3();
         wmcTestnet2 = /* @__PURE__ */ defineChain3({
           id: 42070,
@@ -234083,7 +234218,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_worldchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/worldchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/worldchain.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId632 = 1;
@@ -234141,7 +234276,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_worldchainSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/worldchainSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/worldchainSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId642 = 11155111;
@@ -234199,7 +234334,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_worldLand2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/worldLand.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/worldLand.js"() {
         init_defineChain3();
         worldLand2 = /* @__PURE__ */ defineChain3({
           id: 103,
@@ -234225,7 +234360,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xai2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xai.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xai.js"() {
         init_defineChain3();
         xai2 = /* @__PURE__ */ defineChain3({
           id: 660279,
@@ -234253,7 +234388,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xaiTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xaiTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xaiTestnet.js"() {
         init_defineChain3();
         xaiTestnet2 = /* @__PURE__ */ defineChain3({
           id: 37714555429,
@@ -234275,7 +234410,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xdc2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xdc.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xdc.js"() {
         init_defineChain3();
         xdc2 = /* @__PURE__ */ defineChain3({
           id: 50,
@@ -234304,7 +234439,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xdcTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xdcTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xdcTestnet.js"() {
         init_defineChain3();
         xdcTestnet2 = /* @__PURE__ */ defineChain3({
           id: 51,
@@ -234334,7 +234469,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xgr2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xgr.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xgr.js"() {
         init_defineChain3();
         xgr2 = /* @__PURE__ */ defineChain3({
           id: 1643,
@@ -234359,7 +234494,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xLayer2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xLayer.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xLayer.js"() {
         init_defineChain3();
         xLayer2 = /* @__PURE__ */ defineChain3({
           id: 196,
@@ -234389,7 +234524,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xLayerTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xLayerTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xLayerTestnet.js"() {
         init_defineChain3();
         xLayerTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1952,
@@ -234419,7 +234554,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xoneMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xoneMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xoneMainnet.js"() {
         init_defineChain3();
         xoneMainnet2 = /* @__PURE__ */ defineChain3({
           id: 3721,
@@ -234444,7 +234579,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xoneTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xoneTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xoneTestnet.js"() {
         init_defineChain3();
         xoneTestnet2 = /* @__PURE__ */ defineChain3({
           id: 33772211,
@@ -234475,7 +234610,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xphereMainnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xphereMainnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xphereMainnet.js"() {
         init_defineChain3();
         xphereMainnet2 = /* @__PURE__ */ defineChain3({
           id: 20250217,
@@ -234501,7 +234636,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xphereTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xphereTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xphereTestnet.js"() {
         init_defineChain3();
         xphereTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1998991,
@@ -234527,7 +234662,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xpla2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xpla.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xpla.js"() {
         init_defineChain3();
         xpla2 = /* @__PURE__ */ defineChain3({
           id: 37,
@@ -234553,7 +234688,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xrOne2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xrOne.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xrOne.js"() {
         init_defineChain3();
         xrOne2 = /* @__PURE__ */ defineChain3({
           id: 273,
@@ -234580,7 +234715,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xrplevm2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xrplevm.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xrplevm.js"() {
         init_defineChain3();
         xrplevm2 = /* @__PURE__ */ defineChain3({
           id: 144e4,
@@ -234605,7 +234740,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xrplevmDevnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xrplevmDevnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xrplevmDevnet.js"() {
         init_defineChain3();
         xrplevmDevnet2 = /* @__PURE__ */ defineChain3({
           id: 1440002,
@@ -234640,7 +234775,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xrplevmTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xrplevmTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xrplevmTestnet.js"() {
         init_defineChain3();
         xrplevmTestnet2 = /* @__PURE__ */ defineChain3({
           id: 1449e3,
@@ -234671,7 +234806,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_xrSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/xrSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/xrSepolia.js"() {
         init_defineChain3();
         xrSepolia2 = /* @__PURE__ */ defineChain3({
           id: 2730,
@@ -234695,7 +234830,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_yooldoVerse2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/yooldoVerse.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/yooldoVerse.js"() {
         init_defineChain3();
         yooldoVerse2 = /* @__PURE__ */ defineChain3({
           id: 50005,
@@ -234716,7 +234851,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_yooldoVerseTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/yooldoVerseTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/yooldoVerseTestnet.js"() {
         init_defineChain3();
         yooldoVerseTestnet2 = /* @__PURE__ */ defineChain3({
           id: 50006,
@@ -234738,7 +234873,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zenchainTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zenchainTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zenchainTestnet.js"() {
         init_defineChain3();
         zenchainTestnet2 = /* @__PURE__ */ defineChain3({
           id: 8408,
@@ -234771,7 +234906,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zeniq2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zeniq.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zeniq.js"() {
         init_defineChain3();
         zeniq2 = /* @__PURE__ */ defineChain3({
           id: 383414847825,
@@ -234793,7 +234928,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zeroNetwork2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zeroNetwork.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zeroNetwork.js"() {
         init_defineChain3();
         zeroNetwork2 = /* @__PURE__ */ defineChain3({
           id: 543210,
@@ -234815,7 +234950,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zetachain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zetachain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zetachain.js"() {
         init_defineChain3();
         zetachain2 = /* @__PURE__ */ defineChain3({
           id: 7e3,
@@ -234847,7 +234982,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zetachainAthensTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zetachainAthensTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zetachainAthensTestnet.js"() {
         init_defineChain3();
         zetachainAthensTestnet2 = /* @__PURE__ */ defineChain3({
           id: 7001,
@@ -234879,7 +235014,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zhejiang2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zhejiang.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zhejiang.js"() {
         init_defineChain3();
         zhejiang2 = /* @__PURE__ */ defineChain3({
           id: 1337803,
@@ -234901,7 +235036,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zilliqa2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zilliqa.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zilliqa.js"() {
         init_defineChain3();
         zilliqa2 = /* @__PURE__ */ defineChain3({
           id: 32769,
@@ -234924,7 +235059,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zilliqaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zilliqaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zilliqaTestnet.js"() {
         init_defineChain3();
         zilliqaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 33101,
@@ -234947,7 +235082,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zircuit2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zircuit.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zircuit.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId652 = 1;
@@ -234997,7 +235132,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zircuitGarfieldTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zircuitGarfieldTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zircuitGarfieldTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId662 = 11155111;
@@ -235043,7 +235178,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zkFair2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zkFair.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zkFair.js"() {
         init_defineChain3();
         zkFair2 = /* @__PURE__ */ defineChain3({
           id: 42766,
@@ -235077,7 +235212,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zkFairTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zkFairTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zkFairTestnet.js"() {
         init_defineChain3();
         zkFairTestnet2 = /* @__PURE__ */ defineChain3({
           id: 43851,
@@ -235104,7 +235239,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zkLinkNova2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zkLinkNova.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zkLinkNova.js"() {
         init_defineChain3();
         zkLinkNova2 = /* @__PURE__ */ defineChain3({
           id: 810180,
@@ -235127,7 +235262,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zkLinkNovaSepoliaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zkLinkNovaSepoliaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zkLinkNovaSepoliaTestnet.js"() {
         init_defineChain3();
         zkLinkNovaSepoliaTestnet2 = /* @__PURE__ */ defineChain3({
           id: 810181,
@@ -235151,7 +235286,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksync2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksync.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksync.js"() {
         init_defineChain3();
         init_chainConfig6();
         zksync2 = /* @__PURE__ */ defineChain3({
@@ -235192,7 +235327,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksyncInMemoryNode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksyncInMemoryNode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksyncInMemoryNode.js"() {
         init_defineChain3();
         init_chainConfig6();
         zksyncInMemoryNode2 = /* @__PURE__ */ defineChain3({
@@ -235211,7 +235346,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksyncLocalCustomHyperchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksyncLocalCustomHyperchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksyncLocalCustomHyperchain.js"() {
         init_defineChain3();
         init_chainConfig6();
         zksyncLocalCustomHyperchain2 = /* @__PURE__ */ defineChain3({
@@ -235237,7 +235372,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksyncLocalHyperchain2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksyncLocalHyperchain.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksyncLocalHyperchain.js"() {
         init_defineChain3();
         init_chainConfig6();
         zksyncLocalHyperchain2 = /* @__PURE__ */ defineChain3({
@@ -235263,7 +235398,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksyncLocalHyperchainL12 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksyncLocalHyperchainL1.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksyncLocalHyperchainL1.js"() {
         init_defineChain3();
         zksyncLocalHyperchainL12 = /* @__PURE__ */ defineChain3({
           id: 9,
@@ -235286,7 +235421,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksyncLocalNode2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksyncLocalNode.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksyncLocalNode.js"() {
         init_defineChain3();
         init_chainConfig6();
         zksyncLocalNode2 = /* @__PURE__ */ defineChain3({
@@ -235305,7 +235440,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zksyncSepoliaTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zksyncSepoliaTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zksyncSepoliaTestnet.js"() {
         init_defineChain3();
         init_chainConfig6();
         zksyncSepoliaTestnet2 = /* @__PURE__ */ defineChain3({
@@ -235342,7 +235477,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zkXPLA2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zkXPLA.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zkXPLA.js"() {
         init_defineChain3();
         zkXPLA2 = /* @__PURE__ */ defineChain3({
           id: 375,
@@ -235370,7 +235505,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zkXPLATestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zkXPLATestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zkXPLATestnet.js"() {
         init_defineChain3();
         zkXPLATestnet2 = /* @__PURE__ */ defineChain3({
           id: 475,
@@ -235398,7 +235533,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zora2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zora.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zora.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId672 = 1;
@@ -235456,7 +235591,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zoraSepolia2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zoraSepolia.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zoraSepolia.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId682 = 11155111;
@@ -235511,7 +235646,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_zoraTestnet2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/definitions/zoraTestnet.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/definitions/zoraTestnet.js"() {
         init_chainConfig22();
         init_defineChain3();
         sourceId692 = 5;
@@ -236279,7 +236414,7 @@ Provided: ${stringify22(envelope)}`);
       zoraTestnet: () => zoraTestnet2
     });
     init_chains2 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/node_modules/viem/_esm/chains/index.js"() {
+      "../../../../enclave/node_modules/viem/_esm/chains/index.js"() {
         init_g2();
         init_gGalileoTestnet2();
         init_gMainnet2();
@@ -236992,21 +237127,21 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_isHex22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/data/isHex.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/data/isHex.js"() {
       }
     });
     init_size22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/data/size.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/data/size.js"() {
         init_isHex22();
       }
     });
     init_version42 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/errors/version.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/errors/version.js"() {
         version42 = "2.54.3";
       }
     });
     init_base32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/errors/base.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/errors/base.js"() {
         init_version42();
         errorConfig22 = {
           getDocsUrl: ({ docsBaseUrl, docsPath: docsPath92 = "", docsSlug }) => docsPath92 ? `${docsBaseUrl ?? "https://viem.sh"}${docsPath92}${docsSlug ? `#${docsSlug}` : ""}` : void 0,
@@ -237086,7 +237221,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_data22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/errors/data.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/errors/data.js"() {
         init_base32();
         SizeExceedsPaddingSizeError42 = class extends BaseError42 {
           constructor({ size: size62, targetSize, type: type22 }) {
@@ -237096,12 +237231,12 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_pad22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/data/pad.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/data/pad.js"() {
         init_data22();
       }
     });
     init_encoding22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/errors/encoding.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/errors/encoding.js"() {
         init_base32();
         IntegerOutOfRangeError32 = class extends BaseError42 {
           constructor({ max, min, signed, size: size62, value }) {
@@ -237116,13 +237251,13 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_fromHex22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/encoding/fromHex.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/encoding/fromHex.js"() {
         init_encoding22();
         init_size22();
       }
     });
     init_toHex22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/encoding/toHex.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/encoding/toHex.js"() {
         init_encoding22();
         init_pad22();
         init_fromHex22();
@@ -237131,7 +237266,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_toBytes22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/encoding/toBytes.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/encoding/toBytes.js"() {
         init_base32();
         init_isHex22();
         init_pad22();
@@ -237149,7 +237284,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_u6422 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/_u64.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/_u64.js"() {
         U32_MASK6422 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
         _32n22 = /* @__PURE__ */ BigInt(32);
         rotlSH22 = (h32, l3, s) => h32 << s | l3 >>> 32 - s;
@@ -237159,12 +237294,12 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_cryptoNode22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/cryptoNode.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/cryptoNode.js"() {
         crypto32 = nc22 && typeof nc22 === "object" && "webcrypto" in nc22 ? nc22.webcrypto : nc22 && typeof nc22 === "object" && "randomBytes" in nc22 ? nc22 : void 0;
       }
     });
     init_utils112 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/utils.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/utils.js"() {
         init_cryptoNode22();
         isLE22 = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
         swap32IfBE22 = isLE22 ? (u3) => u3 : byteSwap3222;
@@ -237173,7 +237308,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_sha322 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/sha3.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/sha3.js"() {
         init_u6422();
         init_utils112();
         _0n72 = BigInt(0);
@@ -237318,7 +237453,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_keccak25622 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/hash/keccak256.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/hash/keccak256.js"() {
         init_sha322();
         init_isHex22();
         init_toBytes22();
@@ -237326,7 +237461,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_lru32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/lru.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/lru.js"() {
         LruMap32 = class extends Map {
           constructor(size62) {
             super();
@@ -237361,7 +237496,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_getAddress22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/address/getAddress.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/address/getAddress.js"() {
         init_toBytes22();
         init_keccak25622();
         init_lru32();
@@ -237369,17 +237504,17 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_concat22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/data/concat.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/data/concat.js"() {
       }
     });
     init_publicKeyToAddress22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js"() {
         init_getAddress22();
         init_keccak25622();
       }
     });
     init_md22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/_md.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/_md.js"() {
         init_utils112();
         HashMD22 = class extends Hash22 {
           constructor(blockLen, outputLen, padOffset, isLE32) {
@@ -237484,7 +237619,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_sha222 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/sha2.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/sha2.js"() {
         init_md22();
         init_utils112();
         SHA256_K22 = /* @__PURE__ */ Uint32Array.from([
@@ -237628,7 +237763,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_hmac22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/hashes/esm/hmac.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/hashes/esm/hmac.js"() {
         init_utils112();
         HMAC22 = class extends Hash22 {
           constructor(hash62, _key) {
@@ -237699,7 +237834,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_utils122 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/abstract/utils.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/abstract/utils.js"() {
         _0n82 = /* @__PURE__ */ BigInt(0);
         _1n82 = /* @__PURE__ */ BigInt(1);
         hasHexBuiltin22 = // @ts-ignore
@@ -237724,7 +237859,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_modular22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/abstract/modular.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/abstract/modular.js"() {
         init_utils112();
         init_utils122();
         _0n92 = BigInt(0);
@@ -237756,7 +237891,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_curve22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/abstract/curve.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/abstract/curve.js"() {
         init_modular22();
         init_utils122();
         _0n102 = BigInt(0);
@@ -237766,7 +237901,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_weierstrass22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
         init_curve22();
         init_modular22();
         init_utils122();
@@ -237883,14 +238018,14 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_shortw_utils22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/_shortw_utils.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/_shortw_utils.js"() {
         init_hmac22();
         init_utils112();
         init_weierstrass22();
       }
     });
     init_hash_to_curve22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/abstract/hash-to-curve.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/abstract/hash-to-curve.js"() {
         init_modular22();
         init_utils122();
         os2ip22 = bytesToNumberBE22;
@@ -237905,7 +238040,7 @@ Provided: ${stringify22(envelope)}`);
       secp256k1_hasher: () => secp256k1_hasher22
     });
     init_secp256k122 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/@noble/curves/esm/secp256k1.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/@noble/curves/esm/secp256k1.js"() {
         init_sha222();
         init_utils112();
         init_shortw_utils22();
@@ -238032,7 +238167,7 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_recoverPublicKey22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/signature/recoverPublicKey.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/signature/recoverPublicKey.js"() {
         init_isHex22();
         init_size22();
         init_fromHex22();
@@ -238040,18 +238175,18 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_recoverAddress22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/signature/recoverAddress.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/signature/recoverAddress.js"() {
         init_publicKeyToAddress22();
         init_recoverPublicKey22();
       }
     });
     init_strings22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/constants/strings.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/constants/strings.js"() {
         presignMessagePrefix22 = "Ethereum Signed Message:\n";
       }
     });
     init_toPrefixedMessage22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/signature/toPrefixedMessage.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/signature/toPrefixedMessage.js"() {
         init_strings22();
         init_concat22();
         init_size22();
@@ -238059,19 +238194,19 @@ Provided: ${stringify22(envelope)}`);
       }
     });
     init_hashMessage22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/signature/hashMessage.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/signature/hashMessage.js"() {
         init_keccak25622();
         init_toPrefixedMessage22();
       }
     });
     init_recoverMessageAddress22 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/utils/signature/recoverMessageAddress.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/utils/signature/recoverMessageAddress.js"() {
         init_hashMessage22();
         init_recoverAddress22();
       }
     });
     init_esm32 = __esm2({
-      "../../resume-after-checkpoint-20261022/native-control-attested/base-eaea7e46/relay/node_modules/viem/_esm/index.js"() {
+      "../../../../app-lease-gas/control-cv-main/relay/node_modules/viem/_esm/index.js"() {
         init_toBytes22();
         init_keccak25622();
         init_recoverMessageAddress22();
@@ -241666,6 +241801,9 @@ ${oh(l3)}`), super(t.shortMessage, { cause: t, docsPath: o, metaMessages: [...t.
       }
     });
     init_esm22();
+    KEY2 = /* @__PURE__ */ Symbol.for("enclave.attested-verifier.brand/v1");
+    BRAND2 = globalThis[KEY2] instanceof WeakSet ? globalThis[KEY2] : globalThis[KEY2] = /* @__PURE__ */ new WeakSet();
+    isAttestedVerifier2 = (o) => !!o && typeof o === "object" && BRAND2.has(o);
     init_chains2();
     init_esm22();
     v4mask2 = (bits) => bits === 0 ? 0 : 4294967295 << 32 - bits >>> 0;
@@ -241839,6 +241977,7 @@ ${canonical8(value)}`;
         Object.defineProperty(this, "authority", { value: authority, enumerable: true });
         if (authority === "verifier") {
           this.verifier = verifierEndpoint2(verifier);
+          this.verifierAttested = isAttestedVerifier2(verifier);
           Object.defineProperty(this, "authorityPins", { value: authorityPins === void 0 ? null : validateNetworkAuthorities2(authorityPins), enumerable: true });
           this.clients = Object.freeze([]);
           this.labels = [];
@@ -241937,7 +242076,7 @@ ${canonical8(value)}`;
       //  * One RPC never wins alone; there is no fallback to a first answer.
       // What this reader's answers are worth, for evidence and status pages (never "independent").
       authorityInfo() {
-        return this.authority === "verifier" ? { authority: "local-verifier", head: "sequencer-signed Base unsafe head", tier: "unsafe", finality: "none", execution: "proof-backed (maintained Base EVM)", providerQuorum: false, last: this.lastEvidence } : { authority: "provider-quorum", head: "provider-reported", tier: "provider-reported", finality: "none", execution: "provider eth_call", providerQuorum: true, independentOfProviders: false };
+        return this.authority === "verifier" ? { authority: this.verifierAttested ? "attested-verifier" : "local-verifier", localProof: !this.verifierAttested, head: "sequencer-signed Base unsafe head", tier: "unsafe", finality: "none", execution: "proof-backed (maintained Base EVM)", providerQuorum: false, last: this.lastEvidence } : { authority: "provider-quorum", head: "provider-reported", tier: "provider-reported", finality: "none", execution: "provider eth_call", providerQuorum: true, independentOfProviders: false };
       }
       agreed(read2, failures = []) {
         if (this.authority === "verifier") return this.verifiedRead(read2, failures);
@@ -242120,7 +242259,7 @@ ${canonical8(value)}`;
           op2.assertOpen();
           if (b4 < this.lastBlock) throw new Error(`block ${b4} is older than block ${this.lastBlock} accepted meanwhile`);
           this.lastBlock = b4;
-          this.lastEvidence = { authority: "local-verifier", tier: "unsafe", blockNumber: String(b4), blockHash: first.hash, stateRoot: first.stateRoot, timestamp: first.timestamp };
+          this.lastEvidence = { authority: this.verifierAttested ? "attested-verifier" : "local-verifier", localProof: !this.verifierAttested, tier: "unsafe", blockNumber: String(b4), blockHash: first.hash, stateRoot: first.stateRoot, timestamp: first.timestamp };
           return { ...value, hash: first.hash, blockNumber: String(b4), timestamp: first.timestamp };
         }).catch((e) => {
           if (e?.readerBug) throw e;
@@ -242471,7 +242610,7 @@ ${canonical8(q3)}`;
       "function ledger() view returns (address)"
     ]);
     bookABI2 = parseAbi3(["function addr(bytes32) view returns (address)"]);
-    KEY = /^[A-Za-z0-9+/]{43}=$/;
+    KEY22 = /^[A-Za-z0-9+/]{43}=$/;
     FORBIDDEN = /* @__PURE__ */ new Set(["preup", "postup", "predown", "postdown", "table", "saveconfig", "fwmark", "listenport"]);
     INTERFACE = /* @__PURE__ */ new Set(["privatekey", "address", "dns", "mtu"]);
     PEER = /* @__PURE__ */ new Set(["publickey", "presharedkey", "endpoint", "allowedips", "persistentkeepalive"]);
