@@ -1,0 +1,8 @@
+/home/steven/Documents/Codex/2026-10-18/wo/work/enclave-apps-sia-recovery/sia-s3/target
+/home/steven/Documents/Codex/2026-10-18/wo/work/storage-safety-review/sia-s3/target
+/home/steven/Documents/Codex/2026-10-18/wo/work/storage-safety-review/baseline-proof/sia-s3/target
+/home/steven/Documents/Codex/2026-10-18/wo/work/storage-fencing-implementation/sia-s3/target
+/home/steven/Documents/Codex/2026-10-18/wo/work/storage-fencing-implementation/mutants/target
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-priority/helios-target-base
+/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/rpc-sia-cache/compose/target

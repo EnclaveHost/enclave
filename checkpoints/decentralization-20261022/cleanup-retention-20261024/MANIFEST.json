@@ -1,0 +1,9 @@
+{
+  "sourceCheckpoint": "de0f135b367b355abecb504dde65fa5d98498888",
+  "files": {
+    "retention.txt": "30a5829c44233e757679ed59f6b85e8fb5f33d9b31836c0a9b3234442a012faa",
+    "candidate-paths.txt": "ddae954ca8c8a5b91ef8b7f189f2956f8a053871fb6b9f5d39b5602e00d5b696",
+    "runtime-references.json": "6ed90e3a0b4d1a1f7b6f42dc4ca2820f9c9ed5cfee4e0c37594dd0ee029c20ad"
+  },
+  "scope": "Read-only inventory and retention coordination. No deletion or relocation clearance; privileged process coverage incomplete."
+}

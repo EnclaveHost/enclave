@@ -1,0 +1,92 @@
+Enclave decentralization workspace retention and coordination
+Updated October 24, 2026, America/Phoenix. This is a retention report, not a deletion manifest.
+
+Workspace: /home/steven/Documents/Codex/2026-10-18/wo
+No deletion or relocation performed by this audit. No canonical-main merge/push planned here.
+
+VERIFIED SOURCE PRESERVATION
+Remote checkpoint/decentralization-20261022:
+  de0f135b367b355abecb504dde65fa5d98498888
+Remote main at this read:
+  be4c1a723dc8e6c111b540a12ed5f74f46fd5ac0
+Latest local canary source:
+  work/custody-v2-r2-production-canary-20261024
+  12c5b9274620fc2043df18ec20ebe06a32410ec3
+Latest local custody status documentation:
+  work/custody-v2-current-docs-20261023
+  f5401a017dfce99d2ffdaa4512402cef4667b478
+Reviewed measured custodian source pin:
+  work/custody-v2-release-20261023/repo-r2
+  ab589bf80b669c9671b53573d489b6c6c45779ea
+Active ownership handoff source:
+  work/custody-wallet-handoff-20261023
+  f8284992ef7a1a0e40d3ca39a2e2f23118fd632d
+Active canary publication source:
+  work/custody-canary-wallet-20261023
+  04d873fdb84ea424a32eb574e254a8ef82fba686
+These five checked tracked trees are clean. Untracked scripts, logs and ignored state remain; this is NOT a claim that all local data is backed up in Git.
+
+CHECKPOINT RESTORATION
+The branch is preservation, not a completed rollout or a wholesale merge candidate.
+Recent source snapshots are chained deltas. Retain preceding SOURCE-DELTA.json chains and base snapshots:
+  custody-recovery-generations-20261024
+  custody-log-intervals-20261024
+  custody-recipient-boots-20261024
+  custody-recipient-refusal-20261024
+Retain the rest of source-checkpoint-20261022 and resume-after-checkpoint-20261022/source-preservation until a complete reconstructed recovery archive has been verified. Fetch current main before selective integration; coordinate all main pushes.
+
+LIVE REFERENCES OBSERVED
+  enclave-custody-canary-publish-20261024.service
+    cwd: work/custody-canary-wallet-20261023
+  enclave-metal0-owner-accept-20261024.service
+    cwd: work/custody-wallet-handoff-20261023
+  enclave-custodian-v2.service
+    cwd: /home/steven/enclave-prod/custodian-v2
+  enclave-metal.service
+    cwd: /home/steven/enclave-prod/metal-deabf8f90
+  enclave-guestd.service
+    home cwd; pairing/runtime paths are separately configured
+Do not move/delete runtime paths or their dependencies based only on Git equivalence. The canary and handoff tools also pin absolute source, image and component paths even when no process has the file open.
+
+PROTECTED WORKSPACE DATA
+Keep the entire workspace unchanged until candidates are individually assessed, particularly:
+  work/private (about 4.2 GiB; do not inspect or print contents)
+  work/adapter-retained (about 8.0 GiB; retained artifacts are not automatically cache)
+  work/custody-v2-r2-production-canary-20261024, including private/, runs/ and logs/
+  work/custody-v2-release-20261023, including out/, out-r2/, repo-r2/, evidence*, canary/
+  work/custody-wallet-handoff-20261023 and its journals/private state
+  work/custody-canary-wallet-20261023 and its upload/publication journals
+  work/custody-proof-app-20261023, including its pinned WASM component
+  work/metal0-expired-recovery-20261024, especially private/ and recovery evidence
+  work/source-checkpoint-20261022
+  work/resume-after-checkpoint-20261022/source-preservation
+  outputs/ (user-facing evidence and recovery reports)
+Preserve all signed intents, pending-transaction journals, sealed custody state, pairing/signing keys, publication/IPNS identity and sequence state, storage recovery data, image/firmware artifacts and configuration. Do not print, read for content comparison, or commit private key/state material. Do not reuse old approved transaction budgets or restart expired emergency keepers.
+
+INCOMPLETE WORK — DO NOT MERGE AS FINISHED
+Custody remains a single Enclave-operated seat. The last completed verification checkpoint has179 Node and3 Python tests passing with one known rollback TODO; those are source/fixture tests, not the production secret matrix. Ownership acceptance and canary publication were still pending at the last wallet/chain checks; their current state must be reconciled before further action.
+Remaining: executable launch/ingress/funding preflight, outage/restart integration, production SNP creation/migration/rotation/rejection/recovery tests, relay plaintext-exclusion and active legacy-copy removal evidence, dashboard/address-book activation, rollback limitations, and multi-operator custody. Existing administrative controls must remain intact.
+
+LARGE AREAS FOR READ-ONLY CLEANUP AUDIT — NONE CLEARED FOR DELETION
+The bounded du inventory measured320938 MiB under work (about313.4GiB). Hard-linked files are counted once by du; do not add nested totals or treat this as unique-data size.
+  resume-after-checkpoint-20261022: 72649 MiB
+  existing-custody-audit/candidate: 14957 MiB
+  storage-safety-review: 12900 MiB
+  resume-after-checkpoint-20261022/rpc-priority: 9339 MiB
+  enclave-apps-sia-recovery/sia-s3: 8382 MiB
+  storage-fencing-implementation: 7015 MiB
+  resume-after-checkpoint-20261022/rpc-sia-cache: 6137 MiB
+Likely build/dependency duplication requires exact comparison, unique ignored-file retention and runtime/config-reference checks. Old timestamps, a clean Git tree or a duplicate commit alone do not establish safe deletion. No large cleanup candidate was verified safe in this bounded audit.
+
+COORDINATION
+Find space on disk:01a17101-c42d-7f21-8ae5-b6d8b5ac69ae
+Explore KVM for enclave performance:01a16bce-1169-7862-aea9-98b457e17a4a
+The KVM session owns its current dynamic VM units and GPU worker. Re-read its latest status before resource changes; older unit names in this conversation are stale. No canary shutdown window is claimed.
+
+FOLLOW-UP BUILD-OUTPUT INVENTORY
+Eight non-overlapping Rust target directories account for about36828MiB (~36GiB), before hard-link/reclaim checks. Exact paths are in work/cleanup-coordination-20261024/candidate-paths.txt. Accessible process cwd/exe/fd/maps had no references; exact absolute-path searches in user, system and transient systemd unit definitions also had no matches. However1965 proc reads were permission denied and noninteractive sudo requires a password. This does not establish complete privileged runtime clearance. Preserve/relocate with checksums rather than delete; source roots and pinned artifacts remain protected. No move or deletion has occurred.
+
+Additional live paths found by process cwd inventory:
+  work/enclavedns-stale-20261021/wallet-handoff (PID306988)
+  work/resume-after-checkpoint-20261022/rpc-gossip-bridge (PID2302433)
+Protect their dependencies and original path behavior.

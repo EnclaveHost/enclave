@@ -1,0 +1,15 @@
+{
+  "candidatePaths": [
+    "enclave-apps-sia-recovery/sia-s3/target",
+    "storage-safety-review/sia-s3/target",
+    "storage-safety-review/baseline-proof/sia-s3/target",
+    "storage-fencing-implementation/sia-s3/target",
+    "storage-fencing-implementation/mutants/target",
+    "resume-after-checkpoint-20261022/rpc-priority/helios-target",
+    "resume-after-checkpoint-20261022/rpc-priority/helios-target-base",
+    "resume-after-checkpoint-20261022/rpc-sia-cache/compose/target"
+  ],
+  "runtimeReferences": [],
+  "permissionDenied": 1965,
+  "scope": "Accessible cwd/exe/fd/maps only; sudo unavailable. Not a deletion clearance."
+}
