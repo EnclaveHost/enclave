@@ -1,0 +1,51 @@
+[queue] START available=20627MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# \# deps {"@noble/hashes":{"dir":"/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/@noble/hashes","version":"1.8.0","nodeModules":"/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules","realDir":"/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/@noble/hashes"},"viem":{"dir":"/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem","version":"2.53.1","nodeModules":"/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules","realDir":"/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules/viem"}}
+# Subtest: RLP and header hash: the published mainnet genesis hash, and byte-equality with viem's independent toRlp
+ok 1 - RLP and header hash: the published mainnet genesis hash, and byte-equality with viem's independent toRlp
+  ---
+  duration_ms: 5.813799
+  type: 'test'
+  ...
+# Subtest: anchor header N authenticates against the game's output root; every forged field is refused
+ok 2 - anchor header N authenticates against the game's output root; every forged field is refused
+  ---
+  duration_ms: 2.900489
+  type: 'test'
+  ...
+# Subtest: ancestors only: a range ending at N authenticates; a snapshot head ABOVE N (invented descendants) never does
+ok 3 - ancestors only: a range ending at N authenticates; a snapshot head ABOVE N (invented descendants) never does
+  ---
+  duration_ms: 6.424515
+  type: 'test'
+  ...
+# Subtest: planBootstrap: never accepts the snapshot head above N; unwinds to N, syncs past N, or waits when history is gone
+ok 4 - planBootstrap: never accepts the snapshot head above N; unwinds to N, syncs past N, or waits when history is gone
+  ---
+  duration_ms: 0.482416
+  type: 'test'
+  ...
+# Subtest: checkRebuild: only a rebuild at exactly N with N's state root verifies state (flaw 2: a rebuild at a later tip proves nothing)
+ok 5 - checkRebuild: only a rebuild at exactly N with N's state root verifies state (flaw 2: a rebuild at a later tip proves nothing)
+  ---
+  duration_ms: 0.677205
+  type: 'test'
+  ...
+# Subtest: dependencies are the pinned package versions, resolved by name (never a sibling tree path)
+ok 6 - dependencies are the pinned package versions, resolved by name (never a sibling tree path)
+  ---
+  duration_ms: 0.648965
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 144.89614
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
