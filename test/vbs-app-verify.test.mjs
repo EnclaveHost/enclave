@@ -12,6 +12,7 @@ import { haveOpenssl, tmpdir, makeVbsWorld, buildLog, buildQuote } from './fixtu
 const sha = b => createHash('sha256').update(b).digest(), b64 = b => b.toString('base64');
 const world = haveOpenssl ? makeVbsWorld(tmpdir('vbs-app-')) : null;
 const image = 'ab'.repeat(32), app = 'cd'.repeat(32);
+const identity = { signer: '91'.repeat(32), productId: 1818455653, moduleId: 1734437220 };
 const runtime = {name:'wasmtime',version:'48.0.1',execution:'jit',targetIsa:'x86_64',hostIsa:'x86_64',cpuFeatures:'host-detected',wx:'enforced',cache:'none'};
 function fixture({ boot = {}, signer = world.idks.privateKey, debug = 0, handshakeSpki: suppliedKey, nonce: suppliedNonce } = {}) {
  const hostNonce=randomBytes(32),credential=randomBytes(32),statement=Buffer.from('{}');
@@ -27,6 +28,7 @@ function fixture({ boot = {}, signer = world.idks.privateKey, debug = 0, handsha
  const w=(o,n)=>env.writeUInt32LE(n,o);
  w(0,0x414c4348);w(4,2);w(8,env.length);w(12,2);w(1216,20+claims.length);w(1220,1);w(1224,1);w(1228,1);w(1232,claims.length);claims.copy(env,1236);
  const r=env.subarray(32,592);[560,1,1,256,0,2].forEach((n,i)=>r.writeUInt32LE(n,i*4));sha(claims).copy(r,24);Buffer.from(image,'hex').copy(r,120);r.writeUInt32LE(5,216);r.writeUInt32LE(debug,220);r.writeUInt32LE(2,224);
+ Buffer.from(identity.signer,'hex').copy(r,152);r.writeUInt32LE(identity.productId,232);r.writeUInt32LE(identity.moduleId,236);
  sign('sha256',r.subarray(0,304),{key:signer,padding:constants.RSA_PKCS1_PSS_PADDING,saltLength:32}).copy(r,304);
  return {doc:{abi:ABI2,nonce:nonce.toString('hex'),transportKey:b64(handshakeSpki),appSha256:app,runtime,report:b64(Buffer.from(JSON.stringify({vbsVmReport:b64(env)})))},handshakeSpki,nonce,
   expectedAppSha256:app,expectedRuntimeId:rid.toString('hex'),hostSession:{evidence,nonce:hostNonce,transportKeySpki:world.transport.spki,expectedCredential:credential,mintedFor:{ekCert:world.ek.cert,aikName:world.aik.name}}};
@@ -89,15 +91,21 @@ test('native desktop policy verifies the signed report against one independently
  p.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
   runtimeId:f.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
   minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
- Object.assign(p.images[0],{nativeDesktop:true,igvmSha256:p.desktop.igvmSha256,profileSha256:p.desktop.profileSha256,
+ Object.assign(p.images[0],{nativeDesktop:true,identity:{...identity},igvmSha256:p.desktop.igvmSha256,profileSha256:p.desktop.profileSha256,
   controllerSha256:p.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
  const accepted=verifyShieldAppPolicy(f,p);
  assert.equal(accepted.ok,true,accepted.reason);
+ for(const patch of [{signer:'92'.repeat(32)},{productId:1},{moduleId:1}]){
+  const changed=structuredClone(p);Object.assign(changed.images[0].identity,patch);
+  const refused=verifyShieldAppPolicy(f,changed);
+  assert.equal(refused.ok,false);assert.equal(refused.checks.signature,true);
+  assert.match(refused.reason,/identity is not pinned/);
+ }
  for(const key of ['launchMeasurement','runtimeId','igvmSha256','profileSha256','controllerSha256']){
   const changed=structuredClone(p);changed.desktop[key]='99'.repeat(32);
   assert.equal(verifyShieldAppPolicy(f,changed).ok,false,key);
  }
- for(const key of ['nativeDesktop','configBundleV5','secretsV1','configSocketServer','protectedPorts']){
+ for(const key of ['identity','nativeDesktop','configBundleV5','secretsV1','configSocketServer','protectedPorts']){
   const changed=structuredClone(p);changed.images[0][key]=false;
   assert.equal(verifyShieldAppPolicy(f,changed).ok,false,key);
  }
@@ -149,11 +157,11 @@ test('native startup TLS probe preserves desktop admission and the guest SVN flo
  policy.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
   runtimeId:base.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
   minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
- Object.assign(policy.images[0],{nativeDesktop:true,igvmSha256:policy.desktop.igvmSha256,profileSha256:policy.desktop.profileSha256,
+ Object.assign(policy.images[0],{nativeDesktop:true,identity:{...identity},igvmSha256:policy.desktop.igvmSha256,profileSha256:policy.desktop.profileSha256,
   controllerSha256:policy.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
  const expected={appSha256:app,runtimeId:base.expectedRuntimeId,requiresDesktop:true,requiresConfigBundleV5:true,
   requiresSecretsV1:true,requiresConfigSocketServer:true};
- for(scenario of ['valid','omitted desktop','wrong image','SVN floor','wrong nonce','wrong key']){
+ for(scenario of ['valid','omitted desktop','wrong image','wrong image signer','SVN floor','wrong nonce','wrong key']){
   requests=[];
   current={deploymentId:'0x'+'12'.repeat(32),hostname:'localhost',expected:{...expected},shield:structuredClone(policy),
    hostSession:{},startupEgress:true,openApp:()=>new Promise((resolve,reject)=>{
@@ -161,6 +169,7 @@ test('native startup TLS probe preserves desktop admission and the guest SVN flo
    })};
   if(scenario==='omitted desktop')delete current.expected.requiresDesktop;
   if(scenario==='wrong image')current.shield.images[0].measurement='00'.repeat(32);
+  if(scenario==='wrong image signer')current.shield.images[0].identity.signer='92'.repeat(32);
   if(scenario==='SVN floor')current.shield.minimumGuestSvn=6;
   if(scenario==='valid'){
    const proof=await probeGuest(current);assert.equal(proof.verified,true);assert.equal(proof.ready,false);
