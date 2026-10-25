@@ -1,0 +1,1 @@
+{"badMarkers": ["Cannot find module"], "cancelled": 0, "fail": 1, "failing": [{"assertion": false, "failureType": "testCodeFailure", "name": "test/a1-gate.test.mjs"}], "pass": 0, "rc": 1, "skipped": 0, "suites": 0, "tests": 1, "todo": 0, "verdict": "baseline-NOT-clean"}

@@ -1,0 +1,24 @@
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.service is active: stop it before any DB access"}
+{"step": "plan", "ok": false, "refused": "service_running: enclave-base-holder.path is active: stop it before any DB access"}
+{"step": "plan", "ok": false, "refused": "service_running: enclave-rpc-base-snapshot.service is active: stop it before any DB access"}
+{"step": "plan", "ok": false, "refused": "datadir_open: processes [4190520] hold files under the datadir"}
+{"step": "a2", "ok": true, "refused": null}
+test_units_and_openers_are_checked_before_any_db_access (test_a2a4.Gates.test_units_and_openers_are_checked_before_any_db_access) ... FAIL
+
+======================================================================
+FAIL: test_units_and_openers_are_checked_before_any_db_access (test_a2a4.Gates.test_units_and_openers_are_checked_before_any_db_access)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 225, in test_units_and_openers_are_checked_before_any_db_access
+    self.setUp(); self.state['v2'] = False; self.refused('a2', 'v1_layout')       # enforced at the generic static gate
+                                            ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 124, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'a2', 'startedAt': '2026-10-25T22:24:42.500215+00:00', 'result': {'number': 52866960, 'blockHash': '0x94d32a4e67871f98782eae4b2a359e3d244026098bb2a8ad48e0dd9662ce8652', 'stateRoot': '0x69e39af32bd0cc2d5f8ad822a3afcd7fe8d7211e4ca7c42654cdbda7a9b74516', 'messagePasserStorageRoot': '0xc286d696c67d0c602a4562929e6b721ce6e8ec0a2e0173e0a816328b40062a6e'}, 'ok': True, 'commands': [{'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.065, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442568480Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442633141Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442697609Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442761800Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442822456Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5la34u39/datadir', '--config', '/tmp/tmp5la34u39/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 38, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442886555Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmp5la34u39/bin/base', 'reth', 'db', '--datadir', '/tmp/tmp5la34u39/datadir', '--config', '/tmp/tmp5la34u39/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmp5la34u39/work/cmd/20261025T222442949917Z-0007.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T22:24:43.049041+00:00'}
+
+----------------------------------------------------------------------
+Ran 1 test in 0.719s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

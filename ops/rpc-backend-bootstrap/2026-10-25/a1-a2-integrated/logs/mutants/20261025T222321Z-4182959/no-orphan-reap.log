@@ -1,0 +1,21 @@
+{"step": "plan", "ok": false, "refused": "bounded: db --datadir /tmp/tmpc8neyquz/datadir: output cap (1048576 B) exceeded; own process group 4190598 stopped"}
+{"step": "plan", "ok": false, "refused": "unparsed: db settings get did not print storage_v2"}
+test_post_exit_size_orphans_and_mutation_stdout (test_a2a4.Gates.test_post_exit_size_orphans_and_mutation_stdout) ... FAIL
+
+======================================================================
+FAIL: test_post_exit_size_orphans_and_mutation_stdout (test_a2a4.Gates.test_post_exit_size_orphans_and_mutation_stdout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 262, in test_post_exit_size_orphans_and_mutation_stdout
+    self.setUp(); os.environ['FAKE_ORPHAN'] = 'settings get'; self.refused('plan', 'bounded')
+                                                              ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 124, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : unparsed: db settings get did not print storage_v2
+
+----------------------------------------------------------------------
+Ran 1 test in 0.752s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}

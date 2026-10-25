@@ -1,0 +1,35 @@
+{"step": "plan", "ok": false, "refused": "untrusted_file: marker /tmp/tmp0b3rpx4j/snapshot-complete must be owned by uid 1 and not group/other-writable"}
+{"step": "plan", "ok": false, "refused": "a1_initial_pin: a1InitialSha256 is not the pinned initial A1 receipt 86f79d26dc67... (a source change, never config)"}
+{"step": "plan", "ok": false, "refused": "a1_initial_pin: a1InitialSha256 is not the pinned initial A1 receipt 222222222222... (a source change, never config)"}
+{"step": "plan", "ok": false, "refused": "a1_receipt: initial_sha: initial receipt sha256 7c1dd70336fdd0ce0d301a5d86b7914cc73545a87acdb6be35139cac3b60e992 != configured 62185e1539f8935c25979700852a41807b401f9a301e9afda9a12e337658c085"}
+{"step": "plan", "ok": false, "refused": "a1_recheck_sha: the recheck file is not the one root reviewed (a1RecheckSha256)"}
+{"step": "plan", "ok": true, "refused": null}
+test_a1_file_trust (test_a2a4.FreshInitialTrust.test_a1_file_trust) ... FAIL
+test_initial_receipt_pin_and_file_trust (test_a2a4.Recheck.test_initial_receipt_pin_and_file_trust) ... FAIL
+
+======================================================================
+FAIL: test_a1_file_trust (test_a2a4.FreshInitialTrust.test_a1_file_trust)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 382, in test_a1_file_trust
+    rec = self.refused('plan', 'untrusted_file'); self.assertIn('A1 evidence', rec['refused'])
+                                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'A1 evidence' not found in 'untrusted_file: marker /tmp/tmp0b3rpx4j/snapshot-complete must be owned by uid 1 and not group/other-writable'
+
+======================================================================
+FAIL: test_initial_receipt_pin_and_file_trust (test_a2a4.Recheck.test_initial_receipt_pin_and_file_trust)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 520, in test_initial_receipt_pin_and_file_trust
+    self.setUp(); self.use_recheck(); self.write(); os.chmod(self.d / f, 0o660); self.refused('plan', 'untrusted_file')
+                                                                                 ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 124, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'plan', 'startedAt': '2026-10-25T22:24:52.170947+00:00', 'result': {'gates': {'a1': {'mode': 'original-game-recheck', 'a1At': '2026-10-25T22:24:52.170Z', 'a1AgeSec': 0, 'l1Finalized': 26272848, 'l1Hash': '0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a', 'initialSha256': '39c817c377af232382a571ba22a04c4947f8dbe46de125e55614a11ef61da501', 'N': '52866960', 'outputRoot': '0x690b58bb9d9340cc029335421a9bb338566d639e49491d1a0048687a323a6aae', 'game': '0x343b3a99527af07d2cfb2652747b9e37715e21ac', 'asr': '0x909f6cf47ed12f010a796527f562bfc26c7f4e72', 'initialL1': {'number': 26271848, 'hash': '0x3762b17e8235efae14eee170ee13c4f9b316dae37bfd4d9527915085db007cd4'}, 'latestAnchorObservation': {'game': '0x9999999999999999999999999999999999999999', 'N': '52875960', 'outputRoot': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'advanced': True, 'accepted': False}}, 'stopped': {'unitsInactive': ['enclave-base-holder.service', 'enclave-base-holder.path', 'enclave-rpc-base-snapshot.service'], 'procScanUnreadable': 556}, 'download': {'manifestSha256': '3a5bde069d2e9ad0cb85e3d1c01c8026cce2b2a3aae90f44221759596a51b491', 'archives': 134}, 'freeBytes': 61691514880, 'storageV2': True}, 'checkpoints': {'headers': 53048526, 'bodies': 53048526, 'execution': 53048526, 'merkle-execute': 53048526, 'finish': 53048526}, 'storageV2': True, 'a3': [['stage', 'unwind', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'to-block', '52998526'], ['stage', 'unwind', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'to-block', '52948526'], ['stage', 'unwind', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'to-block', '52898526'], ['stage', 'unwind', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'to-block', '52866960']], 'a4': [['stage', 'drop', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'merkle'], ['stage', 'run', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', '--from', '0', '--to', '52866960', '--commit', '--checkpoints', '--skip-unwind', 'merkle']], 'refusedOnV2': ['hashing', 'account-hashing', 'storage-hashing', 'execution'], 'v1Extra': []}, 'ok': True, 'commands': [{'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452237433Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452301311Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452363993Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452426806Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452490254Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452553648Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpnkxlyp7m/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpnkxlyp7m/datadir', '--config', '/tmp/tmpnkxlyp7m/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmpnkxlyp7m/work/cmd/20261025T222452616582Z-0007.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T22:24:52.679769+00:00'}
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.617s
+
+FAILED (failures=2)
+{"mode": "kill", "verdict": "killed", "testsRun": 2}

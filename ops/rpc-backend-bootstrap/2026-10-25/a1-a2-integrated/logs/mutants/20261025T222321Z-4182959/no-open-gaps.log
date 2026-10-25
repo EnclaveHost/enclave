@@ -1,0 +1,30 @@
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "bytecodes", "ok": false, "refused": "no_checker: bytecodeChecker/bytecodeCheckerSha256 not configured: the checker is prepared source only (G-a open)"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=1 missingCode=0"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=0 missingCode=2"}
+{"step": "bytecodes", "ok": false, "refused": "bytecodes_failed: bytecode check failed: rc=0 failures=1 missingCode=0"}
+{"step": "release", "ok": false, "refused": "bytecode_receipt: no bound bytecode verification (step bytecodes) for this DB"}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open (test_a2a4.Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open) ... FAIL
+
+======================================================================
+FAIL: test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open (test_a2a4.Steps.test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 349, in test_bytecode_step_binds_this_db_and_release_still_refuses_while_the_gap_is_open
+    self.refused('release', 'open_gaps'); self.assertFalse((self.d / 'work/m10-launch.json').exists())   # prepared code is not a gate
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmp.aw4ggFvVFY/test/test_a2a4.py", line 124, in refused
+    rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused']); return rec
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: 0 != 1 : {'step': 'release', 'startedAt': '2026-10-25T22:24:28.503510+00:00', 'result': None, 'ok': True, 'commands': [{'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 60, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428571083Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 58, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428635384Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 24, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428699136Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 25, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428762265Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 36, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428824294Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpsemn89xz/datadir', '--config', '/tmp/tmpsemn89xz/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428887188Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpsemn89xz/datadir', '--config', '/tmp/tmpsemn89xz/reth.toml', 'stage-checkpoints', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 417, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222428950936Z-0007.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/tmp/tmpsemn89xz/bin/base', 'reth', 'db', '--datadir', '/tmp/tmpsemn89xz/datadir', '--config', '/tmp/tmpsemn89xz/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.061, 'stdoutBytes': 1681, 'stdoutLog': '/tmp/tmpsemn89xz/work/cmd/20261025T222429013886Z-0008.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-25T22:24:29.114325+00:00'}
+
+----------------------------------------------------------------------
+Ran 1 test in 7.730s
+
+FAILED (failures=1)
+{"mode": "kill", "verdict": "killed", "testsRun": 1}
