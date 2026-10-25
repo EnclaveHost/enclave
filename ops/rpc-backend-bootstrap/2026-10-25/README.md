@@ -2,6 +2,62 @@
 
 **Bootstrap is deployed; the public RPC replacement is not active yet.** No production consumer was switched. The existing Metal0 control, guestd, and custody services were preserved. This directory records the actual deployment adapter and its review/fixes; it is not a claim of a complete decentralized RPC fleet.
 
+## Latest update — October 25, 20:06 UTC
+The earlier status sections below are historical. Ethereum passed six operational readiness gates over 720 seconds;
+the identity gate remains incomplete because this pruned node cannot return the genesis block body. The complete stack
+is still INCOMPLETE, with Base disabled and historical coverage not yet accepted.
+The real pinned Helios light client synchronized against our own Ethereum pair using a checkpoint corroborated once
+by four independent checkpoint services. Verified contract reads now work after the bounded proof-window correction;
+see [the live proof-window evidence](l1-proof-window/README.md). These are preparatory checks, not a consumer cutover.
+EL alone restarted and recovered; the consensus client, Base downloader and existing apps were preserved.
+The full Base binary build hit its 1792 MiB cgroup limit at 19:57; completed compilation objects are retained and a bounded retry is being prepared. The snapshot download continues without a restart: at 20:06, 86/116 archives and 88.34/770.80 GB of the current run (11.5%), with a download-only estimate of about 13 h 36 min. This estimate excludes extraction, extra historical data, validation and cutover.
+The full A1 live read passed at 19:58: it authenticated the Base anchor at block 52,866,960 through our own Helios/EL pair. This is within the configured changeset retention floor of 52,500,000. Base state reconstruction and validation against that anchor remain outstanding; implementation/admin pins are observed, not yet checked against approved version pins.
+
+## Current status — October 25, 19:34 UTC (supersedes stale "current" statements below)
+
+The dated sections below are kept as historical. Where this section disagrees with them, this section is current. Source
+HEAD is `56940cb40`.
+
+**L1: caught up and non-optimistic since 19:29.** Evidence: [evidence/l1-caught-up-1934](evidence/l1-caught-up-1934/README.md).
+- **Execution:** `eth_syncing=false`. Latest 26,271,788, safe 26,271,752, finalized 26,271,720.
+- **Consensus:** `is_syncing=false`, `is_optimistic=false`, `el_offline=false`, `sync_distance` 0.
+- **Blob samples:** the pinned historical blob probe was repeated at 19:32. The same 19 blobs at slots 15505056, 15506081
+  and 15508000 (all before the checkpoint) recomputed to matching KZG commitments. They are now finalized and
+  non-optimistic.
+- **Limits:** this is **sampled availability only**. It is not full Base origin/derivation-range coverage, and not
+  cryptographic authority against the host.
+- **Readiness window:** a bounded sampler (7 samples, 120 s apart, at least 600 s, ending about 19:45) was still running
+  at publication. Its result is **not** included; root will publish it.
+
+**Base: client disabled, `coverageVerified=false`, path unit disabled.**
+- **Snapshot download:** at 19:33 it was at archive 75/116 and 62.26/770.80 GiB *of the current run* (8.1%). That
+  percentage is for the current download run only. It is **not** overall progress toward Base readiness.
+- **ETA:** about 13 h 47 min, unreliable. It covers the download only, not extraction, the old-history cached download or
+  validation. The downloader was not restarted.
+- **Retention runtime v2 installed at 19:24:**
+  - `chain_service.py` is `713b0ddf…`, and `chain.json` `baseRetention` is `historyFromBlock 48000000` and
+    `stateHistoryFromBlock 52500000`. Root's tests passed 32 + 36 with 0 skips.
+  - The installer briefly set `chain.json` to mode 0600. Root restored 0644 **before any restart**, and all three service
+    users (`rpcl1el`, `rpcl1cl`, `rpcbase`) were verified able to read it. There was no outage.
+  - Details: [retention-review/bootstrap-state-candidate](retention-review/bootstrap-state-candidate/README.md).
+- **Not done:**
+  - the cached old-history download;
+  - the own-chain check of the legacy-book creation block;
+  - the index measurement;
+  - the coverage gate and receipt.
+
+**Storage:**
+- **NVMe migration complete.** The OS and L1 run on NVMe, with the HDD originals and v1 files retained as backups. Base
+  stays on the HDD.
+- **Limits:** the old 250 GB limit is removed. The 16 GiB host-memory floor is retained.
+
+**Still open:**
+- Base download, extraction and sync;
+- Base origin coverage and the receipt;
+- finality/anchor authority (see [anchor-bootstrap-review](finality-investigation/anchor-bootstrap-review/REVIEW.md));
+- the proof-serving route;
+- consumer cutover.
+
 ## Installed infrastructure
 
 A dedicated ordinary KVM VM on the desktop runs public-chain services. It has 64 GiB preallocated RAM, 8 vCPU and a 66 GiB host cgroup ceiling. The launcher reserves a further 16 GiB of host available memory before starting. No confidential application state is in this VM. It is one operator/one site and remains an availability dependency.

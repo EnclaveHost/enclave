@@ -1,0 +1,20 @@
+{
+  "format": "enclave-l1-authority/v1",
+  "network": "mainnet",
+  "binary": {
+    "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/resume-after-checkpoint-20261022/witness-failover/bin/helios-eeffcc9",
+    "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
+  },
+  "consensusRpc": "http://127.0.0.1:25052",
+  "executionRpc": "http://127.0.0.1:28645",
+  "listen": {
+    "ip": "127.0.0.1",
+    "port": 28550
+  },
+  "dataDir": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-authority-live-1941/data",
+  "homeDir": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-authority-live-1941/home",
+  "checkpointFile": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-authority-live-1941/checkpoint.json",
+  "maxCheckpointAgeSec": 604800,
+  "maxFinalizedAgeSec": 1800,
+  "logFilter": "info"
+}

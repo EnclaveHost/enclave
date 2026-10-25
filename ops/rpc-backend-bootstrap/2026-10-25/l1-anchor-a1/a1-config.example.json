@@ -1,0 +1,18 @@
+{
+  "heliosUrl": "http://127.0.0.1:8550",
+  "elUrl": "http://127.0.0.1:28645",
+  "expectedChainId": 1,
+  "pinBy": "hash",
+  "portal": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
+  "asr": "0xdb9091e48b1c42992a1213e6916184f9ebdbfedf",
+  "portalAsrGetter": "anchorStateRegistry()",
+  "asrCandidates": [
+    {"address": "0xdb9091e48b1c42992a1213e6916184f9ebdbfedf", "provenance": "base v1.5.1 crates/common/genesis/src/chain/addresses.rs:134 (address-book fixture; UNAUTHENTICATED)"}
+  ],
+  "_notes": [
+    "EXAMPLE ONLY. portal/asr come from a base address-book FIXTURE, not evidence; the docs value 0x909f6cf4... is prefix-only and cannot be configured until root records the full address.",
+    "If asr is not what the authenticated portal read returns, A1 refuses (asr_mismatch); set asr to the value ROOT confirms and re-run - never edit to match without review.",
+    "portalAsrGetter is NOT in the local base bindings; root must confirm it against the portal implementation ABI (EIP-1967 implementation pin is reported by A1).",
+    "heliosUrl = l1-authority Helios listener; elUrl = own reth forward (28645 per provision_vm FORWARDS). Both loopback; adjust to the real listeners."
+  ]
+}

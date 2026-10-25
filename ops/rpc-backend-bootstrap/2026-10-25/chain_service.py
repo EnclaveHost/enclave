@@ -468,7 +468,10 @@ def run(side):
         a = [binary('reth'), 'node', '--chain', 'mainnet', '--datadir', datadir,
              '--http', '--http.addr', '127.0.0.1', '--http.port', '18645', '--http.api', 'eth,net,web3',
              *prune,
-             '--rpc.max-connections', '64', '--authrpc.addr', '127.0.0.1', '--authrpc.port', '18651',
+             # reth's proof window defaults to 0, which refuses eth_getProof (and so light-client-verified eth_call)
+             # at finalized. 256 blocks (~51 min at 12 s) exceeds the 1800 s maximum finalized age; 2 permits bound the cost.
+             '--rpc.max-connections', '64', '--rpc.eth-proof-window', '256', '--rpc.proof-permits', '2',
+             '--authrpc.addr', '127.0.0.1', '--authrpc.port', '18651',
              '--authrpc.jwtsecret', jwt, '--ipcdisable', '--addr', '0.0.0.0', '--port', '30313',
              '--discovery.addr', '0.0.0.0', '--discovery.port', '30313', '--discovery.v5.addr', '0.0.0.0',
              '--discovery.v5.port', '30314', '--nat', 'none', '--disable-dns-discovery',

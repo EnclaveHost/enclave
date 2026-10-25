@@ -185,6 +185,29 @@ class PruneProfileTests(unittest.TestCase):
                 third = client_persists_prune(render(persisted), second)
                 self.assertEqual(third['prune'], intended)   # fixed point: no further loss across restarts
 
+    def flag(self, argv, name):
+        self.assertEqual(argv.count(name), 1, name)
+        return argv[argv.index(name) + 1]
+
+    def test_l1_serves_proofs_at_finalized(self):
+        # Live 19:39 defect: reth's default window 0 refused Helios' verified eth_call at finalized (-32602).
+        el = self.launch('el', SNAPSHOT_PROFILE)
+        self.assertEqual(self.flag(el, '--rpc.eth-proof-window'), '256')
+        self.assertEqual(self.flag(el, '--rpc.proof-permits'), '2')
+        self.assertGreater(256 * 12, 1800)                  # window outlives the 1800 s maximum finalized age
+        self.assertEqual(self.prune_part(el), EXPECTED_PRUNE)
+        self.assertEqual(self.flag(el, '--http.api'), 'eth,net,web3')
+        self.assertEqual(self.flag(el, '--http.addr'), '127.0.0.1')
+        self.assertEqual(self.flag(el, '--rpc.max-connections'), '64')
+        self.assertFalse({'--full', '--minimal', '--ws', '--archive'} & set(el))
+        self.assertFalse([a for a in el if 'admin' in a or 'debug' in a])
+
+    def test_base_proof_window_unchanged(self):
+        base = self.launch('base', SNAPSHOT_PROFILE)
+        self.assertEqual(self.flag(base, '--rpc.eth-proof-window'), '1800')
+        self.assertNotIn('--rpc.proof-permits', base)
+        self.assertEqual(self.prune_part(base), EXPECTED_BASE_PRUNE)
+
     def test_old_lookup_only_argv_reproduces_the_defect(self):
         persisted = client_persists_prune(SNAPSHOT_PROFILE, ['--prune.transaction-lookup.distance', '140000'])
         self.assertEqual(c.tomllib.loads(render(persisted))['prune'], c.tomllib.loads(DEFECT_PROFILE)['prune'])

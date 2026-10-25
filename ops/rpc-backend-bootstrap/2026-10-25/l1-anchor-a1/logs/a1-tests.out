@@ -1,0 +1,176 @@
+[queue] START available=19809MiB required=18688MiB cap=256MiB floor=16384MiB concurrentLargeReserve=1792MiB
+TAP version 13
+# Subtest: real mainnet proof: account and storage verify against the header's stateRoot; header hash recomputes
+ok 1 - real mainnet proof: account and storage verify against the header's stateRoot; header hash recomputes
+  ---
+  duration_ms: 10.261381
+  type: 'test'
+  ...
+# Subtest: proof forgeries are refused
+ok 2 - proof forgeries are refused
+  ---
+  duration_ms: 6.912153
+  type: 'test'
+  ...
+# Subtest: ABI decoding is strict
+ok 3 - ABI decoding is strict
+  ---
+  duration_ms: 0.507023
+  type: 'test'
+  ...
+# Subtest: runA1: authenticated verdict, source labels, candidates resolved only by the authenticated read
+ok 4 - runA1: authenticated verdict, source labels, candidates resolved only by the authenticated read
+  ---
+  duration_ms: 4.376305
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: asr_mismatch
+ok 5 - runA1 refuses: asr_mismatch
+  ---
+  duration_ms: 2.094193
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: asr_paused
+ok 6 - runA1 refuses: asr_paused
+  ---
+  duration_ms: 2.342981
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_not_finalized
+ok 7 - runA1 refuses: game_not_finalized
+  ---
+  duration_ms: 1.841587
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_not_respected
+ok 8 - runA1 refuses: game_not_respected
+  ---
+  duration_ms: 1.690039
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_blacklisted
+ok 9 - runA1 refuses: game_blacklisted
+  ---
+  duration_ms: 2.261532
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_retired
+ok 10 - runA1 refuses: game_retired
+  ---
+  duration_ms: 1.955826
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_not_defender_wins
+ok 11 - runA1 refuses: game_not_defender_wins
+  ---
+  duration_ms: 1.773298
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: root_mismatch
+ok 12 - runA1 refuses: root_mismatch
+  ---
+  duration_ms: 1.815557
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: number_mismatch
+ok 13 - runA1 refuses: number_mismatch
+  ---
+  duration_ms: 1.702538
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_asr_mismatch
+ok 14 - runA1 refuses: game_asr_mismatch
+  ---
+  duration_ms: 1.698389
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: game_type_mismatch
+ok 15 - runA1 refuses: game_type_mismatch
+  ---
+  duration_ms: 1.538721
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: helios_call_failed
+ok 16 - runA1 refuses: helios_call_failed
+  ---
+  duration_ms: 0.81896
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: bad_return
+ok 17 - runA1 refuses: bad_return
+  ---
+  duration_ms: 0.472404
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: no_finality
+ok 18 - runA1 refuses: no_finality
+  ---
+  duration_ms: 0.195458
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: wrong_chain
+ok 19 - runA1 refuses: wrong_chain
+  ---
+  duration_ms: 0.173937
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: header_mismatch
+ok 20 - runA1 refuses: header_mismatch
+  ---
+  duration_ms: 0.279387
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: proof_slots
+ok 21 - runA1 refuses: proof_slots
+  ---
+  duration_ms: 0.901328
+  type: 'test'
+  ...
+# Subtest: runA1 refuses: proof_json_mismatch
+ok 22 - runA1 refuses: proof_json_mismatch
+  ---
+  duration_ms: 1.468062
+  type: 'test'
+  ...
+# Subtest: policy refuses plain-rpc or missing sources; config must be explicit
+ok 23 - policy refuses plain-rpc or missing sources; config must be explicit
+  ---
+  duration_ms: 0.918249
+  type: 'test'
+  ...
+# Subtest: pinBy finalized-tag: accepted only if the finalized hash is unchanged after all reads
+ok 24 - pinBy finalized-tag: accepted only if the finalized hash is unchanged after all reads
+  ---
+  duration_ms: 3.307438
+  type: 'test'
+  ...
+# Subtest: a1-read: loopback-only URLs and a real JSON-RPC round trip to a local mock
+ok 25 - a1-read: loopback-only URLs and a real JSON-RPC round trip to a local mock
+  ---
+  duration_ms: 53.65596
+  type: 'test'
+  ...
+# Subtest: finalized freshness: bounded age, future skew, Helios/header agreement (deterministic clock)
+ok 26 - finalized freshness: bounded age, future skew, Helios/header agreement (deterministic clock)
+  ---
+  duration_ms: 16.561033
+  type: 'test'
+  ...
+# Subtest: a1-read rpc: byte cap enforced while streaming, declared oversize, HTTP 500, redirect, timeout (real loopback)
+ok 27 - a1-read rpc: byte cap enforced while streaming, declared oversize, HTTP 500, redirect, timeout (real loopback)
+  ---
+  duration_ms: 320.935511
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 625.456467
+[memory-guard] exit=0 peakTreeRssMiB=150 minHostAvailableMiB=20215
+[memory-guard] at peak: node:87 node:64
+[queue] EXIT 0

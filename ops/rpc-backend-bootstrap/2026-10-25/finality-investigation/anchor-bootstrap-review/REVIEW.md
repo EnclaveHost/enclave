@@ -143,16 +143,29 @@ from authenticated inputs; below N only ancestors (headers by recomputed hash li
   against the host needs the separately reviewed SNP conversion.
 - **Unmeasured costs:** the A3/A4 cost on the Base HDD (a 1.1 TB plain-state rehash; gate G6).
 
-**Root status (2026-10-25 follow-up):**
-- **Retention candidate selected:** `stateHistoryFromBlock 52500000` (6d24, in preparation), plus `historyFromBlock 48000000`
-  for the legacy book. That holds the changeset floor at 52,500,000, which is what U2 and W need.
-- **Base is currently disabled.** Only the dc9f runtime receipts guard is installed; there is no config policy yet.
+**Root status (current, 2026-10-25 19:34 UTC): retention configured and tested.**
+- **Installed and configured at 19:24.** Root installed runtime `chain_service.py` `713b0ddf…` in source and guest.
+  `chain.json` `baseRetention` is `historyFromBlock 48000000` and `stateHistoryFromBlock 52500000`, which holds the
+  changeset floor at 52,500,000, as U2 and W need. Base now gets `--prune.{account,storage}-history.before 52500000`.
+- **Tests:** root's tests on the applied source passed 32 + 36 with 0 skips.
+- **Config mode:** the installer briefly set the config to 0600. Root restored 0644 before any restart, and all three
+  service users can read it.
+- **Evidence:** `../../retention-review/bootstrap-state-candidate/root-install-v2/`.
+- **Base is still disabled**, and `coverageVerified` is false.
+- **Not executed:** the cached old-history download (txs/receipts since 48000000; changeset files 105-106 are already in
+  the current download). The configured floor only protects data that exists; the first Base start must use these flags.
+- **L1 caught up and non-optimistic at 19:29.** This is relevant to B-A1. Evidence: `../../evidence/l1-caught-up-1934/`.
+  The anchor age has not been measured yet.
+
+*Historical (superseded), the earlier follow-up text:* "Retention candidate selected: `stateHistoryFromBlock 52500000` (6d24,
+in preparation), plus `historyFromBlock 48000000` for the legacy book … Base is currently disabled. Only the dc9f runtime
+receipts guard is installed; there is no config policy yet."
 
 ## 4. Decisions and blockers (exact)
 
 | id | what | owner |
 |---|---|---|
-| **R1 (time-critical)** | Hold the changeset floor at 52,500,000 until A4 passes. Root's candidate is `stateHistoryFromBlock 52500000`; the equivalent pinned flags are `--prune.account-history.before`/`--prune.storage-history.before 52500000`. **Either is needed BEFORE the Base node runs with rolling `Distance(140000)` past 53,140,000.** Without a held floor, only U1 remains (and W only with a held head) | root (candidate selected; 6d24 preparing) |
+| **R1 (time-critical)** | Hold the changeset floor at 52,500,000 until A4 passes. **Configured and tested:** `stateHistoryFromBlock 52500000`, installed 19:24 (`713b0ddf…`; root's tests 32 + 36 with 0 skips), which emits the pinned flags `--prune.account-history.before`/`--prune.storage-history.before 52500000`. The configured floor must already be in effect **BEFORE the Base node runs with rolling `Distance(140000)` past 53,140,000**. Without it, only U1 remains (and W only with a held head). The current download already selects changeset files 105-106, so R1 needs no extra state-history bytes. **Remaining:** the first Base start must run under this policy; the cached txs/receipts download (since 48000000) is separate and has not run | root (policy configured and tested 19:24; first Base start pending) |
 | R2 | Run A3+A4 in place on the Base DB with the VM stopped (the DB is untrusted anyway; a failure means re-download), or on a copy. A copy does not fit: `/vm` has ≈ 527 GB after L1 | root |
 | B-A1 | L1 must be synced, so that Helios can prove `finalized` calls through our own reth: wait for own EL/CL catch-up. Measure the anchor age then | ops |
 | B-M10 | The A6 patch (forkchoice from the anchor plus clearing the safe-head DB) | Rust, native build later |

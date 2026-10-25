@@ -1,0 +1,20 @@
+{
+  "time": "2026-10-25T19:47:45.991889+00:00",
+  "oldSha256": "713b0ddf4c99d12ca38e32e0e7b83a6ccb312230c70033ece976b8f7f11a4f57",
+  "newSha256": "75c879ec9c5728688beac8cc98ecf1410c38f29c144b27fabd8b42ea60cfbc92",
+  "configUnchanged": true,
+  "configMode": "0644",
+  "configIdentities": {
+    "rpcl1el": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2",
+    "rpcl1cl": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2",
+    "rpcbase": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2"
+  },
+  "pidsBeforeRestart": {
+    "enclave-l1-el.service": "847",
+    "enclave-l1-cl.service": "898",
+    "enclave-rpc-base-snapshot.service": "4061"
+  },
+  "coverageVerified": false,
+  "baseStillInactive": true,
+  "restartNotYetPerformed": true
+}
