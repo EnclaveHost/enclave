@@ -136,26 +136,28 @@ INTENDED = {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': 
     'sender_recovery': 'full', 'transaction_lookup': {'distance': 140000},
     **{n: {'distance': 140000} for n in ('receipts', 'account_history', 'storage_history', 'bodies_history')}}}
 
-HISTORY_FROM = 52_515_705       # route-source relay/lease-generation.mjs LEDGER16D_FROM_BLOCK
+HISTORY_FROM = 48_000_000       # option B: whole file 96 holding the legacy EnclaveAddressBook creation (48,322,938, external)
+STATE_FROM = 52_500_000         # changeset file 105, kept until the authenticated bootstrap completes
 EXPECTED_BASE_PRUNE = ['--prune.block-interval', '5', '--prune.minimum-distance', '10064', '--prune.sender-recovery.full',
-                       '--prune.receipts.before', str(HISTORY_FROM), '--prune.account-history.distance', '140000',
-                       '--prune.storage-history.distance', '140000', '--prune.bodies.before', str(HISTORY_FROM),
+                       '--prune.receipts.before', str(HISTORY_FROM), '--prune.account-history.before', str(STATE_FROM),
+                       '--prune.storage-history.before', str(STATE_FROM), '--prune.bodies.before', str(HISTORY_FROM),
                        '--prune.transaction-lookup.before', str(HISTORY_FROM)]
 INTENDED_BASE = {'block_interval': 5, 'minimum_pruning_distance': 10064, 'segments': {
     'sender_recovery': 'full', 'transaction_lookup': {'before': HISTORY_FROM}, 'receipts': {'before': HISTORY_FROM},
-    'bodies_history': {'before': HISTORY_FROM}, **{n: {'distance': 140000} for n in ('account_history', 'storage_history')}}}
+    'bodies_history': {'before': HISTORY_FROM}, **{n: {'before': STATE_FROM} for n in ('account_history', 'storage_history')}}}
 BOUND_HASH = '0x' + 'ab' * 32
-BOUND = {'l1Block': 1, 'blobSlot': 2, 'toBlock': 20000, 'safeL1Origin': {'number': 3601, 'hash': BOUND_HASH}}
+BOUND = {'l1Block': 1, 'blobSlot': 2, 'toBlock': 20000, 'safeL1Origin': {'number': 3601, 'hash': BOUND_HASH},
+         'snapshot': {'block': 53_048_526}}
 
 class PruneProfileTests(unittest.TestCase):
     def launch(self, side, profile_text):
         mnt = '/srv/enclave-base-holder' if side == 'base' else '/srv/enclave-l1-pair'
-        cfg = {'baseBootstrap': {'coverageVerified': True, 'l1Block': 1, 'blobSlot': 2}, 'baseRetention': {'historyFromBlock': HISTORY_FROM}}
+        cfg = {'baseBootstrap': {'coverageVerified': True, 'l1Block': 1, 'blobSlot': 2}, 'baseRetention': {'historyFromBlock': HISTORY_FROM, 'stateHistoryFromBlock': STATE_FROM}}
         beacon = {'/eth/v2/beacon/blocks/2': {'message': {'body': {'blob_kzg_commitments': ['x']}}}, '/eth/v1/beacon/blobs/2': ['x']}
         with patch.object(c, 'mount', return_value=mnt), patch.object(Path, 'is_file', return_value=True), \
                 patch.object(Path, 'read_text', return_value=profile_text), patch.object(c, 'binary', side_effect=lambda n: '/pinned/' + n), \
                 patch.object(c, 'CONFIG', cfg), patch.object(c, 'coverage_activation', return_value=BOUND), \
-                patch.object(c, 'history_files_present'), \
+                patch.object(c, 'history_files_present'), patch.object(c, 'segment_files_present'), \
                 patch.object(c, 'l1_ready', return_value={'l1Finalized': 30000}), \
                 patch.object(c, 'rpc', side_effect=lambda port, m, p: {'hash': BOUND_HASH} if m == 'eth_getBlockByNumber' else []), \
                 patch.object(c, 'beacon', side_effect=beacon.__getitem__), patch.object(c.os, 'execve', side_effect=Executed) as exe:
@@ -216,18 +218,19 @@ class PruneProfileTests(unittest.TestCase):
 
 class BaseRetentionTests(unittest.TestCase):
     """Base history from the reviewed block: whole-file layout, never reduced, fail-closed when absent."""
-    PROFILE = SNAPSHOT_PROFILE.replace('headers = 500000', 'headers = 500000\nreceipts = 500000\ntransactions = 500000')
+    PROFILE = SNAPSHOT_PROFILE.replace('headers = 500000', 'headers = 500000\nreceipts = 500000\ntransactions = 500000'
+                                       '\naccount_change_sets = 500000\nstorage_change_sets = 500000')
 
-    def args(self, text, hf=HISTORY_FROM):
-        return c.prune_args(c.tomllib.loads(text), hf)
+    def args(self, text, hf=HISTORY_FROM, sf=STATE_FROM):
+        return c.prune_args(c.tomllib.loads(text), hf, sf)
 
     def test_downloader_profile_upgrades_to_before(self):
         self.assertEqual(self.args(self.PROFILE), EXPECTED_BASE_PRUNE)
 
     def test_before_at_or_below_start_is_kept_never_raised(self):
-        text = self.PROFILE.replace('[prune.segments.receipts]\ndistance = 140000', '[prune.segments.receipts]\nbefore = 52000000')
+        text = self.PROFILE.replace('[prune.segments.receipts]\ndistance = 140000', '[prune.segments.receipts]\nbefore = 47000000')
         a = self.args(text)
-        self.assertEqual(a[a.index('--prune.receipts.before') + 1], '52000000')
+        self.assertEqual(a[a.index('--prune.receipts.before') + 1], '47000000')
         for seg, flag in (('receipts', 'receipts'), ('bodies_history', 'bodies')):
             bad = self.PROFILE.replace(f'[prune.segments.{seg}]\ndistance = 140000', f'[prune.segments.{seg}]\nbefore = {HISTORY_FROM + 1}')
             with self.subTest(seg), self.assertRaisesRegex(AssertionError, 'would drop required Base history'):
@@ -261,13 +264,13 @@ class BaseRetentionTests(unittest.TestCase):
         try:
             prof = c.tomllib.loads(self.PROFILE)
             (Path(d) / 'static_files').mkdir()
-            with self.assertRaisesRegex(AssertionError, 'receipts history from block 52515705 absent'):
+            with self.assertRaisesRegex(AssertionError, f'receipts history from block {HISTORY_FROM} absent'):
                 c.history_files_present(d, prof, HISTORY_FROM)
             # names exactly as the real manifest's chunk_output_files (static_files/static_file_<seg>_<start>_<end>)
-            (Path(d) / 'static_files' / 'static_file_receipts_52500000_52999999').write_bytes(b'')
-            with self.assertRaisesRegex(AssertionError, 'transactions history from block 52515705 absent'):
+            (Path(d) / 'static_files' / 'static_file_receipts_48000000_48499999').write_bytes(b'')
+            with self.assertRaisesRegex(AssertionError, f'transactions history from block {HISTORY_FROM} absent'):
                 c.history_files_present(d, prof, HISTORY_FROM)
-            (Path(d) / 'static_files' / 'static_file_transactions_52500000_52999999').write_bytes(b'')
+            (Path(d) / 'static_files' / 'static_file_transactions_48000000_48499999').write_bytes(b'')
             c.history_files_present(d, prof, HISTORY_FROM)
             # a datadir whose 52.5M file was already pruned (lowest file 53M) is refused
             with self.assertRaisesRegex(AssertionError, 'absent'):
@@ -283,12 +286,95 @@ class BaseRetentionTests(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, 'not configured'):
                 c.run('base')
             ready.assert_not_called()
-        cfg = {'baseBootstrap': {'coverageVerified': True}, 'baseRetention': {'historyFromBlock': HISTORY_FROM}}
+        cfg = {'baseBootstrap': {'coverageVerified': True}, 'baseRetention': {'historyFromBlock': HISTORY_FROM, 'stateHistoryFromBlock': STATE_FROM}}
         with patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', autospec=True, side_effect=lambda p: not str(p).startswith('/srv/enclave-base-holder/data/static_files')), \
                 patch.object(Path, 'read_text', return_value=self.PROFILE), patch.object(c, 'CONFIG', cfg), \
                 patch.object(c, 'coverage_activation', return_value=BOUND), patch.object(c, 'l1_ready') as ready:
-            with self.assertRaisesRegex(AssertionError, 'refusing to serve incomplete logs'):
+            with self.assertRaisesRegex(AssertionError, 'refusing to serve incomplete history'):
                 c.run('base')
             ready.assert_not_called()
+
+
+class BootstrapStateTests(unittest.TestCase):
+    """Option B + bootstrap state history: changesets kept from STATE_FROM, bounded by the verified snapshot block."""
+    PROFILE = BaseRetentionTests.PROFILE
+    SINCE = (PROFILE.replace('[prune.segments.receipts]\ndistance = 140000', f'[prune.segments.receipts]\nbefore = {HISTORY_FROM}')
+             .replace('[prune.segments.bodies_history]\ndistance = 140000', f'[prune.segments.bodies_history]\nbefore = {HISTORY_FROM}')
+             .replace('[prune.segments.account_history]\ndistance = 140000', f'[prune.segments.account_history]\nbefore = {STATE_FROM}')
+             .replace('[prune.segments.storage_history]\ndistance = 140000', f'[prune.segments.storage_history]\nbefore = {STATE_FROM}'))
+
+    def test_cached_since_download_profile_is_a_fixed_point(self):
+        # the profile the reviewed --with-*-since run writes (download/config_gen.rs:217-243,263): lookup stays "full"
+        a = c.prune_args(c.tomllib.loads(self.SINCE), HISTORY_FROM, STATE_FROM)
+        self.assertEqual(a, EXPECTED_BASE_PRUNE)
+        persisted = client_persists_prune(self.SINCE, a)
+        self.assertEqual(persisted['prune'], INTENDED_BASE)
+        self.assertEqual(c.prune_args(c.tomllib.loads(render(persisted)), HISTORY_FROM, STATE_FROM), EXPECTED_BASE_PRUNE)
+
+    def test_state_history_before_policy(self):
+        a = c.prune_args(c.tomllib.loads(self.PROFILE), HISTORY_FROM, STATE_FROM)       # distance 140000 upgraded
+        self.assertEqual(a[a.index('--prune.account-history.before') + 1], str(STATE_FROM))
+        keep = self.SINCE.replace(f'[prune.segments.storage_history]\nbefore = {STATE_FROM}', '[prune.segments.storage_history]\nbefore = 52000000')
+        a = c.prune_args(c.tomllib.loads(keep), HISTORY_FROM, STATE_FROM)               # earlier before preserved
+        self.assertEqual(a[a.index('--prune.storage-history.before') + 1], '52000000')
+        for seg in ('account_history', 'storage_history'):
+            bad = self.SINCE.replace(f'[prune.segments.{seg}]\nbefore = {STATE_FROM}', f'[prune.segments.{seg}]\nbefore = {STATE_FROM + 1}')
+            with self.subTest(seg), self.assertRaisesRegex(AssertionError, 'would drop required Base history'):
+                c.prune_args(c.tomllib.loads(bad), HISTORY_FROM, STATE_FROM)
+        big = self.PROFILE.replace('[prune.segments.account_history]\ndistance = 140000', '[prune.segments.account_history]\ndistance = 900000')
+        with self.assertRaisesRegex(AssertionError, 'not reviewed'):
+            c.prune_args(c.tomllib.loads(big), HISTORY_FROM, STATE_FROM)
+
+    def test_state_start_required_and_bounded_by_snapshot(self):
+        for cfg in ({'baseRetention': {'historyFromBlock': HISTORY_FROM}},
+                    {'baseRetention': {'historyFromBlock': HISTORY_FROM, 'stateHistoryFromBlock': 0}},
+                    {'baseRetention': {'historyFromBlock': HISTORY_FROM, 'stateHistoryFromBlock': True}}):
+            with self.subTest(cfg=cfg), self.assertRaisesRegex(AssertionError, 'state history start'):
+                c.state_history_from_block(cfg)
+        self.assertIsNone(c.state_history_from_block({}, required=False))
+        for hf, sf in ((HISTORY_FROM, 53_048_527), (53_048_527, STATE_FROM)):
+            cfg = {'baseBootstrap': {'coverageVerified': True}, 'baseRetention': {'historyFromBlock': hf, 'stateHistoryFromBlock': sf}}
+            with self.subTest(hf=hf, sf=sf), patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), \
+                    patch.object(Path, 'is_file', return_value=True), patch.object(Path, 'read_text', return_value=self.PROFILE), \
+                    patch.object(c, 'CONFIG', cfg), patch.object(c, 'coverage_activation', return_value=BOUND), \
+                    patch.object(c, 'l1_ready') as ready:
+                with self.assertRaisesRegex(AssertionError, 'above the verified snapshot block'):
+                    c.run('base')
+                ready.assert_not_called()
+        cfg = {'baseBootstrap': {'coverageVerified': True}, 'baseRetention': {'historyFromBlock': HISTORY_FROM}}
+        with patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', return_value=True), \
+                patch.object(Path, 'read_text', return_value=self.PROFILE), patch.object(c, 'CONFIG', cfg), \
+                patch.object(c, 'coverage_activation', return_value=BOUND), patch.object(c, 'l1_ready') as ready:
+            with self.assertRaisesRegex(AssertionError, 'state history start'):
+                c.run('base')
+            ready.assert_not_called()
+
+    def test_base_start_refuses_missing_changesets_even_with_history_files(self):
+        cfg = {'baseBootstrap': {'coverageVerified': True}, 'baseRetention': {'historyFromBlock': HISTORY_FROM, 'stateHistoryFromBlock': STATE_FROM}}
+        present = lambda p: 'change-sets' not in str(p)        # receipts/transactions files exist, changeset files do not
+        with patch.object(c, 'mount', return_value='/srv/enclave-base-holder'), patch.object(Path, 'is_file', autospec=True, side_effect=present), \
+                patch.object(Path, 'read_text', return_value=self.PROFILE), patch.object(c, 'CONFIG', cfg), \
+                patch.object(c, 'coverage_activation', return_value=BOUND), patch.object(c, 'l1_ready') as ready:
+            with self.assertRaisesRegex(AssertionError, 'account-change-sets history from block 52500000 absent'):
+                c.run('base')
+            ready.assert_not_called()
+
+    def test_state_files_exact_manifest_names(self):
+        import tempfile, shutil, os
+        d = tempfile.mkdtemp(prefix='st-', dir=os.environ.get('TEST_TMP'))
+        try:
+            prof = c.tomllib.loads(self.PROFILE)
+            (Path(d) / 'static_files').mkdir()
+            with self.assertRaisesRegex(AssertionError, 'account-change-sets history from block 52500000 absent'):
+                c.segment_files_present(d, prof, STATE_FROM, c.STATE_FILES)
+            (Path(d) / 'static_files' / 'static_file_account-change-sets_52500000_52999999').write_bytes(b'')
+            with self.assertRaisesRegex(AssertionError, 'storage-change-sets history from block 52500000 absent'):
+                c.segment_files_present(d, prof, STATE_FROM, c.STATE_FILES)
+            (Path(d) / 'static_files' / 'static_file_storage-change-sets_52500000_52999999').write_bytes(b'')
+            c.segment_files_present(d, prof, STATE_FROM, c.STATE_FILES)
+            with self.assertRaisesRegex(AssertionError, 'state_change|account_change_sets static-file size missing'):
+                c.segment_files_present(d, {'static_files': {'blocks_per_file': {}}}, STATE_FROM, c.STATE_FILES)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 if __name__=='__main__':unittest.main()

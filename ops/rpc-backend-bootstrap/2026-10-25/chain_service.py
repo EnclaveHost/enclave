@@ -355,6 +355,12 @@ def _uint(v):
 # can drop the required range and briefly answer getLogs with silently missing logs. For Base, receipts, bodies and the
 # tx-hash lookup are therefore kept from a reviewed absolute block (chain.json baseRetention.historyFromBlock).
 RETENTION_SEGMENTS = {'receipts': 'receipts', 'bodies_history': 'bodies'}
+# Base state history (account/storage changesets) is kept from a reviewed block (chain.json
+# baseRetention.stateHistoryFromBlock) until the authenticated bootstrap completes: a distance profile would delete the
+# whole changeset file holding the snapshot's history once the tip passes it (anchor-bootstrap review, option U).
+STATE_SEGMENTS = {'account_history': 'account-history', 'storage_history': 'storage-history'}
+HISTORY_FILES = (('receipts', 'receipts'), ('transactions', 'transactions'))
+STATE_FILES = (('account_change_sets', 'account-change-sets'), ('storage_change_sets', 'storage-change-sets'))
 DISTANCE_UPGRADE_MAX = 500000       # a reviewed downloader distance profile (<= one static file) may be upgraded to 'before'
 
 def history_from_block(cfg, required=True):
@@ -365,16 +371,28 @@ def history_from_block(cfg, required=True):
         'Base history retention start (baseRetention.historyFromBlock) not configured'
     return r['historyFromBlock']
 
+def state_history_from_block(cfg, required=True):
+    r = cfg.get('baseRetention')
+    v = r.get('stateHistoryFromBlock') if isinstance(r, dict) else None
+    if v is None and not required:
+        return None
+    assert _uint(v) and v > 0, 'Base state history start (baseRetention.stateHistoryFromBlock) not configured'
+    return v
+
+def segment_files_present(datadir, profile, block, segments):
+    """The static file holding `block` must exist for each segment (whole-file layout; names as in the manifest)."""
+    bpf = (profile.get('static_files') or {}).get('blocks_per_file') or {}
+    for key, stem in segments:
+        n = bpf.get(key)
+        assert _uint(n) and n > 0, f'snapshot {key} static-file size missing'
+        start = block // n * n
+        name = f'static_file_{stem}_{start}_{start + n - 1}'
+        assert pathlib.Path(datadir, 'static_files', name).is_file(), \
+            f'Base {stem} history from block {block} absent ({name}): refusing to serve incomplete history'
+
 def history_files_present(datadir, profile, history_from):
     """The static files holding history_from must exist for receipts and transactions (whole-file layout)."""
-    bpf = (profile.get('static_files') or {}).get('blocks_per_file') or {}
-    for seg in ('receipts', 'transactions'):
-        n = bpf.get(seg)
-        assert _uint(n) and n > 0, f'snapshot {seg} static-file size missing'
-        start = history_from // n * n
-        name = f'static_file_{seg}_{start}_{start + n - 1}'
-        assert pathlib.Path(datadir, 'static_files', name).is_file(), \
-            f'Base {seg} history from block {history_from} absent ({name}): refusing to serve incomplete logs'
+    segment_files_present(datadir, profile, history_from, HISTORY_FILES)
 
 def _before_args(name, flag, mode, history_from):
     """Keep at least [history_from, tip]: before <= history_from as is; an unchanged downloader distance upgraded."""
@@ -387,7 +405,7 @@ def _before_args(name, flag, mode, history_from):
         and RETAINED_BLOCKS <= mode['distance'] <= DISTANCE_UPGRADE_MAX, f'{name} retention profile not reviewed for Base history'
     return [f'--prune.{flag}.before', str(history_from)]
 
-def prune_args(profile, history_from=None):
+def prune_args(profile, history_from=None, state_from=None):
     """Complete prune CLI equal to the persisted snapshot profile (lookup kept for the retained range).
 
     Pinned reth/base-reth (launch/common.rs save_pruning_config) REPLACES the whole [prune] section of reth.toml
@@ -411,6 +429,9 @@ def prune_args(profile, history_from=None):
         mode = segments.get(name)
         if history_from is not None and name in RETENTION_SEGMENTS:
             args += _before_args(name, flag, mode, history_from)
+            continue
+        if state_from is not None and name in STATE_SEGMENTS:
+            args += _before_args(name, flag, mode, state_from)
             continue
         assert isinstance(mode, dict) and set(mode) == {'distance'} and _uint(mode['distance']) \
             and mode['distance'] >= RETAINED_BLOCKS, 'bounded history retention too short'
@@ -437,7 +458,8 @@ def run(side):
         profile = tomllib.loads(pathlib.Path(datadir, 'reth.toml').read_text())
         assert profile.get('static_files', {}).get('blocks_per_file'), 'snapshot segment sizes missing'
         history_from = history_from_block(CONFIG, required=False) if side == 'base' else None
-        prune = prune_args(profile, history_from)
+        state_from = state_history_from_block(CONFIG, required=False) if side == 'base' else None
+        prune = prune_args(profile, history_from, state_from)
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': datadir, 'TMPDIR': base + ('/tmp-cl' if side == 'cl' else '/tmp')}
     jwt = '/etc/enclave-rpc/jwt.hex'
     if side == 'el':
@@ -470,7 +492,12 @@ def run(side):
     elif side == 'base':
         origin = coverage_activation(CONFIG, ROOT / 'manifest.json', (MANIFEST.get('binaries') or {}).get('base'))
         history_from = history_from_block(CONFIG)
+        state_from = state_history_from_block(CONFIG)
+        snap = (origin.get('snapshot') or {}).get('block')
+        assert _uint(snap) and history_from <= snap and state_from <= snap, \
+            'Base retention start is above the verified snapshot block'
         history_files_present(datadir, profile, history_from)
+        segment_files_present(datadir, profile, state_from, STATE_FILES)
         ready = l1_ready()
         so = origin['safeL1Origin']
         assert ready['l1Finalized'] >= max(so['number'], origin['toBlock']), 'reviewed coverage range above our L1 finalized'

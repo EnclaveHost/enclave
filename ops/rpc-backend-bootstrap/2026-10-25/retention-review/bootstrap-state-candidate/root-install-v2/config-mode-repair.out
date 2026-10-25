@@ -1,0 +1,11 @@
+{
+  "time": "2026-10-25T19:24:59.321362+00:00",
+  "oldMode": "0600",
+  "restoredInstallerMode": "0644",
+  "configSha256": "81988aeef841cc073b359ab29993641b06e71d72190ddc5df606057ddd7b5eb7",
+  "serviceIdentityChecks": {
+    "rpcl1el": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2",
+    "rpcl1cl": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2",
+    "rpcbase": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2"
+  }
+}

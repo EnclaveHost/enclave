@@ -1,5 +1,36 @@
 # Base snapshot history retention review (2026-10-25)
 
+## STATUS UPDATE, 19:24 UTC: option B applied and configured; cached download NOT run (supersedes 19:22)
+
+- **Applied.** Root applied `bootstrap-state-candidate/bootstrap-state.patch` to source and guest. `chain_service.py` is
+  `713b0ddf4c99d12ca38e32e0e7b83a6ccb312230c70033ece976b8f7f11a4f57`.
+- **Configured.** `chain.json` `baseRetention` is `{historyFromBlock: 48000000, stateHistoryFromBlock: 52500000}`. No
+  other field changed. The new binding is `d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2`.
+- **Tests.** Root's tests passed 32/32 and 36/36 with 0 skips.
+- **Unchanged.** Coverage is false, Base is inactive, the path unit is disabled, and PIDs are unchanged.
+- **Config mode.** The installer left `chain.json` at 0600. Root restored 0644 before any restart, and the identity then
+  passed for all three service users. There was no outage.
+  - The installer is published as **historical, NOT reusable** next to the repair:
+    [`bootstrap-state-candidate/root-install-v2/`](bootstrap-state-candidate/root-install-v2/).
+  - Future installs must preserve the existing mode and owner, or use 0644. Never 0600.
+- **Still pending.** No authority is ready.
+  - The cached old-history download has not run.
+  - The creation block 48,322,938 is unverified on our own chain.
+  - The index has not been measured.
+  - The coverage gate and receipt are not done.
+  - The first start must use these flags.
+
+See [`bootstrap-state-candidate/README.md`](bootstrap-state-candidate/README.md).
+
+## STATUS UPDATE, 19:22 UTC: root chose option B; candidate prepared (NOT applied)
+
+- **Decision:** `historyFromBlock = 48000000` (file 96; legacy book creation 48,322,938, external, unverified) and
+  `stateHistoryFromBlock = 52500000` (changeset file 105 kept until the authenticated bootstrap).
+- **Candidate:** a patch against `dc9f4ad9`, a cached-download preflight with the exact command, and the capacity model.
+  See [`bootstrap-state-candidate/README.md`](bootstrap-state-candidate/README.md).
+- **Not yet done:** nothing is applied; the installed code, `chain.json` and the VM are unchanged.
+
+
 ## STATUS UPDATE, 19:15 UTC (supersedes the status line and the lookup/floor statements below)
 
 **Installed code, policy NOT configured.**

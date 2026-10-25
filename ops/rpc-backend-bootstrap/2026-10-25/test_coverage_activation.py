@@ -101,7 +101,7 @@ class Fixture:
                         'proposedBaseBootstrap': {'l1Block': NEED, 'blobSlot': SLOT, 'rootReviewRequired': True,
                                                   'coverageVerifiedEligible': True}}
         self.cfg = {'checkpoint': {'root': H('55'), 'epoch': 1}, 'txForwarding': {'endpoint': None},
-                    'baseRetention': {'historyFromBlock': 52_515_705},
+                    'baseRetention': {'historyFromBlock': 1_000_000, 'stateHistoryFromBlock': 1_000_000},
                     'baseBootstrap': {'coverageVerified': True}}
         self.receipt = {'format': c.RECEIPT_FORMAT, 'decision': 'accepted',
                         'kzgcheckSha256': c.KZGCHECK_SHA256, 'baseBinarySha256': BASE_SHA,
@@ -591,7 +591,7 @@ class LiveBinding(unittest.TestCase):
                 patch.object(c, 'CONFIG', self.f.cfg), patch.object(c, 'MANIFEST', {'binaries': {'base': BASE_SHA}}), \
                 patch.object(c, 'ROOT', manifest_path.parent), \
                 patch.object(c, 'coverage_activation', side_effect=lambda cfg, mp, b: real(cfg, mp, b)), \
-                patch.object(c, 'history_files_present'), \
+                patch.object(c, 'history_files_present'), patch.object(c, 'segment_files_present'), \
                 patch.object(c, 'l1_ready', return_value={'l1Block': TO + 20, 'l1Finalized': finalized, 'blobSlot': 1}) as ready, \
                 patch.object(c, 'rpc', side_effect=rpc), patch.object(c, 'beacon', side_effect=beacon), \
                 patch.object(c.os, 'execve', side_effect=Executed) as exe:

@@ -1,0 +1,83 @@
+{
+ "base_url": "https://mainnet-v2-snapshots.base.org",
+ "block": 53048526,
+ "chain_id": 8453,
+ "components": {
+  "account_changesets": {
+   "blocks_per_file": 500000,
+   "chunks": 107,
+   "total_size": 139820590830
+  },
+  "headers": {
+   "blocks_per_file": 500000,
+   "chunks": 107,
+   "total_size": 20459029678
+  },
+  "proofs": {
+   "decompressed_size": 1156234667859,
+   "file": "proofs.tar.zst",
+   "output_files": 8238,
+   "size": 868126296971
+  },
+  "receipts": {
+   "blocks_per_file": 500000,
+   "chunks": 107,
+   "total_size": 682638224003
+  },
+  "rocksdb_indices": {
+   "decompressed_size": 715702288429,
+   "file": "1792886410/rocksdb_indices.tar.zst",
+   "output_files": 11740,
+   "size": 597056355503
+  },
+  "state": {
+   "decompressed_size": 1138167361549,
+   "file": "1792886410/state.tar.zst",
+   "output_files": 4,
+   "output_files_detail": [
+    {
+     "blake3": "813e9b729141e7f385afa0a2d0df3e6c3789e427ffe4aeef566a565bc8f2fe3d",
+     "path": "db/database.version",
+     "size": 1
+    },
+    {
+     "blake3": "9ab30451140325989ce85269ed330d93149afac6b4f2dd8decf954b3aeb215bb",
+     "path": "db/lock",
+     "size": 12
+    },
+    {
+     "blake3": "8de35ff5950e596c4d012b471a3b21cd79762e7dbd5f733267b691c59ea09ef9",
+     "path": "db/mdbx.dat",
+     "size": 1138166333440
+    },
+    {
+     "blake3": "9717741509677596feeda872fd928f597c7612dd602ef4113789db260ec73b0b",
+     "path": "db/mdbx.lck",
+     "size": 1028096
+    }
+   ],
+   "size": 761228785915
+  },
+  "storage_changesets": {
+   "blocks_per_file": 500000,
+   "chunks": 107,
+   "total_size": 747244792285
+  },
+  "transaction_senders": {
+   "blocks_per_file": 500000,
+   "chunks": 107,
+   "total_size": 46252223447
+  },
+  "transactions": {
+   "blocks_per_file": 500000,
+   "chunks": 107,
+   "total_size": 1281363192314
+  }
+ },
+ "note": "public snapshot manifest metadata summary (not the full manifest); root pinned these exact bytes as /opt/enclave-rpc/snapshots/base-1792886410-manifest.json",
+ "reth_version": "2.5.2-dev (7134be3)",
+ "sourceManifestBytes": 4089437,
+ "sourceManifestSha256": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2",
+ "storage_version": 2,
+ "timestamp": 1792888464
+}

@@ -1,0 +1,27 @@
+[queue] START available=20479MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+== inputs
+[toolchain] rustc 1.96.0 (ac68faa20 2026-05-25) | cargo 1.96.0 (30a34c682 2026-05-25)
+[ok] base repo HEAD == 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42
+[base] commit 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42 tree 19b29a15a53d035d839b76915a94af0581507df0 committed 2026-10-22T10:25:43-07:00 (epoch 1792689943)
+[ok] patch sha256 e9dfb8c6...
+[ok] provider chain_provider.rs == validated 201d9b8c...
+[hash] Cargo.lock f122da76b80d5df44c9dc0c6fc4efc335abe295280fa49325f367ddcfc7b6a8f; l1.rs f40e2accc7e60ffe53b26a004a1c1b1e4e6e56f056a4385fddef47344e28d88f
+== source provenance: git archive 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42 + git apply patch == build/src ?
+[ok] build/src is exactly pristine 5476069f1eb74a56bccb56fdefd4b4bb0e3cda42 + patch (no other file)
+[hash] source tree manifest d8078bdf5dbab667478329f8e31dac7cac4c780404982cf535d93dd109ca6efb
+== offline dependency resolution for package base (private CARGO_HOME /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/client-integrity-next/build/cargo-home; network namespace: lo only)
+[ok] cargo metadata --offline --locked resolves the workspace
+[ok] cargo tree -p base --offline --locked (normal+build deps)
+[deps] base graph: 1427 unique package lines
+[deps] sp1-recursion-gnark-ffi in base graph: 0
+[deps] openssl-src in base graph: 0
+[deps] openssl-sys in base graph: 2
+[deps] protobuf-src in base graph: 0
+[deps] packages with build scripts in base graph: 81
+[deps] build-script packages: ahash, anyhow, aws-lc-rs, aws-lc-sys, bindgen, blake3, blst, bzip2-sys, c-kzg, clang-sys, crc32fast, crossbeam-deque, crossbeam-epoch, crossbeam-utils, crunchy, curve25519-dalek, eyre, figment, generic-array, getrandom, getrandom, httparse, icu_normalizer_data, icu_properties_data, inotify-sys, instability, libc, libgit2-sys, librocksdb-sys, libz-sys, lz4-sys, metrics-exporter-prometheus, mime_guess, native-tls, nix, num-traits, object, openssl, openssl-sys, parity-scale-codec, parking_lot_core, paste, portable-atomic, prettyplease, proc-macro2, proc-macro2-diagnostics, procfs, prometheus-client, quote, radium, rayon-core, redb, reth-mdbx-sys, reth-node-core, ring, rustix, rustls, rustversion, secp256k1-sys, secp256k1-sys, serde, serde_core, serde_json, sha3-asm, signal-hook, slotmap, snap, snow, syn, thiserror, thiserror, tikv-jemalloc-sys, typeid, uncased, vergen, vergen-git2, vergen-lib, zerocopy, zmij, zstd-safe, zstd-sys
+[deps] packages depending on vergen*: reth-node-core v2.5.2, vergen v10.0.1, vergen-git2 v10.0.1
+[deps] sources: git+https://github.com/base/reth; git+https://github.com/sigp/discv5; path; registry+https://github.com/rust-lang/crates.io-index
+== dry check rc=0
+[memory-guard] exit=0 peakTreeRssMiB=331 minHostAvailableMiB=20214
+[memory-guard] at peak: cargo:327 bash:4
+[queue] EXIT 0
