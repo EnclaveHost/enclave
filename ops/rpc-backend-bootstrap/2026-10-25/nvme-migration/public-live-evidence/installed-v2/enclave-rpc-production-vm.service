@@ -1,0 +1,30 @@
+# rendered by provision_vm.py (enclave-rpc-backend-vm/v2) from a migration-adapter manifest; never enabled or started by a script.
+[Unit]
+Description=Enclave RPC backend VM (enclave-rpc-production: reth+lighthouse L1, Base holder; per-disk backing policy)
+Requires=enclave-rpc-production-guard.service
+BindsTo=enclave-rpc-production-guard.service
+After=enclave-rpc-production-guard.service
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py launch /home/steven/.local/state/enclave-rpc-production/manifest.json 74db2e44b784ad1bf9bd8eddc533cde5790da7377c35ed0937749316a4ad159c
+ExecStop=/usr/bin/python3 -I /home/steven/.local/state/enclave-rpc-production/provision_vm.py powerdown /home/steven/.local/state/enclave-rpc-production/manifest.json
+TimeoutStartSec=300
+TimeoutStopSec=2400
+KillMode=mixed
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=60
+RuntimeDirectory=enclave-rpc-production
+RuntimeDirectoryMode=0700
+MemoryMax=70866960384
+MemorySwapMax=0
+TasksMax=4096
+LimitNOFILE=65536
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

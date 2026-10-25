@@ -1,0 +1,16 @@
+08300c8b56ae5dddc4fcf06bb4a34a10cf3f1b533a69811ca63c24b55f8e19e5  ./README.md
+8b50e0ebe21130d18072bc93004f0bcb16a8915b10e62f75ff9d670f4662a234  ./backup-v1-SHA256SUMS
+e71f8424f39f7fa2cc36d651003b5fcffc552b0caefe5bd0d898b2cd83786885  ./copy-l1.plan.json
+bb6902a53100f603047c4f815b21037c197f8483d403050126bac6991c75b49b  ./copy-l1.receipt.json
+07ba4071af54a182897c0ad92f809b7201bddc66e7d13f4421dc2c3d9673df68  ./copy-os.plan.json
+6437bb56b3d66835e78bbf102c725725ef8d75523f6cea2b64df65cc9cf59270  ./copy-os.receipt.json
+c7d84e125b5af9e79092579fec8db40190a8e2edb90da25655be756a3d475776  ./finalize.out
+cf14d673296e3b516d684805a9cd1ae2a88623c0bd2adfdc4e77dc5884f0d29a  ./guard-status-at-publication.json
+925781b52e2ae9efafdfb65389ca8f007eca62f870d0e2647c01e0963cb41fd8  ./guest-after-start.txt
+b4b50affc01410d21ec2fe681d9d6bca2df968dbd7a5e1f9f9e629da8e1923c9  ./install.out
+d9d8263ded901c5babe87f59fe6f8ea6f69de6dc24c8e0c31dd073a7ef8e0ac0  ./installed-v2/STAGED-SHA256SUMS
+3f6747af5f76135115329d798d1c01bd9c5a482c30fcf5c9a53dfac2bd9000e2  ./installed-v2/enclave-rpc-production-guard.service
+70d3d4d81b100269396843d723190a53b7d5c76837c58d78f4268d4aab947982  ./installed-v2/enclave-rpc-production-vm.service
+8ee060f6b7cc593130f154a6e9e1b8a68d32a3f9ebb8bed64bee65c6cdf8e997  ./installed-v2/install.sh
+74db2e44b784ad1bf9bd8eddc533cde5790da7377c35ed0937749316a4ad159c  ./installed-v2/manifest.json
+c99a4df7e4ebe0ab88ee074f88deba7e989be3fb67b8a566c0f970a0ad6a69cf  ./installed-v2/rollback.sh
