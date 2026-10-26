@@ -1,0 +1,407 @@
+TAP version 13
+# Subtest: the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+ok 1 - the selection: unset or quorum is the legacy path; verifier needs a local URL; anything ambiguous refuses
+  ---
+  duration_ms: 3.460363
+  type: 'test'
+  ...
+# Subtest: the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+ok 2 - the own backend: a loopback or private address literal only, never a name or public address; the guest checker agrees
+  ---
+  duration_ms: 0.805326
+  type: 'test'
+  ...
+# Subtest: routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+ok 3 - routing: state, receipts, logs and nonces go to the verifier only; unlisted methods refuse by name and reach no server
+  ---
+  duration_ms: 43.219087
+  type: 'test'
+  ...
+# Subtest: a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+ok 4 - a revert keeps its data through the verifier (simulate/readContract decode it); errors keep their code
+  ---
+  duration_ms: 7.177985
+  type: 'test'
+  ...
+# Subtest: estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+ok 5 - estimateGas answers a gas LIMIT a verified execution succeeded with, never the verifier's gas used after refunds; a revert is the answer
+  ---
+  duration_ms: 36.257032
+  type: 'test'
+  ...
+# Subtest: submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+ok 6 - submission: only through a backend BOUND to the verifier's chain on a fresh head; otherwise refused before anything is sent
+  ---
+  duration_ms: 73.800977
+  type: 'test'
+  ...
+# Subtest: an invalid selection refuses every method and every action: nothing falls back
+ok 7 - an invalid selection refuses every method and every action: nothing falls back
+  ---
+  duration_ms: 0.533628
+  type: 'test'
+  ...
+# Subtest: lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+ok 8 - lease readers: the verifier is ONE authority (required 1), never mixed with RPCs, never repeated; RPC quorums are unchanged
+  ---
+  duration_ms: 10.090631
+  type: 'test'
+  ...
+# Subtest: app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+ok 9 - app-funded lease config under the verifier: reads use it alone, the configured RPCs are never contacted (kept for byte-identical config)
+  ---
+  duration_ms: 2.268699
+  type: 'test'
+  ...
+# Subtest: guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+ok 10 - guest opt-in: txBackend is checked and reaches the supervisor only with a usable verifier, from this channel only
+  ---
+  duration_ms: 1.575622
+  type: 'test'
+  ...
+# Subtest: only entirely absent configuration is feature-off; both platform prefixes load the same pins and quorum
+ok 11 - only entirely absent configuration is feature-off; both platform prefixes load the same pins and quorum
+  ---
+  duration_ms: 4.980476
+  type: 'test'
+  ...
+# Subtest: missing FILE refuses configuration instead of enabling operator-paid fallback
+ok 12 - missing FILE refuses configuration instead of enabling operator-paid fallback
+  ---
+  duration_ms: 0.538387
+  type: 'test'
+  ...
+# Subtest: missing DIGEST refuses configuration instead of enabling operator-paid fallback
+ok 13 - missing DIGEST refuses configuration instead of enabling operator-paid fallback
+  ---
+  duration_ms: 0.161829
+  type: 'test'
+  ...
+# Subtest: missing RPCS refuses configuration instead of enabling operator-paid fallback
+ok 14 - missing RPCS refuses configuration instead of enabling operator-paid fallback
+  ---
+  duration_ms: 0.131749
+  type: 'test'
+  ...
+# Subtest: missing RELAYS refuses configuration instead of enabling operator-paid fallback
+ok 15 - missing RELAYS refuses configuration instead of enabling operator-paid fallback
+  ---
+  duration_ms: 0.106049
+  type: 'test'
+  ...
+# Subtest: legacy reserve alone, untrusted bytes, mismatched bindings, conflicting aliases, and invalid peer sets refuse
+ok 16 - legacy reserve alone, untrusted bytes, mismatched bindings, conflicting aliases, and invalid peer sets refuse
+  ---
+  duration_ms: 2.271719
+  type: 'test'
+  ...
+# Subtest: an administrator's binding migration stops every send before RPC or wallet access until pins are updated
+ok 17 - an administrator's binding migration stops every send before RPC or wallet access until pins are updated
+  ---
+  duration_ms: 1.288654
+  type: 'test'
+  ...
+# Subtest: the endpoint rule: a private IPv4 literal on the host link, explicit port, bare origin, bound payee and operator
+ok 18 - the endpoint rule: a private IPv4 literal on the host link, explicit port, bare origin, bound payee and operator
+  ---
+  duration_ms: 3.523763
+  type: 'test'
+  ...
+# Subtest: the environment form: origin,payee,operator entries separated by ';' (1 to 4), canonical round trip, refusals
+ok 19 - the environment form: origin,payee,operator entries separated by ';' (1 to 4), canonical round trip, refusals
+  ---
+  duration_ms: 1.211334
+  type: 'test'
+  ...
+# Subtest: the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration
+ok 20 - the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration
+  ---
+  duration_ms: 3.603952
+  type: 'test'
+  ...
+# Subtest: a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses
+ok 21 - a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses
+  ---
+  duration_ms: 24.631938
+  type: 'test'
+  ...
+# Subtest: conduit ABSENT: the transit, both guest environments and the bound direct-config digest are byte-identical to main's
+ok 22 - conduit ABSENT: the transit, both guest environments and the bound direct-config digest are byte-identical to main's
+  ---
+  duration_ms: 156.511949
+  type: 'test'
+  ...
+# Subtest: conduit PRESENT: checked form only; the legacy fw_cfg path and the HOST_DATA-bound direct path reach the same validated loader
+ok 23 - conduit PRESENT: checked form only; the legacy fw_cfg path and the HOST_DATA-bound direct path reach the same validated loader
+  ---
+  duration_ms: 11.574103
+  type: 'test'
+  ...
+# Subtest: Windows: the read-only config check reports pinned relays exactly; --expect-pinned refuses anything else
+ok 24 - Windows: the read-only config check reports pinned relays exactly; --expect-pinned refuses anything else
+  ---
+  duration_ms: 153.827952
+  type: 'test'
+  ...
+# Subtest: what stays refused: service-index discovery still drops private endpoints (a remote ad can never name the host link)
+ok 25 - what stays refused: service-index discovery still drops private endpoints (a remote ad can never name the host link)
+  ---
+  duration_ms: 0.734346
+  type: 'test'
+  ...
+# Subtest: who admits a relay ROLE: the platform host policy gate, keyed by the host's registered endpoint - never the host ownership extension
+ok 26 - who admits a relay ROLE: the platform host policy gate, keyed by the host's registered endpoint - never the host ownership extension
+  ---
+  duration_ms: 0.834116
+  type: 'test'
+  ...
+# Subtest: source: legacy (no verifier) is unchanged: public rpcs required, transited and installed
+ok 27 - source: legacy (no verifier) is unchanged: public rpcs required, transited and installed
+  ---
+  duration_ms: 4.335239
+  type: 'test'
+  ...
+# Subtest: source: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name
+ok 28 - source: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name
+  ---
+  duration_ms: 0.594837
+  type: 'test'
+  ...
+# Subtest: source: a mixed provider + verifier configuration is refused (host, transit and guest)
+ok 29 - source: a mixed provider + verifier configuration is refused (host, transit and guest)
+  ---
+  duration_ms: 0.882066
+  type: 'test'
+  ...
+# Subtest: source: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)
+ok 30 - source: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)
+  ---
+  duration_ms: 0.472148
+  type: 'test'
+  ...
+# Subtest: bundle: legacy (no verifier) is unchanged: public rpcs required, transited and installed
+ok 31 - bundle: legacy (no verifier) is unchanged: public rpcs required, transited and installed
+  ---
+  duration_ms: 2.412618
+  type: 'test'
+  ...
+# Subtest: bundle: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name
+ok 32 - bundle: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name
+  ---
+  duration_ms: 0.386308
+  type: 'test'
+  ...
+# Subtest: bundle: a mixed provider + verifier configuration is refused (host, transit and guest)
+ok 33 - bundle: a mixed provider + verifier configuration is refused (host, transit and guest)
+  ---
+  duration_ms: 0.461757
+  type: 'test'
+  ...
+# Subtest: bundle: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)
+ok 34 - bundle: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)
+  ---
+  duration_ms: 0.263719
+  type: 'test'
+  ...
+# Subtest: runtime: the bound guest env loads ONLY the verifier authority as its single lease client; without it, it refuses
+ok 35 - runtime: the bound guest env loads ONLY the verifier authority as its single lease client; without it, it refuses
+  ---
+  duration_ms: 2.18709
+  type: 'test'
+  ...
+# Subtest: runtime: legacy env with no authority keeps its public quorum (compatibility)
+ok 36 - runtime: legacy env with no authority keeps its public quorum (compatibility)
+  ---
+  duration_ms: 1.296024
+  type: 'test'
+  ...
+# [chain] the chain authority selection is INVALID (ENCLAVE_CHAIN_AUTHORITY=verifier needs ENCLAVE_CHAIN_VERIFIER (the local verifier URL)): every app-funded lease read refuses; no provider is used
+# Subtest: Windows r3: verifier authority carries the HEALTHY lease reads and refuses at the binding stage; ENCLAVE_LEASE_GAS_RPCS never contacted
+ok 37 - Windows r3: verifier authority carries the HEALTHY lease reads and refuses at the binding stage; ENCLAVE_LEASE_GAS_RPCS never contacted
+  ---
+  duration_ms: 337.637207
+  type: 'test'
+  ...
+# Subtest: Windows r3: an invalid chain-authority selection refuses at the head read with NO HTTP at all (fail closed, no fallback)
+ok 38 - Windows r3: an invalid chain-authority selection refuses at the head read with NO HTTP at all (fail closed, no fallback)
+  ---
+  duration_ms: 12.780687
+  type: 'test'
+  ...
+# Subtest: Windows r3: legacy (no chain authority) carries the same healthy reads on the ENCLAVE_LEASE_GAS_RPCS quorum (compatibility)
+ok 39 - Windows r3: legacy (no chain authority) carries the same healthy reads on the ENCLAVE_LEASE_GAS_RPCS quorum (compatibility)
+  ---
+  duration_ms: 23.116616
+  type: 'test'
+  ...
+# Subtest: a complete reviewed configuration becomes a public transit; absent is off
+ok 40 - a complete reviewed configuration becomes a public transit; absent is off
+  ---
+  duration_ms: 3.833511
+  type: 'test'
+  ...
+# Subtest: partial or invalid configuration REFUSES (no fallback to the operator's wallet)
+ok 41 - partial or invalid configuration REFUSES (no fallback to the operator's wallet)
+  ---
+  duration_ms: 2.627887
+  type: 'test'
+  ...
+# Subtest: the guest installs exactly the six names and the record; the supervisor's real loader accepts them
+ok 42 - the guest installs exactly the six names and the record; the supervisor's real loader accepts them
+  ---
+  duration_ms: 2.532177
+  type: 'test'
+  ...
+# Subtest: a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH
+ok 43 - a tampered transit is refused in the guest, fail closed: configured, unloadable, never the operator's ETH
+  ---
+  duration_ms: 1.189624
+  type: 'test'
+  ...
+# Subtest: the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)
+ok 44 - the conduit is the only source of lease-gas names (a flavor file or host policy cannot add, change or drop one)
+  ---
+  duration_ms: 2.08862
+  type: 'test'
+  ...
+# Subtest: the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over
+ok 45 - the real launcher hands the guest the checked transit, and the guest and the supervisor accept what it handed over
+  ---
+  duration_ms: 4222.845742
+  type: 'test'
+  ...
+# Subtest: the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU
+ok 46 - the real launcher REFUSES partial or invalid lease-gas configuration and never starts QEMU
+  ---
+  duration_ms: 513.609549
+  type: 'test'
+  ...
+# Subtest: direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names
+ok 47 - direct config: absent leaseGas keeps the exact config; present, it is bound and becomes the supervisor's names
+  ---
+  duration_ms: 6.671977
+  type: 'test'
+  ...
+# Subtest: direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453
+ok 48 - direct config: the bound member is the checked form, publishable (no RPC query), and on chain 8453
+  ---
+  duration_ms: 1.307003
+  type: 'test'
+  ...
+# Subtest: the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's
+ok 49 - the real launcher refuses host-config leaseGas in direct mode: there it is only the bound config's
+  ---
+  duration_ms: 2212.05178
+  type: 'test'
+  ...
+# Subtest: gsup and the launcher wire the conduit, and only the conduit
+ok 50 - gsup and the launcher wire the conduit, and only the conduit
+  ---
+  duration_ms: 2.278679
+  type: 'test'
+  ...
+# Subtest: the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted
+ok 51 - the overlay carries the supervisor's whole import closure, including the lease-gas runtime the fixed list omitted
+  ---
+  duration_ms: 121.003204
+  type: 'test'
+  ...
+# Subtest: the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+ok 52 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+  ---
+  duration_ms: 3.153865
+  type: 'test'
+  ...
+# Subtest: planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+ok 53 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+  ---
+  duration_ms: 115.669551
+  type: 'test'
+  ...
+# Subtest: planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+ok 54 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+  ---
+  duration_ms: 12.057201
+  type: 'test'
+  ...
+# Subtest: gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+ok 55 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+  ---
+  duration_ms: 7.329883
+  type: 'test'
+  ...
+# Subtest: keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+ok 56 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+  ---
+  duration_ms: 12.387309
+  type: 'test'
+  ...
+# Subtest: end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+ok 57 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+  ---
+  duration_ms: 467.034039
+  type: 'test'
+  ...
+# Subtest: registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+ok 58 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+  ---
+  duration_ms: 73.06979
+  type: 'test'
+  ...
+# Subtest: refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+ok 59 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+  ---
+  duration_ms: 47.985683
+  type: 'test'
+  ...
+# Subtest: refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+ok 60 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+  ---
+  duration_ms: 16.605729
+  type: 'test'
+  ...
+# Subtest: the front: nonce is required and fresh, only path and query reach the supervisor
+ok 61 - the front: nonce is required and fresh, only path and query reach the supervisor
+  ---
+  duration_ms: 19.562984
+  type: 'test'
+  ...
+# Subtest: the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+ok 62 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+  ---
+  duration_ms: 2264.032914
+  type: 'test'
+  ...
+# Subtest: the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+ok 63 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+  ---
+  duration_ms: 818.184678
+  type: 'test'
+  ...
+# Subtest: builder and overlay carry the helper and the measured token
+ok 64 - builder and overlay carry the helper and the measured token
+  ---
+  duration_ms: 0.444778
+  type: 'test'
+  ...
+# Subtest: chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports
+ok 65 - chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports
+  ---
+  duration_ms: 1.99782
+  type: 'test'
+  ...
+# Subtest: planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot
+ok 66 - planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot
+  ---
+  duration_ms: 6.560057
+  type: 'test'
+  ...
+1..66
+# tests 66
+# suites 0
+# pass 66
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8150.906777

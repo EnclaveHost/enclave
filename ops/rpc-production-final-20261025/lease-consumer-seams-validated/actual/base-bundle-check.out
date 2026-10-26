@@ -1,0 +1,11 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/lease-consumer-seams-stage/r4/runs/20261026T013321Z-385794/work/base/scripts/build-windows-lease-runtime.mjs:25
+  if (!bytes.equals(await fs.readFile(output))) throw new Error("Windows shared lease bundle is stale");
+                                                      ^
+
+Error: Windows shared lease bundle is stale
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/lease-consumer-seams-stage/r4/runs/20261026T013321Z-385794/work/base/scripts/build-windows-lease-runtime.mjs:25:55
+
+Node.js v22.23.3
+windows-check-rc=1
+metal lease-gas conduit bundle: 41371 bytes, sha256:48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5 (verified)
+metal-check-rc=0

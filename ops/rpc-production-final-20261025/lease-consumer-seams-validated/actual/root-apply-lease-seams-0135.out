@@ -1,0 +1,10 @@
+[queue] START available=22327MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-relay-consumers-20261025 aebf4c932] Bind Windows and guest lease reads to the selected verifier
+ 15 files changed, 329 insertions(+), 89 deletions(-)
+ create mode 100644 test/lease-seams-conduit.test.mjs
+ create mode 100644 test/lease-seams-windows.test.mjs
+To https://github.com/EnclaveHost/enclave.git
+   1bdf5c432..aebf4c932  HEAD -> fix/rpc-relay-consumers-20261025
+[memory-guard] exit=0 peakTreeRssMiB=38 minHostAvailableMiB=22291
+[memory-guard] at peak: git-remote-http:16 git:9 git:6 git:4 bash:4
+[queue] EXIT 0

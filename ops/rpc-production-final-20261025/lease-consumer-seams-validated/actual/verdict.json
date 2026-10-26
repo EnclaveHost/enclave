@@ -1,0 +1,36 @@
+{
+ "ok": true,
+ "fails": [],
+ "base": {
+  "tests": 66,
+  "pass": 57,
+  "fail": 9,
+  "cancelled": 0,
+  "skipped": 0,
+  "todo": 0
+ },
+ "baseFailing": [
+  "Windows r3: an invalid chain-authority selection refuses at the head read with NO HTTP at all (fail closed, no fallback)",
+  "Windows r3: verifier authority carries the HEALTHY lease reads and refuses at the binding stage; ENCLAVE_LEASE_GAS_RPCS never contacted",
+  "bundle: a mixed provider + verifier configuration is refused (host, transit and guest)",
+  "bundle: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)",
+  "bundle: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name",
+  "runtime: the bound guest env loads ONLY the verifier authority as its single lease client; without it, it refuses",
+  "source: a mixed provider + verifier configuration is refused (host, transit and guest)",
+  "source: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)",
+  "source: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name"
+ ],
+ "baseBundleCheck": {
+  "windows-check-rc": "1",
+  "metal-check-rc": "0"
+ },
+ "candidate": {
+  "tests": 66,
+  "pass": 66,
+  "fail": 0,
+  "cancelled": 0,
+  "skipped": 0,
+  "todo": 0
+ },
+ "candidateFailing": []
+}
