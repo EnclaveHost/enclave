@@ -36,6 +36,7 @@ import { resourceOverview } from "../../js/core/resource-overview.js";
 import { vspecOf, boxOfEndpoint, verifyBoxInBrowser, verdictBadge, verificationHtml, boxModeOf, boxRowOf, verifyAppInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
+import { hasFundingSession, fundRuntimeFromSession } from "../../js/core/session-funding.js";
 import { moveLeaseLive, prepareDeploymentMove } from "../../js/core/deployment-move.js";
 import { isolationOptions, withIsolationRequirements, hostMeetsTeeRequirements, hostsTakeConfig } from "../../js/core/isolation-options.js";
 import { placementMessage, pinnedHost, withPlacementPin } from "../../js/core/placement-options.js";
@@ -1143,6 +1144,7 @@ class Deployments extends EnclaveElement {
     btn.setAttribute("aria-expanded", "true");
     const d = (this._list || []).find(x => x.id === id) || {};
     const via = ctlOf(d) === "vault";   // credit-vault row: passkey-signed, spends account credit
+    const useSession = !via && hasFundingSession();
     const r = d.resources || {};
     const gpuPct = Math.round((r.gpuShare || 0) * 100), cpuPct = Math.round((r.cpuShare != null ? r.cpuShare : (r.share || 0)) * 100);
     // the deployment's own burn rate: the API's live number (the on-chain
@@ -1157,7 +1159,7 @@ class Deployments extends EnclaveElement {
       +   '<label for="efAmt">Add runtime (' + (via ? 'USD' : 'USDC') + ')</label>'
       +   '<input class="ef-amt" id="efAmt" type="number" value="5" min="0.01" step="any" inputmode="decimal" />'
       +   '<span class="ef-est"></span>'
-      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : 'Sign &amp; pay') + '</button>'
+      +   '<button class="btn btn-sm btn-primary ef-go" type="button">' + (via ? 'Confirm with passkey' : useSession ? 'Pay from session' : 'Sign &amp; pay') + '</button>'
       + '</div>'
       + '<div class="term enc-fund-status" role="status" aria-live="polite"></div>';
     const amt = box.querySelector(".ef-amt"), est = box.querySelector(".ef-est");
@@ -1196,6 +1198,14 @@ class Deployments extends EnclaveElement {
         return;
       }
       try {
+        const funded = await fundRuntimeFromSession(id, usd, { required: useSession });
+        if (funded) {
+          nudge();
+          paint("ok", "[✓] topped up from your session with $" + usd.toFixed(2) + okTail);
+          showToast("topped up " + id.slice(0, 10) + "… from your session");
+          setTimeout(() => { if (box.isConnected && !box.hidden){ box.hidden = true; box.innerHTML = ""; } this.refresh(); }, 3500);
+          return;
+        }
         // no SIWE: the EIP-3009 authorization IS the proof of key ownership
         if (!Enclave.provider){ paint("info", "[*] connecting wallet…"); await connectWallet(); }
         await ensureBaseChain();
