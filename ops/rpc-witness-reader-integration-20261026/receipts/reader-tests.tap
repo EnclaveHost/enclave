@@ -1,0 +1,130 @@
+TAP version 13
+# Subtest: owned L1 process + bounded native transport publishes only after exact result binding and durable acceptance
+ok 1 - owned L1 process + bounded native transport publishes only after exact result binding and durable acceptance
+  ---
+  duration_ms: 366.218762
+  type: 'test'
+  ...
+# Subtest: forged root, wrong executed header, and foreign proof tickets cannot grant authority
+ok 2 - forged root, wrong executed header, and foreign proof tickets cannot grant authority
+  ---
+  duration_ms: 352.38516
+  type: 'test'
+  ...
+# Subtest: restart reauthenticates bootstrap and rederives instead of trusting a saved root
+ok 3 - restart reauthenticates bootstrap and rederives instead of trusting a saved root
+  ---
+  duration_ms: 347.973876
+  type: 'test'
+  ...
+# Subtest: an uncertain journal write fences the previous in-memory anchor too
+ok 4 - an uncertain journal write fences the previous in-memory anchor too
+  ---
+  duration_ms: 337.944463
+  type: 'test'
+  ...
+# Subtest: stale derived blocks and a changed finalized L1 header refuse without refreshing timestamps
+ok 5 - stale derived blocks and a changed finalized L1 header refuse without refreshing timestamps
+  ---
+  duration_ms: 308.299069
+  type: 'test'
+  ...
+# Subtest: an untrusted header source cannot escape the requested block/range or replace owner process authority
+ok 6 - an untrusted header source cannot escape the requested block/range or replace owner process authority
+  ---
+  duration_ms: 259.069023
+  type: 'test'
+  ...
+# Subtest: startup refuses unreviewed native binaries, foreign bootstrap policy and checkpoint records
+ok 7 - startup refuses unreviewed native binaries, foreign bootstrap policy and checkpoint records
+  ---
+  duration_ms: 232.738333
+  type: 'test'
+  ...
+# Subtest: full runtime enrollment owns private children, closes cleanly, and binds checkpoint rotation
+ok 8 - full runtime enrollment owns private children, closes cleanly, and binds checkpoint rotation
+  ---
+  duration_ms: 453.184327
+  type: 'test'
+  ...
+# Subtest: native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result
+ok 9 - native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result
+  ---
+  duration_ms: 97.254805
+  type: 'test'
+  ...
+# Subtest: journal has one owner, refuses missing/corrupt state, and binds its runtime configuration
+ok 10 - journal has one owner, refuses missing/corrupt state, and binds its runtime configuration
+  ---
+  duration_ms: 11.2874
+  type: 'test'
+  ...
+# Subtest: checkpoint cannot outlive its reviewed weak-subjectivity window
+ok 11 - checkpoint cannot outlive its reviewed weak-subjectivity window
+  ---
+  duration_ms: 0.893001
+  type: 'test'
+  ...
+# Subtest: local HTTP orchestration enforces exact shape, payload cap and cancellation
+ok 12 - local HTTP orchestration enforces exact shape, payload cap and cancellation
+  ---
+  duration_ms: 63.991299
+  type: 'test'
+  ...
+# Subtest: startup deadline cancels a hung owned L1 response and cleans up its child record
+ok 13 - startup deadline cancels a hung owned L1 response and cleans up its child record
+  ---
+  duration_ms: 626.229306
+  type: 'test'
+  ...
+# Subtest: saved native ownership is reaped before its private executable is removed
+ok 14 - saved native ownership is reaped before its private executable is removed
+  ---
+  duration_ms: 138.418017
+  type: 'test'
+  ...
+# Subtest: explicit loader selection cannot introduce an unreviewed library set
+ok 15 - explicit loader selection cannot introduce an unreviewed library set
+  ---
+  duration_ms: 1.175457
+  type: 'test'
+  ...
+# Subtest: the lifecycle snapshot consumes the local reader capability and pins state reads to its derived hash
+ok 16 - the lifecycle snapshot consumes the local reader capability and pins state reads to its derived hash
+  ---
+  duration_ms: 304.121703
+  type: 'test'
+  ...
+# Subtest: bridge pins every state read to the independently authenticated derived hash and closes retained clients
+ok 17 - bridge pins every state read to the independently authenticated derived hash and closes retained clients
+  ---
+  duration_ms: 4.008268
+  type: 'test'
+  ...
+# Subtest: ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+ok 18 - ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+  ---
+  duration_ms: 1.682832
+  type: 'test'
+  ...
+# Subtest: failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+ok 19 - failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+  ---
+  duration_ms: 22.089435
+  type: 'test'
+  ...
+# Subtest: a restarted bridge rejects a prior derived anchor using the durable journal floor
+ok 20 - a restarted bridge rejects a prior derived anchor using the durable journal floor
+  ---
+  duration_ms: 24.878126
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4052.038618
