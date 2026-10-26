@@ -1,0 +1,13 @@
+test/windows-chain-authority-runtime.test.mjs candidate 12
+test/lease-seams-windows.test.mjs candidate 3
+test/move-release-confirm.test.mjs candidate 20
+test/paid-network.test.mjs candidate 5
+test/paid-network.test.mjs base 5
+test/contract-owner-signature.test.mjs candidate 2
+test/contract-owner-signature.test.mjs base 2
+test/enclave-network-host-canary.test.mjs candidate 5
+test/enclave-network-host-canary.test.mjs base 5
+test/network-authority-pins.test.mjs candidate 4
+test/network-authority-pins.test.mjs base 4
+test/host-egress.test.mjs candidate 9
+test/host-egress.test.mjs base 9

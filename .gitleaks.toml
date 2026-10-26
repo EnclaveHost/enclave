@@ -149,13 +149,16 @@ regexTarget = "line"
 regexes = ['''^\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
 
 [[allowlists]]
-description = "Same verified public viem setCoinbase.js SHA256 in three actual Windows bundle-closure receipts; not a token"
+description = "Same verified public viem setCoinbase.js SHA256 in six actual Windows bundle-closure receipts; not a token"
 condition = "AND"
 targetRules = ["coinbase-access-token"]
 paths = [
     '''^ops/rpc-integration-progress-20261026/windows-r3/actual/run-20261026T015404Z/bundle-closure-baseline\.json$''',
   '''^ops/rpc-integration-progress-20261026/windows-r3/actual/run-20261026T015404Z/bundle-closure-candidate-before\.json$''',
   '''^ops/rpc-integration-progress-20261026/windows-r3/actual/run-20261026T015404Z/bundle-closure-candidate-after\.json$''',
+  '''^ops/rpc-windows-authority-validated-20261026/actual/run-20261026T020649Z/bundle-closure-baseline\.json$''',
+  '''^ops/rpc-windows-authority-validated-20261026/actual/run-20261026T020649Z/bundle-closure-candidate-before\.json$''',
+  '''^ops/rpc-windows-authority-validated-20261026/actual/run-20261026T020649Z/bundle-closure-candidate-after\.json$''',
 ]
 regexTarget = "line"
 regexes = ['''^\s*"(?:\.\./){6}enclave/node_modules/viem/_esm/actions/test/setCoinbase\.js": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']

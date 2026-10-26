@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: contract owner verification uses the exact message hash and configured owner
+ok 1 - contract owner verification uses the exact message hash and configured owner
+  ---
+  duration_ms: 2.460263
+  type: 'test'
+  ...
+# Subtest: EOAs, wrong magic, oversized input and RPC failures cannot authorize secrets
+ok 2 - EOAs, wrong magic, oversized input and RPC failures cannot authorize secrets
+  ---
+  duration_ms: 0.576254
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 131.529092
