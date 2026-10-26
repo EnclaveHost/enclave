@@ -95,10 +95,11 @@ proof-executing state reads to its exact Base hash. A fresh HTTP response does
 not change the authenticated block timestamp. The bridge persists accepted
 Base/L1 floors before publishing a snapshot and rejects rollback after restart.
 
-**The required live derivation provider is still being built by the coordinated
-RPC work.** Neither an ASR status adapter nor the existing sequencer-signed unsafe
-reader implements that provider. There is no automatic fallback or production
-activation. See [AUTHORITY-ADAPTER.md](AUTHORITY-ADAPTER.md) for the exact boundary.
+**The callable derivation provider is now implemented in
+[network/derived-reader](../../network/derived-reader/README.md).** Live owned L1
+and schedule checks passed; positive Base witness and accepted-image qualification
+remain pending with the coordinated RPC work. There is no automatic fallback or
+production activation. See [AUTHORITY-ADAPTER.md](AUTHORITY-ADAPTER.md) for the exact boundary.
 
 The contract supports quorum-attested continuous health to reset crash counts.
 The fast certificate path currently requires `healthySince = 0`, conservatively

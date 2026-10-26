@@ -1,0 +1,182 @@
+// Stateful, callable reader. Only a successful LOCAL native derivation may
+// populate readAnchor(). ASR is a bootstrap and saved JSON is a rollback floor;
+// neither is ever relabelled as a near-current derived result.
+import fs from 'node:fs';
+import path from 'node:path';
+import { randomBytes, createHash } from 'node:crypto';
+import { openDerivedJournal, validateAnchor } from './journal.mjs';
+import { stageBinary, reapRun } from './process.mjs';
+import { startL1Runtime, assertL1Runtime, readCheckpoint } from './l1-runtime.mjs';
+import { stageLibraries } from './libraries.mjs';
+import { boundedRpc, finalizedHeader } from './rpc.mjs';
+import { authenticateBootstrap, prepareProof, bindNativeV2 } from './proof.mjs';
+import { invokeDerivation, DERIVATION_BUILDS } from './native.mjs';
+export const BOOTSTRAP_POLICY = Object.freeze({ expectedChainId: 1, pinBy: 'hash',
+  portal: '0x49048044d57e1c92a77f79988d21fa8faf74e97e', asr: '0x909f6cf47ed12f010a796527f562bfc26c7f4e72',
+  portalAsrGetter: 'anchorStateRegistry()', maxFinalizedAgeSec: 1800 });
+
+export async function createDerivedProvider({ l1, journal, executable, runtime = null, workDir, bootstrap, base,
+  maxBlocks = 1800, intermediateBlockInterval = 1, maxAnchorAgeSec = 1800, nativeTimeoutMs = 180000,
+  maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, now = Date.now }) {
+  assertL1Runtime(l1);
+  if (!Number.isInteger(maxBlocks) || maxBlocks < 1 || maxBlocks > 1800 ||
+      !Number.isInteger(intermediateBlockInterval) || intermediateBlockInterval < 1 || intermediateBlockInterval > maxBlocks ||
+      !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
+      !Number.isInteger(maxWitnessBytes) || maxWitnessBytes < 1 || maxWitnessBytes > (128 << 20) ||
+      !Number.isInteger(nativeTimeoutMs) || nativeTimeoutMs < 1 || nativeTimeoutMs > 3600000 ||
+      !Number.isInteger(maxMemoryMiB) || maxMemoryMiB < 128 || maxMemoryMiB > 4096) throw Error('invalid derived reader policy bounds');
+  let agreed = null, latest = null, pending = null, busy = false, closed = false, active = null, activeDone = Promise.resolve();
+  const alive = () => {
+    if (closed) throw Error('derived provider closed');
+    journal.read(); // A failed/uncertain persistence operation fences even the previous in-memory anchor.
+    assertL1Runtime(l1);
+  };
+  const consistentL1 = async (head, signal) => {
+    const raw = await l1.request('eth_getBlockByNumber', [`0x${head.number.toString(16)}`, false], { signal });
+    const checked = finalizedHeader(raw, Math.floor(now() / 1000), 3600);
+    if (checked.hash !== head.hash || checked.stateRoot !== head.stateRoot || checked.timestamp !== head.timestamp) throw Error('L1 derivation input no longer matches the local light client');
+  };
+  async function exclusive(signal, run) {
+    alive(); signal?.throwIfAborted();
+    if (busy) throw Error('derived provider busy');
+    busy = true; const controller = new AbortController(); active = controller;
+    let finished; activeDone = new Promise(resolve => { finished = resolve; });
+    const abort = () => controller.abort(signal.reason); signal?.addEventListener('abort', abort, { once: true });
+    try { return await run(controller.signal); }
+    finally { signal?.removeEventListener('abort', abort); busy = false; active = null; finished(); }
+  }
+  return Object.freeze({
+    // Public fields are proposed inputs for the untrusted witness builder.
+    // The ticket's authoritative copy remains private to this process.
+    async prepare({ blockNumber, rollupConfigTemplate, signal } = {}) {
+      return exclusive(signal, async proofSignal => {
+        if (pending && pending.expiresAt > now()) throw Error('one witness ticket is already outstanding');
+        pending = null;
+        if (!agreed) {
+          const seed = validateAnchor(await bootstrap({ signal: proofSignal }));
+          if (seed.tier !== 'l1-finalized-asr-anchor') throw Error('initial agreed root must be freshly ASR-authenticated');
+          agreed = seed; // never load an agreed root from journal JSON
+        }
+        const floor = journal.read().floor;
+        if (!Number.isSafeInteger(blockNumber) || blockNumber <= agreed.base.number || blockNumber - agreed.base.number > maxBlocks ||
+            (blockNumber - agreed.base.number) % intermediateBlockInterval !== 0) throw Error('candidate range exceeds reader bounds');
+        if (floor && agreed.base.number < floor.base.number && blockNumber > floor.base.number) throw Error('recovery must derive the saved floor exactly before passing it');
+        const head = await l1.finalized({ signal: proofSignal });
+        if (head.number < agreed.l1.number || head.number === agreed.l1.number && head.hash !== agreed.l1.hash) throw Error('L1 finalized authority regressed');
+        const header = await base('eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false], { signal: proofSignal });
+        if (!header || BigInt(header.number) !== BigInt(blockNumber)) throw Error('candidate source returned another block number');
+        const input = await prepareProof({ l1, l1Head: head, agreed, header, rollupConfigTemplate, intermediateBlockInterval, signal: proofSignal, now });
+        proofSignal.throwIfAborted(); alive();
+        const token = randomBytes(32).toString('hex');
+        pending = { token, input, header: structuredClone(header), head, expiresAt: now() + nativeTimeoutMs, agreed };
+        return Object.freeze({ ticket: token, expiresAt: pending.expiresAt, trusted: structuredClone(input.trusted),
+          agreedL2BlockNumber: agreed.base.number, maximumWitnessBytes: maxWitnessBytes });
+      });
+    },
+    async submit({ ticket, witness, signal } = {}) {
+      return exclusive(signal, async proofSignal => {
+        if (!pending || ticket !== pending.token || pending.expiresAt <= now()) throw Error('unknown or expired native proof ticket');
+        const proof = pending; pending = null; // one-shot; no concurrent replay
+        const result = await invokeDerivation({ executable, runtime, trusted: proof.input.trusted, witness, workDir, signal: proofSignal,
+          timeoutMs: Math.min(nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes, maxMemoryMiB,
+          outputBytes: 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
+        const accepted = bindNativeV2(result, proof.input, proof.header, proof.head);
+        if (accepted.base.timestamp < proof.agreed.base.timestamp || accepted.base.timestamp > Math.floor(now() / 1000) + 2) throw Error('derived block timestamp regressed or is from the future');
+        await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted(); alive();
+        const floor = journal.read().floor;
+        if (floor && accepted.base.number < floor.base.number) {
+          agreed = accepted;
+          return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
+        }
+        // Atomic persistence occurs before any publication. A same-height hash
+        // conflict with the saved floor refuses rather than authorizing a fork.
+        journal.accept(proof.agreed, accepted);
+        agreed = accepted; latest = accepted;
+        return { status: 'verified', anchor: structuredClone(accepted) };
+      });
+    },
+    async readAnchor({ signal } = {}) {
+      return exclusive(signal, async proofSignal => {
+        if (!latest) throw Error('no locally derived anchor; bootstrap/catch-up is required');
+        const value = latest, seconds = Math.floor(now() / 1000);
+        if (seconds - value.base.timestamp > maxAnchorAgeSec || value.base.timestamp > seconds + 2) throw Error('derived Base anchor is stale');
+        await consistentL1(value.l1, proofSignal); proofSignal.throwIfAborted(); alive();
+        if (Math.floor(now() / 1000) - value.base.timestamp > maxAnchorAgeSec) throw Error('derived Base anchor aged out while reading');
+        return structuredClone(value);
+      });
+    },
+    status() { return { busy, closed, hasDerivedAnchor: !!latest,
+      baseAgeSec: latest ? Math.floor(now() / 1000) - latest.base.timestamp : null,
+      // Freshness here is diagnostic; readAnchor additionally checks live L1 ownership/canonicality.
+      withinBaseAgeBound: !!latest && Math.floor(now() / 1000) - latest.base.timestamp <= maxAnchorAgeSec,
+      verifiedThrough: agreed?.base.number ?? null,
+      hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: journal.read().floor?.base.number ?? null }; },
+    async close() { closed = true; pending = null; latest = null; active?.abort(Error('derived provider closed')); await activeDone; },
+  });
+}
+
+// Called INSIDE the accepted image/domain. Its measured release pins this code,
+// L1 binary/checkpoint, native build and library closure. No host status endpoint
+// or arbitrary local process is substituted for those components.
+export async function startDerivedReader(config, options = {}) {
+  const { stateDir, initializeState = false, native, l1: l1Config, a1Config = BOOTSTRAP_POLICY, baseUrl } = config;
+  if (!path.isAbsolute(stateDir) || Object.entries(BOOTSTRAP_POLICY).some(([key, value]) => a1Config[key] !== value))
+    throw Error('derived reader needs private state and the reviewed ASR bootstrap policy');
+  const builds = options.acceptedDerivationBuilds || DERIVATION_BUILDS;
+  if (!builds[native?.sha256]) throw Error('no qualified native derivation build configured');
+  fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+  const privateDirectory = directory => {
+    const stat = fs.lstatSync(directory);
+    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077))
+      throw Error('reader state directories must be private and owned by the runtime user');
+  };
+  privateDirectory(stateDir);
+  const checkpoint = readCheckpoint(l1Config.checkpointFile, { accepted: options.l1Options?.acceptedCheckpoints, now: options.now || Date.now });
+  const binding = createHash('sha256').update(JSON.stringify({ chain: 8453, native: native.sha256,
+    nativeRuntime: native.runtime?.build ?? null, l1Runtime: l1Config.runtime?.build ?? null,
+    l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1 })).digest('hex');
+  const journal = await openDerivedJournal(stateDir, { binding, initialize: initializeState });
+  let l1, provider, runDir;
+  try {
+    const runs = path.join(stateDir, 'runs'); fs.mkdirSync(runs, { recursive: true, mode: 0o700 });
+    privateDirectory(runs);
+    // Reap only task-owned saved child identities under this journal's lock.
+    for (const name of fs.readdirSync(runs)) {
+      if (!/^run-[A-Za-z0-9]+$/.test(name)) throw Error('unexpected derived runtime directory');
+      const old = path.join(runs, name);
+      if (fs.lstatSync(old).isSymbolicLink() || !fs.statSync(old).isDirectory()) throw Error('invalid saved reader run directory');
+      for (const role of ['l1', 'native']) {
+        const roleDir = path.join(old, role);
+        if (fs.existsSync(roleDir)) {
+          if (fs.lstatSync(roleDir).isSymbolicLink()) throw Error('invalid saved reader role directory');
+          const executable = fs.existsSync(path.join(roleDir, 'libraries')) ? path.join(roleDir, 'libraries', 'ld-linux-x86-64.so.2') : path.join(roleDir, 'executable');
+          await reapRun(roleDir, { executable });
+          if (role === 'native') for (const proof of fs.readdirSync(roleDir).filter(n => /^proof-[A-Za-z0-9]+$/.test(n))) {
+            const proofDir = path.join(roleDir, proof);
+            if (fs.lstatSync(proofDir).isSymbolicLink()) throw Error('invalid saved proof directory');
+            await reapRun(proofDir, { executable });
+          }
+        }
+      }
+      fs.rmSync(old, { recursive: true, force: true });
+    }
+    runDir = fs.mkdtempSync(path.join(runs, 'run-')); fs.chmodSync(runDir, 0o700);
+    const l1Dir = path.join(runDir, 'l1'), nativeDir = path.join(runDir, 'native');
+    fs.mkdirSync(l1Dir, { mode: 0o700 }); fs.mkdirSync(nativeDir, { mode: 0o700 });
+    const executable = await stageBinary(native.path, native.sha256, nativeDir, builds);
+    const runtime = await stageLibraries(native.runtime, nativeDir);
+    l1 = await startL1Runtime(l1Config, { ...(options.l1Options || {}),
+      runDir: l1Dir, signal: options.signal, now: options.now || Date.now });
+    const base = boundedRpc(baseUrl);
+    const execution = boundedRpc(l1Config.executionUrl);
+    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base,
+      bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
+      maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
+      nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
+    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); } });
+  } catch (e) {
+    await provider?.close(); await l1?.close(); journal.close();
+    if (runDir) fs.rmSync(runDir, { recursive: true, force: true });
+    throw e;
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "format": "enclave-derived-reader-qualification/v1",
+  "date": "2026-10-26",
+  "productionActivated": false,
+  "livePositiveBaseDerivation": false,
+  "acceptedImageQualified": false,
+  "liveL1Schedule": {
+    "status": "passed",
+    "startedAt": "2026-10-26T10:11:48.813Z",
+    "finishedAt": "2026-10-26T10:12:28.632Z",
+    "checkpoint": {
+      "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+      "slot": 15511008,
+      "timestamp": 1792956119,
+      "digest": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
+    },
+    "l1": {
+      "number": 26276084,
+      "timestamp": 1793008343,
+      "hash": "0xad01a70ea46a79589ea737ff21ff658e342970d037c65d01ca5ae75da3a14d2a",
+      "stateRoot": "0xc416327a0e6e7f48c02c4e6619e4cc8211599a0b7938248bbf2c74de2bac201d"
+    },
+    "l1AgeSec": 1205,
+    "productionPidsUnchanged": true,
+    "cleaned": true
+  },
+  "schedule": {
+    "id": "0x3d6185fc0e020da273b0abec02bd96263cd2f079f9f88db097fa683fb74ac896",
+    "contract": "0x7480afc8d99a5c645c247db5a1e4a4f440e6e095",
+    "contractLength": 13,
+    "minimumProtocolVersion": {
+      "major": 1,
+      "minor": 4,
+      "patch": 2,
+      "prerelease": 0
+    }
+  },
+  "native": {
+    "sha256": "f1a6bb0e82be37fddf9e2485c50f78b4cd5eb02d43e903152230c91fd22dcfd9",
+    "sourceBundleSha256": "69160868712324190a95e06cef91dd30526c7afe79896838ca8d1dae2bc32da1",
+    "nativeChecks": 9,
+    "compiledConfigChecks": 2,
+    "rollupConfigHash": "0x1607709d90d40904f790574404e2ad614eac858f6162faa0ec34c6bf5e5f3c57",
+    "buildReceiptCommit": "4e056e204d01",
+    "localNegativeInvocations": "PASS with system and explicitly pinned loaders; not positive derivation"
+  },
+  "composition": {
+    "readerTests": 16,
+    "bridgeTests": 4,
+    "passed": 20,
+    "authorityFixtures": true
+  },
+  "liveL1SchedulePinnedLoader": {
+    "status": "passed",
+    "startedAt": "2026-10-26T10:32:08.512Z",
+    "finishedAt": "2026-10-26T10:32:28.852Z",
+    "explicitPinnedLoader": true,
+    "l1": {
+      "number": 26276211,
+      "timestamp": 1793009879,
+      "hash": "0x4b4019b9e93d75483a4aaba364c2387ec3e8f080f1b7623dbff60a22e5ca43b2",
+      "stateRoot": "0xe68bc7153bf0f461f45c50e6223e9fb9bcbec675279d3da2ae6e42ad4fca41c2"
+    },
+    "l1AgeSec": 869,
+    "productionPidsUnchanged": true,
+    "cleaned": true
+  }
+}

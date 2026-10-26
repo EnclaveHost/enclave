@@ -2,7 +2,8 @@
 
 This is the interface between the lifecycle candidate and the coordinated RPC
 implementation. It does not declare an existing RPC deployment qualified.
-There is currently no callable accepted-domain derivation provider. Do not select
+The callable reader is implemented in `network/derived-reader/`; live positive Base
+derivation and accepted-image qualification remain pending. Do not select
 `latest`, an unsafe signed head, or an ASR-game anchor as a fallback.
 
 ## Local derivation provider
