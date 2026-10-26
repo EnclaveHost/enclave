@@ -1,0 +1,93 @@
+--- a/tests/test_ops_installer.py
++++ b/tests/test_ops_installer.py
+@@ -79,7 +79,9 @@
+     def test_backup_is_a_copy_and_never_changes_the_live_mode(self):
+         ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
+         self.assertEqual(IV.commit(ops, 'T2'), 'committed')
+-        a, keep = IV.ROOT / 'opt/x/a.py', IV.ROOT / 'opt/x/a.py.pre-T2'
++        a, keep = IV.ROOT / 'opt/x/a.py', IV.ROOT / 'var/lib/enclave-rpc/install-journal/T2.backup/opt/x/a.py'
++        self.assertEqual(sorted(p.name for p in (IV.ROOT / 'opt/x').iterdir()), ['a.py', 'b.py'], 'r2: no backup beside the live file')
++        self.assertEqual(stat.S_IMODE(os.lstat(keep.parent).st_mode), 0o700)
+         self.assertEqual((a.read_bytes(), stat.S_IMODE(os.lstat(a).st_mode)), (self.new['a.py'], 0o755))
+         self.assertEqual((keep.read_bytes(), stat.S_IMODE(os.lstat(keep).st_mode)), (b'OLD A\n', 0o600))
+         self.assertNotEqual(os.lstat(a).st_ino, os.lstat(keep).st_ino, 'a copy, not a hard link')
+@@ -110,6 +112,79 @@
+         with self.assertRaisesRegex(IV.Refused, '/opt/y/c.py is not installed'):
+             IV.installed_exactly(self.m)
+ 
++    # ---- r2: a real multi-file TREE replacement; backups outside the tree; activation checks trees exactly -------------------
++    def tree_setup(self):
++        src = self.t / 'tsrc'; (src / 'lib').mkdir(parents=True)
++        new = {'index.js': b'export * from "./lib/a.js"\n', 'lib/a.js': b'export const a = 2\n', 'lib/b.js': b'export const b = 2\n'}
++        for r, b in new.items():
++            (src / r).write_bytes(b)
++        self.m['trees'] = [{'src': str(src), 'dest': '/opt/x/deps', 'treeSha256': IV.tree_sha256(src), 'files': {r: sha(b) for r, b in new.items()}}]
++        dep = IV.ROOT / 'opt/x/deps'; (dep / 'lib').mkdir(parents=True); os.chmod(dep, 0o755); os.chmod(dep / 'lib', 0o755)
++        self.old_tree = {'index.js': (b'old index\n', 0o640), 'lib/a.js': (b'old a\n', 0o600)}     # lib/b.js is new
++        for r, (b, mode) in self.old_tree.items():
++            (dep / r).write_bytes(b); os.chmod(dep / r, mode)
++        (IV.ROOT / 'opt/x/unrelated.txt').write_bytes(b'not ours\n')
++        return dep
++
++    def test_tree_replacement_lands_exactly_and_a_repeated_preflight_is_clean(self):
++        dep = self.tree_setup()
++        ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
++        self.assertEqual(IV.commit(ops, 'T5'), 'committed')
++        t = self.m['trees'][0]
++        self.assertEqual(IV.tree_sha256(dep), t['treeSha256'])
++        self.assertEqual(sorted(p.relative_to(dep).as_posix() for p in dep.rglob('*') if p.is_file()), sorted(t['files']))
++        self.assertFalse([p for p in IV.ROOT.joinpath('opt').rglob('*') if '.pre-' in p.name or '.install-' in p.name])
++        bk = IV.ROOT / 'var/lib/enclave-rpc/install-journal/T5.backup/opt/x/deps'
++        for r, (b, _) in self.old_tree.items():
++            self.assertEqual(((bk / r).read_bytes(), stat.S_IMODE(os.lstat(bk / r).st_mode)), (b, 0o600))
++        j = json.loads((IV.ROOT / 'var/lib/enclave-rpc/install-journal/T5.json').read_text())
++        self.assertEqual({o['dest']: o.get('prevMode') for o in j['ops'] if o['dest'].startswith('/opt/x/deps/')},
++                         {'/opt/x/deps/index.js': 0o640, '/opt/x/deps/lib/a.js': 0o600, '/opt/x/deps/lib/b.js': None})
++        again = IV.preflight(self.m, replace=False, include_wrapper=False, include_units=False, stage=self.stage)[1]
++        self.assertEqual({x['result'] for x in again}, {'identical'})
++        IV.installed_exactly(self.m)
++
++    def test_tree_rollback_restores_originals_removes_only_its_files_and_keeps_backups_outside(self):
++        dep = self.tree_setup(); before = self.snapshot()
++        ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
++        last = len([o for o, _ in ops if o['action'] != 'identical']) - 1
++        with self.assertRaisesRegex(IV.Refused, 'rolled back'):
++            IV.commit(ops, 'T6', fail_at=last)                              # every file but the last tree file replaced, then failure
++        after = {k: v for k, v in self.snapshot().items() if not k.startswith('var')}
++        self.assertEqual(after, before)                                     # originals (bytes + modes), unrelated.txt kept, lib/b.js gone
++        self.assertEqual((IV.ROOT / 'opt/x/unrelated.txt').read_bytes(), b'not ours\n')
++        bk = IV.ROOT / 'var/lib/enclave-rpc/install-journal/T6.backup/opt/x/deps/index.js'
++        self.assertEqual(bk.read_bytes(), b'old index\n')                 # the backup is retained, outside the tree
++
++    def test_activation_refuses_a_tampered_installed_tree_file(self):
++        dep = self.tree_setup(); ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
++        IV.commit(ops, 'T7'); IV.installed_exactly(self.m)
++        (dep / 'lib/a.js').write_bytes(b'export const a = 666\n')
++        with self.assertRaisesRegex(IV.Refused, r"is not the qualified tree \(changed: \['lib/a.js'\]\)"):
++            IV.installed_exactly(self.m)
++
++    def test_activation_refuses_an_extra_or_missing_tree_file(self):
++        dep = self.tree_setup(); ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
++        IV.commit(ops, 'T8')
++        (dep / 'lib/a.js.pre-20260101T000000Z').write_bytes(b'old a\n')    # what an r1-style backup beside the file would have left
++        with self.assertRaisesRegex(IV.Refused, r"another file set.*extra \['lib/a.js.pre-20260101T000000Z'\]"):
++            IV.installed_exactly(self.m)
++        with self.assertRaisesRegex(IV.Refused, 'outside the qualified tree'):
++            IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
++        (dep / 'lib/a.js.pre-20260101T000000Z').unlink(); (dep / 'lib/b.js').unlink()
++        with self.assertRaisesRegex(IV.Refused, r"missing \['lib/b.js'\]"):
++            IV.installed_exactly(self.m)
++
++    def test_activation_refuses_a_writable_or_symlinked_tree_entry(self):
++        dep = self.tree_setup(); ops, _ = IV.preflight(self.m, replace=True, include_wrapper=False, include_units=False, stage=self.stage)
++        IV.commit(ops, 'T9')
++        os.chmod(dep / 'index.js', 0o666)
++        with self.assertRaisesRegex(IV.Refused, 'group/other writable'):
++            IV.installed_exactly(self.m)
++        os.chmod(dep / 'index.js', 0o644); (dep / 'lib/a.js').unlink(); os.symlink('b.js', dep / 'lib/a.js')
++        with self.assertRaisesRegex(IV.Refused, 'symlink'):
++            IV.installed_exactly(self.m)
++
+     def test_qualification_needs_the_exact_r6_lines(self):
+         q, rc = self.t / 'q.out', self.t / 'q.rc'; rc.write_text('0\n')
+         q.write_text('## finality-r6 rc=0\n## r6 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')

@@ -1,0 +1,43 @@
+--- a/install/MANIFEST.json
++++ b/install/MANIFEST.json
+@@ -79,7 +79,7 @@
+   {
+    "src": "readiness/readiness_sampler.py",
+    "dest": "/opt/enclave-rpc/readiness/readiness_sampler.py",
+-   "sha256": "411fb26c7d49e7ee630eb2175efe995d591d31b7e2b0891bd3bda018e97acf46",
++   "sha256": "c126201b3a47f8cdffb67a3e935874fe8e1c7b3dc3406772d41a71243516fff2",
+    "mode": "0755"
+   },
+   {
+@@ -95,19 +95,19 @@
+   {
+    "src": "readiness/publish_readiness.py",
+    "dest": "/opt/enclave-rpc/readiness/publish_readiness.py",
+-   "sha256": "2f55a888e285aca66ca6777fbbf300cab815e9df6b38a1dccf4d2933b15b36c5",
++   "sha256": "155b5cb7f9501feb4826426a295816cd4ee7a29583d8e0ddb7ccf5bb9a5d585d",
+    "mode": "0755"
+   },
+   {
+    "src": "readiness/require_ready.py",
+    "dest": "/opt/enclave-rpc/readiness/require_ready.py",
+-   "sha256": "c6beac4c8aa2d5f6463dd5730673bc5c6dbdca418580276017e3e770cc45e9a2",
++   "sha256": "589b33229068eb6f358d6326f6512d271a51771b8a4df7230d67021b2e4c744c",
+    "mode": "0755"
+   },
+   {
+    "src": "units/consumer-requires-base-ready.conf",
+    "dest": "/etc/enclave-rpc/consumer-requires-base-ready.conf",
+-   "sha256": "9d9530885780287866e7b3d75866447477ccff65759a344849cccf005b4bdb8f",
++   "sha256": "c0d37e4ee780227bdec6a79cac15c1396cf119a5d8b486ff8cb5b01d1500b0be",
+    "mode": "0644",
+    "unit": true
+   },
+@@ -149,7 +149,7 @@
+   {
+    "src": "units/enclave-base-readiness.service",
+    "dest": "/etc/systemd/system/enclave-base-readiness.service",
+-   "sha256": "b6b3f4897213ed3ff7fe114a9c56ca873400131155932ca3e78510bdea0749f6",
++   "sha256": "f87c9b06fe0df76e6a7bcf0e65da15dce87f221c0821357d6cb6bb37cda7c7a2",
+    "mode": "0644",
+    "unit": true
+   },

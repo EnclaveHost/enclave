@@ -1,0 +1,11 @@
+test_exact_tokens_per_subcommand_from_the_real_pinned_help (__main__.Capability.test_exact_tokens_per_subcommand_from_the_real_pinned_help) ... ok
+test_production_constant_and_launch_binding_both_required (__main__.ProducerPin.test_production_constant_and_launch_binding_both_required) ... ok
+test_own_cl_retained_range_against_need_from (__main__.Retention.test_own_cl_retained_range_against_need_from) ... ok
+test_partial_state_trie_is_the_state_frontier (__main__.StageFrontier.test_partial_state_trie_is_the_state_frontier) ... ok
+test_pinned_format_all_stages_and_full_state (__main__.StageFrontier.test_pinned_format_all_stages_and_full_state) ... ok
+test_refuses_kebab_labels_missing_rows_and_unknown_finish (__main__.StageFrontier.test_refuses_kebab_labels_missing_rows_and_unknown_finish) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.034s
+
+OK

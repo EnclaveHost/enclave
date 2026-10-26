@@ -1,0 +1,8 @@
+[queue] START available=20461MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+PASS ops-installer: 13
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6-ops-fixes-r2/logs/run-20261026T060808Z-1009684
+## r6-ops-fixes-r2 SHA256SUMS 22c3f86560716cac7f8c7c30761592c8aea35eb61310fe0e20fe76f8d2314ef6
+## finality-ops-fixes-r2 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=32 minHostAvailableMiB=20415
+[memory-guard] at peak: python3:25 bash:4 bash:2 timeout:2
+[queue] EXIT 0

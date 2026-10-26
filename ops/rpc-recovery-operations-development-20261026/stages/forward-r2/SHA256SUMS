@@ -1,0 +1,15 @@
+33f7f46540aa47b1e55989063e4d746d8de2bf2a0ce21c4957540d471c1552ed  ./HELP-PIN.sha256
+bc028832f44ad52908b2b3ffeb1ff8fe1ca5517398dd9b6cd3681a71f2c54fe7  ./README.md
+69f83fc4f737c358c4c6ae54530810bf8896dc50d8d00c67eaf773ef7fa68cea  ./integration/r6-integration-boot-files.patch
+f602920b8a9a1a1d5b3e64017832fffe883086b0ca64cc8d706fdbc3fd8c00e3  ./integration/r6-producer-bound-binary.patch
+a7625636cb74e7d17661fa8df1af8a6a3d8c18f6733ef5bcc2b078e685ef2724  ./integration/r6-tool-test-expectations.patch
+c253ed01d71db525f6509bf1adfb2c8a14b400e10aefa5c5238a7645ba1c372c  ./jobs/root-forward-sync-r2-unit.sh
+3c1bc6434c8a2f02f6748147a4c4d284a150ac3b1348ff62b6755db4fefbf2b6  ./jobs/root-forward-sync-tests.sh
+2ddc72aa78b1193e7284c9c112747decbe97ced0fe691d55ebecfd6ce1aaad31  ./r6-followup/producer/base_launch.py
+d8461a8a8cc4543d65687f34c1f904394de5835e953fa601667736a80fc6d77f  ./r6-followup/tests/test_finality_integration.py
+16eadb7827821e29d5864180eb3bb67c68f35c3a200d48267a08e928615e7d46  ./r6-followup/tests/test_finality_state.py
+d63ee20d1d0ec44f82d62b233599b9d38ff9ad329c99de673ba3585d3734aeef  ./src/forward_sync.py
+50dc12eed35cdce39f88afda33e67c943dd2b0fa3ccf86d198dbc2d7b0dac6a5  ./tests/test_forward_sync.py
+22774e1097ae0a37fad0ca7e68a0faadc4506df7a8de812df4567c846d18eed3  ./tests/test_forward_sync_r2.py
+72191f7878501d2e5721378e9416a9730014d4219a2ffc1537e078cff36180f4  ./units/enclave-base-forward-sync-verify.service
+c1b5dcf4f1115b4bdc6084592e3e34f653efb7968618d288bc528da3f21e22b9  ./units/enclave-base-forward-sync.service

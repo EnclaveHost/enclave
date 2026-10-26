@@ -1,0 +1,11 @@
+--- a/tests/test_finality_integration.py
++++ b/tests/test_finality_integration.py
+@@ -28,6 +28,8 @@
+         return json.dumps({'mounts': {'l1': '/srv/enclave-l1-pair', 'base': '/srv/enclave-base-holder'}, 'binaries': {}})
+     if str(self) == '/etc/enclave-rpc/chain.json':
+         return '{}'
++    if str(self) == '/etc/enclave-rpc-vm/disks.json':                # r6.1: the third import-time read (r6 run 0549)
++        return '{"disks": {}}'
+     return _rt(self, *a, **k)
+ with patch.object(pathlib.Path, 'read_text', _boot_files):
+     W = load('chain_service_r6', ROOT / 'wrapper/chain_service.py')

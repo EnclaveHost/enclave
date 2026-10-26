@@ -1,0 +1,10 @@
+--- a/tests/test_reanchor_recovery.py
++++ b/tests/test_reanchor_recovery.py
+@@ -39,6 +39,7 @@
+ _s = importlib.util.spec_from_file_location('a2a4_recovery', ROOT / 'harness/a2a4.py')
+ R = importlib.util.module_from_spec(_s); _s.loader.exec_module(R)
+ R.TRUSTED_UID = os.getuid(); R.ALLOW_INCOMPLETE_PROC_SCAN = True      # as the fixture does for the reviewed harness
++R.RETH_ENV_PASS = ('FAKE_STATE', 'FAKE_LOG', 'FAKE_SLEEP', 'FAKE_BIG', 'FAKE_ORPHAN', 'FAKE_SPAM', 'FAKE_EXIT', 'FAKE_RESULT')   # r6.2: fake reth's own variables only
+ TA.A = R; L3.A = R; A = R                              # the fixture's and the r3 Pipeline's functions now drive the recovery copy
+ assert pathlib.Path(W.__file__).resolve() == (ROOT / 'wrapper/chain_service.py').resolve()
+ assert pathlib.Path(P.__file__).resolve() == (ROOT / 'producer/base_launch.py').resolve()

@@ -1,0 +1,38 @@
+--- a/tests/test_finality_integration.py
++++ b/tests/test_finality_integration.py
+@@ -205,6 +205,20 @@
+         with self.assertRaisesRegex(R.Refused, '^a1_replayed'):
+             self.reanchor_gate(b, NP)                                                                       # finality admitted it first
+ 
++    def test_interrupted_record_is_adopted_after_a_node_restart(self):
++        """r6.2: a crash between the watermark append and the journal append, then a node restart: adopted from durable state."""
++        self.launched(); self.qualify(self.captures(NP))
++        with patch.object(P, '_append', side_effect=OSError('machine crash after the watermark entry landed')):
++            with self.assertRaises(OSError):
++                self.record()
++        self.proc('888'); self.assertEqual(self.status()['state'], 'stale-after-restart')     # the qualifying process is gone
++        r = self.record(); self.assertTrue(r['adopted'])
++        j = self.journal()[-1][1]; self.assertEqual((j['event'], j['evidence']['finalitySeq'], j['evidence']['number']), ('bootstrapped', 1, NP))
++        self.assertEqual(self.wm(), [('finality-proof', NP)])
++        es = W.watermark_entries(self.store, self.uid, self.t)                                 # a dangling entry naming NO qualified entry
++        W.watermark_append(self.store, self.uid, es, NP + 5, '0x' + '66' * 32, 'finality-proof', 'cd' * 32, 'at', self.t)
++        self.refused(P, 'watermark', self.record); self.assertEqual(self.journal()[-1][1]['event'], 'bootstrapped')
++
+     def test_interrupted_record_is_adopted_never_a_trap(self):
+         self.launched(); self.qualify(self.captures(NP))
+         real = P._append
+@@ -243,8 +257,12 @@
+             W.journal_append(self.d / 'journal', self.uid, self.lsha, self.journal(), 'rearmed', {}, 'at', self.t)
+         P.rollback(self.d, 'crash', W=W, owner=self.uid, top=self.t)
+         self.refused(P, 'transition', self.record)
+-        with self.assertRaisesRegex(AssertionError, 'rolled back'):
+-            self.handshake()
++        with self.assertRaisesRegex(AssertionError, '^watermark: an accepted authenticated-finality floor exists: a first-bootstrap launch never starts'):
++            self.handshake()                                          # r6.2: the GLOBAL floor guard refuses this first-bootstrap launch first
++        self.assertEqual(self.journal()[-1][1]['event'], 'rolled-back')   # and rolled-back is terminal on its own, in the real journal:
++        for ev in ('armed', 'rearmed', 'consumed', 'bootstrapped', 'restart-permitted', 'restarted', 'finality-terminal', 'rolled-back'):
++            with self.assertRaisesRegex(AssertionError, f"'rolled-back' -> '{ev}' is not allowed"):
++                W.journal_append(self.d / 'journal', self.uid, self.lsha, self.journal(), ev, {}, 'at', self.t)
+         self.refused(FS, 'rolled_back', self.qualify, self.captures(NP2, l1_bump=100))
+ 
+     def test_reanchor_launch_appends_after_its_own_anchor_and_refuses_foreign_entries(self):

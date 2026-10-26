@@ -1,0 +1,55 @@
+[queue] NOT STARTED: available=20051MiB required=20992MiB cap=256MiB
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: small allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: available=20373MiB required=20992MiB cap=256MiB
+[q.sh] try 4 not started; sleep 30
+[queue] START available=20443MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "ok": true,
+  "checks": [
+    "consumer does not start inactive holder",
+    "consumer refuses absent holder",
+    "ExecCondition refuses unready holder",
+    "ready consumer starts with existing holder",
+    "live MainPID and proc start time observable",
+    "holder restart changes process",
+    "PartOf restart applies ExecCondition and refuses stale readiness",
+    "PartOf explicit stop stops consumer"
+  ],
+  "error": null,
+  "protectedBefore": {
+    "enclave-rpc-base-snapshot.service": {
+      "MainPID": "4061",
+      "ActiveState": "activating"
+    },
+    "enclave-l1-el.service": {
+      "MainPID": "8111",
+      "ActiveState": "active"
+    },
+    "enclave-l1-cl.service": {
+      "MainPID": "898",
+      "ActiveState": "active"
+    }
+  },
+  "protectedAfter": {
+    "enclave-rpc-base-snapshot.service": {
+      "MainPID": "4061",
+      "ActiveState": "activating"
+    },
+    "enclave-l1-el.service": {
+      "MainPID": "8111",
+      "ActiveState": "active"
+    },
+    "enclave-l1-cl.service": {
+      "MainPID": "898",
+      "ActiveState": "active"
+    }
+  },
+  "canaryFilesRemoved": true
+}
+[memory-guard] exit=0 peakTreeRssMiB=14 minHostAvailableMiB=20413
+[memory-guard] at peak: ssh:10 bash:4
+[queue] EXIT 0
