@@ -1,0 +1,35 @@
+[queue] START available=24818MiB required=20736MiB cap=4096MiB floor=16384MiB concurrentSmall=0MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/recovery-diagnostic-request-1720.json
+f857e08f00653ff70671db3b2afba63424aec7d98802132cf0c0cb968fe7fac8
+{"rc": 6, "refused": null, "interrupted": null, "cleanupComplete": true, "parentUnchanged": true, "overlayBytes": 3997696}
+{
+ "kind": "DIAGNOSTIC",
+ "recoveryAccepted": false,
+ "productionUse": false,
+ "historyVerdict": "BLOCKED",
+ "label": "DIAGNOSTIC READ-ONLY EXPOSURE: recoveryAccepted=false; post-deletion history BLOCKED; no data-integrity, recovery or production claim; only the pinned read-only validator reads the view",
+ "sessionRc": 6,
+ "cleanupComplete": true,
+ "parentUnchanged": true,
+ "mdbx": {
+  "rc": -9,
+  "result": "rc--9",
+  "structurallyClean": false,
+  "seconds": 1800.1,
+  "timedOut": true,
+  "unchangedIdentity": true,
+  "notChecked": [
+   "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+   "reth table semantics",
+   "state/trie roots",
+   "static_files segments",
+   "chain authenticity"
+  ]
+ },
+ "meaning": "structurallyClean=true means only that the pinned mdbx_chk found no structural problem in the read-only view; the history stays BLOCKED, value bytes, chain state and recovery are NOT established"
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/runs/diag-20261026T214243Z-2386107
+## rov-r9-diag rc=6 (0 mdbx_chk structurally clean - DIAGNOSTIC ONLY; 6 not clean/timeout/refused validator; 1 check failed; 3 refused; 4 cleanup/peer problem: STOP; 5 interrupted)
+[memory-guard] exit=6 peakTreeRssMiB=397 minHostAvailableMiB=23234
+[memory-guard] at peak: mdbx_chk:249 fuse2fs:69 qemu-nbd:37 python3:16 python3:15 nbdfuse:4 bash:2 bash:2
+[queue] EXIT 6
