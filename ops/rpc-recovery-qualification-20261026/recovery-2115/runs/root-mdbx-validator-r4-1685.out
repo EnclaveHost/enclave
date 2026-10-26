@@ -1,0 +1,16 @@
+[queue] START available=46242MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## reuse OK (mdbx_chk c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981, mdbx-static.o 14446d9cec01e18660d88ea13ac26681ab800e629f88ca1ff12d9d293c99bb6f; no libmdbx recompilation)
+## fixture build OK
+c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981  mdbx_chk
+14446d9cec01e18660d88ea13ac26681ab800e629f88ca1ff12d9d293c99bb6f  mdbx-static.o
+ca8d4192189742ccccb1b9eb0b71790dfd35974a247a85fa64fb6e68f7312275  mk_fixture
+## version OK v0.13.12-0-gf619d43d
+Ran 20 tests in 15.166s
+
+OK
+## test_mdbx_validator PASS (20)
+## no ResourceWarning
+## mdbx-validator-r4 rc=0 (mdbx_chk sha256 c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981; run copies in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin)
+[memory-guard] exit=0 peakTreeRssMiB=65 minHostAvailableMiB=45620
+[memory-guard] at peak: python3:24 python3:21 mdbx_chk:12 bash:4 sleep:2 timeout:2
+[queue] EXIT 0

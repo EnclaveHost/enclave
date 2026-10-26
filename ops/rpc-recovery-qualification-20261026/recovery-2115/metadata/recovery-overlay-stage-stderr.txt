@@ -1,0 +1,65 @@
+......FF.FFFF.......
+======================================================================
+FAIL: test_16_a_failing_validator_gives_rc_6_and_leaves_no_descendants (__main__.RecoveryOverlay.test_16_a_failing_validator_gives_rc_6_and_leaves_no_descendants)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 227, in test_16_a_failing_validator_gives_rc_6_and_leaves_no_descendants
+    self.assertEqual(rc, 6, (script, r.get("exec")))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 != 6 : ('sleep 300 & exit 3', None)
+
+======================================================================
+FAIL: test_17_a_validator_timeout_gives_rc_6_and_kills_its_group (__main__.RecoveryOverlay.test_17_a_validator_timeout_gives_rc_6_and_kills_its_group)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 236, in test_17_a_validator_timeout_gives_rc_6_and_kills_its_group
+    self.assertEqual(rc, 6, r.get("exec"))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 != 6
+
+======================================================================
+FAIL: test_19_sigterm_mid_hold_runs_the_full_cleanup (__main__.RecoveryOverlay.test_19_sigterm_mid_hold_runs_the_full_cleanup)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 289, in test_19_sigterm_mid_hold_runs_the_full_cleanup
+    rc, run = self.killed_mid_hold(signal.SIGTERM)
+              ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 260, in killed_mid_hold
+    self.assertIsNone(proc.poll(), "the session ended before its view was mounted")
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 is not None : the session ended before its view was mounted
+
+======================================================================
+FAIL: test_1_restored_view_reads_the_deleted_file_exactly_and_refuses_writes (__main__.RecoveryOverlay.test_1_restored_view_reads_the_deleted_file_exactly_and_refuses_writes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 91, in test_1_restored_view_reads_the_deleted_file_exactly_and_refuses_writes
+    self.assertEqual(rc, 0, r)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+AssertionError: 3 != 0 : {'acceptance': 'DIAGNOSTIC RECOVERY VIEW ONLY: not a recovery, restore or production acceptance; the data blocks are not authenticated', 'adoptedKilled': [], 'checks': {'overlayQcowCheck': {'detail': '{\n    "image-end-offset": 655360,\n    "total-clusters": 1536,\n    "check-errors": 0,\n    "allocated-clusters": 5,\n    "filename": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/07-run/work/overlay.qcow', 'ok': True}, 'overlayWithinCap': {'detail': 655360, 'ok': True}}, 'children': {'qemu-nbd': {'cmd': ['qemu-nbd', '--read-only', '--shared=1', '--socket=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/07-run/work/nbd.sock', '--image-opts', 'driver=qcow2,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/07-run/work/overlay.qcow2,backing.driver=qcow2,backing.read-only=on,backing.file.driver=file,backing.file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/fixture/parent-clean.qcow2,backing.file.locking=off,read-only=on'], 'pid': 2358909, 'returncode': 1}}, 'cleanupComplete': True, 'leftoverProcesses': [], 'overlayBytes': 655360, 'overlayDeleted': True, 'overlayEstimate': 1703936, 'parentPost': {'ctimeNs': 1793049220264533212, 'dev': 64768, 'ino': 26111799, 'mtimeNs': 1793049220262533231, 'size': 13107200}, 'parentPre': {'ctimeNs': 1793049220264533212, 'dev': 64768, 'ino': 26111799, 'mtimeNs': 1793049220262533231, 'size': 13107200}, 'parentUnchanged': True, 'planSha256': '68931819039e9643e5adb47caa7bb7dd022409bbe96994ffdbf89fa6679cbfb8', 'rc': 3, 'refused': 'Refused: qemu-nbd exited (1) before the nbd socket', 'steps': [[1793049222.947, 'overlay create'], [1793049222.984, 'overlay patch'], [1793049223.035, 'qemu-nbd'], [1793049223.242, 'cleanup']]}
+
+======================================================================
+FAIL: test_20_sigkill_mid_hold_still_ends_every_child_and_mount (__main__.RecoveryOverlay.test_20_sigkill_mid_hold_still_ends_every_child_and_mount)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 295, in test_20_sigkill_mid_hold_still_ends_every_child_and_mount
+    rc, _run = self.killed_mid_hold(signal.SIGKILL)
+               ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 260, in killed_mid_hold
+    self.assertIsNone(proc.poll(), "the session ended before its view was mounted")
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 is not None : the session ended before its view was mounted
+
+======================================================================
+FAIL: test_2_reused_data_blocks_are_detected_not_accepted (__main__.RecoveryOverlay.test_2_reused_data_blocks_are_detected_not_accepted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/tests/test_recovery_overlay.py", line 103, in test_2_reused_data_blocks_are_detected_not_accepted
+    self.assertEqual(rc, 1, r)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+AssertionError: 3 != 1 : {'acceptance': 'DIAGNOSTIC RECOVERY VIEW ONLY: not a recovery, restore or production acceptance; the data blocks are not authenticated', 'adoptedKilled': [], 'checks': {'overlayQcowCheck': {'detail': '{\n    "image-end-offset": 655360,\n    "total-clusters": 1536,\n    "check-errors": 0,\n    "allocated-clusters": 5,\n    "filename": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/09-run/work/overlay.qcow', 'ok': True}, 'overlayWithinCap': {'detail': 655360, 'ok': True}}, 'children': {'qemu-nbd': {'cmd': ['qemu-nbd', '--read-only', '--shared=1', '--socket=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/09-run/work/nbd.sock', '--image-opts', 'driver=qcow2,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/09-run/work/overlay.qcow2,backing.driver=qcow2,backing.read-only=on,backing.file.driver=file,backing.file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r4/runs/tests-20261026T211339Z-2358688/work/fixture/parent-reused.qcow2,backing.file.locking=off,read-only=on'], 'pid': 2358955, 'returncode': 1}}, 'cleanupComplete': True, 'leftoverProcesses': [], 'overlayBytes': 655360, 'overlayDeleted': True, 'overlayEstimate': 1703936, 'parentPost': {'ctimeNs': 1793049220314532752, 'dev': 64768, 'ino': 26111800, 'mtimeNs': 1793049220313532761, 'size': 17170432}, 'parentPre': {'ctimeNs': 1793049220314532752, 'dev': 64768, 'ino': 26111800, 'mtimeNs': 1793049220313532761, 'size': 17170432}, 'parentUnchanged': True, 'planSha256': '68931819039e9643e5adb47caa7bb7dd022409bbe96994ffdbf89fa6679cbfb8', 'rc': 3, 'refused': 'Refused: qemu-nbd exited (1) before the nbd socket', 'steps': [[1793049224.473, 'overlay create'], [1793049224.511, 'overlay patch'], [1793049224.558, 'qemu-nbd'], [1793049224.765, 'cleanup']]}
+
+----------------------------------------------------------------------
+Ran 20 tests in 5.450s
+
+FAILED (failures=6)

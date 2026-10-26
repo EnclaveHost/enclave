@@ -1,0 +1,6 @@
+[queue] START available=20030MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+
+[memory-guard] STOPPING own job: host MemAvailable 15877 MiB < floor 16384 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=97 minHostAvailableMiB=15877 STOPPED: host MemAvailable 15877 MiB < floor 16384 MiB
+[memory-guard] at peak: python3:76 qemu-img:15 bash:4 timeout:2
+[queue] EXIT 99
