@@ -58,7 +58,14 @@ export function hostEgressOffer(h){
 // attestedKey(id) -> sha256 hex of the TLS key the host's CURRENT attested guest proof bound (or null): required for
 // owner-committed custom names on direct hosting (c.direct.ownerNames), never consulted otherwise. ownerNameRoots is a
 // code-level override of the public root store for embedders and tests; no configuration file can set it.
-export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{},challengeOptions={}}){
+/** The reader verifyOwnerSignature uses for contract-wallet owners: the pinned quorum reader (unchanged), or the agent's
+ *  LeaseReader when it IS the explicit local verifier authority (lease-reader.mjs authority 'verifier'; its rpc is never
+ *  turned into clients). Otherwise undefined: the legacy multi-client path (every configured client must agree). */
+export function ownerSignatureReader({pins,leaseReader}){
+ if(pins)return leaseReader;
+ return leaseReader&&leaseReader.authority==='verifier'&&typeof leaseReader.agreed==='function'?leaseReader:undefined;
+}
+export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
  if(!c||typeof c!=='object')throw new Error('Enclave network configuration required');
  if(c.relay!==undefined){
   const u=new URL(c.relay);
@@ -79,12 +86,10 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  const relay=async(p,init)=>{if(!c.relay)throw new Error('BYO requires an operator-local config directory or an explicit relay');const r=await fetch(new URL(p,c.relay),{...init,signal:AbortSignal.timeout(10000)});if(r.status===404)return null;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(`relay ${p.split('/').slice(0,4).join('/')}: ${b?.error||r.status}`);return b;};
  const directories=new DirectoryClient({origins:c.directories||(c.relay?[c.relay]:[]),fetch});
  const clients=(rpc||[]).map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
- // Pinned mode verifies contract owners at the same fresh agreeing chain block. So does a reader under the explicit local
- // verifier (authority 'verifier': no provider clients exist then): one proof-backed block, the SessionVault factory read
- // from the admin's address book AT that block (a book migration is followed), and any refusal - a stale head, a missing
- // or bad proof - answers "not the owner". An EOA signature never needs a chain read.
- const authenticated=pins||leaseReader?.authority==='verifier';
- const verify=async(owner,message,signature)=>verifyOwnerSignature({clients,reader:authenticated?leaseReader:undefined,owner,message,signature,addressBook,sessionVaultFactory:pins?.sessionVaultFactory});
+ // Pinned mode verifies contract owners at the same fresh agreeing chain block.
+ // Contract-wallet owners (ERC-1271 passkey vaults, SessionVaults) are verified at ONE agreed block: the pinned quorum reader,
+ // or - when the agent's chain is the node's explicit local verifier (no rpc, so no clients) - that same verifier reader.
+ const verify=async(owner,message,signature)=>verifyOwnerSignature({clients,reader:ownerSignatureReader({pins,leaseReader}),owner,message,signature,addressBook,sessionVaultFactory:pins?.sessionVaultFactory});
  const state=new DurableState(path.join(directory,'enclave-network'));
  const memory={get:async id=>(await state.get('policy-nonces'))?.[id],set:async(id,n)=>state.update('policy-nonces',async old=>({...(old||{}),[id]:n}))};
  const policyCache=new Map();
