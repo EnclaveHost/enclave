@@ -1,4 +1,6 @@
-# Verifier canonical block-hash (EIP-1898 requireCanonical): native tests PASSED (root run 0000); mutants run 0006 FAILED (harness classifier defect), negative controls UNPROVEN
+# Verifier canonical block-hash (EIP-1898 requireCanonical): native tests PASSED (run 0000); required controls 12/12 KILLED (corrected reevaluation); EVM tests PASSED (run 0031, exact scope); EVM controls 5/5 KILLED (run 0032)
+
+_Title before the 2026-10-26 correction (historical): Verifier canonical block-hash (EIP-1898 requireCanonical): native tests PASSED (root run 0000); mutants run 0006 FAILED (harness classifier defect), negative controls UNPROVEN_
 
 ## Current status (actual root result, 2026-10-26 UTC)
 
@@ -36,17 +38,30 @@
 content equal to the reviewed CH0. **This is not an independent reproduction.**
 
 **What this is NOT:**
-- **Negative controls UNPROVEN:** the mutants run `root-canonical-mutants-0006` ended with **rc 1, `[queue] EXIT 1`**.
-  - **Its classifications:** M0–M12 and I2 were all `INVALID (compiler error)`; I1 and I3 `SURVIVED`.
-  - **Every `--no-run` mutant build succeeded.** The INVALID labels come from a **defect in
-    `jobs/check_cargo_output.py mutant`**. Its rule `^error(\[E\d+\])?:` also matches cargo's normal trailer after a
-    test failure, `error: test failed, to rerun pass …`. So a mutant whose tests FAILED is labelled a compiler error.
-  - **Example:** M1's output shows `canonical_block_gate` with 7 failed tests followed by that trailer.
-  - **No kill is claimed or inferred from this run.** The classifier needs a fix and the mutants a rerun (root's
-    stage). The earlier synthetic parser self-test did not include that trailer line.
+- **Negative controls: 12/12 required controls KILLED** (M0–M8, M10–M12). This comes from the **corrected
+  reevaluation** of the actual mutant outputs by the validated strict r2 parser, not from a native rerun. Receipt:
+  `../canonical-controls-repair-prepared/actual/reevaluation-mutants-20261026T001203Z.json`, sha256 `93c65ee9…`,
+  with `"nativeRerun": false`.
+  - **Original runner results stay recorded as failed classifiers:** the 0006 verdicts (and the original 0013 runner
+    verdicts) are kept as written. They are classifier failures, not product results.
+  - **I1–I3** are informational, expected survivors, and are never counted.
+- **Superseded wording (historical, kept as written before the controls repair):**
+  > - **Negative controls UNPROVEN:** the mutants run `root-canonical-mutants-0006` ended with **rc 1, `[queue] EXIT 1`**.
+  >   - **Its classifications:** M0–M12 and I2 were all `INVALID (compiler error)`; I1 and I3 `SURVIVED`.
+  >   - **Every `--no-run` mutant build succeeded.** The INVALID labels come from a **defect in
+  >     `jobs/check_cargo_output.py mutant`**. Its rule `^error(\[E\d+\])?:` also matches cargo's normal trailer after a
+  >     test failure, `error: test failed, to rerun pass …`. So a mutant whose tests FAILED is labelled a compiler error.
+  >   - **Example:** M1's output shows `canonical_block_gate` with 7 failed tests followed by that trailer.
+  >   - **No kill is claimed or inferred from this run.** The classifier needs a fix and the mutants a rerun (root's
+  >     stage). The earlier synthetic parser self-test did not include that trailer line.
 - **No production claims:** no production release, no measured release, no deployment and no independent
-  reproduction. **Not security-complete.** There is still no reth forced-reorg E2E and no full EVM (`call`,
-  `estimate_gas`, `create_access_list`) test through the real Node. Depth is limited to 256.
+  reproduction. **Not security-complete, and production RPC is not finished.** There is still no reth forced-reorg
+  E2E. Depth is limited to 256.
+  - **EVM, exact scope only:** 9 real-revm tests of `call`, `estimate_gas` and `create_access_list` through the real
+    Node and ProofDB passed natively (run 0031; full core regression 100 passed over 21 summaries). They use a **mock
+    execution provider, with no cryptographic MPT inside the EVM fixture**. The 5/5 critical EVM mutants were KILLED
+    (run 0032, strict parser, cargo exit 101 each). See
+    `../verifier-canonical-evm-prepared/`.
 - **Custody v2 stays REFUSED.**
 
 ## Earlier status (kept as written before run 0000; those records were UNTESTED at the time)
@@ -267,9 +282,23 @@ The `jobs/` copies here are byte-identical to `verifier-canonical-stage/jobs/`.
 - **I1–I3:** reported, expected to survive (defence in depth).
 
 **Parser:** `check_cargo_output.py` was self-tested on synthetic cargo output (pass, ignored, filtered, unexpected,
-missing, panic versus non-panic, compiler error). No product code has run.
+missing, panic versus non-panic, compiler error). No product code has run. _(Historical: written before the native
+runs. Product code has since compiled and passed; see "Current status". This parser's mutant rule was later found
+defective; see the controls note above.)_
 
-## Limitations
+## Current limitations (corrected 2026-10-26)
+
+- **Not done yet:** no reth forced-reorg E2E, no full chain or network run, no measured release, no deployment and no
+  independent reproduction. Both native passes reused a cache.
+- **EVM:** covered only by the 9 tests above, with a mock execution provider and no MPT in the EVM fixture.
+  `EthereumEvm` pins whatever block the provider returns; exactness relies on the provider's tested exact-hash
+  postcondition. The EVM controls (5/5 KILLED, run 0032) cover only these tests' scope.
+- **Depth 256:** `requireCanonical:true` is refused more than 256 blocks below the head.
+- **Cold-cache walks:** one EIP-2935 fetch per link, within the existing budget; an over-budget walk refuses.
+- **`requireCanonical` absent or false:** a read already bound to A returns A's own state when a reorg races it.
+- **Custody v2 stays REFUSED.**
+
+## Limitations as written before the native runs (HISTORICAL; superseded by "Current limitations" above)
 
 - **UNCOMPILED.** The largest unverified piece is the new real-Node harness (mock execution provider and consensus).
   Phase A separates compile failures from verdicts.

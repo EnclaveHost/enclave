@@ -1,0 +1,331 @@
+//! REAL helios_core Node + REAL revm EVM for EIP-1898 hash reads of call / estimate_gas / create_access_list
+//! (verifier-canonical-evm-stage, on the canonical candidate 41667ec9; NOT yet compiled).
+//!
+//! What runs for real:
+//!   * Node: the gate pre-check and the requireCanonical post-check (client::canonical, the real BlockCache);
+//!   * Ethereum::transact -> helios-ethereum EthereumEvm -> revm's mainnet EVM, executing the bytecode below;
+//!   * revm-utils ProofDB: the block is pinned by the hash the provider returned, every account and storage slot is
+//!     fetched through ExecutionProvider::get_account(.., pinned hash), BLOCKHASH through execution::ancestry.
+//! Trust boundary NOT exercised here: Merkle-Patricia proof verification. The mock provider returns account and
+//! storage state keyed by the EXACT block hash it resolved from the real BlockCache (what a verified provider must
+//! do); the RPC provider's proof checks and exact-hash postcondition are covered by rpc_account_proof,
+//! rpc_storage_proof and rpc_exact_hash_postcondition. The execution hint (an untrusted RPC access list) is EMPTY, so
+//! every account and slot goes through get_account.
+//! Chain movement (a reorg, an A-B-A flap, a head advance) is scripted DURING the EVM's storage-proof fetch: after the
+//! pinned block was resolved for that fetch and before its answer, which is the last state read of each contract.
+#[path = "support/metadata.rs"]
+mod metadata;
+#[path = "support/canonical_fixture.rs"]
+mod fx;
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use alloy::consensus::TrieAccount;
+use alloy::eips::{BlockId, BlockNumberOrTag};
+use alloy::network::Network;
+use alloy::primitives::{keccak256, Address, Bytes, TxKind, B256, U256};
+use alloy::rpc::types::{Block, EIP1186StorageProof, Filter, Log, TransactionRequest};
+use async_trait::async_trait;
+use eyre::{eyre, Result};
+use fx::{blk, hash_id, now, Blk};
+use helios_common::execution_provider::{
+    AccountProvider, BlockProvider, ExecutionHintProvider, ExecutionProvider, LogProvider, ReceiptProvider, TransactionProvider,
+};
+use helios_common::types::Account;
+use helios_core::client::{api::HeliosApi, node::Node};
+use helios_core::consensus::{Consensus, TrustedBlockRef};
+use helios_core::execution::providers::block::block_cache::BlockCache;
+use helios_ethereum::spec::Ethereum;
+use tokio::sync::{mpsc, watch};
+
+const CONTRACT: Address = Address::repeat_byte(0xcc);
+/// return SLOAD(0) as one word: PUSH1 0 SLOAD PUSH1 0 MSTORE PUSH1 32 PUSH1 0 RETURN
+const READ_SLOT0: &[u8] = &[0x60, 0x00, 0x54, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3];
+/// if SLOAD(0) != 0 { SSTORE(1, 1) }: PUSH1 0 SLOAD PUSH1 7 JUMPI STOP JUMPDEST PUSH1 1 PUSH1 1 SSTORE STOP
+const BRANCH_ON_SLOT0: &[u8] = &[0x60, 0x00, 0x54, 0x60, 0x07, 0x57, 0x00, 0x5b, 0x60, 0x01, 0x60, 0x01, 0x55, 0x00];
+/// return BLOCKHASH(NUMBER - 1) as one word: PUSH1 1 NUMBER SUB BLOCKHASH PUSH1 0 MSTORE PUSH1 32 PUSH1 0 RETURN
+const PARENT_BLOCKHASH: &[u8] = &[0x60, 0x01, 0x43, 0x03, 0x40, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3];
+const FLAGS: [Option<bool>; 3] = [None, Some(false), Some(true)];
+
+struct TestConsensus { latest: Option<mpsc::Receiver<TrustedBlockRef<Block>>>, finalized: Option<watch::Receiver<Option<TrustedBlockRef<Block>>>> }
+#[async_trait]
+impl Consensus<Block> for TestConsensus {
+    fn block_recv(&mut self) -> Option<mpsc::Receiver<TrustedBlockRef<Block>>> { self.latest.take() }
+    fn finalized_block_recv(&mut self) -> Option<watch::Receiver<Option<TrustedBlockRef<Block>>>> { self.finalized.take() }
+    fn checkpoint_recv(&self) -> Option<watch::Receiver<Option<B256>>> { None }
+    fn expected_highest_block(&self) -> u64 { 0 }
+    fn chain_id(&self) -> u64 { 1 }
+    fn shutdown(&self) -> Result<()> { Ok(()) }
+    async fn wait_synced(&self) -> Result<()> { Ok(()) }
+}
+
+/// Contract storage per EXACT block hash: block hash -> slot -> value.
+type States = Arc<Mutex<HashMap<B256, HashMap<B256, U256>>>>;
+/// Blocks pushed as LATEST during the EVM's storage-proof fetch.
+type Plan = Arc<Mutex<Vec<Blk>>>;
+#[derive(Default)]
+struct Probe {
+    storage_fetches: u32,            // get_account calls with slots (the EVM's storage-proof fetches)
+    plan_ran: bool,                  // the scripted chain movement really happened mid-fetch
+    number_reads: u32,               // by-height block reads (BLOCKHASH must make none)
+    number_lie: HashMap<u64, Blk>,   // what a by-height read answers ("the canonical block at that height is another chain")
+    wrong_for_hash: Option<Blk>,     // an upstream that answers EVERY hash read with this block
+}
+struct MockExec { cache: Arc<BlockCache<Ethereum>>, code: Bytes, states: States, plan: Plan, probe: Arc<Mutex<Probe>> }
+impl MockExec {
+    async fn resolve(&self, id: BlockId) -> Result<Blk> { self.get_block(id, false).await?.ok_or_else(|| eyre!("block not found")) }
+    async fn during(&self) {
+        let blocks = std::mem::take(&mut *self.plan.lock().unwrap());
+        if !blocks.is_empty() { self.probe.lock().unwrap().plan_ran = true; }
+        for b in blocks { self.cache.push_block(b, BlockNumberOrTag::Latest.into()).await; }
+    }
+}
+#[async_trait]
+impl AccountProvider<Ethereum> for MockExec {
+    async fn get_account(&self, address: Address, slots: &[B256], with_code: bool, block_id: BlockId) -> Result<Account> {
+        let b = self.resolve(block_id).await?;                  // the exact pinned block of this fetch
+        if !slots.is_empty() {
+            self.probe.lock().unwrap().storage_fetches += 1;
+            self.during().await;                                 // the chain moves while the storage proof is in flight
+        }
+        let values: Vec<U256> = {
+            let states = self.states.lock().unwrap();
+            let per = states.get(&b.header.hash).ok_or_else(|| eyre!("no state for this block"))?;
+            slots.iter().map(|s| if address == CONTRACT { per.get(s).copied().unwrap_or_default() } else { U256::ZERO }).collect()
+        };
+        let code = if address == CONTRACT { self.code.clone() } else { Bytes::new() };
+        Ok(Account {
+            account: TrieAccount { code_hash: keccak256(&code), ..Default::default() },
+            code: with_code.then(|| code.clone()),
+            account_proof: vec![],
+            storage_proof: slots.iter().zip(values).map(|(s, v)| EIP1186StorageProof { key: (*s).into(), value: v, proof: vec![] }).collect(),
+        })
+    }
+}
+#[async_trait]
+impl BlockProvider<Ethereum> for MockExec {
+    async fn push_block(&self, b: Blk, id: BlockId) { self.cache.push_block(b, id).await }
+    async fn get_block(&self, id: BlockId, full: bool) -> Result<Option<Blk>> {
+        if let BlockId::Number(BlockNumberOrTag::Number(n)) = id {
+            let lie = { let mut p = self.probe.lock().unwrap(); p.number_reads += 1; p.number_lie.get(&n).cloned() };
+            if lie.is_some() { return Ok(lie); }
+        }
+        if let BlockId::Hash(_) = id {
+            let wrong = self.probe.lock().unwrap().wrong_for_hash.clone();
+            if wrong.is_some() { return Ok(wrong); }
+        }
+        self.cache.get_block(id, full).await
+    }
+    async fn get_untrusted_block(&self, _id: BlockId, _full: bool) -> Result<Option<Blk>> { Ok(None) }
+}
+#[async_trait]
+impl TransactionProvider<Ethereum> for MockExec {
+    async fn send_raw_transaction(&self, _bytes: &[u8]) -> Result<B256> { Err(eyre!("unused")) }
+    async fn get_transaction(&self, _hash: B256) -> Result<Option<<Ethereum as Network>::TransactionResponse>> { Ok(None) }
+    async fn get_transaction_by_location(&self, _id: BlockId, _index: u64) -> Result<Option<<Ethereum as Network>::TransactionResponse>> { Ok(None) }
+}
+#[async_trait]
+impl ReceiptProvider<Ethereum> for MockExec {
+    async fn get_receipt(&self, _hash: B256) -> Result<Option<<Ethereum as Network>::ReceiptResponse>> { Ok(None) }
+    async fn get_block_receipts(&self, _id: BlockId) -> Result<Option<Vec<<Ethereum as Network>::ReceiptResponse>>> { Ok(None) }
+}
+#[async_trait]
+impl LogProvider<Ethereum> for MockExec { async fn get_logs(&self, _f: &Filter) -> Result<Vec<Log>> { Ok(vec![]) } }
+#[async_trait]
+impl ExecutionHintProvider<Ethereum> for MockExec {
+    // the untrusted access-list hint is empty: every account and slot is fetched through get_account
+    async fn get_execution_hint(&self, _c: &<Ethereum as Network>::TransactionRequest, _v: bool, _id: BlockId) -> Result<HashMap<Address, Account>> { Ok(HashMap::new()) }
+}
+impl ExecutionProvider<Ethereum> for MockExec {}
+
+struct H { node: Node<Ethereum, TestConsensus, MockExec>, cache: Arc<BlockCache<Ethereum>>, states: States, plan: Plan, probe: Arc<Mutex<Probe>>,
+           _keep: (mpsc::Sender<TrustedBlockRef<Block>>, watch::Sender<Option<TrustedBlockRef<Block>>>) }
+impl H {
+    fn new(code: &[u8]) -> Self {
+        let (ls, lr) = mpsc::channel(4); let (fs, fr) = watch::channel(None);
+        let cache = Arc::new(BlockCache::<Ethereum>::new()); let states: States = Arc::default(); let plan: Plan = Arc::default();
+        let probe: Arc<Mutex<Probe>> = Arc::default();
+        let exec = MockExec { cache: cache.clone(), code: Bytes::copy_from_slice(code), states: states.clone(), plan: plan.clone(), probe: probe.clone() };
+        let node = Node::new(TestConsensus { latest: Some(lr), finalized: Some(fr) }, exec, metadata::forks());
+        Self { node, cache, states, plan, probe, _keep: (ls, fs) }
+    }
+    async fn push(&self, b: &Blk) { self.cache.push_block(b.clone(), BlockNumberOrTag::Latest.into()).await }
+    fn slot(&self, b: &Blk, slot: u64, v: u64) {
+        self.states.lock().unwrap().entry(b.header.hash).or_default().insert(B256::from(U256::from(slot)), U256::from(v));
+    }
+    fn during(&self, blocks: &[&Blk]) { *self.plan.lock().unwrap() = blocks.iter().map(|b| (*b).clone()).collect(); }
+    fn plan_ran(&self) -> bool { self.probe.lock().unwrap().plan_ran }
+    async fn call(&self, id: BlockId) -> Result<Bytes> { self.node.call(&tx(), id, None).await }
+    async fn gas(&self, id: BlockId) -> Result<u64> { self.node.estimate_gas(&tx(), Some(id), None).await }
+    /// the storage keys the access list reports for CONTRACT, sorted
+    async fn keys(&self, id: BlockId) -> Result<Vec<B256>> {
+        let r = self.node.create_access_list(&tx(), id, None).await?;
+        let mut k: Vec<B256> = r.access_list.0.iter().filter(|i| i.address == CONTRACT).flat_map(|i| i.storage_keys.clone()).collect();
+        k.sort();
+        Ok(k)
+    }
+}
+fn tx() -> TransactionRequest { TransactionRequest { to: Some(TxKind::Call(CONTRACT)), gas: Some(1_000_000), ..Default::default() } }
+fn word(v: u64) -> Bytes { Bytes::copy_from_slice(B256::from(U256::from(v)).as_slice()) }
+fn key(slot: u64) -> B256 { B256::from(U256::from(slot)) }
+
+/// p9 <- a10 (head, fresh); b10 is a10's sibling (A vs B state); a11 is a10's child.
+fn chain(t: u64) -> (Blk, Blk, Blk, Blk) {
+    let p = blk(9, 0, B256::ZERO, t - 6); let a10 = blk(10, 1, p.header.hash, t - 4);
+    let b10 = blk(10, 2, p.header.hash, t - 1); let a11 = blk(11, 1, a10.header.hash, t - 2);
+    (p, a10, b10, a11)
+}
+/// READ_SLOT0 with slot 0 = 0xA under a10 and 0xB under b10 (and 0x11 under a11); head a10.
+async fn read_setup() -> (H, Blk, Blk, Blk) {
+    let h = H::new(READ_SLOT0); let (p, a10, b10, a11) = chain(now());
+    h.push(&p).await; h.push(&a10).await;
+    h.slot(&a10, 0, 0xA); h.slot(&b10, 0, 0xB); h.slot(&a11, 0, 0x11); h.slot(&p, 0, 0x9);
+    (h, a10, b10, a11)
+}
+/// BRANCH_ON_SLOT0 with slot 0 = 0 under a10 (STOP) and 1 under b10 (SSTORE(1,1)); head `head` (a10 or b10).
+async fn branch_setup(head_is_b: bool) -> (H, Blk, Blk, Blk) {
+    let h = H::new(BRANCH_ON_SLOT0); let (p, a10, b10, a11) = chain(now());
+    h.push(&p).await; h.push(if head_is_b { &b10 } else { &a10 }).await;
+    h.slot(&a10, 0, 0); h.slot(&b10, 0, 1); h.slot(&a11, 0, 0); h.slot(&p, 0, 0);
+    (h, a10, b10, a11)
+}
+
+// call: the EVM executes A's code over A's exact state for every flag (B's state would return 0xB).
+#[tokio::test]
+async fn evm_call_executes_exact_block_state_for_every_flag() {
+    let (h, a10, ..) = read_setup().await;
+    for f in FLAGS { assert_eq!(h.call(hash_id(a10.header.hash, f)).await.unwrap(), word(0xA), "{f:?}"); }
+    assert!(h.probe.lock().unwrap().storage_fetches >= 3, "the EVM fetched the slot through get_account");
+}
+
+// call: a reorg A10 -> B10 DURING the EVM's storage-proof fetch. requireCanonical:true is refused at the post-check;
+// absent/false answer A's own state (no canonicality claim), never B's.
+#[tokio::test]
+async fn evm_call_reorg_during_proof_fetch_refuses_require_canonical_true() {
+    let (h, a10, b10, _) = read_setup().await;
+    h.during(&[&b10]);
+    let r = h.call(hash_id(a10.header.hash, Some(true))).await;
+    assert!(h.plan_ran(), "the reorg must really run during the EVM's fetch");
+    assert!(r.is_err(), "call answered {r:?} although A10 was reorganized away during its EVM proof fetch");
+    for f in [None, Some(false)] {
+        let (h, a10, b10, _) = read_setup().await;
+        h.during(&[&b10]);
+        assert_eq!(h.call(hash_id(a10.header.hash, f)).await.unwrap(), word(0xA), "{f:?}: A's state, never B's");
+        assert!(h.plan_ran());
+    }
+}
+
+// estimate_gas: A (slot0 = 0) stops; B (slot0 = 1) also runs SSTORE(1, 1). Each block's own gas, and the reorg
+// during the EVM's proof fetch is refused for requireCanonical:true.
+#[tokio::test]
+async fn evm_estimate_gas_binds_state_and_post_check_refuses_reorg() {
+    let (h, a10, ..) = branch_setup(false).await;
+    let ga = h.gas(hash_id(a10.header.hash, Some(true))).await.unwrap();
+    let (hb, _, b10, _) = branch_setup(true).await;
+    let gb = hb.gas(hash_id(b10.header.hash, Some(true))).await.unwrap();
+    assert!(gb > ga + 15_000, "B's SSTORE branch must cost more: A {ga}, B {gb}");
+    for f in FLAGS { assert_eq!(h.gas(hash_id(a10.header.hash, f)).await.unwrap(), ga, "{f:?}"); }
+    let (h, a10, b10, _) = branch_setup(false).await;
+    h.during(&[&b10]);
+    let r = h.gas(hash_id(a10.header.hash, Some(true))).await;
+    assert!(h.plan_ran(), "the reorg must really run during the EVM's fetch");
+    assert!(r.is_err(), "estimate_gas answered {r:?} although A10 was reorganized away during its EVM proof fetch");
+    let (h, a10, b10, _) = branch_setup(false).await;
+    h.during(&[&b10]);
+    assert_eq!(h.gas(hash_id(a10.header.hash, None)).await.unwrap(), ga, "absent flag: A's gas, never B's");
+}
+
+// create_access_list: A touches slot 0 only; B touches slots 0 and 1. The reorg during the proof fetch is refused for
+// requireCanonical:true.
+#[tokio::test]
+async fn evm_create_access_list_binds_state_and_post_check_refuses_reorg() {
+    let (h, a10, ..) = branch_setup(false).await;
+    for f in FLAGS { assert_eq!(h.keys(hash_id(a10.header.hash, f)).await.unwrap(), vec![key(0)], "{f:?}"); }
+    let (hb, _, b10, _) = branch_setup(true).await;
+    assert_eq!(hb.keys(hash_id(b10.header.hash, Some(true))).await.unwrap(), vec![key(0), key(1)]);
+    let (h, a10, b10, _) = branch_setup(false).await;
+    h.during(&[&b10]);
+    let r = h.keys(hash_id(a10.header.hash, Some(true))).await;
+    assert!(h.plan_ran(), "the reorg must really run during the EVM's fetch");
+    assert!(r.is_err(), "create_access_list answered {r:?} although A10 was reorganized away during its EVM proof fetch");
+    let (h, a10, b10, _) = branch_setup(false).await;
+    h.during(&[&b10]);
+    assert_eq!(h.keys(hash_id(a10.header.hash, Some(false))).await.unwrap(), vec![key(0)], "false: A's access list, never B's");
+}
+
+// A -> B -> A during the EVM's proof fetch: A is canonical again at the post-check, every method answers A's state.
+#[tokio::test]
+async fn evm_aba_during_proof_fetch_answers_a_for_every_method_and_flag() {
+    for f in FLAGS {
+        let (h, a10, b10, _) = read_setup().await;
+        h.during(&[&b10, &a10]);
+        assert_eq!(h.call(hash_id(a10.header.hash, f)).await.unwrap(), word(0xA), "call {f:?}");
+        assert!(h.plan_ran());
+        let (h, a10, b10, _) = branch_setup(false).await;
+        let ga = h.gas(hash_id(a10.header.hash, f)).await.unwrap();
+        h.during(&[&b10, &a10]);
+        assert_eq!(h.gas(hash_id(a10.header.hash, f)).await.unwrap(), ga, "estimate_gas {f:?}");
+        h.during(&[&b10, &a10]);
+        assert_eq!(h.keys(hash_id(a10.header.hash, f)).await.unwrap(), vec![key(0)], "create_access_list {f:?}");
+    }
+}
+
+// A head advance A10 -> A11 during the EVM's proof fetch: A10 stays the head's ancestor, so every flag answers.
+#[tokio::test]
+async fn evm_head_advance_during_proof_fetch_still_answers() {
+    for f in FLAGS {
+        let (h, a10, _, a11) = read_setup().await;
+        h.during(&[&a11]);
+        assert_eq!(h.call(hash_id(a10.header.hash, f)).await.unwrap(), word(0xA), "{f:?}");
+        assert!(h.plan_ran());
+    }
+}
+
+// A stale verified head (older than 60 s): requireCanonical:true refuses every EVM method, absent/false answer.
+#[tokio::test]
+async fn evm_stale_head_refuses_require_canonical_true_only() {
+    let h = H::new(READ_SLOT0); let (p, a10, ..) = chain(now() - 600);
+    h.push(&p).await; h.push(&a10).await; h.slot(&a10, 0, 0xA);
+    let id = |f| hash_id(a10.header.hash, f);
+    assert!(h.call(id(Some(true))).await.is_err(), "call");
+    assert!(h.gas(id(Some(true))).await.is_err(), "estimate_gas");
+    assert!(h.keys(id(Some(true))).await.is_err(), "create_access_list");
+    for f in [None, Some(false)] { assert_eq!(h.call(id(f)).await.unwrap(), word(0xA), "{f:?}"); }
+}
+
+// An unknown hash, and an upstream that answers the hash of A with block B: every method and flag is refused before
+// any EVM state is read (the exact authenticated block is required), and B's state is never answered.
+#[tokio::test]
+async fn evm_unknown_hash_and_wrong_upstream_block_refused() {
+    let (h, _, b10, _) = read_setup().await;        // b10 was never pushed: unknown
+    for f in FLAGS {
+        let id = hash_id(b10.header.hash, f);
+        assert!(h.call(id).await.is_err() && h.gas(id).await.is_err() && h.keys(id).await.is_err(), "unknown {f:?}");
+    }
+    let (h, a10, b10, _) = read_setup().await;
+    h.probe.lock().unwrap().wrong_for_hash = Some(b10.clone());
+    for f in FLAGS {
+        let id = hash_id(a10.header.hash, f);
+        let r = h.call(id).await;
+        assert!(r.is_err(), "{f:?}: answered {r:?} for A from B's block");
+        assert!(h.gas(id).await.is_err() && h.keys(id).await.is_err(), "{f:?}");
+    }
+    assert_eq!(h.probe.lock().unwrap().storage_fetches, 0, "no EVM state may be read for a wrong block");
+}
+
+// BLOCKHASH(NUMBER - 1) executed at a11 is a11's own parent a10, from the pinned block's parent-hash ancestry, even when
+// a by-height read would answer b10; no by-height read is made.
+#[tokio::test]
+async fn evm_blockhash_is_pinned_parent_not_height_lookup() {
+    let h = H::new(PARENT_BLOCKHASH); let (p, a10, b10, a11) = chain(now());
+    h.push(&p).await; h.push(&a10).await; h.push(&a11).await;
+    h.slot(&a11, 0, 0);
+    h.probe.lock().unwrap().number_lie.insert(10, b10.clone());
+    for f in FLAGS {
+        let out = h.call(hash_id(a11.header.hash, f)).await.unwrap();
+        assert_eq!(out, Bytes::copy_from_slice(a10.header.hash.as_slice()), "{f:?}: BLOCKHASH must be a11's parent a10");
+        assert_ne!(out, Bytes::copy_from_slice(b10.header.hash.as_slice()));
+    }
+    assert_eq!(h.probe.lock().unwrap().number_reads, 0, "BLOCKHASH must not read a block by height");
+}
