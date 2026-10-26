@@ -1,0 +1,7 @@
+{
+ "format": "nvme-cold-reclaim-config/r4",
+ "subtree_config": "REQUIRED: absolute path (no symlink in any component) of the exact r10 production config root uses (observed: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/cold-subtree-production-1530.json)",
+ "subtree_config_sha256": "REQUIRED: sha256 of exactly that file (observed 2026-10-26: bae6021bcf7d2d8ecbd702d62e5881d787f378c2a08b2c5f16b4e9e7ce95879f)",
+ "journal_dir": "/home/steven/.local/state/nvme-cold-reclaim-r4",
+ "verify_max_age_seconds": "REQUIRED: operator, <= 21600 (seconds between the fresh full destination hash and the reclaim start)"
+}

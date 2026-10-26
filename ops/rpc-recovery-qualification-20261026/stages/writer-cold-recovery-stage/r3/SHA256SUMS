@@ -1,0 +1,5 @@
+7874f8cf0ca81075d70c820505cc5ef16ae30cfbeabec27f424475134c38477c  PROVENANCE.md
+f905b04a00fb277c1563dc5b759cf60e777a7bee1c64e255bd07f42e1e003c7e  inputs/claude-backward-history-review-1569.md
+c1945e036b38512c815e6796819138c8aba48eed6f586041d79401fd5336ea90  inputs/root-history-failure-1571.md
+636fbc3b540d2b70c76dada3b21357f972125228e213f1a65d201fac1b275254  jobs/root-writer-cold-recovery-r3.sh
+dbe2d1a65769af8aaf051c55dedc095087bfa73ebd4c751fa6c3f36435413f1d  patches/writer-cold-recovery-r3-vs-r2.patch

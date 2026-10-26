@@ -1,0 +1,7 @@
+f282366cdd6c9772f3a39c05380f62ffda5411a7a0dc31ab1c2ffba90adce662  ./PROVENANCE.md
+8642f74c88c40fcaad3649acaf685766ce409a074cd36640a146725f56dc28d3  ./inputs/claude-history-r3-repair.md
+982aeffd96d312e876a266e5b84cfe93b17be8044921ee1c8b577dd966088005  ./inputs/root-cold-r10-review-clarification-1588.md
+4506e6dff8c5d6e2a7ef910296e6ea63ffe3eca93ba091d8735770a786e22ef2  ./inputs/root-producer-output-bound-1589.md
+473e72e7fa4dbb2752a493c70af5d0b9d5dde30420cee69057ab1c2e0ced81ea  ./inputs/root-witness-placement-gap-1583.md
+9a3ed28c5c4a7ea3cfaa6fa670c4c3bef0b8c50d948b02893bd465a3aae24c72  ./jobs/root-writer-integrated-r2.sh
+c9e230d2e32bde5aec0a9e92539ce292e20989cf9872045aff3bd45473bed533  ./patches/writer-integrated-r2-vs-cold-recovery-r3-plus-driver-r1.patch

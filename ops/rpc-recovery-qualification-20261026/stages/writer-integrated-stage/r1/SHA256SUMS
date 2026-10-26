@@ -1,0 +1,4 @@
+03c1e167f8a18e166d56a350df4bb0e4655e4e0e15ed6a66cc92f242a566ef74  ./PROVENANCE.md
+bda5fe5772fb0ef72c20f1b636186f3efc59aa41766e1d33351c8762f2ef0da9  ./inputs/claude-writer-driver-r1.md
+f8678d05c8d3ff438f9a8ab7dcb4756443089362a4f92bc90a78f85f6bb13776  ./jobs/root-writer-integrated-r1.sh
+486e658c2b7d0537f93cd920f2b18c1b36d1aa3d83218dca21911d3c717fb28a  ./patches/writer-integrated-r1-vs-cold-recovery-r2-plus-driver-r1.patch
