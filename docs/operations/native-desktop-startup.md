@@ -296,3 +296,31 @@ hashes. The original four running VMs, host boot and security configuration are
 unchanged. `native-vbs-identity-v2` contains the public inputs, reports, matched
 controls, CNG checks, generic job errors, scoped Claude review and cleanup
 evidence. The earlier SHA-256 experiment remains rejected and is not a release.
+
+## Installed-agent startup bridge
+
+`network/native-startup-overlay.mjs` can be bundled separately for an installed
+privacy agent whose legacy network and lease modules must remain byte-identical.
+The native probe keeps ingress SNI and accepts HTTP 503 only after verifying the
+pinned transport key and explicit configured-secret startup expectation.
+The native startup forwarder uses the full release identity in
+`startingShieldTransport`, current admission and its unexpired verified proof.
+It rechecks authorization after connecting, every 500 ms while forwarding, and
+closes the stream at the admitting proof's expiry. Any error closes both sockets.
+Expected identity is compared by a canonical snapshot rather than object identity.
+Ready guests and legacy apps retain their existing manager splice.
+
+The bridge forwards encrypted TLS and cannot inspect HTTP paths. The measured
+front therefore retains responsibility for endpoint authorization: sealed-secret
+POST requires the pinned relay signature, deployment/nonce binding, and a fresh
+challenge; certificate installation checks its authorized name, matching key and
+chain. The application remains behind the secret-aware launcher, so its declared
+ports are unavailable before delivery. Public attestation/readiness metadata is
+intentionally reachable before readiness. This is not client authentication or
+a change to the T0-hv host trust boundary.
+
+The compatibility patch must verify the exact installed baseline and match its
+three call sites once each. Its `open` must be `startingShieldTransport`, its
+`authorize` the live admission reader, and its proof the stored verified proof.
+Do not replace an installed bundle with a full rebuild from a different source
+snapshot. Test the built sidecar as well as its source before activation.

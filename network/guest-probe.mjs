@@ -20,7 +20,8 @@ function get(hostname,address,path,agent,pin,port=443){return new Promise((resol
  req.once('close',()=>clearTimeout(deadline));req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
 const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
-export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,pvm,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false,attestationBootstrap=false}){
+export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,pvm,localUpstream,openApp,domainIndependent=false,verifySnp=judge,pinnedSpkiSha256=null,startupEgress=false,startupRoute=false,attestationBootstrap=false}){
+ if(startupRoute&&(!/^[0-9a-f]{64}$/.test(pinnedSpkiSha256||'')||expected?.requiresDesktop!==true||expected?.requiresConfigSocketServer!==true||expected?.requiresSecretsV1!==true||(!proxy&&!direct)||openApp||localUpstream||startupEgress||attestationBootstrap))throw new Error('native startup route requires a current attested key and explicit native secret policy');
  if(startupEgress&&(!openApp||proxy||pinnedSpkiSha256||expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress requires a local configured secret command proof');
  if([proxy,localUpstream,openApp,direct].filter(Boolean).length!==1)throw new Error('guest probes require exactly one explicit app transport');
  if(attestationBootstrap&&(!direct||!isIP(address)||pinnedSpkiSha256||domainIndependent||startupEgress||
@@ -51,8 +52,11 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,d
     const ready=await get(hostname,address,'/.well-known/enclave-ready',agent,undefined,port);
     const spkiSha256=createHash('sha256').update(ready.spki).digest('hex');
     if(spkiSha256===pinnedSpkiSha256){
-      if(ready.status!==200)throw new Error('guest readiness HTTP '+ready.status);
-      return {verified:true,deploymentId,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256,pinned:true};
+      // The native command waits for sealed secrets before serving. Its already
+      // attested transport must carry startup egress while it honestly says 503.
+      // This does not mark the app ready, and never relaxes peer-key verification.
+      if(ready.status!==200&&!(startupRoute&&ready.status===503))throw new Error('guest readiness HTTP '+ready.status);
+      return {ready:ready.status===200,verified:true,deploymentId,appSha256:expected.appSha256,runtimeId:expected.runtimeId,spkiSha256,pinned:true};
     }
     throw new Error('guest TLS key changed');
   }
