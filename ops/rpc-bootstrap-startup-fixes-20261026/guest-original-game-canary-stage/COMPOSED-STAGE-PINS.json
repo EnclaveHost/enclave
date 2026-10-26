@@ -1,0 +1,12 @@
+{
+ "note": "Filled ONLY from the FROZEN, root-qualified final composition (r13 or later) that installs the cold-proof r3 readers AND da0's first-bootstrap consumer; values are that stage's exact SHA256SUMS digest, manifest, bundle-origin and module shas. Any null refuses. a1Read/a1RecheckRead are the frozen cold-proof r3 reader shas the composition must install. Re-freeze this stage after filling.",
+ "stage": null,
+ "stageSha256sums": null,
+ "manifest": null,
+ "bundleOrigin": null,
+ "captureModule": null,
+ "finalityState": null,
+ "finalityCore": null,
+ "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
+ "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+}

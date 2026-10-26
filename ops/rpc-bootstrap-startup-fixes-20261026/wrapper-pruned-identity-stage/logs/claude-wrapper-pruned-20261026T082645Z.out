@@ -1,0 +1,101 @@
+[queue] START available=18095MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae  orig/chain_service.py
+6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189  overlay/wrapper/chain_service.py
+045fcceb93e4a04811ba470e6324a72105cd7994c73baf3250647b89e7c98dc6  overlay/wrapper/test_l1_pruned_identity.py
+541342a40999cbfb4f186487540b716357423398e45e976e81a336e6c3a63330  ref/test_chain_service.py
+bfc94dde71897e76651a21454c70b2db07ed1fd3236ea8b85183eba9b7a9d6f3  mutants.py
+=== patched: existing wrapper suite (unmodified, sha 541342a4) + pruned identity suite
+test_base_start_requires_retention_and_files_after_coverage (test_chain_service.BaseRetentionTests.test_base_start_requires_retention_and_files_after_coverage) ... ok
+test_before_at_or_below_start_is_kept_never_raised (test_chain_service.BaseRetentionTests.test_before_at_or_below_start_is_kept_never_raised) ... ok
+test_downloader_profile_upgrades_to_before (test_chain_service.BaseRetentionTests.test_downloader_profile_upgrades_to_before) ... ok
+test_history_start_config_required (test_chain_service.BaseRetentionTests.test_history_start_config_required) ... ok
+test_l1_profile_unchanged_and_before_still_refused_without_history_policy (test_chain_service.BaseRetentionTests.test_l1_profile_unchanged_and_before_still_refused_without_history_policy) ... ok
+test_static_files_covering_start_must_exist (test_chain_service.BaseRetentionTests.test_static_files_covering_start_must_exist) ... ok
+test_unreviewed_base_profiles_refused (test_chain_service.BaseRetentionTests.test_unreviewed_base_profiles_refused) ... ok
+test_base_start_refuses_missing_changesets_even_with_history_files (test_chain_service.BootstrapStateTests.test_base_start_refuses_missing_changesets_even_with_history_files) ... ok
+test_cached_since_download_profile_is_a_fixed_point (test_chain_service.BootstrapStateTests.test_cached_since_download_profile_is_a_fixed_point) ... ok
+test_state_files_exact_manifest_names (test_chain_service.BootstrapStateTests.test_state_files_exact_manifest_names) ... ok
+test_state_history_before_policy (test_chain_service.BootstrapStateTests.test_state_history_before_policy) ... ok
+test_state_start_required_and_bounded_by_snapshot (test_chain_service.BootstrapStateTests.test_state_start_required_and_bounded_by_snapshot) ... ok
+test_base_requires_explicit_origin_coverage (test_chain_service.GateTests.test_base_requires_explicit_origin_coverage) ... ok
+test_explicit_submission_route (test_chain_service.GateTests.test_explicit_submission_route) ... ok
+test_fresh_start_refuses_old_checkpoint (test_chain_service.GateTests.test_fresh_start_refuses_old_checkpoint) ... ok
+test_healthy_pair_has_blob_evidence (test_chain_service.GateTests.test_healthy_pair_has_blob_evidence) ... ok
+test_minimal_receipt_pruning_is_refused (test_chain_service.GateTests.test_minimal_receipt_pruning_is_refused) ... ok
+test_missing_blob_is_not_readiness (test_chain_service.GateTests.test_missing_blob_is_not_readiness) ... ok
+test_no_implicit_submission_route (test_chain_service.GateTests.test_no_implicit_submission_route) ... ok
+test_optimistic_pair_is_not_readiness (test_chain_service.GateTests.test_optimistic_pair_is_not_readiness) ... ok
+test_readonly_data_refused (test_chain_service.GateTests.test_readonly_data_refused) ... ok
+test_restricted_root_writable_data (test_chain_service.GateTests.test_restricted_root_writable_data) ... ok
+test_resume_survives_old_checkpoint (test_chain_service.GateTests.test_resume_survives_old_checkpoint) ... {"starting": "cl", "datadir": "/srv/enclave-l1-pair/cl", "publicExecutionRpc": false}
+ok
+test_stale_pair_is_not_readiness (test_chain_service.GateTests.test_stale_pair_is_not_readiness) ... ok
+test_unreviewed_submission_route_refused (test_chain_service.GateTests.test_unreviewed_submission_route_refused) ... ok
+test_wrong_volume_refused (test_chain_service.GateTests.test_wrong_volume_refused) ... ok
+test_already_rewritten_profile_is_refused_not_waived (test_chain_service.PruneProfileTests.test_already_rewritten_profile_is_refused_not_waived) ... ok
+test_base_proof_window_unchanged (test_chain_service.PruneProfileTests.test_base_proof_window_unchanged) ... {"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_l1_serves_proofs_at_finalized (test_chain_service.PruneProfileTests.test_l1_serves_proofs_at_finalized) ... {"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+ok
+test_larger_retention_is_never_reduced (test_chain_service.PruneProfileTests.test_larger_retention_is_never_reduced) ... ok
+test_old_lookup_only_argv_reproduces_the_defect (test_chain_service.PruneProfileTests.test_old_lookup_only_argv_reproduces_the_defect) ... ok
+test_persisted_rewrite_then_second_launch_keeps_every_segment (test_chain_service.PruneProfileTests.test_persisted_rewrite_then_second_launch_keeps_every_segment) ... {"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "el", "datadir": "/srv/enclave-l1-pair/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_settings_the_cli_cannot_reproduce_are_refused (test_chain_service.PruneProfileTests.test_settings_the_cli_cannot_reproduce_are_refused) ... ok
+test_snapshot_profile_maps_to_complete_flags (test_chain_service.PruneProfileTests.test_snapshot_profile_maps_to_complete_flags) ... ok
+test_cl_finalized_above_el_finalized_refused (test_l1_pruned_identity.PrunedIdentityTests.test_cl_finalized_above_el_finalized_refused) ... ok
+test_earliest_above_cl_finalized_refused (test_l1_pruned_identity.PrunedIdentityTests.test_earliest_above_cl_finalized_refused) ... ok
+test_existing_gates_still_apply_when_pruned (test_l1_pruned_identity.PrunedIdentityTests.test_existing_gates_still_apply_when_pruned) ... /usr/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 404: 'not found'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+ok
+test_live_pruned_refusal_ready_on_compensated_basis (test_l1_pruned_identity.PrunedIdentityTests.test_live_pruned_refusal_ready_on_compensated_basis) ... ok
+test_main_prints_pruned_readiness (test_l1_pruned_identity.PrunedIdentityTests.test_main_prints_pruned_readiness) ... ok
+test_malformed_cl_finalized_refused (test_l1_pruned_identity.PrunedIdentityTests.test_malformed_cl_finalized_refused) ... ok
+test_malformed_error_objects_are_plain_refusals (test_l1_pruned_identity.PrunedIdentityTests.test_malformed_error_objects_are_plain_refusals) ... ok
+test_null_or_wrong_genesis_refused (test_l1_pruned_identity.PrunedIdentityTests.test_null_or_wrong_genesis_refused) ... ok
+test_only_exact_pruned_genesis_refusal_is_recognised (test_l1_pruned_identity.PrunedIdentityTests.test_only_exact_pruned_genesis_refusal_is_recognised) ... ok
+test_optimistic_or_unflagged_cl_finalized_refused (test_l1_pruned_identity.PrunedIdentityTests.test_optimistic_or_unflagged_cl_finalized_refused) ... ok
+test_pruned_refusal_does_not_affect_other_calls (test_l1_pruned_identity.PrunedIdentityTests.test_pruned_refusal_does_not_affect_other_calls) ... ok
+test_pruned_still_requires_chain_and_cl_identity (test_l1_pruned_identity.PrunedIdentityTests.test_pruned_still_requires_chain_and_cl_identity) ... ok
+test_served_genesis_block_keeps_original_basis (test_l1_pruned_identity.PrunedIdentityTests.test_served_genesis_block_keeps_original_basis) ... ok
+test_stale_cl_finalized_refused (test_l1_pruned_identity.PrunedIdentityTests.test_stale_cl_finalized_refused) ... ok
+test_unpaired_finalized_refused (test_l1_pruned_identity.PrunedIdentityTests.test_unpaired_finalized_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 49 tests in 0.046s
+
+OK
+=== baseline: ORIGINAL r12 wrapper, existing suite must pass
+Ran 34 tests in 0.022s
+
+OK
+=== baseline: ORIGINAL r12 wrapper must REFUSE the live pruned refusal (blocker reproduced)
+AssertionError: local RPC failed
+FAILED (failures=1)
+BASELINE REPRODUCES BLOCKER
+=== mutants
+KILLED   0 "and m and m[1] == '0'"
+KILLED   1 'e.code == PRUNED_CODE and '
+KILLED   2 'PRUNED_MSG.fullmatch('
+KILLED   3 "if isinstance(err, dict) and type(err.get('code')) is int"
+KILLED   4 "and 'result' not in result else None"
+KILLED   5 "assert not earliest or gen.get('genesis_time') == CL_GENESIS_TIME, 'wrong CL genesis'"
+KILLED   6 "assert doc.get('execution_optimistic') is False,"
+KILLED   7 "assert doc.get('finalized') is True,"
+KILLED   8 'assert earliest <= n,'
+KILLED   9 'assert n <= el_finalized,'
+KILLED   10 "assert -15 <= time.time() - ts < 3600, 'L1 beacon finalized stale'"
+KILLED   11 "and _h32(el.get('parentHash')) == _h32(p.get('parent_hash'))"
+KILLED   12 "and _qty(el.get('timestamp')) == ts"
+KILLED   13 "_qty(el.get('number')) == n and "
+KILLED   14 "_h32(el.get('hash')) == _h32(p.get('block_hash'))"
+KILLED   15 "assert isinstance(g, dict) and g.get('hash') == EL_GENESIS"
+KILLED   16 "if earliest else {'basis': 'el-genesis-block'}"
+KILLED   17 '            return int(m[2])\n'
+rc=0
+[memory-guard] exit=0 peakTreeRssMiB=53 minHostAvailableMiB=17928
+[memory-guard] at peak: python3:32 python3:14 jobs.sh:4 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,124 @@
+--- a/wrapper/chain_service.py
++++ b/wrapper/chain_service.py
+@@ -44,11 +44,22 @@
+         assert hashlib.file_digest(f, 'sha256').hexdigest() == MANIFEST['binaries'][name], 'binary pin mismatch'
+     return str(path)
+ 
++class RpcError(AssertionError):
++    """A well-formed local JSON-RPC error object. Still the 'local RPC failed' refusal, but keeps code/message so that
++    exactly one refusal (reth's pruned genesis, el_genesis) can be recognised; nothing else treats it differently."""
++
++    def __init__(self, code, message):
++        super().__init__('local RPC failed')
++        self.code, self.message = code, message
++
+ def rpc(port, method, params):
+     body = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode()
+     req = urllib.request.Request(f'http://127.0.0.1:{port}', body, {'Content-Type': 'application/json'})
+     with urllib.request.urlopen(req, timeout=10) as r:
+         result = json.load(r)
++    err = result.get('error') if isinstance(result, dict) and 'result' not in result else None
++    if isinstance(err, dict) and type(err.get('code')) is int and isinstance(err.get('message'), str):
++        raise RpcError(err['code'], err['message'])
+     assert 'error' not in result and 'result' in result, 'local RPC failed'
+     return result['result']
+ 
+@@ -56,10 +67,77 @@
+     with urllib.request.urlopen('http://127.0.0.1:15052' + path, timeout=10) as r:
+         return json.load(r)['data']
+ 
++def beacon_doc(path):
++    """The whole beacon API response: unlike beacon() it keeps the envelope flags (execution_optimistic, finalized)."""
++    with urllib.request.urlopen('http://127.0.0.1:15052' + path, timeout=10) as r:
++        doc = json.load(r)
++    assert isinstance(doc, dict) and isinstance(doc.get('data'), dict), 'malformed beacon response'
++    return doc
++
++EL_GENESIS = '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3'
++CL_GENESIS_TIME = '1606824023'
++# reth EthApiError::PrunedHistoryUnavailable: EIP-4444 code 4444 and exactly this message (the same recognition as
++# readiness/readiness_sampler.py PRUNED_CODE/PRUNED_MSG). Only this refusal, for block 0, selects the pruned basis.
++PRUNED_CODE = 4444
++PRUNED_MSG = re.compile(r'pruned history unavailable: requested (0|[1-9][0-9]*), earliest available ([1-9][0-9]*)')
++
++def el_genesis():
++    """0 when our EL serves the pinned mainnet genesis block; the EL's earliest available block when (and only when)
++    it refuses block 0 with reth's exact pruned-history error. Any other error, a null block or another hash refuses."""
++    try:
++        g = rpc(18645, 'eth_getBlockByNumber', ['0x0', False])
++    except RpcError as e:
++        m = PRUNED_MSG.fullmatch(e.message)
++        if e.code == PRUNED_CODE and m and m[1] == '0':
++            return int(m[2])
++        raise
++    assert isinstance(g, dict) and g.get('hash') == EL_GENESIS, 'wrong EL genesis'
++    return 0
++
++def _qty(v):
++    assert isinstance(v, str) and re.fullmatch(r'0x(0|[1-9a-f][0-9a-f]*)', v), 'malformed L1 quantity'
++    return int(v, 16)
++
++def _dec(v):
++    assert isinstance(v, str) and re.fullmatch(r'0|[1-9][0-9]*', v), 'malformed beacon number'
++    return int(v)
++
++def _h32(v):
++    assert isinstance(v, str) and H32_RE.fullmatch(v), 'malformed 32-byte hash'
++    return v.lower()
++
++def pruned_identity(earliest, el_finalized):
++    """Compensating identity when the EL genesis body is pruned (readiness_sampler.py l1_identity, pruned basis). The
++    beacon finalized block of the CL whose genesis/spec/version were just pinned must be non-optimistic and flagged
++    finalized, fresh, inside our EL's retained range and at/below our EL finalized; our EL must serve exactly that
++    payload block (number, hash, parent, timestamp). Block hashes commit to all ancestors, so our EL's chain contains
++    mainnet's. Operational identity only: it trusts the local CL like every gate here; it is not cryptographic
++    authority against this host (that is the separate A1 gate)."""
++    doc = beacon_doc('/eth/v1/beacon/blinded_blocks/finalized')
++    assert doc.get('execution_optimistic') is False, 'L1 beacon finalized block optimistic'
++    assert doc.get('finalized') is True, 'L1 beacon finalized block not flagged finalized'
++    msg = doc['data'].get('message')
++    body = msg.get('body') if isinstance(msg, dict) else None
++    p = body.get('execution_payload_header') if isinstance(body, dict) else None
++    assert isinstance(p, dict), 'malformed beacon finalized block'
++    n, ts = _dec(p.get('block_number')), _dec(p.get('timestamp'))
++    assert earliest <= n, 'L1 beacon finalized below EL earliest available'
++    assert n <= el_finalized, 'L1 beacon finalized above EL finalized'
++    assert -15 <= time.time() - ts < 3600, 'L1 beacon finalized stale'
++    el = rpc(18645, 'eth_getBlockByNumber', [hex(n), False])
++    assert isinstance(el, dict) and _qty(el.get('number')) == n and _h32(el.get('hash')) == _h32(p.get('block_hash')) \
++        and _h32(el.get('parentHash')) == _h32(p.get('parent_hash')) and _qty(el.get('timestamp')) == ts, \
++        'L1 execution/consensus finalized mismatch'
++    return {'basis': 'pruned-el-genesis+mainnet-cl-paired-finalized', 'elEarliestAvailable': earliest,
++            'pairedFinalized': {'number': n, 'hash': _h32(el['hash'])}}
++
+ def l1_ready():
+     assert rpc(18645, 'eth_chainId', []) == '0x1'
+-    assert rpc(18645, 'eth_getBlockByNumber', ['0x0', False])['hash'] == '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3', 'wrong EL genesis'
+-    assert beacon('/eth/v1/beacon/genesis')['genesis_validators_root'] == '0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95', 'wrong CL genesis'
++    earliest = el_genesis()
++    gen = beacon('/eth/v1/beacon/genesis')
++    assert gen['genesis_validators_root'] == '0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95', 'wrong CL genesis'
++    # without the EL genesis block, the CL genesis is the chain anchor: its genesis time is pinned too
++    assert not earliest or gen.get('genesis_time') == CL_GENESIS_TIME, 'wrong CL genesis'
+     spec = beacon('/eth/v1/config/spec')
+     assert spec['DEPOSIT_CHAIN_ID'] == '1' and spec['SECONDS_PER_SLOT'] == '12' and spec['FULU_FORK_EPOCH'] == '411392', 'wrong mainnet spec'
+     assert beacon('/eth/v1/node/version')['version'].startswith('Lighthouse/v8.3.2'), 'wrong CL version'
+@@ -70,7 +148,8 @@
+     assert f and -15 <= time.time() - int(f['timestamp'], 16) < 3600, 'L1 finality stale'
+     s = beacon('/eth/v1/node/syncing')
+     assert s['is_syncing'] is False and s['is_optimistic'] is False and s['el_offline'] is False, 'L1 consensus not ready'
+-    payload = beacon('/eth/v2/beacon/blocks/head')['message']['body']['execution_payload']
++    ident = pruned_identity(earliest, _qty(f.get('number'))) if earliest else {'basis': 'el-genesis-block'}
++    payload =beacon('/eth/v2/beacon/blocks/head')['message']['body']['execution_payload']
+     paired = rpc(18645, 'eth_getBlockByNumber', [hex(int(payload['block_number'])), False])
+     assert paired and paired['hash'] == payload['block_hash'], 'L1 execution/consensus mismatch'
+     identity = beacon('/eth/v1/node/identity')
+@@ -93,7 +172,7 @@
+         blob_slot = slot
+         break
+     assert blob_slot is not None, 'no recent blob-carrying block served'
+-    return {'l1Block': int(h['number'], 16), 'l1Finalized': int(f['number'], 16), 'blobSlot': blob_slot}
++    return {'l1Block': int(h['number'], 16), 'l1Finalized': int(f['number'], 16), 'blobSlot': blob_slot, 'l1Identity': ident}
+ 
+ # ---- Base coverage activation bridge -------------------------------------------------------------------------------
+ # A boolean is never coverage evidence. Base starts only when the operator-reviewed config (coverageVerified true, the
