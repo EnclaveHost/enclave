@@ -1,0 +1,14 @@
+[queue] START available=30076MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "dest": "/home/steven/.cold-archive/codex-archive/2026-10-24/home/gguf-e2b",
+ "rc": 0
+}
+{
+ "dest_identity": "88452a0d3e1ebc66a13bc3420be8b5151dc9f05ccf1dc0da246c1d12a784cedb",
+ "logical": "7f993d7ce3cd294a1d573adc52a16baeb44049911d7780fae4ad6d0035dbc3de",
+ "source_identity": "8dea59bb44e723aac712d6a6d8e54503cbea50cf92944bce351c1e609ee8632e",
+ "t": 1793038421.5358183
+}
+[memory-guard] exit=0 peakTreeRssMiB=35 minHostAvailableMiB=29836
+[memory-guard] at peak: python3:23 bash:4 rsync:3 rsync:2 rsync:2
+[queue] EXIT 0
