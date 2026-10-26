@@ -1,0 +1,36 @@
+[queue] START available=23505MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+[ok] A1 actual M1 (single binary, ordinary footer) is KILLED: exit 0 (want 0) mutant: KILLED (3 named tests failed by their own assertion; cargo exit 101; binaries ['canonical_block_gate']
+[ok] A2 actual M4 is KILLED: exit 0 (want 0) mutant: KILLED (3 named tests failed by their own assertion; cargo exit 101; binaries ['block_cache_exact_hash
+[ok] A3 actual M3 (no --no-fail-fast: node binary never ran) is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] A4 actual I1 (all ok, exit 0) is NOT KILLED: exit 1 (want 1) mutant: NOT KILLED
+[ok] A5 actual I2 (named test ok, others failed) is NOT KILLED: exit 1 (want 1) mutant: NOT KILLED
+[ok] E124 actual M1 with cargo exit 124 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] E137 actual M1 with cargo exit 137 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] E143 actual M1 with cargo exit 143 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] E1 actual M1 with cargo exit 1 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] E2 actual M1 with cargo exit 2 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] E0 actual M1 content but exit 0 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] E101 actual I1 (nothing failed) with exit 101 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] C1 compiler error E-code is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] C2 error without code (could not compile) is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] C3 arbitrary footer is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] C4 footer naming another target is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] C5 missing footer with exit 101 is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] F1 '1 target failed:' footer is KILLED: exit 0 (want 0) mutant: KILLED (3 named tests failed by their own assertion; cargo exit 101; binaries ['canonical_block_gate']
+[ok] F2 two binaries, '2 targets failed:' footer is KILLED: exit 0 (want 0) mutant: KILLED (2 named tests failed by their own assertion; cargo exit 101; binaries ['canonical_block_gate',
+[ok] F3 '2 targets failed' listing only one is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] F4 trailing text after the footer list is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] P1 a named test FAILED without its panic is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] P2 a named test missing is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] P3 an ignored test is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] P4 a filtered summary is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] P5 an ignored summary count is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] B1 a requested binary missing is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] B2 a binary ran twice is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] B3 a name whose binary was not requested is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] B4 a name not in EXPECTED-CONTROLS is INVALID: exit 3 (want 3) mutant: INVALID (never a kill)
+[ok] B5 a named test that passed in a failing run is NOT KILLED: exit 1 (want 1) mutant: NOT KILLED
+## parser controls failed=0
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23409
+[memory-guard] at peak: python3:20 python3:13
+[queue] EXIT 0

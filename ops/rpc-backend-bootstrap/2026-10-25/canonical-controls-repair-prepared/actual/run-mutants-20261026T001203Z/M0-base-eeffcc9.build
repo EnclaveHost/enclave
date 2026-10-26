@@ -1,0 +1,6 @@
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/core)
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/revm-utils)
+   Compiling helios-ethereum v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/ethereum)
+   Compiling helios-test-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-controls-repair/run/mutants-20261026T001203Z/helios/tests/test-utils)
+    Finished `test` profile [unoptimized] target(s) in 5.44s
+  Executable tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)

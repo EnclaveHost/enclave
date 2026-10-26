@@ -1,0 +1,2 @@
+mutant: INVALID (never a kill)
+  [INVALID] error line(s) other than cargo's exact test-failure footer for the failed binaries ['canonical_block_gate', 'node_canonical_methods']: ['error: test failed, to rerun pass `-p helios-core --test canonical_block_gate`', 'error: test failed, to rerun pass `-p helios-core --test node_canonical_methods`', 'error: 2 targets failed:']

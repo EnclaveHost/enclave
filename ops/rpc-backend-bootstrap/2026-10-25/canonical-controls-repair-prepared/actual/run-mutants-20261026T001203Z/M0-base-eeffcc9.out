@@ -1,0 +1,52 @@
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)
+
+running 4 tests
+test aba_resolves_only_the_current_block ... FAILED
+test finalized_conflict_drops_unsafe_branch_and_clears_latest ... FAILED
+test multi_height_reorg_drops_stale_descendants ... FAILED
+test reorg_a_to_b_unindexes_a ... FAILED
+
+failures:
+
+---- aba_resolves_only_the_current_block stdout ----
+
+thread 'aba_resolves_only_the_current_block' (270995) panicked at core/tests/block_cache_exact_hash.rs:51:5:
+assertion `left == right` failed
+  left: Some(0xb06d02ea5bf604108dd41de41133f7aade6cd83904679bb8e2de696fb348cd6b)
+ right: None
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- finalized_conflict_drops_unsafe_branch_and_clears_latest stdout ----
+
+thread 'finalized_conflict_drops_unsafe_branch_and_clears_latest' (270996) panicked at core/tests/block_cache_exact_hash.rs:78:5:
+assertion `left == right` failed
+  left: Some(0x2ef4b441eda86c29398c6ff7d4268b82550ca15ac3106953a5a4328e9ad3a551)
+ right: None
+
+---- multi_height_reorg_drops_stale_descendants stdout ----
+
+thread 'multi_height_reorg_drops_stale_descendants' (270997) panicked at core/tests/block_cache_exact_hash.rs:64:72:
+assertion `left == right` failed: stale descendant by hash
+  left: Some(0xf3b62b8e48d42d19f959202d60bb05edd29926a7d6eb72f6661fe539a6c13676)
+ right: None
+
+---- reorg_a_to_b_unindexes_a stdout ----
+
+thread 'reorg_a_to_b_unindexes_a' (270998) panicked at core/tests/block_cache_exact_hash.rs:36:5:
+assertion `left == right` failed: a reorged-away hash must not resolve (and never to B)
+  left: Some(0xf3b62b8e48d42d19f959202d60bb05edd29926a7d6eb72f6661fe539a6c13676)
+ right: None
+
+
+failures:
+    aba_resolves_only_the_current_block
+    finalized_conflict_drops_unsafe_branch_and_clears_latest
+    multi_height_reorg_drops_stale_descendants
+    reorg_a_to_b_unindexes_a
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p helios-core --test block_cache_exact_hash`
+error: 1 target failed:
+    `-p helios-core --test block_cache_exact_hash`

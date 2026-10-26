@@ -1,0 +1,54 @@
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "rpc_exact_hash_postcondition") generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/rpc_exact_hash_postcondition.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_exact_hash_postcondition-d8cdde9a01b67333)
+
+running 2 tests
+test provider_refuses_a_different_block_for_a_hash ... FAILED
+test provider_still_answers_the_exact_block ... ok
+
+failures:
+
+---- provider_refuses_a_different_block_for_a_hash stdout ----
+
+thread 'provider_refuses_a_different_block_for_a_hash' (269879) panicked at core/tests/rpc_exact_hash_postcondition.rs:22:9:
+None: block B answered for hash A
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    provider_refuses_a_different_block_for_a_hash
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p helios-core --test rpc_exact_hash_postcondition`
+error: 1 target failed:
+    `-p helios-core --test rpc_exact_hash_postcondition`
