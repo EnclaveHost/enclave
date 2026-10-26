@@ -1,0 +1,25 @@
+[queue] START available=22114MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+test_successful_exact_invocation_with_marker_is_complete_and_read_only (test_selection_r4.Completion.test_successful_exact_invocation_with_marker_is_complete_and_read_only) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/test_selection_r4.py:136: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/runs/20261026T153131Z-1962420-root-discovery/tmp/tmpsium9l2p/retention-complete' mode='w' encoding='UTF-8'>
+  p = os.path.join(self.root, 'retention-complete'); open(p, 'w').write(json.dumps(rec)); os.chmod(p, 0o444)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/verify_retention_completion.py:70: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/runs/20261026T153131Z-1962420-root-discovery/tmp/tmpsium9l2p/retention-complete' mode='r' encoding='UTF-8'>
+  rec = json.loads(open(p).read()) if checks['regularNotSymlink'] else None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_r2_and_r3_unchanged (test_selection_r4.Frozen.test_r2_and_r3_unchanged) ... ok
+test_boundary_formula_is_r3s_and_the_pinned_selection_is_30 (test_selection_r4.Preflight.test_boundary_formula_is_r3s_and_the_pinned_selection_is_30) ... ok
+test_docs_correct_the_false_deletion_claim (test_selection_r4.Preflight.test_docs_correct_the_false_deletion_claim) ... ok
+test_empty_datadir_admits_with_state_headers_history_counted (test_selection_r4.Preflight.test_empty_datadir_admits_with_state_headers_history_counted) ... ok
+test_partial_db_traces_are_refused (test_selection_r4.Preflight.test_partial_db_traces_are_refused) ... ok
+test_same_size_changed_db_is_refused_not_reused (test_selection_r4.Preflight.test_same_size_changed_db_is_refused_not_reused) ... ok
+test_the_live_situation_counts_23_pending_and_is_refused (test_selection_r4.Preflight.test_the_live_situation_counts_23_pending_and_is_refused) ... ok
+test_unreviewed_or_state_less_manifest_is_refused (test_selection_r4.Preflight.test_unreviewed_or_state_less_manifest_is_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.798s
+
+OK
+Results: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/selection-r4/runs/20261026T153131Z-1962420-root-discovery
+[memory-guard] exit=0 peakTreeRssMiB=65 minHostAvailableMiB=22047
+[memory-guard] at peak: python3:59 bash:4 timeout:2
+[queue] EXIT 0
