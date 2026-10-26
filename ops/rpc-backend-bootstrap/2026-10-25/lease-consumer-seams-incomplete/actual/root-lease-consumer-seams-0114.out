@@ -1,0 +1,6 @@
+[queue] START available=23478MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+## INVALID: bundle rebuild
+## seams rc=1
+[memory-guard] exit=1 peakTreeRssMiB=965 minHostAvailableMiB=22341
+[memory-guard] at peak: git:914 git:36 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 1

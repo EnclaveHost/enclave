@@ -1,0 +1,54 @@
+[queue] START available=23119MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "ok": false,
+ "fails": [
+  "candidate process must exit0",
+  "candidate not clean: {'tests': 66, 'pass': 61, 'fail': 5, 'cancelled': 0, 'skipped': 0, 'todo': 0} ['Windows: legacy (no chain authority) keeps the configured lease RPC quorum (compatibility; validates the observer)', 'Windows: verifier authority routes lease reads to the verifier only; ENCLAVE_LEASE_GAS_RPCS is never contacted', 'gsup and the launcher wire the conduit, and only the conduit', 'gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct', 'the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration']",
+  "base failing set differs: ['Windows: legacy (no chain authority) keeps the configured lease RPC quorum (compatibility; validates the observer)', 'Windows: verifier authority routes lease reads to the verifier only; ENCLAVE_LEASE_GAS_RPCS is never contacted', 'bundle: a mixed provider + verifier configuration is refused (host, transit and guest)', 'bundle: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)', 'bundle: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name', 'gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct', 'runtime: the bound guest env loads ONLY the verifier authority as its single lease client; without it, it refuses', 'source: a mixed provider + verifier configuration is refused (host, transit and guest)', 'source: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)', 'source: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name', 'the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration']"
+ ],
+ "base": {
+  "tests": 66,
+  "pass": 55,
+  "fail": 11,
+  "cancelled": 0,
+  "skipped": 0,
+  "todo": 0
+ },
+ "baseFailing": [
+  "Windows: legacy (no chain authority) keeps the configured lease RPC quorum (compatibility; validates the observer)",
+  "Windows: verifier authority routes lease reads to the verifier only; ENCLAVE_LEASE_GAS_RPCS is never contacted",
+  "bundle: a mixed provider + verifier configuration is refused (host, transit and guest)",
+  "bundle: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)",
+  "bundle: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name",
+  "gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct",
+  "runtime: the bound guest env loads ONLY the verifier authority as its single lease client; without it, it refuses",
+  "source: a mixed provider + verifier configuration is refused (host, transit and guest)",
+  "source: a verifier-bound transit in a guest WITHOUT a bound verifier refuses (no silent public fallback)",
+  "source: verifier-bound leaseGas without public rpcs is accepted and installs NO public RPC name",
+  "the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration"
+ ],
+ "baseBundleCheck": {
+  "windows-check-rc": "1",
+  "metal-check-rc": "0"
+ },
+ "candidate": {
+  "tests": 66,
+  "pass": 61,
+  "fail": 5,
+  "cancelled": 0,
+  "skipped": 0,
+  "todo": 0
+ },
+ "candidateFailing": [
+  "Windows: legacy (no chain authority) keeps the configured lease RPC quorum (compatibility; validates the observer)",
+  "Windows: verifier authority routes lease reads to the verifier only; ENCLAVE_LEASE_GAS_RPCS is never contacted",
+  "gsup and the launcher wire the conduit, and only the conduit",
+  "gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct",
+  "the shared loader: pinned relays may be the ONLY route; partial or invalid refuses; absent keeps the exact configuration"
+ ]
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/lease-consumer-seams-stage/r2/runs/20261026T011308Z-350377
+## seams rc=1
+[memory-guard] exit=1 peakTreeRssMiB=941 minHostAvailableMiB=22232
+[memory-guard] at peak: git:890 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 1
