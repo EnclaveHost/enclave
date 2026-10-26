@@ -1,0 +1,5 @@
+[queue] START available=22491MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+{"ok": true, "mismatch": {}, "legacy": {"resuid": [994, 994, 994], "resgid": [985, 985, 985], "groups": [985]}, "dropin": {"journal": ["armed"], "etcReadOnly": true, "launchDirReadOnly": true, "dataReadable": true, "resuid": [994, 994, 994], "resgid": [985, 985, 985], "groups": [985], "capEff": "0000000000000000", "capPrm": "0000000000000000", "noNewPrivs": "1", "setuid0": "EPERM"}}
+[memory-guard] exit=0 peakTreeRssMiB=16 minHostAvailableMiB=22472
+[memory-guard] at peak: ssh:10 bash:4 scp:2
+[queue] EXIT 0

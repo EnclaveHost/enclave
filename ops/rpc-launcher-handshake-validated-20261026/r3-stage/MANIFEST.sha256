@@ -1,0 +1,11 @@
+3705bed472899dce8bf995275cadef971c199b81eb16f77b9a69e119f02f4415  ./README.md
+d32f9bb17b9f188703010bc5358cbc361b63a2316301acc056b3e4f197024621  ./dropin-r2-to-r3.patch
+bddca77dae053107b7808c65e6e52e22e3a686b39d6b9b2f51f24d0009c43662  ./inputs/consumed-inputs.sha256
+2dfabd789a5e663e5f9413885bc0e5ccd3192274605e90a34f2869c125e9d25c  ./jobs/guest-handshake-canary.sh
+e6013fe158fffa97d497e0ff727f3710f8250b0095e1c2d11bce2f8673cd1fa2  ./jobs/root-r3-tests.sh
+7e8d295d0cb39db59453302d472d6d031b6b8490e78ac54725aee942f88980e2  ./producer/base_launch.py
+47b9c6e90f0f29c63df38dadc2e4ef8a4bf3e738c8ebf34639a0ecae535ef7bb  ./systemd/60-base-launch-handshake.conf
+52b61c4991ed0126923f982451abee536e2e1d2ebf77cff88ca5ca704771e19f  ./tests-r2-to-r3.patch
+ceae5e2cd1324e7e51eae2be8b2c0403da41ed78644a2a6959df76a5b6d8631f  ./tests/test_r3_launcher.py
+07276ec89e3d779f852b4d77085fe54b258f2807d063184a0f9dea83a3ad659b  ./wrapper/chain_service.py
+541342a40999cbfb4f186487540b716357423398e45e976e81a336e6c3a63330  ./wrapper/test_chain_service.py
