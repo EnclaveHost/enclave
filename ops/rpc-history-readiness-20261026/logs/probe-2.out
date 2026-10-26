@@ -1,0 +1,12 @@
+[queue] START available=18156MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "at": "2026-10-26T10:16:56Z",
+ "hint": 26235782,
+ "number": 26235782,
+ "timestamp": 1792523243,
+ "hash": "0x05706b8680b98a012a71953c2473a1d723e336d68925df51139e1257afba52e9",
+ "baseNTimestamp": 1792523267
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

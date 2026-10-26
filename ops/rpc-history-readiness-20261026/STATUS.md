@@ -1,0 +1,7 @@
+# Historical coverage remains unverified
+
+The first Base launch is pinned to the original authenticated anchor at block 52866960. Reading the snapshot's LastSafeBlock alone is insufficient: its block 53048526 is later than the launch anchor. The existing single-run 30000-block ceiling cannot cover the entire required history, currently approximately 44000 L1 blocks including the conservative sequencing window. The implementation being prepared must extract the exact original anchor origin and verify contiguous bounded segments with full aggregate coverage; it must not accept a later start or raise the per-job ceiling silently.
+
+Four bounded read-only requests to our own EL/CL establish current head/retention metadata and a timestamp hint. They do not prove historical per-block or blob availability. In particular the agent report's sentence claiming the whole range is physically present is too strong and is not accepted as evidence. Expected availability remains subject to exact block, receipt, beacon commitment and KZG validation. The approximate November 7 earliest-pruning estimate is planning information, not an availability guarantee. The earlier October 28 estimate used a different reference and must not be used for this original-anchor launch.
+
+No bulk prefetch, chain mutation, snapshot restart or production cutover was performed. The snapshot is still extracting on USB storage. Administrator controls remain intact. Source receipts record observations only; this is not production readiness.
