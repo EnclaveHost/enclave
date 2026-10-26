@@ -3,6 +3,10 @@
 import * as real from "../../windows/node/lease-gas-runtime.bundle.mjs";
 export const leaseGasConfigured = real.leaseGasConfigured;
 export const openReleaseJournal = real.openReleaseJournal;
+// windows/node/chain.mjs:36 also imports these two since aebf4c932 (the seams): passed through UNCHANGED (the real
+// chain-authority constructor and refusal - this adapter only changes transport timeouts and the clock)
+export const chainAuthorityFromEnv = real.chainAuthorityFromEnv;
+export const refusingChainAuthority = real.refusingChainAuthority;
 export const loadLeaseGasConfig = (options) => real.loadLeaseGasConfig({
   ...options, allowLoopbackHttp: true, rpcTimeoutMs: 2000,
 });

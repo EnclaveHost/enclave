@@ -45,7 +45,16 @@ test("the REAL supervisor sends no periodic registry transaction; real drift is 
   const dir = tmp(); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const host = await startActualHost(r, { id: "0x" + "00".repeat(32), owner: r.owner, dir, token: "t".repeat(40), leaseUntil: 0, claim: true, seed: false,
     env: { REGISTRY_RECONCILE_SEC: "60" } });
-  await host.waitLog(/\[registry\] registered https:\/\/host\.independent\.test/, 60000);
+  // The rig registers this endpoint with the operator key before the host boots (cli-independent-rig.mjs: register(...,
+  // proofKey 0)), so the REAL supervisor adopts that row with setProofKey (supervisor.js bootRegistration: only the per-boot
+  // proof key differs) instead of a full register(). Either reviewed boot path is accepted, ONLY for the rig's own endpoint
+  // and row id; the chain row is then bound explicitly (endpoint, operator, active) before any write is measured.
+  const boot = await host.waitLog(/\[registry\] (?:registered https:\/\/host\.independent\.test repo=\S+|adopted the existing registration of https:\/\/host\.independent\.test) id=(0x[0-9a-f]{64})/, 60000);
+  assert.equal(boot[1], r.runner, "the boot registration is the rig's own row");
+  const bound = await entry(r);
+  assert.equal(bound.endpoint, "https://host.independent.test", "the row advertises the expected endpoint");
+  assert.equal(bound.operator.toLowerCase(), privateKeyToAccount(KEYS.operator).address.toLowerCase(), "the row is held by the operator key");
+  assert.equal(bound.active, true, "the row is active before writes are measured");
   await sleep(10000);                                         // boot-time syncs (proof key) settle
   const b0 = await r.pc.getBlockNumber();
   await sleep(3 * 60_000 + 15_000);                           // three reconcile periods

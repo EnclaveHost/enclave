@@ -85083,7 +85083,7 @@ function intIn(v, lo3, hi3, dflt, what) {
   if (!Number.isSafeInteger(n) || n < lo3 || n > hi3) throw new Error(`${what} must be an integer from ${lo3} to ${hi3}`);
   return n;
 }
-function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum: quorum2, confirmations, maxBlockAgeSec, chainVerifier }) {
+function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum: quorum2, confirmations, maxBlockAgeSec, chainVerifier, chainAuthority: chainAuthority2 }) {
   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
   if (profileDigest2 && !profileFile) throw new Error("--profile-digest needs --profile");
   if (profileFile) {
@@ -85117,6 +85117,24 @@ function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, cont
   if (!pins) throw new Error("independent mode needs explicit authorities: --profile FILE --profile-digest sha256:\u2026 or --contract-pins FILE");
   token = token || defaultUsdc;
   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
+  if (chainAuthority2 !== void 0 && chainAuthority2 !== null && chainAuthority2 !== "quorum") {
+    if (chainAuthority2 !== "verifier") throw new Error("chainAuthority must be quorum or verifier");
+    if (rpcs !== void 0 && rpcs !== null) throw new Error("chainAuthority verifier: rpcs must be absent (one explicit authority; a provider quorum is never mixed in)");
+    if (quorum2 !== void 0 && quorum2 !== null) throw new Error("chainAuthority verifier: quorum must be absent (the verifier is one proof-backed authority, not a vote)");
+    const only = chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "chainVerifier");
+    return Object.freeze({
+      pins,
+      usdc: getAddress2(token),
+      profile,
+      digest,
+      rpcs: Object.freeze([]),
+      quorum: null,
+      chainAuthority: "verifier",
+      confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"),
+      maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1e3,
+      chainVerifier: only
+    });
+  }
   const origins = validateRpcOrigins(rpcs);
   const q3 = intIn(quorum2, 2, origins.length, 2, "--quorum");
   const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
@@ -85899,6 +85917,269 @@ var init_package = __esm({
   }
 });
 
+// network/chain-authority.mjs
+var chain_authority_exports = {};
+__export(chain_authority_exports, {
+  AUTHORITY_ENV: () => AUTHORITY_ENV,
+  BACKEND_METHODS: () => BACKEND_METHODS,
+  METHODS: () => METHODS,
+  TX_BACKEND_ENV: () => TX_BACKEND_ENV,
+  VERIFIED_METHODS: () => VERIFIED_METHODS,
+  VERIFIER_CLIENT: () => VERIFIER_CLIENT,
+  VERIFIER_ENV: () => VERIFIER_ENV,
+  chainAuthorityFromEnv: () => chainAuthorityFromEnv2,
+  checkOwnBackend: () => checkOwnBackend,
+  createChainAuthority: () => createChainAuthority,
+  isVerifierClient: () => isVerifierClient,
+  refusingChainAuthority: () => refusingChainAuthority
+});
+function checkOwnBackend(raw) {
+  const bad = (m) => {
+    throw new Error(`${TX_BACKEND_ENV}: ${m}`);
+  };
+  let u;
+  try {
+    u = new URL(String(raw));
+  } catch {
+    bad("must be a URL");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") bad("must be http(s)");
+  if (u.username || u.password || u.search || u.hash || String(raw).includes("#") || String(raw).includes("?")) bad("no credentials, query or fragment");
+  let scope = null;
+  if (u.hostname === "[::1]") scope = "loopback";
+  else {
+    const m = IPV4.exec(u.hostname);
+    if (!m) bad("must be a loopback or private IPv4 address literal: a name or public address is not the operator's own backend");
+    const o = m.slice(1).map(Number);
+    if (o.some((x) => x > 255)) bad("malformed IPv4 address");
+    if (o[0] === 127) scope = "loopback";
+    else if (o[0] === 10 || o[0] === 172 && o[1] >= 16 && o[1] <= 31 || o[0] === 192 && o[1] === 168) scope = "private";
+    else bad("must be a loopback or private IPv4 address literal: a public address is not the operator's own backend");
+  }
+  const port2 = u.port || (u.protocol === "https:" ? "443" : "80");
+  return Object.freeze({ url: u.href, scope, label: `${u.protocol}//${u.hostname}:${port2}` });
+}
+async function readBounded(r, max) {
+  const len = Number(r.headers.get("content-length") || 0);
+  if (len > max) throw new Error(`response larger than ${max} bytes`);
+  const chunks = [];
+  let n = 0;
+  for await (const c of r.body) {
+    n += c.length;
+    if (n > max) throw new Error(`response larger than ${max} bytes`);
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+function rpcCaller(url, label2, timeoutMs, fetchImpl) {
+  let id3 = 0;
+  return async (method, params) => {
+    const body2 = { jsonrpc: "2.0", id: ++id3, method, params };
+    let r;
+    try {
+      r = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: stringify3(body2), redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
+    } catch (e) {
+      throw Object.assign(new Error(`${label2} unreachable: ${String(e?.message || e).slice(0, 200)}`), { authorityUnavailable: true });
+    }
+    if (!r.ok) throw Object.assign(new Error(`${label2} HTTP ${r.status}`), { authorityUnavailable: true });
+    const j3 = JSON.parse(await readBounded(r, MAX_RESPONSE));
+    if (j3?.error) throw new RpcRequestError2({ body: body2, url: label2, error: { code: Number(j3.error.code) || -32603, message: String(j3.error.message || "error").slice(0, 2e3), data: j3.error.data } });
+    return j3?.result;
+  };
+}
+function chainAuthorityFromEnv2(env = process.env, opts = {}) {
+  const a = String(env[AUTHORITY_ENV] || "").trim(), v = String(env[VERIFIER_ENV] || "").trim(), b7 = String(env[TX_BACKEND_ENV] || "").trim();
+  if (!a || a === "quorum") {
+    if (v || b7) throw new Error(`${v ? VERIFIER_ENV : TX_BACKEND_ENV} is set but ${AUTHORITY_ENV} is not verifier`);
+    return null;
+  }
+  if (a !== "verifier") throw new Error(`${AUTHORITY_ENV} must be quorum or verifier`);
+  if (!v) throw new Error(`${AUTHORITY_ENV}=verifier needs ${VERIFIER_ENV} (the local verifier URL)`);
+  return createChainAuthority({ verifier: v, backend: b7 || null, ...opts });
+}
+function createChainAuthority({
+  verifier,
+  backend = null,
+  chain: chain2,
+  maxHeadAgeMs = 6e4,
+  futureSkewMs = 5e3,
+  bindTtlMs = 15e3,
+  timeoutMs = 2e4,
+  fetch: fetchImpl = globalThis.fetch,
+  now = Date.now
+} = {}) {
+  if (!chain2 || !Number.isSafeInteger(chain2.id)) throw new Error("chain authority needs the chain (viem chain object)");
+  const vEnd = verifierEndpoint(verifier);
+  const own = backend ? checkOwnBackend(backend) : null;
+  const callV = rpcCaller(typeof verifier === "string" ? verifier : verifier.url, vEnd.label, timeoutMs, fetchImpl);
+  const callB = own ? rpcCaller(own.url, `own backend ${own.label}`, timeoutMs, fetchImpl) : null;
+  let bound = null;
+  let last = { at: 0, ok: false, why: "not checked yet" };
+  const fail3 = (code, message2) => Object.assign(new Error(message2), { code, status: 503 });
+  async function bindBackend() {
+    if (!callB) throw fail3("chain_no_backend", `no own transaction backend is configured (${TX_BACKEND_ENV}): nothing is submitted through any other server`);
+    if (bound && now() - bound.at < bindTtlMs) return bound;
+    const want = BigInt(chain2.id);
+    if (BigInt(await callB("eth_chainId", [])) !== want) throw fail3("chain_backend_wrong_chain", `the own backend ${own.label} follows another chain`);
+    const n = BigInt(await callV("eth_blockNumber", []));
+    const tag = "0x" + n.toString(16);
+    const [vb2, bb2] = await Promise.all([callV("eth_getBlockByNumber", [tag, false]), callB("eth_getBlockByNumber", [tag, false])]);
+    if (!vb2?.hash) throw fail3("chain_unconfirmed", `the verifier has no block ${n}`);
+    if (!bb2?.hash) throw fail3("chain_backend_behind", `the own backend ${own.label} has no block ${n} (behind the verifier)`);
+    if (String(bb2.hash).toLowerCase() !== String(vb2.hash).toLowerCase())
+      throw fail3("chain_backend_unbound", `the own backend ${own.label} has another block ${n} than the verifier's signed head chain: not submitting through it`);
+    bound = { at: now(), number: n, hash: String(vb2.hash).toLowerCase() };
+    return bound;
+  }
+  async function actionGate({ what = "action", submit = false } = {}) {
+    try {
+      const blk = await headBlock();
+      let ts3;
+      try {
+        ts3 = Number(BigInt(blk.timestamp)) * 1e3;
+      } catch {
+        throw fail3("chain_unconfirmed", "the verifier has no head block");
+      }
+      if (ts3 > now() + futureSkewMs) throw fail3("chain_future", "the verifier's head is ahead of this host's clock");
+      if (now() - ts3 > maxHeadAgeMs) throw fail3("chain_stale", `the verifier's head is ${Math.round((now() - ts3) / 1e3)} s old (more than ${Math.round(maxHeadAgeMs / 1e3)} s)`);
+      if (submit) await bindBackend();
+      last = { at: now(), ok: true, why: null, head: String(BigInt(blk.number)) };
+    } catch (e) {
+      const where = /own backend/.test(String(e?.url || e?.message)) ? "the own backend" : "the local verifier";
+      const err3 = e?.code && e.status ? e : fail3("chain_unavailable", `${where} cannot answer (${String(e?.details || e?.shortMessage || e?.message || e).slice(0, 300)})`);
+      last = { at: now(), ok: false, why: err3.message, code: err3.code };
+      throw Object.assign(err3, { message: `${what} not done: ${err3.message}` });
+    }
+  }
+  async function headBlock(full = false) {
+    const n = await callV("eth_blockNumber", []);
+    return callV("eth_getBlockByNumber", [n, full]);
+  }
+  async function estimateGas4(params) {
+    const [{ gasPrice, maxFeePerGas, maxPriorityFeePerGas, type: type2, ...tx4 } = {}, at3 = "latest", ...rest] = params;
+    const blk = ["latest", "pending"].includes(at3) ? await callV("eth_blockNumber", []) : at3;
+    const call3 = (gas) => callV("eth_call", [{ ...tx4, gas: "0x" + gas.toString(16) }, blk, ...rest]);
+    let hi3 = tx4.gas != null ? BigInt(tx4.gas) : BigInt((await callV(/^0x[0-9a-f]{64}$/i.test(blk) ? "eth_getBlockByHash" : "eth_getBlockByNumber", [blk, false]))?.gasLimit ?? 0);
+    if (hi3 <= 0n) throw refused("eth_estimateGas", "the verifier has no gas limit for that block");
+    await call3(hi3);
+    const used = BigInt(await callV("eth_estimateGas", [{ ...tx4, gas: "0x" + hi3.toString(16) }, blk, ...rest]));
+    let lo3 = used > 0n ? used - 1n : 0n;
+    const probe = async (gas) => {
+      try {
+        await call3(gas);
+        return true;
+      } catch (e) {
+        if (e?.authorityUnavailable) throw e;
+        return false;
+      }
+    };
+    const optimistic = (used * 5n / 4n + 2300n) * 64n / 63n + 1n;
+    if (optimistic < hi3) {
+      if (await probe(optimistic)) hi3 = optimistic;
+      else lo3 = optimistic;
+    }
+    while (hi3 - lo3 > 1n && (hi3 - lo3) * 1000n > hi3 * 15n) {
+      const mid = hi3 > lo3 * 2n ? lo3 * 2n : (hi3 + lo3) / 2n;
+      if (await probe(mid)) hi3 = mid;
+      else lo3 = mid;
+    }
+    return "0x" + hi3.toString(16);
+  }
+  async function request({ method, params = [] }) {
+    const route = METHODS[method];
+    if (method === "eth_getBlockByNumber" && ["latest", "pending"].includes(params[0])) return headBlock(!!params[1]);
+    if ((method === "eth_getBlockByNumber" || method === "eth_getTransactionCount" || method === "eth_call" || method === "eth_getBalance") && params.some((x) => x === "safe" || x === "finalized"))
+      throw refused(method, "the local verifier has no safe or finalized tier (its head chain is the sequencer-signed unsafe tier)");
+    if (!route) throw refused(method, `not a proof-backed or own-backend method (verified: ${VERIFIED_METHODS.join(", ")}; own backend: ${BACKEND_METHODS.join(", ")})`);
+    if (method === "eth_getTransactionCount" && params[1] === "pending") {
+      if (!callB) throw refused(method, `the pending pool is only known to an own transaction backend (${TX_BACKEND_ENV} unset)`);
+      return callB(method, params);
+    }
+    if (route[0] === B2) {
+      if (!callB) throw refused(method, `no own transaction backend is configured (${TX_BACKEND_ENV}): nothing is sent or asked elsewhere`);
+      if (method === "eth_sendRawTransaction") {
+        try {
+          await actionGate({ what: "submission", submit: true });
+        } catch (e) {
+          throw refused(method, e.message);
+        }
+      }
+      return callB(method, params);
+    }
+    if (method === "eth_estimateGas") return estimateGas4(params);
+    try {
+      return await callV(method, params);
+    } catch (e) {
+      if (method === "eth_getTransactionReceipt" && e instanceof RpcRequestError2 && /receipt not found/i.test(String(e.details || e.message))) return null;
+      throw e;
+    }
+  }
+  const transport = custom({ request }, { key: "local-verifier", name: "Local verifier", retryCount: 0 });
+  const client = createPublicClient2({ chain: chain2, transport });
+  const describe = () => ({
+    authority: "local-verifier",
+    tier: "unsafe",
+    finality: "none",
+    verifier: vEnd.label,
+    backend: own ? { label: own.label, scope: own.scope, use: BACKEND_METHODS.concat("eth_getTransactionCount(pending)") } : null,
+    logs: "inclusion only (completeness not proven)"
+  });
+  Object.defineProperty(client, VERIFIER_CLIENT, { value: Object.freeze({ describe }), enumerable: false });
+  return Object.freeze({ mode: "verifier", client, transport, describe, actionGate, bindBackend, status: () => ({ ...last }) });
+}
+function refusingChainAuthority(why, { chain: chain2 } = {}) {
+  const request = async ({ method }) => {
+    throw refused(method, `the chain authority selection is invalid (${why})`);
+  };
+  const transport = custom({ request }, { key: "refusing", name: "Refusing chain authority", retryCount: 0 });
+  const client = createPublicClient2({ chain: chain2, transport });
+  const describe = () => ({ authority: "refusing", why });
+  Object.defineProperty(client, VERIFIER_CLIENT, { value: Object.freeze({ describe }), enumerable: false });
+  const gate = async ({ what = "action" } = {}) => {
+    throw Object.assign(new Error(`${what} not done: the chain authority selection is invalid (${why})`), { code: "chain_misconfigured", status: 503 });
+  };
+  return Object.freeze({ mode: "refusing", client, transport, describe, actionGate: gate, bindBackend: gate, status: () => ({ ok: false, why }) });
+}
+var AUTHORITY_ENV, VERIFIER_ENV, TX_BACKEND_ENV, VERIFIER_CLIENT, isVerifierClient, V, B2, METHODS, VERIFIED_METHODS, BACKEND_METHODS, IPV4, MAX_RESPONSE, refused;
+var init_chain_authority = __esm({
+  "network/chain-authority.mjs"() {
+    init_esm3();
+    init_verified_chain();
+    AUTHORITY_ENV = "ENCLAVE_CHAIN_AUTHORITY";
+    VERIFIER_ENV = "ENCLAVE_CHAIN_VERIFIER";
+    TX_BACKEND_ENV = "ENCLAVE_CHAIN_TX_BACKEND";
+    VERIFIER_CLIENT = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
+    isVerifierClient = (c) => !!c && typeof c === "object" && !!c[VERIFIER_CLIENT];
+    V = "verifier";
+    B2 = "backend";
+    METHODS = Object.freeze({
+      eth_chainId: [V, "the verifier's configured chain"],
+      eth_blockNumber: [V, "the verifier's sequencer-signed unsafe head"],
+      eth_getBlockByNumber: [V, "a block of the verifier's signed head chain (signed head or authenticated ancestry)"],
+      eth_getBlockByHash: [V, "a block of the verifier's signed head chain (signed head or authenticated ancestry)"],
+      eth_call: [V, "executed locally over state proven against the block state root"],
+      eth_estimateGas: [V, "a gas limit at which a local execution over proven state succeeded (searched with eth_call)"],
+      eth_getBalance: [V, "account proof against the block state root"],
+      eth_getCode: [V, "code proven against the account's code hash"],
+      eth_getStorageAt: [V, "storage proof against the block state root"],
+      eth_getTransactionReceipt: [V, "receipt checked against the receipts root of a verified block"],
+      eth_getBlockReceipts: [V, "receipts checked against the receipts root of a verified block"],
+      eth_getTransactionByHash: [V, "the transaction taken from the validated body of its block (transactions root); none is no evidence"],
+      eth_getLogs: [V, "each log checked against its block's receipts: INCLUSION only, completeness not proven"],
+      eth_getTransactionCount: [V, "account proof against the block state root (pending: the own backend's pool hint)"],
+      eth_sendRawTransaction: [B2, "submission only: inclusion is shown solely by a receipt the verifier checks"],
+      eth_maxPriorityFeePerGas: [B2, "fee hint from the own backend (cost, not validity)"],
+      eth_feeHistory: [B2, "fee hint from the own backend (cost, not validity)"],
+      eth_gasPrice: [B2, "fee hint from the own backend (cost, not validity)"]
+    });
+    VERIFIED_METHODS = Object.freeze(Object.keys(METHODS).filter((m) => METHODS[m][0] === V));
+    BACKEND_METHODS = Object.freeze(Object.keys(METHODS).filter((m) => METHODS[m][0] === B2));
+    IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    MAX_RESPONSE = 32 << 20;
+    refused = (method, why) => new RpcRequestError2({ body: { method }, url: "chain-authority", error: { code: -32601, message: `${method} refused by the local chain authority: ${why}` } });
+  }
+});
+
 // custody/v2/quorum.mjs
 function rpcIdentity2(url) {
   try {
@@ -85929,7 +86210,7 @@ function createQuorumReader({
     if (!c || typeof c !== "object" || needs.some((m) => typeof c[m] !== "function")) throw Error(`chain: RPC client ${i + 1} is malformed (needs ${needs.join(", ")})`);
   });
   if (new Set(clients).size !== clients.length) throw Error("chain: distinct RPC clients required");
-  if (clients.some((c) => !!c[VERIFIER_MARK]))
+  if (clients.some((c) => !!c[VERIFIER_MARK2]))
     throw Object.assign(Error("chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)"), { code: "chain_verifier_unsupported" });
   const origins = clients.flatMap((c) => {
     if (c.transport === void 0 || c.transport === null || c.transport.url === void 0) return [];
@@ -86024,7 +86305,7 @@ function createQuorumReader({
     return commit(winner.value);
   };
 }
-var fail2, fingerprint, hashPattern, VERIFIER_MARK, MAX_RPCS, POLICY;
+var fail2, fingerprint, hashPattern, VERIFIER_MARK2, MAX_RPCS, POLICY;
 var init_quorum = __esm({
   "custody/v2/quorum.mjs"() {
     init_esm3();
@@ -86032,7 +86313,7 @@ var init_quorum = __esm({
     fail2 = (code, message2) => Object.assign(new Error(message2), { code, status: 503 });
     fingerprint = (value) => JSON.stringify(value, (_, v) => typeof v === "bigint" ? `n${v}` : v instanceof Uint8Array ? `x${bytesToHex3(v)}` : v);
     hashPattern = /^0x[0-9a-fA-F]{64}$/;
-    VERIFIER_MARK = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
+    VERIFIER_MARK2 = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
     MAX_RPCS = 16;
     POLICY = { confirmations: [0, 1e3], timeoutMs: [1, 3e5], maxAgeSec: [0, 7 * 86400], maxFutureSec: [0, 3600] };
   }
@@ -94757,8 +95038,8 @@ function Lh(e) {
       let F = p(H), D;
       try {
         D = r.sqrt(F);
-      } catch (V) {
-        let G3 = V instanceof Error ? ": " + V.message : "";
+      } catch (V3) {
+        let G3 = V3 instanceof Error ? ": " + V3.message : "";
         throw new Error("Point is not on curve" + G3);
       }
       let U5 = (D & ne) === ne;
@@ -94801,7 +95082,7 @@ function Lh(e) {
       if (H == null || ![0, 1, 2, 3].includes(H)) throw new Error("recovery id invalid");
       let D = H === 2 || H === 3 ? $3 + t.n : $3;
       if (D >= r.ORDER) throw new Error("recovery id 2 or 3 invalid");
-      let U5 = (H & 1) === 0 ? "02" : "03", q3 = u.fromHex(U5 + Ud(D, r.BYTES)), V = f(D), G3 = c(-F * V), ue2 = c(R * V), ze = u.BASE.multiplyAndAddUnsafe(q3, G3, ue2);
+      let U5 = (H & 1) === 0 ? "02" : "03", q3 = u.fromHex(U5 + Ud(D, r.BYTES)), V3 = f(D), G3 = c(-F * V3), ue2 = c(R * V3), ze = u.BASE.multiplyAndAddUnsafe(q3, G3, ue2);
       if (!ze) throw new Error("point at infinify");
       return ze.assertValidity(), ze;
     }
@@ -94865,7 +95146,7 @@ function Lh(e) {
     if (["recovered", "canonical"].some((it2) => it2 in $3)) throw new Error("sign() legacy options not supported");
     let { hash: R, randomBytes: H } = t, { lowS: F, prehash: D, extraEntropy: U5 } = $3;
     F == null && (F = true), B3 = Ae("msgHash", B3), _h($3), D && (B3 = Ae("prehashed msgHash", R(B3)));
-    let q3 = A3(B3), V = d3(C), G3 = [N(V), N(q3)];
+    let q3 = A3(B3), V3 = d3(C), G3 = [N(V3), N(q3)];
     if (U5 != null && U5 !== false) {
       let it2 = U5 === true ? H(r.BYTES) : U5;
       G3.push(Ae("extraEntropy", it2));
@@ -94876,7 +95157,7 @@ function Lh(e) {
       if (!l(sn2)) return;
       let Zu2 = f(sn2), Yi = u.BASE.multiply(sn2).toAffine(), yo2 = c(Yi.x);
       if (yo2 === Ft) return;
-      let Ji2 = c(Zu2 * c(ze + yo2 * V));
+      let Ji2 = c(Zu2 * c(ze + yo2 * V3));
       if (Ji2 === Ft) return;
       let an2 = (Yi.x === yo2 ? 0 : 2) | Number(Yi.y & ne), O02 = Ji2;
       return F && m(Ji2) && (O02 = y(Ji2), an2 ^= 1), new x(yo2, O02, an2);
@@ -94895,11 +95176,11 @@ function Lh(e) {
     let { lowS: F, prehash: D, format: U5 } = R;
     if (_h(R), "strict" in R) throw new Error("options.strict was renamed to lowS");
     if (U5 !== void 0 && U5 !== "compact" && U5 !== "der") throw new Error("format must be compact or der");
-    let q3 = typeof H == "string" || Jn(H), V = !q3 && !U5 && typeof H == "object" && H !== null && typeof H.r == "bigint" && typeof H.s == "bigint";
-    if (!q3 && !V) throw new Error("invalid signature, expected Uint8Array, hex string or Signature instance");
+    let q3 = typeof H == "string" || Jn(H), V3 = !q3 && !U5 && typeof H == "object" && H !== null && typeof H.r == "bigint" && typeof H.s == "bigint";
+    if (!q3 && !V3) throw new Error("invalid signature, expected Uint8Array, hex string or Signature instance");
     let G3, ue2;
     try {
-      if (V && (G3 = new x(H.r, H.s)), q3) {
+      if (V3 && (G3 = new x(H.r, H.s)), q3) {
         try {
           U5 !== "compact" && (G3 = x.fromDER(H));
         } catch (an2) {
@@ -95975,14 +96256,14 @@ async function kt(e, t) {
     St(t);
     let C = dt({ blockHash: i, blockNumber: s, blockTag: a, requireCanonical: c }), $3 = d3 ? Ef(d3) : void 0, R = li(N), H = e.chain?.formatters?.transactionRequest?.format, D = (H || Xt)({ ...ro(v, { format: H }), accessList: f, account: T, authorizationList: o, blobs: u, data: B3, gas: I, gasPrice: x, maxFeePerBlobGas: E, maxFeePerGas: g, maxPriorityFeePerGas: b7, nonce: w, to: O ? void 0 : A3, value: P3 }, "call");
     if (n && r2({ request: D }) && !$3 && i === void 0) try {
-      let { deployless: V = false } = typeof e.batch?.multicall == "object" ? e.batch.multicall : {}, G3 = ly(e, { blockNumber: s, deployless: V });
+      let { deployless: V3 = false } = typeof e.batch?.multicall == "object" ? e.batch.multicall : {}, G3 = ly(e, { blockNumber: s, deployless: V3 });
       if (!G3 || !s2(R, G3)) return await i2(e, { ...D, blockHash: i, blockNumber: s, blockTag: a, multicallAddress: G3, requestOptions: S7, requireCanonical: c, rpcStateOverride: R });
-    } catch (V) {
-      if (!(V instanceof Js) && !(V instanceof zo)) throw V;
+    } catch (V3) {
+      if (!(V3 instanceof Js) && !(V3 instanceof zo)) throw V3;
     }
     let U5 = (() => {
-      let V = [D, C];
-      return R && $3 ? [...V, R, $3] : R ? [...V, R] : $3 ? [...V, {}, $3] : V;
+      let V3 = [D, C];
+      return R && $3 ? [...V3, R, $3] : R ? [...V3, R] : $3 ? [...V3, {}, $3] : V3;
     })(), q3 = await e.request({ method: "eth_call", params: U5 }, S7);
     return q3 === "0x" ? { data: void 0 } : { data: q3 };
   } catch (C) {
@@ -96801,7 +97082,7 @@ function C1(e, { errorInstance: t = new Error("timed out"), timeout: r, signal: 
     })();
   });
 }
-function B2() {
+function B22() {
   return { current: 0, take() {
     return this.current++;
   }, reset() {
@@ -97643,8 +97924,8 @@ async function qx(e, t) {
   for (let [R, H] of M3.entries()) {
     let F = v[R];
     if (typeof H != "bigint" || typeof F != "bigint") continue;
-    let D = O[R - 1], U5 = B3[R - 1], q3 = C[R - 1], V = R === 0 ? { address: Ux, decimals: 18, symbol: "ETH" } : { address: d3[R - 1], decimals: q3 || D ? Number(D ?? 1) : void 0, symbol: U5 ?? void 0 };
-    $3.some((G3) => G3.token.address === V.address) || $3.push({ token: V, value: { pre: F, post: H, diff: H - F } });
+    let D = O[R - 1], U5 = B3[R - 1], q3 = C[R - 1], V3 = R === 0 ? { address: Ux, decimals: 18, symbol: "ETH" } : { address: d3[R - 1], decimals: q3 || D ? Number(D ?? 1) : void 0, symbol: U5 ?? void 0 };
+    $3.some((G3) => G3.token.address === V3.address) || $3.push({ token: V3, value: { pre: F, post: H, diff: H - F } });
   }
   return { assetChanges: $3, block: S7, results: A3 };
 }
@@ -98359,34 +98640,34 @@ async function M6({ peers: e, chainId: t, read: r, confirmations: o = 2, maxBloc
       b7 || (b7 = true, clearTimeout(v), clearTimeout(O), U5 ? g(U5) : E(q3));
     }, O = setTimeout(() => M3(new Hr(`no two RPCs agreed within ${a} ms`, y())), a);
     O.unref?.();
-    let B3 = (U5, q3) => (V, G3) => {
+    let B3 = (U5, q3) => (V3, G3) => {
       if (b7 || q3 !== w) return Promise.reject(new Error(b7 ? "the read was already decided" : "superseded by a newer block"));
       let ue2 = Math.floor(x - performance.now());
-      return ue2 <= 0 ? Promise.reject(new Error(`${U5.label} ${V}: the deadline has passed`)) : k6(Promise.resolve().then(G3), Math.min(s, ue2), `${U5.label} ${V}`);
+      return ue2 <= 0 ? Promise.reject(new Error(`${U5.label} ${V3}: the deadline has passed`)) : k6(Promise.resolve().then(G3), Math.min(s, ue2), `${U5.label} ${V3}`);
     }, C = () => {
       if (T.size < 2) return null;
-      let q3 = [...T.values()].map((V) => V.n).sort((V, G3) => V > G3 ? -1 : V < G3 ? 1 : 0)[1] - BigInt(o);
+      let q3 = [...T.values()].map((V3) => V3.n).sort((V3, G3) => V3 > G3 ? -1 : V3 < G3 ? 1 : 0)[1] - BigInt(o);
       return q3 < 0n ? -1n : (q3 < BigInt(f) && (q3 = BigInt(f)), q3);
-    }, $3 = async (U5, q3, V) => {
+    }, $3 = async (U5, q3, V3) => {
       if (u) {
-        let it2 = await V("chain id", () => U5.client.getChainId());
+        let it2 = await V3("chain id", () => U5.client.getChainId());
         if (Number(it2) !== t) throw new Error(`reports chain ${it2}, not ${t}`);
       }
-      let G3 = T6(await V("block", () => U5.client.getBlock({ blockNumber: q3 })), q3);
+      let G3 = T6(await V3("block", () => U5.client.getBlock({ blockNumber: q3 })), q3);
       if (u && G3.hash !== Ke(u.hash)) throw new Error("block hash differs from the resume point: reorganized, or another chain");
       let ue2 = G3.timestamp * 1e3;
       if (ue2 > d3() + i) throw new Error("block timestamp is in the future");
       if (!I(ue2)) throw new Error(`block ${q3} is older than ${n} ms`);
-      let ze = await r(U5.client, q3, V), ht2 = T6(await V("block recheck", () => U5.client.getBlock({ blockNumber: q3 })), q3);
+      let ze = await r(U5.client, q3, V3), ht2 = T6(await V3("block recheck", () => U5.client.getBlock({ blockNumber: q3 })), q3);
       if (ht2.hash !== G3.hash || ht2.timestamp !== G3.timestamp || ht2.parentHash !== G3.parentHash) throw new Error("reorganized during the read: the block header changed");
       if (!I(ue2)) throw new Error(`block ${q3} became older than ${n} ms during the read`);
       return { blockNumber: String(q3), blockHash: G3.hash, timestamp: G3.timestamp, value: ze };
     }, R = (U5) => {
       if (b7 || P3.has(U5.label)) return;
-      let q3 = w, V = S7;
+      let q3 = w, V3 = S7;
       P3.add(U5.label), N++;
       let G3 = p.get(U5.label);
-      delete G3.snapshot, delete G3.reason, l(U5, { stage: "read", status: "reading", round: q3 }), $3(U5, V, B3(U5, q3)).then((ue2) => {
+      delete G3.snapshot, delete G3.reason, l(U5, { stage: "read", status: "reading", round: q3 }), $3(U5, V3, B3(U5, q3)).then((ue2) => {
         if (b7 || q3 !== w) return;
         let ze = J8(ue2), ht2 = N6("sha256").update(ze).digest("hex");
         l(U5, { status: "answered", snapshot: ht2 });
@@ -98397,7 +98678,7 @@ async function M6({ peers: e, chainId: t, read: r, confirmations: o = 2, maxBloc
         }
         if (it2 !== U5.label) {
           if (!I(ue2.timestamp * 1e3)) {
-            l(U5, { status: "failed", reason: `block ${V} became older than ${n} ms before acceptance` });
+            l(U5, { status: "failed", reason: `block ${V3} became older than ${n} ms before acceptance` });
             return;
           }
           M3(null, { ...ue2, evidence: y(ht2) });
@@ -98435,8 +98716,8 @@ async function M6({ peers: e, chainId: t, read: r, confirmations: o = 2, maxBloc
       let q3 = (ue2, ze) => {
         let ht2 = Math.floor(x - performance.now());
         return b7 ? Promise.reject(new Error("the read was already decided")) : k6(Promise.resolve().then(ze), Math.max(1, Math.min(s, ht2)), `${U5.label} ${ue2}`);
-      }, [V, G3] = await Promise.all([q3("chain id", () => U5.client.getChainId()), q3("head", () => U5.client.getBlockNumber({ cacheTime: 0 }))]);
-      if (Number(V) !== t) throw new Error(`reports chain ${V}, not ${t}`);
+      }, [V3, G3] = await Promise.all([q3("chain id", () => U5.client.getChainId()), q3("head", () => U5.client.getBlockNumber({ cacheTime: 0 }))]);
+      if (Number(V3) !== t) throw new Error(`reports chain ${V3}, not ${t}`);
       return BigInt(G3);
     })().then((q3) => {
       b7 || (l(U5, { status: "head", head: String(q3) }), T.set(U5.label, { p: U5, n: q3 }), S7 !== null ? R(U5) : T.size >= 2 && v === null && (v = setTimeout(() => {
@@ -98492,8 +98773,8 @@ async function rE({ peers: e, clients: t, pin: r, kinds: o = V8, window: n = 256
     for (let H of y) {
       let F = BigInt(E[nn[H]] ?? 0), D = [], U5 = null;
       for (let q3 = F; D.length < n; q3 += BigInt(mt.page)) {
-        let V = BigInt(Math.min(mt.page, n - D.length)), [G3, ue2] = await C(`page ${nn[H]}@${q3}`, () => O.readContract({ address: r.address, abi: A0, functionName: "page", args: [H, q3, V], blockNumber: B3 }));
-        if (U5 = ue2, D.push(...G3), G3.length < Number(V) || q3 + BigInt(G3.length) >= ue2) break;
+        let V3 = BigInt(Math.min(mt.page, n - D.length)), [G3, ue2] = await C(`page ${nn[H]}@${q3}`, () => O.readContract({ address: r.address, abi: A0, functionName: "page", args: [H, q3, V3], blockNumber: B3 }));
+        if (U5 = ue2, D.push(...G3), G3.length < Number(V3) || q3 + BigInt(G3.length) >= ue2) break;
       }
       R.windows[H] = { total: U5 ?? 0n, start: F, ads: D };
     }
@@ -101969,7 +102250,7 @@ ${ch(l)}`), super(t.shortMessage, { cause: t, docsPath: o, metaMessages: [...t.m
       Mt();
     });
     N1 = h(() => {
-      Jp = B2();
+      Jp = B22();
     });
     $1 = h(() => {
       Po();
@@ -104712,8 +104993,8 @@ function og2(e) {
       l(m);
       let { px: w, py: P3, pz: g } = this, { px: b7, py: B3, pz: I } = m, k3 = r.ZERO, N = r.ZERO, _ = r.ZERO, H = t.a, R = r.mul(t.b, xi2), T = r.mul(w, b7), L3 = r.mul(P3, B3), C = r.mul(g, I), z3 = r.add(w, P3), j3 = r.add(b7, B3);
       z3 = r.mul(z3, j3), j3 = r.add(T, L3), z3 = r.sub(z3, j3), j3 = r.add(w, g);
-      let V = r.add(b7, I);
-      return j3 = r.mul(j3, V), V = r.add(T, C), j3 = r.sub(j3, V), V = r.add(P3, g), k3 = r.add(B3, I), V = r.mul(V, k3), k3 = r.add(L3, C), V = r.sub(V, k3), _ = r.mul(H, j3), k3 = r.mul(R, C), _ = r.add(k3, _), k3 = r.sub(L3, _), _ = r.add(L3, _), N = r.mul(k3, _), L3 = r.add(T, T), L3 = r.add(L3, T), C = r.mul(H, C), j3 = r.mul(R, j3), L3 = r.add(L3, C), C = r.sub(T, C), C = r.mul(H, C), j3 = r.add(j3, C), T = r.mul(L3, j3), N = r.add(N, T), T = r.mul(V, j3), k3 = r.mul(z3, k3), k3 = r.sub(k3, T), T = r.mul(z3, L3), _ = r.mul(V, _), _ = r.add(_, T), new y(k3, N, _);
+      let V3 = r.add(b7, I);
+      return j3 = r.mul(j3, V3), V3 = r.add(T, C), j3 = r.sub(j3, V3), V3 = r.add(P3, g), k3 = r.add(B3, I), V3 = r.mul(V3, k3), k3 = r.add(L3, C), V3 = r.sub(V3, k3), _ = r.mul(H, j3), k3 = r.mul(R, C), _ = r.add(k3, _), k3 = r.sub(L3, _), _ = r.add(L3, _), N = r.mul(k3, _), L3 = r.add(T, T), L3 = r.add(L3, T), C = r.mul(H, C), j3 = r.mul(R, j3), L3 = r.add(L3, C), C = r.sub(T, C), C = r.mul(H, C), j3 = r.add(j3, C), T = r.mul(L3, j3), N = r.add(N, T), T = r.mul(V3, j3), k3 = r.mul(z3, k3), k3 = r.sub(k3, T), T = r.mul(z3, L3), _ = r.mul(V3, _), _ = r.add(_, T), new y(k3, N, _);
     }
     subtract(m) {
       return this.add(m.negate());
@@ -104796,15 +105077,15 @@ function Op2(e) {
     if (T === i && (L3 === 2 || L3 === 3)) {
       let z3 = ot2(C);
       if (!Hn2(z3, ue, r.ORDER)) throw new Error("Point is not on curve");
-      let j3 = l(z3), V;
+      let j3 = l(z3), V3;
       try {
-        V = r.sqrt(j3);
+        V3 = r.sqrt(j3);
       } catch (O) {
         let M3 = O instanceof Error ? ": " + O.message : "";
         throw new Error("Point is not on curve" + M3);
       }
-      let F = (V & ue) === ue;
-      return (L3 & 1) === 1 !== F && (V = r.neg(V)), { x: z3, y: V };
+      let F = (V3 & ue) === ue;
+      return (L3 & 1) === 1 !== F && (V3 = r.neg(V3)), { x: z3, y: V3 };
     } else if (T === a && L3 === 4) {
       let z3 = r.fromBytes(C.subarray(0, r.BYTES)), j3 = r.fromBytes(C.subarray(r.BYTES, 2 * r.BYTES));
       return { x: z3, y: j3 };
@@ -104841,9 +105122,9 @@ function Op2(e) {
     recoverPublicKey(T) {
       let { r: L3, s: C, recovery: z3 } = this, j3 = g(Ie2("msgHash", T));
       if (z3 == null || ![0, 1, 2, 3].includes(z3)) throw new Error("recovery id invalid");
-      let V = z3 === 2 || z3 === 3 ? L3 + t.n : L3;
-      if (V >= r.ORDER) throw new Error("recovery id 2 or 3 invalid");
-      let F = (z3 & 1) === 0 ? "02" : "03", D = u.fromHex(F + _f2(V, r.BYTES)), O = f(V), M3 = c(-j3 * O), W3 = c(C * O), K7 = u.BASE.multiplyAndAddUnsafe(D, M3, W3);
+      let V3 = z3 === 2 || z3 === 3 ? L3 + t.n : L3;
+      if (V3 >= r.ORDER) throw new Error("recovery id 2 or 3 invalid");
+      let F = (z3 & 1) === 0 ? "02" : "03", D = u.fromHex(F + _f2(V3, r.BYTES)), O = f(V3), M3 = c(-j3 * O), W3 = c(C * O), K7 = u.BASE.multiplyAndAddUnsafe(D, M3, W3);
       if (!K7) throw new Error("point at infinify");
       return K7.assertValidity(), K7;
     }
@@ -104905,8 +105186,8 @@ function Op2(e) {
   }
   function I(R, T, L3 = k3) {
     if (["recovered", "canonical"].some((ae2) => ae2 in L3)) throw new Error("sign() legacy options not supported");
-    let { hash: C, randomBytes: z3 } = t, { lowS: j3, prehash: V, extraEntropy: F } = L3;
-    j3 == null && (j3 = true), R = Ie2("msgHash", R), Np2(L3), V && (R = Ie2("prehashed msgHash", C(R)));
+    let { hash: C, randomBytes: z3 } = t, { lowS: j3, prehash: V3, extraEntropy: F } = L3;
+    j3 == null && (j3 = true), R = Ie2("msgHash", R), Np2(L3), V3 && (R = Ie2("prehashed msgHash", C(R)));
     let D = g(R), O = d3(T), M3 = [B3(O), B3(D)];
     if (F != null && F !== false) {
       let ae2 = F === true ? z3(r.BYTES) : F;
@@ -104934,7 +105215,7 @@ function Op2(e) {
   function H(R, T, L3, C = N) {
     let z3 = R;
     T = Ie2("msgHash", T), L3 = Ie2("publicKey", L3);
-    let { lowS: j3, prehash: V, format: F } = C;
+    let { lowS: j3, prehash: V3, format: F } = C;
     if (Np2(C), "strict" in C) throw new Error("options.strict was renamed to lowS");
     if (F !== void 0 && F !== "compact" && F !== "der") throw new Error("format must be compact or der");
     let D = typeof z3 == "string" || Do2(z3), O = !D && !F && typeof z3 == "object" && z3 !== null && typeof z3.r == "bigint" && typeof z3.s == "bigint";
@@ -104954,7 +105235,7 @@ function Op2(e) {
       return false;
     }
     if (!M3 || j3 && M3.hasHighS()) return false;
-    V && (T = t.hash(T));
+    V3 && (T = t.hash(T));
     let { r: K7, s: Z7 } = M3, ae2 = g(T), ye2 = f(Z7), We2 = c(ae2 * ye2), Ke2 = c(K7 * ye2), ze = u.BASE.multiplyAndAddUnsafe(W3, We2, Ke2)?.toAffine();
     return ze ? c(ze.x) === K7 : false;
   }
@@ -105586,15 +105867,15 @@ async function $t2(e, t) {
   let N = l && p, _ = h3 && y && g && p, H = N || _, R = N ? nh2({ code: l, data: p }) : _ ? Yg2({ data: p, factory: h3, factoryData: y, to: g }) : p;
   try {
     St2(t);
-    let T = ht({ blockHash: s, blockNumber: i, blockTag: a, requireCanonical: c }), L3 = d3 ? Oc2(d3) : void 0, C = os2(B3), z3 = e.chain?.formatters?.transactionRequest?.format, V = (z3 || Dt2)({ ...sn(I, { format: z3 }), accessList: f, account: k3, authorizationList: n, blobs: u, data: R, gas: E, gasPrice: x, maxFeePerBlobGas: A3, maxFeePerGas: v, maxPriorityFeePerGas: m, nonce: w, to: H ? void 0 : g, value: b7 }, "call");
-    if (o && Gg2({ request: V }) && !L3 && s === void 0) try {
+    let T = ht({ blockHash: s, blockNumber: i, blockTag: a, requireCanonical: c }), L3 = d3 ? Oc2(d3) : void 0, C = os2(B3), z3 = e.chain?.formatters?.transactionRequest?.format, V3 = (z3 || Dt2)({ ...sn(I, { format: z3 }), accessList: f, account: k3, authorizationList: n, blobs: u, data: R, gas: E, gasPrice: x, maxFeePerBlobGas: A3, maxFeePerGas: v, maxPriorityFeePerGas: m, nonce: w, to: H ? void 0 : g, value: b7 }, "call");
+    if (o && Gg2({ request: V3 }) && !L3 && s === void 0) try {
       let { deployless: O = false } = typeof e.batch?.multicall == "object" ? e.batch.multicall : {}, M3 = rh2(e, { blockNumber: i, deployless: O });
-      if (!M3 || !Zg2(C, M3)) return await Kg2(e, { ...V, blockHash: s, blockNumber: i, blockTag: a, multicallAddress: M3, requestOptions: P3, requireCanonical: c, rpcStateOverride: C });
+      if (!M3 || !Zg2(C, M3)) return await Kg2(e, { ...V3, blockHash: s, blockNumber: i, blockTag: a, multicallAddress: M3, requestOptions: P3, requireCanonical: c, rpcStateOverride: C });
     } catch (O) {
       if (!(O instanceof Ri2) && !(O instanceof Dn2)) throw O;
     }
     let F = (() => {
-      let O = [V, T];
+      let O = [V3, T];
       return C && L3 ? [...O, C, L3] : C ? [...O, C] : L3 ? [...O, {}, L3] : O;
     })(), D = await e.request({ method: "eth_call", params: F }, P3);
     return D === "0x" ? { data: void 0 } : { data: D };
@@ -107515,12 +107796,12 @@ async function Ey2(e, t) {
   let u = f ? by2(gy2("constructor(bytes, bytes)"), { bytecode: Lc2, args: [u62, wy2(Yn2("function getBalance(address)"), [f.address])] }) : void 0, d3 = i ? await Promise.all(t.calls.map(async (C) => {
     if (!C.data && !C.abi) return;
     let { accessList: z3 } = await Qc2(e, { account: f.address, ...C, data: C.abi ? ne2(C) : C.data });
-    return z3.map(({ address: j3, storageKeys: V }) => V.length > 0 ? j3 : null);
+    return z3.map(({ address: j3, storageKeys: V3 }) => V3.length > 0 ? j3 : null);
   })).then((C) => C.flat().filter(Boolean)) : [], l = await Vi2(e, { blockNumber: r, blockTag: n, blocks: [...i ? [{ calls: [{ data: u }], stateOverrides: s }, { calls: d3.map((C, z3) => ({ abi: [Yn2("function balanceOf(address) returns (uint256)")], functionName: "balanceOf", args: [f.address], to: C, from: Ct2, nonce: z3 })), stateOverrides: [{ address: Ct2, nonce: 0 }] }] : [], { calls: [...o, { to: Ct2 }].map((C) => ({ ...C, from: f?.address })), stateOverrides: s }, ...i ? [{ calls: [{ data: u }] }, { calls: d3.map((C, z3) => ({ abi: [Yn2("function balanceOf(address) returns (uint256)")], functionName: "balanceOf", args: [f.address], to: C, from: Ct2, nonce: z3 })), stateOverrides: [{ address: Ct2, nonce: 0 }] }, { calls: d3.map((C, z3) => ({ to: C, abi: [Yn2("function decimals() returns (uint256)")], functionName: "decimals", from: Ct2, nonce: z3 })), stateOverrides: [{ address: Ct2, nonce: 0 }] }, { calls: d3.map((C, z3) => ({ to: C, abi: [Yn2("function tokenURI(uint256) returns (string)")], functionName: "tokenURI", args: [0n], from: Ct2, nonce: z3 })), stateOverrides: [{ address: Ct2, nonce: 0 }] }, { calls: d3.map((C, z3) => ({ to: C, abi: [Yn2("function symbol() returns (string)")], functionName: "symbol", from: Ct2, nonce: z3 })), stateOverrides: [{ address: Ct2, nonce: 0 }] }] : []], traceTransfers: a, validation: c }), p = i ? l[2] : l[0], [h3, y, , E, x, A3, v, m] = i ? l : [], { calls: w, ...P3 } = p, g = w.slice(0, -1) ?? [], b7 = h3?.calls ?? [], B3 = y?.calls ?? [], I = [...b7, ...B3].map((C) => C.status === "success" ? Ne2(C.data) : null), k3 = E?.calls ?? [], N = x?.calls ?? [], _ = [...k3, ...N].map((C) => C.status === "success" ? Ne2(C.data) : null), H = (A3?.calls ?? []).map((C) => C.status === "success" ? C.result : null), R = (m?.calls ?? []).map((C) => C.status === "success" ? C.result : null), T = (v?.calls ?? []).map((C) => C.status === "success" ? C.result : null), L3 = [];
   for (let [C, z3] of _.entries()) {
     let j3 = I[C];
     if (typeof z3 != "bigint" || typeof j3 != "bigint") continue;
-    let V = H[C - 1], F = R[C - 1], D = T[C - 1], O = C === 0 ? { address: vy2, decimals: 18, symbol: "ETH" } : { address: d3[C - 1], decimals: D || V ? Number(V ?? 1) : void 0, symbol: F ?? void 0 };
+    let V3 = H[C - 1], F = R[C - 1], D = T[C - 1], O = C === 0 ? { address: vy2, decimals: 18, symbol: "ETH" } : { address: d3[C - 1], decimals: D || V3 ? Number(V3 ?? 1) : void 0, symbol: F ?? void 0 };
     L3.some((M3) => M3.token.address === O.address) || L3.push({ token: O, value: { pre: j3, post: z3, diff: z3 - j3 } });
   }
   return { assetChanges: L3, block: P3, results: g };
@@ -108036,7 +108317,7 @@ function Iw2({ verifier: e, backend: t = null, chain: r, maxHeadAgeMs: n = 6e4, 
     let [{ gasPrice: B3, maxFeePerGas: I, maxPriorityFeePerGas: k3, type: N, ..._ } = {}, H = "latest", ...R] = b7, T = ["latest", "pending"].includes(H) ? await d3("eth_blockNumber", []) : H, L3 = (D) => d3("eth_call", [{ ..._, gas: "0x" + D.toString(16) }, T, ...R]), C = _.gas != null ? BigInt(_.gas) : BigInt((await d3(/^0x[0-9a-f]{64}$/i.test(T) ? "eth_getBlockByHash" : "eth_getBlockByNumber", [T, false]))?.gasLimit ?? 0);
     if (C <= 0n) throw Qn2("eth_estimateGas", "the verifier has no gas limit for that block");
     await L3(C);
-    let z3 = BigInt(await d3("eth_estimateGas", [{ ..._, gas: "0x" + C.toString(16) }, T, ...R])), j3 = z3 > 0n ? z3 - 1n : 0n, V = async (D) => {
+    let z3 = BigInt(await d3("eth_estimateGas", [{ ..._, gas: "0x" + C.toString(16) }, T, ...R])), j3 = z3 > 0n ? z3 - 1n : 0n, V3 = async (D) => {
       try {
         return await L3(D), true;
       } catch (O) {
@@ -108044,9 +108325,9 @@ function Iw2({ verifier: e, backend: t = null, chain: r, maxHeadAgeMs: n = 6e4, 
         return false;
       }
     }, F = (z3 * 5n / 4n + 2300n) * 64n / 63n + 1n;
-    for (F < C && (await V(F) ? C = F : j3 = F); C - j3 > 1n && (C - j3) * 1000n > C * 15n; ) {
+    for (F < C && (await V3(F) ? C = F : j3 = F); C - j3 > 1n && (C - j3) * 1000n > C * 15n; ) {
       let D = C > j3 * 2n ? j3 * 2n : (C + j3) / 2n;
-      await V(D) ? C = D : j3 = D;
+      await V3(D) ? C = D : j3 = D;
     }
     return "0x" + C.toString(16);
   }
@@ -110851,7 +111132,7 @@ function quorumReader({ clients, chainId = 8453, confirmations = 2, maxBlockAgeM
   };
 }
 function verifierReader({ client, chainId = 8453, confirmations = 2, maxBlockAgeMs = 9e4, deadlineMs = 3e4, now = Date.now }) {
-  if (!client || typeof client !== "object" || !client[VERIFIER_MARK2]) throw new Error("the single-authority reader needs the node's local verifier client (one RPC never decides what the chain says)");
+  if (!client || typeof client !== "object" || !client[VERIFIER_MARK3]) throw new Error("the single-authority reader needs the node's local verifier client (one RPC never decides what the chain says)");
   if (PEER_METHODS.some((m) => typeof client[m] !== "function")) throw new Error(`the verifier client needs ${PEER_METHODS.join(", ")}`);
   if (!inRange3(chainId, 1, Number.MAX_SAFE_INTEGER)) throw new Error("chainId must be a positive integer");
   if (!inRange3(confirmations, 1, 1e3)) throw new Error("confirmations must be a whole number from 1 to 1000");
@@ -110951,7 +111232,7 @@ async function main(argv) {
   process.stdout.write(JSON.stringify(r) + "\n");
   return r.status === "taken" ? 2 : 0;
 }
-var LEGACY_RELAY, LEGACY_GATEWAY, DEFAULT_RPCS, list2, loopback, nodeName, isEnclaveRelayRoute, stable2, BLOCK_HASH, MAX_PEERS, PEER_METHODS, inRange3, VERIFIER_MARK2, REGISTRY_GET;
+var LEGACY_RELAY, LEGACY_GATEWAY, DEFAULT_RPCS, list2, loopback, nodeName, isEnclaveRelayRoute, stable2, BLOCK_HASH, MAX_PEERS, PEER_METHODS, inRange3, VERIFIER_MARK3, REGISTRY_GET;
 var init_host_identity = __esm({
   "windows/node/host-identity.mjs"() {
     init_rpc_identity();
@@ -110978,7 +111259,7 @@ var init_host_identity = __esm({
     MAX_PEERS = 16;
     PEER_METHODS = ["getChainId", "getBlockNumber", "getBlock"];
     inRange3 = (v, lo3, hi3) => Number.isSafeInteger(v) && v >= lo3 && v <= hi3;
-    VERIFIER_MARK2 = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
+    VERIFIER_MARK3 = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
     REGISTRY_GET = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
       ["endpoint", "string"],
       ["repo", "string"],
@@ -137489,7 +137770,7 @@ function snapshotRequest(options, streaming) {
   const known = ["path", "method", "headers", "maxBytes", "maxRequestBytes", "bodyLength", "timeoutMs", "idleTimeoutMs", "maxDurationMs", "recheckMs"];
   if (Object.keys(o).some((k3) => !known.includes(k3))) throw Error("unknown native request option");
   const method = o.method === void 0 ? "GET" : o.method, requestPath = checkPath(o.path);
-  if (!METHODS.includes(method)) throw Error("unsupported native request method");
+  if (!METHODS2.includes(method)) throw Error("unsupported native request method");
   const headers = checkHeaders(o.headers, FORBIDDEN);
   const present = rawBody !== void 0 && rawBody !== null, streamed = present && typeof rawBody !== "string" && !ArrayBuffer.isView(rawBody) && !(rawBody instanceof ArrayBuffer) && isStreamBody(rawBody);
   const maxRequestBytes = streamed ? bounded2(o.maxRequestBytes, 64 * 1024 * 1024, 0, 1024 * 1024 * 1024) : bounded2(o.maxRequestBytes, 8 * 1024 * 1024, 0, 64 * 1024 * 1024);
@@ -137549,7 +137830,7 @@ function snapshotSocket(options) {
     recheckMs: bounded2(o.recheckMs, 3e4, 1e3, 3e5)
   };
 }
-var ZERO8, identity, NativeClient, METHODS, FORBIDDEN, SOCKET_FORBIDDEN, TOKEN, bounded2, isStreamBody;
+var ZERO8, identity, NativeClient, METHODS2, FORBIDDEN, SOCKET_FORBIDDEN, TOKEN, bounded2, isStreamBody;
 var init_native_client = __esm({
   async "network/native-client.mjs"() {
     init_wrapper();
@@ -138132,7 +138413,7 @@ var init_native_client = __esm({
         });
       }
     };
-    METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+    METHODS2 = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
     FORBIDDEN = ["host", "connection", "upgrade", "content-length", "transfer-encoding", "proxy-authorization", "proxy-connection", "keep-alive", "te", "trailer", "expect"];
     SOCKET_FORBIDDEN = [...FORBIDDEN, "sec-websocket-key", "sec-websocket-version", "sec-websocket-extensions", "sec-websocket-protocol", "sec-websocket-accept"];
     TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
@@ -138467,9 +138748,10 @@ var PROFILE_KEYS = [
   "hostPolicy",
   "custody",
   "remote",
-  "chainVerifier"
+  "chainVerifier",
+  "chainAuthority"
 ];
-function readBounded(file, max, what) {
+function readBounded2(file, max, what) {
   const st3 = fs3.statSync(file);
   if (!st3.isFile() || st3.size > max) throw new IndependentError("config", `${what} ${file} is not a file of at most ${max} bytes`);
   return fs3.readFileSync(file);
@@ -138487,7 +138769,7 @@ function loadConfig(file) {
   const dir = path.dirname(path.resolve(file));
   let doc;
   try {
-    doc = parseUniqueJSON(readBounded(file, MAX_CONFIG_BYTES, "config").toString("utf8"));
+    doc = parseUniqueJSON(readBounded2(file, MAX_CONFIG_BYTES, "config").toString("utf8"));
   } catch (e) {
     throw new IndependentError("config", `cannot read ${file}: ${e.message}`);
   }
@@ -138517,12 +138799,13 @@ function loadConfig(file) {
       confirmations: p.confirmations,
       maxBlockAgeSec: p.maxBlockAgeSec,
       chainVerifier: p.chainVerifier,
+      chainAuthority: p.chainAuthority,
       addressBook: p.addressBook === void 0 ? null : getAddress2(p.addressBook),
       managementDirectories: literalIpOrigins(p.managementDirectories, `${name}.managementDirectories`),
       capacityDirectories: literalIpOrigins(p.capacityDirectories, `${name}.capacityDirectories`),
       capacityCold: p.capacityCold === true,
       maxHosts: p.maxHosts ?? 64,
-      storagePlan: p.storagePlan === void 0 ? null : validateStoragePlan(parseUniqueJSON(readBounded(rel(p.storagePlan), 16384, "storage plan").toString("utf8"))),
+      storagePlan: p.storagePlan === void 0 ? null : validateStoragePlan(parseUniqueJSON(readBounded2(rel(p.storagePlan), 16384, "storage plan").toString("utf8"))),
       grantFrontend: p.grantFrontend === void 0 ? null : frontendOrigin(p.grantFrontend),
       sessionScan: Object.freeze({ fromBlock: scan.fromBlock ?? null, chunk: scan.chunk ?? 2e3, maxChunks: scan.maxChunks ?? 50 }),
       stateDir: path.resolve(dir, String(p.stateDir)),
@@ -138542,7 +138825,7 @@ var Authority = class {
     this.cfg = cfg;
     this.trustPromise = (async () => {
       const { validateContractPins: validateContractPins2 } = await Promise.resolve().then(() => (init_contract_pins(), contract_pins_exports));
-      const pinned = cfg.contractPins ? validateContractPins2(parseUniqueJSON(readBounded(cfg.contractPins, 16384, "contract pins").toString("utf8"))) : null;
+      const pinned = cfg.contractPins ? validateContractPins2(parseUniqueJSON(readBounded2(cfg.contractPins, 16384, "contract pins").toString("utf8"))) : null;
       return loadIndependentTrust({
         profileFile: cfg.profile,
         profileDigest: cfg.profileDigest,
@@ -138553,7 +138836,8 @@ var Authority = class {
         quorum: cfg.quorum,
         confirmations: cfg.confirmations,
         maxBlockAgeSec: cfg.maxBlockAgeSec,
-        chainVerifier: cfg.chainVerifier
+        chainVerifier: cfg.chainVerifier,
+        chainAuthority: cfg.chainAuthority
       });
     })();
     this.trustPromise.catch(() => {
@@ -138568,6 +138852,14 @@ var Authority = class {
     if (!nonZero2(trust2.pins.sessionVaultFactory))
       throw new IndependentError("config", `profile ${this.cfg.name}: the pins must select a SessionVault factory; its implementation names the admin AddressBook this profile resolves`);
     this.trust = trust2;
+    if (trust2.chainAuthority === "verifier") {
+      const { createChainAuthority: createChainAuthority2 } = await Promise.resolve().then(() => (init_chain_authority(), chain_authority_exports)), { base: base3 } = await Promise.resolve().then(() => (init_chains2(), chains_exports));
+      this.chain = this.chain || new VerifierChain({
+        client: createChainAuthority2({ verifier: trust2.chainVerifier, chain: base3 }).client,
+        confirmations: trust2.confirmations,
+        maxBlockAgeMs: trust2.maxBlockAgeMs
+      });
+    }
     this.chain = this.chain || new QuorumChain({
       rpcs: trust2.rpcs,
       clients: this.deps.clients,
@@ -138579,6 +138871,40 @@ var Authority = class {
   }
   get name() {
     return this.cfg.name;
+  }
+};
+var VERIFIER_MARK = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
+var VerifierChain = class {
+  constructor({ client, confirmations = 2, maxBlockAgeMs = 12e4, chainId = 8453, now = Date.now }) {
+    if (!client || typeof client !== "object" || !client[VERIFIER_MARK])
+      throw new Error("the verifier chain needs the local verifier client (network/chain-authority.mjs): one ordinary RPC never decides what the chain says");
+    this.peers = [{ origin: "local-verifier", client }];
+    this.quorum = 1;
+    this.authority = "verifier";
+    this.confirmations = confirmations;
+    this.maxBlockAgeMs = maxBlockAgeMs;
+    this.chainId = chainId;
+    this.now = now;
+    this.lastBlock = 0n;
+  }
+  host() {
+    return "local verifier";
+  }
+  async pickBlock(failures) {
+    const c = this.peers[0].client;
+    let id3, head;
+    try {
+      [id3, head] = await Promise.all([c.getChainId(), c.getBlockNumber({ cacheTime: 0 })]);
+    } catch (e) {
+      const why = String(e?.shortMessage || e?.message || e).slice(0, 200);
+      failures.push(`local verifier: ${why}`);
+      throw new QuorumError(`the local verifier is unavailable (${why}); no other source is used`, { failures });
+    }
+    if (Number(id3) !== this.chainId) throw new QuorumError(`the local verifier follows chain ${id3}, not ${this.chainId}`, { failures });
+    let block = BigInt(head) - BigInt(this.confirmations);
+    if (block < 0n) throw new QuorumError("the local verifier has no confirmed block yet", { failures });
+    if (block < this.lastBlock) block = this.lastBlock;
+    return { block, candidates: [0] };
   }
 };
 var isRevert2 = (e) => {
@@ -138746,7 +139072,8 @@ var Scope = class {
       agreeing: this.block.agreeing,
       peers: this.block.of,
       quorum: this.chain.quorum,
-      reads: this.reads.length
+      reads: this.reads.length,
+      ...this.chain.authority === "verifier" ? { authority: "local-verifier (proof-backed; unsafe tier, no L1 finality)" } : {}
     } : { profile: this.a.name, reads: 0 };
   }
 };
@@ -139053,6 +139380,8 @@ async function custodyContext(B3, id3) {
   const { VAULT_V2_ABI: VAULT_V2_ABI2, createChainReaderV2: createChainReaderV22 } = await Promise.resolve().then(() => (init_chain3(), chain_exports));
   const { leaseReaderClients: leaseReaderClients2 } = await Promise.resolve().then(() => (init_independent(), independent_exports));
   const trust2 = B3.authority.trust, chain2 = B3.authority.chain, s = currentScope();
+  if (chain2.authority === "verifier")
+    throw new IndependentError("custody", `profile ${B3.authority.name} reads the chain through its local verifier: custody v2 secrets are not served under it (custody v2 stays refused until separately qualified); nothing was read`);
   const vault = lc7(trust2.pins.secretVaultV2);
   if (!/^0x[0-9a-f]{40}$/.test(vault) || /^0x0{40}$/.test(vault))
     throw new IndependentError("config", `profile ${B3.authority.name} pins no secretVaultV2: custody v2 secrets are unavailable in this profile`);

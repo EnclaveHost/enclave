@@ -49,7 +49,7 @@ function intIn(v, lo, hi, dflt, what) {
  *  contractPins (already validated by network/contract-pins.mjs) and usdc: the pin-only alternative.
  *  If both a profile and pins are given they must be identical. -> {pins, usdc, profile, digest, rpcs, quorum, ...}
  */
-export function loadIndependentTrust({ profileFile, profileDigest, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
+export function loadIndependentTrust({ profileFile, profileDigest, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier, chainAuthority }) {
   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
   if (profileDigest && !profileFile) throw new Error("--profile-digest needs --profile");
   if (profileFile) {
@@ -70,6 +70,17 @@ export function loadIndependentTrust({ profileFile, profileDigest, contractPins,
   if (!pins) throw new Error("independent mode needs explicit authorities: --profile FILE --profile-digest sha256:… or --contract-pins FILE");
   token = token || defaultUsdc;
   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
+  // chainAuthority "verifier" (an EXPLICIT selection; absent or "quorum" = everything below, unchanged): EVERY read goes to the
+  // ONE local proof-backed verifier (network/chain-authority.mjs; loopback only; the unsafe tier, no L1 finality) and no RPC
+  // quorum exists at all. An RPC list or quorum beside it is refused (one authority, never mixed; never a fallback).
+  if (chainAuthority !== undefined && chainAuthority !== null && chainAuthority !== "quorum") {
+    if (chainAuthority !== "verifier") throw new Error("chainAuthority must be quorum or verifier");
+    if (rpcs !== undefined && rpcs !== null) throw new Error("chainAuthority verifier: rpcs must be absent (one explicit authority; a provider quorum is never mixed in)");
+    if (quorum !== undefined && quorum !== null) throw new Error("chainAuthority verifier: quorum must be absent (the verifier is one proof-backed authority, not a vote)");
+    const only = chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "chainVerifier");
+    return Object.freeze({ pins, usdc: getAddress(token), profile, digest, rpcs: Object.freeze([]), quorum: null, chainAuthority: "verifier",
+      confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"), maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1000, chainVerifier: only });
+  }
   const origins = validateRpcOrigins(rpcs);
   const q = intIn(quorum, 2, origins.length, 2, "--quorum");
   // --chain-verifier (optional, loopback only): the local proof-backed verifier for the reads that can use it - LeaseReader

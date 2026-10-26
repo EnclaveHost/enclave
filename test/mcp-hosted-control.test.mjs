@@ -107,7 +107,8 @@ test("gsup starts the adapter only in the direct branch, from directMcpLaunch; t
   const direct = gsup.slice(gsup.indexOf("async function startDirectControl()"), gsup.indexOf("if (CONTROL === 'direct')"));
   assert.match(direct, /if \(plan\.mcp\) \{[\s\S]*start\('mcp', plan\.mcp\.argv, plan\.mcp\.env/);
   assert.match(direct, /mcpSha256: fileSha\(MC\.MCP_BUNDLE\)/);
-  assert.match(direct, /routes: plan\.mcp \? \[plan\.mcp\.route\] : \[\]/);
+  // The direct front serves both bound MCP and proof-verifier routes; neither is enabled when absent.
+  assert.match(direct, /routes: \[\.\.\.\(plan\.mcp \? \[plan\.mcp\.route\] : \[\]\), \.\.\.\(plan\.chainVerifier\?\.route \? \[plan\.chainVerifier\.route\] : \[\]\)\]/);
   assert.equal((gsup.match(/start\('mcp'/g) || []).length, 1, "the legacy path starts no adapter");
   const builder = fs.readFileSync(path.join(REPO, "metal/build-image.mjs"), "utf8");
   assert.match(builder, /fs\.copyFileSync\(path\.join\(HERE, 'guest', 'mcp-server\.bundle\.mjs'\), path\.join\(md, 'mcp-server\.bundle\.mjs'\)\)/, "into /opt/metal, inside the measurement");

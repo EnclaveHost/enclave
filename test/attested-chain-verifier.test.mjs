@@ -372,14 +372,15 @@ test('G5: the provider authority is ONE explicit choice; legacy modes unchanged;
   const seedDir = path.join(tmp, 'amd-seed'); fs.mkdirSync(seedDir);
   const AV = (over = {}) => ({ unsafeSigner: SIGNER, replicas: [{ url: g.url, configFile: cfgFile, measurements: [MEAS], minTcb: TCB_FLOORS }], collateral: { dir: seedDir }, ...over });
   const att = (cfg, opts = {}) => providerChainAuthority({ chainAuthority: 'attested-verifier', attestedVerifier: AV(), ...cfg }, opts);
-  for (const [cfg, re] of [[{ rpc: ['https://a.example', 'https://b.example'] }, /rpc is not used/], [{ chainVerifier: 'http://127.0.0.1:1/' }, /chainVerifier \(a local verifier\)/],
-    [{ pricePerGiB6: 5 }, /paid provider/], [{ attestedVerifier: AV({ roots: {} }) }, /unknown field roots/],
+  for (const [cfg, re] of [[{ rpc: ['https://a.example', 'https://b.example'] }, /rpc is not used/], [{ chainVerifier: `http://127.0.0.1:${up.port}/` }, /chainVerifier is not used with chainAuthority "attested-verifier" \(a local verifier is a different authority\): remove it/],
+    [{ pricePerGiB6: 5 }, /a paid provider with chainAuthority "attested-verifier" needs txBackend/], [{ attestedVerifier: AV({ roots: {} }) }, /unknown field roots/],
     [{ attestedVerifier: AV({ replicas: [{ url: g.url, configFile: cfgFile, measurements: [MEAS], minTcb: TCB_FLOORS, roots: [] }] }) }, /trust roots and statuses are never configured/],
     [{ attestedVerifier: AV({ replicas: [{ url: g.url, configFile: 'replica.json', measurements: [MEAS], minTcb: TCB_FLOORS }] }) }, /must be an absolute path/],
     [{ attestedVerifier: AV({ collateral: { dir: 'amd' } }) }, /collateral\.dir must be an absolute path/],
     [{ attestedVerifier: AV({ replicas: [{ url: g.url, configFile: cfgFile, measurements: [MEAS], minTcb: { Genoa: {} } }] }) }, /Genoa\.bootloader must be an integer/]])
     assert.throws(() => att(cfg), re, JSON.stringify(cfg).slice(0, 120));
   assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], attestedVerifier: AV() }), /chainAuthority is not "attested-verifier"/);
+  assert.equal(up.seen.length, 0, 'no refused config reached the attested verifier or the named local verifier (no fallback call)');
   // a config file alone (no programmatic roots) trusts only AMD's pin: the synthetic chain is refused at attestation
   const prod = att({}, { collateral: COL });
   await assert.rejects(prod.verifier.request('eth_chainId', [], 5000), /no attested replica/);

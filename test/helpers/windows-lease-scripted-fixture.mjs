@@ -4,6 +4,10 @@
 // journal is the shipped bundle's. Only claim/renew/release/renewLeadMs answer from globalThis.scriptedLeaseSender.
 import * as real from "../../windows/node/lease-gas-runtime.bundle.mjs";
 export const openReleaseJournal = real.openReleaseJournal;
+// windows/node/chain.mjs:36 also imports these two since aebf4c932 (the seams): passed through UNCHANGED (the real
+// chain-authority constructor and refusal - this adapter only scripts claim/renew/release/renewLeadMs)
+export const chainAuthorityFromEnv = real.chainAuthorityFromEnv;
+export const refusingChainAuthority = real.refusingChainAuthority;
 export const leaseGasConfigured = () => true;
 export const loadLeaseGasConfig = () => ({});
 export const configuredLeaseSender = () => globalThis.scriptedLeaseSender;

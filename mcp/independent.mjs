@@ -45,7 +45,7 @@ class SnapshotChanged extends Error { constructor(what) { super(what); this.name
 // ---- operator configuration --------------------------------------------------------------------------------------
 const PROFILE_KEYS = ["contractPins", "profile", "profileDigest", "usdc", "rpcs", "quorum", "confirmations", "maxBlockAgeSec", "addressBook",
   "managementDirectories", "capacityDirectories", "capacityCold", "maxHosts", "storagePlan", "grantFrontend", "sessionScan", "stateDir",
-  "hostPolicy", "custody", "remote", "chainVerifier"];
+  "hostPolicy", "custody", "remote", "chainVerifier", "chainAuthority"];
 function readBounded(file, max, what) {
   const st = fs.statSync(file);
   if (!st.isFile() || st.size > max) throw new IndependentError("config", `${what} ${file} is not a file of at most ${max} bytes`);
@@ -87,7 +87,7 @@ export function loadConfig(file) {
     if (Object.keys(scan).some((k) => !["fromBlock", "chunk", "maxChunks"].includes(k))) throw new IndependentError("config", `profile ${name}.sessionScan: fromBlock, chunk, maxChunks`);
     profiles.set(name, Object.freeze({
       name, contractPins: rel(p.contractPins), profile: rel(p.profile), profileDigest: p.profileDigest, usdc: p.usdc, rpcs: p.rpcs,
-      quorum: p.quorum, confirmations: p.confirmations, maxBlockAgeSec: p.maxBlockAgeSec, chainVerifier: p.chainVerifier,
+      quorum: p.quorum, confirmations: p.confirmations, maxBlockAgeSec: p.maxBlockAgeSec, chainVerifier: p.chainVerifier, chainAuthority: p.chainAuthority,
       addressBook: p.addressBook === undefined ? null : getAddress(p.addressBook),
       managementDirectories: literalIpOrigins(p.managementDirectories, `${name}.managementDirectories`),
       capacityDirectories: literalIpOrigins(p.capacityDirectories, `${name}.capacityDirectories`),
@@ -116,7 +116,7 @@ export class Authority {
       const pinned = cfg.contractPins ? validateContractPins(parseUniqueJSON(readBounded(cfg.contractPins, 16384, "contract pins").toString("utf8"))) : null;
       return loadIndependentTrust({ profileFile: cfg.profile, profileDigest: cfg.profileDigest, contractPins: pinned, usdc: cfg.usdc,
         defaultUsdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", rpcs: cfg.rpcs, quorum: cfg.quorum, confirmations: cfg.confirmations,
-        maxBlockAgeSec: cfg.maxBlockAgeSec, chainVerifier: cfg.chainVerifier });
+        maxBlockAgeSec: cfg.maxBlockAgeSec, chainVerifier: cfg.chainVerifier, chainAuthority: cfg.chainAuthority });
     })();
     this.trustPromise.catch(() => {});   // surfaced by ready()
     this.deps = deps;
@@ -129,11 +129,50 @@ export class Authority {
     if (!nonZero(trust.pins.sessionVaultFactory))
       throw new IndependentError("config", `profile ${this.cfg.name}: the pins must select a SessionVault factory; its implementation names the admin AddressBook this profile resolves`);
     this.trust = trust;
+    if (trust.chainAuthority === "verifier") {
+      // the profile's EXPLICIT local verifier: the established chain authority (network/chain-authority.mjs), reads only (no
+      // transaction backend: this server prepares, the owner's wallet signs and sends)
+      const { createChainAuthority } = await import("../network/chain-authority.mjs"), { base } = await import("viem/chains");
+      this.chain = this.chain || new VerifierChain({ client: createChainAuthority({ verifier: trust.chainVerifier, chain: base }).client,
+        confirmations: trust.confirmations, maxBlockAgeMs: trust.maxBlockAgeMs });
+    }
     this.chain = this.chain || new QuorumChain({ rpcs: trust.rpcs, clients: this.deps.clients, quorum: trust.quorum, confirmations: trust.confirmations,
       maxBlockAgeMs: trust.maxBlockAgeMs });
     return this;
   }
   get name() { return this.cfg.name; }
+}
+
+// ---- the explicit local verifier as the profile's ONE chain authority -------------------------------------------------
+// Scope's chain interface (pickBlock, peers, quorum, host, now, maxBlockAgeMs, lastBlock, chainId) over ONE client that must
+// carry the VERIFIER_CLIENT mark that network/chain-authority.mjs createChainAuthority puts on the clients it builds. The mark
+// DISTINGUISHES those internal clients from ordinary RPC clients (and a configuration value can never produce one). It is NOT
+// a security boundary against in-process code: Symbol.for is a global registry key that any code in this process could set.
+// The trust boundary is the operator's profile (chainAuthority + a loopback-only chainVerifier, refused otherwise) and the
+// verifier itself. Its answers are proven against the block, not voted on, so one answer is the authority - which is why an
+// ordinary RPC client may not stand in for it. Every Scope rule is unchanged: the block is head -
+// confirmations, never below one already used, read before and after each value, fresh. A verifier failure is a refusal.
+const VERIFIER_MARK = Symbol.for("enclave.chain-authority.local-verifier");
+export class VerifierChain {
+  constructor({ client, confirmations = 2, maxBlockAgeMs = 120000, chainId = 8453, now = Date.now }) {
+    if (!client || typeof client !== "object" || !client[VERIFIER_MARK])
+      throw new Error("the verifier chain needs the local verifier client (network/chain-authority.mjs): one ordinary RPC never decides what the chain says");
+    this.peers = [{ origin: "local-verifier", client }]; this.quorum = 1; this.authority = "verifier";
+    this.confirmations = confirmations; this.maxBlockAgeMs = maxBlockAgeMs; this.chainId = chainId; this.now = now; this.lastBlock = 0n;
+  }
+  host() { return "local verifier"; }
+  async pickBlock(failures) {
+    const c = this.peers[0].client;
+    let id, head;
+    try { [id, head] = await Promise.all([c.getChainId(), c.getBlockNumber({ cacheTime: 0 })]); }
+    catch (e) { const why = String(e?.shortMessage || e?.message || e).slice(0, 200); failures.push(`local verifier: ${why}`);
+                throw new QuorumError(`the local verifier is unavailable (${why}); no other source is used`, { failures }); }
+    if (Number(id) !== this.chainId) throw new QuorumError(`the local verifier follows chain ${id}, not ${this.chainId}`, { failures });
+    let block = BigInt(head) - BigInt(this.confirmations);
+    if (block < 0n) throw new QuorumError("the local verifier has no confirmed block yet", { failures });
+    if (block < this.lastBlock) block = this.lastBlock;
+    return { block, candidates: [0] };
+  }
 }
 
 // ---- one call's agreed snapshot ------------------------------------------------------------------------------------
@@ -259,7 +298,8 @@ export class Scope {
   }
   summary() {
     return this.block ? { profile: this.a.name, blockNumber: this.block.number.toString(), blockHash: this.block.hash, agreeing: this.block.agreeing,
-      peers: this.block.of, quorum: this.chain.quorum, reads: this.reads.length } : { profile: this.a.name, reads: 0 };
+      peers: this.block.of, quorum: this.chain.quorum, reads: this.reads.length,
+      ...(this.chain.authority === "verifier" ? { authority: "local-verifier (proof-backed; unsafe tier, no L1 finality)" } : {}) } : { profile: this.a.name, reads: 0 };
   }
 }
 const unwrapRead = (v) => { if (v.revert !== undefined) throw Object.assign(new Error(`execution reverted: ${v.revert}`), { agreedRevert: true }); return v.ok; };

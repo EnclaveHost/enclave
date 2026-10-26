@@ -49,6 +49,10 @@ async function custodyContext(B, id) {
   const { VAULT_V2_ABI, createChainReaderV2 } = await import("../custody/v2/chain.mjs");
   const { leaseReaderClients } = await import("../cli/independent.mjs");
   const trust = B.authority.trust, chain = B.authority.chain, s = currentScope();
+  // custody v2 reads its own k-of-n reader (custody/v2/chain.mjs) and stays REFUSED under a verifier selection until custody v2
+  // has its own separately qualified measurement: nothing is read, nothing is substituted
+  if (chain.authority === "verifier")
+    throw new IndependentError("custody", `profile ${B.authority.name} reads the chain through its local verifier: custody v2 secrets are not served under it (custody v2 stays refused until separately qualified); nothing was read`);
   const vault = lc(trust.pins.secretVaultV2);
   if (!/^0x[0-9a-f]{40}$/.test(vault) || /^0x0{40}$/.test(vault))
     throw new IndependentError("config", `profile ${B.authority.name} pins no secretVaultV2: custody v2 secrets are unavailable in this profile`);
