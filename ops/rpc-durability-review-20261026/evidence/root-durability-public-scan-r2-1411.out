@@ -1,0 +1,7 @@
+[queue] START available=21622MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"cases": {"B0": {"atLine32": 1, "exit": 1, "findings": 1, "secretIsExpectedLiteral": true, "secretLength": 18, "secretSha256": "6a0bea19ea97f87d8119c990f41a2a6110d9193c09e667ec32bfe0a35c271680"}, "G1": {"atFile": 0, "exit": 0, "otherFindings": 0}, "G2": {"atLine32": 1, "exit": 1, "otherFindings": 0}, "N1": {"atLine32": 1, "exit": 1}, "N2": {"atLine32": 1, "exit": 1}, "N3": {"atExtraLine": 1, "atLine32": 0, "exit": 1}, "P1": {"exit": 0, "findings": 0}}, "failures": [], "pass": true}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/durability-public-scan-stage/r2/runs/run-20261026T152602Z-1955892
+## durability-public-scan rc=0
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=21530
+[memory-guard] at peak: gitleaks:61 python3:21
+[queue] EXIT 0

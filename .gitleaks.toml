@@ -285,3 +285,13 @@ targetRules = ["generic-api-key"]
 paths = ['''^ops/rpc-rollout-integration-20261026/lifecycle-r6/test/deployment-chain-adapter-r5-abi\.test\.mjs$''']
 regexTarget = "secret"
 regexes = ['''^R4SecretVaultV2$''']
+
+# Public assertion message in the archived journal-r1 root test script (an AssertionError text, "missing/unexpected summary").
+# This is not credential material. Exact file + exact matched literal only, for the default generic-api-key rule only.
+[[allowlists]]
+description = "Public assertion-message literal at its one archived root test script"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^ops/rpc-durability-review-20261026/journal-r1/root-test\.sh$''']
+regexTarget = "secret"
+regexes = ['''^missing/unexpected$''']

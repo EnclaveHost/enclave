@@ -4,5 +4,7 @@
   "enrollmentR1": "Prepared source only. Security review found committed-seeding, partial genesis, race, monotonicity and runtime API blockers. DO NOT DEPLOY. Revisions in progress.",
   "retention": "First snapshot finished; second run is active and redownloads mutable state after deleting staging MDBX outputs. Earlier claim that no force/prune flags prevents deletion is FALSE: pinned reth archive retry cleanup deletes mismatched outputs. No production consumers had cut over. Audit of safe recovery in progress.",
   "capacity": "Boundary arithmetic audit found four extra history archives. State redownload additionally missing from old preflight; old sizing/26-marker is not full coverage evidence.",
-  "administration": "Administrator controls preserved; no production contract transactions."
+  "administration": "Administrator controls preserved; no production contract transactions.",
+  "journalR2": "15 unit cases passed including exact authenticated deterministic genesis-prefix reconciliation. Full58/native/privateIPC/rotate/recover/production remain unqualified.",
+  "retentionRootCause": "Pinned reth7134be3 finalize modifies snapshot MDBX. Next run cleans mismatching archive outputs before fetch. Actual23 missing includesState. Active replacement has about769GB spare after conservative allocation and reserves. No consumer cutover; do not rerun finalized data with original State manifest."
 }
