@@ -1,0 +1,9 @@
+[queue] START available=24507MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/jobs/root-qcow-recovery-map-1702.py", line 22, in <module>
+    assert M.run_clean(r),{k:v for k,v in r.items() if k!='text'}
+           ~~~~~~~~~~~^^^
+AssertionError: {'rc': -9, 'pid': 2367943, 'timedOut': False, 'cut': True, 'heldOpen': False, 'escaped': False, 'cancelled': False}
+[memory-guard] exit=1 peakTreeRssMiB=92 minHostAvailableMiB=24264
+[memory-guard] at peak: python3:51 qemu-img:41
+[queue] EXIT 1
