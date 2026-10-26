@@ -1,0 +1,916 @@
+diff --git a/network/derived-reader/COVERAGE.md b/network/derived-reader/COVERAGE.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..d9855b737e0852bae6f11376f5335bcfea2ca735
+--- /dev/null
++++ b/network/derived-reader/COVERAGE.md
+@@ -0,0 +1,134 @@
++# Complete lease-event coverage (explicit v3 mode)
++
++The reader can publish locally verified, complete lease16 event ranges alongside
++its derived anchor. This is implemented, with native build tests and composition
++checks (33 focused Node tests, including 13 coverage tests). The actual native
++binary also refused malformed witness, wrong-chain and interval-2 inputs under
++the pinned library loader. Positive real Base witness, performance/resource and accepted-image
++qualification remain pending. It does not activate a relay, change a contract,
++automatically reclaim a lease or weaken custody freshness policy.
++
++## Configuration and source
++
++Use `config.v3.example.json` with the separately pinned
++`derivation_harness_lease_v3` binary and `native.resultVersion: 3`. Version 2 remains
++the default and accepts only its existing build/format; it cannot implicitly gain
++coverage. Version 3 requires intermediateBlockInterval 1 and range 1..1800. It
++uses a 16 MiB total native stdout cap. This larger cap is selected only by v3 in
++the production provider; version 2 keeps its range-derived bound.
++
++Native v3 r2 source manifest:
++`c990e67156f32992ab0c10d7e9c7d4ad98ea94485125eb2a57df538701f6deb0`.
++Binary SHA256:
++`49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa`.
++Root build receipt commit: `8594bc1ee`; 14 Rust tests passed, zero failed,
++ignored or filtered, Cargo.lock unchanged. Native execution recomputes the
++receipt and transaction roots, derives transaction hashes from executed bytes,
++and examines every executed receipt. Python/Node source checks alone did not
++qualify this binary. The source protocol is
++`derivation-lease-coverage-stage/r2/PROTOCOL.md` in the coordinated build evidence.
++
++The reader checks all common v2 bindings plus the v3 coverage format/filter,
++contiguous block numbers including empty-event blocks, every sampled output root,
++the final executed header, and ordered unique log indices with the correct block
++hash. Completeness comes from the pinned native execution, not from hashing
++host-selected logs. The compiled filter covers Claimed/Renewed/Released topic0
++at **every emitting address**, preserving administrator ledger migrations.
++A one-topic log from another contract is still valid coverage; ABI interpretation
++belongs to the confirmed-ledger consumer, not the global coverage validator.
++
++## Exact local capability
++
++```js
++const value = await reader.readDerivedLogs({
++  address,                 // lowercase 20-byte hex, confirmed ledger
++  topic0s,                 // unique nonempty subset of LEASE_TOPICS
++  topic1: deployment,      // lowercase 32-byte hex
++  fromBlock, toBlock,      // inclusive, safe integers
++  anchor: { number, hash },// exact snapshot Base anchor; lowercase hash
++  signal,
++});
++```
++
++Successful return:
++
++```js
++{
++  format: 'enclave-derived-logs/v1',
++  logs: [{ address, blockNumber, blockHash, logIndex, topics, data, txHash }],
++  anchor: { tier: 'l1-finalized-derived', base: { /* full reader anchor */ }, l1: { /* full reader anchor */ } },
++  filter: { address, topic0s, topic1, fromBlock, toBlock },
++  coverage: {
++    format: 'enclave-lease16-coverage/v1', filterId: 'lease16-events/v1',
++    fromBlock, toBlock, complete: true, availableFromBlock, availableToBlock,
++  },
++}
++```
++
++This is an in-process capability. No HTTP log route exists, and copying its JSON
++elsewhere does not authenticate it. The requested anchor must match the reader's
++current anchor, and toBlock must not exceed it. `complete` refers to precisely the
++returned filter and inclusive range. An empty logs array can be complete.
++
++Inside the lifecycle snapshot callback, use its supplied block number/header:
++
++```js
++await snapshot(async (client, blockNumber, header) => {
++  const row = await client.readContract(rowRead);
++  const events = await reader.readDerivedLogs({
++    address: ledger, topic0s: LEASE_TOPICS, topic1: deployment,
++    fromBlock, toBlock: Number(blockNumber),
++    anchor: { number: Number(blockNumber), hash: header.hash }, signal,
++  });
++  return validateWriterGeneration(row, events);
++});
++```
++
++If derivation advances between the two calls, the log query refuses the old
++anchor. Retry the entire snapshot; never combine an old row with new logs.
++Readers reject stale anchors, changed L1 authority, missing ranges, unknown
++filters, cancellation and altered chunk files. A 30-second deadline covers the
++log read and its before/after authority checks. The response cap is 16 MiB;
++oversize queries refuse without truncation. A consumer can explicitly request
++smaller complete block ranges, always against the same snapshot anchor. To discover
++the covered start, first query [B,B] at that anchor and use its availableFromBlock
++for the next query. If no Claimed event is found in the complete covered range,
++the earlier claim stays unproven.
++
++## Persistence, recovery and limits
++
++Version 3 has a separate private coverage store under its state directory, with
++a kernel lock, immutable content-addressed chunks and an atomic hash-linked
++manifest. The manifest is fsynced before the anchor journal, and both precede
++publication. A failed/uncertain write fences the process, including its previous
++anchor. On restart the greater of the anchor/coverage saved floors restricts
++publication, covering interruption between their writes.
++
++Saved files are never evidence of complete history. Only chunks revalidated by
++native derivation in the current process can answer queries. Restart starts from
++a freshly authenticated ASR root and derives contiguously through the saved floor
++before publishing. Existing chunk bytes can be reused only when they match a new
++locally verified result. If the new bootstrap is later, older retained files stay
++unqualified. Claims below the first runtime-verified block remain unproven until
++explicit authenticated historical backfill; no auto-claim or implied coverage.
++
++`historyMaximumBytes` defaults to and cannot exceed 4 GiB. It is a ceiling, not a
++preallocation. Of it, 32 MiB is reserved for two maximum manifests during atomic
++replacement. Each chunk and manifest is bounded by 16 MiB; at most 16,384 manifest
++entries are retained. Orphan chunks and interrupted chunk writes count against
++the quota. There is **no automatic eviction**, including on capacity exhaustion.
++Full quota or manifest capacity refuses further progress and needs an explicit
++retention/recovery decision. The ceiling accounts for file bytes and the manifest write reserve; storage
++provisioning must also account for filesystem allocation/metadata overhead.
++Query processing reads one bounded chunk at a time.
++The response is bounded independently; the whole 4 GiB is never loaded at once.
++
++These caps are policy, not real-workload sizing results. Large matching-event
++bursts can require smaller derivation ranges. The native 1536 MiB memory default
++and 1/30/1800-block costs still need real witness qualification. Native witness
++scratch is separately bounded by the existing witness-size policy.
++
++Changing version/build/checkpoint/interval/history budget changes the journal
++binding. Use reviewed enrollment or migration preserving the external recovery
++floor; do not delete state to bypass it. The coverage journal is not a substitute
++for the accepted domain's protected disk-rollback floor and clock.
+diff --git a/network/derived-reader/README.md b/network/derived-reader/README.md
+index 0d8fade0391f20f336256e991db9fcc78c44b3b0..778d3638d1c4bcfa404094cd5d09c29c213b9de2 100644
+--- a/network/derived-reader/README.md
++++ b/network/derived-reader/README.md
+@@ -3,7 +3,8 @@
+ This is the callable local derivation provider for the lifecycle bridge. It owns
+ an Ethereum light client, authenticates the Base bootstrap and upgrade schedule,
+ executes the pinned native derivation verifier, and publishes the exact executed
+-Base header only after durable acceptance. The implementation is available;
++Base header only after durable acceptance. Optional complete lease-event coverage is described in [COVERAGE.md](COVERAGE.md).
++The implementation is available;
+ **positive live Base derivation and accepted-enclave-image qualification remain
+ pending**. The ordinary sequencer-signed RPC service is not upgraded by importing
+ this module. Production services have not been switched.
+@@ -119,7 +120,7 @@ Run through the shared resource guard:
+ ```sh
+ node --test --test-concurrency=1 test/derived-reader.test.mjs test/lifecycle-finality-bridge.test.mjs
+ ```
+- The 16 reader tests and four bridge tests cover ownership,
++ The 29 reader tests and four bridge tests cover ownership,
+ shutdown, expiry, replay, false results, durable restart, bounded native output,
+ API cancellation and direct hash-pinned lifecycle composition. Transport/native
+ fixtures in those tests are explicitly not consensus proofs.
+diff --git a/network/derived-reader/config.v3.example.json b/network/derived-reader/config.v3.example.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0778f94737faf2eaba5ca5dd7147a685b12792d
+--- /dev/null
++++ b/network/derived-reader/config.v3.example.json
+@@ -0,0 +1,30 @@
++{
++  "stateDir": "/var/lib/enclave/derived-reader-v3",
++  "initializeState": false,
++  "apiPort": 18760,
++  "native": {
++    "path": "/opt/enclave/bin/derivation_harness_lease_v3",
++    "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
++    "resultVersion": 3
++  },
++  "l1": {
++    "port": 18761,
++    "binary": {
++      "path": "/opt/enclave/bin/helios",
++      "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
++    },
++    "checkpointFile": "/opt/enclave/policy/checkpoint.json",
++    "consensusUrl": "http://127.0.0.1:5052",
++    "executionUrl": "http://127.0.0.1:8545",
++    "readyTimeoutMs": 120000,
++    "requestTimeoutMs": 20000
++  },
++  "baseUrl": "http://127.0.0.1:18545",
++  "maxBlocks": 1800,
++  "intermediateBlockInterval": 1,
++  "maxAnchorAgeSec": 1800,
++  "nativeTimeoutMs": 180000,
++  "maxMemoryMiB": 1536,
++  "maxWitnessBytes": 67108864,
++  "historyMaximumBytes": 4294967296
++}
+diff --git a/network/derived-reader/coverage-store.mjs b/network/derived-reader/coverage-store.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..09a4da8073f046cdad513e786e6f90e16f040ae3
+--- /dev/null
++++ b/network/derived-reader/coverage-store.mjs
+@@ -0,0 +1,158 @@
++// Durable cache/audit, not restored authority. Only this process's successfully
++// validated native segments enter `verified`; the saved manifest never does.
++import fs from 'node:fs';
++import fsp from 'node:fs/promises';
++import path from 'node:path';
++import { createHash } from 'node:crypto';
++import { setImmediate as yieldIO } from 'node:timers/promises';
++import { strictWriteFile } from '../lease-release-journal.mjs';
++import { takeRuntimeLock } from '../runtime-lock.mjs';
++import { validateAnchor } from './journal.mjs';
++import { assertCheckedCoverage, validateLogQuery, COVERAGE_FORMAT, FILTER_ID, MAX_COVERAGE_BYTES } from './coverage.mjs';
++
++export const MAX_HISTORY_BYTES = 4 * 1024 ** 3;
++const MANIFEST_BYTES = 16 << 20, MAX_SEGMENTS = 16384;
++const digest = bytes => createHash('sha256').update(bytes).digest('hex');
++const HASH = /^[0-9a-f]{64}$/;
++const int = n => Number.isSafeInteger(n) && n >= 0;
++function regular(file, maximum) {
++  const stat = fs.lstatSync(file);
++  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maximum || stat.uid !== process.getuid() || (stat.mode & 0o077))
++    throw Error('invalid private coverage file');
++  return stat.size;
++}
++function checkedFloor(old, anchor) {
++  if (!old || anchor.base.number > old.base.number) {
++    if (old && (anchor.l1.number < old.l1.number || anchor.l1.number === old.l1.number && anchor.l1.hash !== old.l1.hash))
++      throw Error('coverage L1 floor rollback');
++    return structuredClone(anchor);
++  }
++  if (anchor.base.number === old.base.number) {
++    if (anchor.base.hash !== old.base.hash || anchor.l1.number < old.l1.number ||
++        anchor.l1.number === old.l1.number && anchor.l1.hash !== old.l1.hash) throw Error('coverage floor contradiction');
++    return structuredClone(anchor);
++  }
++  return old; // catch-up is private until both durable floors have been reached
++}
++
++export async function openCoverageStore(directory, { binding, initialize = false, maximumBytes = MAX_HISTORY_BYTES } = {}) {
++  if (!path.isAbsolute(directory) || !HASH.test(binding || '') || !Number.isSafeInteger(maximumBytes) ||
++      maximumBytes < 3 * MANIFEST_BYTES || maximumBytes > MAX_HISTORY_BYTES) throw Error('invalid coverage store bounds');
++  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
++  const stat = fs.lstatSync(directory);
++  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077)) throw Error('coverage directory must be private');
++  const file = path.join(directory, 'manifest.json'), unlock = await takeRuntimeLock(path.join(directory, 'coverage.lock'));
++  let state, usedBytes = 0, failed = false, closed = false, pending = false;
++  const verified = [];
++  try {
++    // Account for orphan chunks and interrupted chunk writes too. No automatic
++    // eviction; the quota reserves two maximum manifests for atomic replacement.
++    const dir = fs.opendirSync(directory); let count = 0;
++    try {
++      for (let entry; (entry = dir.readSync());) {
++        if (++count > MAX_SEGMENTS * 2 + 4) throw Error('coverage directory entry limit');
++        if (entry.name === 'coverage.lock') continue;
++        if (['manifest.json', 'manifest.json.strict.tmp'].includes(entry.name)) { regular(path.join(directory, entry.name), MANIFEST_BYTES); continue; }
++        if (!/^[0-9a-f]{64}\.json(?:\.strict\.tmp)?$/.test(entry.name)) throw Error('unexpected coverage file');
++        usedBytes += regular(path.join(directory, entry.name), MAX_COVERAGE_BYTES);
++      }
++    } finally { dir.closeSync(); }
++    if (usedBytes + 2 * MANIFEST_BYTES > maximumBytes) throw Error('coverage history budget exhausted');
++    if (!fs.existsSync(file)) {
++      if (!initialize || usedBytes) throw Error('coverage manifest missing; explicit enrollment/recovery required');
++      state = { format: 'enclave-derived-coverage-journal/v1', binding, maximumBytes, floor: null, entries: [] };
++      strictWriteFile(file, JSON.stringify(state));
++    }
++    regular(file, MANIFEST_BYTES); state = JSON.parse(fs.readFileSync(file, 'utf8'));
++    if (state.format !== 'enclave-derived-coverage-journal/v1' || state.binding !== binding || state.maximumBytes !== maximumBytes ||
++        !Array.isArray(state.entries) || state.entries.length > MAX_SEGMENTS) throw Error('coverage journal binding or schema mismatch');
++    if (state.floor) validateAnchor(state.floor);
++    let previous = '0'.repeat(64);
++    for (const entry of state.entries) {
++      const { hash, ...value } = entry;
++      if (hash !== digest(JSON.stringify(value)) || entry.previousDigest !== previous || !HASH.test(entry.chunkHash) ||
++          !int(entry.bytes) || entry.bytes > MAX_COVERAGE_BYTES || !int(entry.fromBlock) || !int(entry.toBlock) || entry.toBlock < entry.fromBlock ||
++          entry.toBlock - entry.fromBlock >= 1800 || !/^0x[0-9a-f]{64}$/.test(entry.agreedRoot)) throw Error('coverage journal corruption');
++      validateAnchor(entry.anchor);
++      if (entry.anchor.base.number !== entry.toBlock || entry.anchor.tier !== 'l1-finalized-derived') throw Error('coverage journal anchor mismatch');
++      previous = hash;
++    }
++  } catch (e) { unlock(); throw e; }
++  const alive = () => { if (failed || closed) throw Error('coverage store closed or failed'); };
++  const status = () => {
++    alive(); if (pending) throw Error('coverage publication pending; recovery required');
++    return { usedBytes, maximumBytes, reservedMetadataBytes: 2 * MANIFEST_BYTES,
++      verifiedFromBlock: verified[0]?.fromBlock ?? null, verifiedToBlock: verified.at(-1)?.toBlock ?? null,
++      savedFloor: structuredClone(state.floor) };
++  };
++  return Object.freeze({ status,
++    // Persist first, return a one-shot publication callback. The provider calls
++    // it only after its anchor journal succeeds (or during non-serving catch-up).
++    stage(coverage, agreed, anchor) {
++      alive(); assertCheckedCoverage(coverage); validateAnchor(agreed); validateAnchor(anchor);
++      if (pending) throw Error('coverage publication already pending');
++      if (coverage.fromBlock !== agreed.base.number + 1 || coverage.toBlock !== anchor.base.number || anchor.tier !== 'l1-finalized-derived')
++        throw Error('coverage does not advance agreed anchor');
++      const last = verified.at(-1);
++      if (last && (coverage.fromBlock !== last.toBlock + 1 || agreed.base.hash !== last.anchor.base.hash || agreed.base.outputRoot !== last.anchor.base.outputRoot))
++        throw Error('runtime coverage gap or predecessor mismatch');
++      try {
++        const bytes = JSON.stringify(coverage), size = Buffer.byteLength(bytes), chunkHash = digest(bytes), chunk = path.join(directory, `${chunkHash}.json`);
++        if (size > MAX_COVERAGE_BYTES || state.entries.length >= MAX_SEGMENTS) throw Error('coverage history limit reached; no automatic eviction');
++        const exists = fs.existsSync(chunk);
++        if (!exists && usedBytes + size + 2 * MANIFEST_BYTES > maximumBytes) throw Error('coverage history budget exhausted; no automatic eviction');
++        if (exists && (regular(chunk, MAX_COVERAGE_BYTES) !== size || digest(fs.readFileSync(chunk)) !== chunkHash)) throw Error('saved coverage chunk corrupted');
++        const entry = { previousDigest: state.entries.at(-1)?.hash || '0'.repeat(64), chunkHash, bytes: size,
++          fromBlock: coverage.fromBlock, toBlock: coverage.toBlock, agreedRoot: agreed.base.outputRoot, anchor: structuredClone(anchor) };
++        const next = { ...state, floor: checkedFloor(state.floor, anchor), entries: [...state.entries, { ...entry, hash: digest(JSON.stringify(entry)) }] };
++        const manifest = JSON.stringify(next);
++        if (Buffer.byteLength(manifest) > MANIFEST_BYTES) throw Error('coverage manifest budget exhausted; no automatic eviction');
++        if (!exists) { strictWriteFile(chunk, bytes); usedBytes += size; }
++        strictWriteFile(file, manifest); state = next; pending = true;
++        let published = false;
++        return () => { alive(); if (published) throw Error('coverage publication already consumed');
++          published = true; pending = false; verified.push(entry); };
++      } catch (e) { failed = true; throw e; }
++    },
++    async read(query, anchor, { signal, maxBytes = MAX_COVERAGE_BYTES } = {}) {
++      alive(); signal?.throwIfAborted();
++      if (pending) throw Error('coverage publication pending; recovery required');
++      if (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > MAX_COVERAGE_BYTES) throw Error('invalid derived log response cap');
++      const filter = validateLogQuery(query, anchor), first = verified[0], last = verified.at(-1);
++      if (!first || filter.fromBlock < first.fromBlock || filter.toBlock > last.toBlock) throw Error('requested history is outside runtime-verified coverage');
++      const result = { format: 'enclave-derived-logs/v1', logs: [], anchor: structuredClone(anchor), filter,
++        coverage: { format: COVERAGE_FORMAT, filterId: FILTER_ID, fromBlock: filter.fromBlock, toBlock: filter.toBlock,
++          complete: true, availableFromBlock: first.fromBlock, availableToBlock: last.toBlock } };
++      let responseBytes = Buffer.byteLength(JSON.stringify(result)), cursor = filter.fromBlock;
++      if (responseBytes > maxBytes) throw Error('derived log response too large; request a smaller complete block range');
++      for (const entry of verified) {
++        if (entry.toBlock < cursor) continue;
++        if (cursor > filter.toBlock) break;
++        if (entry.fromBlock > cursor) throw Error('runtime coverage gap');
++        signal?.throwIfAborted(); alive();
++        const chunk = path.join(directory, `${entry.chunkHash}.json`);
++        try {
++          if (regular(chunk, MAX_COVERAGE_BYTES) !== entry.bytes) throw Error('coverage chunk size changed');
++          const raw = await fsp.readFile(chunk, { signal });
++          if (raw.length !== entry.bytes || digest(raw) !== entry.chunkHash) throw Error('coverage chunk hash changed');
++          const value = JSON.parse(raw);
++          for (const log of value.logs) if (log.blockNumber >= filter.fromBlock && log.blockNumber <= filter.toBlock &&
++              log.address === filter.address && filter.topic0s.includes(log.topics[0]) && log.topics[1] === filter.topic1) {
++            responseBytes += Buffer.byteLength(JSON.stringify(log)) + 1;
++            if (responseBytes > maxBytes) throw Error('derived log response too large; request a smaller complete block range');
++            result.logs.push(log);
++          }
++        } catch (e) {
++          if (!signal?.aborted && !/response too large/.test(e.message)) failed = true;
++          throw e;
++        }
++        cursor = Math.min(entry.toBlock, filter.toBlock) + 1;
++        await yieldIO(); // allow cancellation/deadlines between bounded chunks
++      }
++      signal?.throwIfAborted(); alive();
++      if (cursor !== filter.toBlock + 1) throw Error('runtime coverage incomplete');
++      return result;
++    },
++    close() { if (!closed) { closed = true; verified.length = 0; unlock(); } },
++  });
++}
+diff --git a/network/derived-reader/coverage.mjs b/network/derived-reader/coverage.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..434366ecd5282a64803750cf079547e887f5fc37
+--- /dev/null
++++ b/network/derived-reader/coverage.mjs
+@@ -0,0 +1,67 @@
++// Native v3 protocol validation. Only the pinned native execution path calls
++// this; passing JSON here is not a remote proof or a grant of reader authority.
++import { keccak256 } from 'viem';
++const HASH = /^0x[0-9a-f]{64}$/;
++const ADDRESS = /^0x[0-9a-f]{40}$/;
++const HEX = /^0x(?:[0-9a-f]{2})*$/;
++export const COVERAGE_FORMAT = 'enclave-lease16-coverage/v1';
++export const FILTER_ID = 'lease16-events/v1';
++export const LEASE_TOPICS = Object.freeze([
++  '0xa8cc21eb0ec0b0b7328426babbe37866c627edfd2ae57aeaed4f54abc0534bc0',
++  '0xc3f167f2092d6942fb4264b1759de5eda7eedc20287375c9eddd62e98a560b3e',
++  '0x0e334fd11ab7bea6d2bda89338c0f25674e099b70dd28aaaee262fbecba48882',
++]);
++export const MAX_COVERAGE_BYTES = 16 << 20;
++const uint = n => Number.isSafeInteger(n) && n >= 0;
++const CHECKED = new WeakSet();
++export function assertCheckedCoverage(value) {
++  if (!CHECKED.has(value)) throw Error('coverage must come from this process native result validation');
++}
++
++export function validateCoverage(result, input, anchor) {
++  const c = result?.coverage, t = input?.trusted, from = input?.bound?.agreedL2BlockNumber + 1;
++  if (result?.format !== 'enclave-base-derivation-result/v3' || !c || c.format !== COVERAGE_FORMAT || c.filterId !== FILTER_ID ||
++      t?.intermediateBlockInterval !== 1 || c.fromBlock !== from || c.toBlock !== anchor.base.number ||
++      !uint(from) || c.toBlock < from || c.toBlock - from >= 1800 ||
++      !Array.isArray(c.blocks) || c.blocks.length !== c.toBlock - from + 1 || !Array.isArray(c.logs))
++    throw Error('native complete lease coverage required');
++  if (Buffer.byteLength(JSON.stringify(c)) > MAX_COVERAGE_BYTES) throw Error('native lease coverage exceeds byte limit');
++  const blocks = new Map();
++  let previousTime = -1;
++  for (let i = 0; i < c.blocks.length; i++) {
++    const b = c.blocks[i], sampled = `0x${result.intermediateRoots.slice(2 + i * 64, 2 + (i + 1) * 64)}`;
++    if (!b || b.number !== from + i || !uint(b.timestamp) || b.timestamp < previousTime ||
++        !['hash', 'stateRoot', 'messagePasserStorageRoot', 'outputRoot', 'receiptsRoot', 'transactionsRoot'].every(k => HASH.test(b[k])) ||
++        b.outputRoot !== sampled || b.outputRoot !== keccak256(`0x${'0'.repeat(64)}${b.stateRoot.slice(2)}${b.messagePasserStorageRoot.slice(2)}${b.hash.slice(2)}`))
++      throw Error('native coverage block does not bind its sampled output root');
++    previousTime = b.timestamp; blocks.set(b.number, b);
++  }
++  const last = c.blocks.at(-1);
++  for (const key of ['number','hash','stateRoot','messagePasserStorageRoot','outputRoot','timestamp'])
++    if (last[key] !== anchor.base[key]) throw Error('native coverage does not end at accepted anchor');
++  let previousBlock = -1, previousIndex = -1;
++  for (const log of c.logs) {
++    const b = blocks.get(log?.blockNumber);
++    if (!b || !ADDRESS.test(log.address) || log.blockHash !== b.hash || !uint(log.logIndex) || !HASH.test(log.txHash) ||
++        !HEX.test(log.data) || !Array.isArray(log.topics) || log.topics.length < 1 || log.topics.length > 4 ||
++        !log.topics.every(v => HASH.test(v)) || !LEASE_TOPICS.includes(log.topics[0]) ||
++        log.blockNumber < previousBlock || log.blockNumber === previousBlock && log.logIndex <= previousIndex)
++      throw Error('native coverage log is malformed, duplicated, or out of order');
++    previousBlock = log.blockNumber; previousIndex = log.logIndex;
++  }
++  // Completeness and receipt/transaction/header binding are assertions of the
++  // pinned v3 executable. Hashing host-selected logs would not establish either.
++  const copy = structuredClone(c);
++  const freeze = o => { for (const v of Object.values(o)) if (v && typeof v === 'object') freeze(v); return Object.freeze(o); };
++  freeze(copy); CHECKED.add(copy); return copy;
++}
++
++export function validateLogQuery(query, anchor) {
++  const { address, topic0s, topic1, fromBlock, toBlock, anchor: requested } = query || {};
++  if (!ADDRESS.test(address) || !Array.isArray(topic0s) || !topic0s.length || topic0s.length > LEASE_TOPICS.length ||
++      new Set(topic0s).size !== topic0s.length || !topic0s.every(t => LEASE_TOPICS.includes(t)) || !HASH.test(topic1) ||
++      !uint(fromBlock) || !uint(toBlock) || fromBlock > toBlock || toBlock > anchor.base.number ||
++      requested?.number !== anchor.base.number || requested?.hash !== anchor.base.hash)
++    throw Error('derived logs require an exact current snapshot anchor and bounded filter');
++  return { address, topic0s: [...topic0s], topic1, fromBlock, toBlock };
++}
+diff --git a/network/derived-reader/native.mjs b/network/derived-reader/native.mjs
+index 4fc320edd45b99504920b7cf98635b7e366ccda9..8f51e88940be8d18a33abb05ac5d0b8e9376a16b 100644
+--- a/network/derived-reader/native.mjs
++++ b/network/derived-reader/native.mjs
+@@ -9,12 +9,16 @@ import { nativeCommand } from './libraries.mjs';
+ export const DERIVATION_BUILDS = Object.freeze({
+   f1a6bb0e82be37fddf9e2485c50f78b4cd5eb02d43e903152230c91fd22dcfd9: 'combined-r1, base/base 5476069f, rustup 1.96.0; source/native tests passed',
+ });
++export const DERIVATION_V3_BUILDS = Object.freeze({
++  '49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa':
++    'lease coverage r2 c990e671, 14 native tests passed, frozen lock; positive mainnet witness/image qualification pending',
++});
+ export async function invokeDerivation({ executable, runtime = null, trusted, witness, workDir, signal,
+   timeoutMs = 180000, maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, outputBytes = 65536 }) {
+   if (!Buffer.isBuffer(witness) || witness.length === 0 || witness.length > maxWitnessBytes) throw Error('native witness size refused');
+   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 3600000 || !Number.isInteger(maxMemoryMiB) || maxMemoryMiB < 128 || maxMemoryMiB > 4096)
+     throw Error('invalid native execution bounds');
+-  if (!Number.isInteger(outputBytes) || outputBytes < 1024 || outputBytes > (1 << 20)) throw Error('invalid native output bound');
++  if (!Number.isInteger(outputBytes) || outputBytes < 1024 || outputBytes > (16 << 20)) throw Error('invalid native output bound');
+   signal?.throwIfAborted();
+   const directory = fs.mkdtempSync(path.join(workDir, 'proof-')); fs.chmodSync(directory, 0o700);
+   const input = path.join(directory, 'trusted.json'), data = path.join(directory, 'witness');
+diff --git a/network/derived-reader/proof.mjs b/network/derived-reader/proof.mjs
+index 32ecdd83c797481d72074c5ad787b12860276260..548efeb6fbb7a10c8e3bcb772b12039c163f7056 100644
+--- a/network/derived-reader/proof.mjs
++++ b/network/derived-reader/proof.mjs
+@@ -5,6 +5,7 @@ import { readSchedule, CONFIG_HASH_PIN_CANDIDATE } from './vendor/schedule_reade
+ import { buildTrustedInput } from './vendor/schedule-input-r2.mjs';
+ import { assertL1Runtime } from './l1-runtime.mjs';
+ import { finalizedHeader } from './rpc.mjs';
++import { validateCoverage } from './coverage.mjs';
+ export const keccak = bytes => toBytes(keccak256(bytes));
+ const HASH = /^0x[0-9a-f]{64}$/;
+ 
+@@ -52,7 +53,14 @@ export async function prepareProof({ l1, l1Head, agreed, header, rollupConfigTem
+     expectedRollupConfigHash: CONFIG_HASH_PIN_CANDIDATE.value, intermediateBlockInterval });
+ }
+ export function bindNativeV2(result, input, header, l1Head) {
+-  if (result?.format !== 'enclave-base-derivation-result/v2' || Object.hasOwn(result, 'refused')) throw Error('combined native derivation v2 result required');
++  return bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v2');
++}
++export function bindNativeV3(result, input, header, l1Head) {
++  const anchor = bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v3');
++  return { anchor, coverage: validateCoverage(result, input, anchor) };
++}
++function bindNative(result, input, header, l1Head, format) {
++  if (result?.format !== format || Object.hasOwn(result, 'refused')) throw Error(`combined native derivation ${format} result required`);
+   const t = input.trusted;
+   const fields = { chainId: 8453, l1Head: t.l1Head, l1HeadNumber: t.l1HeadNumber, agreedL2OutputRoot: t.agreedL2OutputRoot,
+     l2PreBlockNumber: input.bound.agreedL2BlockNumber, l2BlockNumber: t.claimedL2BlockNumber, l2OutputRoot: t.claimedL2OutputRoot,
+diff --git a/network/derived-reader/provider.mjs b/network/derived-reader/provider.mjs
+index 37928011d86e951b804951527e69469b7bc31303..8478fae0a2f9351f195c84f99a0ccef653ca2184 100644
+--- a/network/derived-reader/provider.mjs
++++ b/network/derived-reader/provider.mjs
+@@ -9,16 +9,21 @@ import { stageBinary, reapRun } from './process.mjs';
+ import { startL1Runtime, assertL1Runtime, readCheckpoint } from './l1-runtime.mjs';
+ import { stageLibraries } from './libraries.mjs';
+ import { boundedRpc, finalizedHeader } from './rpc.mjs';
+-import { authenticateBootstrap, prepareProof, bindNativeV2 } from './proof.mjs';
+-import { invokeDerivation, DERIVATION_BUILDS } from './native.mjs';
++import { authenticateBootstrap, prepareProof, bindNativeV2, bindNativeV3 } from './proof.mjs';
++import { invokeDerivation, DERIVATION_BUILDS, DERIVATION_V3_BUILDS } from './native.mjs';
++import { openCoverageStore, MAX_HISTORY_BYTES } from './coverage-store.mjs';
++import { MAX_COVERAGE_BYTES } from './coverage.mjs';
+ export const BOOTSTRAP_POLICY = Object.freeze({ expectedChainId: 1, pinBy: 'hash',
+   portal: '0x49048044d57e1c92a77f79988d21fa8faf74e97e', asr: '0x909f6cf47ed12f010a796527f562bfc26c7f4e72',
+   portalAsrGetter: 'anchorStateRegistry()', maxFinalizedAgeSec: 1800 });
+ 
+ export async function createDerivedProvider({ l1, journal, executable, runtime = null, workDir, bootstrap, base,
++  resultVersion = 2, coverageStore = null,
+   maxBlocks = 1800, intermediateBlockInterval = 1, maxAnchorAgeSec = 1800, nativeTimeoutMs = 180000,
+   maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, now = Date.now }) {
+   assertL1Runtime(l1);
++  if (![2, 3].includes(resultVersion) || resultVersion === 3 && (!coverageStore || intermediateBlockInterval !== 1) ||
++      resultVersion === 2 && coverageStore) throw Error('v3 coverage needs explicit version, store, and interval one');
+   if (!Number.isInteger(maxBlocks) || maxBlocks < 1 || maxBlocks > 1800 ||
+       !Number.isInteger(intermediateBlockInterval) || intermediateBlockInterval < 1 || intermediateBlockInterval > maxBlocks ||
+       !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
+@@ -29,8 +34,14 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+   const alive = () => {
+     if (closed) throw Error('derived provider closed');
+     journal.read(); // A failed/uncertain persistence operation fences even the previous in-memory anchor.
++    coverageStore?.status();
+     assertL1Runtime(l1);
+   };
++  const savedFloor = () => {
++    const a = journal.read().floor, c = coverageStore?.status().savedFloor;
++    if (a && c && a.base.number === c.base.number && a.base.hash !== c.base.hash) throw Error('anchor and coverage floors contradict');
++    return !a || c && c.base.number > a.base.number ? c : a;
++  };
+   const consistentL1 = async (head, signal) => {
+     const raw = await l1.request('eth_getBlockByNumber', [`0x${head.number.toString(16)}`, false], { signal });
+     const checked = finalizedHeader(raw, Math.floor(now() / 1000), 3600);
+@@ -45,6 +56,14 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+     try { return await run(controller.signal); }
+     finally { signal?.removeEventListener('abort', abort); busy = false; active = null; finished(); }
+   }
++  async function currentAnchor(signal) {
++    if (!latest) throw Error('no locally derived anchor; bootstrap/catch-up is required');
++    const value = latest, seconds = Math.floor(now() / 1000);
++    if (seconds - value.base.timestamp > maxAnchorAgeSec || value.base.timestamp > seconds + 2) throw Error('derived Base anchor is stale');
++    await consistentL1(value.l1, signal); signal?.throwIfAborted(); alive();
++    if (Math.floor(now() / 1000) - value.base.timestamp > maxAnchorAgeSec) throw Error('derived Base anchor aged out while reading');
++    return structuredClone(value);
++  }
+   return Object.freeze({
+     // Public fields are proposed inputs for the untrusted witness builder.
+     // The ticket's authoritative copy remains private to this process.
+@@ -57,7 +76,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+           if (seed.tier !== 'l1-finalized-asr-anchor') throw Error('initial agreed root must be freshly ASR-authenticated');
+           agreed = seed; // never load an agreed root from journal JSON
+         }
+-        const floor = journal.read().floor;
++        const floor = savedFloor();
+         if (!Number.isSafeInteger(blockNumber) || blockNumber <= agreed.base.number || blockNumber - agreed.base.number > maxBlocks ||
+             (blockNumber - agreed.base.number) % intermediateBlockInterval !== 0) throw Error('candidate range exceeds reader bounds');
+         if (floor && agreed.base.number < floor.base.number && blockNumber > floor.base.number) throw Error('recovery must derive the saved floor exactly before passing it');
+@@ -79,30 +98,39 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+         const proof = pending; pending = null; // one-shot; no concurrent replay
+         const result = await invokeDerivation({ executable, runtime, trusted: proof.input.trusted, witness, workDir, signal: proofSignal,
+           timeoutMs: Math.min(nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes, maxMemoryMiB,
+-          outputBytes: 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
+-        const accepted = bindNativeV2(result, proof.input, proof.header, proof.head);
++          outputBytes: resultVersion === 3 ? MAX_COVERAGE_BYTES : 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
++        const bound = resultVersion === 3 ? bindNativeV3(result, proof.input, proof.header, proof.head) : null;
++        const accepted = bound?.anchor || bindNativeV2(result, proof.input, proof.header, proof.head);
+         if (accepted.base.timestamp < proof.agreed.base.timestamp || accepted.base.timestamp > Math.floor(now() / 1000) + 2) throw Error('derived block timestamp regressed or is from the future');
+         await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted(); alive();
+-        const floor = journal.read().floor;
+-        if (floor && accepted.base.number < floor.base.number) {
+-          agreed = accepted;
+-          return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
+-        }
+-        // Atomic persistence occurs before any publication. A same-height hash
+-        // conflict with the saved floor refuses rather than authorizing a fork.
+-        journal.accept(proof.agreed, accepted);
++        const floor = savedFloor();
++        const publishCoverage = bound ? coverageStore.stage(bound.coverage, proof.agreed, accepted) : null;
++        try {
++          if (floor && accepted.base.number < floor.base.number) {
++            publishCoverage?.();
++            agreed = accepted;
++            return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
++          }
++          // Both durable writes precede publication. A partially committed pair
++          // fences this process; restart re-derives through the stricter floor.
++          journal.accept(proof.agreed, accepted);
++          publishCoverage?.();
++        } catch (e) { closed = true; latest = null; throw e; }
+         agreed = accepted; latest = accepted;
+         return { status: 'verified', anchor: structuredClone(accepted) };
+       });
+     },
+     async readAnchor({ signal } = {}) {
+-      return exclusive(signal, async proofSignal => {
+-        if (!latest) throw Error('no locally derived anchor; bootstrap/catch-up is required');
+-        const value = latest, seconds = Math.floor(now() / 1000);
+-        if (seconds - value.base.timestamp > maxAnchorAgeSec || value.base.timestamp > seconds + 2) throw Error('derived Base anchor is stale');
+-        await consistentL1(value.l1, proofSignal); proofSignal.throwIfAborted(); alive();
+-        if (Math.floor(now() / 1000) - value.base.timestamp > maxAnchorAgeSec) throw Error('derived Base anchor aged out while reading');
+-        return structuredClone(value);
++      return exclusive(signal, currentAnchor);
++    },
++    async readDerivedLogs(query = {}) {
++      return exclusive(query.signal, async proofSignal => {
++        if (!coverageStore) throw Error('derived logs require the explicit v3 reader');
++        const signal = AbortSignal.any([proofSignal, AbortSignal.timeout(30000)]);
++        const anchor = await currentAnchor(signal);
++        const result = await coverageStore.read(query, anchor, { signal });
++        await currentAnchor(signal); // same exclusive snapshot, including freshness after disk IO
++        return result;
+       });
+     },
+     status() { return { busy, closed, hasDerivedAnchor: !!latest,
+@@ -110,7 +138,8 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
+       // Freshness here is diagnostic; readAnchor additionally checks live L1 ownership/canonicality.
+       withinBaseAgeBound: !!latest && Math.floor(now() / 1000) - latest.base.timestamp <= maxAnchorAgeSec,
+       verifiedThrough: agreed?.base.number ?? null,
+-      hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: journal.read().floor?.base.number ?? null }; },
++      hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: savedFloor()?.base.number ?? null,
++      resultVersion, coverage: coverageStore?.status() ?? null }; },
+     async close() { closed = true; pending = null; latest = null; active?.abort(Error('derived provider closed')); await activeDone; },
+   });
+ }
+@@ -122,7 +151,10 @@ export async function startDerivedReader(config, options = {}) {
+   const { stateDir, initializeState = false, native, l1: l1Config, a1Config = BOOTSTRAP_POLICY, baseUrl } = config;
+   if (!path.isAbsolute(stateDir) || Object.entries(BOOTSTRAP_POLICY).some(([key, value]) => a1Config[key] !== value))
+     throw Error('derived reader needs private state and the reviewed ASR bootstrap policy');
+-  const builds = options.acceptedDerivationBuilds || DERIVATION_BUILDS;
++  const resultVersion = native?.resultVersion ?? 2;
++  if (![2, 3].includes(resultVersion) || resultVersion === 3 && (config.intermediateBlockInterval ?? 1) !== 1)
++    throw Error('invalid native result version or coverage interval');
++  const builds = options.acceptedDerivationBuilds || (resultVersion === 3 ? DERIVATION_V3_BUILDS : DERIVATION_BUILDS);
+   if (!builds[native?.sha256]) throw Error('no qualified native derivation build configured');
+   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+   const privateDirectory = directory => {
+@@ -134,10 +166,13 @@ export async function startDerivedReader(config, options = {}) {
+   const checkpoint = readCheckpoint(l1Config.checkpointFile, { accepted: options.l1Options?.acceptedCheckpoints, now: options.now || Date.now });
+   const binding = createHash('sha256').update(JSON.stringify({ chain: 8453, native: native.sha256,
+     nativeRuntime: native.runtime?.build ?? null, l1Runtime: l1Config.runtime?.build ?? null,
+-    l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1 })).digest('hex');
++    l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1,
++    ...(resultVersion === 3 ? { resultVersion, historyMaximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES } : {}) })).digest('hex');
+   const journal = await openDerivedJournal(stateDir, { binding, initialize: initializeState });
+-  let l1, provider, runDir;
++  let l1, provider, runDir, coverageStore;
+   try {
++    if (resultVersion === 3) coverageStore = await openCoverageStore(path.join(stateDir, 'coverage'), {
++      binding, initialize: initializeState, maximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES });
+     const runs = path.join(stateDir, 'runs'); fs.mkdirSync(runs, { recursive: true, mode: 0o700 });
+     privateDirectory(runs);
+     // Reap only task-owned saved child identities under this journal's lock.
+@@ -169,13 +204,13 @@ export async function startDerivedReader(config, options = {}) {
+       runDir: l1Dir, signal: options.signal, now: options.now || Date.now });
+     const base = boundedRpc(baseUrl);
+     const execution = boundedRpc(l1Config.executionUrl);
+-    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base,
++    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base, resultVersion, coverageStore,
+       bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
+       maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
+       nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
+-    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); } });
++    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); coverageStore?.close(); journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); } });
+   } catch (e) {
+-    await provider?.close(); await l1?.close(); journal.close();
++    await provider?.close(); await l1?.close(); coverageStore?.close(); journal.close();
+     if (runDir) fs.rmSync(runDir, { recursive: true, force: true });
+     throw e;
+   }
+diff --git a/network/derived-reader/qualification.json b/network/derived-reader/qualification.json
+index 8839ae0126e5693aaa672cc1cb672e79a9bc938c..1de289939c3431095325f638c8cb92d94f3e63a9 100644
+--- a/network/derived-reader/qualification.json
++++ b/network/derived-reader/qualification.json
+@@ -45,10 +45,11 @@
+     "localNegativeInvocations": "PASS with system and explicitly pinned loaders; not positive derivation"
+   },
+   "composition": {
+-    "readerTests": 16,
++    "readerTests": 29,
+     "bridgeTests": 4,
+-    "passed": 20,
+-    "authorityFixtures": true
++    "passed": 33,
++    "authorityFixtures": true,
++    "leaseCoverageTests": 13
+   },
+   "liveL1SchedulePinnedLoader": {
+     "status": "passed",
+@@ -64,5 +65,17 @@
+     "l1AgeSec": 869,
+     "productionPidsUnchanged": true,
+     "cleaned": true
++  },
++  "nativeV3": {
++    "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
++    "sourceBundleSha256": "c990e67156f32992ab0c10d7e9c7d4ad98ea94485125eb2a57df538701f6deb0",
++    "nativeChecks": 14,
++    "ignored": 0,
++    "filtered": 0,
++    "cargoLockUnchanged": true,
++    "buildReceiptCommit": "8594bc1ee",
++    "localNegativeInvocations": "PASS with explicit pinned loader: malformed witness, wrong chain, interval != 1",
++    "livePositiveBaseDerivation": false,
++    "acceptedImageQualified": false
+   }
+ }
+diff --git a/test/derived-reader.test.mjs b/test/derived-reader.test.mjs
+index 542c9ad680ceefddd33431fb3efc0df1d6a9989c..80e1cfe7dbefed9f5db605c63209f8a91dc2fafa 100644
+--- a/test/derived-reader.test.mjs
++++ b/test/derived-reader.test.mjs
+@@ -1,3 +1,5 @@
+ // Include the reader suite in the repository's test/*.test.mjs command.
+ import './derived-reader/provider.test.mjs';
+ import './derived-reader/boundaries.test.mjs';
++
++import './derived-reader/coverage.test.mjs';
+diff --git a/test/derived-reader/coverage.test.mjs b/test/derived-reader/coverage.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4e1e35829d0a12a646d14346f1d88aa7628fa21
+--- /dev/null
++++ b/test/derived-reader/coverage.test.mjs
+@@ -0,0 +1,185 @@
++// Native echo and L1 transport fixtures; no claim of positive chain derivation.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { createDerivedProvider, startDerivedReader } from '../../network/derived-reader/provider.mjs';
++import { openDerivedJournal } from '../../network/derived-reader/journal.mjs';
++import { openCoverageStore } from '../../network/derived-reader/coverage-store.mjs';
++import { validateCoverage, LEASE_TOPICS, COVERAGE_FORMAT, FILTER_ID, MAX_COVERAGE_BYTES } from '../../network/derived-reader/coverage.mjs';
++import { bindNativeV3 } from '../../network/derived-reader/proof.mjs';
++import { sha256File } from '../../network/derived-reader/process.mjs';
++import { createLifecycleFinalitySnapshot } from '../../network/lifecycle-finality-bridge.mjs';
++import { openLifecycleJournal } from '../../network/deployment-lifecycle-journal.mjs';
++import { setup, header, anchorOf, nativeResult } from './helpers.mjs';
++const A = `0x${'aa'.repeat(20)}`, B = `0x${'bb'.repeat(20)}`, ID = `0x${'cc'.repeat(32)}`;
++const binding = 'e'.repeat(64);
++function log(h, index=0, address=A, topics=[LEASE_TOPICS[0], ID], data='0x') {
++  return { address, blockNumber:Number(BigInt(h.number)), blockHash:h.hash, logIndex:index, topics, data, txHash:`0x${'dd'.repeat(32)}` };
++}
++function result(ticket, headers, logs=[]) {
++  const blocks=headers.map(h=>({...anchorOf(h,{}).base,receiptsRoot:h.receiptsRoot,transactionsRoot:h.transactionsRoot}));
++  return {...nativeResult(ticket,headers.at(-1)),format:'enclave-base-derivation-result/v3',
++    intermediateRoots:'0x'+blocks.map(b=>b.outputRoot.slice(2)).join(''),
++    coverage:{format:COVERAGE_FORMAT,filterId:FILTER_ID,fromBlock:blocks[0].number,toBlock:blocks.at(-1).number,blocks,logs}};
++}
++async function fixture(t) {
++  const f=await setup(t);f.journal=await openDerivedJournal(f.directory,{binding,initialize:true});
++  f.store=await openCoverageStore(path.join(f.directory,'coverage'),{binding,initialize:true});
++  f.options={l1:f.l1,journal:f.journal,executable:f.native,workDir:f.directory,now:()=>f.now,resultVersion:3,coverageStore:f.store,
++    bootstrap:async()=>f.agreed,base:async()=>f.candidate};
++  f.reader=await createDerivedProvider(f.options);
++  t.after(async()=>{await f.reader.close();f.store.close();f.journal.close();});
++  f.h1=header(101,Math.floor(f.now/1000)-2);f.h2=header(102,Math.floor(f.now/1000)-1);
++  f.submit=async(headers,logs=[])=>{
++    f.candidate=headers.at(-1);
++    const ticket=await f.reader.prepare({blockNumber:Number(BigInt(f.candidate.number)),rollupConfigTemplate:{l2_chain_id:8453}});
++    return f.reader.submit({ticket:ticket.ticket,witness:Buffer.from(JSON.stringify(result(ticket,headers,logs)))});
++  };
++  f.query=async(extras={})=>({address:A,topic0s:[...LEASE_TOPICS],topic1:ID,fromBlock:101,toBlock:102,
++    anchor:((a)=>({number:a.base.number,hash:a.base.hash}))(await f.reader.readAnchor()),...extras});
++  return f;
++}
++test('v3 complete coverage includes empty blocks and filters all-address, one-topic logs without dropping coverage',async t=>{
++  const f=await fixture(t);
++  await f.submit([f.h1,f.h2],[log(f.h1),log(f.h1,4,B,[LEASE_TOPICS[0]])]);
++  const value=await f.reader.readDerivedLogs(await f.query());
++  assert.equal(value.format,'enclave-derived-logs/v1');assert.equal(value.logs.length,1);assert.equal(value.logs[0].logIndex,0);
++  assert.deepEqual(value.anchor,await f.reader.readAnchor());
++  assert.deepEqual(value.coverage,{format:COVERAGE_FORMAT,filterId:FILTER_ID,fromBlock:101,toBlock:102,complete:true,availableFromBlock:101,availableToBlock:102});
++  assert.deepEqual((await f.reader.readDerivedLogs(await f.query({fromBlock:102}))).logs,[]);
++  assert.equal(fs.readdirSync(path.join(f.directory,'coverage')).filter(n=>/^[a-f0-9]{64}\.json$/.test(n)).length,1);
++});
++test('logs require exact snapshot identity and covered range; no old bootstrap, unknown filter or cancellation grants',async t=>{
++  const f=await fixture(t);await f.submit([f.h1,f.h2]);const query=await f.query();
++  for(const bad of [{fromBlock:100},{toBlock:103},{anchor:{number:102,hash:`0x${'ff'.repeat(32)}`}},{topic0s:[ID]},{topic0s:[LEASE_TOPICS[0],LEASE_TOPICS[0]]}])
++    await assert.rejects(f.reader.readDerivedLogs({...query,...bad}),/coverage|snapshot|filter/);
++  const ac=new AbortController();ac.abort(Error('query cancelled'));
++  await assert.rejects(f.reader.readDerivedLogs({...query,signal:ac.signal}),/cancelled/);
++  f.now+=1801000;await assert.rejects(f.reader.readDerivedLogs(query),/stale/);
++});
++test('v3 validation refuses incomplete blocks, wrong roots, duplicated logs, wrong filter and downgraded output',async t=>{
++  const f=await fixture(t);f.candidate=f.h2;
++  const ticket=await f.reader.prepare({blockNumber:102,rollupConfigTemplate:{l2_chain_id:8453}});
++  const good=result(ticket,[f.h1,f.h2],[log(f.h1)]), input={trusted:ticket.trusted,bound:{agreedL2BlockNumber:100}};
++  for(const mutate of [r=>r.coverage.blocks.pop(),r=>r.coverage.blocks[0].outputRoot=ID,r=>r.coverage.logs.push({...r.coverage.logs[0]}),
++    r=>r.coverage.logs[0].blockHash=ID,r=>r.coverage.filterId='host-filter',r=>r.format='enclave-base-derivation-result/v2']) {
++    const bad=structuredClone(good);mutate(bad);assert.throws(()=>bindNativeV3(bad,input,f.h2,f.head));
++  }
++  assert.equal(bindNativeV3(good,input,f.h2,f.head).coverage.blocks.length,2);
++  await assert.rejects(f.reader.submit({ticket:ticket.ticket,witness:Buffer.from(JSON.stringify({...good,format:'enclave-base-derivation-result/v2'}))}),/v3/);
++  assert.equal(f.journal.read().floor,null);assert.equal(f.store.status().verifiedFromBlock,null);
++});
++test('restarted coverage JSON grants nothing; re-derive contiguous segments through the saved floor',async t=>{
++  const f=await fixture(t);await f.submit([f.h1,f.h2],[log(f.h1)]);const query=await f.query(),anchor=await f.reader.readAnchor();
++  await f.reader.close();f.store.close();
++  f.store=await openCoverageStore(path.join(f.directory,'coverage'),{binding});
++  await assert.rejects(f.store.read(query,anchor),/outside runtime/);
++  f.reader=await createDerivedProvider({...f.options,coverageStore:f.store});
++  await assert.rejects(f.reader.readDerivedLogs(query),/no locally derived/);
++  assert.equal((await f.submit([f.h1],[log(f.h1)])).status,'recovering');
++  await assert.rejects(f.reader.readDerivedLogs(query),/no locally derived/);
++  assert.equal((await f.submit([f.h2])).status,'verified');
++  assert.equal((await f.reader.readDerivedLogs(query)).logs.length,1);
++});
++test('changed saved chunks fence both log reads and the prior in-memory anchor',async t=>{
++  const f=await fixture(t);await f.submit([f.h1,f.h2],[log(f.h1)]);const query=await f.query();
++  const dir=path.join(f.directory,'coverage'),manifest=JSON.parse(fs.readFileSync(path.join(dir,'manifest.json')));
++  fs.appendFileSync(path.join(dir,manifest.entries[0].chunkHash+'.json'),' ');
++  await assert.rejects(f.reader.readDerivedLogs(query),/size changed/);
++  await assert.rejects(f.reader.readAnchor(),/coverage store closed or failed/);
++});
++test('partial durable publication fences the process and coverage cannot be seeded with plain JSON',async t=>{
++  const f=await fixture(t);f.candidate=f.h2;
++  const ticket=await f.reader.prepare({blockNumber:102,rollupConfigTemplate:{l2_chain_id:8453}}),r=result(ticket,[f.h1,f.h2]);
++  const bound=bindNativeV3(r,{trusted:ticket.trusted,bound:{agreedL2BlockNumber:100}},f.h2,f.head);
++  assert.throws(()=>f.store.stage(structuredClone(bound.coverage),f.agreed,bound.anchor),/this process/);
++  fs.mkdirSync(path.join(f.directory,'derived-state.json.strict.tmp'));
++  await assert.rejects(f.reader.submit({ticket:ticket.ticket,witness:Buffer.from(JSON.stringify(r))}),/EISDIR/);
++  assert.throws(()=>f.store.status(),/publication pending/);
++  await assert.rejects(f.reader.readAnchor(),/closed|failed/);
++  // Coverage committed before the anchor-journal failure. Its saved restriction
++  // must also be reached on restart; it does not grant reads by itself.
++  await f.reader.close();f.store.close();f.journal.close();
++  fs.rmdirSync(path.join(f.directory,'derived-state.json.strict.tmp'));
++  f.journal=await openDerivedJournal(f.directory,{binding});
++  f.store=await openCoverageStore(path.join(f.directory,'coverage'),{binding});
++  f.reader=await createDerivedProvider({...f.options,journal:f.journal,coverageStore:f.store});
++  assert.equal(f.journal.read().floor,null);
++  assert.equal((await f.submit([f.h1])).status,'recovering');
++  await assert.rejects(f.reader.readAnchor(),/no locally derived/);
++  assert.equal((await f.submit([f.h2])).status,'verified');
++});
++test('coverage manifest write failure refuses publication and fences the previous anchor',async t=>{
++  const f=await fixture(t);await f.submit([f.h1]);
++  fs.mkdirSync(path.join(f.directory,'coverage','manifest.json.strict.tmp'));
++  await assert.rejects(f.submit([f.h2]),/EISDIR/);
++  assert.equal(f.journal.read().floor.base.number,101);
++  await assert.rejects(f.reader.readAnchor(),/coverage store closed or failed/);
++});
++test('coverage manifests have exclusive ownership and reject persisted hash-chain corruption',async t=>{
++  const f=await fixture(t);await f.submit([f.h1]);const dir=path.join(f.directory,'coverage');
++  await assert.rejects(openCoverageStore(dir,{binding}),/lock|in use/i);
++  await f.reader.close();f.store.close();
++  const file=path.join(dir,'manifest.json'),m=JSON.parse(fs.readFileSync(file));m.entries[0].agreedRoot=ID;
++  fs.writeFileSync(file,JSON.stringify(m));
++  await assert.rejects(openCoverageStore(dir,{binding}),/corruption/);
++});
++test('quota accounts for orphan chunks, refuses overflow and never evicts history',async t=>{
++  const f=await fixture(t),dir=path.join(f.directory,'limited');
++  let store=await openCoverageStore(dir,{binding,initialize:true,maximumBytes:3*MAX_COVERAGE_BYTES});store.close();
++  const orphan=path.join(dir,'0'.repeat(64)+'.json'),fd=fs.openSync(orphan,'wx',0o600);fs.ftruncateSync(fd,MAX_COVERAGE_BYTES);fs.closeSync(fd);
++  store=await openCoverageStore(dir,{binding,maximumBytes:3*MAX_COVERAGE_BYTES});t.after(()=>store.close());
++  const a=anchorOf(f.h1,f.head,'l1-finalized-derived'),coverage={format:COVERAGE_FORMAT,filterId:FILTER_ID,fromBlock:101,toBlock:101,
++    blocks:[{...a.base,receiptsRoot:f.h1.receiptsRoot,transactionsRoot:f.h1.transactionsRoot}],logs:[]};
++  const checked=validateCoverage({format:'enclave-base-derivation-result/v3',intermediateRoots:a.base.outputRoot,coverage},
++    {trusted:{intermediateBlockInterval:1},bound:{agreedL2BlockNumber:100}},a);
++  assert.throws(()=>store.stage(checked,f.agreed,a),/budget exhausted/);
++  assert.equal(fs.statSync(orphan).size,MAX_COVERAGE_BYTES);
++  assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'manifest.json'))).entries.length,0);
++});
++test('v3 stdout supports a complete result beyond v2 size without truncating logs or query results',async t=>{
++  const f=await fixture(t);const large=log(f.h1,0,A,[LEASE_TOPICS[0],ID],'0x'+'ab'.repeat(600000));
++  await f.submit([f.h1],[large]);const query=await f.query({toBlock:101}),anchor=await f.reader.readAnchor();
++  assert.equal((await f.reader.readDerivedLogs(query)).logs[0].data,large.data);
++  await assert.rejects(f.store.read(query,anchor,{maxBytes:4096}),/response too large/);
++  assert.equal((await f.reader.readAnchor()).base.number,101);
++});
++test('v3 startup requires the explicit format/pin and interval; v2 cannot silently enable history',async()=>{
++  await assert.rejects(startDerivedReader({stateDir:'/unused',native:{resultVersion:3,sha256:'f1a6bb0e82be37fddf9e2485c50f78b4cd5eb02d43e903152230c91fd22dcfd9'}}),/native/);
++  await assert.rejects(startDerivedReader({stateDir:'/unused',native:{resultVersion:3},intermediateBlockInterval:2}),/interval/);
++});
++test('full v3 runtime opens private coverage under its ownership and refuses missing history on restart',async t=>{
++  const f=await setup(t);await f.l1.close();const sha256=await sha256File(f.native),stateDir=path.join(f.directory,'v3-state');
++  const config={stateDir,initializeState:true,native:{path:f.native,sha256,resultVersion:3},l1:f.l1Config,baseUrl:'http://127.0.0.1:1'};
++  const options={now:()=>f.now,l1Options:f.l1Options,acceptedDerivationBuilds:{[sha256]:'v3 composition fixture'}};
++  const reader=await startDerivedReader(config,options);t.after(()=>reader.close());
++  assert.equal(reader.status().resultVersion,3);assert.equal(reader.status().coverage.verifiedFromBlock,null);
++  assert.equal(reader.status().coverage.maximumBytes,4*1024**3);
++  await reader.close();assert.deepEqual(fs.readdirSync(path.join(stateDir,'runs')),[]);
++  fs.unlinkSync(path.join(stateDir,'coverage','manifest.json'));
++  await assert.rejects(startDerivedReader({...config,initializeState:false},options),/manifest missing/);
++});
++test('a real bridge callback can make both coverage queries without a reentrant reader lock',async t=>{
++  const f=await fixture(t);await f.submit([f.h1,f.h2],[log(f.h1)]);
++  const verifier={request:async(method)=>{
++    if(method==='eth_chainId')return '0x2105';
++    if(method==='eth_getBlockByNumber')return f.h2;
++    if(method==='eth_getBalance')return '0x2a';
++    throw Error('unexpected proof transport fixture request');
++  }};
++  const snapshot=createLifecycleFinalitySnapshot({readAnchor:f.reader.readAnchor,verifier,now:()=>f.now,
++    journal:openLifecycleJournal(path.join(f.directory,'consumer-lifecycle.json')),maxAnchorAgeSec:120});
++  const value=await snapshot(async(client,number,h)=>{
++    assert.equal(f.reader.status().busy,false,'readAnchor released the reader before callback');
++    const balance=await client.getBalance({address:A});
++    const query={address:A,topic0s:[...LEASE_TOPICS],topic1:ID,fromBlock:Number(number),toBlock:Number(number),anchor:{number:Number(number),hash:h.hash}};
++    const bounds=await f.reader.readDerivedLogs(query);
++    const history=await f.reader.readDerivedLogs({...query,fromBlock:Math.max(100,bounds.coverage.availableFromBlock)});
++    assert.deepEqual(bounds.anchor,history.anchor);
++    return {balance,logs:history.logs};
++  });
++  assert.equal(value.value.balance,42n);assert.equal(value.value.logs.length,1);
++  f.now+=121000;
++  await assert.rejects(snapshot(()=>null),/age bound/,'the consumer 120-second policy was not relaxed to the reader bound');
++});
+diff --git a/test/derived-reader/provider.test.mjs b/test/derived-reader/provider.test.mjs
+index b514aa436286fadad43138cf825bf5ee8fc24508..14dd6a49ddf05a99e83d980f64ebd4d4057fc2db 100644
+--- a/test/derived-reader/provider.test.mjs
++++ b/test/derived-reader/provider.test.mjs
+@@ -61,7 +61,7 @@ test('an uncertain journal write fences the previous in-memory anchor too', asyn
+   const next = await p.prepare({ blockNumber: 102, rollupConfigTemplate: { l2_chain_id: 8453 } });
+   fs.mkdirSync(path.join(f.directory, 'derived-state.json.strict.tmp'));
+   await assert.rejects(p.submit({ ticket: next.ticket, witness: Buffer.from(JSON.stringify(nativeResult(next, f.candidate))) }), /EISDIR/);
+-  await assert.rejects(p.readAnchor(), /journal closed or failed/);
++  await assert.rejects(p.readAnchor(), /closed|failed/);
+ });
+ test('stale derived blocks and a changed finalized L1 header refuse without refreshing timestamps', async t => {
+   const f = await setup(t), p = await provider(t, f);

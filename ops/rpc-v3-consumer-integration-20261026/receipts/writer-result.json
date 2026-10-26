@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "stage": "r3",
+  "kvmCommit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66",
+  "apiCompositionRc": 0,
+  "startupOk": 5,
+  "head": "64156dcd91ff1e769e74f9c26a846be19254c716",
+  "nodeCheck": 0,
+  "testRc": 0,
+  "counts": {
+    "tests": 23,
+    "pass": 23,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "startupRc": 0,
+  "bundleNote": "relay/network-runtime.bundle.mjs is the candidate tree's generated copy (bundle.sha256)",
+  "scope": "adapter logic (fakes), ABI, the COMMITTED KVM 34a3 coverage store + API composition (fixture coverage: completeness and mainnet NOT proven here), real api-relay.js startup refusals"
+}
