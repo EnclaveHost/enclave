@@ -4,6 +4,7 @@
    (scripts/sync-contract-addresses.sh rewrites the addresses).
    ============================================================ */
 import { loadProfileState } from "./independent.js";
+import { resolveReadAuthority } from "./read-authority.js";
 
 /* Production API gateway (mirrors openapi.json servers[0].url; the Deploy
    page lets a user point at an enclave directly and persists the override). */
@@ -189,7 +190,12 @@ export const APP_CATALOG_RPC     = "https://base-rpc.publicnode.com";  // prefer
    production; the e2e suite seeds it) points every read at one endpoint, which
    is exactly why it is loopback-origin only - see devOverride above. */
 const _rpc = IND_ANY ? null : devOverride("enclave_rpc");
-export const APP_CATALOG_RPCS    = IND_ANY ? (IND ? [...IND.rpcs] : []) : _rpc ? [_rpc] : [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
+const LEGACY_READ_RPCS = [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
+/* The release read authority (js/core/read-authority.js): LEGACY (the pool above, or the loopback dev override) unless
+   the build embedded an "own-rpc" authority - then ONLY its endpoints, with no public pool and no dev override; an
+   invalid one leaves the pool EMPTY so every read refuses (chain.js baseRpc). A self-hosted transport, not a proof. */
+export const READ_AUTHORITY = resolveReadAuthority({ independentState: INDEPENDENT.state, legacy: LEGACY_READ_RPCS, devRpc: _rpc });
+export const APP_CATALOG_RPCS    = IND_ANY ? (IND ? [...IND.rpcs] : []) : [...READ_AUTHORITY.rpcs];
 
 /* ---- IPFS ---- */
 // Enable after the configured adapter release supports direct signatures.

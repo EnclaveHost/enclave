@@ -32,6 +32,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { parseBuildArgs, readBuiltInProfile, builtInProfilePlugin } from "./site-built-in-profile.mjs";
+import { takeReadAuthorityArgs, readReadAuthority, readAuthorityPlugin } from "./site-read-authority.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const SITE = path.join(ROOT, "site");
@@ -71,8 +72,12 @@ console.log("[build] clean dist/");
 fs.rmSync(DIST, { recursive: true, force: true });
 /* the optional built-in network profile: checked before anything is built and after dist/ is cleared, so a rejected
    input leaves nothing that could be released */
-const ARGS = parseBuildArgs(process.argv.slice(2));
+const SPLIT = takeReadAuthorityArgs(process.argv.slice(2));       // --read-authority FILE --read-authority-digest sha256:<hex>
+const ARGS = parseBuildArgs(SPLIT.rest);
 const BUILT_IN = ARGS.file ? readBuiltInProfile(ARGS.file, ARGS.digest) : null;
+const READ_AUTH = SPLIT.file ? readReadAuthority(SPLIT.file, SPLIT.digest) : null;
+if (READ_AUTH && BUILT_IN) throw new Error("--read-authority and --built-in-profile are exclusive: a built-in independent profile already decides every chain read");
+if (READ_AUTH) console.log(`[build] release read authority own-rpc sha256:${READ_AUTH.fingerprint}: hosted reads ONLY via ${READ_AUTH.authority.rpcs.map((u) => new URL(u).host).join(", ")} (self-hosted transport, NOT proof-verified)`);
 console.log(BUILT_IN
   ? `[build] built-in network profile ${JSON.stringify(BUILT_IN.profile.name)} sha256:${BUILT_IN.fingerprint} (a fresh browser starts in independent mode with it)`
   : "[build] no built-in network profile (hosted defaults; a saved browser profile still applies)");
@@ -101,7 +106,7 @@ const result = await build({
   outbase: SITE,                              // js/boot.js keeps its path: HTML needs no rewrite
   chunkNames: "js/chunks/[name]-[hash]",
   external: ["https://*", "/vendor/*"],       // same-origin vendor bundles (verifier, webauthn) are loaded at runtime, not inlined into the page graph
-  plugins: [inlineTemplates, ...(BUILT_IN ? [builtInProfilePlugin(BUILT_IN.text, SITE)] : [])],
+  plugins: [inlineTemplates, ...(BUILT_IN ? [builtInProfilePlugin(BUILT_IN.text, SITE)] : []), ...(READ_AUTH ? [readAuthorityPlugin(READ_AUTH.text, SITE)] : [])],
   metafile: true,
 });
 

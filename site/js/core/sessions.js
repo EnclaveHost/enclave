@@ -13,7 +13,8 @@
    vendored as /vendor/sessions.js, loaded on first use).
    ============================================================ */
 import { Enclave, EnclaveError, WALLET_SESSION_KEY, INDEPENDENT_MODE } from "./api.js";
-import { APP_CATALOG_RPCS, USDC_BASE, SESSION_FACTORY_ADDRESS, INDEPENDENT, DEPLOYMENTS_ADDRESS } from "./config.js";
+import { APP_CATALOG_RPCS, USDC_BASE, SESSION_FACTORY_ADDRESS, INDEPENDENT, DEPLOYMENTS_ADDRESS, READ_AUTHORITY } from "./config.js";
+import { sessionsRpc } from "./read-authority.js";
 import { $, esc, lsGet, lsSet, lsDel, showToast, emit } from "./util.js";
 import { decodeLedgerCall, walletRecordPlan, needsCap } from "./ledger-calls.js";
 import * as ID from "./identity.js";
@@ -58,7 +59,8 @@ export async function sessionsConfig(){
 }
 export const sessionsAvailable = () => sessionsConfig().then((c) => !!c, () => false);
 
-const rpcFor = (cfg) => (cfg && cfg.rpc) || APP_CATALOG_RPCS[0];
+// legacy: unchanged (the relay config's rpc, else the pool); a release read authority: ONLY its pool, never the relay's rpc
+const rpcFor = (cfg) => sessionsRpc(cfg && cfg.rpc, READ_AUTHORITY, APP_CATALOG_RPCS);
 const sessionClient = async (S, cfg) => INDEPENDENT_MODE
   ? (await import("./independent-chain.js")).quorumSessionClient()
   : S.chainClient(cfg.chainId, rpcFor(cfg));

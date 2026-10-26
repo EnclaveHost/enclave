@@ -20,12 +20,14 @@
    (the in-CVM SIWE token), now only the fallback for a host that
    hasn't learned sessions yet, or a wallet with no session.
    ============================================================ */
-import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS } from "./config.js";
+import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS, READ_AUTHORITY } from "./config.js";
+import { fallbackUsesPool } from "./read-authority.js";
 
-/* A read the wallet could not answer. Hosted: Base's public RPC. Independent mode: only the profile's RPCs (the
-   rotating pool; nothing else is contacted), and no profile RPC means no answer rather than a default origin. */
+/* A read the wallet could not answer. Hosted legacy: Base's public RPC. Independent mode or a release read authority
+   (js/core/read-authority.js): only the read pool (the rotating pool; nothing else is contacted), and no pool RPC means
+   no answer rather than a default origin. (addChainRpcs / rpcMap below are the WALLET's signing RPC: unchanged.) */
 async function fallbackRead(method, params){
-  if (INDEPENDENT.state !== "off") return baseRpc(method, params);
+  if (fallbackUsesPool(INDEPENDENT.state, READ_AUTHORITY)) return baseRpc(method, params);
   const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
   const j = await r.json(); return j && j.result;

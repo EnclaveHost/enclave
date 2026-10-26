@@ -4,7 +4,7 @@
    EnclaveDeployments / EnclaveAppCatalog contract surface.
    No web3 library loads on the site.
    ============================================================ */
-import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT } from "./config.js";
+import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT, READ_AUTHORITY } from "./config.js";
 import { EnclaveError, Enclave } from "./api.js";
 import { wait } from "./util.js";
 import { fleetPrice } from "./pricing.js";
@@ -276,9 +276,11 @@ export async function revOwner(){ const r = await revCall("0x" + REV_SEL.owner);
 let _rpcIdx = 0;
 export async function baseRpc(method, params, opts){
   // independent mode with an unconfirmed or invalid profile pins no RPC at all: refuse, never fall back
+  // ... and a release read authority that is invalid pins none either (js/core/read-authority.js): refuse, never fall back
   if (!APP_CATALOG_RPCS.length) throw new EnclaveError(INDEPENDENT.state === "invalid"
     ? "The saved independent profile is invalid (" + INDEPENDENT.error + "). Fix or remove it in Settings."
-    : "Confirm the independent profile in Settings before reading the chain.", 0);
+    : INDEPENDENT.state !== "off" ? "Confirm the independent profile in Settings before reading the chain."
+    : "This site release's chain read authority is invalid (" + (READ_AUTHORITY && READ_AUTHORITY.error) + "): reads are refused, never sent to another server.", 0);
   let lastErr = null;
   for (let attempt = 0; attempt < APP_CATALOG_RPCS.length * 2; attempt++){
     const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
