@@ -1,0 +1,53 @@
+# read-only evidence, 2026-10-26T00:50:01Z
+witness repo HEAD ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 tree eec339e18296d850a514f72de2efdd8729302efd status-lines 0
+ef320298:opstack/bin/witness-check.rs blob 7b9b1d070ac913209afe76528cc08013ec9b7fa9
+ef320298:opstack/src/witness_check.rs blob 5d9898c1a550eab98316ab0bbcd27a96b44f1b09
+ef320298:opstack/src/lib.rs blob 33eda1741f71133246a00cd68d4bf61b241f83e1
+ef320298:opstack/src/consensus.rs blob 2dafd3c9ab3cde9435fc9e8fd7445235d3806ba4
+ef320298:opstack/src/spec.rs blob a6052d16f0270c46da87724ebaa625967da70276
+ef320298:opstack/src/types.rs blob 197bbcf269750d3e421d9690b289dae91abe1312
+ef320298:opstack/Cargo.toml blob 197a9148d928a8d8f7b8b0fbdd4121b637b9d2d6
+ef320298:core/src/execution/proof.rs blob 4afe02d7da6c06473c0669d5dd1aff5d3715b4ec
+ef320298:core/src/execution/errors.rs blob 8748cd5e2a6ee23dca015fec8a917a78169969c4
+git diff --stat eeffcc9 ef320298:
+   opstack/Cargo.toml                             |   5 +
+   opstack/bin/witness-check.rs                   | 220 +++++++++
+   opstack/src/consensus.rs                       |   2 +-
+   opstack/src/lib.rs                             |   2 +
+   opstack/src/witness_check.rs                   | 632 +++++++++++++++++++++++++
+   opstack/tests/data/witness-check-52965249.json |  40 ++
+   6 files changed, 900 insertions(+), 1 deletion(-)
+opstack/src lines naming helios_core at ef320298:
+  ef320298:opstack/src/builder.rs:2:use helios_core::execution::{
+  ef320298:opstack/src/consensus.rs:28:use helios_core::consensus::{Consensus, TrustedBlockRef};
+  ef320298:opstack/src/consensus.rs:29:use helios_core::execution::proof::{verify_account_proof, verify_mpt_proof};
+  ef320298:opstack/src/consensus.rs:30:use helios_core::time::{interval, SystemTime, UNIX_EPOCH};
+  ef320298:opstack/src/evm.rs:28:use helios_core::execution::errors::ExecutionError;
+  ef320298:opstack/src/lib.rs:6:use helios_core::client::HeliosClient;
+  ef320298:opstack/src/witness_check.rs:30:use helios_core::execution::proof::{
+canonical-block.patch 41667ec9 targets:
+  +++ b/core/src/client/canonical.rs
+  +++ b/core/src/client/mod.rs
+  +++ b/core/src/client/node.rs
+  +++ b/core/src/errors.rs
+  +++ b/core/src/execution/ancestry.rs
+  +++ b/core/src/execution/mod.rs
+  +++ b/core/src/execution/providers/block/block_cache.rs
+  +++ b/core/src/execution/providers/rpc.rs
+  +++ b/core/tests/ancestor_block_hash.rs
+  +++ b/core/tests/block_cache_exact_hash.rs
+  +++ b/core/tests/canonical_block_gate.rs
+  +++ b/core/tests/node_canonical_methods.rs
+  +++ b/core/tests/rpc_exact_hash_postcondition.rs
+  +++ b/core/tests/support/canonical_fixture.rs
+  +++ b/revm-utils/src/proof_db.rs
+listener Cargo.lock helios packages: 0
+native-provenance r2b: [result] REPRODUCED the pin from committed ef320298; receipt 4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411  r2/witness-check
+old chain-verifier-inputs PINS.sha256:
+  9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3  enclave-base-head-listener
+  cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0  helios
+  f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757  ld-linux-x86-64.so.2
+  02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524  libc.so.6
+  e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a  libgcc_s.so.1
+  965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d  libm.so.6
+  4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411  witness-check

@@ -1,0 +1,20 @@
+== toolchain and pins
+[ok] rustc 1.96.0 from the staged toolchain
+[ok] cargo 1.96.0 from the staged toolchain
+[ok] base tar a92160eb
+[ok] M7 patch e9dfb8c6
+[ok] fixed M10 patch d97c31b5
+[ok] release dirs are new
+== combined source (tar + M7 + fixed M10)
+[pin] release source manifest 58c572cbb0258bd40f799ec7fac28003529428352d0cd1fe2b82b5556b784405 (2533 files)
+[ok] source manifest == 58c572cb (expected combined tree)
+[ok] release tree == the tree run 2 TESTED (/srv/m10-guest-validation/runs/run-2/build/tree)
+[ok] Cargo.lock f122da76
+[ok] M7 gate: CLI default l1 trust-rpc = false
+[ok] M7 gate: provider == validated 201d9b8c
+[ok] M10 gate: --bootstrap.anchor declared exactly twice (rpc-embedded + standalone consensus args; none in sequencer args)
+== reused cargo home (ENDED run 1): offline dependency verification
+[ok] 1535 registry + 110 git, fsck True
+[cache] CARGO_HOME files before: 44411; disk free 17439 MiB
+== build (2026-10-25T23:51:53Z)
+[env] CARGO_BUILD_JOBS=1 SOURCE_DATE_EPOCH=1792689943 PROFILE=m7m10-release-nolto RUSTFLAGS='-C link-arg=-Wl,--threads=1 --remap-path-prefix=/srv/m10-guest-validation/release/run-1/build/tree=/build/base --remap-path-prefix=/srv/m10-guest-validation/runs/run-1/build/cargo-home=/cargo --remap-path-prefix=/srv/m10-guest-validation/release/run-1/build/target=/target' CFLAGS='-ffile-prefix-map=/srv/m10-guest-validation/release/run-1/build/tree=/build/base -ffile-prefix-map=/srv/m10-guest-validation/runs/run-1/build/cargo-home=/cargo -ffile-prefix-map=/srv/m10-guest-validation/release/run-1/build/target=/target'

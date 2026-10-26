@@ -1,0 +1,37 @@
+   Compiling base-common-genesis v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/genesis)
+   Compiling helios-common v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/common)
+   Compiling helios-verifiable-api-types v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/verifiable-api/types)
+   Compiling base-common-consensus v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/consensus)
+   Compiling helios-verifiable-api-client v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/verifiable-api/client)
+   Compiling base-precompile-macros v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/precompile-macros)
+   Compiling base-precompile-storage v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/precompile-storage)
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/core)
+   Compiling base-common-eip8130 v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/eip8130)
+   Compiling base-common-chains v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/chains)
+   Compiling base-common-precompiles v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/precompiles)
+   Compiling helios-consensus-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/ethereum/consensus-core)
+   Compiling helios-revm-utils v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/revm-utils)
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+   Compiling base-common-flz v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/flz)
+   Compiling base-common-l1-fees v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/l1-fees)
+   Compiling helios-ethereum v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/ethereum)
+   Compiling base-execution-eip8130 v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/execution/eip8130)
+   Compiling base-common-evm v1.5.1 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/vendor-inspect/base-v1.5.1/crates/common/evm)
+   Compiling helios-opstack v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/opstack)
+   Compiling helios-linea v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/linea)
+   Compiling helios-cli v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-verifier-binary-stage/run/build-20261026T004633Z/helios/cli)
+    Finished `dev` profile [unoptimized] target(s) in 38.18s
