@@ -1,0 +1,11 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/r2/overlay/bootstrap/a1_capture_original.py	2026-10-26 01:35:40.477876145 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/bootstrap/a1_capture_original.py	2026-10-26 02:04:18.031247100 -0700
+@@ -16,7 +16,7 @@
+ 78 HOLD; 1 refused; 2 usage."""
+ import dataclasses, hashlib, json, os, pathlib, stat, sys, types
+ 
+-FIRST = (pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py'), 'a2fd563a024f6b90246a815ad62db521f25eb3e54bcef600215a43944d7690e0')   # composition: the composed harness-first sha
++FIRST = (pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py'), '5898466c9e0941761053a5003d5adab0c14d00266f97ae9ef0fab776add9a290')   # composition: the composed harness-first sha
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'
+ SOURCES = pathlib.Path('/etc/enclave-rpc/a1-capture-sources.json')
+ # r2: EXPLICIT, bounded run limits (capture() defaults to helios_timeout=90; a fresh guest Helios measured > 120 s to fresh-finalized from

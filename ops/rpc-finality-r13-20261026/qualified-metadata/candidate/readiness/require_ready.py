@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""require_ready.py (base-finality-proof-stage/r6-ops-fixes; PREPARED): the CONSUMER gate. A Base node is usable by consumers only
+while ALL of these hold AT ADMISSION (never the report's age alone):
+  1. the latest readiness report (written by enclave-base-readiness.service as `enclave-readiness`) is READY with its
+     post-anchor-finality gate passed, carries the proven node process {pid, startTime}, and is within one sampling cycle
+     (its own run time + REPORT_GRACE_SEC; a healthy ~16 min cycle never lapses);
+  2. the LIVE holder unit is active and its MainPID is that pid with that /proc start time (a restart, a dead or reused pid refuses);
+  3. root's CURRENT finality status (/run/enclave-rpc/base-finality-status.json, republished every 2 min) is still `qualified`,
+     names the same proof entry and fresh block, the same live process, and is at most STATUS_MAX_AGE_SEC old (a revoke, a new
+     entry or a stopped publisher refuses even while an older READY report exists).
+  check                 exit 0 ready / 1 not (consumer units: ExecCondition=)
+  enforce <units-file>  root timer: start the listed, REVIEWED RPC consumer units while ready (never starting the holder), stop
+                        them otherwise. A unit is controlled only if it is a plain .service, is not a VM/hypervisor/base unit, and
+                        has the reviewed drop-in installed (byte-equal to DROPIN). Any invalid line: nothing is touched."""
+import datetime, hashlib, json, os, pathlib, pwd, re, stat, subprocess, sys, time
+
+REPORT = pathlib.Path('/run/enclave-rpc-readiness/latest.json')
+STATUS = pathlib.Path('/run/enclave-rpc/base-finality-status.json')
+DROPIN = pathlib.Path('/etc/enclave-rpc/consumer-requires-base-ready.conf')
+HOLDER = 'enclave-base-holder.service'
+READINESS_USER = 'enclave-readiness'
+STATUS_FORMAT = 'enclave-base-finality-status/v1'
+REPORT_GRACE_SEC = 900          # the next sampler run (~16 min with the defaults) lands within run time + this
+REPORT_MAX_RUN_SEC = 3900       # readiness_sampler's own max_duration ceiling
+STATUS_MAX_AGE_SEC = 900        # the status timer republishes every 2 min
+UNIT_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.@-]{0,200}\.service')
+# never controlled here: hosted app VMs, the hypervisor, machines, and the Base units themselves (admin/app continuity)
+FORBIDDEN = re.compile(r'(^|[-_.@])(libvirt\w*|virt\w*|qemu\w*|kvm|vm|vms|machine\w*|app-vm|appvm)([-_.@]|$)|^enclave-base-|^systemd-', re.I)
+ENV = {'PATH': '/usr/bin:/bin'}
+
+
+def _systemctl_show(unit, props):
+    out = subprocess.run(['systemctl', 'show', unit, *[f'--property={p}' for p in props]], capture_output=True, text=True,
+                         env=ENV, check=False, timeout=30).stdout
+    return dict(l.split('=', 1) for l in out.splitlines() if '=' in l)
+
+
+def _read_owned(path, uid):
+    """bytes of a regular, non-symlink file owned by uid and not group/other writable, else None"""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError:
+        return None
+    with os.fdopen(fd, 'rb') as f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != uid or st.st_mode & 0o022:
+            return None
+        return f.read(16 << 20)
+
+
+def _start_time(proc_root, pid):
+    try:
+        with open(os.path.join(proc_root, str(int(pid)), 'stat')) as f:
+            return f.read().rsplit(')', 1)[1].split()[19]
+    except (OSError, ValueError, IndexError, TypeError):
+        return None
+
+
+def _iso_age(v, now):
+    try:
+        return now - datetime.datetime.fromisoformat(str(v).replace('Z', '+00:00')).timestamp()
+    except ValueError:
+        return None
+
+
+def ready(report=REPORT, status=STATUS, owner_uid=None, status_uid=0, proc_root='/proc', show=_systemctl_show, now=None):
+    now = time.time() if now is None else now
+    owner_uid = pwd.getpwnam(READINESS_USER).pw_uid if owner_uid is None else owner_uid
+    b = _read_owned(report, owner_uid)
+    if b is None:
+        return False, 'no readiness report that is a regular file of the readiness user (not group/other writable)'
+    try:
+        doc = json.loads(b)
+    except ValueError:
+        return False, 'the readiness report is not JSON'
+    if not isinstance(doc, dict):
+        return False, 'the readiness report is not an object'
+    g = (doc.get('gates') or {}).get('post-anchor-finality') if isinstance(doc.get('gates'), dict) else None
+    g = g if isinstance(g, dict) else {}
+    if doc.get('overall') != 'READY' or doc.get('acceptance') is not True or g.get('status') != 'pass':
+        return False, f'not READY (overall {doc.get("overall")!r}, post-anchor-finality {g.get("status")!r} {g.get("code", "")})'
+    info = g.get('info') if isinstance(g.get('info'), dict) else {}
+    pid, start, entry = info.get('pid'), info.get('startTime'), info.get('entrySha256')
+    if not (isinstance(pid, int) and pid > 1 and isinstance(start, str) and start.isdigit() and isinstance(entry, str)):
+        return False, 'the READY report carries no proven process {pid, startTime} and entry (an older sampler): not admitted'
+    try:
+        started, finished = float(doc['startedAt']), float(doc['finishedAt'])
+    except (KeyError, TypeError, ValueError):
+        return False, 'the readiness report has no startedAt/finishedAt'
+    run = finished - started
+    if not 0 <= run <= REPORT_MAX_RUN_SEC or not 0 <= now - finished <= run + REPORT_GRACE_SEC:
+        return False, f'the readiness report is outside one sampling cycle ({int(now - finished)} s old, run {int(run)} s)'
+    # 2. the LIVE holder is exactly the proven process
+    h = show(HOLDER, ['ActiveState', 'MainPID'])
+    if h.get('ActiveState') != 'active' or str(h.get('MainPID')) != str(pid):
+        return False, f'{HOLDER} is {h.get("ActiveState")!r} with MainPID {h.get("MainPID")!r}, not the proven process {pid}'
+    if _start_time(proc_root, pid) != start:
+        return False, f'pid {pid} is not the proven process (start time differs or it is gone): a post-restart proof is required'
+    # 3. root's CURRENT status still qualifies this very proof for this very process
+    sb = _read_owned(status, status_uid)
+    try:
+        s = json.loads(sb) if sb is not None else None
+    except ValueError:
+        s = None
+    if not isinstance(s, dict) or s.get('format') != STATUS_FORMAT:
+        return False, 'no current root finality status (missing, not root-owned, or malformed)'
+    p = s.get('process') if isinstance(s.get('process'), dict) else {}
+    if s.get('state') != 'qualified' or s.get('qualified') is not True:
+        return False, f'root finality status is {s.get("state")!r}: not admitted'
+    if s.get('entrySha256') != entry or s.get('freshN') != info.get('freshN') or s.get('freshBlockHash') != info.get('freshBlockHash'):
+        return False, 'root finality status names another proof entry than the READY report'
+    # r7: the acceptance (the launch journal's `bootstrapped` event recording this proof) is present in BOTH and identical
+    if not re.fullmatch(r'[0-9a-f]{64}', str(info.get('recordedAs'))) or s.get('recordedAs') != info.get('recordedAs'):
+        return False, 'the proof is not durably recorded, or its recorded acceptance changed since the READY report: not admitted'
+    if p.get('pid') != pid or str(p.get('startTime')) != start:
+        return False, 'root finality status names another process than the live holder'
+    age = _iso_age(s.get('publishedAt'), now)
+    if age is None or not 0 <= age <= STATUS_MAX_AGE_SEC:
+        return False, 'root finality status is not current (the status publisher is not running)'
+    return True, 'READY'
+
+
+def reviewed_units(units_file, file_uid=0, dropin=DROPIN, show=_systemctl_show):
+    st = os.lstat(units_file)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != file_uid or st.st_mode & 0o022:
+        raise SystemExit(f'{units_file} must be a root-owned regular file, not group/other writable')
+    want = _read_owned(dropin, file_uid)
+    if want is None:
+        raise SystemExit(f'{dropin} (the reviewed consumer drop-in) is not installed root-owned: nothing is controlled')
+    want = hashlib.sha256(want).hexdigest()
+    units = [l.strip() for l in pathlib.Path(units_file).read_text().splitlines() if l.strip() and not l.lstrip().startswith('#')]
+    for u in units:
+        if not UNIT_RE.fullmatch(u) or FORBIDDEN.search(u.rsplit('.', 1)[0]):
+            raise SystemExit(f'{u!r} is not a controllable RPC consumer unit (VM/hypervisor/base/system units are never controlled): nothing is controlled')
+        paths = show(u, ['DropInPaths']).get('DropInPaths', '').split()
+        if not any((lambda b: b is not None and hashlib.sha256(b).hexdigest() == want)(_read_owned(p, file_uid)) for p in paths):
+            raise SystemExit(f'{u} does not carry the reviewed drop-in (byte-equal to {dropin}): nothing is controlled')
+    return units
+
+
+def enforce(units_file, *, run=subprocess.run, show=_systemctl_show, ready_fn=ready, file_uid=0, dropin=DROPIN):
+    units = reviewed_units(units_file, file_uid, dropin, show)
+    ok, why = ready_fn()
+    # start never pulls the holder (the drop-in is Requisite=, and ready() requires it active); stop is always allowed
+    for u in units:
+        run(['systemctl', 'start' if ok else 'stop', '--no-block', u], check=False, env=ENV)
+    print(json.dumps({'ready': ok, 'why': why, 'units': units}))
+    return 0
+
+
+def main(argv):
+    if argv[:1] == ['check']:
+        ok, why = ready(); print(why); return 0 if ok else 1
+    if len(argv) == 2 and argv[0] == 'enforce':
+        return enforce(argv[1])
+    print(__doc__); return 2
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

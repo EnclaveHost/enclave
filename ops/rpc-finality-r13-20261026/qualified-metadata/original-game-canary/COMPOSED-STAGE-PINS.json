@@ -1,0 +1,11 @@
+{
+ "stage": "base-finality-proof-stage/r13-manifest-final",
+ "stageSha256sums": "80cea88861f069540bd6d4214cdcd9e2020c897558f7dd4badcf572edecccd60",
+ "manifest": "2ff892564dff248c854374be18542122fa13ea7583b3f9e4dd72da890ef01964",
+ "bundleOrigin": "4121a5f6d80528babe0929034066816df00ce91dff0242ec229e2ee20aa80bdf",
+ "captureModule": "8da369de00c176364aadac5af57842f2a2d02f3abee20f63fe4361b7a1b0793e",
+ "finalityState": "5e4e38ca5742fbf91d0dda0f782525d0db0216a17de7a3de43a291a1c302e02e",
+ "finalityCore": "686cbc22cd837dbc0bb79512105972297c5addbe512dbd6dce2cfac28aaa6eab",
+ "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
+ "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+}
