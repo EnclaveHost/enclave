@@ -1,0 +1,12 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=26163MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+rsync diagnostic rc 0 (informational): /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/nvme-cold-relocation-stage/r4/runs/run-20261026T125615Z-1751328/rsync-dir-mtime-diagnostic.jsonl
+----------------------------------------------------------------------
+Ran 22 tests in 2.878s
+
+FAILED (failures=1)
+## nvme-relocation tests: FAIL (rc 1)
+[memory-guard] exit=1 peakTreeRssMiB=42 minHostAvailableMiB=26129
+[memory-guard] at peak: python3:33 bash:4 rsync:3 timeout:2
+[queue] EXIT 1

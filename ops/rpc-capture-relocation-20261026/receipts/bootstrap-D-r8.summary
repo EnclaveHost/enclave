@@ -1,0 +1,11 @@
+{"ready": false, "why": "x", "units": ["enclave-api-relay.service", "enclave-rpc-gateway.service"]}
+{"ready": true, "why": "x", "units": ["enclave-api-relay.service"]}
+{"published": "NOT-READY", "why": "settings /tmp/hos-r8.7biFIy/ops-pub-yrftr7fe/settings.json: FileNotFoundError"}
+{"published": "NOT-READY", "why": "settings: missing ['coverage-verdict'], unknown []"}
+{"published": "NOT-READY", "why": "settings: missing [], unknown ['continue-on-fail']"}
+{"published": "NOT-READY", "why": "settings: expect-chain-config-sha256 is not a valid sha"}
+{"published": "NOT-READY", "why": "settings: coverage-origin is not a valid path"}
+{"published": "NOT-READY", "why": "settings /tmp/hos-r8.7biFIy/ops-pub-yrftr7fe/settings.json must be a root-owned regular file, not group/other writable"}
+{"published": "NOT-READY", "why": "settings /tmp/hos-r8.7biFIy/ops-pub-yrftr7fe/settings.json: OSError"}
+{"published": "NOT-READY", "why": "settings: missing ['coverage-origin', 'coverage-receipt', 'coverage-verdict', 'expect-chain-config-sha256', 'expect-snapshot-manifest-sha256', 'finality-status'], unknown []"}
+{"pass": true, "testsRun": 27, "failures": 0, "errors": 0, "skipped": 0, "expectedFailures": 0, "unexpectedSuccesses": 0}

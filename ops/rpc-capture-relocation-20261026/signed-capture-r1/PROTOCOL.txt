@@ -1,0 +1,95 @@
+Real signed-block capture/evaluation preparation — r1
+
+Native candidate r2 compiled with28 passing tests, SHA581d56a6c052f80c49cc8557e6d0c16fe148be8c67939c00c3ece011a2dbadb8.
+This new capture stage is separate; its tests have not yet run. No live node was
+queried during preparation. Native r2 source, finalized verifier49f4 and all
+production readers remain unchanged.
+
+The capture tool acquires UNTRUSTED evidence. It does not prove an L1 root is
+qualified, a parent is finalized, or a signed branch is canonical. The evaluator
+proves conditional execution only. It cannot satisfy authority policy by itself.
+
+Online capture (root coordinates only when the owned Base witness node is ready):
+node capture.mjs --capture-untrusted plan.json commitment.json bootstrap-witness.json NEW_DIR
+
+plan.json exact fields:
+  format: enclave-signed-capture-plan/v1
+  endpoint: explicit owned loopback/RFC1918 IP origin; no hostname/public endpoint,
+            credentials, redirect, arbitrary paths or fallback
+  context: the r2 caller-owned context, except envelopeKeccak (computed here)
+
+context has format, base (existing exact ten native trusted fields), parentHash,
+parentNumber, unsafeSigner. Caller supplies qualified parent/L1/config bindings;
+the capture tool does not accept a claimed-qualified boolean as proof. Use an
+offline handoff file from the reviewed owned reader/caller, not node status JSON.
+The output-root expectation may be calculated from the signed header; it is an
+expectation to verify, not authority. The envelope must extend exactly that parent.
+
+commitment.json is the actual full signed commitment from the owned pinned
+gossip listener: data plus signature{r,s,yParity|v}. The existing local verifier
+checks chain8453/signer. This collector initially inherits its4MiB signed-data
+limit. Native bounded Snappy/V4 decoding and signature checks are independent.
+Do not invent a signature from an unsigned eth_getBlockByHash response.
+
+bootstrap-witness.json is the existing native JSON witness shape:
+  {preimageStore:{preimage_map:[[key,bytes],...]},blobData:{blobs:[],commitments:[],proofs:[]}}
+Required seed evidence includes agreed output-root preimage, parent header/body
+and configuration, L1 head/origin ancestry, complete L1 receipt trie nodes for
+deposits/SystemConfig, authenticated schedule/bootstrap account/storage/code
+preimages and any other bootstrap material used by BootInfo. The native evaluator
+checks these; the capture tool does not fabricate them or assume they are complete.
+Use the coordinated witness collector's actual preimages for this exact L1/parent
+context. A prior unrelated witness file is not a qualified bootstrap.
+
+Capture calls only debug_executePayload(parentHash, advisoryAttributes) followed
+by at most256 debug_getRawHeader(hash) calls, stopping at genesis. Metadata/raw
+transactions for advisoryAttributes are decoded from the signed V4 bytes. The
+native attribute builder independently regenerates system/deposit/upgrade data,
+so a capture parser error causes native refusal rather than changed authority.
+All returned state/codes/keys are hashed into Keccak preimages. Existing seed
+hashes are checked, Local boot overrides removed, non-hash key types rejected,
+and conflicting duplicate values refused. Raw ancestor headers are hash/height
+checked and canonical-RLP checked before inclusion. No raw-node receipt/log list
+is promoted into coverage; native execution generates all receipts.
+
+Bounds:258 calls,120s entire capture,15s per request,64MiB execution response,
+64KiB/header response,96MiB aggregate RPC bytes,24MiB raw preimages/150000 entries,
+128MiB serialized witness,128KiB plan,9MiB commitment JSON. RPC error, unavailable
+history, unsupported extraData/fork, oversized data or missing seed evidence
+refuses. Size limits are prototype scope; they may reduce availability and are
+not a reason to truncate evidence or increase resource allocation implicitly.
+Run capture under the shared memory guard; JSON amplification must be measured.
+
+Successful capture writes context.json, envelope.snappy, witness.json and a
+CAPTURE.json byte manifest. CAPTURE always says authority:false/nativeEvaluated:false.
+Its file hashes provide integrity/correlation, not attestation. Partial attempts
+leave FAILED.txt and never a successful CAPTURE receipt.
+
+Offline evaluation (new network namespace, coordinated memory guard):
+node evaluate.mjs PINNED_NATIVE_BINARY CAPTURE_DIR
+The runner verifies capture file hashes, copies the exact pinned native binary to
+a private temporary run path, then applies AS2GiB/CPU60s/wall90s and stdout16MiB/
+stderr64KiB bounds. It preserves refusal logs, removes the temporary executable,
+and issues EVALUATION.json only on native exit0 and exact candidate/coverage match.
+That receipt says conditionalTransitionVerified:true AND authority:false with
+qualifiedParentL1/branchPolicy/acceptedImage all false. It must not be used by any
+production consumer or represented as a live authorization check.
+
+Real positive fixture gate: native exit0 for actual signed envelope+witness with
+independently authenticated context; full computed header/root/receipts compared
+to an independent validated node. Retain all source/capture/binary/result pins.
+Then mutate signatures/domain/parent/L1 ancestry/deposits/config/preimages/header
+and prove refusal. The test suite's synthetic signed envelope only tests parsing,
+transport bounds and native Snappy/signature interoperability before an expected
+fabricated-header refusal. It is NOT a positive executed block or chain proof.
+
+Root test recipe: shared queue512 -> unshare -Urn bash test.sh. The job uses the
+existing compiled binary, no Cargo build/dependency duplication, and clears
+NODE_TEST_CONTEXT so inherited test-runner state cannot silently suppress tests.
+
+Known gaps: full seed collection is an explicit external prerequisite; the
+debug_executePayload response alone cannot satisfy BootInfo/L1/parent evidence.
+Current r2 missing-witness errors do not provide a safe automatic fetch protocol:
+preimage keys store only31 digest bytes, so do NOT guess a full hash for debug_dbGet.
+A future hint-aware collector can reuse the pinned native host's full-hash hints;
+that requires its own build and review, not parsing a panic into authority.

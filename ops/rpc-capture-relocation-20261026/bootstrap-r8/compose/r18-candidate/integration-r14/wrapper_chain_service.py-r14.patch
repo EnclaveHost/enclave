@@ -1,0 +1,25 @@
+--- a/wrapper/chain_service.py
++++ b/wrapper/chain_service.py
+@@ -1015,7 +1015,11 @@
+              # at finalized. 256 blocks (~51 min at 12 s) exceeds the 1800 s maximum finalized age; 2 permits bound the cost.
+              '--rpc.max-connections', '64', '--rpc.eth-proof-window', '256', '--rpc.proof-permits', '2',
+              '--authrpc.addr', '127.0.0.1', '--authrpc.port', '18651',
+-             '--authrpc.jwtsecret', jwt, '--ipcdisable', '--addr', '0.0.0.0', '--port', '30313',
++             # witness-rpc-access: a PRIVATE IPC socket (mode 0600, in the node's own 0750 tmp subtree, never forwarded) replaces
++             # --ipcdisable; HTTP keeps eth,net,web3. IPC serves all modules: only the node user/root reach it, and the loopback
++             # witness bridge (bridge/witness_rpc_bridge.py) relays only its read-only allowlist
++             '--authrpc.jwtsecret', jwt, '--ipcpath', base + '/tmp/witness-el.ipc', '--ipc.permissions', '0600',
++             '--addr', '0.0.0.0', '--port', '30313',
+              '--discovery.addr', '0.0.0.0', '--discovery.port', '30313', '--discovery.v5.addr', '0.0.0.0',
+              '--discovery.v5.port', '30314', '--nat', 'none', '--disable-dns-discovery',
+              '--txpool.disable-transactions-backup', '--disable-tx-gossip', '--txpool.no-local-transactions-propagation',
+@@ -1060,7 +1064,8 @@
+              '--http', '--http.addr', '127.0.0.1', '--http.port', '18545', '--http.api', 'eth,net,web3',
+              '--txpool.disable-transactions-backup',
+              *prune,
+-             '--rpc.max-connections', '64', '--rpc.eth-proof-window', '1800', '--ipcdisable',
++             '--rpc.max-connections', '64', '--rpc.eth-proof-window', '1800',
++             '--ipcpath', base + '/tmp/witness-el.ipc', '--ipc.permissions', '0600',   # witness-rpc-access: private IPC (see the el argv)
+              '--addr', '0.0.0.0', '--port', '30303', '--discovery.addr', '0.0.0.0', '--discovery.port', '30303',
+              '--discovery.v5.addr', '0.0.0.0', '--discovery.v5.port', '9200',
+              '--rpc.addr', '127.0.0.1', '--rpc.port', '19545', '--p2p.listen.ip', '0.0.0.0',

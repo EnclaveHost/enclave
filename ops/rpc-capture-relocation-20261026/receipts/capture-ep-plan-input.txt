@@ -1,0 +1,1 @@
+{"refused": {"code": "anchored-format", "detail": "not an anchor-bound enclave-base-anchored-origin/v1 document"}}

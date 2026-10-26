@@ -1,0 +1,17 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r12-final/src/finality_state.py	2026-10-25 23:51:57.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/src/finality_state.py	2026-10-26 02:04:18.027700390 -0700
+@@ -67,12 +67,12 @@
+                 'a1-recheck.mjs': 'f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8',
+                 'a1-anchor.mjs': 'ec92b70f105f88cbfc466e57e4673afcb0fbd104403e425e036f1dba78e6528d'}
+ # r4: fresh A1 provenance = the recovery harness (base-reanchor-recovery-stage/r7, root 0345) and its pinned capture module.
+-HARNESS_SHA256 = '6c1d0b1bf767acebaf0f9c7235dcd46ad1aaab2fa60ca4c3456cb34c56a37805'   # base-finality-proof-stage/r10/harness/a2a4.py
++HARNESS_SHA256 = '27ecfb40044025709ed8f7645724082c1580b36e5fac988826aa826fb2f4814e'   # base-finality-proof-stage/r10/harness/a2a4.py
+ HARNESS_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')      # == base_launch.RECOVERY_A2A4_SOURCE (HOLD: not installed)
+ FRESH_A1_MAX_AGE_SEC = 600                    # the recheck capture's age bound (the harness's a1MaxAgeSec for this use)
+ NOBLE_VERSION = '1.8.0'
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # harness/selection.py (r7 = a2-v2 stage)
+-WRAPPER_SHA256 = '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae'   # base-finality-proof-stage/r6/wrapper/chain_service.py
++WRAPPER_SHA256 = '6a4d7aa5da385bf1d8dea74c37060eb1332d5d468625d54ae02ae878c7135189'   # base-finality-proof-stage/r6/wrapper/chain_service.py
+ WRAPPER_SOURCE = pathlib.Path('/opt/enclave-rpc/chain_service.py')
+ A1_APPEND_MAX_AGE_SEC = 1800                  # r6: the recheck capture's age bound AT APPEND, after the (possibly long) core proof
+ NOBLE_TREE_SHA256 = 'e17fdd7c4fcb8a440e3b53c35017e5c1cc0d72d5c86170c21b2dc6a006ee5ff8'   # every file of node_modules/@noble/hashes (tree_sha256)

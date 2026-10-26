@@ -1,0 +1,1 @@
+{"refused": "receipt: /tmp/hcap.bTVNG1/receipt-altered.json is not the pinned b9a90847bb3f"}

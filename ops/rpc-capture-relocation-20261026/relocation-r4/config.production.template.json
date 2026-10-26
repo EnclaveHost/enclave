@@ -1,0 +1,28 @@
+{
+ "format": "nvme-cold-relocation-config/v1",
+ "owner_uid": 1000,
+ "owner_gid": 1000,
+ "source_parent": "/vm/enclave-volumes",
+ "trees": [
+  {"name": "codex-archive", "source": "/vm/enclave-volumes/codex-archive",
+   "manifest": {"path": "/vm/enclave-volumes/codex-archive/2026-10-24/recovery-documents/artifact-relocation-manifest.json",
+                "sha256": "77b5cf1ce8e9f53a2333e4c6895b918b16a861b8a5e38908fa8cc15b19a8b493", "entries": 2102}},
+  {"name": ".pixel10", "source": "/vm/enclave-volumes/.pixel10",
+   "inbound_links": ["/home/steven/Documents/Codex/2026-09-07/i-w/work/tensor-sdk"]}
+ ],
+ "source_mount": {"path": "/vm", "fstype": "ext4", "device": "/dev/mapper/cryptvm"},
+ "usb_mount": {"path": "/mnt/usb", "fstype": "ntfs3", "device": "/dev/sda2"},
+ "image": {"path": "/mnt/usb/vm-cold/cold-20261026.ext4", "size_bytes": "REQUIRED: operator, >= inventory-derived need (prepare-image checks)",
+           "inodes": "REQUIRED: operator, >= inventory entries + inode_reserve", "label": "vm-cold",
+           "uuid": "REQUIRED: operator-generated (uuidgen), recorded before mkfs"},
+ "target_mount": "/mnt/vm-cold",
+ "journal_dir": "/home/steven/.local/state/nvme-cold-relocation",
+ "rsync_path": "/home/steven/.local/bin/rsync",
+ "copy": {"bwlimit_kib": "REQUIRED: operator throttle (KiB/s)", "busy_device_stat": "/sys/block/sda/stat",
+          "busy_sample_seconds": "REQUIRED: operator", "busy_max_write_sectors": "REQUIRED: operator"},
+ "guard": {"status_path": "/home/steven/.local/state/enclave-rpc-production/guard-status.json",
+           "shutdown_bytes": 468719476736, "floor_bytes": 300000000000},
+ "writer_check_max_age_seconds": "REQUIRED: operator",
+ "capacity_reserve_bytes": "REQUIRED: operator",
+ "inode_reserve": "REQUIRED: operator"
+}

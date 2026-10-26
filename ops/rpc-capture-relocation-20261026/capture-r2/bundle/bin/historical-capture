@@ -1,0 +1,78 @@
+#!/usr/bin/python3 -IB
+"""historical-capture: the relocatable exact-N historical capture bundle's ONLY entrypoint.
+
+Before ANY subcommand it verifies the bundle against its own MANIFEST.json: every listed file exists with the listed sha256 and
+mode, and no other file exists in the bundle tree (no stray .pyc, no added module). The bundle root is this file's grandparent,
+so the bundle works from any install path; nothing reads a workstation path.
+
+  historical-capture verify
+  historical-capture origin       --base-bin P --base-sha256 H --datadir RO_DATADIR --scratch EMPTY --receipt R --node NODE --out F
+  historical-capture plan         --anchored DOC --receipt R --node NODE --to-block T [--segment-blocks S] --out PLAN
+  historical-capture run-segment  --plan PLAN --index I --out-dir NEW --el URL --beacon URL --kzg K --kzg-sha256 H [gate bounds]
+  historical-capture aggregate    --plan PLAN --anchored DOC --receipt R --node NODE --segment DIR [...] --out F [--max-evidence-age S]
+
+origin = lib/anchored_origin.py main (exact N from the pinned A1 receipt, never the snapshot head); plan/run-segment/aggregate =
+lib/segments.py main. Their exit codes are passed through unchanged. Nothing here writes chain.json or coverageVerified."""
+import hashlib, json, os, stat, sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+MANIFEST_FORMAT = 'enclave-historical-capture-bundle/v1'
+
+
+def verify():
+    mb = open(os.path.join(ROOT, 'MANIFEST.json'), 'rb').read()
+    m = json.loads(mb)
+    if m.get('format') != MANIFEST_FORMAT:
+        raise SystemExit('bundle: MANIFEST.json is not ' + MANIFEST_FORMAT)
+    want = m['files']
+    seen = set()
+    for dp, dns, fns in os.walk(ROOT):
+        for n in dns + fns:
+            p = os.path.join(dp, n)
+            rel = os.path.relpath(p, ROOT)
+            st = os.lstat(p)
+            if stat.S_ISLNK(st.st_mode):
+                raise SystemExit(f'bundle: symlink {rel} is not allowed')
+            if stat.S_ISDIR(st.st_mode):
+                continue
+            if rel == 'MANIFEST.json':
+                continue
+            if rel not in want:
+                raise SystemExit(f'bundle: unlisted file {rel}')
+            with open(p, 'rb') as f:
+                if hashlib.file_digest(f, 'sha256').hexdigest() != want[rel]['sha256']:
+                    raise SystemExit(f'bundle: {rel} differs from MANIFEST.json')
+            if bool(st.st_mode & 0o111) != (want[rel]['mode'] == '0755'):
+                raise SystemExit(f'bundle: {rel} executable bit differs from MANIFEST.json')
+            seen.add(rel)
+    missing = sorted(set(want) - seen)
+    if missing:
+        raise SystemExit(f'bundle: missing {missing}')
+    return hashlib.sha256(mb).hexdigest(), m
+
+
+def main(argv):
+    if sys.version_info < (3, 11):
+        raise SystemExit('bundle: python >= 3.11 required (hashlib.file_digest)')
+    if not argv or argv[0] in ('-h', '--help'):
+        print(__doc__); return 2
+    bundle_id, m = verify()
+    cmd, rest = argv[0], argv[1:]
+    if cmd == 'verify':
+        print(json.dumps({'ok': True, 'bundleId': bundle_id, 'root': ROOT, 'files': len(m['files']),
+                          'anchor': m['anchor'], 'externalPins': m['externalPins']}, sort_keys=True))
+        return 0
+    sys.path.insert(0, os.path.join(ROOT, 'lib'))
+    if cmd == 'origin':
+        import anchored_origin
+        return anchored_origin.main(rest)
+    if cmd in ('plan', 'run-segment', 'aggregate'):
+        import segments
+        return segments.main([cmd, *rest])
+    print(f'unknown subcommand {cmd!r}', file=sys.stderr)
+    return 2
+
+
+if __name__ == '__main__':
+    sys.dont_write_bytecode = True
+    sys.exit(main(sys.argv[1:]))

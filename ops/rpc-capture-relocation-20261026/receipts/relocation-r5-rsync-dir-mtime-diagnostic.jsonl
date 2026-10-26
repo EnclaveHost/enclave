@@ -1,0 +1,25 @@
+{"rsync": "/home/steven/.local/bin/rsync", "version": ["rsync  version 3.4.1  protocol version 32"], "euid": 0, "env_rsync_vars": [], "home_set": false}
+{"fixture": "old-mtimes", "flags": ["-rt"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-a"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-a", "--omit-dir-times"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-a", "--protect-args"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-aH"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-aA"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-aX"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-aHAX"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-a", "--numeric-ids"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-a", "--one-file-system"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-a", "--bwlimit=100000"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "old-mtimes", "flags": ["-aHAX", "--numeric-ids", "--one-file-system", "--protect-args", "--bwlimit=100000"], "rc": 0, "dir_mtime_preserved": {"t": true, "t/a": true, "t/a/b": true, "t/empty": true}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-rt"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-a"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-a", "--omit-dir-times"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-a", "--protect-args"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-aH"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-aA"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-aX"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-aHAX"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-a", "--numeric-ids"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-a", "--one-file-system"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-a", "--bwlimit=100000"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
+{"fixture": "fresh-mtimes", "flags": ["-aHAX", "--numeric-ids", "--one-file-system", "--protect-args", "--bwlimit=100000"], "rc": 0, "dir_mtime_preserved": {"t": false, "t/a": false, "t/a/b": false, "t/empty": false}, "stderr": ""}
