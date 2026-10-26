@@ -1,0 +1,7 @@
+1f26aa9e0ecc3db5313f9a78dd0af644ba8b52ccecf343d39d00ae9898c55226  ./CONTRACT-ARTIFACTS.txt
+1a8257b68a0854d42334b87e46bbc6abc1f657c5d9547fde407198e83a7692d2  ./R2-PINS.sha256
+91960dd372642b567d361650d49ff91d9f263ab73c7a71d4c3e9ec6f01f0d004  ./README.md
+bb32e48caeb2eaea3bb0693fa0baebb49ba376ea032e4034c3032c52795d06e7  ./SHARED-NOTE-artifact-comparison.md
+4d40ce95eb2231fe8aea932b7e45a1f329a2fa25e0b2ac84ace28b259f6a72d6  ./compare-artifacts.mjs
+4f1a191815203cfe76a629bdf27bd4e45c08c1893493a2cbaff5fd86b2acbe54  ./jobs/standalone-mcp-authority-r4-tests.sh
+29e69ea38406c38235500a18c38d3bc917b3338a14fc11f421a8372d437a1514  ./tests/compare-artifacts.test.mjs

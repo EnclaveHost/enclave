@@ -1,0 +1,30 @@
+utc=2026-10-26T03:02:25Z host=enclave-control
+api_relay pid=102144 sanitized chain endpoints (process env, origins only):
+   BASE_RPC = n=1 http://127.0.0.1:8190
+   SECRETS_RELEASE_CATALOG_RPCS = n=3 https://base-rpc.publicnode.com,https://base-mainnet.public.blastapi.io,https://base.gateway.tenderly.co
+   SESSIONS_RPC = n=1 http://127.0.0.1:8190
+   CUSTODY_CHAIN_ID = n=0 <no-url-value>
+   SESSIONS_PUBLIC_RPC = n=1 https://api.enclave.host
+   value CUSTODY_CHAIN_ID=8453
+srcdir /opt/nan-relay real=/opt/nan-relay git=none files=127 newest=2026-10-23T01:12
+srcdir /opt/enclave-rpc real=/opt/enclave-rpc git=none files=1 newest=2026-10-25T19:12
+srcdir /opt/enclave-recovery real=/opt/enclave-recovery git=none files=3 newest=2026-10-19T14:48
+srcdir /opt/enclave-dns real=/opt/enclave-dns git=none files=9 newest=2026-10-20T18:34
+api-relay.js mentions: ENCLAVE_CHAIN_AUTHORITY=0 BASE_RPC=5 chain-authority.mjs_import=0
+gateway.mjs sha16=3b23200d8e77565d mentions ENCLAVE_CHAIN_AUTHORITY=0 config_paths=
+gateway_outbound_peer 127.0.0.1 n=2
+gateway_outbound_peer 15.204.108.219 n=1
+api_relay_outbound_peer 104.20.46.180 n=2
+api_relay_outbound_peer 127.0.0.1 n=11
+api_relay_outbound_peer 172.66.150.162 n=2
+api_relay_outbound_peer 172.66.164.193 n=2
+api_relay_outbound_peer 172.67.70.207 n=2
+api_relay_outbound_peer 35.227.193.242 n=3
+listen *:8153 "node" unit=enclave-dns.service
+listen 0.0.0.0:22 "sshd" unit=ssh.service
+listen 127.0.0.1:1053 "node" unit=enclave-dns.service
+listen 127.0.0.1:30080 "caddy" unit=enclave-control-tls.service
+listen 127.0.0.1:30443 "caddy" unit=enclave-control-tls.service
+listen 127.0.0.1:8100 "node" unit=enclave-api-relay.service
+listen 127.0.0.1:8187 "node" unit=enclave-native-discovery.service
+listen 127.0.0.1:8190 "node" unit=enclave-rpc-gateway.service

@@ -1,0 +1,23 @@
+[queue] START available=22757MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r4 stage == SHA256SUMS
+[ok] r3 stage unchanged (frozen)
+[ok] r2 inputs unchanged (frozen; pinned)
+[ok] base commit present
+[ok] base files == BASE-b6ac5d657.sha256
+[ok] candidate files == CANDIDATE.sha256
+[ok] base clone clean
+[ok] node_modules linked (package-lock identical)
+[ok] forge 1.7.1 (4072e487) pinned
+[ok] solc 0.8.35+commit.47b9dedd pinned
+[ok] anvil Version:, OpenSSL 3.6.5
+[ok] contract input closure identical in both trees (d8b3d3125991c5596b42fdc2561c26dd5d40cd1f7978260456a7ccdd92969b89; the candidate patch touches no contract)
+  raw manifests differ (14 lines): decided semantically below
+[ok] keccak: @noble/hashes 1.8.0 sha3.js pinned
+  comparator-unit.tap: node rc 0, {'tests': 17, 'pass': 17, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+[ok] comparator unit tests 17/17
+[FAIL] the two artifact builds differ semantically or are malformed: REFUSED artifact: EnclaveDeployments.sol/EnclaveDeployments.json: bytecode.object is not hex
+RESULT: SETUP-FAILURE (not a test verdict)
+[memory-guard] exit=20 peakTreeRssMiB=928 minHostAvailableMiB=21234
+[memory-guard] at peak: git:878 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 20

@@ -1,0 +1,12 @@
+utc=2026-10-26T03:01:39Z host=enclave-control
+caddy_config=/etc/enclave-control-tls/caddy.json adapter=auto sha16=e080ca28646a4374 caddy_version=v2.11.4
+server control listen ['127.0.0.1:30443']
+ route hosts=api.enclave.host upstreams=127.0.0.1:8190
+ route hosts=* upstreams=127.0.0.1:8187
+ route hosts=api.enclave.host upstreams=127.0.0.1:8100
+ route hosts=mcp.enclave.host upstreams=127.0.0.1:8100
+ route hosts=api.enclavehost.eth,mcp.enclavehost.eth upstreams=127.0.0.1:8100
+ route hosts=62.238.4.214 upstreams=127.0.0.1:8187
+ route hosts=62.238.4.214 upstreams=127.0.0.1:8100
+ route hosts=*.app.enclave.host upstreams=127.0.0.1:8100
+server redirect listen ['127.0.0.1:30080']

@@ -1,0 +1,72 @@
+[queue] START available=22379MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+PASS baseline-existing Ran 34 (expected 34)
+PASS recovery-existing Ran 34 (expected 34)
+PASS r3-regression Ran 27 (expected 27)
+74b82936fcaa1a41874ff631bf9fef4a31a03abfaf5ed3bc5de01a0390bc3365  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-reanchor-r4-0302.out
+Prior 95 regression results reused with exact unchanged source; new19 execute below.
+FAIL reanchor-recovery rc=1 ran=19 expected=19 last='FAILED (failures=2)'
+test_watermark_accepted_during_downtime_refuses_release_arm_and_start (__main__.Recovery.test_watermark_accepted_during_downtime_refuses_release_arm_and_start) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": false, "refused": "watermark_below: N 52866960 is below the accepted authenticated-finality watermark 52867010 (finality-proof): an accepted finalized guarantee is never discarded"}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming (__main__.Recovery.test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+
+======================================================================
+FAIL: test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger (__main__.Recovery.test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/tests/test_reanchor_recovery.py", line 349, in test_capture_refusals_hold_replay_wrong_initial_tamper_pin_stale_ledger
+    iout = self.capture_recovery_config(N1); used = self.new_recheck()
+                                                    ~~~~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/tests/test_reanchor_recovery.py", line 310, in new_recheck
+    out = self.capture('recheck-capture', initial=ini)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/tests/test_reanchor_recovery.py", line 305, in capture
+    self.assertTrue(ok, res); return out
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "file_set: unexpected or missing files: ['code/__pycache__/l1_authority.cpython-314.pyc']", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T03:01:45.190429+00:00'}
+
+======================================================================
+FAIL: test_newer_anchor_recovers_through_real_initial_and_recheck_captures (__main__.Recovery.test_newer_anchor_recovers_through_real_initial_and_recheck_captures)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/tests/test_reanchor_recovery.py", line 330, in test_newer_anchor_recovers_through_real_initial_and_recheck_captures
+    self.new_recheck(); rc, rec = self.run_step(st); self.assertEqual(rc, 0, (st, rec))
+    ~~~~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/tests/test_reanchor_recovery.py", line 310, in new_recheck
+    out = self.capture('recheck-capture', initial=ini)
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/tests/test_reanchor_recovery.py", line 305, in capture
+    self.assertTrue(ok, res); return out
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "file_set: unexpected or missing files: ['code/__pycache__/l1_authority.cpython-314.pyc']", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T03:02:43.578288+00:00'}
+
+----------------------------------------------------------------------
+Ran 19 tests in 99.812s
+
+FAILED (failures=2)
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r5/logs/root-reanchor-r5-tests-20261026T030126Z
+## aggregate rc=1
+[memory-guard] exit=1 peakTreeRssMiB=219 minHostAvailableMiB=22060
+[memory-guard] at peak: python3:38 python3:29 python3:29 python3:29 python3:29 python3:29 python3:29 bash:4
+[queue] EXIT 1
