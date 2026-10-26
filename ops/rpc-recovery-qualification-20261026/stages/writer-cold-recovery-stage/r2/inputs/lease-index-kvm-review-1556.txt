@@ -1,0 +1,9 @@
+KVM source/design review18:45UTC. NOT activation approval. Mandatory before index/H1 acceptance:
+1. Positive-authority index provenance must bind chain/genesis, exactledgercode/topic schema, signedpolicy, producer capability/version. AEAD/member+adminstateDigest onlyauthenticates bytes; olderproducer mayneverhavevalidatedcompleteness. Unknown/oldindexes rederive.
+2. Carry exactindexthroughX; NEVERrelabel to higherrecoverfloor. Comparehash/rootfields atsameheight, includeauthenticatedX whenruntime startsX+1. Actualcanonicaloverlap/gap, not availableFrom inequalityalone.
+3. Folding equivalence must include intermediate same-runner renewal untilregression, malformed/duplicate/out-of-orderlogs,crossrunnerthenlaterclaim,release/reclaim. Last-renewal-only canhidefullreplayrefusal; stickypoisonuntilnewClaim.
+4. Initialbackfill includesledgerdeploymentblock52515705: G<floor unlessauthenticatedstateatG seedsindex. G==floor andfoldG+1missesclaiminG.
+5. Entire serializedUTF8journal <=256KiB includinglogs/metadata/enrollment BEFOREcommit, notestimated100+96KiB. Overflowstickyacrossrotate/recoverunlessfullrebuildprovescomplete.
+6. H1bindsfactory/ASR/game implementations,type/version,chain, SAMEfinalizedL1snapshot. Currentrespectedtype/oldretiredgameavailability measuredreleasegate.
+7. Driverpreemptiononlybetweennativeruns;1800blocknativejobmayviolate120s itself. Measureworstcase,reportunmetdeadlinefailclosed.
+This review is from authorized Explore KVM chat01a16bce, which owns pinnedKVMsource. Rootwilldeliverthisfile atClaude50'snextsafeexplicitresume; don'tclaimprototypecompletewithoutthesechecks. IndependentClaude da1554reviewalsoinprogress. No liveactivation/contractchanges.

@@ -1,0 +1,13 @@
+[queue] START available=29308MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+Ran 22 tests in 3.024s
+
+OK
+## test_relocate PASS (22)
+Ran 34 tests in 3.310s
+
+OK
+## test_subtree PASS (34)
+## cold-r9 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=50 minHostAvailableMiB=29435
+[memory-guard] at peak: python3:36 bash:4 rsync:3 rsync:2 timeout:2 timeout:2
+[queue] EXIT 0

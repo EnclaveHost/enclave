@@ -1,0 +1,447 @@
+diff --git a/relay/derived-reader-driver.mjs b/relay/derived-reader-driver.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff4834d33936f2fd50d8f757d79df75f56c96399
+--- /dev/null
++++ b/relay/derived-reader-driver.mjs
+@@ -0,0 +1,252 @@
++// writer-driver-stage/r1: the single-native-slot scheduler for the in-process derived reader (cold recovery hook, finalized
++// track, provisional track). It ORCHESTRATES ONLY: every result is accepted or refused by the provider and its pinned native
++// executable; nothing here is authority, nothing is persisted, and no hint, witness producer answer or pool acknowledgement is
++// ever evidence. Single flight across all tracks: at most one owned step (and so at most one native run and one witness in
++// memory) at a time. Finality (and cold recovery) first; the provisional state anchor S is refreshed only when the SIGNED reader
++// binding enabled it (provider.status().provisional !== null). The 120 s state ceiling is never relaxed: when no provider-
++// confirmed S is within it, status() says cannotMeet120s. Ranges start small and adapt to MEASURED durations (no assumed speed).
++// Not wired into any startup in r1 (defaults unchanged); see logs/claude-writer-driver-r1.md for the contract.
++import { MAX_PROVISIONAL_STATES, MAX_PROVISIONAL_FACTS, MAX_EVIDENCE_JOURNAL_BYTES } from '../network/deployment-lifecycle-journal.mjs';
++
++export const DRIVER_FORMAT = 'enclave-derived-reader-driver/v1';
++export const MAX_STATE_AGE_SEC = 120;            // the writer authority's ceiling on S; never raised here
++export const MAX_FINAL_RANGE = 1800;             // the provider's finalized maxBlocks bound
++const CONFIG_KEYS = ['finalizedDeadlineSec', 'finalMarginSec', 'finalIntervalSec', 'minFinalStep', 'stateRefreshSec', 'minStateIntervalSec',
++  'budgetSec', 'minRange', 'maxRange', 'retry', 'idleMs'];
++// refusals that mean "not now" (lock, one native slot, an outstanding ticket, a journal commit in progress): no failure counted
++const RETRY_LATER = /derived provider busy|a native derivation is already running|ticket is already outstanding|commit pending/;
++const int = (v, lo, hi) => Number.isSafeInteger(v) && v >= lo && v <= hi;
++const exact = (o, keys) => !!o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length === keys.length && keys.every(k => Object.hasOwn(o, k));
++
++export function driverConfig(c) {
++  if (!exact(c, CONFIG_KEYS)) throw Error(`driver config keys must be exactly ${CONFIG_KEYS.join(', ')} (no key enables the provisional track)`);
++  const ok = int(c.finalizedDeadlineSec, 20, 3600) && int(c.finalMarginSec, 0, c.finalizedDeadlineSec - 1) && int(c.finalIntervalSec, 1, 3600) &&
++    int(c.minFinalStep, 1, MAX_FINAL_RANGE) && int(c.stateRefreshSec, 1, MAX_STATE_AGE_SEC - 1) && int(c.minStateIntervalSec, 1, 3600) &&
++    exact(c.budgetSec, ['final', 'provisional']) && int(c.budgetSec.final, 1, 3600) && int(c.budgetSec.provisional, 1, MAX_STATE_AGE_SEC) &&
++    int(c.minRange, 1, MAX_FINAL_RANGE) && exact(c.maxRange, ['final', 'provisional']) &&
++    int(c.maxRange.final, c.minRange, MAX_FINAL_RANGE) && int(c.maxRange.provisional, c.minRange, MAX_FINAL_RANGE) &&
++    exact(c.retry, ['baseMs', 'maxMs', 'maxConsecutive']) && int(c.retry.baseMs, 1, 3_600_000) && int(c.retry.maxMs, c.retry.baseMs, 3_600_000) &&
++    int(c.retry.maxConsecutive, 1, 100) && int(c.idleMs, 1, 3_600_000);
++  if (!ok) throw Error('invalid driver config bounds');
++  return Object.freeze(structuredClone(c));
++}
++
++function witnessBytes(w) {
++  if (w instanceof Uint8Array) return w.byteLength;
++  if (typeof w === 'string') return Buffer.byteLength(w);
++  return null;                                     // an unknown shape is never submitted
++}
++const hint = v => (v === null || v === undefined) ? null : int(v, 0, Number.MAX_SAFE_INTEGER) ? v : undefined;
++
++export function createDerivedReaderDriver({ provider, targets, witness, evidence = null, cold = null, clock = { now: () => Date.now() },
++  timers = { sleep: (ms, signal) => new Promise(resolve => { const t = setTimeout(resolve, ms); signal?.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true }); }) },
++  rollupConfigTemplate, config } = {}) {
++  for (const f of ['status', 'prepare', 'submit', 'prepareProvisional', 'submitProvisional'])
++    if (typeof provider?.[f] !== 'function') throw Error(`the driver needs the in-process derived reader (${f})`);
++  if (typeof targets !== 'function' || typeof witness !== 'function') throw Error('the driver needs injected targets and witness effects');
++  if (evidence !== null && typeof evidence !== 'function') throw Error('evidence must be a read-only function or null');
++  if (cold !== null && (typeof cold.needed !== 'function' || typeof cold.step !== 'function')) throw Error('cold must be { needed(), step({signal}) } or null');
++  if (typeof clock?.now !== 'function' || typeof timers?.sleep !== 'function') throw Error('the driver needs injected clock.now and timers.sleep');
++  const cfg = driverConfig(config);
++  const now = () => clock.now();
++  const ranges = { final: cfg.minRange, provisional: cfg.minRange };
++  const failures = { cold: 0, final: 0, provisional: 0 }, backoffUntil = { cold: 0, final: 0, provisional: 0 };
++  let lastFinalAt = null, lastProvAt = null, lastRun = null, sRecord = null, staleReason = 'no step yet', starvedSince = null;
++  let current = null, stopping = false, stopped = false, loop = null;
++  const loopController = new AbortController();
++
++  function fill() {
++    if (!evidence) return null;
++    let e;
++    try { e = evidence(); } catch { e = null; }
++    // an unreadable or malformed view is treated as FULL and FENCED (fail closed: no provisional step)
++    if (!e || !int(e.states, 0, 1e9) || !int(e.facts, 0, 1e9) || !int(e.bytes, 0, 1e12) || typeof e.fenced !== 'boolean')
++      return { states: null, facts: null, bytes: null, fenced: true, ratio: 1, full: true, unreadable: true };
++    const ratio = Math.max(e.states / MAX_PROVISIONAL_STATES, e.facts / MAX_PROVISIONAL_FACTS, e.bytes / MAX_EVIDENCE_JOURNAL_BYTES);
++    return { states: e.states, facts: e.facts, bytes: e.bytes, fenced: e.fenced, ratio,
++      full: e.states >= MAX_PROVISIONAL_STATES || e.facts >= MAX_PROVISIONAL_FACTS || e.bytes >= MAX_EVIDENCE_JOURNAL_BYTES };
++  }
++  // S counts only when the provider's own provisional tip IS the block this driver's last provisional submit produced
++  const confirmedS = st => (st?.provisional && sRecord && st.provisional.stateThrough === sRecord.number) ? sRecord : null;
++  const sAgeOf = st => { const s = confirmedS(st); return s ? Math.floor(now() / 1000) - s.timestamp : null; };
++
++  async function hints(signal) {
++    // untrusted and optional; bounded by idleMs so a hung producer never stalls the single flight (its own signal is aborted)
++    const ac = new AbortController(), stop = () => ac.abort(signal.reason);
++    signal.addEventListener('abort', stop, { once: true });
++    try {
++      const timeout = timers.sleep(cfg.idleMs, ac.signal).then(() => null);
++      const h = await Promise.race([targets({ signal: ac.signal }), timeout]);
++      const f = hint(h?.finalized), s = hint(h?.safe);
++      return { finalized: f === undefined ? null : f, safe: s === undefined ? null : s };
++    } catch { return { finalized: null, safe: null }; }  // a failed hint only narrows what can be tried
++    finally { ac.abort(Error('hint window closed')); signal.removeEventListener('abort', stop); }
++  }
++
++  function decide(st, h) {
++    const t = now();
++    if (st.closed) return { track: null, reason: 'provider closed' };
++    const recovering = st.savedFloor !== null && st.savedFloor !== undefined && (st.verifiedThrough === null || st.verifiedThrough < st.savedFloor);
++    const urgent = !st.hasDerivedAnchor || recovering || st.baseAgeSec >= cfg.finalizedDeadlineSec - cfg.finalMarginSec;
++    const behind = h.finalized !== null && st.verifiedThrough !== null && h.finalized - st.verifiedThrough >= cfg.minFinalStep &&
++      (lastFinalAt === null || t - lastFinalAt >= cfg.finalIntervalSec * 1000);
++    // 1. finality whose deadline is due (no served anchor, recovery to the saved floor, B_f age at the deadline) pre-empts everything
++    if (urgent) return t >= backoffUntil.final ? { track: 'final', recovering, urgent: true } : { track: null, reason: 'finality is due but backing off (provisional waits)', blocksOthers: true };
++    // 2. cold recovery (history for claims older than the start-time anchor); 3. routine finality; 4. provisional
++    let coldNeeded = false;
++    try { coldNeeded = !!cold && cold.needed() === true; } catch { coldNeeded = false; staleReason = 'cold recovery state unreadable'; }
++    if (coldNeeded && t >= backoffUntil.cold) return { track: 'cold' };
++    if (behind && t >= backoffUntil.final) return { track: 'final', recovering, urgent: false };
++    const p = st.provisional;
++    if (!p) return { track: null, reason: 'provisional tier not enabled by the signed binding' };
++    const ev = fill();
++    if (p.fenced || ev?.fenced) return { track: null, reason: 'provisional tier disabled (fence or durable marker): an admin-signed rotation clears it' };
++    if (ev?.full) return { track: null, reason: 'provisional evidence is full until finalized derivation confirms it' };
++    const age = sAgeOf(st);
++    if (age !== null && age <= cfg.stateRefreshSec) return { track: null, reason: 'S is fresh' };
++    const interval = cfg.minStateIntervalSec * 1000 * (ev && ev.ratio >= 0.75 ? 2 : 1);
++    if (lastProvAt !== null && t - lastProvAt < interval) return { track: null, reason: 'provisional cadence (minStateIntervalSec)' };
++    if (t < backoffUntil.provisional) return { track: null, reason: 'provisional backing off' };
++    return { track: 'provisional' };
++  }
++
++  function failed(track, e, signal) {
++    if (signal.aborted) return;
++    const m = String(e?.message || e).slice(0, 160), t = now();
++    if (RETRY_LATER.test(m)) { backoffUntil[track] = t + cfg.retry.baseMs; staleReason = `${track}: retry later (${m})`; return; }
++    failures[track] += 1;
++    if (track !== 'cold') ranges[track] = Math.max(cfg.minRange, Math.floor(ranges[track] / 2));
++    const delay = failures[track] >= cfg.retry.maxConsecutive ? cfg.retry.maxMs : Math.min(cfg.retry.maxMs, cfg.retry.baseMs * 2 ** (failures[track] - 1));
++    backoffUntil[track] = t + delay;
++    staleReason = `${track}: ${m}${failures[track] >= cfg.retry.maxConsecutive ? ' (paused after repeated failures)' : ''}`;
++  }
++
++  function adapt(track, blocks, ms) {
++    lastRun = { track, blocks, ms };
++    if (blocks < 1 || ms < 1) return;
++    const budget = (track === 'final' ? cfg.budgetSec.final : cfg.budgetSec.provisional) * 1000;
++    const next = Math.floor(blocks * budget / ms);   // measured blocks per ms times the budget, never an assumed speed
++    ranges[track] = Math.min(track === 'final' ? cfg.maxRange.final : cfg.maxRange.provisional, Math.max(cfg.minRange, next));
++  }
++
++  async function oneRun(track, blockNumber, signal) {
++    const t0 = now();
++    const prep = track === 'final' ? provider.prepare : provider.prepareProvisional;
++    const sub = track === 'final' ? provider.submit : provider.submitProvisional;
++    const ticket = await prep({ blockNumber, rollupConfigTemplate, signal });
++    signal.throwIfAborted();
++    let w = await witness({ track, ticket: ticket.ticket, trusted: ticket.trusted, agreedL2BlockNumber: ticket.agreedL2BlockNumber,
++      maximumWitnessBytes: ticket.maximumWitnessBytes, signal });
++    signal.throwIfAborted();
++    const size = witnessBytes(w);
++    if (size === null || !int(ticket.maximumWitnessBytes, 1, Number.MAX_SAFE_INTEGER) || size > ticket.maximumWitnessBytes) {
++      w = null; throw Error(`witness rejected before submit (${size === null ? 'unknown shape' : `${size} bytes > ${ticket.maximumWitnessBytes}`})`);
++    }
++    const result = await sub({ ticket: ticket.ticket, witness: w, signal });
++    w = null;                                        // the only witness reference is dropped as soon as the run ends
++    const want = track === 'final' ? ['verified', 'recovering'] : ['provisional'];
++    if (!want.includes(result?.status)) throw Error(`unexpected ${track} result ${String(result?.status).slice(0, 40)}`);
++    const blocks = blockNumber - ticket.agreedL2BlockNumber;
++    adapt(track, blocks, now() - t0);
++    return result;
++  }
++
++  async function step(signal) {
++    const st = provider.status(), h = await hints(signal), d = decide(st, h);
++    if (current) current.track = d.track;
++    const p = st.provisional, sStale = !!p && (sAgeOf(st) === null || sAgeOf(st) > cfg.stateRefreshSec);
++    if (sStale && d.track !== 'provisional' && (d.track === 'cold' || d.track === 'final' || d.blocksOthers)) starvedSince ??= now();
++    else if (d.track === 'provisional' || !sStale) starvedSince = null;
++    if (!d.track) { staleReason = d.reason; return { track: null, reason: d.reason }; }
++    try {
++      if (d.track === 'cold') {
++        const r = await cold.step({ signal });
++        failures.cold = 0; staleReason = r?.done ? 'cold recovery done' : 'cold recovery in progress';
++        return { track: 'cold', done: !!r?.done };
++      }
++      if (d.track === 'final') {
++        const agreed = st.verifiedThrough;
++        if (agreed === null) {
++          // the first prepare authenticates the ASR root (provider bootstrap) before it validates the range; a refused candidate
++          // after that is the expected way to learn the agreed root: not a failure
++          const target = h.finalized;
++          if (target === null) { staleReason = 'no finalized hint for the bootstrap step'; return { track: null, reason: staleReason }; }
++          try { const r = await oneRun('final', target, signal); lastFinalAt = now(); failures.final = 0; return { track: 'final', status: r.status }; }
++          catch (e) {
++            if (!signal.aborted && provider.status().verifiedThrough !== null && /candidate range exceeds reader bounds/.test(String(e?.message))) {
++              staleReason = 'bootstrapped: agreed root authenticated'; return { track: 'final', status: 'bootstrapped' };
++            }
++            throw e;
++          }
++        }
++        let target = agreed + ranges.final;
++        // an untrusted hint narrows the target; a lagging or missing hint never blocks a DUE finalized step (the provider and the
++        // native executable refuse an underivable target, which only halves the range)
++        if (h.finalized !== null && (h.finalized > agreed || !d.urgent)) target = Math.min(target, h.finalized);
++        if (d.recovering && st.savedFloor !== null) target = Math.min(target, st.savedFloor);   // never pass the saved floor while recovering
++        if (target <= agreed) { lastFinalAt = now(); staleReason = 'finalized track at the hint'; return { track: null, reason: staleReason }; }
++        const r = await oneRun('final', target, signal);
++        lastFinalAt = now(); failures.final = 0; staleReason = `final ${r.status} through ${target}`;
++        return { track: 'final', status: r.status, target };
++      }
++      const tip = p.stateThrough ?? st.verifiedThrough;
++      if (tip === null || h.safe === null || h.safe <= tip) { lastProvAt = now(); staleReason = 'no safe hint beyond the provisional tip'; return { track: null, reason: staleReason }; }
++      const target = Math.min(tip + ranges.provisional, h.safe);
++      lastProvAt = now();
++      const r = await oneRun('provisional', target, signal);
++      const b = r?.anchor?.base;
++      if (!b || !int(b.number, 0, Number.MAX_SAFE_INTEGER) || !int(b.timestamp, 0, Number.MAX_SAFE_INTEGER)) throw Error('provisional result has no anchor');
++      sRecord = { number: b.number, timestamp: b.timestamp }; failures.provisional = 0; starvedSince = null;
++      staleReason = `S through ${b.number}`;
++      return { track: 'provisional', status: r.status, target };
++    } catch (e) {
++      failed(d.track, e, signal);
++      return { track: d.track, error: String(e?.message || e).slice(0, 160) };
++    }
++  }
++
++  async function tick() {
++    if (current) throw Error('a driver step is already in flight (single flight)');
++    if (stopping) return { track: null, reason: 'stopping' };
++    const controller = new AbortController();
++    const promise = step(controller.signal);
++    current = { controller, promise };
++    try { return await promise; } finally { current = null; }
++  }
++
++  function status() {
++    let st = null;
++    try { st = provider.status(); } catch (e) { return { format: DRIVER_FORMAT, slot: stopped ? 'stopped' : 'unknown', error: String(e?.message || e).slice(0, 160), cannotMeet120s: true }; }
++    const age = sAgeOf(st), enabled = !!st.provisional;
++    return { format: DRIVER_FORMAT, slot: stopped ? 'stopped' : stopping ? 'stopping' : current?.track ?? 'idle',
++      bfAgeSec: st.hasDerivedAnchor ? st.baseAgeSec : null, provisionalEnabled: enabled, sAgeSec: age,
++      // never "complete": true whenever the tier is on and no provider-confirmed S is within the unchanged 120 s ceiling
++      cannotMeet120s: enabled && (age === null || age > MAX_STATE_AGE_SEC),
++      staleReason, ranges: { ...ranges }, lastRun, failures: { ...failures }, backoffUntil: { ...backoffUntil },
++      evidenceFill: fill(), starvationMs: starvedSince === null ? 0 : now() - starvedSince };
++  }
++
++  function start() {
++    if (loop || stopping) throw Error('driver already started or stopped');
++    loop = (async () => {
++      while (!stopping) {
++        let r;
++        try { r = await tick(); } catch (e) { r = { track: null, reason: String(e?.message || e) }; }
++        if (stopping) break;
++        if (!r.track || r.error) await timers.sleep(cfg.idleMs, loopController.signal);
++      }
++    })();
++  }
++
++  async function stop() {
++    stopping = true;
++    loopController.abort(Error('driver stopping'));
++    const run = current;
++    run?.controller.abort(Error('driver stopping'));  // the provider's own abort path ends an owned native run; the driver kills nothing
++    if (run) await run.promise.catch(() => {});
++    if (loop) await loop;
++    stopped = true;
++  }
++
++  return Object.freeze({ start, stop, tick, status });
++}
+diff --git a/test/derived-reader-driver.test.mjs b/test/derived-reader-driver.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e19b1fcd09b17255ecf7771e8d6f1c339ea5a29
+--- /dev/null
++++ b/test/derived-reader-driver.test.mjs
+@@ -0,0 +1,183 @@
++// writer-driver-stage/r1: the single-native-slot driver against a FAKE provider, clock and timers (source fixtures). Nothing here
++// runs a reader, a native executable, a witness producer or a network; no duration below is a performance measurement.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { createDerivedReaderDriver, driverConfig, DRIVER_FORMAT, MAX_STATE_AGE_SEC } from '../relay/derived-reader-driver.mjs';
++import { MAX_PROVISIONAL_STATES, MAX_PROVISIONAL_FACTS, MAX_EVIDENCE_JOURNAL_BYTES } from '../network/deployment-lifecycle-journal.mjs';
++
++const CFG = Object.freeze({ finalizedDeadlineSec: 1800, finalMarginSec: 300, finalIntervalSec: 60, minFinalStep: 30, stateRefreshSec: 60,
++  minStateIntervalSec: 20, budgetSec: { final: 120, provisional: 30 }, minRange: 10, maxRange: { final: 1800, provisional: 300 },
++  retry: { baseMs: 1000, maxMs: 60000, maxConsecutive: 3 }, idleMs: 5000 });
++const T0 = 1_800_000_000_000;
++
++function world({ status = {}, hints = { finalized: 5000, safe: 5000 }, ev = null, cold = null, ...over } = {}) {
++  const w = { t: T0, calls: [], aborts: [], sleeps: [], gate: null };
++  w.st = { busy: false, closed: false, hasDerivedAnchor: true, baseAgeSec: 100, verifiedThrough: 1000, savedFloor: 1000, nativeRunning: false,
++    provisional: null, ...status };
++  w.clock = { now: () => w.t };
++  w.timers = { sleep: (ms, signal) => new Promise(resolve => { if (signal?.aborted) return resolve(); signal?.addEventListener('abort', resolve, { once: true }); w.sleeps.push({ ms, resolve }); }) };
++  const run = async (name, signal, fn) => {
++    if (w.gate) { const g = w.gate; await new Promise((resolve, reject) => { g.release = resolve; signal.addEventListener('abort', () => { w.aborts.push(name); reject(signal.reason); }, { once: true }); }); }
++    return fn();
++  };
++  w.provider = {
++    status: () => structuredClone(w.st),
++    prepare: async ({ blockNumber, signal }) => { w.calls.push(['prepare', blockNumber]); if (over.prepare) return over.prepare(blockNumber, w);
++      return { ticket: `F${blockNumber}`, trusted: {}, agreedL2BlockNumber: w.st.verifiedThrough, maximumWitnessBytes: 1000 }; },
++    submit: async ({ ticket, witness, signal }) => run('submit', signal, () => { w.calls.push(['submit', ticket, witness.length]); if (over.submit) return over.submit(ticket, w);
++      w.t += over.finalMs ?? 20_000; w.st.verifiedThrough = Number(ticket.slice(1)); w.st.baseAgeSec = 900; return { status: 'verified', anchor: {} }; }),
++    prepareProvisional: async ({ blockNumber }) => { w.calls.push(['prepareProvisional', blockNumber]);
++      return { ticket: `P${blockNumber}`, trusted: {}, agreedL2BlockNumber: w.st.provisional?.stateThrough ?? w.st.verifiedThrough, maximumWitnessBytes: 1000, tier: 'l1-attested-derived' }; },
++    submitProvisional: async ({ ticket, signal }) => run('submitProvisional', signal, () => { w.calls.push(['submitProvisional', ticket]);
++      w.t += over.provMs ?? 5_000; const n = Number(ticket.slice(1)); w.st.provisional = { ...w.st.provisional, stateThrough: n, segments: (w.st.provisional?.segments ?? 0) + 1 };
++      return { status: 'provisional', anchor: { base: { number: n, timestamp: Math.floor(w.t / 1000) - (over.sLagSec ?? 10) } } }; }),
++  };
++  w.driver = createDerivedReaderDriver({ provider: w.provider, targets: async () => hints, rollupConfigTemplate: {}, clock: w.clock, timers: w.timers,
++    witness: over.witness ?? (async () => 'w'.repeat(100)), evidence: ev, cold, config: over.config ?? CFG });
++  w.names = () => w.calls.map(c => c[0]);
++  return w;
++}
++const PROV = { segments: 0, stateThrough: null, hasPendingWitness: false, fenced: null };
++const EV = (o = {}) => () => ({ states: 0, facts: 0, bytes: 1000, fenced: false, ...o });
++
++test('config is exact and bounded; no key enables the provisional track; 120 s cannot be raised', () => {
++  assert.equal(MAX_STATE_AGE_SEC, 120); assert.ok(driverConfig(CFG));
++  for (const bad of [{ ...CFG, enableProvisional: true }, { ...CFG, stateRefreshSec: 120 }, { ...CFG, budgetSec: { final: 120, provisional: 121 } },
++    { ...CFG, maxRange: { final: 1801, provisional: 300 } }, { ...CFG, minRange: 0 }, { ...CFG, retry: { baseMs: 1000, maxMs: 10, maxConsecutive: 3 } },
++    { ...CFG, finalMarginSec: 1800 }, (({ idleMs, ...r }) => r)(CFG)])
++    assert.throws(() => driverConfig(bad), /driver config/);
++  assert.throws(() => createDerivedReaderDriver({ provider: { status() {} }, targets: async () => ({}), witness: async () => '', config: CFG }), /in-process derived reader/);
++});
++
++test('finality first: a due B_f deadline pre-empts a stale provisional S, and the wait is reported as starvation', async () => {
++  const w = world({ status: { baseAgeSec: 1600, provisional: PROV }, ev: EV() });
++  const r = await w.driver.tick();
++  assert.equal(r.track, 'final'); assert.deepEqual(w.names(), ['prepare', 'submit']);
++  assert.ok(!w.names().includes('prepareProvisional'));
++  w.t += 7000;
++  const s = w.driver.status();
++  assert.equal(s.cannotMeet120s, true, 'no provider-confirmed S yet'); assert.ok(s.starvationMs >= 7000, 'provisional waited behind finality');
++  // B_f fresh again: the provisional track runs, and starvation clears
++  const p = await w.driver.tick();
++  assert.equal(p.track, 'provisional'); assert.equal(w.driver.status().starvationMs, 0);
++});
++
++test('recovery never passes the saved floor; ranges start small and adapt to the MEASURED duration, never an assumed 1800', async () => {
++  const w = world({ status: { verifiedThrough: 4995, savedFloor: 5000 }, hints: { finalized: 9000, safe: 9000 }, finalMs: 20_000 });
++  await w.driver.tick();
++  assert.deepEqual(w.calls[0], ['prepare', 5000], 'recovery derives the saved floor exactly');
++  const v = world({ status: { baseAgeSec: 1600 }, hints: { finalized: 9000, safe: 9000 }, finalMs: 20_000 });
++  await v.driver.tick();
++  assert.deepEqual(v.calls[0], ['prepare', 1010], 'the first range is minRange (10), not 1800');
++  assert.equal(v.driver.status().ranges.final, 60, '10 blocks in 20 s with a 120 s budget -> 60');
++  v.st.baseAgeSec = 1600; await v.driver.tick();
++  assert.deepEqual(v.calls.at(-2), ['prepare', 1070]);
++  assert.equal(v.driver.status().ranges.final, 360, '60 blocks in 20 s -> 360');
++  const slow = world({ status: { baseAgeSec: 1600 }, hints: { finalized: 9000, safe: 9000 }, finalMs: 240_000 });
++  await slow.driver.tick();
++  assert.equal(slow.driver.status().ranges.final, 10, 'a slow run shrinks the range (clamped to minRange)');
++});
++
++test('single flight across all tracks: one owned step at a time; urgent finality before cold recovery before routine finality', async () => {
++  let coldSteps = 0;
++  const cold = { needed: () => true, step: async () => { coldSteps++; return { done: false }; } };
++  const w = world({ cold, status: { baseAgeSec: 100 }, hints: { finalized: 5000, safe: 5000 } });
++  assert.equal((await w.driver.tick()).track, 'cold', 'cold recovery precedes routine finality');
++  assert.equal(coldSteps, 1); assert.deepEqual(w.names(), []);
++  const u = world({ cold, status: { baseAgeSec: 1600 } });
++  assert.equal((await u.driver.tick()).track, 'final', 'a due finalized deadline precedes cold recovery');
++  const g = world({ status: { baseAgeSec: 1600 } }); g.gate = {};
++  const first = g.driver.tick();
++  await new Promise(resolve => setImmediate(resolve));
++  await assert.rejects(g.driver.tick(), /single flight/);
++  assert.equal(g.driver.status().slot, 'final');
++  g.gate.release(); await first;
++  assert.deepEqual(g.names(), ['prepare', 'submit']);
++});
++
++test('provisional only under the signed binding, no marker, room in the existing evidence bounds; cadence doubles at 75 % fill', async () => {
++  const H = { finalized: 1000, safe: 5000 };
++  const off = world({ status: { provisional: null }, hints: H });
++  assert.equal((await off.driver.tick()).track, null); assert.ok(!off.names().includes('prepareProvisional'));
++  assert.equal(off.driver.status().cannotMeet120s, false, 'tier off: nothing to meet');
++  for (const [name, w] of [['full states', world({ status: { provisional: PROV }, ev: EV({ states: MAX_PROVISIONAL_STATES }), hints: H })],
++                           ['full facts', world({ status: { provisional: PROV }, ev: EV({ facts: MAX_PROVISIONAL_FACTS }), hints: H })],
++                           ['full bytes', world({ status: { provisional: PROV }, ev: EV({ bytes: MAX_EVIDENCE_JOURNAL_BYTES }), hints: H })],
++                           ['durable marker', world({ status: { provisional: PROV }, ev: EV({ fenced: true }), hints: H })],
++                           ['provider fence', world({ status: { provisional: { ...PROV, fenced: { reason: 'contradiction' } } }, ev: EV(), hints: H })],
++                           ['unreadable evidence', world({ status: { provisional: PROV }, ev: () => { throw Error('closed'); }, hints: H })]]) {
++    assert.equal((await w.driver.tick()).track, null, name); assert.ok(!w.names().includes('prepareProvisional'), name);
++  }
++  const w = world({ status: { provisional: PROV }, ev: EV({ states: 96 }), sLagSec: 100, hints: H });     // 96/128 = 75 %
++  assert.equal((await w.driver.tick()).track, 'provisional');
++  w.t += 30_000; assert.equal((await w.driver.tick()).track, null, 'at >= 75 % fill the 20 s cadence becomes 40 s');
++  w.t += 11_000; assert.equal((await w.driver.tick()).track, 'provisional');
++});
++
++test('cannotMeet120s: only a provider-confirmed S from this driver counts; 120 s is never relaxed; fixtures cannot make S fresh', async () => {
++  const w = world({ status: { provisional: PROV }, ev: EV(), sLagSec: 10, hints: { finalized: 1000, safe: 5000 } });
++  assert.equal(w.driver.status().cannotMeet120s, true);
++  await w.driver.tick();
++  let s = w.driver.status(); assert.equal(s.sAgeSec, 10); assert.equal(s.cannotMeet120s, false);
++  w.t += 110_000; s = w.driver.status(); assert.equal(s.sAgeSec, 120); assert.equal(s.cannotMeet120s, false, 'exactly 120 s still meets it');
++  w.t += 1000; assert.equal(w.driver.status().cannotMeet120s, true, '121 s does not');
++  w.st.provisional = { ...w.st.provisional, stateThrough: 999_999 };
++  w.t -= 100_000; assert.equal(w.driver.status().cannotMeet120s, true, 'a provider tip this driver did not produce is never taken as S');
++  const f = world({ status: { provisional: { ...PROV, stateThrough: 4000 } }, ev: EV() });
++  assert.equal(f.driver.status().cannotMeet120s, true, 'a fixture claiming an S without a driver result cannot enable it');
++});
++
++test('bounded failures: oversized or unknown witnesses are never submitted; refusals halve the range and back off; busy is retry-later', async () => {
++  const big = world({ status: { baseAgeSec: 1600 }, witness: async () => 'x'.repeat(1001) });
++  const r = await big.driver.tick();
++  assert.match(r.error, /witness rejected before submit/); assert.deepEqual(big.names(), ['prepare']);
++  assert.equal(big.driver.status().failures.final, 1); assert.equal(big.driver.status().backoffUntil.final, T0 + 1000);
++  assert.equal((await big.driver.tick()).track, null, 'backing off: finality due but no retry storm');
++  const obj = world({ status: { baseAgeSec: 1600 }, witness: async () => ({ not: 'bytes' }) });
++  assert.match((await obj.driver.tick()).error, /unknown shape/); assert.deepEqual(obj.names(), ['prepare']);
++  const busy = world({ status: { baseAgeSec: 1600 }, prepare: () => { throw Error('derived provider busy'); } });
++  await busy.driver.tick();
++  assert.equal(busy.driver.status().failures.final, 0, 'busy is not failure evidence'); assert.equal(busy.driver.status().backoffUntil.final, T0 + 1000);
++  const bad = world({ status: { baseAgeSec: 1600 }, prepare: () => { throw Error('candidate source returned another block number'); } });
++  for (let i = 0; i < 3; i++) { await bad.driver.tick(); bad.t = bad.driver.status().backoffUntil.final; }
++  const s = bad.driver.status();
++  assert.equal(s.failures.final, 3); assert.equal(s.ranges.final, 10);
++  assert.match(s.staleReason, /paused after repeated failures/);
++});
++
++test('shutdown cancels and AWAITS the owned run (the provider aborts its own native run); nothing runs afterwards', async () => {
++  const w = world({ status: { baseAgeSec: 1600 } }); w.gate = {};
++  w.driver.start();
++  await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
++  assert.deepEqual(w.names(), ['prepare'], 'the submit is in flight');
++  await w.driver.stop();
++  assert.deepEqual(w.aborts, ['submit'], 'the owned run saw its abort signal');
++  assert.equal(w.driver.status().slot, 'stopped');
++  assert.equal((await w.driver.tick()).reason, 'stopping');
++  assert.deepEqual(w.names(), ['prepare'], 'no step after stop');
++  assert.equal(w.driver.status().failures.final, 0, 'a cancelled run is not counted as a failure');
++});
++
++test('bootstrap: the first prepare authenticates the ASR root; a refused candidate after that is not a failure', async () => {
++  const w = world({ status: { verifiedThrough: null, savedFloor: null, hasDerivedAnchor: false, baseAgeSec: null }, hints: { finalized: 9000, safe: 9000 },
++    prepare: (n, w) => { w.st.verifiedThrough = 1000; throw Error('candidate range exceeds reader bounds'); } });
++  const r = await w.driver.tick();
++  assert.equal(r.status, 'bootstrapped'); assert.equal(w.driver.status().failures.final, 0);
++  const n = world({ status: { verifiedThrough: null, savedFloor: null, hasDerivedAnchor: false, baseAgeSec: null }, hints: { finalized: null, safe: null } });
++  assert.equal((await n.driver.tick()).track, null, 'no hint, no bootstrap guess'); assert.deepEqual(n.names(), []);
++});
++
++test('untrusted hints: a lagging hint never blocks a due finalized step; invalid or failing hints are ignored; routine steps follow the hint', async () => {
++  const lag = world({ status: { baseAgeSec: 1600 }, hints: { finalized: 900, safe: 900 } });
++  await lag.driver.tick(); assert.deepEqual(lag.calls[0], ['prepare', 1010]);
++  const ahead = world({ hints: { finalized: 1005, safe: 1005 } });
++  assert.equal((await ahead.driver.tick()).track, null, 'routine finality waits for minFinalStep');
++  const routine = world({ hints: { finalized: 1500, safe: 1500 } });
++  await routine.driver.tick(); assert.deepEqual(routine.calls[0], ['prepare', 1010]);
++  const junk = world({ status: { baseAgeSec: 1600 }, hints: { finalized: -5, safe: '7' } });
++  await junk.driver.tick(); assert.deepEqual(junk.calls[0], ['prepare', 1010]);
++  const failing = createDerivedReaderDriver({ provider: world().provider, targets: async () => { throw Error('node down'); }, witness: async () => 'w',
++    rollupConfigTemplate: {}, clock: { now: () => T0 }, timers: world().timers, config: CFG });
++  assert.equal((await failing.tick()).track, null);
++  assert.equal(failing.status().format, DRIVER_FORMAT);
++});

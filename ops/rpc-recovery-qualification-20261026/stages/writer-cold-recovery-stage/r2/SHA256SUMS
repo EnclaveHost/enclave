@@ -1,0 +1,5 @@
+8e742c06814e9c2c6217a7416654bbaad76f8c9923a2cb306ad4bf2720931f7d  ./PROVENANCE.md
+bdb237c45726231bd9a8ea08b4323c9b739505f7163a74dc08ab9979f9b8bc01  ./inputs/claude-lease-index-design-review-1554.md
+746e9913fc96e1e10cee3ce6a7e0f7dcee042ffd15256f940157d2be921cdbde  ./inputs/lease-index-kvm-review-1556.txt
+ba12cf6f029628ecae3614b7c95af5600d044bf30730f4e52a48c3ed956a7183  ./jobs/root-writer-cold-recovery-r2.sh
+0e8c4cfd3bd4929aed25c8e4ec94be1b0b01073ebc4cba85f2abc9025e860aac  ./patches/writer-cold-recovery-r2-vs-two-anchor-r3.patch
