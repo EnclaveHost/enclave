@@ -1,0 +1,104 @@
+{
+ "counts": {
+  "head": {
+   "byRule": {
+    "coinbase-access-token": 1,
+    "ethereum-private-key-labelled": 3
+   },
+   "lines": [
+    261,
+    265,
+    268,
+    350
+   ],
+   "rc": 0,
+   "scannerEthKeyLines": 3,
+   "scannerRc": 1
+  },
+  "patched": {
+   "byRule": {},
+   "lines": [],
+   "rc": 0,
+   "scannerEthKeyLines": 0,
+   "scannerRc": 0
+  }
+ },
+ "failures": [],
+ "format": "package-digest-scan-selftest/v1",
+ "noGeneratedValuePrinted": true,
+ "pass": true,
+ "scenarios": {
+  "B0-head-actual-exact-path": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "ok": true,
+   "pushRefused": null
+  },
+  "P0-actual-exact-path": {
+   "commitRefused": false,
+   "expected": {
+    "commitRefused": false,
+    "pushRefused": false
+   },
+   "ok": true,
+   "pushRefused": false
+  },
+  "P1-wrong-digest": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "ok": true,
+   "pushRefused": null
+  },
+  "P2-wrong-path": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "ok": true,
+   "pushRefused": null
+  },
+  "P3-new-privateKey-entry": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "ok": true,
+   "pushRefused": null
+  },
+  "P4-real-key-field": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "ok": true,
+   "pushRefused": null
+  },
+  "P5-extra-content-on-listed-line": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "ok": true,
+   "pushRefused": null
+  },
+  "P6-changed-setCoinbase-digest": {
+   "commitRefused": false,
+   "expected": {
+    "commitRefused": false,
+    "pushRefused": true
+   },
+   "ok": true,
+   "pushRefused": true
+  }
+ }
+}

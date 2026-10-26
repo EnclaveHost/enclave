@@ -1,0 +1,35 @@
+diff -r /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-package-inputs-stage/runs/20261026T131548Z-package-1809358/host-packages.committed/credit-vault-submitter.mjs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-package-inputs-stage/runs/20261026T131548Z-package-1809358/final/network/host-services/packages/credit-vault-submitter.mjs
+34602c34602
+< function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
+---
+> function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier, chainAuthority }) {
+34635a34636,34653
+>   if (chainAuthority !== void 0 && chainAuthority !== null && chainAuthority !== "quorum") {
+>     if (chainAuthority !== "verifier") throw new Error("chainAuthority must be quorum or verifier");
+>     if (rpcs !== void 0 && rpcs !== null) throw new Error("chainAuthority verifier: rpcs must be absent (one explicit authority; a provider quorum is never mixed in)");
+>     if (quorum !== void 0 && quorum !== null) throw new Error("chainAuthority verifier: quorum must be absent (the verifier is one proof-backed authority, not a vote)");
+>     const only = chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "chainVerifier");
+>     return Object.freeze({
+>       pins,
+>       usdc: getAddress(token),
+>       profile,
+>       digest,
+>       rpcs: Object.freeze([]),
+>       quorum: null,
+>       chainAuthority: "verifier",
+>       confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"),
+>       maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1e3,
+>       chainVerifier: only
+>     });
+>   }
+diff -r /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-package-inputs-stage/runs/20261026T131548Z-package-1809358/host-packages.committed/credit-vault-submitter.package.json /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/consumer-package-inputs-stage/runs/20261026T131548Z-package-1809358/final/network/host-services/packages/credit-vault-submitter.package.json
+7,8c7,8
+<   "bundleSha256": "46a33b197d1b7c62f1943f67546cb01df846497162ec416d9d334ad36a8d0b03",
+<   "bytes": 1298017,
+---
+>   "bundleSha256": "bee29dcfa2170a2ffc9f48eeb2a6cd0bf83258a2f5ea9a5201030cead750edd6",
+>   "bytes": 1299043,
+35c35
+<     "cli/independent.mjs": "12245443fff2fc345ed654de7303258168018ae674f0dd1b11631a006dd18453",
+---
+>     "cli/independent.mjs": "00338a592c669d41cb2bd6a1250e17142240056f9759c3ea30735c710c1edd5d",

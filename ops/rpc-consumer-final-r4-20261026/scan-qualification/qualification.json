@@ -1,0 +1,7 @@
+{
+  "format": "rpc-package-digest-qualification/v1",
+  "baseCommit": "1019e04ecc9bee04f4b1a809caf1aec05b4765bf",
+  "stageSha256": "03455985d2e0c52065dc75f825a3d836ddb28b47e9fc56884099dc63eb008869",
+  "manifestSha256": "2e9717bef70034b980b70a2bb01ae2b66e537923ba7b340402b09ec364882d31",
+  "scope": "Exact public dependency file digests only; actual commit/push and six rejection cases plus baseline tested. Existing detector tests passed. This is not production RPC activation."
+}

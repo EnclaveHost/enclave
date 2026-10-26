@@ -1,0 +1,80 @@
+[queue] START available=23340MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "mode": "mutants",
+ "harness": "bind-mounted read-only node_modules (unshare -Urnm)",
+ "sharedRelayRuntime": {
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "equalsBaseBuild": true,
+  "equalsCommittedPin": true
+ },
+ "platformApiGuestBundle": {
+  "committedStale": true,
+  "checkAfterRegeneration": 0
+ },
+ "baseline": {
+  "rc": 0,
+  "tests": 15,
+  "pass": 15,
+  "fail": 0,
+  "skipped": 0,
+  "todo": 0,
+  "cancelled": 0
+ },
+ "mutants": {
+  "ancestry-hash-ignored": {
+   "rc": 1,
+   "killed": true
+  },
+  "backend-binding-hash-ignored": {
+   "rc": 1,
+   "killed": true
+  },
+  "consumed-offchain-hint-accepted-as-none": {
+   "rc": 1,
+   "killed": true
+  },
+  "duplicate-call-signed-again": {
+   "rc": 1,
+   "killed": true
+  },
+  "foreign-pending-gate-removed": {
+   "rc": 1,
+   "killed": true
+  },
+  "journal-gap-at-proven-nonce-ignored": {
+   "rc": 1,
+   "killed": true
+  },
+  "journal-load-gap-accepted": {
+   "rc": 1,
+   "killed": true
+  },
+  "lost-bytes-not-rebroadcast": {
+   "rc": 1,
+   "killed": true
+  },
+  "nonce-consumed-reported-as-success": {
+   "rc": 1,
+   "killed": true
+  },
+  "pending-costs-not-committed": {
+   "rc": 1,
+   "killed": true
+  },
+  "receipts-root-unverified": {
+   "rc": 1,
+   "killed": true
+  },
+  "tx-root-check-removed": {
+   "rc": 1,
+   "killed": true
+  }
+ },
+ "ok": true,
+ "scope": "release-candidate tree 929fc19a: packaging/composition/adapter evidence only; NOT fresh-state authority (writer 120 s ceiling vs L1-finalized anchors), NOT feature availability, NOT production"
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/final-consumer-composition-stage/r4/runs/20261026T133333Z-mutants-1834448
+## final-consumer-r4 mutants rc=0
+[memory-guard] exit=0 peakTreeRssMiB=452 minHostAvailableMiB=22493
+[memory-guard] at peak: esbuild:336 node:107 bash:4 timeout:2 bash:2
+[queue] EXIT 0

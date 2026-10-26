@@ -1,0 +1,116 @@
+{
+ "failures": [],
+ "format": "shared-hook-digest-dual-selftest/v1",
+ "noGeneratedValuePrinted": true,
+ "pass": true,
+ "scenarios": {
+  "N1-wrong-digest": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 1,
+   "treeScannerPatched": true
+  },
+  "N2-wrong-path": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 3,
+   "treeScannerPatched": true
+  },
+  "N3-new-privateKey-entry": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 1,
+   "treeScannerPatched": true
+  },
+  "N4-real-key-field": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 1,
+   "treeScannerPatched": true
+  },
+  "N5-extra-content-on-listed-line": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 2,
+   "treeScannerPatched": true
+  },
+  "N6-changed-setCoinbase-digest": {
+   "commitRefused": false,
+   "expected": {
+    "commitRefused": false,
+    "pushRefused": true
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": true,
+   "refusals": 0,
+   "treeScannerPatched": true
+  },
+  "S1-shared-current-tree-patched": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "current",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 6,
+   "treeScannerPatched": true
+  },
+  "S2-shared-patched-tree-patched": {
+   "commitRefused": false,
+   "expected": {
+    "commitRefused": false,
+    "pushRefused": false
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": false,
+   "refusals": 0,
+   "treeScannerPatched": true
+  },
+  "S3-shared-patched-tree-HEAD-scanner": {
+   "commitRefused": true,
+   "expected": {
+    "commitRefused": true,
+    "pushRefused": null
+   },
+   "mirror": "patched",
+   "ok": true,
+   "pushRefused": null,
+   "refusals": 6,
+   "treeScannerPatched": false
+  }
+ }
+}

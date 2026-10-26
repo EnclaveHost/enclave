@@ -115,6 +115,23 @@ VERIFIED_MANIFEST_DIGESTS = frozenset({
      "ab9173b7a82e03a3409239e2ffb04ee13cc97a85e8e86a168f4165fa7b27e8b5"),
 })
 MANIFEST_PATH = re.compile(r"(^|/)(?:install/MANIFEST|bundle-origin)\.json$")
+# Exact per-FILE dependency content digests (2026-10-26; logs/claude-package-digest-scan.md). The regenerated credit-vault-submitter
+# host-service package manifest maps node_modules/viem 2.53.1 FILE PATHS to their sha256 FILE-CONTENT digests, and three of those
+# file NAMES contain "privateKey", which the keyword rule reads as a key name. Each digest was re-hashed from the installed file
+# (work/enclave/node_modules/viem 2.53.1, lock 9ada1611). Exempt ONLY when all hold: the scanned path is EXACTLY this repository
+# path, the line is exactly that one JSON entry ("key": "digest"), and the (path, key, digest) triple is listed. Only the keyword
+# rule is skipped; every other check still runs on the same line. Any other file, path, key, digest or line shape is a finding.
+VERIFIED_FILE_DIGESTS = frozenset({
+    ("ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter.package.json",
+     "node_modules/viem/_esm/accounts/generatePrivateKey.js",
+     "0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab"),
+    ("ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter.package.json",
+     "node_modules/viem/_esm/accounts/privateKeyToAccount.js",
+     "c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6"),
+    ("ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter.package.json",
+     "node_modules/viem/_esm/accounts/utils/privateKeyToAddress.js",
+     "67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b"),
+})
 MANIFEST_ENTRY = re.compile(r'^\s*"([A-Za-z0-9_./@-]+)"\s*:\s*"([0-9a-f]{64})",?\s*$')
 
 # The same 21 pairs also appear in the repository's root .gitleaks.toml as the labelled rule's line-allowlist regexes (the gitleaks
@@ -126,12 +143,17 @@ def gitleaks_allow_line(p, d):
     return "'''^" + r'\s*"' + re.escape(p) + r'"\s*:\s*"' + d + r'",?\s*$' + "''',"
 
 GITLEAKS_ALLOW_LINES = {gitleaks_allow_line(p, d): d for p, d in VERIFIED_MANIFEST_DIGESTS}
+GITLEAKS_ALLOW_LINES.update({gitleaks_allow_line(k, d): d for _, k, d in VERIFIED_FILE_DIGESTS})   # the exact-file mirror below
 
 def verified_manifest_digest(path, text, h):
     """True only for an exact, listed, verified dependency-file digest entry of an install manifest / bundle origin, or its exact
     line-allowlist regex in the root .gitleaks.toml"""
     if path and GITLEAKS_CONFIG_PATH.search(path):
         return GITLEAKS_ALLOW_LINES.get(text.strip()) == h
+    if path:                                              # the exact-file triples (VERIFIED_FILE_DIGESTS)
+        m = MANIFEST_ENTRY.match(text)
+        if m and m.group(2) == h and (path, m.group(1), h) in VERIFIED_FILE_DIGESTS:
+            return True
     if not path or not MANIFEST_PATH.search(path):
         return False
     m = MANIFEST_ENTRY.match(text)

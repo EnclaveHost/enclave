@@ -250,3 +250,28 @@ regexes = [
   '''^e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6$''',
   '''^52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072$''',
 ]
+
+# The regenerated credit-vault-submitter host-service package manifest (ONE exact path) lists public viem 2.53.1 file paths with
+# their sha256 file-content digests (re-hashed from the installed files; logs/claude-package-digest-scan.md). Three file names contain
+# "privateKey" (ethereum-private-key-labelled) and one contains "Coinbase" (default coinbase-access-token). condition = "AND":
+# exactly this path AND exactly one of these entry lines; each allowlist targets only its own rule. Mirrored by
+# .githooks/scan-crypto-keys.py VERIFIED_FILE_DIGESTS (the labelled lines are built exactly as gitleaks_allow_line() builds them).
+[[allowlists]]
+description = "3 verified public viem 2.53.1 *privateKey* file digests in the regenerated credit-vault-submitter package manifest; exact path and exact entries only"
+condition = "AND"
+targetRules = ["ethereum-private-key-labelled"]
+paths = ['''^ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter\.package\.json$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*"node_modules/viem/_esm/accounts/generatePrivateKey\.js"\s*:\s*"0f2c44265a893e19b873236baa1d828965482af578ca49277ec7e96b04a178ab",?\s*$''',
+  '''^\s*"node_modules/viem/_esm/accounts/privateKeyToAccount\.js"\s*:\s*"c056d3c2d9308e74476007cda3e93cd3547068778c2b6ce67809537e207e78e6",?\s*$''',
+  '''^\s*"node_modules/viem/_esm/accounts/utils/privateKeyToAddress\.js"\s*:\s*"67daee9447748cbb4c0caf6ad8cc45b083e32104ac0e6e23ab200a54814f0b0b",?\s*$''',
+]
+
+[[allowlists]]
+description = "verified public viem 2.53.1 setCoinbase.js digest in the regenerated credit-vault-submitter package manifest; exact path and exact entry only"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter\.package\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js"\s*:\s*"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
