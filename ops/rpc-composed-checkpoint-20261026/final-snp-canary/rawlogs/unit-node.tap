@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: the published launcher builds the measured, restricted, key-less launch from the canary config
+ok 1 - the published launcher builds the measured, restricted, key-less launch from the canary config
+  ---
+  duration_ms: 2120.18926
+  type: 'test'
+  ...
+# Subtest: qemu-restrict.sh refuses anything but one plain user-net netdev and the pinned binary
+ok 2 - qemu-restrict.sh refuses anything but one plain user-net netdev and the pinned binary
+  ---
+  duration_ms: 35.264001
+  type: 'test'
+  ...
+# Subtest: acceptance: A..D are all required; nothing passes without the rejections and the fail-closed route
+ok 3 - acceptance: A..D are all required; nothing passes without the rejections and the fail-closed route
+  ---
+  duration_ms: 2.652608
+  type: 'test'
+  ...
+# Subtest: tamper helpers change exactly one bound byte; offlineReport never verifies garbage
+ok 4 - tamper helpers change exactly one bound byte; offlineReport never verifies garbage
+  ---
+  duration_ms: 1.758019
+  type: 'test'
+  ...
+# Subtest: owner config is verifier-only, not selling, Base backend unready by construction, never production guestd
+ok 5 - owner config is verifier-only, not selling, Base backend unready by construction, never production guestd
+  ---
+  duration_ms: 2.735847
+  type: 'test'
+  ...
+# Subtest: the published launcher refuses a host-level chainVerifier in direct mode before any QEMU
+ok 6 - the published launcher refuses a host-level chainVerifier in direct mode before any QEMU
+  ---
+  duration_ms: 59.371677
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2410.700243

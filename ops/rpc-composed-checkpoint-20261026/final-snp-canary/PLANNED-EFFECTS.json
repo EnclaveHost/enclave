@@ -1,0 +1,130 @@
+{
+ "format": "snp-verifier-canary-planned-effects/1",
+ "executedBy": "root only, after review; NOT executed by Claude",
+ "process": {
+  "creates": [
+   "one transient user scope enclave-snp-verifier-canary-<stamp>-<rand> (MemoryMax=3072M, MemorySwapMax=0, CPUQuota=200%)",
+   "one launcher (node tree/metal/enclave-metal.mjs) in its own session/process group",
+   "one QEMU (SNP guest, 4 vCPU, 2048 MiB) via canary/qemu-restrict.sh exec",
+   "one verifier (node canary/verify-canary.mjs)"
+  ],
+  "signals": "only the launcher process group while an owned (pid,starttime) member is alive in it; only the run's own scope via systemctl --user stop",
+  "neverSignalled": [
+   "every QEMU present at admission, protected by its actual pid/starttime snapshot",
+   "enclave-rpc-production-vm.service (state must be unchanged during the run)",
+   "any process by name",
+   "any user service"
+  ]
+ },
+ "memory": {
+  "guestMiB": 2048,
+  "scopeMemoryMaxMiB": 3072,
+  "memoryGuardMaxRssMiB": 3072,
+  "admission": {
+   "rpcActive": "MemAvailable >= 16384 + 3072 = 19456; guard floor 16384",
+   "rpcNotActive": "MemAvailable >= 67584 (66 GiB RPC restart reservation, or the unit MemoryMax if larger) + 3072 + 16384 = 87040; guard floor 83968 (an RPC restart aborts the canary: fail, never pass)"
+  },
+  "queueLanes": "both taken exclusively, non-blocking (98 if busy: nothing created)",
+  "evidence": "result.scopeMemoryPeakMiB = the scope cgroup memory.peak"
+ },
+ "cpu": {
+  "vcpus": 4,
+  "why": "the measurement recipe (sev-snp-measure --vcpus 4, family 26 model 2 stepping 1)",
+  "hostQuota": "CPUQuota=200% for the whole scope (QEMU + launcher + verifier)"
+ },
+ "time": {
+  "verifierDeadlineS": 270,
+  "childTimeoutS": 420,
+  "killAfterS": 40,
+  "cleanupBoundS": "~22"
+ },
+ "disk": {
+  "runDir": "runs/<stamp> 0700 (logs/results kept)",
+  "private": "runs/<stamp>/private 0700: fw_cfg (0600), random test pairing key (0600), host config, owner + wrong-config, collateral COPY - removed by the child, or by the parent after proven absence",
+  "imageRead": "final-proof-image-stage/out/dist-direct-10cdf913 read-only by QEMU",
+  "rawDisk": "none (-drive refused by the argv check)"
+ },
+ "network": {
+  "guest": "slirp restrict=on: no host (10.0.2.2) and no outside address; one hostfwd 127.0.0.1:<ephemeral> -> guest 8444 only; the guest verifier port 50546 is never forwarded",
+  "host": {
+   "kds": "--kds off (recommended): none; on: AMD KDS GETs only if the cached collateral needs it",
+   "registry": "none (verifier-only acceptance requires registry null)",
+   "loopback": "127.0.0.1:<ephemeral> control front; the stand-in ports (guestd x2, proof source) are proven to have NO listener"
+  },
+  "publicListener": "none"
+ },
+ "secrets": {
+  "created": [
+   "a random 32-byte test pairing key (private/, 0600, deleted; redacted from the sanitized serial log)"
+  ],
+  "neverPresent": [
+   "registry/operator key",
+   "production admin/signing/session/custody keys",
+   "fleet secret",
+   "tunnel token",
+   "ACME/EAB",
+   "wallet",
+   "production config"
+  ]
+ },
+ "production": {
+  "changes": "none",
+  "contracts": "none (no chain read or transaction)",
+  "dns": "none",
+  "allowlists": "none (no measured allowlist or trust-list edit)",
+  "guestd": "never contacted",
+  "adminControls": "unchanged: the plan asserts ENCLAVE_PLATFORM_HOST_POLICY=production in the guest's plan; no host admin setting is touched"
+ },
+ "cleanup": [
+  "parent: systemctl --user stop <unit>.scope (every exit path)",
+  "prove: scope ActiveState inactive|failed, cgroup.procs empty, no process naming runs/<stamp>",
+  "then remove runs/<stamp>/private",
+  "nothing else is created outside runs/<stamp>"
+ ],
+ "expectedQemuArgv": [
+  "/usr/bin/qemu-system-x86_64",
+  "-machine",
+  "q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0",
+  "-cpu",
+  "host",
+  "-smp",
+  "4",
+  "-m",
+  "2048",
+  "-nographic",
+  "-no-reboot",
+  "-kernel",
+  ".../final-proof-image-stage/out/dist-direct-10cdf913/vmlinuz",
+  "-initrd",
+  ".../dist-direct-10cdf913/initramfs.cpio.gz",
+  "-append",
+  "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app metal.control=direct",
+  "-fw_cfg",
+  "name=opt/org.enclave.metal,file=<private>/tmp/metal-fwcfg-<pid>.json",
+  "-fw_cfg",
+  "name=opt/org.enclave.metal/haltpoll,string=...",
+  "-netdev",
+  "user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:<ctl>-:8444",
+  "-device",
+  "virtio-net-pci,netdev=net0,...",
+  "-serial",
+  "mon:stdio",
+  "-object",
+  "memory-backend-memfd,id=ram0,size=2048M,share=true,prealloc=false",
+  "-bios",
+  "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+  "-object",
+  "sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=/dev/sev,host-data=<base64 of HOST_DATA of the run's owner config>"
+ ],
+ "limits": [
+  "NOT Base chain readiness, native provenance or finality: the Base backend is unready by construction",
+  "one chip, one boot, 4 vCPUs",
+  "2048 MiB guest is unproven (1 064.7 MB ramfs + ~234 MB tmpfs natives + node/Helios): an OOM fails closed",
+  "no registration, MCP, Platform API, native names, apps"
+ ],
+ "image": {
+  "dir": "final-proof-image-stage/out/dist-direct-10cdf913",
+  "commit": "10cdf913b9b8bb168156e42da2a9a2a26c2526ad",
+  "measurement": "c0ab52344d5a1ebc0ed39e3848dcfe996f20e8a6b67c36318d34fd9fc1d2ce755aa2fc0afbb4913ce877478130d23cb9"
+ }
+}

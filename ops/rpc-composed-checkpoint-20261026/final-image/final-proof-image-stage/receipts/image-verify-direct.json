@@ -1,0 +1,1056 @@
+{
+ "commit": "10cdf913b9b8bb168156e42da2a9a2a26c2526ad",
+ "checks": [
+  {
+   "check": "overlay tool working copy == commit's bytes",
+   "ok": true,
+   "detail": "10db3d3d43a8319ede07d67b47d7fcd8434e0a94a7e411ff2c2ddc4e18d3c31e"
+  },
+  {
+   "check": "vmlinuz == production base",
+   "ok": true,
+   "detail": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  {
+   "check": "manifest kernel record + modules unchanged",
+   "ok": true,
+   "detail": "7.2.3-arch1-2"
+  },
+  {
+   "check": "base cmdline is the base template and names no control mode",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "cmdline file == base cmdline + ' metal.control=direct' (same trailing bytes)",
+   "ok": true,
+   "detail": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app metal.control=direct"
+  },
+  {
+   "check": "manifest: control direct, cmdlineTemplate = base + token, isolation snp-guest-per-app",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.commit = COMMIT",
+   "ok": true,
+   "detail": "10cdf913b9b8bb168156e42da2a9a2a26c2526ad"
+  },
+  {
+   "check": "controlOverlay.builderSha256 = the commit's overlay tool",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.control == direct",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "controlOverlay.baseInitramfsSha256 = production base",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "manifest controlOverlay.chainVerifier.installed == true",
+   "ok": true,
+   "detail": "{\"pins\": \"metal/chain-verifier-image.json\", \"pinsSha256\": \"c8fde7bb367a134f3c7434d7aa98da73ef3a2079ad4cb6bb9833741224efaee8\", \"files\": [{\"path\": \"/opt/rpc-runtime/enclave-base-head-listener\", \"sha256\": \"9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3\", \"bytes\": 76257424, \"mode\": \"0o"
+  },
+  {
+   "check": "the base's controlOverlay is the last history entry",
+   "ok": true,
+   "detail": "1 entries"
+  },
+  {
+   "check": "manifest initramfs record = file",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "expectedMeasurement removed (recomputed separately)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "committed bundle manifests match their bundles (sha256 + bytes)",
+   "ok": true,
+   "detail": "platform-api 0d5b967d8e863dbc mcp 280b6d05ae278570"
+  },
+  {
+   "check": "platform-API sidecars and MCP runtime files == their manifests' sha256 at COMMIT",
+   "ok": true,
+   "detail": "1 sidecars, 2 runtime files"
+  },
+  {
+   "check": "manifest platformApiBundle == recomputed from the committed manifest",
+   "ok": true,
+   "detail": "{\"path\": \"/opt/metal/platform-api.bundle.mjs\", \"sha256\": \"0d5b967d8e863dbc1cba09fc8c7aacb5f27b02e070922efd5c2ba0516547be47\", \"bytes\": 9421348, \"inputs\": 2225, \"sidecars\": {\"/opt/metal/fixtures/tpm-roo"
+  },
+  {
+   "check": "manifest mcpBundle == recomputed from the committed manifest",
+   "ok": true,
+   "detail": "{\"path\": \"/opt/metal/mcp-server.bundle.mjs\", \"sha256\": \"280b6d05ae278570bd9c4c494606773daa8f8e18bdbae9215f5bb93afd79a005\", \"bytes\": 4799201, \"inputs\": 2544, \"manifestSha256\": \"280b6d05ae278570bd9c4c49"
+  },
+  {
+   "check": "controlOverlay.files covers every committed input with the git sha256",
+   "ok": true,
+   "detail": "79 file records"
+  },
+  {
+   "check": "all 71 committed inputs present, regular, bytes == git blob at COMMIT",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "committed inputs not group/other-writable, nlink 1",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "each /opt/rpc-runtime native: sha256 + mode as RECIPE table, root:root, regular, == PINS == commit image record",
+   "ok": true,
+   "detail": "7 files"
+  },
+  {
+   "check": "/opt/rpc-runtime holds exactly the natives + IMAGE.json + 2 dirs",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "/opt/rpc-runtime/IMAGE.json == commit's metal/chain-verifier-image.json",
+   "ok": true,
+   "detail": "c8fde7bb367a134f3c7434d7aa98da73ef3a2079ad4cb6bb9833741224efaee8"
+  },
+  {
+   "check": "/opt/metal/chain-verifier.mjs == commit's metal/guest/chain-verifier.mjs",
+   "ok": true,
+   "detail": "8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb"
+  },
+  {
+   "check": "new directories are 0755 root:root",
+   "ok": true,
+   "detail": [
+    "app/client",
+    "app/metal",
+    "app/metal/guest",
+    "app/network",
+    "app/sdk",
+    "app/sdk/bootstrap",
+    "app/sdk/storage",
+    "app/site",
+    "app/site/js",
+    "app/site/js/core",
+    "app/windows",
+    "app/windows/node",
+    "opt/contracts",
+    "opt/contracts/deployments",
+    "opt/metal/fixtures",
+    "opt/rpc-runtime",
+    "opt/rpc-runtime/glibc"
+   ]
+  },
+  {
+   "check": "no production base entry missing",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "added entries = new inputs + natives + IMAGE.json + parent directories only",
+   "ok": true,
+   "detail": "80 added (17 dirs)"
+  },
+  {
+   "check": "every other entry identical to the base (bytes + mode/owner/nlink/mtime/rdev)",
+   "ok": true,
+   "detail": "29012 entries"
+  },
+  {
+   "check": "the image itself has no duplicated cpio path",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "check": "every base-duplicated path is ONE image entry equal to its kernel-effective/installed bytes (extracted bytes re-hashed)",
+   "ok": true,
+   "detail": {
+    "app/session-api-auth.mjs": true,
+    "app/verification-checkpoints.mjs": true
+   }
+  },
+  {
+   "check": "in-image opt/metal/manifest.json names COMMIT",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "supervisor import closure present in the image",
+   "ok": true,
+   "detail": "49 files"
+  },
+  {
+   "check": "supervisor closure files == git blobs at COMMIT",
+   "ok": true,
+   "detail": "49 files (0 kept from base, equal to git)"
+  },
+  {
+   "check": "supervisor closure npm packages + subpath exports in the image",
+   "ok": true,
+   "detail": "cors@2.8.6, express@4.22.2, jose@5.10.0, viem@2.53.1, ws@8.21.1"
+  },
+  {
+   "check": "chain verifier runtime import closure present in the image",
+   "ok": true,
+   "detail": "9 files"
+  },
+  {
+   "check": "chain verifier runtime closure files == git blobs at COMMIT",
+   "ok": true,
+   "detail": "9 files (0 kept from base, equal to git)"
+  },
+  {
+   "check": "chain verifier runtime closure npm packages + subpath exports in the image",
+   "ok": true,
+   "detail": "viem@2.53.1"
+  },
+  {
+   "check": "guest helpers' relative imports and bundles' beside-itself reads resolve in the image",
+   "ok": true,
+   "detail": "12 opt/metal modules"
+  },
+  {
+   "check": "gsup.mjs == commit's metal/guest/gsup.mjs and references chain-verifier.mjs",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "gsup.mjs starts /app/supervisor.js in the legacy (non-direct) branch",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "direct mode: platform-API and MCP bundles installed (DORMANT unless a bound config names them) == git at COMMIT",
+   "ok": true,
+   "detail": "platform-api 0d5b967d8e863dbc mcp 280b6d05ae278570"
+  },
+  {
+   "check": "measured-control.mjs (plan + front) == git at COMMIT, carries the /chain-verifier route and the verifier-only rules",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "gsup.mjs has the direct-control branch (startDirectControl) and passes the bound chain-verifier route to the front",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "no installed input carries a DigitalOcean /platform-policy mirror literal",
+   "ok": true,
+   "detail": []
+  }
+ ],
+ "ok": true,
+ "entries": {
+  "image": 29109,
+  "base": 29029,
+  "added": [
+   "app/client",
+   "app/client/lease-executor-authority.mjs",
+   "app/client/lease-executor-client.mjs",
+   "app/metal",
+   "app/metal/guest",
+   "app/metal/guest/owner-nomination.mjs",
+   "app/network",
+   "app/network/attested-verifier-brand.mjs",
+   "app/network/canonical.mjs",
+   "app/network/chain-authority.mjs",
+   "app/network/directory-client.mjs",
+   "app/network/gossip-head-source.mjs",
+   "app/network/host-capacity-producer.mjs",
+   "app/network/host-capacity-record.mjs",
+   "app/network/host-owner-nomination.mjs",
+   "app/network/host-policy-adapters.mjs",
+   "app/network/lease-executor-authority.mjs",
+   "app/network/lease-executor-client.mjs",
+   "app/network/lease-gas-owner.mjs",
+   "app/network/lease-gas-runtime.mjs",
+   "app/network/lease-relay-discovery.mjs",
+   "app/network/lease-release-journal.mjs",
+   "app/network/network-authorities.mjs",
+   "app/network/network-policy-core.mjs",
+   "app/network/network-policy.mjs",
+   "app/network/op-head-relay.mjs",
+   "app/network/provider-directory.mjs",
+   "app/network/provider-qualification.mjs",
+   "app/network/registry-reconcile.mjs",
+   "app/network/route-record.mjs",
+   "app/network/rpc-identity.mjs",
+   "app/network/rpc-runtime-main.mjs",
+   "app/network/rpc-runtime.mjs",
+   "app/network/runtime-lock.mjs",
+   "app/network/s3-witness-cache.mjs",
+   "app/network/service-index.mjs",
+   "app/network/verified-chain.mjs",
+   "app/network/witness-gateway.mjs",
+   "app/network/witness-verify.mjs",
+   "app/relay/attestation-paths.mjs",
+   "app/relay/net-guard.mjs",
+   "app/sdk",
+   "app/sdk/bootstrap",
+   "app/sdk/bootstrap/package.mjs",
+   "app/sdk/bootstrap/storage.mjs",
+   "app/sdk/storage",
+   "app/sdk/storage/gateways.mjs",
+   "app/sdk/storage/replicas.mjs",
+   "app/sdk/storage/upload-auth.mjs",
+   "app/site",
+   "app/site/js",
+   "app/site/js/core",
+   "app/site/js/core/upload-auth.js",
+   "app/windows",
+   "app/windows/node",
+   "app/windows/node/host-admission.bundle.mjs",
+   "app/windows/node/session-api-auth.mjs",
+   "app/windows/node/verification-checkpoints.mjs",
+   "opt/contracts",
+   "opt/contracts/deployments",
+   "opt/contracts/deployments/contract-pins-base.json",
+   "opt/metal/chain-verifier.mjs",
+   "opt/metal/fixtures",
+   "opt/metal/fixtures/tpm-roots.pem",
+   "opt/metal/host-policy.bundle.mjs",
+   "opt/metal/lease-gas-conduit.bundle.mjs",
+   "opt/metal/mcp-server.bundle.mjs",
+   "opt/metal/measured-control.mjs",
+   "opt/metal/owner-nomination.mjs",
+   "opt/metal/platform-api.bundle.mjs",
+   "opt/rpc-runtime",
+   "opt/rpc-runtime/IMAGE.json",
+   "opt/rpc-runtime/enclave-base-head-listener",
+   "opt/rpc-runtime/glibc",
+   "opt/rpc-runtime/glibc/ld-linux-x86-64.so.2",
+   "opt/rpc-runtime/glibc/libc.so.6",
+   "opt/rpc-runtime/glibc/libgcc_s.so.1",
+   "opt/rpc-runtime/glibc/libm.so.6",
+   "opt/rpc-runtime/helios",
+   "opt/rpc-runtime/witness-check"
+  ],
+  "addedDirectories": [
+   "app/client",
+   "app/metal",
+   "app/metal/guest",
+   "app/network",
+   "app/sdk",
+   "app/sdk/bootstrap",
+   "app/sdk/storage",
+   "app/site",
+   "app/site/js",
+   "app/site/js/core",
+   "app/windows",
+   "app/windows/node",
+   "opt/contracts",
+   "opt/contracts/deployments",
+   "opt/metal/fixtures",
+   "opt/rpc-runtime",
+   "opt/rpc-runtime/glibc"
+  ]
+ },
+ "native": {
+  "opt/rpc-runtime/enclave-base-head-listener": {
+   "sha256": "9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3",
+   "mode": "0o555",
+   "uid": 0,
+   "gid": 0,
+   "size": 76257424
+  },
+  "opt/rpc-runtime/helios": {
+   "sha256": "8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378",
+   "mode": "0o555",
+   "uid": 0,
+   "gid": 0,
+   "size": 125121704
+  },
+  "opt/rpc-runtime/witness-check": {
+   "sha256": "4fe0cd3b1a9fd28fc324cd4d58079fea3bc41836dab86cddbcf83fe9c3023411",
+   "mode": "0o555",
+   "uid": 0,
+   "gid": 0,
+   "size": 29829168
+  },
+  "opt/rpc-runtime/glibc/ld-linux-x86-64.so.2": {
+   "sha256": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+   "mode": "0o555",
+   "uid": 0,
+   "gid": 0,
+   "size": 263152
+  },
+  "opt/rpc-runtime/glibc/libc.so.6": {
+   "sha256": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+   "mode": "0o444",
+   "uid": 0,
+   "gid": 0,
+   "size": 2215072
+  },
+  "opt/rpc-runtime/glibc/libm.so.6": {
+   "sha256": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+   "mode": "0o444",
+   "uid": 0,
+   "gid": 0,
+   "size": 1268336
+  },
+  "opt/rpc-runtime/glibc/libgcc_s.so.1": {
+   "sha256": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a",
+   "mode": "0o444",
+   "uid": 0,
+   "gid": 0,
+   "size": 182512
+  }
+ },
+ "committedInputs": {
+  "app/supervisor.js": {
+   "sha256": "9fe1ea994373b57a62be78b4b42ab7514f6c64be0bbaed3e5aab8c4cfb58ac5c",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/addressbook.js": {
+   "sha256": "1f46ff9109d9a1409a8357ac1b57635952abb62f1674eb999a07f30593bbbc7d",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/egress.js": {
+   "sha256": "bd960a2b6ff51e8269dd3979e7d6e1c842796d351fe0e82257e7c84f8f897843",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/net-guard.mjs": {
+   "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/windows/node/session-api-auth.mjs": {
+   "sha256": "48cf482cef24519045b398a26885a34ba1bb9a8d32cc66d731a0b2d9ed012929",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/windows/node/verification-checkpoints.mjs": {
+   "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/windows/node/host-admission.bundle.mjs": {
+   "sha256": "dd99e9e2bf61dd38c0631fd32bc7d000e256cd79c78abf92fcf0a8a6804b40ee",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/sdk/bootstrap/package.mjs": {
+   "sha256": "17cc4cbaad3c8bc7ab9df99ca8b88d00674f7bed6825be33004375cff1b02e2a",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/sdk/bootstrap/storage.mjs": {
+   "sha256": "98e22b7b87b6d636cf6001d9ba859f4da3443af42f386deeb74ac622bcefccb3",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/sdk/storage/gateways.mjs": {
+   "sha256": "ea34a5a01e2371aa63be5c62422f19d25c8b62b454eba90a75e7dbb4cbe85119",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/sdk/storage/upload-auth.mjs": {
+   "sha256": "9db7b86361b7d5722d0f8de0ed85721f0e7bf40f3477fb1d8bde1ec79017b7b1",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/sdk/storage/replicas.mjs": {
+   "sha256": "64db5cbf71ca00effe81e6a288c103b08b205daebc9132f2f76fcc7e6e920e25",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/site/js/core/upload-auth.js": {
+   "sha256": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/isolation/m4/guestd/supervisor-transport.mjs": {
+   "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/isolation/m4/guestd/control-client.mjs": {
+   "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/isolation/m4/guestd/supervisor-splice.mjs": {
+   "sha256": "dcfc95b315995750ce1c19caef9d4551fdb6735a35b7bbdbf91a54cd29b2066b",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/isolation/m4/guestd/supervisor-guestcert.mjs": {
+   "sha256": "136c73ac6612c435f1571cf059d0171f8f93f02a7b93bc25dc55606afef41597",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/isolation/m2/judge.mjs": {
+   "sha256": "650b931d32ef72c84459141f6deeaf0f5a7a4e8c6441ac95f47f4bd8a624f1dd",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/isolation/contract/runtime.mjs": {
+   "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/relay/snp-verify.mjs": {
+   "sha256": "93f9e9d22f555571ffaadd233e3c6a06f778788e987da6266e09f134d76c1046",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "app/client/lease-executor-authority.mjs": {
+   "sha256": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/client/lease-executor-client.mjs": {
+   "sha256": "4f4c416cbe5d3bd00a07d3605146a8e45a0af3345c7435d1c8881bc37f3db379",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/metal/guest/owner-nomination.mjs": {
+   "sha256": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/attested-verifier-brand.mjs": {
+   "sha256": "5229c8ec4a67632a3c323307e4cf89a657c0799d6589448dac9c77caa9501191",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/canonical.mjs": {
+   "sha256": "5d0b45dcff219806bfd57544979b9058f2894381b05f3d27996b19bf0bdeb1a3",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/chain-authority.mjs": {
+   "sha256": "d4a4f14e2799f81839f430e0752687c3aad044af1632babb9f0c60b899094788",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/directory-client.mjs": {
+   "sha256": "eb601c1d737f062bb1f7031980846feb93533fc5789512215051b4eacf571a09",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/host-capacity-producer.mjs": {
+   "sha256": "d5d371ff6f37cfc5c6aed0dc58f7154b1caeef60254588ca3de64ead8ec896f0",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/host-capacity-record.mjs": {
+   "sha256": "62057bca458918e221e2850c850d8e9085c75f5fbc4e7b4b68e281e072781551",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/host-owner-nomination.mjs": {
+   "sha256": "10ba547e9a1237c0978701d8521055839b8042af9444e3606ed0ebf16c7635f6",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/host-policy-adapters.mjs": {
+   "sha256": "6d641432912f26592543a61b202b287298c2eca13dcc9c4f98c3214618395c84",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/lease-executor-authority.mjs": {
+   "sha256": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/lease-executor-client.mjs": {
+   "sha256": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/lease-gas-owner.mjs": {
+   "sha256": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/lease-gas-runtime.mjs": {
+   "sha256": "515df695ed11b977f195e6670e7646850f92eea34e1915b1be3a629682d9a028",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/lease-relay-discovery.mjs": {
+   "sha256": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/lease-release-journal.mjs": {
+   "sha256": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/network-authorities.mjs": {
+   "sha256": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/network-policy-core.mjs": {
+   "sha256": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/network-policy.mjs": {
+   "sha256": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/provider-directory.mjs": {
+   "sha256": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/provider-qualification.mjs": {
+   "sha256": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/registry-reconcile.mjs": {
+   "sha256": "ed593417514919904c2906f0a439756ddca87957c37455f5864cca632aa7bc4e",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/route-record.mjs": {
+   "sha256": "9ba9f6d34744f8a715cefd469a7f335d7cf2a154c91b70c5955a0b03afb49bd1",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/rpc-identity.mjs": {
+   "sha256": "5c5a43355b5bde1542432e26fc71190a04a0ad68a22d43979f83054a292c73b1",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/service-index.mjs": {
+   "sha256": "1aa04b95079e0f7e0c5da2f62159e5f83aa158bae047e040ded119d48cf53206",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/verified-chain.mjs": {
+   "sha256": "010a4e9e3b5e06baff0daed49dc39680f3bba56a992596c79559bcdffb23b94c",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/relay/attestation-paths.mjs": {
+   "sha256": "d9d68bd9f4d8d276e15ac49fdcfba156746239fb2838c0c6f987912b07c89b1d",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/relay/net-guard.mjs": {
+   "sha256": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/gsup.mjs": {
+   "sha256": "f5795b9de46fe7934f34c0ebacb6ce81adf9cb024598779f197708d909bdc051",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "opt/metal/agent.mjs": {
+   "sha256": "4917a30f7cba99c2406d9ea7009a4ce13385f34bb77823d370828f0e7dbb356a",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "opt/metal/host-policy.bundle.mjs": {
+   "sha256": "0571c71293d670741803bdd7d5c2abd6dd0c73932a1e8423cee7b3b8c455628d",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/shielded.mjs": {
+   "sha256": "f38f0abcaef8029edfd7144adc3c7ccea87c7291107265863195117bc60bdb7f",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "opt/metal/shielded-probe.mjs": {
+   "sha256": "e3ff32ee3a993f1f94603f0d1dbdcfc0169be1c3da91b575d5613fd5450e831f",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "opt/metal/shielded-shm.mjs": {
+   "sha256": "92d3a36942244658fe6f7e0b1a070611db631076d914efda66935152cbb84731",
+   "mode": "0o644",
+   "uid": 1000,
+   "gid": 1000,
+   "inBase": true
+  },
+  "opt/metal/measured-control.mjs": {
+   "sha256": "068fdf349c4fa53b2d0ffc74c29c1cecf298423455c105461b15edd222d3327d",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/lease-gas-conduit.bundle.mjs": {
+   "sha256": "52ea94d28b78187379b5205055d9998813e16df1299196bff2ecc65192a1353c",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/owner-nomination.mjs": {
+   "sha256": "a2fb3eb63dc88684862bda401b9534a0a19befb4f007a3ad65e640d8325431d0",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/chain-verifier.mjs": {
+   "sha256": "8fa1808cef3bca0ff40aec62b651e4ed6217e209e9159ff32160238b068d58bb",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/gossip-head-source.mjs": {
+   "sha256": "150a06f8b474d74c6542244290f3696d76aab65ac33c70f989a0d0781aa2eb0a",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/op-head-relay.mjs": {
+   "sha256": "ed71c0695230c9400d759e792ae44da3a8fc27cf065abe9dddd9bec09411fe27",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/rpc-runtime-main.mjs": {
+   "sha256": "2ac0134df8a232708ed3c94cc97254af0b10d7ec5da2a887e84ef3af2b9b8337",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/rpc-runtime.mjs": {
+   "sha256": "54780854c82ccb8fb234c4eb6d58698c971e572e3554e1a5b7ee9de89edbfb8c",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/runtime-lock.mjs": {
+   "sha256": "256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/s3-witness-cache.mjs": {
+   "sha256": "fa87083a2a6bb1bd2458cbb0c37bd8446a6f2c1af5d6531046be0281b048dd40",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/witness-gateway.mjs": {
+   "sha256": "feea378e84dd5a4db239a9cda4aa5f9c5b3ee9364626ee88adbced70c5abb873",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "app/network/witness-verify.mjs": {
+   "sha256": "729496b0e85475b7ca9b2dd6d8a25e365e798230be745e42de14b54edb81fd4b",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/platform-api.bundle.mjs": {
+   "sha256": "0d5b967d8e863dbc1cba09fc8c7aacb5f27b02e070922efd5c2ba0516547be47",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/fixtures/tpm-roots.pem": {
+   "sha256": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/metal/mcp-server.bundle.mjs": {
+   "sha256": "280b6d05ae278570bd9c4c494606773daa8f8e18bdbae9215f5bb93afd79a005",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  },
+  "opt/contracts/deployments/contract-pins-base.json": {
+   "sha256": "b300ba7cf0ebf7701750f6319b1360b8465186437c928fa3727b9c8049ec369d",
+   "mode": "0o644",
+   "uid": 0,
+   "gid": 0,
+   "inBase": false
+  }
+ },
+ "committedModeDistribution": {
+  "0o644 1000:1000": 16,
+  "0o644 0:0": 55
+ },
+ "duplicateProof": {
+  "app/session-api-auth.mjs": {
+   "baseOccurrences": [
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    },
+    {
+     "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 23017,
+     "mtime": 0
+    }
+   ],
+   "distinctBaseContents": 1,
+   "image": {
+    "sha256": "f7bfbc569197657b4f2e55e9c19c632e57100aecbfc3ce6fcc102abf6ea98d29",
+    "mode": 33188,
+    "uid": 0,
+    "gid": 0,
+    "size": 23017,
+    "mtime": 0
+   },
+   "expected": "base entry: the base's last (kernel-effective) occurrence",
+   "ok": true
+  },
+  "app/verification-checkpoints.mjs": {
+   "baseOccurrences": [
+    {
+     "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 2642,
+     "mtime": 0
+    },
+    {
+     "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+     "mode": 33188,
+     "uid": 0,
+     "gid": 0,
+     "size": 2642,
+     "mtime": 0
+    }
+   ],
+   "distinctBaseContents": 1,
+   "image": {
+    "sha256": "aa69b54db648fe9439f9661727b81633dd46a2cb321627e3a78f6bc8b202ff29",
+    "mode": 33188,
+    "uid": 0,
+    "gid": 0,
+    "size": 2642,
+    "mtime": 0
+   },
+   "expected": "base entry: the base's last (kernel-effective) occurrence",
+   "ok": true
+  }
+ },
+ "duplicateEntries": {
+  "image": [],
+  "base": [
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/session-api-auth.mjs",
+   "app/verification-checkpoints.mjs"
+  ]
+ },
+ "hostAdmissionBundle": "dd99e9e2bf61dd38c0631fd32bc7d000e256cd79c78abf92fcf0a8a6804b40ee",
+ "hostPolicyBundle": "0571c71293d670741803bdd7d5c2abd6dd0c73932a1e8423cee7b3b8c455628d"
+}

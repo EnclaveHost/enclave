@@ -1,0 +1,130 @@
+{
+  "startedAt": "2026-10-26T05:15:48.585789+00:00",
+  "finishedAt": "2026-10-26T05:16:23.801218+00:00",
+  "scope": "VERIFIER-ONLY direct control: hardware quote + bound config + attested TLS key + running supervisor keys + exact runtime; tamper/replay/wrong-measurement/wrong-config rejection; /chain-verifier fails closed while Base is unready. NOT Base chain readiness, native provenance or finality; no registration, no MCP/Platform API/native names, no apps.",
+  "productionActivated": false,
+  "ok": true,
+  "failed": [],
+  "verdict": {
+    "hardwarePass": true,
+    "parts": {
+      "statement": true,
+      "config": true,
+      "endpointKey": true,
+      "report": true,
+      "supervisor": true
+    },
+    "wrapperStatus": "pending",
+    "registryCheck": null
+  },
+  "cleanup": {
+    "steps": [
+      "killpg 916020 SIGTERM"
+    ],
+    "refused": false,
+    "identities": [
+      {
+        "pid": 916020,
+        "starttime": 129686299,
+        "alive": false
+      },
+      {
+        "pid": 916037,
+        "starttime": 129686305,
+        "alive": false
+      }
+    ],
+    "allOwnedAbsent": true
+  },
+  "protectedQemuIdentitiesUnchanged": true,
+  "rpcStateUnchanged": true,
+  "scopeMemoryPeakMiB": 2201,
+  "userServicesUnchanged": true,
+  "noKeyEvidence": {
+    "hostConfigHasNoKeyOrRelayInput": true,
+    "fwRegistryKeyEmpty": true,
+    "fwFleetSecretEmpty": true,
+    "fwRelayAndTunnelEmpty": true,
+    "fwNoCertificateOrAcmeInput": true,
+    "fwNoVolumes": true,
+    "fwNoLeaseGasOrNomination": true,
+    "fwDirectIsTheOwnerConfig": true,
+    "fwDirectIsVerifierOnly": true,
+    "fwNoHostLevelChainVerifier": true,
+    "proofSourceIsTheRefusedStandIn": true,
+    "fwIsolationIsTheRefusedStandIns": true,
+    "ownerConfigNotSelling": true
+  },
+  "qemuStarts": 1,
+  "qemuArgvChecks": [
+    {
+      "measuredCmdline": true,
+      "smp": true,
+      "mem": true,
+      "ovmf": true,
+      "kernel": true,
+      "initrd": true,
+      "snpKernelHashesAndHostData": true,
+      "netdevRestrictedOneLoopbackForwardToControlFront": true,
+      "noDrives": true,
+      "realQemu": true
+    }
+  ],
+  "collateralSourceUnchanged": true,
+  "privateRemoved": true,
+  "acceptance": {
+    "pass": true,
+    "required": {
+      "A verifier: statement": true,
+      "A verifier: config + HOST_DATA": true,
+      "A verifier: TLS peer = attested control key": true,
+      "A verifier: AMD report verified with the expected measurement": true,
+      "A verifier: running supervisor holds the minted keys": true,
+      "A verifier-only: status pending with registry null (no registry read)": true,
+      "A verifier-only: attestedOutcome = attested (production acceptance rule)": true,
+      "A evidence: HTTP 200": true,
+      "A evidence: statement config digest = owner config": true,
+      "A evidence: statement HOST_DATA = owner config": true,
+      "A evidence: TLS peer = statement control key": true,
+      "A evidence: same boot as the verifier (control key)": true,
+      "A evidence: mode snp": true,
+      "A evidence: runtime gsup/helper/supervisor = the image manifest": true,
+      "A evidence: no mcpSha256/platformApiSha256 runtime": true,
+      "A evidence: no native member": true,
+      "B offline control: captured evidence re-verifies (non-vacuity)": true,
+      "B tamper: flipped report byte rejected": true,
+      "B tamper: changed statement byte rejected": true,
+      "B replay: another nonce rejected": true,
+      "C wrong measurement rejected at the report": true,
+      "C wrong config rejected at config": true,
+      "D client: replica attested while the backend is unready": true,
+      "D client: read fails closed (HTTP 502)": true,
+      "D route: every read probe 502 service_unreachable": true,
+      "D route: write method 403 method_refused": true,
+      "D client: wrong measurement never attests and its read fails": true,
+      "D client: a different sequencer pin is refused before any connection": true
+    },
+    "failed": []
+  },
+  "measurement": "c0ab52344d5a1ebc0ed39e3848dcfe996f20e8a6b67c36318d34fd9fc1d2ce755aa2fc0afbb4913ce877478130d23cb9",
+  "sourceCommit": "10cdf913b9b8bb168156e42da2a9a2a26c2526ad",
+  "localEvidenceSha256": {
+    "owner-config.json": "fbb3a7fff68cbfbb210be4f52eb0ea2b33d4bb82d658efe063d4d0004d5665f0",
+    "qemu-argv.json": "800365888d2b3f9b1b90360795ddfd93238a8b5a44f7736058d0576c9ba38b24",
+    "result.json": "de9905cdcaa0b32f1959d411882b76e824d990e80135ad796c9038642dc16a75",
+    "execution.log": "546ac44e403aa452fd75fffc743913d6d247b54eced7b4870e67f0f2328011a0",
+    "serial.sanitized.log": "2f24fe346b4abf5ca14951f677b82bb51d1a91d714c5874c579998728d8a461f",
+    "preflight.txt": "e7fa65258e533cc49a8687a3156b1d55ad9a0040e17cfb48e771fb36ed0019eb",
+    "terminal.json": "a5de8343704b94f99bbadb9ece5b7a1b8886e64c93e47e9fe799008b0ba8494a",
+    "command.json": "dd8b8d1517e3cf3397ee84ce0ecb6026e6efd96c9c385407a9699b9830cf6173",
+    "launcher.json": "a7581032a4baec8e9a07ae6c487bcb06046cc6f8d0d8b17c391bbed92c612c80",
+    "host-config.public.json": "c91de4da9a1b0f3217ec4639065ec16975c07a52612209c03d0b583abd39605e",
+    "verify-result.json.acceptance.json": "f057395a16531ce3ea108f57ff9057a0113a4073179642f685a794cd8e68257e",
+    "verify-result.json": "88b9dee27be39211830ab943b473e7cf7e76255d299f5bc6f75654ce4ac74057",
+    "verify.log": "0463209d6f6130977fefbb284395db413a73cf67f303c847415fd0f004f40bf0",
+    "protected-after.json": "666741166914febb69853c7971b886232ddaed8230b11d1262bf3494a59b9633",
+    "attempt.json": "65e793327485bd45d5903c2f2a847c931af20a3d3b64dee2458feb67e1a0cf6f",
+    "protected-before.json": "666741166914febb69853c7971b886232ddaed8230b11d1262bf3494a59b9633",
+    "memory.log": "d2e02746e1cb5e97ca25189ff0b5357b5a57885ef593cac414584412dae137bb"
+  }
+}
