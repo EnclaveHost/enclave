@@ -1,0 +1,69 @@
+test_client_timeout_never_qualifies_a_hostile_case (__main__.Classification.test_client_timeout_never_qualifies_a_hostile_case) ... ok
+test_escape_or_unstopped_unit_always_fails (__main__.Classification.test_escape_or_unstopped_unit_always_fails) ... ok
+test_exit_without_the_extraction_marker_is_unclassified (__main__.Classification.test_exit_without_the_extraction_marker_is_unclassified) ... ok
+test_genuine_refusal_and_confined_extraction (__main__.Classification.test_genuine_refusal_and_confined_extraction) ... ok
+test_signal_or_runtime_limit_is_abnormal (__main__.Classification.test_signal_or_runtime_limit_is_abnormal) ... ok
+test_status_parsing (__main__.Classification.test_status_parsing) ... ok
+test_systemd_exec_setup_status_never_qualifies (__main__.Classification.test_systemd_exec_setup_status_never_qualifies) ... ok
+test_unlaunched_unit_never_qualifies (__main__.Classification.test_unlaunched_unit_never_qualifies) ... ok
+test_empty_or_malformed_maps_refused (__main__.FixtureMap.test_empty_or_malformed_maps_refused) ... ok
+test_exact_map_accepted (__main__.FixtureMap.test_exact_map_accepted) ... ok
+test_active_owned_unit_is_stopped_and_verified (__main__.OwnedUnitStop.test_active_owned_unit_is_stopped_and_verified) ... ok
+test_unit_that_cannot_be_verified_stopped_is_reported (__main__.OwnedUnitStop.test_unit_that_cannot_be_verified_stopped_is_reported) ... ok
+test_unloaded_or_inactive_needs_no_stop (__main__.OwnedUnitStop.test_unloaded_or_inactive_needs_no_stop) ... ok
+test_all_preconditions_pass_reaches_scratch_creation (__main__.Preconditions.test_all_preconditions_pass_reaches_scratch_creation) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:249: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-x4cy1z2f/unit.service' mode='r' encoding='UTF-8'>
+  props = service_properties(open(a.candidate_unit).read()); check_sandbox(props)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:255: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-x4cy1z2f/fixtures.json' mode='r' encoding='UTF-8'>
+  fx = json.load(open(fj)); validate_fixture_map(fx)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_base_version_failure_refuses (__main__.Preconditions.test_base_version_failure_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:249: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-5ig814tm/unit.service' mode='r' encoding='UTF-8'>
+  props = service_properties(open(a.candidate_unit).read()); check_sandbox(props)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:255: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-5ig814tm/fixtures.json' mode='r' encoding='UTF-8'>
+  fx = json.load(open(fj)); validate_fixture_map(fx)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_decoy_must_match_the_scratch_run (__main__.Preconditions.test_decoy_must_match_the_scratch_run) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:249: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-7z7cyv9r/unit.service' mode='r' encoding='UTF-8'>
+  props = service_properties(open(a.candidate_unit).read()); check_sandbox(props)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:255: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-7z7cyv9r/fixtures.json' mode='r' encoding='UTF-8'>
+  fx = json.load(open(fj)); validate_fixture_map(fx)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_fixture_members_must_match_the_map (__main__.Preconditions.test_fixture_members_must_match_the_map) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:249: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-e_m51lat/unit.service' mode='r' encoding='UTF-8'>
+  props = service_properties(open(a.candidate_unit).read()); check_sandbox(props)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:255: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-e_m51lat/fixtures.json' mode='r' encoding='UTF-8'>
+  fx = json.load(open(fj)); validate_fixture_map(fx)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_systemd_analyze_failure_refuses (__main__.Preconditions.test_systemd_analyze_failure_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:249: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-o6m4wzpg/unit.service' mode='r' encoding='UTF-8'>
+  props = service_properties(open(a.candidate_unit).read()); check_sandbox(props)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py:255: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/q2logic-o6m4wzpg/fixtures.json' mode='r' encoding='UTF-8'>
+  fx = json.load(open(fj)); validate_fixture_map(fx)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_weakened_candidate_refused_and_properties_kept_in_order (__main__.Sandbox.test_weakened_candidate_refused_and_properties_kept_in_order) ... ok
+
+======================================================================
+ERROR: test_base_version_failure_refuses (__main__.Preconditions.test_base_version_failure_refuses)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/test/test_q2_logic.py", line 150, in test_base_version_failure_refuses
+    self.run_q2()
+    ~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/test/test_q2_logic.py", line 135, in run_q2
+    q2.run(self.args)
+    ~~~~~~^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/guest-state-qualification-stage/r2/guest/q2_extract_confinement.py", line 271, in run
+    raise Refuse(2, 'base --version failed', rc=ver.returncode, out=(ver.stdout + ver.stderr)[-500:])
+          ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Refuse.__init__() got multiple values for argument 'rc'
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.018s
+
+FAILED (errors=1)

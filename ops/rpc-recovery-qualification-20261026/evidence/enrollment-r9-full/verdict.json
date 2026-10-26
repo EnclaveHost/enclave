@@ -1,0 +1,413 @@
+{
+ "mode": "check",
+ "kvmClosure": "KVM r3 closure /home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026/journal-durability-r3 (SUMS 14656ef532c9d73539205e873421da8131e5f9c382cf2b6116621d72feae717d) composed from its stage root",
+ "harness": "r4 strict layout: read-only bind-mounted node_modules, private user/net/mount namespace, sequential files",
+ "tests": {
+  "kvm--test_journal-durability.test.mjs": {
+   "rc": 0,
+   "tests": 22,
+   "pass": 22,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 22,
+   "ok": true
+  },
+  "kvm--test_lifecycle-finality-bridge.test.mjs": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "kvm--test_deployment-lifecycle-journal.test.mjs": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 5,
+   "ok": true
+  },
+  "kvm--test_derived-reader_provider.test.mjs": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "kvm--test_derived-reader_boundaries.test.mjs": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "kvm--test_derived-reader_coverage.test.mjs": {
+   "rc": 0,
+   "tests": 14,
+   "pass": 14,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 14,
+   "ok": true
+  },
+  "kvm-native": {
+   "rc": 0,
+   "ok": true
+  },
+  "composition": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "replica-exact": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "enrollment": {
+   "rc": 0,
+   "tests": 19,
+   "pass": 19,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 19,
+   "ok": true
+  },
+  "endpoints": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "overlay": {
+   "rc": 0,
+   "tests": 25,
+   "derivedReader": 6,
+   "notOk": [],
+   "summaryOK": true,
+   "ok": true
+  },
+  "platform-api-config": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 5,
+   "ok": true
+  },
+  "writer": {
+   "rc": 0,
+   "tests": 23,
+   "pass": 23,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 23,
+   "ok": true
+  },
+  "relay-derived-reader-runtime": {
+   "rc": 0,
+   "tests": 4,
+   "pass": 4,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 4,
+   "ok": true
+  },
+  "native-relay-chain-authority": {
+   "rc": 0,
+   "tests": 8,
+   "pass": 8,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 8,
+   "ok": true
+  },
+  "platform-api-admin-cli": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 9,
+   "ok": true
+  },
+  "platform-api-admin-status": {
+   "rc": 0,
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 1,
+   "ok": true
+  },
+  "platform-api-forward": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "platform-api-handoff-production": {
+   "rc": 0,
+   "tests": 9,
+   "pass": 9,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 9,
+   "ok": true
+  },
+  "platform-api-hosted": {
+   "rc": 0,
+   "tests": 6,
+   "pass": 6,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 6,
+   "ok": true
+  },
+  "platform-api-native-issuer": {
+   "rc": 0,
+   "tests": 11,
+   "pass": 11,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 11,
+   "ok": true
+  },
+  "relay-chain-consumers": {
+   "rc": 0,
+   "tests": 10,
+   "pass": 10,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 10,
+   "ok": true
+  },
+  "platform-api-registry": {
+   "rc": 0,
+   "tests": 1,
+   "pass": 1,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 1,
+   "ok": true
+  },
+  "platform-api-replica": {
+   "rc": 0,
+   "tests": 12,
+   "pass": 12,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0,
+   "expected": 12,
+   "ok": true
+  }
+ },
+ "unenrolledTreeChecker": {
+  "selfTest": {
+   "ok": true,
+   "fixtures": 13,
+   "results": [
+    [
+     "baseline: exactly the allowed tree",
+     "accepted",
+     "accepted"
+    ],
+    [
+     "a reader journal",
+     "refused",
+     "refused"
+    ],
+    [
+     "a coverage directory",
+     "refused",
+     "refused"
+    ],
+    [
+     "an anchor journal",
+     "refused",
+     "refused"
+    ],
+    [
+     "a saved run directory",
+     "refused",
+     "refused"
+    ],
+    [
+     "a runs.lock (the runs lock is only taken after the journal opens)",
+     "refused",
+     "refused"
+    ],
+    [
+     "the lock replaced by a symlink",
+     "refused",
+     "refused"
+    ],
+    [
+     "an unknown root file",
+     "refused",
+     "refused"
+    ],
+    [
+     "a split journal directory",
+     "refused",
+     "refused"
+    ],
+    [
+     "a non-empty lock",
+     "refused",
+     "refused"
+    ],
+    [
+     "runs with mode 0755",
+     "refused",
+     "refused"
+    ],
+    [
+     "runs replaced by a symlink",
+     "refused",
+     "refused"
+    ],
+    [
+     "runs missing",
+     "refused",
+     "refused"
+    ]
+   ]
+  },
+  "actual": {
+   "ok": true,
+   "violations": [],
+   "entries": [
+    ".",
+    "DERIVED-READER-IMAGE.json",
+    "derived-reader",
+    "derived-reader-v3",
+    "derived-reader-v3/derived-state.lock",
+    "derived-reader-v3/runs",
+    "derived-reader/derived-reader-v3.json"
+   ]
+  }
+ },
+ "writerStartup": {
+  "ok": 5,
+  "fail": 0,
+  "unenrolledCreatedNoState": true,
+  "unenrolledTree": [
+   "-rw------- ./derived-reader-v3/derived-state.lock",
+   "-rw------- ./derived-reader/derived-reader-v3.json",
+   "-rw-r--r-- ./DERIVED-READER-IMAGE.json",
+   "drwx------ .",
+   "drwx------ ./derived-reader",
+   "drwx------ ./derived-reader-v3",
+   "drwx------ ./derived-reader-v3/runs"
+  ]
+ },
+ "sharedRelayRuntime": {
+  "sha256": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+  "equalsPin": true
+ },
+ "platformApiGuestBundle": {
+  "committedStaleBefore": true,
+  "checkAfterRegeneration": 0,
+  "ok": true,
+  "sha256": "b637c870234978af8e18be447ddddcbfea16fa4d22fedbe6dac159155191e037",
+  "bytes": 9491424,
+  "inputs": 2228,
+  "role": "2b76ee6770b8abb6e76c3be27c4b41ae275fa8a111f349c6c2317dd5a42d5272",
+  "sidecars": {
+   "fixtures/tpm-roots.pem": "f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b",
+   "derived-reader-runtime.bundle.mjs": "b2bad2876fc4e1703435f7e34aa0222744c9d3746f852141eeb64eb5cac02d48",
+   "schedule_reader.mjs": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0"
+  }
+ },
+ "release": {
+  "sourceCommit": "fa0512e2ee6280baecb852e3646857b72caecb1e",
+  "sourceTree": "68245755168b13bb47041bce54ad5fb7cd0b89da",
+  "commit": "296a583331b638a430f72929648ebf26d86522d3",
+  "tree": "90e4cdaada85825f15bccc8bf9df07bf418da9bf",
+  "platformApiBundle": "b637c870234978af8e18be447ddddcbfea16fa4d22fedbe6dac159155191e037",
+  "files": {
+   "metal/guest/platform-api.bundle.mjs": "b637c870234978af8e18be447ddddcbfea16fa4d22fedbe6dac159155191e037",
+   "metal/guest/platform-api.bundle.mjs.manifest.json": "8a3260331630477e62845c9335b7bf924873c5fc629fffa3402997ad52aacf70",
+   "relay/derived-reader-runtime.bundle.mjs": "b2bad2876fc4e1703435f7e34aa0222744c9d3746f852141eeb64eb5cac02d48",
+   "relay/derived-reader-runtime.bundle.mjs.manifest.json": "78a19a818cbc495dd4ec2ba476d6db007e13349757d9b72ba8afe968a2fae710",
+   "relay/schedule_reader.mjs": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+   "relay/network-runtime.bundle.mjs": "e12c5bafb8b17abb891fb26fe1cdc054159d7bd2de5486d2c1a2480430671ed6",
+   "relay/network-runtime.bundle.mjs.manifest.json": "87b41a065659f421a419921d37080697decc3a8e7042182e66ca14aebefe297f"
+  }
+ },
+ "checkpoint": {
+  "checkpoint": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33",
+  "slot": 15511008,
+  "expiresUtc": "2026-11-01T19:21:59.000Z"
+ },
+ "ok": true,
+ "scope": "offline: the role enrollment + private-IPC durable-commit transport composed with the ACTUAL frozen KVM r3 closure: genesis with crash-after-ACK1 prefix resume, normal reopen, advanced floors via KVM's own journals, a binding-changing ROTATE carrying the dominating floor (crash after ACK2), a signed RECOVER high-water (crash after ACK3), all through the real role, IPC and ReplicaNode; the live reader START is a stand-in (needs L1/Helios) and the advance anchors are synthetic. Co-located replicas: NOT a quorum. A never-enrolled group restored from an archive has NO recovery path (strict refusal; separate admin follow-up). No chain read, no SNP, not activated; writer authority stays refused/unproven (fixed 120 s ceiling vs L1-finalized anchors)"
+}

@@ -1,0 +1,5 @@
+startup no-verifier: OK
+startup bad-value: OK
+startup url-config: OK
+startup unenrolled: OK
+startup intended: OK

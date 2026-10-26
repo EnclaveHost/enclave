@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: absent: a config without platformApi keeps its exact canonical bytes and digest, and plans no role
+ok 1 - absent: a config without platformApi keeps its exact canonical bytes and digest, and plans no role
+  ---
+  duration_ms: 5.244401
+  type: 'test'
+  ...
+# Subtest: strict: every field required, 3-7 distinct members, secret-shaped relayEnv names refused, role-owned names refused, ports checked
+ok 2 - strict: every field required, 3-7 distinct members, secret-shaped relayEnv names refused, role-owned names refused, ports checked
+  ---
+  duration_ms: 5.638919
+  type: 'test'
+  ...
+# Subtest: launch: a member gets the role file, argv and routes; a host that is not a member is REFUSED at boot planning
+ok 3 - launch: a member gets the role file, argv and routes; a host that is not a member is REFUSED at boot planning
+  ---
+  duration_ms: 2.747365
+  type: 'test'
+  ...
+# Subtest: statement: the handoff key and bundle hash appear ONLY for a platformApi guest; other statements keep their exact bytes; the parser accepts both
+ok 4 - statement: the handoff key and bundle hash appear ONLY for a platformApi guest; other statements keep their exact bytes; the parser accepts both
+  ---
+  duration_ms: 8.99146
+  type: 'test'
+  ...
+# Subtest: front: Host = the API name goes to the role's API port (upgrades too), /platform-api/* to its peer port, everything else to the supervisor; other upgrades refused
+ok 5 - front: Host = the API name goes to the role's API port (upgrades too), /platform-api/* to its peer port, everything else to the supervisor; other upgrades refused
+  ---
+  duration_ms: 67.313692
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 260.415135

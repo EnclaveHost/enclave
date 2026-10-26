@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: bind: the endpoints are bound public data (in the canonical config and the group id); absent keeps the previous shape
+ok 1 - bind: the endpoints are bound public data (in the canonical config and the group id); absent keeps the previous shape
+  ---
+  duration_ms: 7.060201
+  type: 'test'
+  ...
+# Subtest: bind refusals: name, public or loopback address, credentials, path/query/fragment, other schemes, shape, no verifier, role names
+ok 2 - bind refusals: name, public or loopback address, credentials, path/query/fragment, other schemes, shape, no verifier, role names
+  ---
+  duration_ms: 5.214081
+  type: 'test'
+  ...
+# Subtest: compose: the bound endpoints into the pinned template, 0600 in a 0700 RAM dir; never initializing; env = exactly the role names
+ok 3 - compose: the bound endpoints into the pinned template, 0600 in a 0700 RAM dir; never initializing; env = exactly the role names
+  ---
+  duration_ms: 2.776894
+  type: 'test'
+  ...
+# Subtest: compose refusals: absent image or template, tampered template, template with endpoints, wrong record, never a partial file
+ok 4 - compose refusals: absent image or template, tampered template, template with endpoints, wrong record, never a partial file
+  ---
+  duration_ms: 5.496969
+  type: 'test'
+  ...
+# Subtest: relay env: the derived names are exactly the composition; a sealed credential or the base cannot set or redirect them
+ok 5 - relay env: the derived names are exactly the composition; a sealed credential or the base cannot set or redirect them
+  ---
+  duration_ms: 0.959804
+  type: 'test'
+  ...
+# Subtest: transport: forwards a well-formed JSON-RPC answer; refuses wrong id, error, redirect, oversize, HTTP error, credentials/query
+ok 6 - transport: forwards a well-formed JSON-RPC answer; refuses wrong id, error, redirect, oversize, HTTP error, credentials/query
+  ---
+  duration_ms: 55.030195
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 411.11349

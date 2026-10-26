@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: a witness fence and crash budget survive process restart and same-generation policy edits
+ok 1 - a witness fence and crash budget survive process restart and same-generation policy edits
+  ---
+  duration_ms: 5.936708
+  type: 'test'
+  ...
+# Subtest: ambiguous transaction submission holds exact intent through restart
+ok 2 - ambiguous transaction submission holds exact intent through restart
+  ---
+  duration_ms: 2.193058
+  type: 'test'
+  ...
+# Subtest: corrupt journal is held without overwriting, and a failed durable write never grants permission
+ok 3 - corrupt journal is held without overwriting, and a failed durable write never grants permission
+  ---
+  duration_ms: 1.338813
+  type: 'test'
+  ...
+# Subtest: operationally mined intents remain durable until their exact finalized receipts settle
+ok 4 - operationally mined intents remain durable until their exact finalized receipts settle
+  ---
+  duration_ms: 3.029644
+  type: 'test'
+  ...
+# Subtest: same-generation host bindings and successor votes cannot conflict through restart
+ok 5 - same-generation host bindings and successor votes cannot conflict through restart
+  ---
+  duration_ms: 2.429727
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 248.581544
