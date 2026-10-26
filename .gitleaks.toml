@@ -136,3 +136,14 @@ paths = ['''^windows/vbslike/evidence/''']
 [[allowlists]]
 description = "Ed25519 public keys in SPKI form (public by construction)"
 regexes = ['''302a300506032b6570032100[0-9a-f]{64}''']
+
+[[allowlists]]
+description = "Verified SHA256 of installed public viem setCoinbase.js source in the two tested lease bundle manifests; not a Coinbase token"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = [
+  '''^ops/rpc-production-final-20261025/lease-consumer-seams-validated/tested-source/windows/node/lease-gas-runtime\.bundle\.mjs\.manifest\.json$''',
+  '''^ops/rpc-production-final-20261025/lease-consumer-seams-validated/tested-source/metal/guest/lease-gas-conduit\.bundle\.mjs\.manifest\.json$''',
+]
+regexTarget = "line"
+regexes = ['''^\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js": "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
