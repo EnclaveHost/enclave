@@ -37,7 +37,15 @@ export const GUEST_RESERVED_PORTS = Object.freeze([8080, 8091, 8443, 8444, 8095,
 export const VERIFIER_PORT_RANGE = Object.freeze([50000, 57999]);
 /** Where a configured-but-unusable verifier points: TCP discard, nothing in the guest serves it, every verified read refuses. */
 export const REFUSING_VERIFIER = 'http://127.0.0.1:9/';
-const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits', 'txBackend'];
+const KEYS = ['format', 'unsafeSigner', 'proofSources', 'port', 'gossip', 'limits', 'txBackend', 'expose'];
+/** The one exposure a bound verifier may have: its read-only JSON-RPC through the measured control front, under the attested
+ *  control TLS key (measured-control.mjs CHAIN_VERIFIER_ROUTE). Offered ONLY inside a HOST_DATA-bound direct config. */
+export const VERIFIER_EXPOSE = 'attested';
+/** A private IPv4 literal (10/8, 172.16/12, 192.168/16): an UNTRUSTED witness source over the guest's host link (10.0.2.2). */
+export function privateIPv4(host) {
+  const m = IPV4.exec(String(host)), o = m ? m.slice(1).map(Number) : null;
+  return !!o && !o.some((x) => x > 255) && (o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168));
+}
 const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 /** The own transaction backend: the SAME rule as network/chain-authority.mjs checkOwnBackend (a parity test holds them
  *  equal; this module stays dependency-free): http(s) at [::1] or a loopback/private IPv4 literal; no name, credentials,
@@ -59,8 +67,10 @@ function bad(m) { throw new Error(`chainVerifier: ${m}`); }
 const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const int = (v, lo, hi, what) => { if (!Number.isSafeInteger(v) || v < lo || v > hi) bad(`${what} must be an integer ${lo}..${hi}`); return v; };
 
-/** -> the canonical, frozen setting (fixed key order), or throws. allowLoopbackHttp: tests only (loopback proof fixtures). */
-export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
+/** -> the canonical, frozen setting (fixed key order), or throws. allowLoopbackHttp: tests only (loopback proof fixtures).
+ *  allowExpose: ONLY canonicalDirectConfig (the HOST_DATA-bound direct config) passes true; a host-level / fw_cfg member is
+ *  never bound, so a relay-mode quote can never stand for an exposed verifier's config. */
+export function checkChainVerifier(raw, { allowLoopbackHttp = false, allowExpose = false } = {}) {
   if (!plain(raw)) bad('must be an object');
   if ('witnessArchive' in raw) bad('witnessArchive is not offered in the guest (its base image has no curl with --aws-sigv4); remove it');
   if ('witnessCache' in raw) bad('witnessCache is not offered (no reviewed NVMe budget kind for a local witness cache)');
@@ -72,7 +82,10 @@ export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
   const proofSources = raw.proofSources.map((u, i) => {
     let x; try { x = new URL(u); } catch { bad(`proofSources[${i}] must be a URL`); }
     const loop = x.protocol === 'http:' && allowLoopbackHttp && (x.hostname === '127.0.0.1' || x.hostname === '[::1]');
-    if ((x.protocol !== 'https:' && !loop) || x.username || x.password || x.search || x.hash) bad(`proofSources[${i}] must be https without credentials, query or fragment`);
+    // a private IPv4 literal over plain http: the operator's own node on the guest's host link (10.0.2.2). Every witness is
+    // verified against a sequencer-signed root, so the source stays untrusted; it needs no exit grant or public route
+    const priv = x.protocol === 'http:' && privateIPv4(x.hostname);
+    if ((x.protocol !== 'https:' && !loop && !priv) || x.username || x.password || x.search || x.hash) bad(`proofSources[${i}] must be https (or http at a private IPv4 literal) without credentials, query or fragment`);
     if (seen.has(x.href)) bad(`proofSources[${i}] repeats a source`); seen.add(x.href);
     return String(u);
   });
@@ -96,8 +109,15 @@ export function checkChainVerifier(raw, { allowLoopbackHttp = false } = {}) {
     limits = Object.freeze(limits);
   }
   const txBackend = raw.txBackend === undefined || raw.txBackend === null ? null : checkTxBackendUrl(raw.txBackend);
+  let expose = null;
+  if (raw.expose !== undefined && raw.expose !== null) {
+    if (!allowExpose) bad('expose is offered only inside a HOST_DATA-bound direct config (a host-level or fw_cfg setting is not bound by any report)');
+    if (raw.expose !== VERIFIER_EXPOSE) bad(`expose must be "${VERIFIER_EXPOSE}"`);
+    if (txBackend) bad('expose "attested" is a read-only verifier: it takes no txBackend (nothing is submitted through it)');
+    expose = VERIFIER_EXPOSE;
+  }
   return Object.freeze({ format: CHAIN_VERIFIER_FORMAT, unsafeSigner: raw.unsafeSigner.toLowerCase(), proofSources: Object.freeze(proofSources), port,
-    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}), ...(txBackend ? { txBackend } : {}) });
+    ...(gossip ? { gossip } : {}), ...(limits ? { limits } : {}), ...(txBackend ? { txBackend } : {}), ...(expose ? { expose } : {}) });
 }
 
 /** The measured image's verifier record (/opt/rpc-runtime/IMAGE.json, installed by metal/overlay-control-image.py from the
@@ -126,10 +146,11 @@ export function runtimeConfigFor(v, image) {
  * The legacy guest's view of fw_cfg `chainVerifier` (gsup.mjs).
  * -> { configured, ok, url, message, runtimeConfig?, image?, argv(configFile)?, env? }
  */
-export function guestChainVerifier(value, { imageFile = CHAIN_VERIFIER_IMAGE_FILE, image, allowLoopbackHttp = false } = {}) {
+// allowExpose: ONLY planDirectBoot (the value came out of the HOST_DATA-bound canonicalDirectConfig); the relay-mode fw_cfg path never passes it
+export function guestChainVerifier(value, { imageFile = CHAIN_VERIFIER_IMAGE_FILE, image, allowLoopbackHttp = false, allowExpose = false } = {}) {
   if (value === undefined || value === null) return { configured: false, ok: false, url: null, message: null };
   let v;
-  try { v = checkChainVerifier(value, { allowLoopbackHttp }); }
+  try { v = checkChainVerifier(value, { allowLoopbackHttp, allowExpose }); }
   catch (e) { return { configured: true, ok: false, url: REFUSING_VERIFIER, message: `chain verifier REFUSED (${e.message}): every verified chain read refuses; no provider fallback` }; }
   const img = image ?? readVerifierImage(imageFile);
   if (!img) return { configured: true, ok: false, url: REFUSING_VERIFIER, message: 'chain verifier REFUSED (this image carries no chain verifier runtime): every verified chain read refuses; no provider fallback' };

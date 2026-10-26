@@ -433,7 +433,7 @@ async function startDirectControl() {
   fs.writeFileSync(P.statement, st.text, { mode: 0o644 });
   fs.writeFileSync(P.serveConfig, JSON.stringify({ statement: P.statement, tlsKey: P.tlsKey, tlsCert: P.tlsCert, port: plan.config.controlPort,
     upstream: { host: '127.0.0.1', port: 8080 }, mode: MODE, vcekB64: typeof fw.vcek === 'string' ? fw.vcek : '',
-    routes: plan.mcp ? [plan.mcp.route] : [],
+    routes: [...(plan.mcp ? [plan.mcp.route] : []), ...(plan.chainVerifier?.route ? [plan.chainVerifier.route] : [])],
     ...(plan.platformApi ? { hostRoutes: [plan.platformApi.hostRoute], prefixRoutes: [plan.platformApi.prefixRoute], sni: plan.platformApi.sni } : {}),
     // native control names (bound nativeControl): served only with the control key and a CA leaf over it, installed after boot
     ...(plan.native ? { native: plan.native } : {}) }), { mode: 0o600 });

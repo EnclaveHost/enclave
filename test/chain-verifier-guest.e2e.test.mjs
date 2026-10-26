@@ -1,7 +1,7 @@
 // END-TO-END: the local chain verifier LAUNCHED THE LINUX GUEST WAY, in the guest's own userland:
 //   * the production base image's rootfs (Debian 12, glibc 2.36, node v20; extracted read-only as GUEST_ROOTFS), hard-link
 //     copied, with this commit's image files installed at their image paths: /opt/metal/{gsup,chain-verifier}.mjs, the
-//     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios cc962e2b and helper 4fe0cd3b, run
+//     runtime's import closure under /app/network, and /opt/rpc-runtime (the PINNED Helios 8250f08a and helper 4fe0cd3b, run
 //     through the pinned glibc runtime, copied and hashed into a 0700 run directory on the guest tmpfs; IMAGE.json);
 //     NOT modelled: the real base's uid-1000 ownership (in this user namespace every file appears as root), which is why
 //     the image uses copy staging (tools/image-inputs.py gates verify-in-place on the base's real owners);

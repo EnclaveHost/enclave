@@ -60,7 +60,7 @@ Any failure runs every registered cleanup in reverse order and the process exits
   "chain": { "chainId": 8453, "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a" },
   "binaries": {
     "listener":     { "path": "/opt/enclave/rpc-runtime/enclave-base-head-listener", "sha256": "ebd045b4…" },
-    "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "cc962e2b…" },
+    "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "8250f08a…" },
     "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "4fe0cd3b…" }
   },
   "proofSources": { "untrusted": ["https://<execution rpc 1>/", "https://<execution rpc 2>/"] },
@@ -101,13 +101,20 @@ Any failure runs every registered cleanup in reverse order and the process exits
 Binaries are built from `scripts/rpc-runtime/closure.json`, offline and from exact commits:
 
 ```
-scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298> <listener repo with 5e178676> \
+scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298 and eeffcc9> <listener repo with 5e178676> \
     base-5476069f.tar.gz <CARGO_HOME with the locked crates> release
 ```
 
 - The script exports each tree with `git archive` and checks the tree hash.
 - It extracts base/base from the verified tarball into the relative path Helios names
   (`<work>/vendor-inspect/base-v1.5.1`). No unrecorded local tree is read.
+- The Helios CLI has its own tree: `eeffcc9` plus `scripts/rpc-runtime/canonical-block.patch` (`41667ec9…`, pinned in the
+  script), applied with exact context and checked file by file (`canonical-block.PATCHED.sha256`,
+  `verify-patched-tree.py`: every other file equals `eeffcc9`, nothing missing or extra). witness-check is still built
+  from `ef320298` and the listener from `5e178676`. A wrong commit, tree, patch, manifest or Cargo.lock stops the build.
+- The accepted Helios `8250f08a…` was built from the same source by a separate stage recipe (dev profile, debuginfo off,
+  unremapped absolute build paths). This script remaps paths, so its build is expected to have a different digest; no
+  identical-hash claim is made, and any new digest needs its own `PINNED_BUILDS` entry and tests.
 - It builds `--locked --offline` with remapped paths and checks that neither Cargo.lock changed.
 - A new build digest is not accepted by the runtime until it is added to `PINNED_BUILDS` together with its test
   evidence.
@@ -117,8 +124,10 @@ scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298>
     gateway needs). The earlier release build `a33770482…` was of `aca81764` and is no longer accepted; no release of
     `ef320298` was built;
   - the Helios release build (fat LTO) exceeded the 1536 MiB build allocation and was stopped. Until a larger, reviewed
-    allocation builds it, the tested Helios is the debug build `cc962e2b…`. Debug builds are slower; no optimized or
-    reproducible-release claim is made.
+    allocation builds it, the tested Helios is the debug build `8250f08a…`: enclave-base-evm `eeffcc9` plus
+    canonical-block.patch `41667ec9` (exact-hash and canonical-ancestry block checks), built once offline with the recorded
+    debug recipe. It replaces `cc962e2b…` (`eeffcc9` without the patch), which the runtime no longer accepts. Debug builds
+    are slower; no optimized, independently reproduced or reproducible-release claim is made.
 
 ```
 node network/rpc-runtime-main.mjs check /etc/enclave/rpc-runtime.json   # validate + hash every binary, print the plan

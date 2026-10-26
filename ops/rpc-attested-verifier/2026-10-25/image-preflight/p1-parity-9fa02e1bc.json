@@ -1,0 +1,60 @@
+{
+  "commit": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+  "bundles": {
+    "metal/guest/lease-gas-conduit.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 418,
+      "nodeModulesInputs": 411,
+      "trackedChecked": 7,
+      "stale": [],
+      "notTracked": []
+    },
+    "metal/guest/mcp-server.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 2539,
+      "nodeModulesInputs": 2444,
+      "trackedChecked": 95,
+      "stale": [],
+      "notTracked": []
+    },
+    "metal/guest/platform-api.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 2221,
+      "nodeModulesInputs": 2105,
+      "trackedChecked": 115,
+      "stale": [],
+      "notTracked": [
+        "relay/network-runtime.bundle.mjs"
+      ]
+    },
+    "windows/node/lease-gas-runtime.bundle.mjs": {
+      "bundleSha256Ok": true,
+      "inputs": 430,
+      "nodeModulesInputs": 411,
+      "trackedChecked": 19,
+      "stale": [
+        {
+          "path": "client/lease-executor-authority.mjs",
+          "recorded": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+          "atCommit": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca"
+        },
+        {
+          "path": "network/lease-executor-authority.mjs",
+          "recorded": "88dd8a6adca0a744416f3c467739503a5370f23fae1dfc738233705d81eaab99",
+          "atCommit": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca"
+        },
+        {
+          "path": "network/lease-gas-runtime.mjs",
+          "recorded": "91b5e357af8a2f9acbbe5164603e0ac08a358abadc3967c41855a339073f53fc",
+          "atCommit": "eb78a2e6838f9b04d79017ea77a7e4e4cbd06c2af21e6aa77a000e2d6229ec77"
+        },
+        {
+          "path": "network/service-index.mjs",
+          "recorded": "8420b37f8ee8cd4bf8c7cb25450480a1d104a5e2a9d031e84a8f0551accfc76d",
+          "atCommit": "0c38f700aed373a037157ab5e0635e19ea15b5b75e493a87e94249f4b0fa0221"
+        }
+      ],
+      "notTracked": []
+    }
+  }
+}

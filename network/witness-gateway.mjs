@@ -47,7 +47,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
-import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
+import { witnessSourceEndpoint, rpcLabel } from './rpc-identity.mjs';
 import { abortable, readBounded } from './witness-verify.mjs';
 
 export const WITNESS_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getProof', 'eth_getCode',
@@ -205,7 +205,7 @@ export function createWitnessGateway({ upstreams = [], cache = null, archive = n
   maxHeaderBytes = 1 << 20, maxInFlight = 8, maxQueued = 256, minTryMs = 25, cacheTimeoutMs = Math.min(1000, deadlineMs), maxCacheOps = 64, fetch = globalThis.fetch, methods = WITNESS_METHODS } = {}) {
   if (!Array.isArray(methods) || methods.some((m) => !WITNESS_METHODS.includes(m))) throw new Error('methods must be a subset of WITNESS_METHODS');
   if (!Array.isArray(upstreams) || upstreams.length > 16) throw new Error('0 to 16 upstreams');
-  const ids = upstreams.map((u) => rpcEndpoint(u).identity);
+  const ids = upstreams.map((u) => witnessSourceEndpoint(u).identity);
   if (new Set(ids).size !== ids.length) throw new Error('upstreams must be distinct endpoints');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60000) throw new Error('invalid timeoutMs');
   if (!Number.isSafeInteger(deadlineMs) || deadlineMs < timeoutMs || deadlineMs > 300000) throw new Error('invalid deadlineMs');

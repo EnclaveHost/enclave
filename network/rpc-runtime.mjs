@@ -52,7 +52,7 @@ import { createWitnessGateway, WITNESS_METHODS } from './witness-gateway.mjs';
 import { s3WitnessCache } from './s3-witness-cache.mjs';
 import { takeRuntimeLock } from './runtime-lock.mjs';
 import { createGossipHeadSource, procIdentity, signalOwned } from './gossip-head-source.mjs';
-import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
+import { rpcEndpoint, rpcLabel, witnessSourceEndpoint } from './rpc-identity.mjs';
 
 export const CONFIG_FORMAT = 'enclave-rpc-runtime/v2';
 export const STATUS_FORMAT = 'enclave-rpc-runtime-status/v1';
@@ -67,7 +67,7 @@ export const PINNED_BUILDS = Object.freeze({
     '9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3': 'enclave-base-head-listener 5e178676, release profile, scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
   }),
   helios: Object.freeze({
-    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to ef320298: later commits change only the witness-check helper), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release)',
+    '8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378': 'helios enclave-base-evm eeffcc9 + canonical-block.patch 41667ec9 (exact-hash canonical block checks), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release); build build-20261026T004633Z',
   }),
   witnessCheck: Object.freeze({
     // the final gateway needs the helper's `block`/`header` ops (Helios ef320298); the older aca81764 builds
@@ -165,7 +165,7 @@ export function validateRuntimeConfig(raw, { acceptedBuilds = PINNED_BUILDS } = 
   const port = int('verifier.port', raw.verifier.port, 1, 65535);
   const seen = new Set();
   for (const [i, u] of ups.entries()) {
-    let e; try { e = rpcEndpoint(u); } catch (x) { fail(`proofSources.untrusted[${i}]: ${x.message}`); }
+    let e; try { e = witnessSourceEndpoint(u); } catch (x) { fail(`proofSources.untrusted[${i}]: ${x.message}`); }
     if (e.url.search) fail(`proofSources.untrusted[${i}] carries a query string (no credentials in this config)`);
     if (seen.has(e.url.href)) fail(`proofSources.untrusted[${i}] repeats a source`); seen.add(e.url.href);
     if (e.loopback && Number(e.port) === port) fail(`proofSources.untrusted[${i}] is the verifier's own port (a verifier cannot be its own witness source)`);

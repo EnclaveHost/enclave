@@ -1,0 +1,51 @@
+{
+ "pass": true,
+ "required": {
+  "A verifier: statement": true,
+  "A verifier: config + HOST_DATA": true,
+  "A verifier: TLS peer = attested control key": true,
+  "A verifier: AMD report verified with the expected measurement": true,
+  "A verifier: running supervisor holds the minted keys": true,
+  "A verifier-only: status pending with registry null (no registry read)": true,
+  "A verifier-only: attestedOutcome = attested (production acceptance rule)": true,
+  "A evidence: HTTP 200": true,
+  "A evidence: statement config digest = owner config": true,
+  "A evidence: statement HOST_DATA = owner config": true,
+  "A evidence: TLS peer = statement control key": true,
+  "A evidence: same boot as the verifier (control key)": true,
+  "A evidence: mode snp": true,
+  "A evidence: runtime gsup/helper/supervisor = the image manifest": true,
+  "A evidence: no mcpSha256/platformApiSha256 runtime": true,
+  "A evidence: no native member": true,
+  "B offline control: captured evidence re-verifies (non-vacuity)": true,
+  "B tamper: flipped report byte rejected": true,
+  "B tamper: changed statement byte rejected": true,
+  "B replay: another nonce rejected": true,
+  "C wrong measurement rejected at the report": true,
+  "C wrong config rejected at config": true,
+  "D client: replica attested while the backend is unready": true,
+  "D client: read fails closed (HTTP 502)": true,
+  "D route: every read probe 502 service_unreachable": true,
+  "D route: write method 403 method_refused": true,
+  "D client: wrong measurement never attests and its read fails": true,
+  "D client: a different sequencer pin is refused before any connection": true
+ },
+ "failed": [],
+ "diagnostic": {
+  "chipId": "0xa52dc9bdd5961abc796c3a72f3ca05c25646c89ae3d94009efbf84c2eaa9e186",
+  "operatorIsTheConfiguredCanaryAddress": true,
+  "offlineFailedChecks": {
+   "control": [],
+   "reportByte": [
+    "signature"
+   ],
+   "statementByte": [
+    "binding"
+   ],
+   "otherNonce": [
+    "binding"
+   ]
+  },
+  "note": "no-key/no-claim authority is proven by the harness from the launcher's own fw_cfg and host config and the restricted QEMU network"
+ }
+}

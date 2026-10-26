@@ -1,0 +1,194 @@
+[queue] START available=87416MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+ok 1 - G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+  ---
+  duration_ms: 2.905142
+  type: 'test'
+  ...
+# Subtest: G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+ok 2 - G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+  ---
+  duration_ms: 2.490151
+  type: 'test'
+  ...
+# Subtest: G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+ok 3 - G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+  ---
+  duration_ms: 33.473541
+  type: 'test'
+  ...
+# Subtest: the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+ok 4 - the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+  ---
+  duration_ms: 67.646919
+  type: 'test'
+  ...
+# Subtest: a verifier answer above the bound is cut off, never served as complete
+ok 5 - a verifier answer above the bound is cut off, never served as complete
+  ---
+  duration_ms: 70.61963
+  type: 'test'
+  ...
+# Subtest: G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+ok 6 - G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+  ---
+  duration_ms: 26.655788
+  type: 'test'
+  ...
+# Subtest: G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+ok 7 - G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+  ---
+  duration_ms: 74.258197
+  type: 'test'
+  ...
+# Subtest: G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+ok 8 - G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+  ---
+  duration_ms: 0.625617
+  type: 'test'
+  ...
+# Subtest: ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+ok 9 - ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+  ---
+  duration_ms: 12381.59615
+  type: 'test'
+  ...
+# Subtest: config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+ok 10 - config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+  ---
+  duration_ms: 4.770807
+  type: 'test'
+  ...
+# Subtest: ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+ok 11 - ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+  ---
+  duration_ms: 2021.413895
+  type: 'test'
+  ...
+# Subtest: aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+ok 12 - aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+  ---
+  duration_ms: 310.601019
+  type: 'test'
+  ...
+# Subtest: G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+ok 13 - G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+  ---
+  duration_ms: 21.802334
+  type: 'test'
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+ok 14 - packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+  ---
+  duration_ms: 302.139815
+  type: 'test'
+  ...
+# Subtest: the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+ok 15 - the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+  ---
+  duration_ms: 538.832043
+  type: 'test'
+  ...
+# Subtest: the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+ok 16 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+  ---
+  duration_ms: 3.031081
+  type: 'test'
+  ...
+# Subtest: planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+ok 17 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+  ---
+  duration_ms: 127.986599
+  type: 'test'
+  ...
+# Subtest: planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+ok 18 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+  ---
+  duration_ms: 13.561046
+  type: 'test'
+  ...
+# Subtest: gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+ok 19 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+  ---
+  duration_ms: 21.867954
+  type: 'test'
+  ...
+# Subtest: keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+ok 20 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+  ---
+  duration_ms: 7.256369
+  type: 'test'
+  ...
+# Subtest: end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+ok 21 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+  ---
+  duration_ms: 459.611745
+  type: 'test'
+  ...
+# Subtest: registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+ok 22 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+  ---
+  duration_ms: 62.243769
+  type: 'test'
+  ...
+# Subtest: refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+ok 23 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+  ---
+  duration_ms: 46.425058
+  type: 'test'
+  ...
+# Subtest: refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+ok 24 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+  ---
+  duration_ms: 14.93631
+  type: 'test'
+  ...
+# Subtest: the front: nonce is required and fresh, only path and query reach the supervisor
+ok 25 - the front: nonce is required and fresh, only path and query reach the supervisor
+  ---
+  duration_ms: 16.881532
+  type: 'test'
+  ...
+# Subtest: the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+ok 26 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+  ---
+  duration_ms: 2313.128154
+  type: 'test'
+  ...
+# Subtest: the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+ok 27 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+  ---
+  duration_ms: 764.518678
+  type: 'test'
+  ...
+# Subtest: builder and overlay carry the helper and the measured token
+ok 28 - builder and overlay carry the helper and the measured token
+  ---
+  duration_ms: 3.908044
+  type: 'test'
+  ...
+# Subtest: chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports
+ok 29 - chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports
+  ---
+  duration_ms: 2.014411
+  type: 'test'
+  ...
+# Subtest: planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot
+ok 30 - planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot
+  ---
+  duration_ms: 6.563903
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 26009.427193
+[memory-guard] exit=0 peakTreeRssMiB=572 minHostAvailableMiB=87089
+[memory-guard] at peak: esbuild:188 node:176 node:115 node:61 anvil:31
+[queue] EXIT 0

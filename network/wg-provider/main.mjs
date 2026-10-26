@@ -24,6 +24,7 @@ import {PeerMeter,createReceiptCosigner} from './paid.mjs';
 import {connectivityAddress,submitAttestations,ensureHost} from '../onchain-qualification.mjs';
 import {createWalletClient} from 'viem';
 import {resolveProviderBootstrap} from '../service-index.mjs';
+import {providerChainAuthority} from './attested-authority.mjs';
 
 const log=m=>console.log(new Date().toISOString(),m);
 const checkOnly=process.argv[2]==='--check-config';
@@ -32,9 +33,11 @@ const cfg=JSON.parse(await fs.readFile((checkOnly?process.argv[3]:process.argv[2
 // pins, RPCs, directories, checkers and zones; no address book, no relay fallback, no enclave.host default. "legacy" (an
 // installed provider's config, unchanged): Enclave's defaults exactly as before.
 const boot=resolveProviderBootstrap(cfg);
+// THE chain authority, one explicit choice (attested-authority.mjs): the RPC quorum, the local verifier, or an attested
+// remote verifier - never two of them, never a fallback
+const chainAuth=providerChainAuthority(cfg,{log});
 if(checkOnly){
- if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
- console.log(JSON.stringify({ok:true,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+ console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
   pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes}));process.exit(0);
 }
 const account=privateKeyToAccount((await fs.readFile(cfg.operatorKeyFile,'utf8')).trim());
@@ -44,13 +47,14 @@ const directories=new DirectoryClient({origins:boot.directories});
 const ports={exit:51820,guard:51821,control:51822,...cfg.ports};
 const providerId=providerIdFor(account.address,cfg.publicAddress);
 const stateDir=cfg.stateDir||'/var/lib/enclave-network';await fs.mkdir(stateDir,{recursive:true,mode:0o700});
-if(!Array.isArray(cfg.rpc)||cfg.rpc.length<2)throw new Error('two or more RPC endpoints required');
+log(`chain authority: ${chainAuth.describe}`);
 
 // A paid provider charges through the on-chain connectivity contract: it must be a registry host that can sign receipts.
 const paid=(cfg.pricePerGiB6||0)>0;
 if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
-const leases=new LeaseReader({rpc:cfg.rpc,addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuthorityOptions(cfg)});
-const clients=cfg.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
+const leases=new LeaseReader({...(chainAuth.mode==='attested-verifier'?{}:{rpc:cfg.rpc}),addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuth.leaseReaderOptions});
+// raw RPC clients exist only under the RPC authorities (a paid provider's on-chain writes); the attested authority has none
+const clients=chainAuth.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
 // Owner signatures use the same fresh chain quorum and explicit factory binding.
 const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
 const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,log});

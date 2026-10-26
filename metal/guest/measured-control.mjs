@@ -71,7 +71,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { checkTransit, leaseGasGuest, withLeaseGasEnv } from './lease-gas-conduit.bundle.mjs';
 import { boundOwnerNomination, ownerNominationEnv } from './owner-nomination.mjs';
-import { checkChainVerifier, guestChainVerifier, withChainVerifierEnv, CHAIN_VERIFIER_IMAGE_FILE } from './chain-verifier.mjs';
+import { checkChainVerifier, guestChainVerifier, withChainVerifierEnv, CHAIN_VERIFIER_IMAGE_FILE, REFUSING_VERIFIER, VERIFIER_EXPOSE } from './chain-verifier.mjs';
 
 export const CONFIG_FORMAT = 'enclave-direct-control-config/v1';
 export const STATEMENT_FORMAT = 'enclave-measured-control-statement/v1';
@@ -126,6 +126,12 @@ export function canonicalDirectConfig(raw) {
   only(fields, ['format', 'chainId', 'contracts', 'profileDigest', 'rpcs', 'quorum', 'releaseId', 'replicas', 'identity', 'selling', 'isolation',
     'hostAdmissionSha256', 'controlPort'], 'direct config');
   if (raw.format !== CONFIG_FORMAT) bad(`direct config format must be ${CONFIG_FORMAT}`);
+  // expose "attested": a VERIFIER-ONLY guest. Its config is bound by HOST_DATA; nothing in it may read through the rpcs or
+  // submit anything, so every member that would (MCP, platform API, native control, lease gas, owner nomination) is refused,
+  // before any of them is even validated
+  if (raw.chainVerifier && typeof raw.chainVerifier === 'object' && raw.chainVerifier.expose !== undefined && raw.chainVerifier.expose !== null)
+    for (const k of ['leaseGas', 'mcp', 'platformApi', 'ownerNomination', 'nativeControl'])
+      if (raw[k] !== undefined && raw[k] !== null) bad(`chainVerifier.expose "attested" is a verifier-only guest: remove ${k}`);
   if (raw.chainId !== CHAIN_ID) bad(`direct config chainId must be ${CHAIN_ID}`);
   only(raw.contracts, [...REQUIRED_CONTRACTS, ...OPTIONAL_CONTRACTS], 'direct config contracts');
   const contracts = {};
@@ -190,7 +196,10 @@ export function canonicalDirectConfig(raw) {
   // other port this config names
   let chainVerifier = null;
   if (raw.chainVerifier !== undefined) {
-    try { chainVerifier = checkChainVerifier(raw.chainVerifier); } catch (e) { bad(e.message); }
+    try { chainVerifier = checkChainVerifier(raw.chainVerifier, { allowExpose: true }); } catch (e) { bad(e.message); }
+    // expose "attested": a VERIFIER-ONLY guest. Its config is bound by HOST_DATA; nothing in it may read through the rpcs or
+    // submit anything, so every member that would (MCP, platform API, native control, lease gas, owner nomination) is refused
+    // (the verifier-only member refusal is checked first, at the top of canonicalDirectConfig)
     if ([controlPort, mcp?.port, platformApi?.apiPort, platformApi?.peerPort].includes(chainVerifier.port)) bad('chainVerifier.port must differ from every other port of this config');
   }
   return deepFreeze({
@@ -321,6 +330,31 @@ function directMcp(raw, { contracts, controlPort }) {
 }
 export const MCP_BUNDLE = '/opt/metal/mcp-server.bundle.mjs';
 export const MCP_ROUTE = '/mcp';
+/** The bound chain verifier's read-only JSON-RPC through the front (chainVerifier.expose "attested"). Only these methods pass:
+ *  reads the verifier answers from proofs against its sequencer-signed head (network/chain-authority.mjs METHODS, verifier
+ *  side). Never a submission, a pool/fee hint, a filter or a subscription. */
+export const CHAIN_VERIFIER_ROUTE = '/chain-verifier';
+export const JSONRPC_FILTER = 'chain-verifier-readonly';
+export const CHAIN_VERIFIER_READ_METHODS = Object.freeze(['eth_chainId', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_call',
+  'eth_estimateGas', 'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getTransactionCount', 'eth_getTransactionReceipt', 'eth_getBlockReceipts',
+  'eth_getTransactionByHash', 'eth_getLogs']);
+const READ_METHODS = new Set(CHAIN_VERIFIER_READ_METHODS);
+export const MAX_VERIFIER_REQUEST_BYTES = 64 * 1024, MAX_VERIFIER_ANSWER_BYTES = 16 * 1024 * 1024;
+/** One filtered verifier request: -> the parsed object, or throws { status, error }. No batch; own-property method names only. */
+export function checkVerifierRequest(buf) {
+  const no = (status, error) => { throw Object.assign(new Error(error), { status, error }); };
+  let q; try { q = JSON.parse(Buffer.from(buf).toString('utf8')); } catch { no(400, 'not_json'); }
+  if (Array.isArray(q)) no(400, 'batch_refused');
+  if (!q || typeof q !== 'object' || q.jsonrpc !== '2.0' || typeof q.method !== 'string') no(400, 'not_jsonrpc');
+  if (!(typeof q.id === 'number' && Number.isSafeInteger(q.id)) && !(typeof q.id === 'string' && q.id.length <= 64)) no(400, 'bad_id');
+  if (!READ_METHODS.has(q.method)) no(403, 'method_refused');
+  if (q.params !== undefined && (!Array.isArray(q.params) || q.params.length > 4)) no(400, 'bad_params');
+  const p = q.params || [];
+  if (q.method === 'eth_getTransactionCount' && p[1] === 'pending') no(403, 'pending_refused');
+  if ((q.method === 'eth_call' || q.method === 'eth_estimateGas') && p.length > 2) no(403, 'state_override_refused');
+  for (const k of Object.keys(q)) if (!['jsonrpc', 'id', 'method', 'params'].includes(k)) no(400, 'unknown_field');
+  return q;
+}
 export const MCP_PROFILE = 'host';
 /**
  * The hosted MCP adapter of a bound config: its files (the adapter configuration and the contract pins, derived from
@@ -532,6 +566,11 @@ export function directSupervisorEnv(cfg, { paths = GUEST_PATHS, capacity = {}, s
     // supervisor.js), over the owner's measured RPC quorum - the activation is part of the measured image, not an opt-in.
     ENCLAVE_PLATFORM_HOST_POLICY: 'production', ENCLAVE_PLATFORM_HOST_POLICY_RPCS: cfg.rpcs.join(','),
   };
+  // a VERIFIER-ONLY guest (chainVerifier.expose "attested"): the config's rpcs are a required field but name NO chain path here.
+  // Every name a legacy reader could take them from points at the refusing verifier (TCP discard, nothing serves it), so a
+  // path that ignored ENCLAVE_CHAIN_AUTHORITY fails closed instead of reaching a public RPC
+  if (cfg.chainVerifier?.expose === VERIFIER_EXPOSE)
+    Object.assign(env, { BASE_RPC: REFUSING_VERIFIER, BASE_RPCS: REFUSING_VERIFIER, ENCLAVE_PLATFORM_HOST_POLICY_RPCS: REFUSING_VERIFIER });
   // the policy carriers: ONLY from the bound config (never flavor or host policy input), absent = no such name at all
   delete env[CARRIERS_ENV];
   if (cfg.platformPolicyCarriers) env[CARRIERS_ENV] = canonicalJson(cfg.platformPolicyCarriers);
@@ -700,8 +739,13 @@ export async function planDirectBoot({ cmdline, fw = {}, reportHostData = '', ca
   // hardware attests to names a verifier this image cannot start; the supervisor never falls back to the rpcs)
   let chainVerifier = null;
   if (config.chainVerifier) {
-    chainVerifier = guestChainVerifier(config.chainVerifier, { imageFile: paths.chainVerifierImage || CHAIN_VERIFIER_IMAGE_FILE });
+    chainVerifier = guestChainVerifier(config.chainVerifier, { imageFile: paths.chainVerifierImage || CHAIN_VERIFIER_IMAGE_FILE, allowExpose: true });
     if (!chainVerifier.ok) return { ok: false, reasons: [`chainVerifier: ${chainVerifier.message}`], mode, digest, hostData };
+    // the bound read-only exposure: ONE exact front route under the attested control key, filtered (CHAIN_VERIFIER_READ_METHODS)
+    if (config.chainVerifier.expose === VERIFIER_EXPOSE) {
+      if (fw.registryKey) return { ok: false, reasons: ['chainVerifier.expose "attested" is a verifier-only guest: the host must hand over no registry key (nothing is sold or registered)'], mode, digest, hostData };
+      chainVerifier = { ...chainVerifier, route: { path: CHAIN_VERIFIER_ROUTE, upstream: { host: '127.0.0.1', port: config.chainVerifier.port }, rewrite: '/', jsonrpc: JSONRPC_FILTER } };
+    }
   }
   return { ok: true, config, digest, hostData, bound, mode, env, files, operator, selling: !!fw.registryKey, mcp, platformApi, native, chainVerifier };
 }
@@ -912,8 +956,9 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
   } else if (statement.native) bad('the statement names native control names but the front was given none');
   // routes: [{ path, upstream, rewrite }] - an EXACT path (query kept) sent to another in-guest loopback service under a
   // fixed rewritten path (the hosted MCP: MCP_ROUTE -> its /p/<profile>). Everything else still goes to the supervisor.
-  for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== '127.0.0.1' || !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)))
-    bad('front routes are exact /<name> paths to a 127.0.0.1 service under a fixed path');
+  for (const r of routes) if (!/^\/[a-z0-9-]+$/.test(String(r.path)) || r.path === EVIDENCE_PATH || r.upstream?.host !== '127.0.0.1' || !Number.isInteger(r.upstream?.port)
+      || (r.jsonrpc === undefined ? !/^\/[a-z0-9/-]+$/.test(String(r.rewrite)) : (r.jsonrpc !== JSONRPC_FILTER || r.path !== CHAIN_VERIFIER_ROUTE || r.rewrite !== '/')))
+    bad('front routes are exact /<name> paths to a 127.0.0.1 service under a fixed path (a JSON-RPC route: only the chain verifier\'s, filtered)');
   // hostRoutes: [{ host, upstream }] - every request whose Host is exactly `host` (the platform API hostname), path and query
   // kept, upgrades included, to a 127.0.0.1 service. prefixRoutes: [{ prefix, upstream }] - a /<name>/ path prefix (the
   // platform API peer protocol) to a 127.0.0.1 service. Everything else still goes to the supervisor.
@@ -959,6 +1004,34 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
     if (mode !== 'snp') return { format: EVIDENCE_FORMAT, statement: statementText, report: null, unattested: `mode ${mode}: no hardware report`, certificate: certPem };
     const { report, certs } = await reporter(reportDataFor(statementText, nonce));
     return { format: EVIDENCE_FORMAT, statement: statementText, report: report.toString('base64'), ...(certs && certs.length ? { certs: certs.toString('base64') } : {}), certificate: certPem };
+  };
+  // the bound chain verifier, read-only: POST of ONE checked JSON-RPC request (bounded, buffered), forwarded as exactly those
+  // bytes; the answer is bounded too (a larger one is cut off, never served partially as complete)
+  const verifierRpc = (req, res, route, u) => {
+    if (req.method !== 'POST') return json(res, 405, { error: 'method' });
+    if (u.search) return json(res, 400, { error: 'no_query' });
+    const len = Number(req.headers['content-length']);
+    if (req.headers['transfer-encoding'] || !Number.isSafeInteger(len) || len < 1) return json(res, 411, { error: 'length_required' });
+    if (len > MAX_VERIFIER_REQUEST_BYTES) return json(res, 413, { error: 'too_large' });
+    if (!/^application\/json(;|$)/i.test(String(req.headers['content-type'] || ''))) return json(res, 415, { error: 'json_only' });
+    const chunks = []; let size = 0, done = false;
+    req.on('data', (c) => { size += c.length; if (size > len) { done = true; json(res, 413, { error: 'too_large' }); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => {
+      if (done) return; done = true;
+      const body = Buffer.concat(chunks);
+      try { checkVerifierRequest(body); } catch (e) { return json(res, e.status || 400, { error: e.error || 'refused' }); }
+      const up = http.request({ host: route.upstream.host, port: route.upstream.port, method: 'POST', path: route.rewrite,
+        headers: { 'content-type': 'application/json', 'content-length': body.length } }, (r) => {
+        let got = 0; const out = [];
+        r.on('data', (c) => { got += c.length; if (got > MAX_VERIFIER_ANSWER_BYTES) { r.destroy(); if (!res.headersSent) json(res, 502, { error: 'answer_too_large' }); else res.destroy(); } else out.push(c); });
+        r.on('end', () => { if (res.headersSent) return; const b = Buffer.concat(out); res.writeHead(r.statusCode || 502, { 'content-type': 'application/json', 'content-length': b.length, 'cache-control': 'no-store' }); res.end(b); });
+        r.on('error', () => { if (!res.headersSent) json(res, 502, { error: 'service_unreachable' }); });
+      });
+      up.setTimeout(30000, () => up.destroy(new Error('verifier timeout')));
+      up.on('error', () => { if (!res.headersSent) json(res, 502, { error: 'service_unreachable' }); });
+      res.on('close', () => up.destroy());
+      up.end(body);
+    });
   };
   const json = (res, status, body) => { const b = Buffer.from(JSON.stringify(body)); res.writeHead(status, { 'content-type': 'application/json', 'content-length': b.length, 'cache-control': 'no-store' }); res.end(b); };
   const server = https.createServer({ key: keyPem, cert: certPem, minVersion: 'TLSv1.2', requestTimeout: 30000, headersTimeout: 15000, SNICallback }, (req, res) => {
@@ -1021,6 +1094,7 @@ export function createControlFront({ statementText, keyPem, certPem, reporter, u
       }
     }
     const route = routeOf(req, u.pathname), to = route ? route.upstream : upstream;
+    if (route?.jsonrpc === JSONRPC_FILTER) return verifierRpc(req, res, route, u);
     // a host-routed service (the platform API) learns the client's address only from this front: the TCP peer, never a
     // client-written header
     if (route && route.host) { headers.host = route.host; headers['x-enclave-client-ip'] = String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''); }

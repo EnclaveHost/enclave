@@ -1,0 +1,1243 @@
+--- /dev/null
++++ b/core/src/client/canonical.rs
+@@ -0,0 +1,92 @@
++//! EIP-1898 block-hash gate over the verified BlockProvider (verifier-canonical-stage, round 3; NOT yet compiled).
++//! Node::check_block_id delegates here; tests drive it with the real BlockCache, a mock provider and a real Node.
++//!
++//! A hash BlockId:
++//!   * the EXACT block must be known and authenticated: the provider's answer must have that header hash, otherwise
++//!     BlockNotFound (a reorged-away or never-seen hash is unknown; it is never translated to a number);
++//!   * requireCanonical == Some(true): ONE snapshot of the verified head, fresh (the node's unchanged 60 s rule), and the
++//!     requested block must be that head's ANCESTOR-OR-SELF, proven by exact parent-hash links walked down from the head
++//!     (each link from the verified cache or the EIP-2935-proven ancestry of the trusted latest block, never a public
++//!     RPC). Its height must be <= the head's and within MAX_CANONICAL_DEPTH; anything not provable is
++//!     BlockNotCanonical. No "block at that height" lookup is used: a cached block at a height proves nothing;
++//!   * requireCanonical None or Some(false) (the EIP-1898 default): the exact authenticated block, no canonicality claim.
++//! Callers run this BEFORE and AFTER a read bound to the hash's own state root (BLOCKHASH to its own ancestry,
++//! execution::ancestry); each run takes its own fresh head snapshot, so the answer is returned only if the block is on
++//! the head chain at the end.
++use alloy::consensus::BlockHeader;
++use alloy::eips::{BlockId, BlockNumberOrTag};
++use alloy::network::{primitives::HeaderResponse, BlockResponse};
++use helios_common::{execution_provider::BlockProvider, network_spec::NetworkSpec};
++
++use crate::errors::ClientError;
++
++/// The node's head-age bound (Node::check_head_age): unchanged.
++pub const MAX_HEAD_AGE_SECS: u64 = 60;
++/// How far below the head canonicality is proven (the verified block cache window, MAX_STATE_HISTORY_LENGTH). Deeper
++/// requests with requireCanonical:true are refused, never assumed.
++pub const MAX_CANONICAL_DEPTH: u64 = 256;
++
++/// One snapshot of the verified head: it exists and is at most 60 s old (Node::check_head_age's rule, explicit clock).
++pub async fn fresh_head<N: NetworkSpec, E: BlockProvider<N> + ?Sized>(execution: &E, now_secs: u64) -> Result<N::BlockResponse, ClientError> {
++    let tag: BlockId = BlockNumberOrTag::Latest.into();
++    let head = execution
++        .get_block(tag, false)
++        .await
++        .map_err(|_| ClientError::BlockNotFound(tag))?
++        .ok_or(ClientError::OutOfSync(now_secs))?;
++    let delay = now_secs.saturating_sub(head.header().timestamp());
++    if delay > MAX_HEAD_AGE_SECS {
++        return Err(ClientError::OutOfSync(delay));
++    }
++    Ok(head)
++}
++
++pub async fn check_head_age_at<N: NetworkSpec, E: BlockProvider<N> + ?Sized>(execution: &E, now_secs: u64) -> Result<(), ClientError> {
++    fresh_head::<N, E>(execution, now_secs).await.map(|_| ())
++}
++
++/// The block at `number` on the ancestry of `head`, by exact parent-hash links walked down from `head` (each link: the
++/// provider's answer for that hash IS that hash, exactly one height lower). Above the head, deeper than
++/// MAX_CANONICAL_DEPTH, or any missing or broken link: BlockNotCanonical(id).
++pub async fn ancestor_at<N: NetworkSpec, E: BlockProvider<N> + ?Sized>(execution: &E, head: &N::BlockResponse, number: u64, id: &BlockId) -> Result<N::BlockResponse, ClientError> {
++    let top = head.header().number();
++    if number > top || top - number > MAX_CANONICAL_DEPTH {
++        return Err(ClientError::BlockNotCanonical(*id));
++    }
++    let mut cur = head.clone();
++    while cur.header().number() > number {
++        let parent = cur.header().parent_hash();
++        let pid: BlockId = BlockId::Hash(parent.into());
++        let next = execution
++            .get_block(pid, false)
++            .await
++            .map_err(|_| ClientError::BlockNotCanonical(*id))?
++            .ok_or(ClientError::BlockNotCanonical(*id))?;
++        if next.header().hash() != parent || next.header().number() + 1 != cur.header().number() {
++            return Err(ClientError::BlockNotCanonical(*id));
++        }
++        cur = next;
++    }
++    Ok(cur)
++}
++
++/// The gate for a hash BlockId (Ok for any other BlockId: tags keep Node::check_blocktag_age).
++pub async fn check_block_hash<N: NetworkSpec, E: BlockProvider<N> + ?Sized>(execution: &E, block: &BlockId, now_secs: u64) -> Result<(), ClientError> {
++    let BlockId::Hash(h) = block else { return Ok(()) };
++    let b = execution
++        .get_block(*block, false)
++        .await
++        .map_err(|_| ClientError::BlockNotFound(*block))?
++        .ok_or(ClientError::BlockNotFound(*block))?;
++    if b.header().hash() != h.block_hash {
++        return Err(ClientError::BlockNotFound(*block));
++    }
++    if h.require_canonical == Some(true) {
++        let head = fresh_head::<N, E>(execution, now_secs).await?;
++        let at = ancestor_at::<N, E>(execution, &head, b.header().number(), block).await?;
++        if at.header().hash() != h.block_hash {
++            return Err(ClientError::BlockNotCanonical(*block));
++        }
++    }
++    Ok(())
++}
+--- a/core/src/client/mod.rs
++++ b/core/src/client/mod.rs
+@@ -15,6 +15,7 @@
+ use self::{api::HeliosApi, node::Node};
+ 
+ pub mod api;
++pub mod canonical;
+ pub mod node;
+ 
+ pub struct HeliosClient<N: NetworkSpec> {
+--- a/core/src/client/node.rs
++++ b/core/src/client/node.rs
+@@ -184,6 +184,32 @@
+         }
+     }
+ 
++    /// EIP-1898. A hash BlockId: the EXACT block must be known and authenticated (its header hash is the requested
++    /// hash; a reorged-away hash is unknown and refused). With requireCanonical:true it must also be the block at its
++    /// height on the CURRENT verified head chain (fresh head, the same 60 s bound as latest; the block at that height
++    /// comes from the verified cache or the EIP-2935-proven ancestry of the verified latest block, never a public RPC).
++    /// No hash is ever translated to a number for the read itself: state stays bound to that block's own state root.
++    /// requireCanonical absent or false (the EIP-1898 default): the exact authenticated block, no canonicality claim.
++    /// Callers run this BEFORE and AFTER the read: the read is bound to the hash's root, so a flap (A, B, A) between the
++    /// two checks cannot change the answer, and the answer is returned only if A is canonical at the end.
++    async fn check_block_id(&self, block: &BlockId) -> Result<(), ClientError> {
++        match block {
++            BlockId::Hash(_) => {
++                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
++                crate::client::canonical::check_block_hash::<N, E>(&*self.execution, block, now).await
++            }
++            _ => self.check_blocktag_age(block).await,
++        }
++    }
++
++    /// After a read: re-check a hash with requireCanonical:true (no-op otherwise).
++    async fn recheck_canonical(&self, block: &BlockId) -> Result<(), ClientError> {
++        match block {
++            BlockId::Hash(h) if h.require_canonical == Some(true) => self.check_block_id(block).await,
++            _ => Ok(()),
++        }
++    }
++
+     async fn check_blocktag_age(&self, block: &BlockId) -> Result<(), ClientError> {
+         match block {
+             BlockId::Number(number) => match number {
+@@ -293,7 +319,7 @@
+         block_id: BlockId,
+         state_overrides: Option<StateOverride>,
+     ) -> Result<Bytes> {
+-        self.check_blocktag_age(&block_id).await?;
++        self.check_block_id(&block_id).await?;
+         let (result, ..) = N::transact(
+             tx,
+             false,
+@@ -304,6 +330,7 @@
+             state_overrides,
+         )
+         .await?;
++        self.recheck_canonical(&block_id).await?;
+ 
+         let res = match result {
+             ExecutionResult::Success { output, .. } => Ok(output.into_data()),
+@@ -323,7 +350,7 @@
+         state_overrides: Option<StateOverride>,
+     ) -> Result<u64> {
+         let block_id = block_id.unwrap_or(BlockId::latest());
+-        self.check_blocktag_age(&block_id).await?;
++        self.check_block_id(&block_id).await?;
+ 
+         let (result, ..) = N::transact(
+             tx,
+@@ -336,6 +363,8 @@
+         )
+         .await?;
+ 
++        self.recheck_canonical(&block_id).await?;
++
+         Ok(result.tx_gas_used())
+     }
+ 
+@@ -345,7 +374,7 @@
+         block: BlockId,
+         state_overrides: Option<StateOverride>,
+     ) -> Result<AccessListResult> {
+-        self.check_blocktag_age(&block).await?;
++        self.check_block_id(&block).await?;
+ 
+         let (result, accounts) = N::transact(
+             tx,
+@@ -357,6 +386,7 @@
+             state_overrides,
+         )
+         .await?;
++        self.recheck_canonical(&block).await?;
+ 
+         let access_list_result = AccessListResult {
+             access_list: accounts
+@@ -383,21 +413,23 @@
+     }
+ 
+     async fn get_balance(&self, address: Address, block_id: BlockId) -> Result<U256> {
+-        self.check_blocktag_age(&block_id).await?;
++        self.check_block_id(&block_id).await?;
+         let account = self
+             .execution
+             .get_account(address, &[], false, block_id)
+             .await?;
++        self.recheck_canonical(&block_id).await?;
+ 
+         Ok(account.account.balance)
+     }
+ 
+     async fn get_nonce(&self, address: Address, block_id: BlockId) -> Result<u64> {
+-        self.check_blocktag_age(&block_id).await?;
++        self.check_block_id(&block_id).await?;
+         let account = self
+             .execution
+             .get_account(address, &[], false, block_id)
+             .await?;
++        self.recheck_canonical(&block_id).await?;
+ 
+         Ok(account.account.nonce)
+     }
+@@ -408,11 +440,12 @@
+     }
+ 
+     async fn get_code(&self, address: Address, block_id: BlockId) -> Result<Bytes> {
+-        self.check_blocktag_age(&block_id).await?;
++        self.check_block_id(&block_id).await?;
+         let account = self
+             .execution
+             .get_account(address, &[], true, block_id)
+             .await?;
++        self.recheck_canonical(&block_id).await?;
+ 
+         account
+             .code
+@@ -425,13 +458,16 @@
+         slot: U256,
+         block_id: BlockId,
+     ) -> Result<B256> {
+-        self.check_blocktag_age(&block_id).await?;
+-        self.execution
++        self.check_block_id(&block_id).await?;
++        let value = self
++            .execution
+             .get_account(address, &[slot.into()], false, block_id)
+             .await?
+             .get_storage_value(slot.into())
+             .ok_or(eyre!("slot not found"))
+-            .map(|v| v.into())
++            .map(|v| v.into());
++        self.recheck_canonical(&block_id).await?;
++        value
+     }
+ 
+     async fn get_proof(
+@@ -440,11 +476,12 @@
+         slots: &[B256],
+         block_id: BlockId,
+     ) -> Result<EIP1186AccountProofResponse> {
+-        self.check_blocktag_age(&block_id).await?;
++        self.check_block_id(&block_id).await?;
+         let account = self
+             .execution
+             .get_account(address, slots, false, block_id)
+             .await?;
++        self.recheck_canonical(&block_id).await?;
+ 
+         Ok(EIP1186AccountProofResponse {
+             address,
+@@ -469,8 +506,10 @@
+         &self,
+         block_id: BlockId,
+     ) -> Result<Option<Vec<N::ReceiptResponse>>> {
+-        self.check_blocktag_age(&block_id).await?;
+-        self.execution.get_block_receipts(block_id).await
++        self.check_block_id(&block_id).await?;
++        let receipts = self.execution.get_block_receipts(block_id).await?;
++        self.recheck_canonical(&block_id).await?;
++        Ok(receipts)
+     }
+ 
+     async fn get_transaction(&self, tx_hash: B256) -> Result<Option<N::TransactionResponse>> {
+@@ -482,10 +521,13 @@
+         block_id: BlockId,
+         index: u64,
+     ) -> Result<Option<N::TransactionResponse>> {
+-        self.check_blocktag_age(&block_id).await?;
+-        self.execution
++        self.check_block_id(&block_id).await?;
++        let tx = self
++            .execution
+             .get_transaction_by_location(block_id, index)
+-            .await
++            .await?;
++        self.recheck_canonical(&block_id).await?;
++        Ok(tx)
+     }
+ 
+     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>> {
+@@ -579,8 +621,10 @@
+         block_id: BlockId,
+         full_tx: bool,
+     ) -> Result<Option<N::BlockResponse>> {
+-        self.check_blocktag_age(&block_id).await?;
+-        self.execution.get_block(block_id, full_tx).await
++        self.check_block_id(&block_id).await?;
++        let block = self.execution.get_block(block_id, full_tx).await?;
++        self.recheck_canonical(&block_id).await?;
++        Ok(block)
+     }
+ 
+     async fn get_chain_id(&self) -> u64 {
+--- a/core/src/errors.rs
++++ b/core/src/errors.rs
+@@ -9,6 +9,8 @@
+ pub enum ClientError {
+     #[error("block not found: {0}")]
+     BlockNotFound(BlockId),
++    #[error("block {0:?} is not on the current verified canonical chain (requireCanonical)")]
++    BlockNotCanonical(BlockId),
+     #[error("out of sync: {0} seconds behind")]
+     OutOfSync(u64),
+     #[error("execution error: {0}")]
+--- /dev/null
++++ b/core/src/execution/ancestry.rs
+@@ -0,0 +1,39 @@
++//! BLOCKHASH ancestry bound to the PINNED block (verifier-canonical-stage; NOT yet compiled). revm-utils ProofDB uses
++//! this instead of "the canonical block at that height now": the walk follows parent hashes from the pinned block with
++//! exact-hash reads (each link: hash and height + 1), so a reorg flap between reads cannot mix another chain's ancestor
++//! into a run pinned to this block. Only revm's 256-block window is served; a broken or unknown link refuses.
++use alloy::consensus::BlockHeader;
++use alloy::eips::{eip1898::RpcBlockHash, BlockId};
++use alloy::network::{primitives::HeaderResponse, BlockResponse};
++use alloy::primitives::B256;
++use eyre::{eyre, Result};
++use helios_common::{execution_provider::BlockProvider, network_spec::NetworkSpec};
++
++pub const BLOCKHASH_WINDOW: u64 = 256;
++
++pub async fn ancestor_block_hash<N: NetworkSpec, E: BlockProvider<N> + ?Sized>(execution: &E, pinned: RpcBlockHash, number: u64) -> Result<B256> {
++    let pinned_id: BlockId = pinned.into();
++    let mut cur = execution
++        .get_block(pinned_id, false)
++        .await?
++        .ok_or_else(|| eyre!("pinned block {} not found", pinned.block_hash))?;
++    if cur.header().hash() != pinned.block_hash {
++        return Err(eyre!("pinned block {} answered by {}", pinned.block_hash, cur.header().hash()));
++    }
++    let top = cur.header().number();
++    if number >= top || top - number > BLOCKHASH_WINDOW {
++        return Err(eyre!("BLOCKHASH {number} outside the {BLOCKHASH_WINDOW}-block window of block {top}"));
++    }
++    while cur.header().number() > number {
++        let parent = cur.header().parent_hash();
++        let next = execution
++            .get_block(BlockId::Hash(parent.into()), false)
++            .await?
++            .ok_or_else(|| eyre!("ancestor {parent} of {} not found", pinned.block_hash))?;
++        if next.header().hash() != parent || next.header().number() + 1 != cur.header().number() {
++            return Err(eyre!("ancestry of {} broken at height {}", pinned.block_hash, next.header().number()));
++        }
++        cur = next;
++    }
++    Ok(cur.header().hash())
++}
+--- a/core/src/execution/mod.rs
++++ b/core/src/execution/mod.rs
+@@ -1,3 +1,4 @@
++pub mod ancestry;
+ pub mod cache;
+ pub mod constants;
+ pub mod errors;
+--- a/core/src/execution/providers/block/block_cache.rs
++++ b/core/src/execution/providers/block/block_cache.rs
+@@ -35,6 +35,7 @@
+     }
+ 
+     /// Clear all cached blocks except the finalized block
++    #[allow(dead_code)]
+     /// Finalized blocks are preserved since they cannot be reorganized
+     async fn clear(&self) {
+         let finalized_block = self.finalized.read().await.clone();
+@@ -78,11 +79,19 @@
+                 BlockNumberOrTag::Pending | BlockNumberOrTag::Earliest => None,
+             },
+             BlockId::Hash(hash) => {
++                // EXACT hash only: the block at the indexed height must still BE that hash. A hash whose block was
++                // replaced by a reorg is unknown (None), never answered with the other block at that height.
+                 let hash: B256 = hash.into();
+-                if let Some(number) = self.hashes.read().await.get(&hash) {
+-                    self.blocks.read().await.get(number).cloned()
+-                } else {
+-                    None
++                let number = self.hashes.read().await.get(&hash).copied();
++                match number {
++                    Some(number) => self
++                        .blocks
++                        .read()
++                        .await
++                        .get(&number)
++                        .filter(|b| b.header().hash() == hash)
++                        .cloned(),
++                    None => None,
+                 }
+             }
+         };
+@@ -114,69 +123,75 @@
+         let block_hash = block.header().hash();
+         let parent_hash = block.header().parent_hash();
+ 
+-        // Check if this block builds on top of existing history
+-        let is_consistent = if block_id.is_finalized() {
+-            // Skip check for finalized blocks
+-            true
+-        } else if block_number == 0 {
+-            // Genesis block is always consistent
++        // ONE critical section, locks always in this order (blocks, hashes, latest, finalized): a reader never sees a
++        // half-applied reorg (readers take one lock at a time, and a hash lookup re-checks the block's own hash).
++        let mut blocks = self.blocks.write().await;
++        let mut hashes = self.hashes.write().await;
++        let mut latest = self.latest.write().await;
++        let mut finalized = self.finalized.write().await;
++
++        // Check if this block builds on top of existing history (unchanged rule)
++        let is_consistent = if block_id.is_finalized() || block_number == 0 {
+             true
++        } else if let Some(parent_block) = blocks.get(&(block_number - 1)) {
++            parent_block.header().hash() == parent_hash
++        } else if let Some((latest_number, _)) = blocks.last_key_value() {
++            *latest_number <= finalized.as_ref().map(|b| b.header().number()).unwrap_or_default()
+         } else {
+-            let blocks = self.blocks.read().await;
+-
+-            // Check if parent block exists and has the expected hash
+-            if let Some(parent_block) = blocks.get(&(block_number - 1)) {
+-                parent_block.header().hash() == parent_hash
+-            } else {
+-                // No parent block in cache - check if cache is empty except finalized blocks
+-                let finalized = self.finalized.read().await;
+-                if let Some((latest_number, _)) = blocks.last_key_value() {
+-                    // All blocks in cache are finalized
+-                    *latest_number
+-                        <= finalized
+-                            .as_ref()
+-                            .map(|block| block.header().number())
+-                            .unwrap_or_default()
+-                } else {
+-                    // Block cache is completely empty
+-                    true
+-                }
+-            }
++            true
+         };
+-
+-        // If the block is inconsistent with existing history, clear the cache
+         if !is_consistent {
+             warn!("inconsistent block history detected: clearing cache");
+-            self.clear().await;
++            blocks.clear();
++            hashes.clear();
++            *latest = None;
++            if let Some(f) = finalized.clone() {
++                hashes.insert(f.header().hash(), f.header().number());
++                blocks.insert(f.header().number(), f);
++            }
++        }
++
++        // A DIFFERENT block at this height (a reorg), or a new LATEST below cached heights: the cached block at this
++        // height (another hash) and EVERY cached block above it belong to another branch or are ahead of the head.
++        // Drop them with their hashes, so neither a hash nor a height can still answer with a stale descendant.
++        let replaced = blocks.get(&block_number).is_some_and(|b| b.header().hash() != block_hash);
++        let new_latest = matches!(block_id, BlockId::Number(BlockNumberOrTag::Latest));
++        if replaced || new_latest {
++            let stale: Vec<u64> = blocks.range(block_number + 1..).map(|(n, _)| *n).collect();
++            for n in stale.into_iter().chain(replaced.then_some(block_number)) {
++                if let Some(old) = blocks.remove(&n) {
++                    hashes.remove(&old.header().hash());
++                }
++            }
+         }
+ 
+         // Update latest/finalized references
+         if let BlockId::Number(tag) = block_id {
+             match tag {
+-                BlockNumberOrTag::Latest => *self.latest.write().await = Some(block.clone()),
+-                BlockNumberOrTag::Finalized => *self.finalized.write().await = Some(block.clone()),
++                BlockNumberOrTag::Latest => *latest = Some(block.clone()),
++                BlockNumberOrTag::Finalized => *finalized = Some(block.clone()),
+                 _ => (),
+             }
+         }
+ 
+-        // Insert the new block
+-        self.hashes.write().await.insert(block_hash, block_number);
++        hashes.insert(block_hash, block_number);
++        blocks.insert(block_number, block);
+ 
+-        self.blocks.write().await.insert(block_number, block);
++        // The latest tag must be a cached block of THIS chain: a finalized block that replaced its branch clears it
++        // (fail closed until the next verified head).
++        if latest
++            .as_ref()
++            .is_some_and(|l| blocks.get(&l.header().number()).map(|b| b.header().hash()) != Some(l.header().hash()))
++        {
++            *latest = None;
++        }
+ 
+         // Maintain cache size limit
+-        while self.blocks.read().await.len() > self.size {
+-            let (num, old_block_hash) = {
+-                let blocks = self.blocks.read().await;
+-                if let Some((num, block)) = blocks.first_key_value() {
+-                    (*num, block.header().hash())
+-                } else {
+-                    break;
+-                }
+-            };
+-
+-            self.blocks.write().await.remove(&num).unwrap();
+-            self.hashes.write().await.remove(&old_block_hash);
++        while blocks.len() > self.size {
++            let Some((&num, _)) = blocks.first_key_value() else { break };
++            if let Some(old) = blocks.remove(&num) {
++                hashes.remove(&old.header().hash());
++            }
+         }
+     }
+ }
+--- a/core/src/execution/providers/rpc.rs
++++ b/core/src/execution/providers/rpc.rs
+@@ -305,8 +305,18 @@
+         block_id: BlockId,
+         full_tx: bool,
+     ) -> Result<Option<N::BlockResponse>> {
++        // EIP-1898 by hash: whatever source answers, the answer must BE the requested block (its own header hash).
++        let exact = |block: &N::BlockResponse| -> Result<()> {
++            if let BlockId::Hash(h) = block_id {
++                if block.header().hash() != h.block_hash {
++                    return Err(eyre!("block {} answered for requested hash {}", block.header().hash(), h.block_hash));
++                }
++            }
++            Ok(())
++        };
+         // 1. Try block cache first
+         if let Some(block) = self.block_provider.get_block(block_id, full_tx).await? {
++            exact(&block)?;
+             return Ok(Some(block));
+         }
+ 
+@@ -317,6 +327,7 @@
+                     .get_historical_block(block_id, full_tx, self)
+                     .await?
+                 {
++                    exact(&block)?;
+                     // Note: Do NOT cache historical blocks to avoid interfering with consistency detection
+                     return Ok(Some(block));
+                 }
+--- /dev/null
++++ b/core/tests/ancestor_block_hash.rs
+@@ -0,0 +1,56 @@
++//! BLOCKHASH ancestry bound to the pinned block (core/src/execution/ancestry.rs, used by revm-utils ProofDB)
++//! (verifier-canonical-stage; NOT yet compiled).
++#[path = "support/canonical_fixture.rs"]
++mod fx;
++
++use alloy::eips::{eip1898::RpcBlockHash, BlockNumberOrTag};
++use alloy::primitives::B256;
++use fx::{blk, now, Mock};
++use helios_common::execution_provider::BlockProvider;
++use helios_core::execution::ancestry::ancestor_block_hash;
++use helios_core::execution::providers::block::block_cache::BlockCache;
++use helios_ethereum::spec::Ethereum;
++
++fn pin(h: B256) -> RpcBlockHash { RpcBlockHash { block_hash: h, require_canonical: None } }
++
++#[tokio::test]
++async fn ancestor_follows_pinned_chain_not_canonical_by_number() {
++    let m = Mock::default(); let t = now();
++    let g = blk(1, 0, B256::ZERO, t - 9);
++    let (a2, b2) = (blk(2, 1, g.header.hash, t - 8), blk(2, 2, g.header.hash, t - 8));
++    let a3 = blk(3, 1, a2.header.hash, t - 7);
++    m.canonical(&g); m.known(a2.header.hash, &a2); m.known(a3.header.hash, &a3);
++    m.canonical(&b2);                // "the canonical block at height 2 now" is the OTHER chain
++    assert_eq!(ancestor_block_hash::<Ethereum, _>(&m, pin(a3.header.hash), 2).await.unwrap(), a2.header.hash, "A's own ancestor, never B2");
++    assert_eq!(ancestor_block_hash::<Ethereum, _>(&m, pin(a3.header.hash), 1).await.unwrap(), g.header.hash);
++    assert_eq!(*m.number_reads.lock().unwrap(), 0, "no height lookup at all");
++}
++
++#[tokio::test]
++async fn ancestor_refuses_broken_link_and_wrong_pinned_answer() {
++    let m = Mock::default(); let t = now();
++    let g = blk(1, 0, B256::ZERO, t - 9); let a2 = blk(2, 1, g.header.hash, t - 8); let a3 = blk(3, 1, a2.header.hash, t - 7);
++    let other = blk(2, 9, g.header.hash, t - 8);
++    m.known(a3.header.hash, &a3); m.known(a2.header.hash, &other);   // the parent hash answered with another block
++    assert!(ancestor_block_hash::<Ethereum, _>(&m, pin(a3.header.hash), 2).await.is_err());
++    let m2 = Mock::default(); m2.known(a3.header.hash, &a2);           // the pinned hash answered with another block
++    assert!(ancestor_block_hash::<Ethereum, _>(&m2, pin(a3.header.hash), 2).await.is_err());
++}
++
++#[tokio::test]
++async fn ancestor_refuses_unknown_pinned_and_outside_window() {
++    let m = Mock::default(); let t = now();
++    assert!(ancestor_block_hash::<Ethereum, _>(&m, pin(B256::repeat_byte(5)), 1).await.is_err());
++    let top = blk(300, 1, B256::repeat_byte(1), t); m.known(top.header.hash, &top);
++    assert!(ancestor_block_hash::<Ethereum, _>(&m, pin(top.header.hash), 300).await.is_err(), "not below the block");
++    assert!(ancestor_block_hash::<Ethereum, _>(&m, pin(top.header.hash), 43).await.is_err(), "more than 256 back");
++}
++
++#[tokio::test]
++async fn ancestor_through_block_cache_after_aba() {
++    let c = BlockCache::<Ethereum>::new(); let t = now();
++    let g = blk(1, 0, B256::ZERO, t - 9); let a2 = blk(2, 1, g.header.hash, t - 8); let b2 = blk(2, 2, g.header.hash, t - 8);
++    let a3 = blk(3, 1, a2.header.hash, t - 7);
++    for x in [&g, &a2, &b2, &a2, &a3] { c.push_block(x.clone(), BlockNumberOrTag::Latest.into()).await; }
++    assert_eq!(ancestor_block_hash::<Ethereum, _>(&c, pin(a3.header.hash), 2).await.unwrap(), a2.header.hash);
++}
+--- /dev/null
++++ b/core/tests/block_cache_exact_hash.rs
+@@ -0,0 +1,81 @@
++//! EIP-1898 exact-hash semantics of the verified block cache under reorgs (verifier-canonical-stage, NOT yet compiled).
++//! A -> B at one height: A's hash no longer resolves (never to B); A -> B -> A (ABA): only the current block's hash
++//! resolves; an unknown hash is None; the number lookup follows the current chain only.
++use alloy::consensus::Header as ConsensusHeader;
++use alloy::eips::{BlockId, BlockNumberOrTag};
++use alloy::network::primitives::HeaderResponse;
++use alloy::network::BlockResponse;
++use alloy::primitives::B256;
++use alloy::rpc::types::{Block, Header};
++use helios_common::execution_provider::BlockProvider;
++use helios_core::execution::providers::block::block_cache::BlockCache;
++use helios_ethereum::spec::Ethereum;
++
++fn blk(number: u64, salt: u8, parent: B256) -> Block {
++    let inner = ConsensusHeader { number, parent_hash: parent, extra_data: vec![salt].into(), ..Default::default() };
++    let hash = inner.hash_slow();
++    Block { header: Header { hash, inner, total_difficulty: None, size: None }, ..Default::default() }
++}
++async fn by_hash(c: &BlockCache<Ethereum>, h: B256) -> Option<B256> {
++    c.get_block(BlockId::Hash(h.into()), false).await.unwrap().map(|b| b.header().hash())
++}
++async fn at(c: &BlockCache<Ethereum>, n: u64) -> Option<B256> {
++    c.get_block(BlockNumberOrTag::Number(n).into(), false).await.unwrap().map(|b| b.header().hash())
++}
++
++#[tokio::test]
++async fn reorg_a_to_b_unindexes_a() {
++    let c = BlockCache::<Ethereum>::new();
++    let p = blk(9, 0, B256::ZERO);
++    c.push_block(p.clone(), BlockNumberOrTag::Latest.into()).await;
++    let a = blk(10, 1, p.header.hash);
++    c.push_block(a.clone(), BlockNumberOrTag::Latest.into()).await;
++    assert_eq!(by_hash(&c, a.header.hash).await, Some(a.header.hash));
++    let b = blk(10, 2, p.header.hash);
++    c.push_block(b.clone(), BlockNumberOrTag::Latest.into()).await;
++    assert_eq!(by_hash(&c, a.header.hash).await, None, "a reorged-away hash must not resolve (and never to B)");
++    assert_eq!(by_hash(&c, b.header.hash).await, Some(b.header.hash));
++    assert_eq!(at(&c, 10).await, Some(b.header.hash));
++    assert_eq!(by_hash(&c, B256::repeat_byte(0x77)).await, None, "unknown hash");
++}
++
++#[tokio::test]
++async fn aba_resolves_only_the_current_block() {
++    let c = BlockCache::<Ethereum>::new();
++    let p = blk(9, 0, B256::ZERO);
++    c.push_block(p.clone(), BlockNumberOrTag::Latest.into()).await;
++    let a = blk(10, 1, p.header.hash);
++    let b = blk(10, 2, p.header.hash);
++    for x in [&a, &b, &a] { c.push_block((*x).clone(), BlockNumberOrTag::Latest.into()).await; }
++    assert_eq!(by_hash(&c, a.header.hash).await, Some(a.header.hash));
++    assert_eq!(by_hash(&c, b.header.hash).await, None);
++    assert_eq!(at(&c, 10).await, Some(a.header.hash));
++}
++
++// Root review (round 3): a reorg at a LOWER height must drop every cached descendant of the old branch.
++#[tokio::test]
++async fn multi_height_reorg_drops_stale_descendants() {
++    let c = BlockCache::<Ethereum>::new();
++    let p = blk(9, 0, B256::ZERO);
++    let a10 = blk(10, 1, p.header.hash); let a11 = blk(11, 1, a10.header.hash); let a12 = blk(12, 1, a11.header.hash);
++    for x in [&p, &a10, &a11, &a12] { c.push_block((*x).clone(), BlockNumberOrTag::Latest.into()).await; }
++    let b10 = blk(10, 2, p.header.hash);
++    c.push_block(b10.clone(), BlockNumberOrTag::Latest.into()).await;
++    for stale in [a10.header.hash, a11.header.hash, a12.header.hash] { assert_eq!(by_hash(&c, stale).await, None, "stale descendant by hash"); }
++    assert_eq!(at(&c, 11).await, None, "no stale block at 11"); assert_eq!(at(&c, 12).await, None, "no stale block at 12");
++    assert_eq!(at(&c, 10).await, Some(b10.header.hash));
++    let latest = c.get_block(BlockNumberOrTag::Latest.into(), false).await.unwrap().map(|b| b.header().hash());
++    assert_eq!(latest, Some(b10.header.hash));
++}
++
++#[tokio::test]
++async fn finalized_conflict_drops_unsafe_branch_and_clears_latest() {
++    let c = BlockCache::<Ethereum>::new();
++    let p = blk(9, 0, B256::ZERO); let a10 = blk(10, 1, p.header.hash); let a11 = blk(11, 1, a10.header.hash);
++    for x in [&p, &a10, &a11] { c.push_block((*x).clone(), BlockNumberOrTag::Latest.into()).await; }
++    let f10 = blk(10, 3, p.header.hash);
++    c.push_block(f10.clone(), BlockNumberOrTag::Finalized.into()).await;
++    assert_eq!(by_hash(&c, a10.header.hash).await, None); assert_eq!(by_hash(&c, a11.header.hash).await, None);
++    assert_eq!(at(&c, 10).await, Some(f10.header.hash)); assert_eq!(at(&c, 11).await, None);
++    assert!(c.get_block(BlockNumberOrTag::Latest.into(), false).await.unwrap().is_none(), "latest of a replaced branch is cleared (fail closed)");
++}
+--- /dev/null
++++ b/core/tests/canonical_block_gate.rs
+@@ -0,0 +1,185 @@
++//! EIP-1898 requireCanonical gate (core/src/client/canonical.rs, round 3: exact ancestry of one fresh head snapshot),
++//! with a mock verified provider and the real BlockCache (verifier-canonical-stage; NOT yet compiled).
++#[path = "support/canonical_fixture.rs"]
++mod fx;
++
++use alloy::eips::BlockNumberOrTag;
++use alloy::primitives::B256;
++use fx::{blk, hash_id, now, Blk, Mock};
++use helios_common::execution_provider::BlockProvider;
++use helios_core::client::canonical::check_block_hash;
++use helios_core::errors::ClientError;
++use helios_core::execution::providers::block::block_cache::BlockCache;
++use helios_ethereum::spec::Ethereum;
++
++const FLAGS: [Option<bool>; 3] = [None, Some(false), Some(true)];
++async fn gate<E: BlockProvider<Ethereum>>(e: &E, h: B256, f: Option<bool>) -> Result<(), ClientError> { check_block_hash::<Ethereum, _>(e, &hash_id(h, f), now()).await }
++fn not_canonical(r: Result<(), ClientError>) { assert!(matches!(r, Err(ClientError::BlockNotCanonical(_))), "{r:?}"); }
++/// p9 <- a10 <- a11 <- a12 (head a12, all known by hash; a12 fresh)
++fn chain_a(m: &Mock) -> [Blk; 4] {
++    let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 9); let a10 = blk(10, 1, p.header.hash, t - 6);
++    let a11 = blk(11, 1, a10.header.hash, t - 4); let a12 = blk(12, 1, a11.header.hash, t - 2);
++    for x in [&p, &a10, &a11] { m.canonical(x); } m.head(&a12);
++    [p, a10, a11, a12]
++}
++
++#[tokio::test]
++async fn gate_true_on_canonical_block_passes() {
++    let m = Mock::default(); let [_, a10, _, a12] = chain_a(&m);
++    for f in FLAGS { gate(&m, a12.header.hash, f).await.unwrap(); gate(&m, a10.header.hash, f).await.unwrap(); }
++}
++
++#[tokio::test]
++async fn gate_true_on_known_noncanonical_refuses_not_canonical() {
++    let m = Mock::default(); let [p, a10, ..] = chain_a(&m);
++    let b10 = blk(10, 2, p.header.hash, now() - 1); m.head(&b10);         // head B10; A10 still known by hash
++    not_canonical(gate(&m, a10.header.hash, Some(true)).await);
++}
++
++#[tokio::test]
++async fn gate_false_and_absent_on_known_noncanonical_pass() {
++    let m = Mock::default(); let [p, a10, ..] = chain_a(&m);
++    m.head(&blk(10, 2, p.header.hash, now() - 1));
++    for f in [None, Some(false)] { gate(&m, a10.header.hash, f).await.unwrap(); }
++}
++
++#[tokio::test]
++async fn gate_unknown_hash_refused_for_every_flag() {
++    let m = Mock::default(); chain_a(&m);
++    for f in FLAGS { assert!(matches!(gate(&m, B256::repeat_byte(0x77), f).await, Err(ClientError::BlockNotFound(_))), "{f:?}"); }
++}
++
++#[tokio::test]
++async fn gate_wrong_block_for_hash_refused_for_every_flag() {
++    let m = Mock::default(); let [p, a10, ..] = chain_a(&m);
++    m.known(a10.header.hash, &blk(10, 2, p.header.hash, now() - 1));       // hash A10 answered with another block
++    for f in FLAGS { assert!(matches!(gate(&m, a10.header.hash, f).await, Err(ClientError::BlockNotFound(_))), "{f:?}"); }
++}
++
++#[tokio::test]
++async fn gate_true_stale_head_refuses_false_passes() {
++    let m = Mock::default(); let [_, a10, ..] = chain_a(&m);
++    let later = now() + 600;
++    let r = check_block_hash::<Ethereum, _>(&m, &hash_id(a10.header.hash, Some(true)), later).await;
++    assert!(matches!(r, Err(ClientError::OutOfSync(_))), "{r:?}");
++    for f in [None, Some(false)] { check_block_hash::<Ethereum, _>(&m, &hash_id(a10.header.hash, f), later).await.unwrap(); }
++}
++
++#[tokio::test]
++async fn gate_true_missing_head_refuses() {
++    let m = Mock::default(); let [_, a10, ..] = chain_a(&m);
++    *m.latest.lock().unwrap() = None;
++    assert!(matches!(gate(&m, a10.header.hash, Some(true)).await, Err(ClientError::OutOfSync(_))));
++}
++
++#[tokio::test]
++async fn gate_never_uses_height_lookup() {
++    let m = Mock::default(); let [_, a10, ..] = chain_a(&m);
++    for f in FLAGS { gate(&m, a10.header.hash, f).await.unwrap(); }
++    assert_eq!(*m.number_reads.lock().unwrap(), 0, "canonicality is ancestry by hash links, never 'the block at that height'");
++}
++
++// ROOT COUNTEREXAMPLE, gate alone: the provider still answers height 11 with A11 (a cache that failed to drop it),
++// the head is B10. A11 is above the head and not its ancestor: refused.
++#[tokio::test]
++async fn gate_root_counterexample_retained_descendant_refused() {
++    let m = Mock::default(); let [p, _, a11, _] = chain_a(&m);
++    m.head(&blk(10, 2, p.header.hash, now() - 1));                         // by_number[11] = A11 retained on purpose
++    not_canonical(gate(&m, a11.header.hash, Some(true)).await);
++}
++
++// Another branch BELOW the head: head B12 (p9 <- b10 <- b11 <- b12), and height 10 still answers A10 (stale).
++#[tokio::test]
++async fn gate_other_branch_below_head_refused_by_ancestry() {
++    let m = Mock::default(); let [p, a10, ..] = chain_a(&m); let t = now();
++    let b10 = blk(10, 2, p.header.hash, t - 3); let b11 = blk(11, 2, b10.header.hash, t - 2); let b12 = blk(12, 2, b11.header.hash, t - 1);
++    m.known(b10.header.hash, &b10); m.known(b11.header.hash, &b11); m.head(&b12);
++    m.by_number.lock().unwrap().insert(10, a10.clone());                    // stale by-height entry below the head
++    not_canonical(gate(&m, a10.header.hash, Some(true)).await);
++    gate(&m, b10.header.hash, Some(true)).await.unwrap();
++}
++
++#[tokio::test]
++async fn gate_beyond_window_and_missing_link_refused() {
++    let m = Mock::default(); let t = now();
++    let old = blk(100, 1, B256::repeat_byte(1), t - 9); m.known(old.header.hash, &old);
++    m.head(&blk(400, 1, B256::repeat_byte(2), t - 1));                      // 300 > MAX_CANONICAL_DEPTH below the head
++    not_canonical(gate(&m, old.header.hash, Some(true)).await);
++    let m2 = Mock::default(); let [_, a10, a11, _] = chain_a(&m2);
++    m2.by_hash.lock().unwrap().remove(&a11.header.hash);                    // a link the walk cannot prove
++    not_canonical(gate(&m2, a10.header.hash, Some(true)).await);
++}
++
++// A forged link: hash A11 is answered with X11 (another hash) whose parent is B10. Without the per-link check the walk
++// from head A12 would "prove" B10 canonical.
++#[tokio::test]
++async fn gate_forged_ancestry_link_refused() {
++    let m = Mock::default(); let [p, _, a11, _] = chain_a(&m);
++    let b10 = blk(10, 2, p.header.hash, now() - 8); m.known(b10.header.hash, &b10);
++    let x11 = blk(11, 9, b10.header.hash, now() - 7);
++    m.known(a11.header.hash, &x11);
++    not_canonical(gate(&m, b10.header.hash, Some(true)).await);
++}
++
++fn push<'a>(c: &'a BlockCache<Ethereum>, b: &Blk) -> impl std::future::Future<Output = ()> + 'a { let b = b.clone(); async move { c.push_block(b, BlockNumberOrTag::Latest.into()).await } }
++
++#[tokio::test]
++async fn block_cache_root_counterexample_refused() {
++    let c = BlockCache::<Ethereum>::new(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 9); let a10 = blk(10, 1, p.header.hash, t - 6); let a11 = blk(11, 1, a10.header.hash, t - 4);
++    let a12 = blk(12, 1, a11.header.hash, t - 3); let b10 = blk(10, 2, p.header.hash, t - 1);
++    for x in [&p, &a10, &a11, &a12, &b10] { push(&c, x).await; }
++    for f in FLAGS { assert!(gate(&c, a11.header.hash, f).await.is_err(), "{f:?}: A11 must not answer after B10"); }
++    gate(&c, b10.header.hash, Some(true)).await.unwrap();
++}
++
++#[tokio::test]
++async fn reorg_during_read_refuses_at_post_check() {
++    let c = BlockCache::<Ethereum>::new(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 4); let a = blk(10, 1, p.header.hash, t - 2); let b = blk(10, 2, p.header.hash, t - 1);
++    push(&c, &p).await; push(&c, &a).await;
++    gate(&c, a.header.hash, Some(true)).await.unwrap();                     // pre
++    push(&c, &b).await;                                                     // reorg A -> B during the read
++    assert!(c.get_block(hash_id(a.header.hash, None), false).await.unwrap().is_none(), "the read by A's hash finds nothing (never B)");
++    assert!(gate(&c, a.header.hash, Some(true)).await.is_err());            // post
++}
++
++#[tokio::test]
++async fn aba_during_read_answers_a_and_post_check_passes() {
++    let c = BlockCache::<Ethereum>::new(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 4); let a = blk(10, 1, p.header.hash, t - 2); let b = blk(10, 2, p.header.hash, t - 1);
++    push(&c, &p).await; push(&c, &a).await;
++    gate(&c, a.header.hash, Some(true)).await.unwrap();
++    push(&c, &b).await; push(&c, &a).await;                                 // A, B, A
++    let read = c.get_block(hash_id(a.header.hash, None), false).await.unwrap().expect("A again");
++    assert_eq!(read.header.hash, a.header.hash);
++    gate(&c, a.header.hash, Some(true)).await.unwrap();
++}
++
++#[tokio::test]
++async fn concurrent_head_advance_keeps_ancestor_and_reorg_refuses() {
++    let c = BlockCache::<Ethereum>::new(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 5); let a10 = blk(10, 1, p.header.hash, t - 4); let a11 = blk(11, 1, a10.header.hash, t - 2);
++    let b10 = blk(10, 2, p.header.hash, t - 1);
++    push(&c, &p).await; push(&c, &a10).await;
++    gate(&c, a10.header.hash, Some(true)).await.unwrap();                   // pre, head A10
++    push(&c, &a11).await;                                                   // head advances
++    gate(&c, a10.header.hash, Some(true)).await.unwrap();                   // A10 is an ancestor of the new head
++    push(&c, &b10).await;                                                   // reorg below
++    assert!(gate(&c, a10.header.hash, Some(true)).await.is_err());
++}
++
++// STRUCTURAL (source text, not behaviour; node_canonical_methods drives 8 of these methods for real).
++#[test]
++fn every_block_id_method_is_gated_before_and_after() {
++    let src = include_str!("../src/client/node.rs");
++    for m in ["call", "estimate_gas", "create_access_list", "get_balance", "get_nonce", "get_code", "get_storage_at",
++              "get_proof", "get_block", "get_block_receipts", "get_transaction_by_block_and_index"] {
++        let start = src.find(&format!("    async fn {m}(")).unwrap_or_else(|| panic!("{m} not found"));
++        let rest = &src[start + 10..];
++        let body = &src[start..start + 10 + rest.find("\n    async fn ").unwrap_or(rest.len())];
++        assert!(body.contains("self.check_block_id(&block"), "{m}: no pre-check");
++        assert!(body.contains("self.recheck_canonical(&block"), "{m}: no post-check");
++    }
++}
+--- /dev/null
++++ b/core/tests/node_canonical_methods.rs
+@@ -0,0 +1,230 @@
++//! REAL Node per-method behaviour for EIP-1898 hash reads (verifier-canonical-stage, round 3; NOT yet compiled).
++//! A real helios_core Node (mock Consensus, as core/tests/sync_readiness.rs) over a mock ExecutionProvider whose blocks
++//! are the REAL BlockCache and whose state is keyed by the EXACT block hash it resolved. A scripted chain movement runs
++//! DURING each read (after the block was resolved, before the answer), so before / during / after are exercised through
++//! the node's real methods: get_balance, get_nonce, get_code, get_storage_at, get_proof, get_block (full),
++//! get_block_receipts, get_transaction_by_block_and_index. call / estimate_gas / create_access_list need the EVM over
++//! full proven accounts and are NOT driven here (structural test + provider/BLOCKHASH tests only).
++#[path = "support/metadata.rs"]
++mod metadata;
++#[path = "support/canonical_fixture.rs"]
++mod fx;
++
++use std::collections::HashMap;
++use std::sync::{Arc, Mutex};
++
++use alloy::consensus::TrieAccount;
++use alloy::eips::{BlockId, BlockNumberOrTag};
++use alloy::network::Network;
++use alloy::primitives::{Address, Bytes, B256, U256};
++use alloy::rpc::types::{Block, EIP1186StorageProof, Filter, Log};
++use async_trait::async_trait;
++use eyre::{eyre, Result};
++use fx::{blk, hash_id, now, Blk};
++use helios_common::execution_provider::{
++    AccountProvider, BlockProvider, ExecutionHintProvider, ExecutionProvider, LogProvider, ReceiptProvider, TransactionProvider,
++};
++use helios_common::types::Account;
++use helios_core::client::{api::HeliosApi, node::Node};
++use helios_core::consensus::{Consensus, TrustedBlockRef};
++use helios_core::execution::providers::block::block_cache::BlockCache;
++use helios_ethereum::spec::Ethereum;
++use tokio::sync::{mpsc, watch};
++
++const ADDR: Address = Address::repeat_byte(0xaa);
++
++struct TestConsensus { latest: Option<mpsc::Receiver<TrustedBlockRef<Block>>>, finalized: Option<watch::Receiver<Option<TrustedBlockRef<Block>>>> }
++#[async_trait]
++impl Consensus<Block> for TestConsensus {
++    fn block_recv(&mut self) -> Option<mpsc::Receiver<TrustedBlockRef<Block>>> { self.latest.take() }
++    fn finalized_block_recv(&mut self) -> Option<watch::Receiver<Option<TrustedBlockRef<Block>>>> { self.finalized.take() }
++    fn checkpoint_recv(&self) -> Option<watch::Receiver<Option<B256>>> { None }
++    fn expected_highest_block(&self) -> u64 { 0 }
++    fn chain_id(&self) -> u64 { 1 }
++    fn shutdown(&self) -> Result<()> { Ok(()) }
++    async fn wait_synced(&self) -> Result<()> { Ok(()) }
++}
++
++/// Blocks pushed as LATEST during the read (a reorg, an A-B-A flap, or a head advance).
++type Plan = Arc<Mutex<Vec<Blk>>>;
++struct MockExec { cache: Arc<BlockCache<Ethereum>>, balance: Arc<Mutex<HashMap<B256, U256>>>, plan: Plan }
++impl MockExec {
++    async fn resolve(&self, id: BlockId) -> Result<Blk> { self.cache.get_block(id, false).await?.ok_or_else(|| eyre!("block not found")) }
++    async fn during(&self) {
++        let blocks = std::mem::take(&mut *self.plan.lock().unwrap());
++        for b in blocks { self.cache.push_block(b, BlockNumberOrTag::Latest.into()).await; }
++    }
++}
++#[async_trait]
++impl AccountProvider<Ethereum> for MockExec {
++    async fn get_account(&self, _address: Address, slots: &[B256], with_code: bool, block_id: BlockId) -> Result<Account> {
++        let b = self.resolve(block_id).await?;                 // the exact block of the request
++        self.during().await;                                    // the chain moves while the read is in flight
++        let bal = *self.balance.lock().unwrap().get(&b.header.hash).ok_or_else(|| eyre!("no state for this block"))?;
++        Ok(Account {
++            account: TrieAccount { nonce: b.header.number, balance: bal, ..Default::default() },
++            code: with_code.then(|| Bytes::from(b.header.hash.to_vec())),
++            account_proof: vec![],
++            storage_proof: slots.iter().map(|s| EIP1186StorageProof { key: (*s).into(), value: bal, proof: vec![] }).collect(),
++        })
++    }
++}
++#[async_trait]
++impl BlockProvider<Ethereum> for MockExec {
++    async fn push_block(&self, b: Blk, id: BlockId) { self.cache.push_block(b, id).await }
++    async fn get_block(&self, id: BlockId, full: bool) -> Result<Option<Blk>> {
++        let r = self.cache.get_block(id, full).await?;
++        if full { self.during().await; }                        // only the node's own block read (full_tx) moves the chain
++        Ok(r)
++    }
++    async fn get_untrusted_block(&self, _id: BlockId, _full: bool) -> Result<Option<Blk>> { Ok(None) }
++}
++#[async_trait]
++impl TransactionProvider<Ethereum> for MockExec {
++    async fn send_raw_transaction(&self, _bytes: &[u8]) -> Result<B256> { Err(eyre!("unused")) }
++    async fn get_transaction(&self, _hash: B256) -> Result<Option<<Ethereum as Network>::TransactionResponse>> { Ok(None) }
++    async fn get_transaction_by_location(&self, id: BlockId, _index: u64) -> Result<Option<<Ethereum as Network>::TransactionResponse>> {
++        self.resolve(id).await?; self.during().await; Ok(None)
++    }
++}
++#[async_trait]
++impl ReceiptProvider<Ethereum> for MockExec {
++    async fn get_receipt(&self, _hash: B256) -> Result<Option<<Ethereum as Network>::ReceiptResponse>> { Ok(None) }
++    async fn get_block_receipts(&self, id: BlockId) -> Result<Option<Vec<<Ethereum as Network>::ReceiptResponse>>> {
++        self.resolve(id).await?; self.during().await; Ok(Some(vec![]))
++    }
++}
++#[async_trait]
++impl LogProvider<Ethereum> for MockExec { async fn get_logs(&self, _f: &Filter) -> Result<Vec<Log>> { Ok(vec![]) } }
++#[async_trait]
++impl ExecutionHintProvider<Ethereum> for MockExec {
++    async fn get_execution_hint(&self, _c: &<Ethereum as Network>::TransactionRequest, _v: bool, _id: BlockId) -> Result<HashMap<Address, Account>> { Err(eyre!("unused")) }
++}
++impl ExecutionProvider<Ethereum> for MockExec {}
++
++struct H { node: Node<Ethereum, TestConsensus, MockExec>, cache: Arc<BlockCache<Ethereum>>, balance: Arc<Mutex<HashMap<B256, U256>>>, plan: Plan,
++           _keep: (mpsc::Sender<TrustedBlockRef<Block>>, watch::Sender<Option<TrustedBlockRef<Block>>>) }
++impl H {
++    fn new() -> Self {
++        let (ls, lr) = mpsc::channel(4); let (fs, fr) = watch::channel(None);
++        let cache = Arc::new(BlockCache::<Ethereum>::new()); let balance = Arc::new(Mutex::new(HashMap::new())); let plan: Plan = Arc::default();
++        let exec = MockExec { cache: cache.clone(), balance: balance.clone(), plan: plan.clone() };
++        let node = Node::new(TestConsensus { latest: Some(lr), finalized: Some(fr) }, exec, metadata::forks());
++        Self { node, cache, balance, plan, _keep: (ls, fs) }
++    }
++    async fn push(&self, b: &Blk) { self.cache.push_block(b.clone(), BlockNumberOrTag::Latest.into()).await }
++    fn state(&self, b: &Blk, v: u64) { self.balance.lock().unwrap().insert(b.header.hash, U256::from(v)); }
++    fn during(&self, blocks: &[&Blk]) { *self.plan.lock().unwrap() = blocks.iter().map(|b| (*b).clone()).collect(); }
++}
++/// p9 <- a10 (head, fresh); b10 is a sibling of a10; a11 its child. State: a10 -> 7, b10 -> 9, a11 -> 11.
++async fn setup() -> (H, Blk, Blk, Blk) {
++    let h = H::new(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 6); let a10 = blk(10, 1, p.header.hash, t - 4);
++    let b10 = blk(10, 2, p.header.hash, t - 1); let a11 = blk(11, 1, a10.header.hash, t - 2);
++    h.push(&p).await; h.push(&a10).await; h.state(&a10, 7); h.state(&b10, 9); h.state(&a11, 11);
++    (h, a10, b10, a11)
++}
++/// Every driven method, as one read of `id`: Ok(()) when it answered, Err when it refused.
++async fn each_method(h: &H, id: BlockId) -> Vec<(&'static str, Result<(), String>)> {
++    let e = |r: Result<(), eyre::Report>| r.map_err(|e| e.to_string());
++    let mut out = vec![];
++    out.push(("get_balance", e(h.node.get_balance(ADDR, id).await.map(|v| assert_eq!(v, U256::from(7))))));
++    out.push(("get_nonce", e(h.node.get_nonce(ADDR, id).await.map(|v| assert_eq!(v, 10)))));
++    out.push(("get_code", e(h.node.get_code(ADDR, id).await.map(|_| ()))));
++    out.push(("get_storage_at", e(h.node.get_storage_at(ADDR, U256::from(1), id).await.map(|v| assert_eq!(v, B256::from(U256::from(7)))))));
++    out.push(("get_proof", e(h.node.get_proof(ADDR, &[B256::from(U256::from(1))], id).await.map(|p| assert_eq!(p.balance, U256::from(7))))));
++    out.push(("get_block", e(h.node.get_block(id, true).await.map(|_| ()))));
++    out.push(("get_block_receipts", e(h.node.get_block_receipts(id).await.map(|_| ()))));
++    out.push(("get_transaction_by_block_and_index", e(h.node.get_transaction_by_block_and_index(id, 0).await.map(|_| ()))));
++    out
++}
++const METHODS: usize = 8;
++
++#[tokio::test]
++async fn node_hash_reads_bind_the_exact_block_for_every_flag() {
++    let (h, a10, ..) = setup().await;
++    for f in [None, Some(false), Some(true)] {
++        for (m, r) in each_method(&h, hash_id(a10.header.hash, f)).await { assert!(r.is_ok(), "{m} {f:?}: {r:?}"); }
++    }
++}
++
++const NAMES: [&str; METHODS] = ["get_balance", "get_nonce", "get_code", "get_storage_at", "get_proof", "get_block",
++                                 "get_block_receipts", "get_transaction_by_block_and_index"];
++/// One real node method on `id`: true when it REFUSED.
++async fn refused(h: &H, m: &str, id: BlockId) -> bool {
++    match m {
++        "get_balance" => h.node.get_balance(ADDR, id).await.is_err(),
++        "get_nonce" => h.node.get_nonce(ADDR, id).await.is_err(),
++        "get_code" => h.node.get_code(ADDR, id).await.is_err(),
++        "get_storage_at" => h.node.get_storage_at(ADDR, U256::from(1), id).await.is_err(),
++        "get_proof" => h.node.get_proof(ADDR, &[B256::ZERO], id).await.is_err(),
++        "get_block" => h.node.get_block(id, true).await.is_err(),
++        "get_block_receipts" => h.node.get_block_receipts(id).await.is_err(),
++        "get_transaction_by_block_and_index" => h.node.get_transaction_by_block_and_index(id, 0).await.is_err(),
++        _ => unreachable!(),
++    }
++}
++
++// Each method alone, with the reorg A10 -> B10 scheduled DURING its own read (after the pre-check passed and the exact
++// block was resolved): the post-check must refuse. The plan must be consumed, proving the reorg really ran mid-read.
++#[tokio::test]
++async fn node_reorg_during_read_refuses_every_method() {
++    for m in NAMES {
++        let (h, a10, b10, _) = setup().await;
++        h.during(&[&b10]);
++        assert!(refused(&h, m, hash_id(a10.header.hash, Some(true))).await, "{m}: answered although A10 was reorganized away DURING its read");
++        assert!(h.plan.lock().unwrap().is_empty(), "{m}: the reorg did not run during the read");
++    }
++}
++
++// The same reorg with requireCanonical absent: the exact read itself already found A10 (pre-check), so the answer is A's
++// own state; it is not a canonicality claim. Documented semantics, asserted so a change is visible.
++#[tokio::test]
++async fn node_reorg_during_read_without_require_canonical_answers_exact_a() {
++    let (h, a10, b10, _) = setup().await;
++    h.during(&[&b10]);
++    assert_eq!(h.node.get_balance(ADDR, hash_id(a10.header.hash, None)).await.unwrap(), U256::from(7), "A's own state, never B's");
++}
++
++#[tokio::test]
++async fn node_aba_during_read_answers_a() {
++    let (h, a10, b10, _) = setup().await;
++    h.during(&[&b10, &a10]);                                    // A, B, A while reading
++    assert_eq!(h.node.get_balance(ADDR, hash_id(a10.header.hash, Some(true))).await.unwrap(), U256::from(7), "A's own state, never B's 9");
++}
++
++#[tokio::test]
++async fn node_head_advance_during_read_still_answers() {
++    let (h, a10, _, a11) = setup().await;
++    h.during(&[&a11]);                                          // the head moves forward on A's branch
++    assert_eq!(h.node.get_balance(ADDR, hash_id(a10.header.hash, Some(true))).await.unwrap(), U256::from(7));
++}
++
++// ROOT COUNTEREXAMPLE through the real node: A10, A11, A12 then B10. A11 must not answer, with any flag.
++#[tokio::test]
++async fn node_root_counterexample_retained_descendant_refused() {
++    let (h, _, b10, a11) = setup().await; let a12 = blk(12, 1, a11.header.hash, now() - 2);
++    h.push(&a11).await; h.push(&a12).await; h.state(&a12, 12);
++    h.push(&b10).await;                                                       // the reorg to B10
++    for f in [None, Some(false), Some(true)] {
++        assert!(h.node.get_balance(ADDR, hash_id(a11.header.hash, f)).await.is_err(), "A11 {f:?} answered after the reorg to B10");
++    }
++    assert_eq!(h.node.get_balance(ADDR, hash_id(b10.header.hash, Some(true))).await.unwrap(), U256::from(9));
++}
++
++#[tokio::test]
++async fn node_stale_head_refuses_true_only() {
++    let h = H::new(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 900); let a10 = blk(10, 1, p.header.hash, t - 600);   // head 10 minutes old
++    h.push(&p).await; h.push(&a10).await; h.state(&a10, 7);
++    assert!(h.node.get_balance(ADDR, hash_id(a10.header.hash, Some(true))).await.is_err());
++    for f in [None, Some(false)] { assert_eq!(h.node.get_balance(ADDR, hash_id(a10.header.hash, f)).await.unwrap(), U256::from(7)); }
++}
++
++#[tokio::test]
++async fn node_unknown_hash_refused_for_every_method() {
++    let (h, ..) = setup().await;
++    for f in [None, Some(false), Some(true)] {
++        for (m, r) in each_method(&h, hash_id(B256::repeat_byte(0x77), f)).await { assert!(r.is_err(), "{m} {f:?}"); }
++    }
++}
+--- /dev/null
++++ b/core/tests/rpc_exact_hash_postcondition.rs
+@@ -0,0 +1,32 @@
++//! The real RpcExecutionProvider answers a hash request only with exactly that block (verifier-canonical-stage, round
++//! 3; NOT yet compiled). Its block source here answers hash A with block B (the stale-index defect shape); the cache path
++//! returns before any RPC, so no server is needed. The node over it refuses too.
++#[path = "support/metadata.rs"]
++mod metadata;
++#[path = "support/canonical_fixture.rs"]
++mod fx;
++
++use alloy::primitives::B256;
++use fx::{blk, hash_id, now, Mock};
++use helios_common::execution_provider::BlockProvider;
++use helios_core::execution::providers::rpc::RpcExecutionProvider;
++use helios_ethereum::spec::Ethereum;
++
++#[tokio::test]
++async fn provider_refuses_a_different_block_for_a_hash() {
++    let m = Mock::default(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 3); let a = blk(10, 1, p.header.hash, t - 2); let b = blk(10, 2, p.header.hash, t - 1);
++    m.known(a.header.hash, &b);
++    let exec = RpcExecutionProvider::<Ethereum, _, ()>::new("http://127.0.0.1:9".parse().unwrap(), m, metadata::forks());
++    for f in [None, Some(false), Some(true)] {
++        assert!(exec.get_block(hash_id(a.header.hash, f), false).await.is_err(), "{f:?}: block B answered for hash A");
++    }
++}
++
++#[tokio::test]
++async fn provider_still_answers_the_exact_block() {
++    let m = Mock::default(); let t = now();
++    let p = blk(9, 0, B256::ZERO, t - 3); let a = blk(10, 1, p.header.hash, t - 2); m.known(a.header.hash, &a);
++    let exec = RpcExecutionProvider::<Ethereum, _, ()>::new("http://127.0.0.1:9".parse().unwrap(), m, metadata::forks());
++    assert_eq!(exec.get_block(hash_id(a.header.hash, None), false).await.unwrap().map(|x| x.header.hash), Some(a.header.hash));
++}
+--- /dev/null
++++ b/core/tests/support/canonical_fixture.rs
+@@ -0,0 +1,57 @@
++//! Shared fixtures for the canonical-block tests (verifier-canonical-stage; NOT yet compiled): Ethereum blocks with
++//! real header hashes, and a mock verified BlockProvider whose by-hash and by-number answers can disagree (a known but
++//! non-canonical block, a wrong block for a hash, "the canonical block at that height is another chain").
++#![allow(dead_code)]
++use std::collections::HashMap;
++use std::sync::Mutex;
++
++use alloy::eips::{BlockId, BlockNumberOrTag};
++use alloy::primitives::B256;
++use alloy::rpc::types::{Block, Transaction};
++use async_trait::async_trait;
++use eyre::Result;
++use helios_common::execution_provider::BlockProvider;
++use helios_ethereum::spec::Ethereum;
++
++pub type Blk = Block<Transaction>;
++
++/// A block at `number` with `parent`, distinguished by `salt`, timestamped `ts`; its hash is its real header hash.
++pub fn blk(number: u64, salt: u8, parent: B256, ts: u64) -> Blk {
++    let mut b = Blk::default();
++    b.header.number = number;
++    b.header.parent_hash = parent;
++    b.header.timestamp = ts;
++    b.header.extra_data = vec![salt].into();
++    b.header.hash = b.header.hash_slow();
++    b
++}
++pub fn now() -> u64 { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() }
++pub fn hash_id(h: B256, require_canonical: Option<bool>) -> BlockId {
++    BlockId::Hash(alloy::eips::eip1898::RpcBlockHash { block_hash: h, require_canonical })
++}
++
++#[derive(Default)]
++pub struct Mock {
++    pub by_hash: Mutex<HashMap<B256, Blk>>,     // what a hash lookup answers (may be a wrong block, on purpose)
++    pub by_number: Mutex<HashMap<u64, Blk>>,    // the verified canonical block at a height
++    pub latest: Mutex<Option<Blk>>,
++    pub number_reads: Mutex<u32>,
++}
++impl Mock {
++    pub fn known(&self, key: B256, b: &Blk) { self.by_hash.lock().unwrap().insert(key, b.clone()); }
++    pub fn canonical(&self, b: &Blk) { self.by_number.lock().unwrap().insert(b.header.number, b.clone()); self.known(b.header.hash, b); }
++    pub fn head(&self, b: &Blk) { self.canonical(b); *self.latest.lock().unwrap() = Some(b.clone()); }
++}
++#[async_trait]
++impl BlockProvider<Ethereum> for Mock {
++    async fn push_block(&self, _b: Blk, _id: BlockId) {}
++    async fn get_block(&self, id: BlockId, _full: bool) -> Result<Option<Blk>> {
++        Ok(match id {
++            BlockId::Hash(h) => self.by_hash.lock().unwrap().get(&h.block_hash).cloned(),
++            BlockId::Number(BlockNumberOrTag::Latest) => self.latest.lock().unwrap().clone(),
++            BlockId::Number(BlockNumberOrTag::Number(n)) => { *self.number_reads.lock().unwrap() += 1; self.by_number.lock().unwrap().get(&n).cloned() }
++            _ => None,
++        })
++    }
++    async fn get_untrusted_block(&self, _id: BlockId, _full: bool) -> Result<Option<Blk>> { Ok(None) }
++}
+--- a/revm-utils/src/proof_db.rs
++++ b/revm-utils/src/proof_db.rs
+@@ -1,7 +1,7 @@
+ use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+ 
+ use alloy::{
+-    eips::{eip1898::RpcBlockHash, BlockNumberOrTag},
++    eips::eip1898::RpcBlockHash,
+     network::{primitives::HeaderResponse, BlockResponse},
+     rpc::types::state::{AccountOverride, StateOverride},
+ };
+@@ -102,14 +102,10 @@
+                     }
+                 }
+                 StateAccess::BlockHash(number) => {
+-                    let block_id = BlockNumberOrTag::Number(number).into();
+-                    let block = self
+-                        .execution
+-                        .get_block(block_id, false)
+-                        .await?
+-                        .ok_or(ExecutionError::BlockNotFound(block_id))?;
+-
+-                    self.block_hash.insert(number, block.header().hash());
++                    // BLOCKHASH of THIS block's own ancestry (parent-hash walk from the pinned block), never the
++                    // canonical block at that height now: helios_core::execution::ancestry.
++                    let hash = helios_core::execution::ancestry::ancestor_block_hash::<N, E>(&*self.execution, self.block, number).await?;
++                    self.block_hash.insert(number, hash);
+                 }
+             }
+         }
