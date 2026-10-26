@@ -1,0 +1,22 @@
+test_ambiguous_or_failed_states_refuse_instead_of_skipping_or_replaying (test_chain_service_release.BootstrapLifecycle.test_ambiguous_or_failed_states_refuse_instead_of_skipping_or_replaying) ... ok
+test_anchor_pending_gives_the_one_time_anchor_only_when_the_producer_is_reviewed (test_chain_service_release.BootstrapLifecycle.test_anchor_pending_gives_the_one_time_anchor_only_when_the_producer_is_reviewed) ... ok
+test_bootstrapped_never_replays_the_anchor (test_chain_service_release.BootstrapLifecycle.test_bootstrapped_never_replays_the_anchor) ... ok
+test_evidence_bindings_refuse_any_mismatch (test_chain_service_release.BootstrapLifecycle.test_evidence_bindings_refuse_any_mismatch) ... ok
+test_unpinned_partial_or_tampered_evidence_refuses (test_chain_service_release.BootstrapLifecycle.test_unpinned_partial_or_tampered_evidence_refuses) ... ok
+test_existing_gate_order_is_kept_in_release_mode (test_chain_service_release.LegacyUnchanged.test_existing_gate_order_is_kept_in_release_mode) ... ok
+test_without_base_release_the_old_binary_runs_exactly_as_before (test_chain_service_release.LegacyUnchanged.test_without_base_release_the_old_binary_runs_exactly_as_before) ... {"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_bootstrapped_restart_execs_the_release_without_the_anchor (test_chain_service_release.ReleaseLaunch.test_bootstrapped_restart_execs_the_release_without_the_anchor) ... {"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_release_mode_execs_the_release_with_every_gate_and_the_anchor (test_chain_service_release.ReleaseLaunch.test_release_mode_execs_the_release_with_every_gate_and_the_anchor) ... {"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+ok
+test_release_mode_with_the_source_hold_never_execs (test_chain_service_release.ReleaseLaunch.test_release_mode_with_the_source_hold_never_execs) ... ok
+test_refusals (test_chain_service_release.ReleaseSelection.test_refusals) ... ok
+test_symlinks_and_writable_parents_are_refused (test_chain_service_release.ReleaseSelection.test_symlinks_and_writable_parents_are_refused) ... ok
+test_valid_release_is_selected (test_chain_service_release.ReleaseSelection.test_valid_release_is_selected) ... ok
+test_source_pins_the_tested_artifact_and_holds_the_producer (test_chain_service_release.ReleaseSourcePins.test_source_pins_the_tested_artifact_and_holds_the_producer) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.023s
+
+OK

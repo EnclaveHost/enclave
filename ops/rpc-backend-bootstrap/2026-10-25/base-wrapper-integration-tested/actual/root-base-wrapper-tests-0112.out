@@ -1,0 +1,10 @@
+[queue] START available=23405MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+## NOTE: inside unshare -r the uid is mapped to 0 for the namespace; files are owned by that same mapped uid, so the owner checks still compare real values
+PASS baseline-existing Ran 34 tests
+PASS candidate-existing Ran 34 tests
+PASS candidate-release Ran 14 tests
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-wrapper-integration-stage/logs/root-wrapper-tests-20261026T010732Z
+## aggregate rc=0
+[memory-guard] exit=0 peakTreeRssMiB=6 minHostAvailableMiB=23372
+[memory-guard] at peak: bash:4 timeout:2
+[queue] EXIT 0
