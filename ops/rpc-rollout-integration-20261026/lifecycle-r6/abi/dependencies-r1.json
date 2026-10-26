@@ -1,0 +1,6875 @@
+{
+  "compiler": "0.8.35+commit.47b9dedd.Emscripten.clang",
+  "qualification": "ABI only; runtime code not generated or verified by this build",
+  "contracts": {
+    "connectivity": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "contract EnclaveDeployments",
+              "name": "deployments",
+              "type": "address"
+            },
+            {
+              "internalType": "address[]",
+              "name": "signers",
+              "type": "address[]"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "cumulativeUnits",
+              "type": "uint256"
+            }
+          ],
+          "name": "BandwidthCharged",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "nonce",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "maxPricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint128",
+              "name": "budget6",
+              "type": "uint128"
+            }
+          ],
+          "name": "DirectAuthorized",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "bool",
+              "name": "direct",
+              "type": "bool"
+            },
+            {
+              "indexed": false,
+              "internalType": "bool",
+              "name": "tuna",
+              "type": "bool"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "pricePerGiB6",
+              "type": "uint64"
+            }
+          ],
+          "name": "HostConfigured",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "nonce",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "address[]",
+              "name": "signers",
+              "type": "address[]"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint8",
+              "name": "threshold",
+              "type": "uint8"
+            }
+          ],
+          "name": "ProbeTrustAuthorized",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "addressHash",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            }
+          ],
+          "name": "Qualified",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "nonce",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32[]",
+              "name": "providers",
+              "type": "bytes32[]"
+            }
+          ],
+          "name": "TunaAuthorized",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "ALL_CHECKS",
+          "outputs": [
+            {
+              "internalType": "uint16",
+              "name": "",
+              "type": "uint16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "name": "attestations",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "operator",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "addressHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "maxPricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint128",
+              "name": "budget6",
+              "type": "uint128"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "name": "authorizeDirect",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address[]",
+              "name": "signers",
+              "type": "address[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "threshold",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "name": "authorizeProbeTrust",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "providers",
+              "type": "bytes32[]"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "maxPricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint128",
+              "name": "budget6",
+              "type": "uint128"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "name": "authorizeTuna",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "bytesServed",
+          "outputs": [
+            {
+              "internalType": "uint128",
+              "name": "",
+              "type": "uint128"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            }
+          ],
+          "name": "capabilities",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "direct",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "tuna",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "capabilitiesFor",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "direct",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "tuna",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "hosts",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "direct",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "tuna",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint64",
+              "name": "pricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "qualifiedUntil",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "addressHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "operator",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "qualifier",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ledger",
+          "outputs": [
+            {
+              "internalType": "contract EnclaveDeployments",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "policies",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "uint64",
+              "name": "nonce",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "maxPricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint128",
+              "name": "budget6",
+              "type": "uint128"
+            },
+            {
+              "internalType": "uint128",
+              "name": "spent6",
+              "type": "uint128"
+            },
+            {
+              "internalType": "uint16",
+              "name": "providerBps",
+              "type": "uint16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "maxPricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint128",
+              "name": "budget6",
+              "type": "uint128"
+            }
+          ],
+          "name": "policyDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "policyUnits",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "probeTrust",
+          "outputs": [
+            {
+              "internalType": "address[]",
+              "name": "signers",
+              "type": "address[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "threshold",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address[]",
+              "name": "signers",
+              "type": "address[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "threshold",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            }
+          ],
+          "name": "probeTrustDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "addressHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "issuedAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint16",
+              "name": "checks",
+              "type": "uint16"
+            }
+          ],
+          "name": "qualificationDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "qualificationFor",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "ok",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "addressHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "operator",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            }
+          ],
+          "name": "qualified",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "ok",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "qualifiedFor",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "ok",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "addressHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "issuedAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint16",
+              "name": "checks",
+              "type": "uint16"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "name": "qualify",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "quote",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "pricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bool",
+              "name": "selfHosted",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "providerId",
+              "type": "bytes32"
+            }
+          ],
+          "name": "quoteTuna",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "pricePerGiB6",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "bytes32",
+                  "name": "id",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "hostId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "policyNonce",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "leaseUntil",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "issuedAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "anchor",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "cumulativeBytes",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "pricePerGiB6",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct EnclaveConnectivity.Receipt",
+              "name": "r",
+              "type": "tuple"
+            }
+          ],
+          "name": "receiptDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "registry",
+          "outputs": [
+            {
+              "internalType": "contract IEnclaveRegistry",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "revokeDirect",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bool",
+              "name": "direct",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "tuna",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint64",
+              "name": "pricePerGiB6",
+              "type": "uint64"
+            }
+          ],
+          "name": "setHost",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "bytes32",
+                  "name": "id",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "hostId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "policyNonce",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "leaseUntil",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "issuedAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "anchor",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "cumulativeBytes",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "pricePerGiB6",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct EnclaveConnectivity.Receipt",
+              "name": "r",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "name": "settle",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "bytes32",
+                  "name": "id",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "runnerId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "providerId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "policyNonce",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "leaseUntil",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "issuedAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "anchor",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "cumulativeBytes",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "pricePerGiB6",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct EnclaveConnectivity.TunaReceipt",
+              "name": "r",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "runnerSignature",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "providerSignature",
+              "type": "bytes"
+            }
+          ],
+          "name": "settleTuna",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "providers",
+              "type": "bytes32[]"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "maxPricePerGiB6",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint128",
+              "name": "budget6",
+              "type": "uint128"
+            }
+          ],
+          "name": "tunaPolicyDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "tunaProviders",
+          "outputs": [
+            {
+              "internalType": "bytes32[]",
+              "name": "",
+              "type": "bytes32[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "bytes32",
+                  "name": "id",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "runnerId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "providerId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "policyNonce",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "leaseUntil",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "issuedAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "anchor",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "cumulativeBytes",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "pricePerGiB6",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct EnclaveConnectivity.TunaReceipt",
+              "name": "r",
+              "type": "tuple"
+            }
+          ],
+          "name": "tunaReceiptDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "units",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "viaTuna",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/EnclaveConnectivity.sol",
+      "sourceSha256": "da607b8a38546b8f535f28fb622344ebedf9e9ac908a8777e0fea53dc9d2615f",
+      "sourceMatchesReviewedBuild": false
+    },
+    "pinnedSessionAuthority": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "ledger",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "catalog",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "factory",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "name",
+              "type": "bytes32"
+            }
+          ],
+          "name": "addr",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "appCatalog",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "deployments",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "sessionVaultFactory",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/PinnedSessionVaultFactory.sol",
+      "sourceSha256": "fe071b7178476ae0938b3f8f94e6b40d6468ee327bbb0c8568ce3b7dec1a6d16",
+      "sourceMatchesReviewedBuild": true
+    },
+    "proofOfTime": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "_deployments",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "_registry",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "reason",
+              "type": "string"
+            }
+          ],
+          "name": "CheckpointRejected",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "enclaveId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "operator",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "provenUntil",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "secondsProven",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "anchorBlock",
+              "type": "uint64"
+            }
+          ],
+          "name": "Checkpointed",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            }
+          ],
+          "name": "OwnerChanged",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "previousOwner",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "newOwner",
+              "type": "address"
+            }
+          ],
+          "name": "OwnershipTransferStarted",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "proofWindowSec",
+              "type": "uint64"
+            }
+          ],
+          "name": "ProofWindowSet",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "acceptOwnership",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "enclaveId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "upto",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "anchorBlock",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "anchorHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "checkpoint",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "bytes32",
+                  "name": "id",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "enclaveId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "upto",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "anchorBlock",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "anchorHash",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "sig",
+                  "type": "bytes"
+                }
+              ],
+              "internalType": "struct EnclaveProofOfTime.Checkpoint[]",
+              "name": "cps",
+              "type": "tuple[]"
+            }
+          ],
+          "name": "checkpointMany",
+          "outputs": [
+            {
+              "internalType": "bool[]",
+              "name": "landed",
+              "type": "bool[]"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "coverageOf",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "provenUntil_",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "lastProofAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "provenSec",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint32",
+              "name": "proofs",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "unproven",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bool",
+              "name": "required",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "deployments",
+          "outputs": [
+            {
+              "internalType": "contract IEnclaveDeployments",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "domainSeparator",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "name": "hostedSec",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "owner",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "pendingOwner",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "enclaveId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "operator",
+              "type": "address"
+            },
+            {
+              "internalType": "uint64",
+              "name": "upto",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "anchorBlock",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "anchorHash",
+              "type": "bytes32"
+            }
+          ],
+          "name": "proofDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "proofSchema",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "proofWindowSec",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "recordOf",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "lastProofAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "provenSec",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint32",
+              "name": "proofs",
+              "type": "uint32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "registry",
+          "outputs": [
+            {
+              "internalType": "contract IEnclaveRegistry",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint64",
+              "name": "_proofWindowSec",
+              "type": "uint64"
+            }
+          ],
+          "name": "setProofWindow",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "newOwner",
+              "type": "address"
+            }
+          ],
+          "name": "transferOwnership",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "unprovenSec",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/EnclaveProofOfTime.sol",
+      "sourceSha256": "12d67d9aa5f1b0bd0d6b9df219a44630ca18faecfa4cdf54743883235f0829f0",
+      "sourceMatchesReviewedBuild": false
+    },
+    "secretVaultV2": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "book_",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "enclaveOwner_",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "hostOwnership_",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "name": "BadAck",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadBundle",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadCode",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadCommittee",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadDeal",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadDealers",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadHost",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadMachine",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadRules",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadSeats",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadSignature",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Expired",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NoLedger",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NoPending",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NoRegistry",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotEnclave",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotMachine",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotOwner",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NothingToClaim",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Pending",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint64",
+              "name": "current",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expected",
+              "type": "uint64"
+            }
+          ],
+          "name": "StaleRevision",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "got",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "need",
+              "type": "uint256"
+            }
+          ],
+          "name": "Weight",
+          "type": "error"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "secretRev",
+              "type": "uint64"
+            }
+          ],
+          "name": "BundleCleared",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "secretRev",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "bundleBytes",
+              "type": "uint256"
+            }
+          ],
+          "name": "BundlePut",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "measurement",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "activeAt",
+              "type": "uint64"
+            }
+          ],
+          "name": "CodeProposed",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "measurement",
+              "type": "bytes32"
+            }
+          ],
+          "name": "CodeRemoved",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "identity",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes",
+              "name": "Y",
+              "type": "bytes"
+            }
+          ],
+          "name": "CommitteeCreated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint32",
+              "name": "dealerIndex",
+              "type": "uint32"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "dealer",
+              "type": "address"
+            }
+          ],
+          "name": "DealPosted",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint32",
+              "name": "epoch",
+              "type": "uint32"
+            }
+          ],
+          "name": "EpochActivated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "machine",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "acks",
+              "type": "uint256"
+            }
+          ],
+          "name": "HandoverAcked",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint8",
+              "name": "t",
+              "type": "uint8"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint8",
+              "name": "W",
+              "type": "uint8"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "machines",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            }
+          ],
+          "name": "HandoverProposed",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "previousOwner",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "newOwner",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "policyRev",
+              "type": "uint64"
+            }
+          ],
+          "name": "PolicyClaimed",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "policyRev",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "bool",
+              "name": "paused",
+              "type": "bool"
+            }
+          ],
+          "name": "PolicyUpdated",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "CODE_DELAY",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "HANDOVER_TTL",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_BUNDLE",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_CODESET",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_ENDPOINT",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_MACHINES",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_RULES",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_SEALED",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MAX_SEATS",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "MIN_BUNDLE",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "POINT",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            }
+          ],
+          "name": "ackCount",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "newCommitments",
+              "type": "bytes"
+            },
+            {
+              "internalType": "address",
+              "name": "machine",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "ackHandover",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "beneficialOwnerOf",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "o",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "book",
+          "outputs": [
+            {
+              "internalType": "contract IVaultV2Book",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "bundleOf",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "secretRev",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "bundle",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "claimPolicy",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expectPolicyRev",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deadline",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "claimPolicyBySig",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "measurement",
+              "type": "bytes32"
+            }
+          ],
+          "name": "codeActiveAt",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "epoch",
+              "type": "uint32"
+            }
+          ],
+          "name": "commitmentsOf",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            }
+          ],
+          "name": "committeeOf",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "Y",
+              "type": "bytes"
+            },
+            {
+              "internalType": "uint32",
+              "name": "epoch",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "t",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "W",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "activatedAt",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "uint64",
+                  "name": "expectPolicyRev",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setPolicy",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "committeeId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "paused",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "rules",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setBundle",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "bundle",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "clear",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Update",
+              "name": "u",
+              "type": "tuple"
+            }
+          ],
+          "name": "contentHash",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "pure",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "salt",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "identity",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "encKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string",
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "chipId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "registryId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Machine",
+              "name": "m",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "Y",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "codeSet",
+              "type": "bytes32[]"
+            },
+            {
+              "internalType": "bytes",
+              "name": "identitySig",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "hostSig",
+              "type": "bytes"
+            }
+          ],
+          "name": "createCommittee",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "salt",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "identity",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "encKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string",
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "chipId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "registryId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Machine[]",
+              "name": "machines",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "bytes",
+              "name": "commitments",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "codeSet",
+              "type": "bytes32[]"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "identitySigs",
+              "type": "bytes[]"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "hostSigs",
+              "type": "bytes[]"
+            }
+          ],
+          "name": "createIndependentCommittee",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "dealerIndex",
+              "type": "uint32"
+            }
+          ],
+          "name": "dealOf",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "dealCommitments",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "sealedTo",
+              "type": "bytes[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "deploymentLedger",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "domainSeparator",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "enclaveOwner",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "hostOwnership",
+          "outputs": [
+            {
+              "internalType": "contract IVaultV2HostOwnership",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "hostRegistry",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "identity",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "encKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string",
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "chipId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "registryId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Machine",
+              "name": "m",
+              "type": "tuple"
+            }
+          ],
+          "name": "machineHash",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "pure",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "epoch",
+              "type": "uint32"
+            }
+          ],
+          "name": "machinesOf",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "identity",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "encKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string",
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "chipId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "registryId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Machine[]",
+              "name": "machines",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "bool[]",
+              "name": "enclave",
+              "type": "bool[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            }
+          ],
+          "name": "pendingOf",
+          "outputs": [
+            {
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "identity",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "encKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string",
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "chipId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "registryId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Machine[]",
+              "name": "next",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "bool[]",
+              "name": "enclave",
+              "type": "bool[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "t",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "W",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32[]",
+              "name": "dealers",
+              "type": "uint32[]"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "policyOf",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "uint64",
+              "name": "policyRev",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "secretRev",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "committeeId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bool",
+              "name": "paused",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes",
+              "name": "rules",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "toEpoch",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "dealerIndex",
+              "type": "uint32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "dealCommitments",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "sealedTo",
+              "type": "bytes[]"
+            },
+            {
+              "internalType": "address",
+              "name": "dealer",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "postDeal",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "measurement",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address[]",
+              "name": "approvers",
+              "type": "address[]"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "approvals",
+              "type": "bytes[]"
+            }
+          ],
+          "name": "proposeCode",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "identity",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "encKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string",
+                  "name": "endpoint",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "chipId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "registryId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Machine[]",
+              "name": "next",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "hostSigs",
+              "type": "bytes[]"
+            },
+            {
+              "internalType": "uint32[]",
+              "name": "dealerIndices",
+              "type": "uint32[]"
+            },
+            {
+              "internalType": "address[]",
+              "name": "approvers",
+              "type": "address[]"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "approvals",
+              "type": "bytes[]"
+            }
+          ],
+          "name": "proposeHandover",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "cid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "measurement",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address[]",
+              "name": "approvers",
+              "type": "address[]"
+            },
+            {
+              "internalType": "bytes[]",
+              "name": "approvals",
+              "type": "bytes[]"
+            }
+          ],
+          "name": "removeCode",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "sessionVaultFactory",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint64",
+                  "name": "expectPolicyRev",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setPolicy",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "committeeId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "paused",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "rules",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setBundle",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "bundle",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "clear",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Update",
+              "name": "u",
+              "type": "tuple"
+            }
+          ],
+          "name": "update",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint64",
+                  "name": "expectPolicyRev",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setPolicy",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "committeeId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "paused",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "rules",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setBundle",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "bundle",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "clear",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Update",
+              "name": "u",
+              "type": "tuple"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deadline",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "updateBySig",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint64",
+                  "name": "expectPolicyRev",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setPolicy",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "committeeId",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "paused",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "rules",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "setBundle",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "bundle",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "clear",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct EnclaveSecretVaultV2.Update",
+              "name": "u",
+              "type": "tuple"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deadline",
+              "type": "uint64"
+            }
+          ],
+          "name": "updateDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/variants/EnclaveSecretVaultV2PinnedAuthorities.sol",
+      "sourceSha256": "fc43ab52da0bca1fb62e0289a254332b49faea0990322ab39dbd03d4d8e2ef9b",
+      "sourceMatchesReviewedBuild": true
+    },
+    "sessionVaultFactory": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "contract ISVToken",
+              "name": "usdc",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "ledger",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "catalog",
+              "type": "address"
+            },
+            {
+              "internalType": "contract ISVRouter",
+              "name": "router",
+              "type": "address"
+            },
+            {
+              "internalType": "contract ISVKeyAttestations",
+              "name": "keyAttestations",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxVault6",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "vault",
+              "type": "address"
+            }
+          ],
+          "name": "VaultCreated",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "authorityPins",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "ledger",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "catalog",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "authority",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            }
+          ],
+          "name": "createVault",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "vault",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "implementation",
+          "outputs": [
+            {
+              "internalType": "contract SessionVault",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "name": "isVault",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "label",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "preset",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "sessionKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "actions",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "apps",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "environments",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "budget",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "spendPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "periodSeconds",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "opsPerPeriod",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxFeePerOp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxAppFeePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxRatePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "expiresAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "grantNonce",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "signBefore",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct SessionVault.Grant",
+              "name": "g",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "ownerSig",
+              "type": "bytes"
+            }
+          ],
+          "name": "openFor",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "vault",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "label",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "preset",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "sessionKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "actions",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "apps",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "environments",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "budget",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "spendPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "periodSeconds",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "opsPerPeriod",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxFeePerOp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxAppFeePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxRatePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "expiresAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "grantNonce",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "signBefore",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct SessionVault.Grant",
+              "name": "g",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "ownerSig",
+              "type": "bytes"
+            },
+            {
+              "internalType": "uint256",
+              "name": "validAfter",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "validBefore",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "authSig",
+              "type": "bytes"
+            }
+          ],
+          "name": "openWithDepositFor",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "vault",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            }
+          ],
+          "name": "vaultFor",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/PinnedSessionVaultFactory.sol",
+      "sourceSha256": "fe071b7178476ae0938b3f8f94e6b40d6468ee327bbb0c8568ce3b7dec1a6d16",
+      "sourceMatchesReviewedBuild": true
+    },
+    "sessionVaultImplementation": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "contract ISVToken",
+              "name": "_usdc",
+              "type": "address"
+            },
+            {
+              "internalType": "contract ISVBook",
+              "name": "_book",
+              "type": "address"
+            },
+            {
+              "internalType": "contract ISVRouter",
+              "name": "_router",
+              "type": "address"
+            },
+            {
+              "internalType": "contract ISVKeyAttestations",
+              "name": "_ka",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_maxVault6",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "name": "AllowanceLeft",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "perHour",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "max",
+              "type": "uint256"
+            }
+          ],
+          "name": "AppFeeTooHigh",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "appId",
+              "type": "bytes32"
+            }
+          ],
+          "name": "AppNotAllowed",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadNonce",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint8",
+              "name": "code",
+              "type": "uint8"
+            }
+          ],
+          "name": "BadPolicy",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadRef",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadSignature",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "BadTarget",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "need",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "have",
+              "type": "uint256"
+            }
+          ],
+          "name": "BudgetExceeded",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint8",
+              "name": "env",
+              "type": "uint8"
+            }
+          ],
+          "name": "EnvNotAllowed",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Exists",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Expired",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "fee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "max",
+              "type": "uint256"
+            }
+          ],
+          "name": "FeeTooHigh",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Initialized",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Insolvent",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "LabelMismatch",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NoAttestation",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "key",
+              "type": "bytes32"
+            }
+          ],
+          "name": "NoContract",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NonceUsed",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint8",
+              "name": "action",
+              "type": "uint8"
+            }
+          ],
+          "name": "NotAllowed",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotExpired",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotFactory",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "NotHeld",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotLive",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "NotMine",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "NotOwner",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "balance",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "cap",
+              "type": "uint256"
+            }
+          ],
+          "name": "OverCap",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "need",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "left",
+              "type": "uint256"
+            }
+          ],
+          "name": "PeriodLimit",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "rate",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "limit",
+              "type": "uint256"
+            }
+          ],
+          "name": "RateCapOutOfRange",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "RateLimit",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "Reentrant",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "TransferFailed",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "UnknownAction",
+          "type": "error"
+        },
+        {
+          "inputs": [],
+          "name": "UnknownEnvironment",
+          "type": "error"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "env",
+              "type": "uint8"
+            }
+          ],
+          "name": "WrongEnvironment",
+          "type": "error"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "expiresAt",
+              "type": "uint64"
+            }
+          ],
+          "name": "Extended",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint8",
+              "name": "env",
+              "type": "uint8"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "createdBy",
+              "type": "bytes32"
+            }
+          ],
+          "name": "HeldSet",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "promoted",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "appRef",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "configCid",
+              "type": "string"
+            }
+          ],
+          "name": "Promoted",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "to",
+              "type": "address"
+            }
+          ],
+          "name": "Released",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "epoch",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "withdrawn6",
+              "type": "uint256"
+            }
+          ],
+          "name": "RevokedAll",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint8",
+              "name": "reason",
+              "type": "uint8"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "refund6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "fee6",
+              "type": "uint256"
+            }
+          ],
+          "name": "SessionEnded",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "nonce",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "uint8",
+              "name": "action",
+              "type": "uint8"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "argsHash",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "fee6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes",
+              "name": "result",
+              "type": "bytes"
+            }
+          ],
+          "name": "SessionOp",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "keyHash",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "expiresAt",
+              "type": "uint64"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "actions",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint8",
+              "name": "envs",
+              "type": "uint8"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "budget6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "label",
+              "type": "string"
+            }
+          ],
+          "name": "SessionOpened",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "bool",
+              "name": "fromWallet",
+              "type": "bool"
+            }
+          ],
+          "name": "ToppedUp",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            }
+          ],
+          "name": "Withdrawn",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_CREATE",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_FUND",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_PUBLISH",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_REFUND",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_SET_ACTIVE",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_SET_APPREF",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_SET_CONFIG",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_SET_MAXRATE",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ACT_SET_SHARES",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ADOPT_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "CALL_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "END_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ENV_PROD",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ENV_STAGING",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "",
+              "type": "uint8"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "EXTEND_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "GRANT_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "PROMOTE_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "RELEASE_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "REVOKE_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "SETENV_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "TERMINATE_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "TOPUP_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "WITHDRAW_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "string",
+              "name": "environment",
+              "type": "string"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "adopt",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "book",
+          "outputs": [
+            {
+              "internalType": "contract ISVBook",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "name": "close",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "domainSeparator",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "epoch",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "nonce",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint8",
+              "name": "action",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bytes",
+              "name": "args",
+              "type": "bytes"
+            },
+            {
+              "internalType": "uint256",
+              "name": "fee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deadline",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "x",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "y",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "r",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "sv",
+              "type": "bytes32"
+            }
+          ],
+          "name": "execute",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "result",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expiresAt",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "extend",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "factory",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "free",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "label",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "preset",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "sessionKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "actions",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "apps",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "environments",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "budget",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "spendPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "periodSeconds",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "opsPerPeriod",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxFeePerOp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxAppFeePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxRatePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "expiresAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "grantNonce",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "signBefore",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct SessionVault.Grant",
+              "name": "g",
+              "type": "tuple"
+            }
+          ],
+          "name": "grantDigest",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "held",
+          "outputs": [
+            {
+              "internalType": "uint8",
+              "name": "env",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "promoted",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "createdBy",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "owner_",
+              "type": "address"
+            }
+          ],
+          "name": "initialize",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "name": "isLive",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "keyAttestations",
+          "outputs": [
+            {
+              "internalType": "contract ISVKeyAttestations",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "locked6",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "maxVault6",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "label",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "preset",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "sessionKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "actions",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "apps",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "environments",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "budget",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "spendPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "periodSeconds",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "opsPerPeriod",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxFeePerOp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxAppFeePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxRatePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "expiresAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "grantNonce",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "signBefore",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct SessionVault.Grant",
+              "name": "g",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "ownerSig",
+              "type": "bytes"
+            }
+          ],
+          "name": "open",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "label",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "preset",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "sessionKey",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "actions",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "apps",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "environments",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "budget",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "spendPerPeriod",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "periodSeconds",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "opsPerPeriod",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxFeePerOp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxAppFeePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxRatePerHour",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "expiresAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "grantNonce",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "signBefore",
+                  "type": "uint64"
+                }
+              ],
+              "internalType": "struct SessionVault.Grant",
+              "name": "g",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bytes",
+              "name": "ownerSig",
+              "type": "bytes"
+            },
+            {
+              "internalType": "uint256",
+              "name": "validAfter",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "validBefore",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "authSig",
+              "type": "bytes"
+            }
+          ],
+          "name": "openWithDeposit",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "owner",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            }
+          ],
+          "name": "ownerCall",
+          "outputs": [
+            {
+              "internalType": "bytes",
+              "name": "ret",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "ownerNonceUsed",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "string",
+              "name": "app",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "publisher",
+              "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "appRef",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "configCid",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "versionLabel",
+              "type": "string"
+            },
+            {
+              "internalType": "bool",
+              "name": "isPublic",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "promote",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "to",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "release",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bool",
+              "name": "alsoWithdraw",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "revokeAll",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "router",
+          "outputs": [
+            {
+              "internalType": "contract ISVRouter",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint192",
+              "name": "",
+              "type": "uint192"
+            }
+          ],
+          "name": "seqOf",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sessionKey",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "grantNonce",
+              "type": "bytes32"
+            }
+          ],
+          "name": "sessionIdOf",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            }
+          ],
+          "name": "sessionOf",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "bytes32",
+                  "name": "keyHash",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "measurement",
+                  "type": "bytes32"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "actions",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "expiresAt",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "epoch",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "envs",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "state",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "anyApp",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "balance6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "spent6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "perPeriod6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "maxFee6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "maxAppFeeHour6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "maxRateHour6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint64",
+                  "name": "periodStart",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "period",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "opsPerPeriod",
+                  "type": "uint32"
+                },
+                {
+                  "internalType": "uint128",
+                  "name": "periodSpent6",
+                  "type": "uint128"
+                },
+                {
+                  "internalType": "uint32",
+                  "name": "periodOps",
+                  "type": "uint32"
+                }
+              ],
+              "internalType": "struct SessionVault.Session",
+              "name": "s",
+              "type": "tuple"
+            },
+            {
+              "internalType": "bool",
+              "name": "live",
+              "type": "bool"
+            },
+            {
+              "internalType": "bytes32[]",
+              "name": "apps",
+              "type": "bytes32[]"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "string",
+              "name": "environment",
+              "type": "string"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "setEnvironment",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "terminate",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deadline",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "x",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "y",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "r",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "sv",
+              "type": "bytes32"
+            }
+          ],
+          "name": "terminateBySession",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "topUp",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "sid",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "validAfter",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint64",
+              "name": "validBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "authSig",
+              "type": "bytes"
+            }
+          ],
+          "name": "topUpWithAuthorization",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "usdc",
+          "outputs": [
+            {
+              "internalType": "contract ISVToken",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opNonce",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "signBefore",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "withdraw",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/SessionVault.sol",
+      "sourceSha256": "a447add6f44ca65ecdf19625450623dce5c41270a28f0ab2b3240382d3ceeb1c",
+      "sourceMatchesReviewedBuild": true
+    },
+    "verificationFees": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "l",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "p",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "serviceCredit6",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "budget6",
+              "type": "uint256"
+            }
+          ],
+          "name": "BudgetEarned",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "payer",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "wallet",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "epoch",
+              "type": "uint64"
+            }
+          ],
+          "name": "Configured",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "payer",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "wallet",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            }
+          ],
+          "name": "FeeAllocated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "job",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            }
+          ],
+          "name": "JobCreated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "job",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            }
+          ],
+          "name": "JobFunded",
+          "type": "event"
+        },
+        {
+          "inputs": [],
+          "name": "FEE_BPS",
+          "outputs": [
+            {
+              "internalType": "uint16",
+              "name": "",
+              "type": "uint16"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "enclaveId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "upto",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "anchorBlock",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "anchorHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "sig",
+              "type": "bytes"
+            }
+          ],
+          "name": "checkpoint",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "executor",
+              "type": "address"
+            },
+            {
+              "internalType": "uint16",
+              "name": "revenueBps",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint16",
+              "name": "maxCpuMilli",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint256",
+              "name": "dailyCap6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "jobCap6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxRate6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "string",
+              "name": "appRef",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "backend",
+              "type": "string"
+            }
+          ],
+          "name": "configure",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint16",
+              "name": "cpu",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint256",
+              "name": "rate6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint64",
+              "name": "duration",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "tag",
+              "type": "bytes32"
+            }
+          ],
+          "name": "createJob",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "name": "dailySpend",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "day",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "spent6",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "payer",
+              "type": "address"
+            }
+          ],
+          "name": "executorFor",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "fundJob",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "fundedJob",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "name": "isWallet",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "jobs",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "wallet",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "hostId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint64",
+              "name": "epoch",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "rate6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "funded",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint64",
+              "name": "stopAfter",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "ledger",
+          "outputs": [
+            {
+              "internalType": "contract IVFLedger",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ],
+          "name": "policies",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "payer",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "executor",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "wallet",
+              "type": "address"
+            },
+            {
+              "internalType": "uint64",
+              "name": "expires",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "epoch",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint16",
+              "name": "revenueBps",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint16",
+              "name": "maxCpuMilli",
+              "type": "uint16"
+            },
+            {
+              "internalType": "uint256",
+              "name": "dailyCap6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "jobCap6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxRate6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "available6",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "appRef",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "backend",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "proof",
+          "outputs": [
+            {
+              "internalType": "contract IVFProof",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            }
+          ],
+          "name": "revoke",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "source",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "payer",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount6",
+              "type": "uint256"
+            }
+          ],
+          "name": "routeFee",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            }
+          ],
+          "name": "stopJob",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "token",
+          "outputs": [
+            {
+              "internalType": "contract IVFToken",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "name": "wallets",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "source": "contracts/EnclaveVerificationFees.sol",
+      "sourceSha256": "a0db02fd901cd27b7646fa4312a387c5eb1079b654308a1c87a95cbebcc07d22",
+      "sourceMatchesReviewedBuild": false
+    }
+  }
+}

@@ -1,0 +1,5 @@
+PASS r5-abi rc 0 expected 5 tests 5 pass 5 fail 0 cancelled 0 skipped 0 todo 0
+FAIL r5-policy rc 1 expected 9 tests 7 pass 6 fail 0 cancelled 1 skipped 0 todo 0
+PASS r5-proof rc 0 expected 10 tests 10 pass 10 fail 0 cancelled 0 skipped 0 todo 0
+FAIL kvm-host-admission rc 1 expected 35 tests 27 pass 26 fail 1 cancelled 0 skipped 0 todo 0
+PASS runtime-expiry rc 0 expected 7 tests 7 pass 7 fail 0 cancelled 0 skipped 0 todo 0

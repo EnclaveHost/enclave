@@ -1,0 +1,13 @@
+--- ../r5/test/fixtures/r5-world.mjs	2026-10-26 07:39:02.409253408 -0700
++++ test/fixtures/r5-world.mjs	2026-10-26 07:57:59.634309289 -0700
+@@ -35,7 +35,9 @@
+     const port = await freePort(), url = `http://127.0.0.1:${port}`;
+     anvil = spawn(process.env.ANVIL || path.join(os.homedir(), '.foundry/bin/anvil'),
+       ['--port', String(port), '--host', '127.0.0.1', '--chain-id', '8453', '--hardfork', 'prague', '--silent'], { stdio: 'ignore' });
+-    S.pub = createPublicClient({ cacheTime: 0, transport: http(url, { retryCount: 0 }) }); S.wallet = createWalletClient({ transport: http(url, { retryCount: 0 }) });
++    // r6: LOCAL-ANVIL harness only: a receipt missed by viem's single immediate check (anvil seals asynchronously) waits 25 ms, not the
++    // 4000 ms default poll (root 1386 latency diagnosis). No assertion, authority, freshness or timeout changes.
++    S.pub = createPublicClient({ cacheTime: 0, pollingInterval: 25, transport: http(url, { retryCount: 0 }) }); S.wallet = createWalletClient({ transport: http(url, { retryCount: 0 }) });
+     for (let i = 0; ; ++i) { try { if (await S.pub.getChainId() === 8453) break; } catch { if (i > 100) throw Error('anvil did not start'); } await new Promise(r => setTimeout(r, 100)); }
+     const out = JSON.parse(solc.compile(JSON.stringify({ language: 'Solidity',
+       sources: { 'D.sol': { content: fs.readFileSync(new URL('./LifecycleR5Doubles.sol', import.meta.url), 'utf8') } },

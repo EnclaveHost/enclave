@@ -1,0 +1,15 @@
+8cedb17c8abadabf386c3f9813d4384fd4082c7fbd62622f209575a91384d298  ./PROVENANCE.md
+9f09a07985460d1865e6184440a0b119475624381a985083c018cf26dc16f61d  ./inputs/root-1366/commit.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./inputs/root-1366/compose.txt
+4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865  ./inputs/root-1366/endpoints.rc
+87e168c039ca33dbfb3344a7bd40ed755c315fa1f8ddfc1469b25a2c4d6da56d  ./inputs/root-1366/overlay-verdict.txt
+1bc807cf7f0d1ef5a3448cbb7ffbc1d94a76283b73f192901e8d842113e6f29b  ./inputs/root-1366/r2-run-affected.tail.tap
+c9e6f69e21c81463f33aff38aa3b3c1c7b393b072ed2b050234e4a7e649606b4  ./inputs/root-1366/r2-run-endpoints.tap
+52f80db0c9a31923adea1d19870bc5df145f973eb5c520a7bde2ea68333dc38b  ./inputs/root-1366/root-endpoint-harness-SHA256SUMS
+b8a9971f3b60b121b18f35ee015e8be1f5aac130916e261b518000c16b09b1b7  ./inputs/root-1366/root-endpoints-failure-note.txt
+7a2b562937d01732a872eed8dbf7aecd6087b07bfa9b3d33581eec17acf1f19d  ./inputs/root-1366/root-image-endpoints-1366.guard
+8d69713e0adb601858922ac49b418a9681a965a4653a743f4d83fe2a98e881de  ./inputs/root-1366/root-image-endpoints-1366.out
+4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865  ./inputs/root-1366/root-image-endpoints-1366.rc
+c59cf1aff4db05e403a99595a8be169eb0ae66216abbccf969495be250e8e7ca  ./jobs/root-accepted-image-endpoints-r3.sh
+9f26069eb78d65c8b2f301aa8a5b0a090620242e517e11cb5da5911f01cf612f  ./jobs/unenrolled-startup-config.mjs
+522b3bd0766fcff53e226989fe2b8b727d5a0cb1ec1b6a618b8cf9678280808a  ./patches/accepted-image-assets-r3-vs-r2.patch

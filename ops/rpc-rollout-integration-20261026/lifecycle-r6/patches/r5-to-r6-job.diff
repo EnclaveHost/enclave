@@ -1,0 +1,108 @@
+--- ../r5/jobs/root-chain-adapter-r5-tests.sh	2026-10-26 07:40:02.631401216 -0700
++++ jobs/root-chain-adapter-r6-tests.sh	2026-10-26 07:58:52.042314407 -0700
+@@ -1,11 +1,15 @@
+ #!/bin/bash
+-# lifecycle-chain-adapter-stage/r5: ROOT-OWNED, OFFLINE, FOREGROUND test job (Claude prepares; root runs; nothing in the background).
++# lifecycle-chain-adapter-stage/r6: ROOT-OWNED, OFFLINE, FOREGROUND test job (Claude prepares; root runs; nothing in the background).
+ #   cd /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025 && \
+-#   jobs/q-exit-status.sh root-lifecycle-chain-adapter-r5-1 1536 unshare -Urn bash lifecycle-chain-adapter-stage/r5/jobs/root-chain-adapter-r5-tests.sh
++#   jobs/q-exit-status.sh root-lifecycle-chain-adapter-r6-1 1536 unshare -Urn bash lifecycle-chain-adapter-stage/r6/jobs/root-chain-adapter-r6-tests.sh
+ # ONE composed private tree, built in KVM's own order and then proved equal to KVM commit b7dcf5af9 for every file that commit changes:
+ #   frozen source-r1 (b506c43c, 34a3c0d6) -> runtime-expiry-r1 (c0bb0ea3, 700beed7: isolation runtime + test)
+ #   -> host-admission-r1 (069343be, b7dcf5af9): its EXACT host-admission.patch applied with patch(1), every result byte-compared with the
+-#      delivered files AND with `git show b7dcf5af9:<file>` -> the 34a3 closure (closure-34a3/, git ls-tree checked) -> r5 adapter/tests.
++#      delivered files AND with `git show b7dcf5af9:<file>` -> the 34a3 closure (closure-34a3/, git ls-tree checked) -> the KVM-commit closure (closure-b7dcf5af9/: network/runtime-lock.mjs,
++#      blob 76b1e636, required by deployment-journal-owner; root 1386 boundary file failed without it) -> r6 adapter/tests.
++# r6 vs r5: fixture pollingInterval 25 ms (local anvil only), runtime-lock closure, per-suite session cleanup. Counts and timeouts unchanged.
++# Each suite runs in its OWN session (setsid); on suite end, timeout or any job exit, every process left in that session (e.g. an anvil
++# whose test.after never ran) is listed in cleanup.txt and killed. Only sessions this job created are touched.
+ # Suites (exact counts; pass == count; fail/cancelled/skipped/todo 0; rc 0):
+ #   r5-abi 5        doubles == actual ABIs; r2 coverage re-proved on the REAL ledger (replaces the fake-ABI r2 cases that failed in 1369)
+ #   r5-policy 9     F1-F7 on the real ledger; F2 against the COMPOSED KVM consumer
+@@ -14,25 +18,32 @@
+ #   runtime-expiry 7       KVM runtime-expiry suite
+ set -uo pipefail
+ export PATH=/usr/bin:/bin
+-W=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025; S=$W/lifecycle-chain-adapter-stage/r5
++W=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025; S=$W/lifecycle-chain-adapter-stage/r6
+ CL=$W/lifecycle-chain-adapter-closure-stage; R4=$W/final-consumer-composition-stage/r4
+ LR=/home/steven/Documents/Codex/2026-10-23/it/work/lifecycle-rollout-20261026; SRC=$LR/source-r1; DEP=$LR/dependencies-r1; RX=$LR/runtime-expiry-r1; HA=$LR/host-admission-r1
+ REPO=/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle
+ NM=/home/steven/Documents/Codex/2026-10-23/it/work/enclave-deployment-lifecycle/node_modules
+ ANVIL=/home/steven/.foundry/bin/anvil
+ OUT=$S/logs/run-$(date -u +%Y%m%dT%H%M%SZ)-$$; PT=""; rc=0
+-die() { echo "## SETUP: $*"; echo "SETUP-FAIL $*" > "$OUT/RESULT" 2>/dev/null; echo "## lifecycle-chain-adapter-r5 rc=9"; exit 9; }
+-trap '[ -n "$PT" ] && rm -rf --one-file-system -- "$PT"' EXIT
++die() { echo "## SETUP: $*"; echo "SETUP-FAIL $*" > "$OUT/RESULT" 2>/dev/null; echo "## lifecycle-chain-adapter-r6 rc=9"; exit 9; }
++SIDS=""
++reap() {  # $1 = session id created by this job: record and kill everything still in it (TERM, then KILL)
++  local sid=$1 left; left=$(pgrep -a -s "$sid" 2>/dev/null) || return 0
++  { echo "## session $sid leftovers at $(date -u +%FT%TZ):"; echo "$left"; } >> "$OUT/cleanup.txt" 2>/dev/null
++  pkill -TERM -s "$sid" 2>/dev/null; for i in 1 2 3 4 5; do pgrep -s "$sid" >/dev/null 2>&1 || return 0; sleep 1; done
++  pkill -KILL -s "$sid" 2>/dev/null; return 0; }
++trap 'for s in $SIDS; do reap $s; done; [ -n "$PT" ] && rm -rf --one-file-system -- "$PT"' EXIT
++trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP
+ mkdir -p "$OUT" || exit 9
+ ip link set lo up 2>/dev/null; ip -o addr show lo 2>/dev/null | grep -q '127.0.0.1' || die "loopback is not up"
+ ip -o route 2>/dev/null | grep -v '127.0.0.0/8\|dev lo' | grep -q . && die "network route present: run under unshare -Urn"
+ pin() { [ "$(sha256sum < "$1" | cut -c1-64)" = "$2" ] || die "$1 is not $2"; }
+-[ -f "$S/SHA256SUMS" ] || die "r5 is not frozen (SHA256SUMS missing)"
+-(cd "$S" && sha256sum -c --quiet SHA256SUMS) || die "r5 != SHA256SUMS"
++[ -f "$S/SHA256SUMS" ] || die "r6 is not frozen (SHA256SUMS missing)"
++(cd "$S" && sha256sum -c --quiet SHA256SUMS) || die "r6 != SHA256SUMS"
+ pin $SRC/SHA256SUMS b506c43cff2246fa82598daba005ff8344de3f2f9ad1cc3a0c853f38f7eaad58; (cd $SRC && sha256sum -c --quiet SHA256SUMS) || die "source-r1 changed"
+ grep -q '"sourceCommit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66"' $SRC/SOURCE.json || die "source-r1 is not commit 34a3c0d6"
+ pin $DEP/SHA256SUMS deb51211acdc35a45ee03346297fae3a242147eab47c42afb68e270196f4d9e4; (cd $DEP && sha256sum -c --quiet SHA256SUMS) || die "dependencies-r1 changed"
+-cmp -s $DEP/abi.json $S/abi/dependencies-r1.json || die "r5 abi/dependencies-r1.json is not KVM dependencies-r1/abi.json"
++cmp -s $DEP/abi.json $S/abi/dependencies-r1.json || die "r6 abi/dependencies-r1.json is not KVM dependencies-r1/abi.json"
+ pin $RX/SHA256SUMS c0bb0ea3e0483fdc0ecad2d08327fccaa2511f8c4e352c9fb3dcf7d38c6ddf51; (cd $RX && sha256sum -c --quiet SHA256SUMS) || die "runtime-expiry-r1 changed"
+ grep -q '"commit": "700beed7f45c3d963897503a0c281e6fef793038"' $RX/result.json || die "runtime-expiry-r1 is not commit 700beed7"
+ pin $HA/SHA256SUMS 069343be4e70641ce91f79e6a1cfbe980061677ea28f2b4a95c4611962d6485a; (cd $HA && sha256sum -c --quiet SHA256SUMS) || die "host-admission-r1 changed"
+@@ -63,11 +74,14 @@
+ t = subprocess.run(['git', '-c', 'safe.directory=*', '-C', repo, 'ls-tree', '34a3c0d6d4c5aebffffb2492437487c9de74fb66', 'relay/net-guard.mjs'], capture_output=True, text=True).stdout.split()
+ assert t[0] == '120000' and subprocess.run(['git', '-c', 'safe.directory=*', '-C', repo, 'cat-file', '-p', t[2]], capture_output=True, text=True).stdout == '../net-guard.mjs'
+ PY
++pin $S/closure-b7dcf5af9/network/runtime-lock.mjs 256aeca3000aae08dc2cfa5fb45a2a900728a312d2ec415a2620588d1152ac1a
++git -c safe.directory='*' -C $REPO show b7dcf5af9fe8255e537dd7faa51c218448864ea2:network/runtime-lock.mjs | cmp -s - $S/closure-b7dcf5af9/network/runtime-lock.mjs || die "runtime-lock.mjs is not KVM commit b7dcf5af9"
++[ -x /usr/bin/flock ] && [ -x /usr/bin/setsid ] && [ -x /usr/bin/pkill ] && [ -x /usr/bin/pgrep ] || die "flock/setsid/pkill/pgrep missing"
+ pin $NM/viem/package.json e949a8d53708d253df522476d1ff2face4b05beee8099a90ed81934793455dfb
+ pin $NM/solc/package.json d168afdf78c7e12f14d827c16d2b26a9f05c546c4a6dd63b0b757be5053fe4fe
+ pin $NM/solc/soljson.js fa4345d648d9a09c6601ffc978e78e9f5267b54e6d91e8f8c473f44c0c16323b
+ pin $ANVIL 10c1c727d6c1de973aeb160e59875b9a9a23464d6e74149ee8abb30b3500311b
+-PT=$(mktemp -d /tmp/lca5.XXXXXX) || die "mktemp"; T=$PT/r5
++PT=$(mktemp -d /tmp/lca6.XXXXXX) || die "mktemp"; T=$PT/r6
+ export HOME=$PT TMPDIR=$PT ANVIL
+ { echo "node $(node --version) anvil $($ANVIL --version | head -1)"; sha256sum < "$S/SHA256SUMS"; } > "$OUT/env.txt"
+ mkdir -p $T && (cd $SRC && tar -cf - --exclude=./SHA256SUMS .) | (cd $T && tar -xf -) || die "copy source-r1"
+@@ -75,6 +89,7 @@
+ while read -r f; do add "$S/closure-34a3/$f" "$f"; done < <(cd $S/closure-34a3 && find . -type f | sed 's|^\./||' | sort)
+ [ -e $T/network/host-admission-policy.mjs ] || die "closure copy failed"
+ mkdir -p $T/relay && ln -s ../net-guard.mjs $T/relay/net-guard.mjs || die "relay/net-guard.mjs symlink"
++add $S/closure-b7dcf5af9/network/runtime-lock.mjs network/runtime-lock.mjs
+ cp $RX/network/deployment-isolation-runtime.mjs $T/network/deployment-isolation-runtime.mjs && cp $RX/test/deployment-isolation-runtime.test.mjs $T/test/deployment-isolation-runtime.test.mjs || die "compose runtime-expiry"
+ pin $T/network/deployment-isolation-runtime.mjs 40333d5bc08796f2881650331022746abc0b93051b48351c89f84d62a4462fd9
+ (cd $T && patch -p1 -s --no-backup-if-mismatch -r - < $HA/host-admission.patch) || die "KVM host-admission.patch does not apply to source-r1 + runtime-expiry"
+@@ -89,8 +104,12 @@
+ ln -s "$NM" "$T/node_modules" || die "node_modules link"
+ suite() {  # name expected tests...
+   local n=$1 want=$2; shift 2
+-  (cd $T && timeout -k 10 1200 node --test --test-concurrency=1 --test-timeout=600000 --test-reporter=tap "$@" < /dev/null) > "$OUT/$n.tap" 2>&1
+-  local r=$?
++  # own session: $sid == the setsid'd shell's pid, kept by exec; timeout/node/anvil all stay in this session
++  setsid bash -c 'cd "$1" && shift && exec timeout -k 10 1200 node --test --test-concurrency=1 --test-timeout=600000 --test-reporter=tap "$@"' \
++    suite "$T" "$@" < /dev/null > "$OUT/$n.tap" 2>&1 &
++  local sid=$!; SIDS="$SIDS $sid"
++  wait $sid; local r=$?
++  reap $sid; SIDS=${SIDS/ $sid/}                                     # reaped: never signalled again (no pid-reuse risk)
+   python3 -I - "$OUT/$n.tap" $r $want $n <<'PY' >> "$OUT/summary.txt" || rc=1
+ import re, sys
+ t = open(sys.argv[1]).read(); rc, want, name = int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+@@ -105,6 +124,6 @@
+ suite r5-proof 10 test/deployment-chain-adapter-r5-proof.test.mjs
+ suite kvm-host-admission 35 test/deployment-generation-certificate.test.mjs test/deployment-lifecycle-boundary.test.mjs test/deployment-lifecycle-runner.test.mjs
+ suite runtime-expiry 7 test/deployment-isolation-runtime.test.mjs
+-cat "$OUT/summary.txt"; { [ $rc = 0 ] && echo "PASS lifecycle-chain-adapter-r5 abi 5 + policy 9 + proof 10 + kvm-host-admission 35 + runtime-expiry 7 = 66" || echo "FAIL lifecycle-chain-adapter-r5"; } > "$OUT/RESULT"
++cat "$OUT/summary.txt"; { [ $rc = 0 ] && echo "PASS lifecycle-chain-adapter-r6 abi 5 + policy 9 + proof 10 + kvm-host-admission 35 + runtime-expiry 7 = 66" || echo "FAIL lifecycle-chain-adapter-r6"; } > "$OUT/RESULT"
+ (cd "$S" && sha256sum -c --quiet SHA256SUMS) || { echo "## FAIL: stage changed during the run"; rc=1; }
+-echo "## outputs $OUT"; echo "## stage SHA256SUMS $(sha256sum < $S/SHA256SUMS | cut -c1-64)"; echo "## lifecycle-chain-adapter-r5 rc=$rc"; exit $rc
++echo "## outputs $OUT"; echo "## stage SHA256SUMS $(sha256sum < $S/SHA256SUMS | cut -c1-64)"; echo "## lifecycle-chain-adapter-r6 rc=$rc"; exit $rc

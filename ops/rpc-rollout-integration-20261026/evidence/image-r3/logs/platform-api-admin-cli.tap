@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: setup: three member guests of one group, and one guest of a group pinning another measurement
+ok 1 - setup: three member guests of one group, and one guest of a group pinning another measurement
+  ---
+  duration_ms: 39.170264
+  type: 'test'
+  ...
+# Subtest: root cause: the verifier call the CLI made (productionVerifier({ config }), no collateral) refuses the right boot; the same call with collateral verifies it
+ok 2 - root cause: the verifier call the CLI made (productionVerifier({ config }), no collateral) refuses the right boot; the same call with collateral verifies it
+  ---
+  duration_ms: 80.382712
+  type: 'test'
+  ...
+# Subtest: baseline shape: the REAL CLI entry (nothing injected) pins the AMD roots: a cache seeded with the synthetic chain verifies nothing, and nothing is sent
+ok 3 - baseline shape: the REAL CLI entry (nothing injected) pins the AMD roots: a cache seeded with the synthetic chain verifies nothing, and nothing is sent
+  ---
+  duration_ms: 176.32384
+  type: 'test'
+  ...
+# Subtest: no collateral (KDS down, empty cache): refused before anything is written or sent
+ok 4 - no collateral (KDS down, empty cache): refused before anything is written or sent
+  ---
+  duration_ms: 7.212989
+  type: 'test'
+  ...
+# Subtest: a wrong measurement and an inactive registry row are refused before anything is written or sent
+ok 5 - a wrong measurement and an inactive registry row are refused before anything is written or sent
+  ---
+  duration_ms: 32.71846
+  type: 'test'
+  ...
+# Subtest: genesis, prepare / sign / submit: nothing is sent before the signature; the package goes only to the boot it was prepared for
+ok 6 - genesis, prepare / sign / submit: nothing is sent before the signature; the package goes only to the boot it was prepared for
+  ---
+  duration_ms: 2830.62162
+  type: 'test'
+  ...
+# Subtest: credentials: to the verified primary (signed with --admin-key) succeeds; a non-primary answers 409 and the tool reports failure
+ok 7 - credentials: to the verified primary (signed with --admin-key) succeeds; a non-primary answers 409 and the tool reports failure
+  ---
+  duration_ms: 229.643194
+  type: 'test'
+  ...
+# Subtest: an endpoint that swapped to ANOTHER key after the verification gets no byte; the tool reports no success
+ok 8 - an endpoint that swapped to ANOTHER key after the verification gets no byte; the tool reports no success
+  ---
+  duration_ms: 338.859828
+  type: 'test'
+  ...
+# Subtest: total loss: recover through the CLI seals K and the latest archive to a fresh verified boot
+ok 9 - total loss: recover through the CLI seals K and the latest archive to a fresh verified boot
+  ---
+  duration_ms: 76.106938
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4544.054698

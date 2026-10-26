@@ -1,0 +1,75 @@
+--- r4/network/deployment-chain-adapter.mjs	2026-10-26 07:26:22.973273331 -0700
++++ r5/network/deployment-chain-adapter.mjs	2026-10-26 07:36:43.600456278 -0700
+@@ -1,4 +1,4 @@
+-// deployment-chain-adapter.mjs (lifecycle-chain-adapter-stage r4; PREPARED, not production-qualified): the DeploymentLifecycleRunner's
++// deployment-chain-adapter.mjs (lifecycle-chain-adapter-stage r5; PREPARED, not production-qualified): the DeploymentLifecycleRunner's
+ // chain adapter { read, prepare, submit, resolve, finalize } for the candidate controller EnclaveDeploymentLifecycle (schema-2 ledger).
+ //
+ // AUTHORITY (unchanged from r2/r3). Every chain fact comes from ONE injected capability, `authority.snapshot(read)` (the contract of
+@@ -12,8 +12,12 @@
+ //  F1 horizon: idle -> THIS host's purchasable horizon from ledger.rateFor(id, host) (what lifecycleStart would charge here), never the
+ //     stored d.rate / secondsFundable; running -> the real lease only while ledger.lifecycleFunded, else blockSec. `funded` is global:
+ //     running -> ledger truth; idle -> the controller transition budget (host affordability lives in `admitted` via lifecycleOperator).
+-//  F2 anchor (AGREED SCHEMA, PENDING the KVM verifier/witness/resolver patch): anchor.enabled = owner/active, anchor.admitted = global
+-//     admission (== snapshot.enabled), anchor.hostAdmission = { host, admitted } (this host only). A host refusal never reaches a global field.
++//  F2 anchor (KVM host-admission-r1, commit b7dcf5af9, composed in r5): anchor.enabled = authenticated GLOBAL enablement (owner/active
++//     AND the production catalog gate: the composed runner maps it to `enabled`, so a global ban still stops); anchor.admitted = the same
++//     global admission (retained legacy certificate field); anchor.hostAdmission = { host, admitted:boolean } for THIS host only (the runner,
++//     permit resolver and successor witness require host === the candidate host). A host refusal never reaches a global field.
++// r5: closure getters returning an address TUPLE (dependencies-r1 sessionVaultFactory.authorityPins() -> (ledger, catalog, authority))
++//     are reviewed per named output ('authorityPins.ledger', ...). r4 modelled it as an indexed array, which the actual ABI is not.
+ //  F3 the PRODUCTION catalog policy (34a3 site/js/core/catalog-policy.js, private pending allowed, rejected refused) decides the global
+ //     catalog gate; the host owner's committed policy (34a3 network/host-admission-policy.mjs, read at the SAME authenticated block from
+ //     the pinned EnclaveHostOwnership, document hash-checked) can only deny THIS host.
+@@ -55,7 +59,10 @@
+ // every view returning one address with no input (scalar) or one uint256 input (indexed array) is a binding that must be reviewed
+ const INVENTORY = Object.fromEntries(Object.entries(CLOSURE_ABI).map(([k, abi]) => {
+   const g = abi.filter(f => f.type === 'function' && ['view', 'pure'].includes(f.stateMutability) && f.outputs.length === 1 && f.outputs[0].type === 'address');
+-  return [k, { scalar: g.filter(f => f.inputs.length === 0).map(f => f.name), indexed: g.filter(f => f.inputs.length === 1 && f.inputs[0].type === 'uint256').map(f => f.name) }];
++  const tuple = abi.filter(f => f.type === 'function' && ['view', 'pure'].includes(f.stateMutability) && f.inputs.length === 0 && f.outputs.length > 1 &&
++    f.outputs.every(o => o.type === 'address')).flatMap(f => f.outputs.map((o, i) => `${f.name}.${o.name || i}`));
++  return [k, { scalar: [...g.filter(f => f.inputs.length === 0).map(f => f.name), ...tuple],
++    indexed: g.filter(f => f.inputs.length === 1 && f.inputs[0].type === 'uint256').map(f => f.name) }];
+ }));
+ export const CLOSURE = Object.freeze(['connectivity', 'pinnedSessionAuthority', 'proofOfTime', 'secretVaultV2', 'sessionVaultFactory',
+   'sessionVaultImplementation', 'verificationFees']);
+@@ -97,7 +104,7 @@
+       if (n === 0) throw Error(`closure binding ${k}.${g}[] is not reviewed`);
+     }
+     for (const key of keys) {
+-      const m = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[(0|[1-9][0-9]{0,2})\])?$/.exec(key);
++      const m = /^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?)(?:\[(0|[1-9][0-9]{0,2})\])?$/.exec(key);
+       if (!m || !(m[2] === undefined ? inv.scalar : inv.indexed).includes(m[1])) throw Error(`closure binding ${k}.${key} is not an address getter of ${c.abi}`);
+       const t = c.bindings[key];
+       if (t === 'zero') continue;
+@@ -191,9 +198,15 @@
+         if (c.abi === undefined) continue;
+         const abi = CLOSURE_ABI[c.abi], counts = {};
+         for (const [key, t] of Object.entries(c.bindings)) {
+-          const m = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[([0-9]+)\])?$/.exec(key);
+-          if (m[2] !== undefined) counts[m[1]] = (counts[m[1]] ?? 0) + 1;
+-          const got = getAddress(await call(getAddress(c.address), abi, m[1], m[2] === undefined ? [] : [BigInt(m[2])]));
++          const m = /^([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z0-9_]+))?(?:\[([0-9]+)\])?$/.exec(key);
++          if (m[3] !== undefined) counts[m[1]] = (counts[m[1]] ?? 0) + 1;
++          let got = await call(getAddress(c.address), abi, m[1], m[3] === undefined ? [] : [BigInt(m[3])]);
++          if (m[2] !== undefined) {                                                // tuple output: by name, else by position
++            const outs = abi.find(f => f.type === 'function' && f.name === m[1] && f.inputs.length === 0).outputs;
++            const i = outs.findIndex((o, j) => (o.name || String(j)) === m[2]);
++            got = Array.isArray(got) ? got[i] : got?.[m[2]];
++          }
++          got = getAddress(got);
+           const what = `${k}.${key}`;
+           if (t.startsWith('admin:')) { if (!admins[t.slice(6)].includes(got)) adminChanges.push(what); continue; }
+           const exp = t === 'zero' ? ZERO_ADDR : t.startsWith('external:') ? getAddress(pins.externals[t.slice(9)]) : C(t);
+@@ -400,9 +413,9 @@
+       // Operational authority: ONLY on the owner's on-chain opt-in (maxAnchorAgeSec >= 20) AND injected recent-head + certificate sources.
+       if (generation && v.policy.maxAnchorAgeSec >= 20 && v.a.state !== 'unknown') {
+         if (!Number.isSafeInteger(r.observedAt)) throw Error('authority snapshot lacks observedAt');
+-        // F2 (agreed schema; consumption PENDING the KVM verifier/witness/resolver patch): global and per-host admission are separate
++        // F2 (KVM host-admission-r1 schema): global enablement/admission and per-host admission are separate fields
+         const anchor = { proofVerified: ok, tier: tierOf(r.evidence), number: Number(r.blockNumber), hash: r.blockHash, timestamp: v.blockSec,
+-          observedAt: Math.floor(r.observedAt / 1000), enabled: ownerEnabled, admitted: enabled, hostAdmission: { host: pins.host, admitted },
++          observedAt: Math.floor(r.observedAt / 1000), enabled, admitted: enabled, hostAdmission: { host: pins.host, admitted },
+           funded, fundedUntil, balanceWei: v.budget.balanceWei.toString(), ownerAuthority: v.ownerAuthority, policyHash: certificateWitnessesHash(v.policy),
+           assignment: { deployment: id, generation: v.a.generation, state: v.a.state, host: v.a.host, operator: v.a.operator,
+             changedAt: v.a.changedAt, startAfter: v.a.startAfter, failures: v.a.failures, crashHeld: v.a.crashHeld } };
