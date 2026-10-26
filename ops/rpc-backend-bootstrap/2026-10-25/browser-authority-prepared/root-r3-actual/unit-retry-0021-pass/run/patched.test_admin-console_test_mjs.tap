@@ -1,0 +1,268 @@
+TAP version 13
+# Subtest: artifact selectors match the checked-in ABIs
+ok 1 - artifact selectors match the checked-in ABIs
+  ---
+  duration_ms: 12.941813
+  type: 'test'
+  ...
+# Subtest: book keys encode like viem stringToHex(size:32)
+ok 2 - book keys encode like viem stringToHex(size:32)
+  ---
+  duration_ms: 0.334167
+  type: 'test'
+  ...
+# Subtest: owner calls encode like viem
+ok 3 - owner calls encode like viem
+  ---
+  duration_ms: 4.618501
+  type: 'test'
+  ...
+# Subtest: the dashboard's setConfig envelope call encodes like viem
+ok 4 - the dashboard's setConfig envelope call encodes like viem
+  ---
+  duration_ms: 0.714432
+  type: 'test'
+  ...
+# Subtest: vaultmig.js pins + encodings match viem (the credit-vault recovery flow)
+ok 5 - vaultmig.js pins + encodings match viem (the credit-vault recovery flow)
+  ---
+  duration_ms: 1.546734
+  type: 'test'
+  ...
+# Subtest: vault recovery selectors pin against the vault ABI (the no-passkey migration path)
+ok 6 - vault recovery selectors pin against the vault ABI (the no-passkey migration path)
+  ---
+  duration_ms: 0.406456
+  type: 'test'
+  ...
+# Subtest: chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)
+ok 7 - chain.js DEP_SEL hand-pins match the ABI (the cap getter every deploy path gates on)
+  ---
+  duration_ms: 0.137648
+  type: 'test'
+  ...
+# Subtest: publisher-fee surface pins + encodes like viem
+ok 8 - publisher-fee surface pins + encodes like viem
+  ---
+  duration_ms: 1.00446
+  type: 'test'
+  ...
+# Subtest: rate-cap surface (rev 8) pins + encodes like viem
+ok 9 - rate-cap surface (rev 8) pins + encodes like viem
+  ---
+  duration_ms: 0.695663
+  type: 'test'
+  ...
+# Subtest: setAppRef (the dashboard's Version control) pins + encodes like viem
+ok 10 - setAppRef (the dashboard's Version control) pins + encodes like viem
+  ---
+  duration_ms: 0.688493
+  type: 'test'
+  ...
+# Subtest: setShares + multicall (the dashboard's resize control) pin + encode like viem
+ok 11 - setShares + multicall (the dashboard's resize control) pin + encode like viem
+  ---
+  duration_ms: 0.815281
+  type: 'test'
+  ...
+# Subtest: refund-sweep batches (suspend + refund multicalls) encode like viem
+ok 12 - refund-sweep batches (suspend + refund multicalls) encode like viem
+  ---
+  duration_ms: 1.992089
+  type: 'test'
+  ...
+# Subtest: allowance funding pair (fund.js) encodes like viem
+ok 13 - allowance funding pair (fund.js) encodes like viem
+  ---
+  duration_ms: 0.420695
+  type: 'test'
+  ...
+# Subtest: creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
+ok 14 - creation tx data (bytecode + ctor args) encodes like viem encodeDeployData
+  ---
+  duration_ms: 1.214877
+  type: 'test'
+  ...
+# Subtest: decodeBook round-trips a viem-encoded all() result (skipping retired keys)
+ok 15 - decodeBook round-trips a viem-encoded all() result (skipping retired keys)
+  ---
+  duration_ms: 1.003529
+  type: 'test'
+  ...
+# Subtest: import calls (tuple[] args) encode like viem
+ok 16 - import calls (tuple[] args) encode like viem
+  ---
+  duration_ms: 1.370895
+  type: 'test'
+  ...
+# Subtest: importFees (parallel arrays) encodes like viem
+ok 17 - importFees (parallel arrays) encodes like viem
+  ---
+  duration_ms: 0.500814
+  type: 'test'
+  ...
+# Subtest: runner-payout surface (rev 7) pins + importEarn encodes like viem
+ok 18 - runner-payout surface (rev 7) pins + importEarn encodes like viem
+  ---
+  duration_ms: 0.540594
+  type: 'test'
+  ...
+# Subtest: publisher recovery (transferApp) pins + the bulk multicall encodes like viem
+ok 19 - publisher recovery (transferApp) pins + the bulk multicall encodes like viem
+  ---
+  duration_ms: 0.670753
+  type: 'test'
+  ...
+# Subtest: importVersionFees (the catalog fee carry) encodes like viem
+ok 20 - importVersionFees (the catalog fee carry) encodes like viem
+  ---
+  duration_ms: 0.366846
+  type: 'test'
+  ...
+# Subtest: multicall wrapping encodes like viem
+ok 21 - multicall wrapping encodes like viem
+  ---
+  duration_ms: 0.428806
+  type: 'test'
+  ...
+# Subtest: migration round-trip: decode a getPage result, re-encode it for import, byte-equal to viem
+ok 22 - migration round-trip: decode a getPage result, re-encode it for import, byte-equal to viem
+  ---
+  duration_ms: 1.166958
+  type: 'test'
+  ...
+# Subtest: rev-1 source rows (extra sshPubKey string) decode with DEP_SCHEMA_V1 and strip clean
+ok 23 - rev-1 source rows (extra sshPubKey string) decode with DEP_SCHEMA_V1 and strip clean
+  ---
+  duration_ms: 0.370226
+  type: 'test'
+  ...
+# Subtest: every constructor argument the console can answer is prefilled
+ok 24 - every constructor argument the console can answer is prefilled
+  ---
+  duration_ms: 0.932331
+  type: 'test'
+  ...
+# Subtest: artifacts stay in sync with contracts/*.sol (regenerate check)
+ok 25 - artifacts stay in sync with contracts/*.sol (regenerate check)
+  ---
+  duration_ms: 2.351115
+  type: 'test'
+  ...
+# Subtest: fundEscrow + the approve that funds it encode like viem
+ok 26 - fundEscrow + the approve that funds it encode like viem
+  ---
+  duration_ms: 0.679903
+  type: 'test'
+  ...
+# Subtest: batched fundEscrow rides the ledger's multicall, encoded like viem
+ok 27 - batched fundEscrow rides the ledger's multicall, encoded like viem
+  ---
+  duration_ms: 0.552145
+  type: 'test'
+  ...
+# Subtest: setProver / setProofRequiredFrom encode like viem
+ok 28 - setProver / setProofRequiredFrom encode like viem
+  ---
+  duration_ms: 0.417466
+  type: 'test'
+  ...
+# Subtest: the escrow step's required-backing formula matches _splitFunding's ceil
+ok 29 - the escrow step's required-backing formula matches _splitFunding's ceil
+  ---
+  duration_ms: 0.118159
+  type: 'test'
+  ...
+# Subtest: a granted runner rate matches the contract's _snapRunnerRate
+ok 30 - a granted runner rate matches the contract's _snapRunnerRate
+  ---
+  duration_ms: 0.321447
+  type: 'test'
+  ...
+# Subtest: migrate reads retry on empty and then fail loudly, never coerce to zero
+ok 31 - migrate reads retry on empty and then fail loudly, never coerce to zero
+  ---
+  duration_ms: 0.339087
+  type: 'test'
+  ...
+# Subtest: verify accepts a granted runner rate, and only the exact granted value
+ok 32 - verify accepts a granted runner rate, and only the exact granted value
+  ---
+  duration_ms: 0.437075
+  type: 'test'
+  ...
+# Subtest: the migration flow survives a repaint, and Seal is never unreachable
+ok 33 - the migration flow survives a repaint, and Seal is never unreachable
+  ---
+  duration_ms: 0.680713
+  type: 'test'
+  ...
+# Subtest: migration batches are sized by GAS, and a record's gas is its BYTES
+ok 34 - migration batches are sized by GAS, and a record's gas is its BYTES
+  ---
+  duration_ms: 4.554652
+  type: 'test'
+  ...
+# Subtest: a smaller gas budget re-plans into more, smaller batches (the refusal retry)
+ok 35 - a smaller gas budget re-plans into more, smaller batches (the refusal retry)
+  ---
+  duration_ms: 7.096154
+  type: 'test'
+  ...
+# Subtest: the migrator's raw EIP-1559 encoding matches viem byte-for-byte
+ok 36 - the migrator's raw EIP-1559 encoding matches viem byte-for-byte
+  ---
+  duration_ms: 40.310543
+  type: 'test'
+  ...
+# Subtest: the migrator address derives deterministically from a signature
+ok 37 - the migrator address derives deterministically from a signature
+  ---
+  duration_ms: 1.244137
+  type: 'test'
+  ...
+# Subtest: every migratable contract exposes an ownership handoff and accept
+ok 38 - every migratable contract exposes an ownership handoff and accept
+  ---
+  duration_ms: 0.275877
+  type: 'test'
+  ...
+# Subtest: provermig.js: the prover creation tx encodes like viem, and the plan covers every branch
+ok 39 - provermig.js: the prover creation tx encodes like viem, and the plan covers every branch
+  ---
+  duration_ms: 12.921923
+  type: 'test'
+  ...
+# Subtest: provermig.js: a permanent step is judged by a settled read, never one stale answer
+ok 40 - provermig.js: a permanent step is judged by a settled read, never one stale answer
+  ---
+  duration_ms: 0.598134
+  type: 'test'
+  ...
+# Subtest: escrow.js: refund batches encode like viem, and the summary groups by owner
+ok 41 - escrow.js: refund batches encode like viem, and the summary groups by owner
+  ---
+  duration_ms: 2.296805
+  type: 'test'
+  ...
+# Subtest: escrow.js: a refund dry-run reads '0x' as success, and tells a revert from a dead RPC
+ok 42 - escrow.js: a refund dry-run reads '0x' as success, and tells a revert from a dead RPC
+  ---
+  duration_ms: 1.170428
+  type: 'test'
+  ...
+# Subtest: the console offers no deploy card for a contract that is live and bound, or not in a rollout
+ok 43 - the console offers no deploy card for a contract that is live and bound, or not in a rollout
+  ---
+  duration_ms: 0.445535
+  type: 'test'
+  ...
+1..43
+# tests 43
+# suites 0
+# pass 43
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 258.687311

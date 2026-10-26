@@ -1,0 +1,6 @@
+[queue] START available=23164MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+To https://github.com/EnclaveHost/enclave.git
+   bf77da364..81ba66853  HEAD -> fix/rpc-relay-consumers-20261025
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=23125
+[memory-guard] at peak: git-remote-http:15 git:9 git:6 git:4
+[queue] EXIT 0

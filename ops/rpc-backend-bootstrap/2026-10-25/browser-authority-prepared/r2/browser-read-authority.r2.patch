@@ -1,0 +1,546 @@
+--- a/site/js/core/config.js
++++ b/site/js/core/config.js
+@@ -4,6 +4,7 @@
+    (scripts/sync-contract-addresses.sh rewrites the addresses).
+    ============================================================ */
+ import { loadProfileState } from "./independent.js";
++import { resolveReadAuthority } from "./read-authority.js";
+ 
+ /* Production API gateway (mirrors openapi.json servers[0].url; the Deploy
+    page lets a user point at an enclave directly and persists the override). */
+@@ -189,7 +190,12 @@
+    production; the e2e suite seeds it) points every read at one endpoint, which
+    is exactly why it is loopback-origin only - see devOverride above. */
+ const _rpc = IND_ANY ? null : devOverride("enclave_rpc");
+-export const APP_CATALOG_RPCS    = IND_ANY ? (IND ? [...IND.rpcs] : []) : _rpc ? [_rpc] : [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
++const LEGACY_READ_RPCS = [APP_CATALOG_RPC, "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
++/* The release read authority (js/core/read-authority.js): LEGACY (the pool above, or the loopback dev override) unless
++   the build embedded an "own-rpc" authority - then ONLY its endpoints, with no public pool and no dev override; an
++   invalid one leaves the pool EMPTY so every read refuses (chain.js baseRpc). A self-hosted transport, not a proof. */
++export const READ_AUTHORITY = resolveReadAuthority({ independentState: INDEPENDENT.state, legacy: LEGACY_READ_RPCS, devRpc: _rpc });
++export const APP_CATALOG_RPCS    = IND_ANY ? (IND ? [...IND.rpcs] : []) : [...READ_AUTHORITY.rpcs];
+ 
+ /* ---- IPFS ---- */
+ // Enable after the configured adapter release supports direct signatures.
+--- a/site/js/core/chain.js
++++ b/site/js/core/chain.js
+@@ -4,7 +4,7 @@
+    EnclaveDeployments / EnclaveAppCatalog contract surface.
+    No web3 library loads on the site.
+    ============================================================ */
+-import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT } from "./config.js";
++import { APP_CATALOG_ADDRESS, DEPLOYMENTS_ADDRESS, FEATURED_ADDRESS, REVIEWS_ADDRESS, HOST_REVIEWS_ADDRESS, APP_CATALOG_CHAIN, APP_CATALOG_RPCS, INDEPENDENT, READ_AUTHORITY } from "./config.js";
+ import { EnclaveError, Enclave } from "./api.js";
+ import { wait } from "./util.js";
+ import { fleetPrice } from "./pricing.js";
+@@ -276,9 +276,11 @@
+ let _rpcIdx = 0;
+ export async function baseRpc(method, params, opts){
+   // independent mode with an unconfirmed or invalid profile pins no RPC at all: refuse, never fall back
++  // ... and a release read authority that is invalid pins none either (js/core/read-authority.js): refuse, never fall back
+   if (!APP_CATALOG_RPCS.length) throw new EnclaveError(INDEPENDENT.state === "invalid"
+     ? "The saved independent profile is invalid (" + INDEPENDENT.error + "). Fix or remove it in Settings."
+-    : "Confirm the independent profile in Settings before reading the chain.", 0);
++    : INDEPENDENT.state !== "off" ? "Confirm the independent profile in Settings before reading the chain."
++    : "This site release's chain read authority is invalid (" + (READ_AUTHORITY && READ_AUTHORITY.error) + "): reads are refused, never sent to another server.", 0);
+   let lastErr = null;
+   for (let attempt = 0; attempt < APP_CATALOG_RPCS.length * 2; attempt++){
+     const url = APP_CATALOG_RPCS[_rpcIdx % APP_CATALOG_RPCS.length];
+--- a/site/js/core/wallet.js
++++ b/site/js/core/wallet.js
+@@ -20,12 +20,14 @@
+    (the in-CVM SIWE token), now only the fallback for a host that
+    hasn't learned sessions yet, or a wallet with no session.
+    ============================================================ */
+-import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS } from "./config.js";
++import { BASE_CHAIN, BASE_CHAIN_HEX, USDC_BASE, WALLETCONNECT_PROJECT_ID, INDEPENDENT, APP_CATALOG_RPCS, READ_AUTHORITY } from "./config.js";
++import { fallbackUsesPool } from "./read-authority.js";
+ 
+-/* A read the wallet could not answer. Hosted: Base's public RPC. Independent mode: only the profile's RPCs (the
+-   rotating pool; nothing else is contacted), and no profile RPC means no answer rather than a default origin. */
++/* A read the wallet could not answer. Hosted legacy: Base's public RPC. Independent mode or a release read authority
++   (js/core/read-authority.js): only the read pool (the rotating pool; nothing else is contacted), and no pool RPC means
++   no answer rather than a default origin. (addChainRpcs / rpcMap below are the WALLET's signing RPC: unchanged.) */
+ async function fallbackRead(method, params){
+-  if (INDEPENDENT.state !== "off") return baseRpc(method, params);
++  if (fallbackUsesPool(INDEPENDENT.state, READ_AUTHORITY)) return baseRpc(method, params);
+   const r = await fetch("https://mainnet.base.org", { method: "POST", headers: { "content-type": "application/json" },
+     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+   const j = await r.json(); return j && j.result;
+--- a/site/js/core/sessions.js
++++ b/site/js/core/sessions.js
+@@ -13,7 +13,8 @@
+    vendored as /vendor/sessions.js, loaded on first use).
+    ============================================================ */
+ import { Enclave, EnclaveError, WALLET_SESSION_KEY, INDEPENDENT_MODE } from "./api.js";
+-import { APP_CATALOG_RPCS, USDC_BASE, SESSION_FACTORY_ADDRESS, INDEPENDENT, DEPLOYMENTS_ADDRESS } from "./config.js";
++import { APP_CATALOG_RPCS, USDC_BASE, SESSION_FACTORY_ADDRESS, INDEPENDENT, DEPLOYMENTS_ADDRESS, READ_AUTHORITY } from "./config.js";
++import { sessionsRpc } from "./read-authority.js";
+ import { $, esc, lsGet, lsSet, lsDel, showToast, emit } from "./util.js";
+ import { decodeLedgerCall, walletRecordPlan, needsCap } from "./ledger-calls.js";
+ import * as ID from "./identity.js";
+@@ -58,7 +59,8 @@
+ }
+ export const sessionsAvailable = () => sessionsConfig().then((c) => !!c, () => false);
+ 
+-const rpcFor = (cfg) => (cfg && cfg.rpc) || APP_CATALOG_RPCS[0];
++// legacy: unchanged (the relay config's rpc, else the pool); a release read authority: ONLY its pool, never the relay's rpc
++const rpcFor = (cfg) => sessionsRpc(cfg && cfg.rpc, READ_AUTHORITY, APP_CATALOG_RPCS);
+ const sessionClient = async (S, cfg) => INDEPENDENT_MODE
+   ? (await import("./independent-chain.js")).quorumSessionClient()
+   : S.chainClient(cfg.chainId, rpcFor(cfg));
+--- a/scripts/build-site.mjs
++++ b/scripts/build-site.mjs
+@@ -32,6 +32,7 @@
+ import fs from "node:fs";
+ import path from "node:path";
+ import { parseBuildArgs, readBuiltInProfile, builtInProfilePlugin } from "./site-built-in-profile.mjs";
++import { takeReadAuthorityArgs, readReadAuthority, readAuthorityPlugin } from "./site-read-authority.mjs";
+ 
+ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+ const SITE = path.join(ROOT, "site");
+@@ -71,8 +72,12 @@
+ fs.rmSync(DIST, { recursive: true, force: true });
+ /* the optional built-in network profile: checked before anything is built and after dist/ is cleared, so a rejected
+    input leaves nothing that could be released */
+-const ARGS = parseBuildArgs(process.argv.slice(2));
++const SPLIT = takeReadAuthorityArgs(process.argv.slice(2));       // --read-authority FILE --read-authority-digest sha256:<hex>
++const ARGS = parseBuildArgs(SPLIT.rest);
+ const BUILT_IN = ARGS.file ? readBuiltInProfile(ARGS.file, ARGS.digest) : null;
++const READ_AUTH = SPLIT.file ? readReadAuthority(SPLIT.file, SPLIT.digest) : null;
++if (READ_AUTH && BUILT_IN) throw new Error("--read-authority and --built-in-profile are exclusive: a built-in independent profile already decides every chain read");
++if (READ_AUTH) console.log(`[build] release read authority own-rpc sha256:${READ_AUTH.fingerprint}: hosted reads ONLY via ${READ_AUTH.authority.rpcs.map((u) => new URL(u).host).join(", ")} (self-hosted transport, NOT proof-verified)`);
+ console.log(BUILT_IN
+   ? `[build] built-in network profile ${JSON.stringify(BUILT_IN.profile.name)} sha256:${BUILT_IN.fingerprint} (a fresh browser starts in independent mode with it)`
+   : "[build] no built-in network profile (hosted defaults; a saved browser profile still applies)");
+@@ -101,7 +106,7 @@
+   outbase: SITE,                              // js/boot.js keeps its path: HTML needs no rewrite
+   chunkNames: "js/chunks/[name]-[hash]",
+   external: ["https://*", "/vendor/*"],       // same-origin vendor bundles (verifier, webauthn) are loaded at runtime, not inlined into the page graph
+-  plugins: [inlineTemplates, ...(BUILT_IN ? [builtInProfilePlugin(BUILT_IN.text, SITE)] : [])],
++  plugins: [inlineTemplates, ...(BUILT_IN ? [builtInProfilePlugin(BUILT_IN.text, SITE)] : []), ...(READ_AUTH ? [readAuthorityPlugin(READ_AUTH.text, SITE)] : [])],
+   metafile: true,
+ });
+ 
+--- /dev/null
++++ b/site/js/core/read-authority.js
+@@ -0,0 +1,96 @@
++/* ============================================================
++   The hosted site's READ authority (catalog, ledger, dashboard,
++   payments, address book, sessions reads through js/core/chain.js
++   baseRpc and the APP_CATALOG_RPCS pool in js/core/config.js).
++
++   A release chooses it at BUILD time, never at runtime:
++     node scripts/build-site.mjs --read-authority FILE --read-authority-digest sha256:<64 hex>
++   (scripts/site-read-authority.mjs; the same reviewed-file pattern as
++   --built-in-profile). Without the flags READ_AUTHORITY_TEXT stays null
++   and the site keeps its LEGACY public pool, exactly as before.
++
++   With a release authority ("own-rpc"), every hosted read goes ONLY to
++   its listed endpoints: no public pool, no loopback dev override, no
++   default origin. An outage or an invalid authority is an error the
++   page shows - never a fallback to a public provider.
++
++   TRUST, stated plainly: "own-rpc" is a TRUSTED SELF-HOSTED TRANSPORT
++   (HTTPS JSON-RPC to the operator's own Base node). The browser does
++   NOT verify proofs or finality of those answers - exactly like the
++   legacy public pool, minus the third parties. It is not the local
++   proof verifier (network/chain-authority.mjs, loopback-only) and not
++   an attested route; nothing here may be labelled either.
++
++   An independent profile (js/core/independent.js) the USER saved or a
++   built-in one still takes precedence: it is the user's own explicit
++   chain choice, with its own quorum rules. Wallet signing (the wallet's
++   own RPC, WalletConnect rpcMap, wallet_addEthereumChain) is the
++   wallet's choice and is not governed by this file.
++   ============================================================ */
++import { parseUniqueJSON } from "./independent.js";
++
++// the ONE declaration scripts/site-read-authority.mjs may replace in the bundle (anything else stops the build)
++export const READ_AUTHORITY_TEXT = null;
++
++export const READ_AUTHORITY_MAX_BYTES = 4096;
++export const READ_AUTHORITY_TRUST = "self-hosted-transport";
++const MAX_RPCS = 4;
++/* Third-party Base RPC providers (the hosts the platform uses today, and other well-known ones). Listing one in an
++   "own-rpc" authority is a misconfiguration, refused: this guards against mislabelling, it proves no ownership. */
++const THIRD_PARTY = ["base.org", "publicnode.com", "drpc.org", "1rpc.io", "blastapi.io", "tenderly.co", "nodies.app",
++  "llamarpc.com", "ankr.com", "alchemy.com", "infura.io", "quiknode.pro", "meowrpc.com", "walletconnect.org", "coinbase.com"];
++const thirdParty = (host) => THIRD_PARTY.some((d) => host === d || host.endsWith("." + d));
++
++/** Parse a release read-authority file (UTF-8 JSON text) -> { mode: "own-rpc", rpcs, trust, note }. Throws on anything else. */
++export function parseReadAuthority(text){
++  if (typeof text !== "string") throw new Error("read authority must be JSON text");
++  if (new TextEncoder().encode(text).length > READ_AUTHORITY_MAX_BYTES) throw new Error("read authority is larger than " + READ_AUTHORITY_MAX_BYTES + " bytes");
++  const v = parseUniqueJSON(text);
++  if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error("read authority must be a JSON object");
++  const keys = Object.keys(v);
++  for (const k of keys) if (!["version", "mode", "rpcs", "trust", "note"].includes(k)) throw new Error("unknown read authority key " + JSON.stringify(k));
++  if (v.version !== 1) throw new Error("read authority version must be 1");
++  if (v.mode !== "own-rpc") throw new Error('read authority mode must be "own-rpc"');
++  if (v.trust !== READ_AUTHORITY_TRUST) throw new Error('read authority trust must be "' + READ_AUTHORITY_TRUST + '" (the browser does not verify these answers)');
++  if (v.note !== undefined && (typeof v.note !== "string" || v.note.length > 200)) throw new Error("read authority note must be a short string");
++  if (!Array.isArray(v.rpcs) || v.rpcs.length < 1 || v.rpcs.length > MAX_RPCS) throw new Error("read authority needs 1-" + MAX_RPCS + " RPC URLs");
++  const rpcs = [], origins = new Set();
++  for (const raw of v.rpcs){
++    if (typeof raw !== "string") throw new Error("read authority RPC must be a URL string");
++    let u; try { u = new URL(raw); } catch { throw new Error("read authority RPC is not a URL"); }
++    if (u.protocol !== "https:") throw new Error("read authority RPC must be https");
++    if (u.username || u.password || u.search || u.hash || raw.includes("?") || raw.includes("#")) throw new Error("read authority RPC must carry no credentials, query or fragment");
++    const host = u.hostname.toLowerCase().replace(/\.$/, "");
++    if (thirdParty(host)) throw new Error("read authority RPC " + host + " is a third-party provider, not an own authority");
++    if (origins.has(u.origin)) throw new Error("read authority RPCs must be distinct origins");
++    origins.add(u.origin); rpcs.push(u.href);
++  }
++  return Object.freeze({ mode: "own-rpc", rpcs: Object.freeze(rpcs), trust: READ_AUTHORITY_TRUST, note: v.note || "" });
++}
++
++/** The hosted read pool. -> { mode: "independent" | "legacy" | "own-rpc" | "invalid", rpcs, trust, error }
++ *  independent: the profile decides (config.js keeps its own path); legacy: `legacy` (or the loopback dev override);
++ *  own-rpc: ONLY the authority's endpoints; invalid: NO endpoint at all (every read refuses). */
++export function resolveReadAuthority({ text = READ_AUTHORITY_TEXT, independentState = "off", legacy = [], devRpc = null } = {}){
++  if (independentState !== "off") return Object.freeze({ mode: "independent", rpcs: null, trust: "independent-profile", error: null });
++  if (text == null) return Object.freeze({ mode: "legacy", rpcs: Object.freeze(devRpc ? [devRpc] : [...legacy]), trust: "public-providers", error: null });
++  try {
++    const a = parseReadAuthority(text);
++    return Object.freeze({ mode: "own-rpc", rpcs: a.rpcs, trust: a.trust, error: null });
++  } catch (e){
++    return Object.freeze({ mode: "invalid", rpcs: Object.freeze([]), trust: "none", error: String((e && e.message) || e) });
++  }
++}
++
++/** sessions.js chain client RPC (hosted mode). legacy: unchanged - the relay config's `rpc`, else the pool's first; own-rpc:
++ *  ONLY the authority's pool (a relay-supplied RPC is not this release's authority); invalid: refuse (no URL at all, so the
++ *  sessions SDK can never substitute its own public default). */
++export function sessionsRpc(relayRpc, authority, pool){
++  if (!authority || authority.mode === "legacy") return relayRpc || pool[0];
++  if (authority.mode === "own-rpc" && pool.length) return pool[0];
++  throw new Error("this site release's chain read authority is " + (authority.mode === "invalid" ? "invalid (" + authority.error + ")" : "not usable for sessions") + ": refusing");
++}
++
++/** wallet.js fallbackRead (a read the WALLET could not answer): the legacy hosted page asks Base's public RPC; under an
++ *  independent profile or a release read authority it must use the read pool (baseRpc) - never a public default. */
++export const fallbackUsesPool = (independentState, authority) => independentState !== "off" || !authority || authority.mode !== "legacy";
+--- /dev/null
++++ b/scripts/site-read-authority.mjs
+@@ -0,0 +1,72 @@
++/* ============================================================
++   The site build's optional RELEASE READ AUTHORITY (site/js/core/read-authority.js READ_AUTHORITY_TEXT):
++
++     node scripts/build-site.mjs --read-authority FILE --read-authority-digest sha256:<64 hex>
++
++   Same pattern as --built-in-profile (scripts/site-built-in-profile.mjs): the file is data, its exact bytes must hash
++   to the digest the reviewer recorded, decode as UTF-8 and pass the site's own parser (parseReadAuthority), and that
++   exact text is embedded as a string literal in the bundled module; the source tree is not edited and nothing is
++   evaluated. Any problem fails the build. Without the flags the build is unchanged (the legacy public read pool).
++   ============================================================ */
++import { createHash } from "node:crypto";
++import fs from "node:fs";
++import path from "node:path";
++import { parseReadAuthority, READ_AUTHORITY_MAX_BYTES } from "../site/js/core/read-authority.js";
++
++const FLAGS = ["--read-authority", "--read-authority-digest"];
++export const READ_AUTHORITY_DECLARATION = "export const READ_AUTHORITY_TEXT = null;";
++
++/** Split the read-authority flags out of the build's argv -> { file, digest, rest } (both or neither). */
++export function takeReadAuthorityArgs(argv){
++  const got = {}, rest = [];
++  for (let i = 0; i < argv.length; i++){
++    const a = argv[i];
++    if (!FLAGS.includes(a)){ rest.push(a); continue; }
++    if (a in got) throw new Error(`${a} given twice`);
++    const v = argv[++i];
++    if (v === undefined || v.startsWith("--")) throw new Error(`${a} needs a value`);
++    got[a] = v;
++  }
++  const file = got["--read-authority"] ?? null, digest = got["--read-authority-digest"] ?? null;
++  if ((file === null) !== (digest === null)) throw new Error("--read-authority and --read-authority-digest go together: the file and the sha256 its review recorded");
++  return { file, digest, rest };
++}
++
++/** Read and check the reviewed authority -> { text, fingerprint, authority }. */
++export function readReadAuthority(file, digest){
++  if (!/^sha256:[0-9a-f]{64}$/.test(String(digest))) throw new Error("--read-authority-digest must be sha256:<64 lower-case hex>");
++  const st = fs.statSync(file);
++  if (!st.isFile()) throw new Error(`${file} is not a file`);
++  if (st.size > READ_AUTHORITY_MAX_BYTES) throw new Error(`${file} is larger than ${READ_AUTHORITY_MAX_BYTES} bytes`);
++  const bytes = fs.readFileSync(file);
++  const fingerprint = createHash("sha256").update(bytes).digest("hex");
++  if ("sha256:" + fingerprint !== digest) throw new Error(`${file} is sha256:${fingerprint}, not the reviewed ${digest}`);
++  let text;
++  try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
++  catch { throw new Error(`${file} is not UTF-8 text`); }
++  let authority;
++  try { authority = parseReadAuthority(text); }
++  catch (e){ throw new Error(`${file} is not a usable read authority: ${e.message || e}`); }
++  return { text, fingerprint, authority };
++}
++
++/** The exact source transform the plugin applies (exported so tests exercise the same code). */
++export function embedReadAuthority(src, text, where = "read-authority.js"){
++  const n = src.split(READ_AUTHORITY_DECLARATION).length - 1;
++  if (n !== 1) throw new Error(`${where}: expected exactly one "${READ_AUTHORITY_DECLARATION}", found ${n}`);
++  return src.replace(READ_AUTHORITY_DECLARATION, () => `export const READ_AUTHORITY_TEXT = ${JSON.stringify(text)};`);
++}
++
++/** esbuild plugin: the bundled read-authority.js carries `text` (exactly) as READ_AUTHORITY_TEXT. */
++export function readAuthorityPlugin(text, site){
++  const target = path.join(site, "js", "core", "read-authority.js");
++  return {
++    name: "read-authority",
++    setup(b){
++      b.onLoad({ filter: /[\\/]js[\\/]core[\\/]read-authority\.js$/ }, async (args) => {
++        if (path.resolve(args.path) !== target) return undefined;
++        return { contents: embedReadAuthority(await fs.promises.readFile(args.path, "utf8"), text, args.path), loader: "js" };
++      });
++    },
++  };
++}
+--- /dev/null
++++ b/test/browser-read-authority.test.mjs
+@@ -0,0 +1,191 @@
++// Hosted site READ authority (site/js/core/read-authority.js, config.js, chain.js baseRpc, scripts/site-read-authority.mjs).
++// Offline: fetch is a stub that records every URL. Integration scenarios run the REAL config.js + chain.js from a private
++// temp copy of site/js whose read-authority.js was transformed by the SAME function the build plugin uses.
++// What this proves: endpoint SELECTION (own endpoints only, no public fallback, invalid/outage refuse). It proves nothing
++// about the answers: "own-rpc" is a trusted self-hosted transport, not proof verification.
++//   run: node --test test/browser-read-authority.test.mjs
++import test from "node:test";
++import assert from "node:assert/strict";
++import { createHash } from "node:crypto";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { parseReadAuthority, resolveReadAuthority, fallbackUsesPool, sessionsRpc, READ_AUTHORITY_TEXT } from "../site/js/core/read-authority.js";
++import { takeReadAuthorityArgs, readReadAuthority, embedReadAuthority, READ_AUTHORITY_DECLARATION } from "../scripts/site-read-authority.mjs";
++import { createQuorumReader } from "../site/js/core/quorum.js";
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
++const OWN = ["https://rpc-a.own-node.example/", "https://rpc-b.own-node.example/base"];
++const LEGACY = ["https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io/base", "https://mainnet.base.org"];
++const auth = (o = {}) => JSON.stringify({ version: 1, mode: "own-rpc", rpcs: OWN, trust: "self-hosted-transport", ...o });
++
++test("source default: no release authority, legacy pool exactly as before", () => {
++  assert.equal(READ_AUTHORITY_TEXT, null, "the source tree never carries an authority; only a reviewed build embeds one");
++  const r = resolveReadAuthority({ legacy: LEGACY });
++  assert.deepEqual([r.mode, [...r.rpcs]], ["legacy", LEGACY]);
++  assert.deepEqual([...resolveReadAuthority({ legacy: LEGACY, devRpc: "http://127.0.0.1:8545" }).rpcs], ["http://127.0.0.1:8545"], "legacy dev override unchanged");
++});
++
++test("own-rpc: only the authority's endpoints, the dev override is not mixed in", () => {
++  const r = resolveReadAuthority({ text: auth(), legacy: LEGACY, devRpc: "http://127.0.0.1:8545" });
++  assert.deepEqual([r.mode, [...r.rpcs], r.trust], ["own-rpc", OWN, "self-hosted-transport"]);
++  assert.ok(!r.rpcs.some((u) => LEGACY.includes(u) || u.startsWith("http://127.")));
++});
++
++test("an invalid or mislabelled authority pins NO endpoint (never the public pool)", () => {
++  const bad = {
++    "plain http": auth({ rpcs: ["http://rpc.own-node.example"] }), "credentials": auth({ rpcs: ["https://u:p@rpc.own-node.example"] }),
++    "query key": auth({ rpcs: ["https://rpc.own-node.example/?key=1"] }), "fragment": auth({ rpcs: ["https://rpc.own-node.example/#x"] }),
++    "mainnet.base.org": auth({ rpcs: ["https://mainnet.base.org"] }), "publicnode": auth({ rpcs: ["https://base-rpc.publicnode.com"] }),
++    "drpc": auth({ rpcs: ["https://base.drpc.org"] }), "1rpc": auth({ rpcs: ["https://1rpc.io/base"] }), "blastapi": auth({ rpcs: ["https://base-mainnet.public.blastapi.io"] }),
++    "same origin twice": auth({ rpcs: ["https://rpc.own-node.example/a", "https://rpc.own-node.example/b"] }),
++    "no endpoint": auth({ rpcs: [] }), "five endpoints": auth({ rpcs: [1, 2, 3, 4, 5].map((i) => `https://r${i}.own-node.example`) }),
++    "claims proof": auth({ trust: "proof-verified" }), "no trust": JSON.stringify({ version: 1, mode: "own-rpc", rpcs: OWN }),
++    "unknown key": auth({ fallback: LEGACY }), "version 2": auth({ version: 2 }), "public mode": auth({ mode: "public" }),
++    "duplicate key": '{"version":1,"version":1,"mode":"own-rpc","rpcs":["https://rpc.own-node.example"],"trust":"self-hosted-transport"}',
++    "not JSON": "own-rpc https://rpc.own-node.example", "too large": auth({ note: "x".repeat(5000) }),
++  };
++  for (const [what, text] of Object.entries(bad)) {
++    assert.throws(() => parseReadAuthority(text), Error, what);
++    const r = resolveReadAuthority({ text, legacy: LEGACY });
++    assert.deepEqual([r.mode, r.rpcs.length], ["invalid", 0], what);
++    assert.ok(r.error, what);
++  }
++});
++
++test("a user's independent profile keeps precedence; the wallet fallback never uses a public default outside legacy", () => {
++  for (const s of ["on", "unconfirmed", "invalid"]) assert.equal(resolveReadAuthority({ text: auth(), independentState: s, legacy: LEGACY }).mode, "independent", s);
++  const legacy = resolveReadAuthority({ legacy: LEGACY }), own = resolveReadAuthority({ text: auth() }), inval = resolveReadAuthority({ text: "x" });
++  assert.equal(fallbackUsesPool("off", legacy), false, "legacy hosted page: unchanged (Base's public RPC)");
++  assert.equal(fallbackUsesPool("off", own), true);
++  assert.equal(fallbackUsesPool("off", inval), true, "invalid: the empty pool refuses");
++  assert.equal(fallbackUsesPool("on", legacy), true);
++});
++
++test("hosted sessions RPC: legacy unchanged; own-rpc ignores a relay-supplied RPC; invalid refuses (no SDK public default)", () => {
++  const legacy = resolveReadAuthority({ legacy: LEGACY }), own = resolveReadAuthority({ text: auth() }), inval = resolveReadAuthority({ text: "x" });
++  assert.equal(sessionsRpc("https://relay-chosen.example", legacy, [...legacy.rpcs]), "https://relay-chosen.example", "legacy: the relay config's rpc, as before");
++  assert.equal(sessionsRpc(undefined, legacy, [...legacy.rpcs]), LEGACY[0], "legacy: else the pool's first, as before");
++  assert.equal(sessionsRpc("https://base-rpc.publicnode.com", own, [...own.rpcs]), OWN[0], "own-rpc: never the relay's (possibly public) rpc");
++  assert.throws(() => sessionsRpc("https://base-rpc.publicnode.com", inval, []), /invalid/, "invalid: no URL, so the SDK cannot substitute a default");
++});
++
++test("build seam: flags both-or-neither, reviewed digest, exactly one declaration in the real source", () => {
++  assert.deepEqual(takeReadAuthorityArgs(["--built-in-profile", "p", "--built-in-profile-digest", "d"]), { file: null, digest: null, rest: ["--built-in-profile", "p", "--built-in-profile-digest", "d"] });
++  assert.throws(() => takeReadAuthorityArgs(["--read-authority", "f"]), /go together/);
++  assert.throws(() => takeReadAuthorityArgs(["--read-authority", "f", "--read-authority", "g", "--read-authority-digest", "d"]), /twice/);
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "read-auth-"));
++  try {
++    const f = path.join(dir, "a.json"); fs.writeFileSync(f, auth());
++    const digest = "sha256:" + createHash("sha256").update(fs.readFileSync(f)).digest("hex");
++    assert.deepEqual([...readReadAuthority(f, digest).authority.rpcs], OWN);
++    assert.throws(() => readReadAuthority(f, "sha256:" + "0".repeat(64)), /not the reviewed/);
++    fs.writeFileSync(f, auth({ rpcs: ["https://mainnet.base.org"] }));
++    assert.throws(() => readReadAuthority(f, "sha256:" + createHash("sha256").update(fs.readFileSync(f)).digest("hex")), /third-party provider/);
++  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++  const src = fs.readFileSync(path.join(ROOT, "site/js/core/read-authority.js"), "utf8");
++  assert.equal(src.split(READ_AUTHORITY_DECLARATION).length - 1, 1);
++  assert.throws(() => embedReadAuthority(src + "\n" + READ_AUTHORITY_DECLARATION, auth()), /exactly one/);
++});
++
++// ---- integration: the real config.js + chain.js, one private copy of their import CLOSURE per scenario ----------------
++// site/js/core/independent.js imports ../../../network/*.mjs, so a copy of site/js alone cannot load (r1 failure). The
++// fixture copies the ACTUAL transitive relative-import closure of config.js and chain.js (static, re-export and literal
++// dynamic imports), each file at its repo-relative path, and links node_modules beside it for bare imports (viem). No
++// product module is stubbed; only read-authority.js is transformed, by the build plugin's own embedReadAuthority.
++const SPEC = /(?:\bimport\s*(?:[\w*{}\s,$]+?\s*from\s*)?|\bexport\s*(?:\*|\{[^}]*\})\s*from\s*|\bimport\s*\(\s*)["'](\.{1,2}\/[^"']+)["']/g;
++function importClosure(entries) {
++  const seen = new Set(), todo = [...entries];
++  while (todo.length) {
++    const rel = todo.pop(); if (seen.has(rel)) continue; seen.add(rel);
++    const src = fs.readFileSync(path.join(ROOT, rel), "utf8");
++    for (const m of src.matchAll(SPEC)) {
++      const dep = path.relative(ROOT, path.resolve(path.dirname(path.join(ROOT, rel)), m[1]));
++      if (dep.startsWith("..") || path.isAbsolute(dep)) throw new Error(`${rel} imports outside the repository: ${m[1]}`);
++      if (fs.existsSync(path.join(ROOT, dep)) && fs.statSync(path.join(ROOT, dep)).isFile()) todo.push(dep);   // a specifier in a comment that names no file is not an import
++    }
++  }
++  return [...seen].sort();
++}
++const CLOSURE = importClosure(["site/js/core/config.js", "site/js/core/chain.js"]);
++test("fixture closure: the real relative-import closure, including the network/ modules the site imports", () => {
++  for (const f of ["site/js/core/config.js", "site/js/core/chain.js", "site/js/core/read-authority.js", "site/js/core/independent.js"]) assert.ok(CLOSURE.includes(f), f);
++  assert.ok(CLOSURE.some((f) => f.startsWith("network/")), "the closure reaches network/ (what r1's fixture missed)");
++});
++function scenario(text) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "site-closure-"));
++  for (const rel of CLOSURE) { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.copyFileSync(path.join(ROOT, rel), path.join(dir, rel)); }
++  fs.symlinkSync(fs.realpathSync(path.join(ROOT, "node_modules")), path.join(dir, "node_modules"));
++  if (text != null) {
++    const p = path.join(dir, "site/js/core/read-authority.js");
++    fs.writeFileSync(p, embedReadAuthority(fs.readFileSync(p, "utf8"), text, p));
++  }
++  return dir;
++}
++async function load(dir, { hostname = "enclave.host", store = {} } = {}) {
++  const m = new Map(Object.entries(store));
++  globalThis.localStorage = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
++  globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
++  globalThis.location = { hostname, href: `https://${hostname}/`, origin: `https://${hostname}` };
++  const config = await import(pathToFileURL(path.join(dir, "site/js/core/config.js")).href);
++  const chain = await import(pathToFileURL(path.join(dir, "site/js/core/chain.js")).href);
++  return { config, chain };
++}
++function fetchSpy(answer) {
++  const urls = []; const real = globalThis.fetch;
++  globalThis.fetch = async (u, init) => { urls.push(String(u)); return answer(String(u), JSON.parse(init.body)); };
++  return { urls, restore: () => { globalThis.fetch = real; } };
++}
++const ok = (result) => new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }), { headers: { "content-type": "application/json" } });
++
++test("integration own-rpc: reads go only to the own endpoints; the wallet signing config is unchanged", async () => {
++  const dir = scenario(auth());
++  const spy = fetchSpy(() => ok("0x10"));
++  try {
++    const { config, chain } = await load(dir, { hostname: "localhost", store: { enclave_rpc: "http://127.0.0.1:8545" } });
++    assert.deepEqual([config.READ_AUTHORITY.mode, config.APP_CATALOG_RPCS], ["own-rpc", OWN], "not even the loopback dev override is mixed in");
++    assert.equal(await chain.baseRpc("eth_blockNumber", []), "0x10");
++    assert.ok(spy.urls.length > 0 && spy.urls.every((u) => OWN.includes(u)), JSON.stringify(spy.urls));
++    assert.equal(config.WALLETCONNECT_PROJECT_ID, "e935970def12ab5d05b6b8ff7abd8d75", "wallet signing (WalletConnect) unchanged");
++  } finally { spy.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test("integration own-rpc outage: every attempt stays on the own endpoints, then the read fails (no public fallback)", async () => {
++  const dir = scenario(auth());
++  const spy = fetchSpy(() => { throw new TypeError("connection refused"); });
++  try {
++    const { chain } = await load(dir);
++    await assert.rejects(chain.baseRpc("eth_call", [{ to: "0x" + "11".repeat(20), data: "0x" }, "latest"]), /connection refused/);
++    assert.equal(spy.urls.length, OWN.length * 2, "the existing rotation, bounded");
++    assert.ok(spy.urls.every((u) => OWN.includes(u)), JSON.stringify(spy.urls));
++  } finally { spy.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test("integration invalid authority: the pool is empty and every read refuses without contacting anyone", async () => {
++  const dir = scenario(auth({ rpcs: ["https://mainnet.base.org"] }));
++  const spy = fetchSpy(() => ok("0x1"));
++  try {
++    const { config, chain } = await load(dir);
++    assert.deepEqual([config.READ_AUTHORITY.mode, config.APP_CATALOG_RPCS], ["invalid", []]);
++    await assert.rejects(chain.baseRpc("eth_blockNumber", []), /read authority is invalid/);
++    assert.deepEqual(spy.urls, []);
++  } finally { spy.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test("integration legacy (no release authority): the existing public pool and dev-override rules are unchanged", async () => {
++  const dir = scenario(null);
++  const spy = fetchSpy(() => ok("0x2"));
++  try {
++    const { config, chain } = await load(dir, { hostname: "enclave.host", store: { enclave_rpc: "https://rpc.evil.example" } });
++    assert.deepEqual([config.READ_AUTHORITY.mode, config.APP_CATALOG_RPCS], ["legacy", LEGACY], "production origin: planted override ignored, pool as before");
++    assert.equal(await chain.baseRpc("eth_blockNumber", []), "0x2");
++    assert.ok(LEGACY.includes(spy.urls[0]));
++  } finally { spy.restore(); fs.rmSync(dir, { recursive: true, force: true }); }
++});
++
++test("credit page contract (unchanged): its quorum reader refuses a single origin, so a credit cutover needs two own endpoints", () => {
++  assert.throws(() => createQuorumReader({ rpcs: [OWN[0]], quorum: 1, chainId: 8453 }), /at least two RPC origins/);
++  assert.throws(() => createQuorumReader({ rpcs: OWN, quorum: 1, chainId: 8453 }), /invalid RPC quorum/);
++  assert.ok(createQuorumReader({ rpcs: OWN, quorum: 2, chainId: 8453 }));
++});
+--- /dev/null
++++ b/docs/network/browser-read-authority.md
+@@ -0,0 +1,51 @@
++# Hosted site read authority (release-time, opt-in)
++
++The hosted site (`site/`) reads Base through one pool: `APP_CATALOG_RPCS` in `site/js/core/config.js`, used by
++`site/js/core/chain.js` `baseRpc`.
++- **Readers:** catalog, deployments ledger, featured, reviews, payments, address book, the network page, sessions and
++  the wallet's read fallback.
++- **Default (unchanged):** the legacy pool of third-party public RPCs.
++
++## Choosing an own read authority for a release
++
++```
++node scripts/build-site.mjs --read-authority authority.json --read-authority-digest sha256:<sha256 of the file as reviewed>
++```
++
++`authority.json`:
++```json
++{ "version": 1, "mode": "own-rpc", "trust": "self-hosted-transport",
++  "rpcs": ["https://<the operator's own Base node RPC origin>"], "note": "optional, short" }
++```
++
++**What the build checks:**
++- **The file:** it must hash to the reviewed digest, be UTF-8 JSON with unique keys and no unknown key, and be 4 KiB or
++  less.
++- **Endpoints:** 1–4 https endpoints, each a distinct origin, with no credentials, query or fragment, and none on a
++  known third-party provider domain.
++- **Exclusive:** it cannot be combined with `--built-in-profile`.
++
++**Embedding:** the build embeds the exact text in `read-authority.js` (`READ_AUTHORITY_TEXT`); the source tree is never
++edited.
++
++**Runtime behaviour in that release:**
++- **Pool:** hosted reads go **only** to those endpoints. There is no public pool and no loopback dev override.
++- **Wallet read fallback:** it uses the same pool.
++- **Outage:** the existing bounded rotation stays on those endpoints, and the read then fails with an error.
++- **Invalid authority:** an embedded authority that is invalid makes the pool empty, so every read refuses.
++- **Never** does a read fall back to a public provider.
++
++## What it is, and what it is not
++- **It is a trusted self-hosted transport:** HTTPS JSON-RPC to the operator's own node. **The browser does not verify
++  proofs or finality** of those answers; neither does the legacy pool.
++- **It is not** the local proof verifier (`network/chain-authority.mjs`, loopback-only on hosts) and **not** an attested
++  route. Do not label it either.
++- **Activation:** gate it on a qualifying backend under root review. The node must be synced, served over HTTPS with
++  CORS for the site origin, and checked against independent sources before the release is published.
++
++## Unchanged
++- **User's independent profile:** a saved or built-in independent profile still takes precedence (the user's explicit
++  choice, with its own quorum).
++- **Wallet signing:** the wallet's RPC, WalletConnect `rpcMap` and `wallet_addEthereumChain` RPCs are untouched.
++- **Credit page** (`site/credit/`): it keeps its own `credit-config.json` quorum (at least 2 origins, quorum at least
++  2). An own-authority credit release needs two own endpoints in that file; no single-endpoint shortcut exists.

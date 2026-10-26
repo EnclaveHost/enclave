@@ -1,0 +1,30 @@
+{
+ "rev": "bf77da364373a9c7d881489af5b760207a03997c",
+ "phase": "post",
+ "tracked": 8483,
+ "trackedSymlinks": 9,
+ "overlaid": [
+  "scripts/build-site.mjs",
+  "site/js/core/chain.js",
+  "site/js/core/config.js",
+  "site/js/core/sessions.js",
+  "site/js/core/wallet.js"
+ ],
+ "added": [
+  "docs/network/browser-read-authority.md",
+  "scripts/site-read-authority.mjs",
+  "site/js/core/read-authority.js",
+  "test/browser-read-authority.test.mjs"
+ ],
+ "symlinks": [
+  "node_modules"
+ ],
+ "generated": {},
+ "permissionBits": "not compared (tree intentionally read-only); see info",
+ "info": {
+  "execBitMismatch": 0,
+  "writableFiles": 8474,
+  "readOnlyFiles": 0
+ },
+ "failures": []
+}

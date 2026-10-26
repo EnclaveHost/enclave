@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: a CID that really holds the bytes verifies
+ok 1 - a CID that really holds the bytes verifies
+  ---
+  duration_ms: 21.54041
+  type: 'test'
+  ...
+# Subtest: a CID holding DIFFERENT bytes is a mismatch, and reports both hashes
+ok 2 - a CID holding DIFFERENT bytes is a mismatch, and reports both hashes
+  ---
+  duration_ms: 5.723109
+  type: 'test'
+  ...
+# Subtest: a CID that has not propagated yet is UNVERIFIED, never a mismatch
+ok 3 - a CID that has not propagated yet is UNVERIFIED, never a mismatch
+  ---
+  duration_ms: 3.509432
+  type: 'test'
+  ...
+# Subtest: an unreachable gateway is UNVERIFIED, not a mismatch
+ok 4 - an unreachable gateway is UNVERIFIED, not a mismatch
+  ---
+  duration_ms: 1.359675
+  type: 'test'
+  ...
+# Subtest: one byte of difference is caught
+ok 5 - one byte of difference is caught
+  ---
+  duration_ms: 2.84683
+  type: 'test'
+  ...
+# Subtest: the page refuses to publish a mismatch, and only warns on unverified
+ok 6 - the page refuses to publish a mismatch, and only warns on unverified
+  ---
+  duration_ms: 0.200818
+  type: 'test'
+  ...
+# Subtest: the read-back gateway is not the upload gateway
+ok 7 - the read-back gateway is not the upload gateway
+  ---
+  duration_ms: 0.313987
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 118.88093

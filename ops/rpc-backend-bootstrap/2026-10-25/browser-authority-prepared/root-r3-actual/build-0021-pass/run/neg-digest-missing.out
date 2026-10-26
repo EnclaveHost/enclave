@@ -1,0 +1,13 @@
+[build] clean dist/
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own/scripts/site-read-authority.mjs:31
+  if ((file === null) !== (digest === null)) throw new Error("--read-authority and --read-authority-digest go together: the file and the sha256 its review recorded");
+                                                   ^
+
+Error: --read-authority and --read-authority-digest go together: the file and the sha256 its review recorded
+    at takeReadAuthorityArgs (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own/scripts/site-read-authority.mjs:31:52)
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/browser-authority-stage/r3/build-work-20261026T002047Z/build-own/scripts/build-site.mjs:75:15
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.3

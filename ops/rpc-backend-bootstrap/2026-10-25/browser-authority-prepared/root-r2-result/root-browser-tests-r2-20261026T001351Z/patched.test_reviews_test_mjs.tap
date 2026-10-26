@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: REV_SEL selectors match the compiled ABI (viem-derived)
+ok 1 - REV_SEL selectors match the compiled ABI (viem-derived)
+  ---
+  duration_ms: 6.796997
+  type: 'test'
+  ...
+# Subtest: review calls encode like viem
+ok 2 - review calls encode like viem
+  ---
+  duration_ms: 2.174397
+  type: 'test'
+  ...
+# Subtest: a multi-byte comment encodes like viem (the star of a UTF-8 padding bug)
+ok 3 - a multi-byte comment encodes like viem (the star of a UTF-8 padding bug)
+  ---
+  duration_ms: 0.312307
+  type: 'test'
+  ...
+# Subtest: bytes32[] arguments (talliesOf - the grid's one-call read) encode like viem
+ok 4 - bytes32[] arguments (talliesOf - the grid's one-call read) encode like viem
+  ---
+  duration_ms: 0.665893
+  type: 'test'
+  ...
+# Subtest: Review[] (dynamic tuples) decodes against a viem encoding
+ok 5 - Review[] (dynamic tuples) decodes against a viem encoding
+  ---
+  duration_ms: 0.829552
+  type: 'test'
+  ...
+# Subtest: one returned struct (getReview) decodes against a viem encoding
+ok 6 - one returned struct (getReview) decodes against a viem encoding
+  ---
+  duration_ms: 0.470055
+  type: 'test'
+  ...
+# Subtest: decodeStruct still reads a Deployment (the depGet path it now shares)
+ok 7 - decodeStruct still reads a Deployment (the depGet path it now shares)
+  ---
+  duration_ms: 0.376316
+  type: 'test'
+  ...
+# Subtest: talliesOf's parallel uint32 arrays decode back onto the apps we asked about
+ok 8 - talliesOf's parallel uint32 arrays decode back onto the apps we asked about
+  ---
+  duration_ms: 0.746802
+  type: 'test'
+  ...
+# Subtest: the site's body cap matches the contract's MAX_BODY
+ok 9 - the site's body cap matches the contract's MAX_BODY
+  ---
+  duration_ms: 0.356177
+  type: 'test'
+  ...
+# Subtest: the appRef parser's window matches how the site builds a catalog ref
+ok 10 - the appRef parser's window matches how the site builds a catalog ref
+  ---
+  duration_ms: 0.509924
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 139.830185

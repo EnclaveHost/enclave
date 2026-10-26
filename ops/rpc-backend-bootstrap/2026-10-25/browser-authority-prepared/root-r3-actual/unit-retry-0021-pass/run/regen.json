@@ -1,0 +1,51 @@
+{
+ "rev": "bf77da364373a9c7d881489af5b760207a03997c",
+ "jsSha256": "05209546a4b0b68091e13efa7afa9a33221271c9dc161dca7a3c9da1212bd6a3",
+ "jsBytes": 70230,
+ "newManifestSha256": "e6d81012495f6e01cebafab432d64eed7b5dbef7bfc2c0f545e43e5e6bb98863",
+ "provenanceChanges": {
+  "net-guard.mjs": {
+   "oldCommit": "c2bc3cc636ce53719f52688093ea892b9c8639c1",
+   "oldCommitInHistory": false,
+   "newCommit": "eb2c994a6b67e0fbc05be1a42614a27cd847ed71",
+   "oldCommittedClean": true,
+   "newCommittedClean": true
+  },
+  "network/canonical.mjs": {
+   "oldCommit": "c2bc3cc636ce53719f52688093ea892b9c8639c1",
+   "oldCommitInHistory": false,
+   "newCommit": "62f082fc615f84a32e26f2caf0868a27975681ae",
+   "oldCommittedClean": true,
+   "newCommittedClean": true
+  },
+  "network/management-browser.mjs": {
+   "oldCommit": "b3256349f18eaa853259e42726fa7f6233db1f71",
+   "oldCommitInHistory": false,
+   "newCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+   "oldCommittedClean": true,
+   "newCommittedClean": true
+  },
+  "network/management-outcome.mjs": {
+   "oldCommit": "b3256349f18eaa853259e42726fa7f6233db1f71",
+   "oldCommitInHistory": false,
+   "newCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+   "oldCommittedClean": false,
+   "newCommittedClean": true
+  },
+  "network/management-record.mjs": {
+   "oldCommit": "b3256349f18eaa853259e42726fa7f6233db1f71",
+   "oldCommitInHistory": false,
+   "newCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+   "oldCommittedClean": true,
+   "newCommittedClean": true
+  },
+  "network/management-routes.mjs": {
+   "oldCommit": "3542e1802018f41654a4554803ea51ecf0a4aaa7",
+   "oldCommitInHistory": false,
+   "newCommit": "6f2c7da466dc26e5f7aac88c574a6b807e1a03df",
+   "oldCommittedClean": false,
+   "newCommittedClean": true
+  }
+ },
+ "failures": []
+}

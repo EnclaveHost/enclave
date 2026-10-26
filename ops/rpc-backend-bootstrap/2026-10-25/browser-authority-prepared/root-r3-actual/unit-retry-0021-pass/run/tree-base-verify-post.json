@@ -1,0 +1,22 @@
+{
+ "rev": "bf77da364373a9c7d881489af5b760207a03997c",
+ "phase": "post",
+ "tracked": 8483,
+ "trackedSymlinks": 9,
+ "overlaid": [
+  "site/vendor/management.MANIFEST.json"
+ ],
+ "added": [],
+ "symlinks": [
+  "node_modules"
+ ],
+ "generated": {},
+ "permissionBits": "not compared (tree intentionally read-only); see info",
+ "gitClone": true,
+ "info": {
+  "execBitMismatch": 0,
+  "writableFiles": 8474,
+  "readOnlyFiles": 0
+ },
+ "failures": []
+}

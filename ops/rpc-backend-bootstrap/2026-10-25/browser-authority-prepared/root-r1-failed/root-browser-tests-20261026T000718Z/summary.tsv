@@ -1,0 +1,16 @@
+FAIL	test/browser-read-authority.test.mjs	rc=1	pass=7	fail=4	skipped=0	todo=0	cancelled=0
+PASS	test/config-dev-overrides.test.mjs	rc=0	pass=5	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/site-built-in-profile.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/site-independent-bundle.test.mjs	rc=0	pass=2	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/site-independent-profile.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/site-independent-identity.test.mjs	rc=0	pass=8	fail=0	skipped=0	todo=0	cancelled=0
+FAIL	test/site-independent-live-reads.test.mjs	rc=0	pass=0	fail=0	skipped=6	todo=0	cancelled=0
+FAIL	test/site-independent-management-unit.test.mjs	rc=1	pass=27	fail=1	skipped=0	todo=0	cancelled=0
+PASS	test/admin-console.test.mjs	rc=0	pass=43	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/admin-metrics.test.mjs	rc=0	pass=15	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/api-base-binding.test.mjs	rc=0	pass=11	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/catalog-version.test.mjs	rc=0	pass=1	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/featured.test.mjs	rc=0	pass=4	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/pay.test.mjs	rc=0	pass=3	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/reviews.test.mjs	rc=0	pass=10	fail=0	skipped=0	todo=0	cancelled=0
+PASS	test/publish-cid-verify.test.mjs	rc=0	pass=7	fail=0	skipped=0	todo=0	cancelled=0

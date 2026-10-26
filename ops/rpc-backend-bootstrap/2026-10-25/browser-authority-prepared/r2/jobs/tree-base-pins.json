@@ -1,0 +1,10 @@
+{
+ "rev": "bf77da364373a9c7d881489af5b760207a03997c",
+ "overlaid": {},
+ "added": {},
+ "symlinks": {
+  "node_modules": "/home/steven/Documents/Codex/2026-10-18/wo/work/enclave/node_modules"
+ },
+ "generatedAfterBuild": [],
+ "gitClone": true
+}
