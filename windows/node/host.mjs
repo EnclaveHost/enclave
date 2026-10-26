@@ -305,11 +305,14 @@ export class Host {
       const gateways = startupGateways(process.env);
       if (!gateways.length) throw new Error("no startup package replicas (ENCLAVE_STARTUP_STORAGE_PLAN_FILE or ENCLAVE_STARTUP_GATEWAYS)");
       if (!chain.CONTRACT_PINS) throw new Error("no pinned contracts (ENCLAVE_CONTRACT_PINS_FILE): the mutable address book is not a startup authority");
-      const { chainReader } = await import("./chain-reader.mjs");
+      const { quorumReader, rpcClients, verifierReader } = await import("./host-identity.mjs");
       const { cidFetcher } = await import("../vbslike/manager/fetchcid.mjs");
       const rpcs = String(process.env.ENCLAVE_STARTUP_RPCS || "").split(",").map((x) => x.trim()).filter(Boolean);
-      // the startup quorum (ENCLAVE_STARTUP_RPCS, else the node's), or the explicit local verifier (chain-reader.mjs)
-      const reader = await chainReader({ rpcs: rpcs.length ? rpcs : chain.rpcUrls() });
+      // under the node's explicit chain authority: the SAME reader contract and per-read policy through the ONE local verifier
+      // (an invalid selection's refusing client refuses every read); an explicit public list would mix a provider into it
+      const authority = chain.chainAuthority();
+      if (authority && rpcs.length) throw new Error("ENCLAVE_STARTUP_RPCS is set but the node runs under ENCLAVE_CHAIN_AUTHORITY=verifier: a provider list is never mixed in");
+      const reader = authority ? verifierReader({ client: authority.client }) : quorumReader({ clients: await rpcClients(rpcs.length ? rpcs : chain.rpcUrls()) });
       const { fileURLToPath } = await import("node:url");
       const script = fileURLToPath(new URL("./fetch-cid.py", import.meta.url));
       const sources = String(this.cfg.gateway || "").split(",").map((x) => x.trim()).filter(Boolean);

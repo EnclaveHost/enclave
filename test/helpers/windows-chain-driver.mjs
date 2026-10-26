@@ -17,14 +17,16 @@ for (const o of ops) {
     chain ||= await load('chain.mjs');
     let value;
     switch (o.op) {
-      case 'authority': value = { authority: chain.chainAuthority(), rpcUrls: chain.rpcUrls() }; break;
+      case 'authority': value = { authority: chain.chainAuthorityStatus(), rpcUrls: chain.rpcUrls() }; break;
       case 'resolveAddresses': value = await chain.resolveAddresses(); break;
       case 'allDeployments': value = (await chain.allDeployments({ pageSize: o.pageSize || 100 })).map((d) => ({ id: d.id, owner: d.owner, appRef: d.appRef })); break;
       case 'readDeployment': value = await chain.readDeployment(o.id); break;
       case 'readEnclave': value = await chain.readEnclave(o.id); break;
       case 'resolveAppRef': value = await chain.resolveAppRef(o.appRef); break;
       case 'claimableBy': value = await chain.claimableBy(o.id, o.enclaveId); break;
-      case 'stateTx': value = await chain.publicClient().getTransactionCount({ address: o.address }); break;      // must refuse by name
+      case 'stateTx': value = await chain.publicClient().getTransactionCount({ address: o.address }); break;
+      case 'txPending': value = await chain.transactionClient().getTransactionCount({ address: o.address, blockTag: 'pending' }); break;
+      case 'gate': { const a = chain.chainAuthority(); if (!a) throw new Error('legacy mode: no authority gate'); value = await a.actionGate({ what: 'r9-test-send', submit: true }); break; }
       case 'txNonce': value = await chain.transactionClient().getTransactionCount({ address: o.address }); break;
       case 'txLogs': value = await chain.payoutDeclarations(o.id, BigInt(o.fromBlock || 0)); break;
       case 'checkEndpoint': {

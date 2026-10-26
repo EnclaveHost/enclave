@@ -42,20 +42,28 @@ if (!ENDPOINT) { console.error("set PUBLIC_URL (this host's registered endpoint)
 const [cmd, ...rest] = process.argv.slice(2);
 const opt = (name, dflt = "") => { const i = rest.indexOf(`--${name}`); return i >= 0 && rest[i + 1] ? rest[i + 1] : dflt; };
 const enclaveId = keccak256(toBytes(ENDPOINT));
-// legacy: one provider fallback for everything (unchanged). Under ENCLAVE_CHAIN_AUTHORITY=verifier (chain.mjs): balances
-// come from the verified state client, simulation/receipts/broadcast only from the explicit transaction transport
-// (ENCLAVE_CHAIN_TX_RPCS; else they refuse), and no client on the public RPC list is constructed.
-const VERIFIED = chain.chainAuthority().authority === "local-verifier";
-const pub = VERIFIED ? null : createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => http(u))) });
-const statePub = VERIFIED ? chain.publicClient() : pub, txPub = VERIFIED ? chain.transactionClient() : pub;
+// THE NODE'S EXPLICIT CHAIN AUTHORITY (chain.mjs chainAuthority(): ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER, optional
+// ENCLAVE_CHAIN_TX_BACKEND; network/chain-authority.mjs): every read and receipt goes to the local verifier, every owner-signed
+// submission (and its pending nonce / fee hints) to the operator-owned backend, bound to the verifier's chain by the authority's
+// actionGate before EACH send; a transaction is never sent to the verifier, and success is only a verified receipt with status
+// success. No backend: nothing is sent. An invalid selection, or BASE_RPCS beside the verifier (a provider list mixed in), is
+// refused before anything is read. Unset: the BASE_RPCS fallback below, unchanged.
+const AUTH = chain.chainAuthority();
+if (AUTH && AUTH.describe().authority === "refusing") { console.error(`the chain authority selection is INVALID (${AUTH.describe().why}): nothing is read or sent`); process.exit(2); }
+if (AUTH && String(process.env.BASE_RPCS || "").trim()) { console.error("BASE_RPCS is set but ENCLAVE_CHAIN_AUTHORITY=verifier: the owner CLI never mixes a provider list into the local verifier"); process.exit(2); }
+const transport = () => (AUTH ? AUTH.transport : fallback(RPCS.map((u) => http(u))));
+/** Before an owner-signed submission: the verifier's head is fresh and the own backend is bound to its chain (else refused). */
+const gate = (what) => (AUTH ? AUTH.actionGate({ what, submit: true }) : Promise.resolve());
+const pub = createPublicClient({ chain: base, transport: transport() });
 
 if (cmd === "prepare-ownership" || cmd === "ownership-status") {
   const fs = await import("node:fs"), path = await import("node:path"), { fileURLToPath } = await import("node:url");
-  const own = await import("./host-ownership.mjs"), { chainReader } = await import("./chain-reader.mjs");
+  const own = await import("./host-ownership.mjs"), { quorumReader, rpcClients, verifierReader } = await import("./host-identity.mjs");
   if (!chain.CONTRACT_PINS) { console.error("set ENCLAVE_CONTRACT_PINS_FILE: ownership is prepared only against pinned contracts"); process.exit(2); }
   const authFile = opt("authorities", path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "contracts", "deployments", "independent-authorities-base.json"));
   const authority = own.verifiedOwnershipAuthority(JSON.parse(fs.readFileSync(authFile, "utf8")), chain.CONTRACT_PINS);
-  const reader = await chainReader({ rpcs: RPCS });   // the quorum, or the explicit local verifier (no public client then)
+  // the SAME reader contract: two agreeing RPCs (legacy), or the ONE local verifier with the same per-read policy (host-identity.mjs)
+  const reader = AUTH ? verifierReader({ client: AUTH.client }) : quorumReader({ clients: await rpcClients(RPCS) });
   const policyDir = opt("policy-dir", process.env.ENCLAVE_HOST_POLICY_DIR || "");
   if (cmd === "ownership-status") {
     console.log(JSON.stringify(await own.ownershipStatus({ authority, hostId: enclaveId, reader, policyDir }), null, 1));
@@ -79,7 +87,7 @@ const key = (process.env.OWNER_KEY || "").trim();
 if (key && !/^0x[0-9a-fA-F]{64}$/.test(key)) { console.error("OWNER_KEY must be the owner wallet's private key (0x + 64 hex)"); process.exit(2); }
 if (!key && cmd !== "status") { console.error("set OWNER_KEY to the owner wallet's private key (0x + 64 hex)"); process.exit(2); }
 const owner = key ? privateKeyToAccount(key) : null;
-const wal = owner ? createWalletClient({ account: owner, chain: base, transport: VERIFIED ? chain.transactionTransport() : fallback(RPCS.map((u) => http(u))) }) : null;
+const wal = owner ? createWalletClient({ account: owner, chain: base, transport: transport() }) : null;
 const A = await chain.resolveAddresses();
 
 const SET_PAYOUT_ABI = [{ type: "function", name: "setPayoutWallet", stateMutability: "nonpayable", inputs: [{ name: "id", type: "bytes32" }], outputs: [] }];
@@ -92,9 +100,10 @@ const CREATE_ABI = [
   { type: "event", name: "Created", inputs: [{ name: "id", type: "bytes32", indexed: true }, { name: "owner", type: "address", indexed: true }, { name: "appRef", type: "string", indexed: false }] },
 ];
 const send = async (label, req) => {
-  await txPub.simulateContract({ ...req, account: owner });
+  await gate(label);
+  await pub.simulateContract({ ...req, account: owner });
   const hash = await wal.writeContract(req);
-  const r = await txPub.waitForTransactionReceipt({ hash });
+  const r = await pub.waitForTransactionReceipt({ hash });
   if (r.status !== "success") throw new Error(`${label} reverted (${hash})`);
   console.log(`${label}: ${hash}`);
   return r;
@@ -102,16 +111,19 @@ const send = async (label, req) => {
 
 const e = await chain.readEnclave(enclaveId).catch(() => null);
 if (cmd === "status") {
-  console.log(JSON.stringify({ owner: owner?.address || null, ownerEth: owner ? formatEther(await statePub.getBalance({ address: owner.address })) : null,
+  console.log(JSON.stringify({ owner: owner?.address || null, ownerEth: owner ? formatEther(await pub.getBalance({ address: owner.address })) : null,
     endpoint: ENDPOINT, enclaveId, registered: !!(e && e.endpoint),
     entry: e && e.endpoint ? { operator: e.operator, active: e.active, cpuPricePerSec6: String(e.cpuPricePerSec6), proofKey: e.proofKey, payoutWallet: e.payoutWallet, measurement: e.measurement } : null,
     addresses: A }, null, 1));
 } else if (cmd === "fund-operator") {
   const to = getAddress(rest[0]); const eth = rest[1] || "0.0004";
-  const before = await statePub.getBalance({ address: to });
+  const before = await pub.getBalance({ address: to });
+  await gate("fund-operator");
   const hash = await wal.sendTransaction({ to, value: parseEther(String(eth)) });
-  await txPub.waitForTransactionReceipt({ hash });
-  console.log(`funded ${to} with ${eth} ETH (was ${formatEther(before)}, now ${formatEther(await statePub.getBalance({ address: to }))}) tx=${hash}`);
+  // a submitted transaction is not a payment: only its receipt with status success is (a pool acceptance never is)
+  const r = await pub.waitForTransactionReceipt({ hash });
+  if (r.status !== "success") throw new Error(`fund-operator reverted (${hash})`);
+  console.log(`funded ${to} with ${eth} ETH (was ${formatEther(before)}, now ${formatEther(await pub.getBalance({ address: to }))}) tx=${hash}`);
 } else if (cmd === "declare-payout") {
   if (!e || !e.endpoint) throw new Error(`${ENDPOINT} is not registered yet: the box registers itself once its operator key has gas`);
   await send("setPayoutWallet", { address: A.registry, abi: SET_PAYOUT_ABI, functionName: "setPayoutWallet", args: [enclaveId] });

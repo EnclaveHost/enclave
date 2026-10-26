@@ -3,8 +3,8 @@
 // startup, ownership and check-endpoint), session-api-auth.mjs (coherent snapshot mode), network-enroll.mjs (the network
 // agent's chain section), agent.mjs startup refusal, and the deploy-files closure that ships them. Child processes load the
 // chain module under each environment exactly as a node does. Loopback stand-ins count every request: under the verifier
-// the provider list (BASE_RPCS) is never contacted, a refusal stays a refusal, and transaction/history work goes only to an
-// explicit transport. Non-native boundary: Node on Linux, not a Windows host.
+// the provider list (BASE_RPCS) is never contacted, a refusal stays a refusal, and pending-pool, fee and submission work goes only
+// to the bound own backend (ENCLAVE_CHAIN_TX_BACKEND); the obsolete ENCLAVE_CHAIN_TX_RPCS is refused (r9 composition). Non-native boundary: Node on Linux, not a Windows host.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chainReader, chainAuthorityOf } from '../windows/node/chain-reader.mjs';
-import { baseConfig, createNetworkEnroll, agentChainAuthority } from '../windows/node/network-enroll.mjs';
+import { baseConfig, createNetworkEnroll, agentChain } from '../windows/node/network-enroll.mjs';
 import { createSessionApiAuth } from '../windows/node/session-api-auth.mjs';
 import { closure } from '../windows/node/deploy-files.mjs';
 
@@ -57,12 +57,12 @@ test('legacy default is unchanged: state and transaction work go to BASE_RPCS; t
   assert.equal(v.calls.length, 0);
 });
 
-test('verifier mode: every state read asks only the verifier (a refusal stays a refusal); transaction/history refuse without an explicit transport', { timeout: 60000 }, async () => {
+test('verifier mode: every state read asks only the verifier (a refusal stays a refusal); pool/fee/submission work refuses without the bound own backend', { timeout: 60000 }, async () => {
   const p1 = await stand(), p2 = await stand(), v = await stand();
   const env = { BASE_RPCS: `${p1.url},${p2.url}`, ENCLAVE_CONTRACT_PINS_FILE: pinsFile, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: v.url };
   const r = await drive([{ op: 'authority' }, { op: 'resolveAddresses' }, { op: 'readEnclave', id: ID }, { op: 'readDeployment', id: ID },
     { op: 'claimableBy', id: ID, enclaveId: ID }, { op: 'allDeployments' }, { op: 'resolveAppRef', appRef: `catalog://${ID}/1` },
-    { op: 'stateTx', address: ADDR }, { op: 'txNonce', address: ADDR }, { op: 'txLogs', id: ID }], env);
+    { op: 'stateTx', address: ADDR }, { op: 'txNonce', address: ADDR }, { op: 'txLogs', id: ID }, { op: 'txPending', address: ADDR }, { op: 'gate' }], env);
   assert.equal(r.authority.value.authority.authority, 'local-verifier');
   assert.equal(r.authority.value.authority.tier, 'unsafe');
   assert.deepEqual(r.authority.value.rpcUrls, [], 'no provider is a read source');
@@ -70,28 +70,46 @@ test('verifier mode: every state read asks only the verifier (a refusal stays a 
   for (const op of ['readEnclave', 'readDeployment', 'claimableBy', 'allDeployments', 'resolveAppRef']) {
     assert.equal(r[op].ok, false, op); assert.match(r[op].error, /verified chain state|verifier/i, op);
   }
-  assert.match(r.stateTx.error, /getTransactionCount is not a verified state read/);
-  for (const op of ['txNonce', 'txLogs']) assert.match(r[op].error, /no transaction\/history transport \(set ENCLAVE_CHAIN_TX_RPCS\)/, op);
+  // INTENTIONAL API CHANGE (r9): the node's ONE client is the explicit authority's routed client, so a plain nonce and history are
+  // proven by the verifier (refused here by the verifier stand-in) and pool/fee/submission work needs the BOUND own backend
+  for (const op of ['stateTx', 'txNonce', 'txLogs']) assert.equal(r[op].ok, false, op);
+  assert.match(r.txPending.error, /pending pool is only known to an own transaction backend \(ENCLAVE_CHAIN_TX_BACKEND unset\)/);
+  assert.equal(r.gate.ok, false, 'no backend: the send gate refuses');
+  assert.ok(!v.calls.includes('eth_sendRawTransaction'), 'nothing was submitted anywhere');
   assert.ok(v.calls.length > 0, 'the verifier was asked');
   assert.equal(p1.calls.length + p2.calls.length, 0, 'BASE_RPCS was never contacted');
 });
 
-test('verifier mode with ENCLAVE_CHAIN_TX_RPCS: transaction/history work goes only to that transport, never to BASE_RPCS or the verifier', { timeout: 60000 }, async () => {
-  const p1 = await stand(), v = await stand(), tx = await stand();
-  const r = await drive([{ op: 'txNonce', address: ADDR }, { op: 'txLogs', id: ID }],
-    { BASE_RPCS: p1.url, ENCLAVE_CONTRACT_PINS_FILE: pinsFile, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: v.url, ENCLAVE_CHAIN_TX_RPCS: tx.url });
-  assert.equal(r.txNonce.ok, false); assert.equal(r.txLogs.ok, false);
-  assert.ok(tx.calls.includes('eth_getTransactionCount'), tx.calls.join(','));
-  assert.equal(p1.calls.length, 0); assert.equal(v.calls.length, 0);
+test('verifier mode + own backend: pool work goes ONLY to the backend, nothing is sent before the backend is bound, BASE_RPCS never', { timeout: 60000 }, async () => {
+  const p1 = await stand(), v = await stand(), be = await stand();
+  const r = await drive([{ op: 'txPending', address: ADDR }, { op: 'txNonce', address: ADDR }, { op: 'txLogs', id: ID }, { op: 'gate' }],
+    { BASE_RPCS: p1.url, ENCLAVE_CONTRACT_PINS_FILE: pinsFile, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: v.url, ENCLAVE_CHAIN_TX_BACKEND: be.url });
+  for (const op of ['txPending', 'txNonce', 'txLogs', 'gate']) assert.equal(r[op].ok, false, op);   // the stand-ins refuse every method
+  assert.ok(be.calls.length > 0, 'the own backend was asked for the pending-pool nonce');
+  assert.ok(be.calls.every((m) => m !== 'eth_sendRawTransaction') && v.calls.every((m) => m !== 'eth_sendRawTransaction'), 'nothing was submitted: an unbound backend never receives a transaction');
+  assert.ok(v.calls.length > 0, 'plain nonce and history went to the verifier');
+  assert.equal(p1.calls.length, 0, 'BASE_RPCS was never contacted');
 });
 
-test('an ambiguous, remote or malformed authority stops the chain module, and with it the agent, before anything runs', { timeout: 60000 }, async () => {
+test('verifier mode with the OBSOLETE ENCLAVE_CHAIN_TX_RPCS: the selection is refused explicitly - nothing is read or sent, no request anywhere', { timeout: 60000 }, async () => {
+  const p1 = await stand(), v = await stand(), tx = await stand();
+  const r = await drive([{ op: 'authority' }, { op: 'readEnclave', id: ID }, { op: 'txPending', address: ADDR }, { op: 'gate' }],
+    { BASE_RPCS: p1.url, ENCLAVE_CONTRACT_PINS_FILE: pinsFile, ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: v.url, ENCLAVE_CHAIN_TX_RPCS: tx.url });
+  assert.equal(r.authority.value.authority.authority, 'refusing');
+  assert.match(r.authority.value.authority.why, /ENCLAVE_CHAIN_TX_RPCS is obsolete/);
+  assert.deepEqual(r.authority.value.rpcUrls, [], 'no provider list is handed out');
+  for (const op of ['readEnclave', 'txPending', 'gate']) assert.equal(r[op].ok, false, op);
+  assert.equal(tx.calls.length + p1.calls.length + v.calls.length, 0, 'no request anywhere: the obsolete list is never used');
+});
+
+test('an ambiguous, remote or malformed authority REFUSES every chain read (INTENTIONAL API CHANGE: a refusing authority, not a load-time throw), and the agent does not start', { timeout: 60000 }, async () => {
   for (const [env, why] of [[{ ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:8545/' }, /not verifier/],
-    [{ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'https://rpc.example.org/' }, /local endpoint/],
-    [{ ENCLAVE_CHAIN_AUTHORITY: 'verifier' }, /needs chainVerifier/],
-    [{ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:8545/', ENCLAVE_CHAIN_TX_RPCS: 'ftp://x' }, /ENCLAVE_CHAIN_TX_RPCS/]]) {
-    const r = await drive([{ op: 'authority' }], { ENCLAVE_CONTRACT_PINS_FILE: pinsFile, ...env });
-    assert.equal(r.authority.ok, false); assert.match(r.authority.error, why);
+    [{ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'https://rpc.example.org/' }, /local endpoint|loopback/],
+    [{ ENCLAVE_CHAIN_AUTHORITY: 'verifier' }, /needs (ENCLAVE_CHAIN_VERIFIER|chainVerifier)/],
+    [{ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'http://127.0.0.1:8545/', ENCLAVE_CHAIN_TX_RPCS: 'ftp://x' }, /ENCLAVE_CHAIN_TX_RPCS is obsolete/]]) {
+    const r = await drive([{ op: 'authority' }, { op: 'readEnclave', id: ID }], { ENCLAVE_CONTRACT_PINS_FILE: pinsFile, ...env });
+    assert.equal(r.authority.value.authority.authority, 'refusing'); assert.match(r.authority.value.authority.why, why);
+    assert.equal(r.readEnclave.ok, false, 'every chain read refuses');
   }
   const agent = await new Promise((resolve) => {
     const c = spawn(process.execPath, [path.join(ROOT, 'windows/node/agent.mjs')], { cwd: tmp, stdio: ['ignore', 'pipe', 'pipe'],
@@ -99,7 +117,7 @@ test('an ambiguous, remote or malformed authority stops the chain module, and wi
     let out = ''; c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
     const t = setTimeout(() => c.kill('SIGKILL'), 30000); c.on('exit', (code) => { clearTimeout(t); resolve({ code, out }); });
   });
-  assert.notEqual(agent.code, 0, agent.out.slice(-500)); assert.match(agent.out, /local endpoint/);
+  assert.notEqual(agent.code, 0, agent.out.slice(-500)); assert.match(agent.out, /INVALID .*(local endpoint|loopback)/);
 });
 
 test('chain-reader: the verifier reader is the shared LeaseReader and builds no RPC client; the legacy quorum still does', async () => {
@@ -110,7 +128,9 @@ test('chain-reader: the verifier reader is the shared LeaseReader and builds no 
   await assert.rejects(chainReader({ rpcs: ['not a url at all'], env: {} }), /RPC|https/);
   const q = await chainReader({ rpcs: ['https://rpc-a.example.org', 'https://rpc-b.example.org'], env: {} });
   assert.equal(q.authority, undefined); assert.equal(typeof q.agreed, 'function');
-  assert.throws(() => chainAuthorityOf({ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'https://x.example/' }), /local endpoint/);
+  assert.throws(() => chainAuthorityOf({ ENCLAVE_CHAIN_AUTHORITY: 'verifier', ENCLAVE_CHAIN_VERIFIER: 'https://x.example/' }), /local endpoint|loopback/);
+  assert.throws(() => chainAuthorityOf({ ...env, ENCLAVE_CHAIN_TX_RPCS: 'https://x.example/' }), /ENCLAVE_CHAIN_TX_RPCS is obsolete/);
+  await assert.rejects(chainReader({ rpcs: [], env: { ...env, ENCLAVE_CHAIN_TX_RPCS: 'https://x.example/' } }), /ENCLAVE_CHAIN_TX_RPCS is obsolete/);
 });
 
 test('check-endpoint (the installer\'s own ownership check) refuses through the verifier and never contacts its --rpc list', { timeout: 60000 }, async () => {
@@ -129,10 +149,11 @@ test('network enrollment: the agent\'s chain section carries the verifier instea
   const common = { agentDir: path.join(tmp, 'agent'), binDir: path.join(tmp, 'bin'), nodeBinary: process.execPath, operatorKeyFile: path.join(tmp, 'op.key'),
     runner: ID, endpoint: 'https://host.example.org', relayBase: 'https://relay.example.org', policyFile: path.join(tmp, 'p.json'), tpmBinary: 'tpm.exe', tpmSha256: 'aa'.repeat(32),
     addressBook: a(0xb00c), chainRpc: ['https://rpc-a.example.org', 'https://rpc-b.example.org'], enclaveNetwork: { checkers: [a(0xc4)] } };
-  const verifier = { authority: 'local-verifier', verifier: 'http://127.0.0.1:8545/', tier: 'unsafe' };
+  const verifier = { authority: 'verifier', verifier: 'http://127.0.0.1:8545/' };   // INTENTIONAL API CHANGE: chainAuthoritySelection() shape
   assert.deepEqual(baseConfig({ ...common, chainRpc: [], chainAuthority: verifier }).chain, { addressBook: a(0xb00c), authority: 'verifier', verifier: 'http://127.0.0.1:8545/' });
   assert.deepEqual(baseConfig(common).chain, { addressBook: a(0xb00c), rpc: common.chainRpc });
-  assert.throws(() => agentChainAuthority({ authority: 'local-verifier', verifier: 'https://x.example/' }), /loopback/);
+  assert.throws(() => agentChain({ addressBook: a(0xb00c), chainRpc: [], chainAuthority: { authority: 'verifier', verifier: 'https://x.example/' } }), /loopback/);
+  assert.throws(() => agentChain({ addressBook: a(0xb00c), chainRpc: common.chainRpc, chainAuthority: verifier }), /never mixed/);
   // an existing box (one enrolled app): legacy config -> verifier -> legacy, each a restart of the agent
   fs.mkdirSync(common.agentDir, { recursive: true });
   fs.writeFileSync(common.policyFile, JSON.stringify({ cpu: { runtimeId: 'aa'.repeat(32) } }));
@@ -181,7 +202,7 @@ test('session API snapshot mode: each request\'s factory, session and owner fact
 test('the shipped deploy-files closure carries the new reader module and bundle; a staged copy loads the verifier authority', { timeout: 60000 }, async () => {
   const c = closure();
   assert.deepEqual(c.problems, []);
-  for (const f of ['windows/node/chain-reader.mjs', 'windows/node/chain.mjs', 'windows/node/host-admission.bundle.mjs', 'windows/node/session-api-auth.mjs', 'windows/node/network-enroll.mjs'])
+  for (const f of ['windows/node/chain-reader.mjs', 'windows/node/chain-selection.mjs', 'windows/node/chain.mjs', 'windows/node/host-admission.bundle.mjs', 'windows/node/session-api-auth.mjs', 'windows/node/network-enroll.mjs'])
     assert.ok(c.files.includes(f), `${f} ships`);
   assert.ok(!c.files.some((f) => f.startsWith('network/verified-read-client')), 'the shared module ships inside the bundle, not as a loose file');
   const stage = path.join(tmp, 'stage');

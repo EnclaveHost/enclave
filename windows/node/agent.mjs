@@ -47,7 +47,7 @@ import { Payouts, DEFAULT_MIN_PAYOUT6 } from './payout.mjs';
 import { sponsoredRegister } from './sponsor.mjs';
 import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 import { tunnelHandover } from './tunnel-handover.mjs';
-import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient, stateSnapshot, chainAuthority, operatorAccount, operatorAddress, enclaveIdOf } from './chain.mjs';
+import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient, stateSnapshot, chainAuthorityStatus, operatorAccount, operatorAddress, enclaveIdOf } from './chain.mjs';
 import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
 import { measureGflops } from './compute-measure.mjs';
 import { resolveIdentity } from './host-identity.mjs';
@@ -89,7 +89,10 @@ log(`identity: ${ID.mode} mode, ${PUBLIC_URL}, ${RELAY_URL === 'none' ? 'no flee
   + `${ID.relayBase ? `, relay services ${ID.relayBase}` : ', no relay services'}, artifacts from ${ID.gateway}`);
 for (const w of ID.warnings) log(`identity: WARNING ${w}`);
 for (const u of ID.unavailable) log(`identity: unavailable without an Enclave relay: ${u}`);
-{ const a = chainAuthority(); log(`chain: ${a.authority === 'local-verifier' ? `local verifier ${a.verifier} (unsafe tier, proof-backed state reads; transactions: ${a.transactions})` : 'provider fallback (BASE_RPCS)'}`); }
+{ const a = chainAuthorityStatus();
+  // an INVALID selection: the agent does not start (its every chain read would refuse); nothing is read or sent
+  if (a.authority === 'refusing') { log(`chain: the chain authority selection is INVALID (${a.why}): the agent does not start`); process.exit(2); }
+  log(`chain: ${a.authority === 'local-verifier' ? `local verifier ${a.verifier} (unsafe tier, proof-backed reads; transactions: ${a.transactions})` : 'provider fallback (BASE_RPCS)'}`); }
 // WALLET SESSIONS as the owner's credential (session-api-auth.mjs, shared with supervisor.js): a restart and a private
 // deployment's requests accept `Authorization: EnclaveSession v1 ...` beside this box's own SIWE session, verified on
 // Base - the vault's factory, the session's key, liveness and scope, and the record rule - never on the relay's word.
@@ -1070,14 +1073,17 @@ async function startHostingControls() {
                       hostServicesFile: process.env.ENCLAVE_HOST_SERVICES_FILE || null,
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
-                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(), chainAuthority: chainMod.chainAuthority(),
+                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(), chainAuthority: chainMod.chainAuthoritySelection(),
                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
                       // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
                       // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
                       enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean),
                         ...(ID.networkDirectories.length ? { directories: ID.networkDirectories } : {}),
+                        // under the explicit chain authority the agent has no chain RPC to derive egress probes from: hand it the
+                        // connectivity-only probe origins explicitly (chain.mjs connectivityProbeUrls)
+                        ...(chainMod.chainAuthority() && chainMod.connectivityProbeUrls().length ? { egressProbeUrls: chainMod.connectivityProbeUrls() } : {}),
                         // the box's registry proof key and operator key, beside each other here (keys.mjs): paid providers settle with them
-                        ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key') } } : {}) } },
+                        ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key'), ...(chainMod.chainAuthority() ? { txBackend: chainMod.ownTxBackend() } : {}) } } : {}) } },
             // a box whose network configuration changes restarts its network agent once (the \Enclave\Network task starts it again in 10 s)
             restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
