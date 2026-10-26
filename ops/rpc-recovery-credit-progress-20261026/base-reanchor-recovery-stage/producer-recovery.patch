@@ -1,0 +1,171 @@
+--- r3/base_launch.py
++++ recovery/base_launch.py
+@@ -25,6 +25,10 @@
+ 
+ A2A4_SOURCE_SHA256 = 'abe223d6a0c6c203f7d76aaa4c68d25f8f7ecb74894e64dd838383abf6aeeadd'   # a2-v2-release-bound-prepared/stage/a2a4.py
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
++# Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
++# that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
++RECOVERY_A2A4_SHA256 = 'ae948d4746317e6d3ad7dc3d7fe5704268e4467aa0d639ac73ea9aba7febd8d5'   # base-reanchor-recovery-stage/harness/a2a4.py
++RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+ BASE_RELEASE_PATH = pathlib.Path('/opt/enclave-rpc/releases/base-m7m10-4a7c013a510f8816/base')
+@@ -116,8 +120,49 @@
+     return t
+ 
+ 
++def _initial_ok(A, c, g):
++    """First bootstrap: the source pin, exactly as before. Re-anchor: the receipt A2 used is the configured one, and the harness's
++    own initial_pin() binds it (source pin, or the pending capture-binding verifier; HOLD otherwise)."""
++    if c.get('reanchor') is None:
++        return g.get('initialSha256') == A.A1_INITIAL_SHA256
++    if g.get('initialSha256') != c.get('a1InitialSha256'):
++        return False
++    try:
++        A.initial_pin(c)
++    except A.Refused as e:
++        refuse('a1', str(e))
++    return True
++
++
++def _predecessor(name, archive, ra, N, anchor, owner, top, W):
++    """The archived, terminally rolled-back predecessor of a re-anchor launch -> its binding for launch.json."""
++    if not (isinstance(name, str) and re.fullmatch(r'[0-9a-f]{64}', name)) or archive is None or W is None:
++        refuse('lineage', 'a re-anchor launch needs its archived predecessor launchSha256, the archive and the wrapper module')
++    d = pathlib.Path(archive) / name
++    if os.path.islink(d) or not os.path.isdir(d):
++        refuse('lineage', 'the named predecessor is not an archived launch directory')
++    secure_path(d, owner, leaf='dir', top=top)
++    lb, prev = read_record(d / 'launch.json')
++    if sha(lb) != name or prev.get('format') != LAUNCH_FORMAT:
++        refuse('lineage', 'the archived predecessor launch record is not the named one')
++    pn = int(str(prev.get('anchor', '0:')).split(':')[0])
++    if pn != ra['predecessorN']:
++        refuse('lineage', 'reanchor.predecessorN is not the predecessor launch anchor')
++    if not (pn < N or prev['anchor'] == anchor):
++        refuse('lineage', 'the anchor would move backward (or change at the same height)')
++    entries = _journal(d, name, owner, top, W)
++    if entries[-1][1]['event'] != 'rolled-back':
++        refuse('lineage', 'the predecessor launch is not rolled back')
++    pred = {'launchSha256': name, 'rolledBackEntrySha256': entries[-1][0], 'anchor': prev['anchor']}
++    try:
++        W.launch_lineage({'anchor': anchor, 'predecessor': pred}, archive, owner, top)
++    except AssertionError as e:
++        refuse('lineage', str(e))
++    return pred
++
++
+ def produce(cfg_path, out_dir, *, A, coverage, release_path=BASE_RELEASE_PATH, release_sha=BASE_RELEASE_SHA256,
+-            harness_binary_sha=HARNESS_BINARY_SHA256, owner=0, top='/', now=None):
++            harness_binary_sha=HARNESS_BINARY_SHA256, owner=0, top='/', now=None, predecessor=None, archive=None, W=None):
+     """-> {'launchSha256', 'dir'}; refuses unless every binding holds (see module docstring)."""
+     now = now or datetime.datetime.now(datetime.timezone.utc)
+     cfg_bytes = pathlib.Path(cfg_path).read_bytes()
+@@ -142,7 +187,7 @@
+         refuse('a3', 'A3 checkpoints are not at N')
+     # --- A1 (the gate result A2 recorded; release re-bound it with bind_a1) ---
+     g = a2.get('a1Gate') or {}
+-    if g.get('initialSha256') != A.A1_INITIAL_SHA256 or str(g.get('N')) != str(N) or str(g.get('outputRoot', '')).lower() != c['outputRoot'] \
++    if not _initial_ok(A, c, g) or str(g.get('N')) != str(N) or str(g.get('outputRoot', '')).lower() != c['outputRoot'] \
+             or str(g.get('game', '')).lower() != c['game'] or str(g.get('asr', '')).lower() != A.MAINNET['asr'] or not isinstance(g.get('l1Finalized'), int):
+         refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
+     # --- bytecode gap: closed ONLY by the harness's own rule, for THIS A4, journal, download receipt, manifest ---
+@@ -173,6 +218,10 @@
+     ev = (coverage or {}).get('evidence') or {}
+     if set(ev) != {'receiptSha256', 'verdictSha256', 'originSha256', 'snapshotManifestSha256'} or ev['snapshotManifestSha256'] != A.MANIFEST_SHA:
+         refuse('coverage', 'coverage acceptance (wrapper coverage_activation for the release) is absent or names another snapshot manifest')
++    # --- re-anchor: exactly one archived, rolled-back predecessor with a non-decreasing anchor; first bootstrap: none ---
++    if (c.get('reanchor') is None) != (predecessor is None):
++        refuse('lineage', 'a re-anchor launch needs exactly its archived predecessor; a first-bootstrap launch has none')
++    pred = _predecessor(predecessor, archive, c['reanchor'], N, anchor, owner, top, W) if predecessor is not None else None
+     # --- publish atomically: a fully written sibling directory renamed into place; never overwrite ---
+     out = pathlib.Path(out_dir)
+     secure_path(out.parent, owner, leaf='dir', top=top)
+@@ -186,6 +235,8 @@
+                            'bytecodes': m10['bytecodes'], 'journal': bv['journal'], 'downloadReceiptSha256': bv['downloadReceiptSha256'],
+                            'snapshotManifestSha256': A.MANIFEST_SHA, 'coverage': ev},
+               'producedAt': now.isoformat(), 'notAfter': (rel_at + datetime.timedelta(seconds=max_age)).isoformat()}
++    if pred is not None:
++        launch['predecessor'] = pred
+     tmp = out.parent / f'.{out.name}.partial-{os.getpid()}'
+     os.mkdir(tmp, 0o755); os.mkdir(tmp / 'qualification', 0o755)
+     for k, f in QUAL.items():
+@@ -280,12 +331,16 @@
+     return {'reason': 'stopped DB unchanged at N', 'checkpoints': cps, 'headerN': h, 'mdbx': want}
+ 
+ 
+-def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None):
++def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None, archive=None):
+     """Genesis: the private root lock file, then the journal with its first entry `armed`. Exactly once per launch directory
+     (an arm interrupted before its first entry landed may be repeated: no entry means nothing was ever armed)."""
+     now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
+     lsha, launch = _launch(d, owner, top)
+     _fresh(launch, now)
++    try:
++        W.launch_lineage(launch, archive, owner, top)              # predecessor chain + archive coverage (first bootstrap: empty)
++    except AssertionError as e:
++        refuse('lineage', str(e))
+     if not os.path.lexists(d / 'journal.lock'):
+         os.close(os.open(d / 'journal.lock', os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600))
+         _fsync_dir(d)
+@@ -346,6 +401,27 @@
+         os.close(fd)
+ 
+ 
++def retire(d, archive, *, W, owner=0, top='/'):
++    """Move a terminally rolled-back launch directory to archive/<launchSha256> (atomic rename on the same filesystem) so a
++    re-anchor launch can name it. Never for a live launch; never overwrites."""
++    d, archive = pathlib.Path(d), pathlib.Path(archive)
++    lsha, _ = _launch(d, owner, top)
++    fd = _locked(d, owner, top, W)
++    try:
++        if _journal(d, lsha, owner, top, W)[-1][1]['event'] != 'rolled-back':
++            refuse('retire', 'only a rolled-back launch is retired')
++        if not os.path.lexists(archive):
++            os.mkdir(archive, 0o755); _fsync_dir(archive.parent)
++        secure_path(archive, owner, leaf='dir', top=top)
++        if os.path.lexists(archive / lsha) or archive.stat().st_dev != d.stat().st_dev:
++            refuse('retire', 'already archived, or the archive is on another filesystem (no atomic rename)')
++        os.rename(d, archive / lsha)
++        _fsync_dir(archive); _fsync_dir(d.parent)
++        return {'retired': lsha, 'to': str(archive / lsha)}
++    finally:
++        os.close(fd)
++
++
+ def _installed_wrapper():
+     sys.path.insert(0, '/opt/enclave-rpc')
+     import chain_service as W                                         # the INSTALLED r2 wrapper (its own module-level config)
+@@ -357,19 +433,23 @@
+ def main(argv):
+     if os.geteuid() != 0:
+         print('REFUSED: root only'); return 2
+-    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'rollback'}
++    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'rollback', 'retire'}
+     if len(argv) < 3 or argv[1] not in cmds:
+         print(__doc__); return 2
+     try:
+-        if argv[1] == 'produce':                                         # produce <a2a4-config> <new-out-dir>
+-            A = load_a2a4(); W = _installed_wrapper()
++        if argv[1] == 'produce':                                         # produce <a2a4-config> <new-out-dir> [<predecessor-sha>]
++            ra = 'reanchor' in json.loads(pathlib.Path(argv[2]).read_bytes())
++            A = load_a2a4(RECOVERY_A2A4_SOURCE, RECOVERY_A2A4_SHA256) if ra else load_a2a4(); W = _installed_wrapper()
+             cov = W.coverage_activation(W.CONFIG, W.ROOT / 'manifest.json', (W.MANIFEST.get('binaries') or {}).get('base'))
+-            r = produce(argv[2], argv[3], A=A, coverage=cov)
++            r = produce(argv[2], argv[3], A=A, coverage=cov, predecessor=argv[4] if len(argv) > 4 else None,
++                        archive=W.BOOTSTRAP_ARCHIVE, W=W)
+             r['next'] = 'pin chain.json baseBootstrap.anchorLaunch {launchSha256} (reviewed manual step), then arm'
+-        elif argv[1] == 'arm':                                           # arm <launch-dir> <a2a4-config>
+-            r = arm(argv[2], argv[3], A=load_a2a4(), W=_installed_wrapper())
+-        elif argv[1] == 'rearm':                                         # rearm <launch-dir> <a2a4-config>
+-            r = rearm(argv[2], argv[3], A=load_a2a4(), W=_installed_wrapper())
++        elif argv[1] in ('arm', 'rearm'):                                # arm|rearm <launch-dir> <a2a4-config>
++            ra = 'reanchor' in json.loads(pathlib.Path(argv[3]).read_bytes())
++            A = load_a2a4(RECOVERY_A2A4_SOURCE, RECOVERY_A2A4_SHA256) if ra else load_a2a4(); W = _installed_wrapper()
++            r = arm(argv[2], argv[3], A=A, W=W, archive=W.BOOTSTRAP_ARCHIVE) if argv[1] == 'arm' else rearm(argv[2], argv[3], A=A, W=W)
++        elif argv[1] == 'retire':                                        # retire <launch-dir>
++            W = _installed_wrapper(); r = retire(argv[2], W.BOOTSTRAP_ARCHIVE, W=W)
+         elif argv[1] == 'record-bootstrapped':
+             r = record_bootstrapped(argv[2], None)
+         else:                                                            # rollback <launch-dir> <reason>

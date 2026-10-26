@@ -1,0 +1,32 @@
+test_check_qualifies_with_the_real_core_and_writes_nothing (__main__.EndToEnd.test_check_qualifies_with_the_real_core_and_writes_nothing) ... ok
+test_db_mismatch_another_chain_below_the_fresh_anchor_is_a_recorded_contradiction (__main__.EndToEnd.test_db_mismatch_another_chain_below_the_fresh_anchor_is_a_recorded_contradiction) ... ok
+test_record_then_status_current_then_stale_after_restart (__main__.EndToEnd.test_record_then_status_current_then_stale_after_restart) ... ok
+test_contradiction_is_terminal_and_only_recorded_for_the_same_process (__main__.Gates.test_contradiction_is_terminal_and_only_recorded_for_the_same_process) ... ok
+test_core_pin_is_enforced (__main__.Gates.test_core_pin_is_enforced) ... ok
+test_evidence_binds_launch_head_process_receipt_and_code (__main__.Gates.test_evidence_binds_launch_head_process_receipt_and_code) ... ok
+test_interrupted_append_leaves_the_old_state (__main__.Gates.test_interrupted_append_leaves_the_old_state) ... ok
+test_launch_not_started_or_rolled_back_refuses (__main__.Gates.test_launch_not_started_or_rolled_back_refuses) ... ok
+test_launch_pin_absent_or_different_refuses (__main__.Gates.test_launch_pin_absent_or_different_refuses) ... ok
+test_lock_busy_refuses_nothing_written (__main__.Gates.test_lock_busy_refuses_nothing_written) ... ok
+test_no_proof_status_is_none_and_a_missing_a1_dir_refuses (__main__.Gates.test_no_proof_status_is_none_and_a_missing_a1_dir_refuses) ... ok
+test_node_behind_the_fresh_anchor_refuses_not_synced (__main__.Gates.test_node_behind_the_fresh_anchor_refuses_not_synced) ... ok
+test_not_post_anchor_same_game_or_older_l1_refuses (__main__.Gates.test_not_post_anchor_same_game_or_older_l1_refuses) ... ok
+test_process_binding_refusals (__main__.Gates.test_process_binding_refusals) ... ok
+test_process_changed_during_the_proof_refuses_and_writes_nothing (__main__.Gates.test_process_changed_during_the_proof_refuses_and_writes_nothing) ... ok
+test_receipt_outside_its_run_window_refuses (__main__.Gates.test_receipt_outside_its_run_window_refuses) ... ok
+test_record_holds_while_the_prototype_is_unreviewed (__main__.Gates.test_record_holds_while_the_prototype_is_unreviewed) ... ok
+test_refusal_from_the_core_is_never_recorded (__main__.Gates.test_refusal_from_the_core_is_never_recorded) ... ok
+test_replayed_or_not_newer_receipt_refuses (__main__.Gates.test_replayed_or_not_newer_receipt_refuses) ... ok
+test_revoke_is_terminal (__main__.Gates.test_revoke_is_terminal) ... ok
+test_runner_provenance_failures_refuse (__main__.Gates.test_runner_provenance_failures_refuse) ... ok
+test_stale_receipt_refuses (__main__.Gates.test_stale_receipt_refuses) ... ok
+test_status_stale_after_rearm_and_unbound_process (__main__.Gates.test_status_stale_after_rearm_and_unbound_process) ... ok
+test_tampered_or_foreign_finality_journal_refuses (__main__.Gates.test_tampered_or_foreign_finality_journal_refuses) ... ok
+test_untrusted_files_symlink_or_writable_refuse (__main__.Gates.test_untrusted_files_symlink_or_writable_refuse) ... ok
+test_wrong_asr_type_or_code_hash_refuses (__main__.Gates.test_wrong_asr_type_or_code_hash_refuses) ... ok
+test_wrong_chain_id_from_the_bound_node_refuses (__main__.Gates.test_wrong_chain_id_from_the_bound_node_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 3.899s
+
+OK

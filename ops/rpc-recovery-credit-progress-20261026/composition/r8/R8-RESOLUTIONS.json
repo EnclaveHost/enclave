@@ -1,0 +1,59 @@
+{
+ "e4f": "e4f507d6b7259ae5ceae7c89033d80c9b9074908",
+ "files": {
+  "metal/guest/host-policy.bundle.mjs": {
+   "e4f": "8913208325bf030c482862055ee6264c6079b418",
+   "kept": "e1125714063433caad471ee3524b343d2c5db019",
+   "rule": "REGENERATE (job rebuilds from composed sources; interim r7 bytes)"
+  },
+  "network/enclave-network-host.mjs": {
+   "result": "37556486bb756695b0d51de058a6373a0ee347da",
+   "rule": "reviewed hunks",
+   "why": "both hunks e4f: ownerSignatureReader generalizes r7's identical inline rule (pinned -> quorum reader; explicit verifier -> the agent's verifier LeaseReader), additionally requiring reader.agreed"
+  },
+  "network/paid-network.mjs": {
+   "result": "fc8c4a2a33e22921d313df80c1061696ce501dea",
+   "rule": "e4f (r7 == aebf: only e4f changed it)"
+  },
+  "network/privacy-agent.mjs": {
+   "result": "02fca20f26e803cc3969948a30bdc343faf8132c",
+   "rule": "reviewed hunks",
+   "why": "union: e4f's createPaidNetwork with chainVerifier (paid settlement under the verifier) + r7's startup-cancellation check and agent line (wallet)"
+  },
+  "test/windows-chain-authority-runtime.test.mjs": {
+   "e4f": "2a6fa9f07f588c4722fecea265fdd51f7b1671fd",
+   "kept": null,
+   "rule": "BLOCK: not composed (Windows chain-authority core; two tested designs)"
+  },
+  "windows/node/agent.mjs": {
+   "e4f": "d65d338f1e82a403f83d78fa5e9cff59072185d1",
+   "kept": "1eadef94f41bc1f91eaf8a7fe6dbe0d159bdaf3d",
+   "rule": "BLOCK: not composed (Windows chain-authority core; two tested designs)"
+  },
+  "windows/node/chain.mjs": {
+   "e4f": "c62667d1c5449025e6dbaf4fffa67341cf91b6b9",
+   "kept": "f3749fbbab6f5253887fc74dbb0561b03627bd6f",
+   "rule": "BLOCK: not composed (Windows chain-authority core; two tested designs)"
+  },
+  "windows/node/host-admission.bundle.mjs": {
+   "e4f": "91ca5fef76aba88cbd99ac3e46426e0662226822",
+   "kept": "cb37f2a3f4313771e96251f4623b2ecb4b434d67",
+   "rule": "REGENERATE (job rebuilds from composed sources; interim r7 bytes)"
+  },
+  "windows/node/host-identity.mjs": {
+   "result": "dcc65e274da0845e2652383fc3e9f476b9e55bfe",
+   "rule": "clean three-way on aebf (r7 + e4f)"
+  },
+  "windows/node/host.mjs": {
+   "e4f": "e320e9a82bc13543dbe06bf930d290e9d37fba81",
+   "kept": "564498e91fa0edf27722a037a24b96a8100c9fe5",
+   "rule": "BLOCK: not composed (Windows chain-authority core; two tested designs)"
+  },
+  "windows/node/network-enroll.mjs": {
+   "e4f": "4c8d8e9d2206e6504cc4c0048ec4beeb6b0500aa",
+   "kept": "5f5a8fc5dd80dbcdbdacfed1592670211416edb1",
+   "rule": "BLOCK: not composed (Windows chain-authority core; two tested designs)"
+  }
+ },
+ "receiptSha256": "70d39eaa4bd3b84edd8aa2566cb458087fef30814200e547bed754a98fe2ce48"
+}

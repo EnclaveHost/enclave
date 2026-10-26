@@ -1,0 +1,7 @@
+[queue] START available=22755MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+legacy: actual credit build statement succeeded, release authority embedding matches mode
+own: actual credit build statement succeeded, release authority embedding matches mode
+PASS: two actual credit bundles; not a full site build or live browser proof
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

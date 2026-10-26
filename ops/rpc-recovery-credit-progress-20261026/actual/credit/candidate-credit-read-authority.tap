@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: legacy (no release authority): credit-config.json's endpoints and quorum, exactly as before
+ok 1 - legacy (no release authority): credit-config.json's endpoints and quorum, exactly as before
+  ---
+  duration_ms: 1.056404
+  type: 'test'
+  ...
+# Subtest: own-rpc release: ONLY the own endpoints, with the SAME quorum; the shipped public defaults are not used
+ok 2 - own-rpc release: ONLY the own endpoints, with the SAME quorum; the shipped public defaults are not used
+  ---
+  duration_ms: 0.747386
+  type: 'test'
+  ...
+# Subtest: own-rpc with ONE endpoint is refused: one own RPC never stands in for the quorum, and nothing public is substituted
+ok 3 - own-rpc with ONE endpoint is refused: one own RPC never stands in for the quorum, and nothing public is substituted
+  ---
+  duration_ms: 0.538777
+  type: 'test'
+  ...
+# Subtest: an invalid or mislabelled release authority is refused (no endpoint at all, never the public defaults)
+ok 4 - an invalid or mislabelled release authority is refused (no endpoint at all, never the public defaults)
+  ---
+  duration_ms: 0.880345
+  type: 'test'
+  ...
+# Subtest: the owner's saved endpoints keep precedence over the release (the owner's explicit choice, unchanged)
+ok 5 - the owner's saved endpoints keep precedence over the release (the owner's explicit choice, unchanged)
+  ---
+  duration_ms: 0.381518
+  type: 'test'
+  ...
+# Subtest: integration: the REAL quorum reader built from the own-rpc selection contacts ONLY the own endpoints, and fails without a public fallback
+ok 6 - integration: the REAL quorum reader built from the own-rpc selection contacts ONLY the own endpoints, and fails without a public fallback
+  ---
+  duration_ms: 1.153793
+  type: 'test'
+  ...
+# Subtest: build seam: the credit bundle embeds the SAME reviewed read authority as the main site (one declaration, one plugin)
+ok 7 - build seam: the credit bundle embeds the SAME reviewed read authority as the main site (one declaration, one plugin)
+  ---
+  duration_ms: 0.374278
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 54.575622

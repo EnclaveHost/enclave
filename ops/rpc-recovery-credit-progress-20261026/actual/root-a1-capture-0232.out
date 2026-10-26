@@ -1,0 +1,8 @@
+[queue] START available=22640MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: final line is not exactly OK (no skips allowed)
+## FAIL: rc 1
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/logs/root-capture-tests-20261026T023019Z-595581
+## capture rc=1
+[memory-guard] exit=1 peakTreeRssMiB=158 minHostAvailableMiB=22606
+[memory-guard] at peak: python3:139 python3.14:11 bash:4 bash:2 timeout:2
+[queue] EXIT 1
