@@ -1,0 +1,15 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] START available=18315MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+paid-derived-adapter-stage/r5/jobs/paid-derived-adapter-r5.sh: line 36: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r5/patches/paid-derived-adapter.patch: No such file or directory
+## INVALID: patch does not apply
+## paid-derived-adapter full rc=1
+[memory-guard] exit=1 peakTreeRssMiB=120 minHostAvailableMiB=17803
+[memory-guard] at peak: git:112 bash:4 tar:3
+[queue] EXIT 1

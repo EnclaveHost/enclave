@@ -1,0 +1,97 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=17941MiB required=17408MiB cap=768MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "new": {
+  "test/paid-derived-adapter.test.mjs": {
+   "rc": 0,
+   "tests": 15,
+   "pass": 15,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "expected": "15/15, nothing skipped",
+  "test/paid-derived-packaging.test.mjs": {
+   "rc": 0,
+   "tests": 5,
+   "pass": 5,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  }
+ },
+ "regression": {},
+ "mutants": {},
+ "checkConfig": {
+  "patched/valid": {
+   "rc": 0,
+   "expect": "\"paidFinality\":\"derived\"",
+   "ok": true
+  },
+  "patched/no-optin": {
+   "rc": 1,
+   "expect": "derivedFinality is set but paidFinality is not \"derived\"",
+   "ok": true
+  },
+  "patched/quorum": {
+   "rc": 1,
+   "expect": "needs a proof executor",
+   "ok": true
+  },
+  "patched/public-history": {
+   "rc": 1,
+   "expect": "historyUrl: must be a loopback or private IPv4",
+   "ok": true
+  },
+  "pristine/valid": {
+   "rc": 1,
+   "expect": "txBackend is only used with chainAuthority \"attested-verifier\"",
+   "ok": true
+  }
+ },
+ "nestedAdapterSuite": {
+  "recorded": true,
+  "runtime": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552/tmp/paid-derived-pkg-rBA3QY/release/derived-runtime.mjs"
+ },
+ "noPrerequisiteControl": {
+  "rc": 1,
+  "failedExplicitly": true
+ },
+ "packagingMutants": {
+  "static-derived-import": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it",
+    "packaged provider WITHOUT the derived files: quorum and local-verifier configurations run; a derived one refuses explicitly",
+    "packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses",
+    "the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run"
+   ]
+  },
+  "no-reader-resource": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the release pipeline: provider.mjs carries no derived code; derived-runtime.mjs and the pinned schedule_reader.mjs ship beside it",
+    "packaged release WITH the derived files: --check-config loads the runtime beside it; a missing or altered schedule reader refuses",
+    "the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run"
+   ]
+  },
+  "child-inherits-test-context": {
+   "rc": 1,
+   "killed": true,
+   "failed": [
+    "the RELEASE derived-runtime.mjs runs the WHOLE adapter suite: exact counts, every test ok, no skipped or recursive run"
+   ]
+  }
+ },
+ "ok": true
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-adapter-stage/r7/runs/20261026T121923Z-packaging-1671552
+## paid-derived-adapter-r7 packaging rc=0
+[memory-guard] exit=0 peakTreeRssMiB=648 minHostAvailableMiB=16669
+[memory-guard] at peak: esbuild:346 node:88 node:77 node:71 node:58 bash:4 timeout:2 bash:2
+[queue] EXIT 0

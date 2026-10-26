@@ -1,0 +1,62 @@
+[
+ {
+  "name": "tx-root-check-removed",
+  "find": "      if (orderedTrieRoot(txs, kc) !== lc(block.transactionsRoot)) throw new Error('the transactions do not reproduce transactionsRoot');\n",
+  "replace": ""
+ },
+ {
+  "name": "ancestry-hash-ignored",
+  "find": "    if (want === null || want !== lc(hint.blockHash)) {",
+  "replace": "    if (want === null) {"
+ },
+ {
+  "name": "receipts-root-unverified",
+  "find": "      const verified = verifyBlockReceipts({ header: block, expectedBlockHash: want, receipts, txHashes, chain: BASE_MAINNET }, { keccak: kc, headerHash: (h, k) => headerHash(h, k) });",
+  "replace": "      const verified = { logs: receipts.flatMap((x) => x.logs.map((l) => ({ ...l, transactionIndex: Number(BigInt(l.transactionIndex)) }))), receiptsRoot: block.receiptsRoot };"
+ },
+ {
+  "name": "consumed-offchain-hint-accepted-as-none",
+  "find": "      if (consumed) contradiction(`in block ${m} ${hint.blockHash}, which is not the finalized chain's block ${m} (${want})`);\n",
+  "replace": ""
+ },
+ {
+  "name": "journal-gap-at-proven-nonce-ignored",
+  "find": "    if (remaining.length && remaining[0].nonce !== P)",
+  "replace": "    if (false)"
+ },
+ {
+  "name": "nonce-consumed-reported-as-success",
+  "find": "result: rc ? { state: 'receipt', receipt: rc } : { state: 'nonce-consumed' }",
+  "replace": "result: rc ? { state: 'receipt', receipt: rc } : { state: 'receipt', receipt: { status: 'success' } }"
+ },
+ {
+  "name": "foreign-pending-gate-removed",
+  "find": "    if (p > expect) throw fail('tx_foreign_pending',",
+  "replace": "    if (false) throw fail('tx_foreign_pending',"
+ },
+ {
+  "name": "pending-costs-not-committed",
+  "find": "const committed = pl.remaining.reduce((a, e) => a + maxCost(e), 0n);",
+  "replace": "const committed = 0n;"
+ },
+ {
+  "name": "duplicate-call-signed-again",
+  "find": "        if (dup) return { ...pl, duplicate: dup };\n",
+  "replace": ""
+ },
+ {
+  "name": "backend-binding-hash-ignored",
+  "find": "    if (h !== s.hash || (bb.hash !== undefined && lc(bb.hash) !== h))",
+  "replace": "    if (false)"
+ },
+ {
+  "name": "journal-load-gap-accepted",
+  "find": "      if (i > 0 && j.nonce !== list[i - 1].nonce + 1) bad(",
+  "replace": "      if (false) bad("
+ },
+ {
+  "name": "lost-bytes-not-rebroadcast",
+  "find": "      for (const e of lost) await broadcast(e.raw, e.hash);\n",
+  "replace": ""
+ }
+]

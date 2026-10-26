@@ -1,0 +1,1 @@
+Root r6 corrects the r5 job's two references to a nonexistent paid-derived-adapter.patch; the frozen patch is named paid-derived-adapter-r5.patch. Runtime, tests and patch bytes remain identical to r5. Root r5 full1278 failed before tests at patch application; its receipt is preserved in logs. This r6 runner also uses its own stage path. No production change.

@@ -1,0 +1,51 @@
+{
+ "operatorKeyFile": "/etc/enclave-network/operator.key",
+ "proofKeyFile": "/etc/enclave-network/host-proof.key",
+ "publicAddress": "203.0.114.7",
+ "uplink": "eth0",
+ "roles": [
+  "exit"
+ ],
+ "pricePerGiB6": 5,
+ "region": "example",
+ "kind": "community",
+ "hostId": "0x1111111111111111111111111111111111111111111111111111111111111111",
+ "directories": [
+  "https://directory.example"
+ ],
+ "stateDir": "/var/lib/enclave-network",
+ "chainAuthority": "attested-verifier",
+ "attestedVerifier": {
+  "unsafeSigner": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+  "replicas": [
+   {
+    "url": "https://verifier.example:8444",
+    "configFile": "/etc/enclave-network/replica-a.json",
+    "measurements": [
+     "777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777"
+    ],
+    "minTcb": {
+     "Genoa": {
+      "bootloader": 9,
+      "tee": 0,
+      "snp": 23,
+      "microcode": 72
+     }
+    }
+   }
+  ],
+  "collateral": {
+   "dir": "/etc/enclave-network/amd",
+   "cacheDir": "/var/lib/enclave-network/amd-cache",
+   "kds": true
+  }
+ },
+ "txBackend": {
+  "url": "http://127.0.0.1:18545"
+ },
+ "paidFinality": "derived",
+ "derivedFinality": {
+  "readerConfigFile": "/etc/enclave-network/derived-reader.json",
+  "historyUrl": "http://127.0.0.1:18546"
+ }
+}
