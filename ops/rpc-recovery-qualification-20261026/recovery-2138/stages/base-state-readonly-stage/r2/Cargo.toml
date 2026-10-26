@@ -1,0 +1,26 @@
+# base-state-readonly-stage/r2 (= r1 + exact non-reth version pins): OFFLINE READ-ONLY state integrity helper. PREPARED by Claude; NOT built by Claude.
+# Every reth crate comes from the SAME git source Base v1.5.1 pins (Cargo.lock: base/reth tag base-v2.5.2.8 #7134be3b51cf...).
+# jobs/build.sh seeds Cargo.lock from the cached Base lock, builds --offline, and refuses unless every resolved reth-*/alloy-*
+# package (name, version, source, checksum) is identical to the Base lock.
+[package]
+name = "base-state-readonly"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+reth-db = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8", default-features = false, features = ["mdbx"] }
+reth-db-api = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+reth-trie = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+reth-trie-db = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+reth-provider = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+reth-storage-api = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+reth-stages-types = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+reth-ethereum-primitives = { git = "https://github.com/base/reth", tag = "base-v2.5.2.8" }
+alloy-primitives = "=1.6.1"     # exact Base-lock versions (r1 used "*": alloy-consensus 1.8.3 AND 2.4.1 are both locked)
+alloy-consensus = "=2.4.1"      # reth 7134be3 requires ^2.3.0; a 1.x pick would mismatch the Header type
+serde_json = "=1.0.151"
+eyre = "=0.6.12"
+
+[profile.release]
+debug = false
