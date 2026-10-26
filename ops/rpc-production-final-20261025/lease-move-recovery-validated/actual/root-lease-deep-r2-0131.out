@@ -1,0 +1,20 @@
+[queue] START available=22540MiB required=18432MiB cap=1792MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r2 stage == SHA256SUMS
+[ok] base commit present
+[ok] base cli/enclave.mjs blob 4ef7f7a1
+[ok] candidate files == CANDIDATE.sha256
+[ok] base clone clean
+[ok] node_modules linked (package-lock identical)
+v22.23.3
+[ok] candidate syntax
+  candidate-move-release-confirm.tap: node rc 0, {'tests': 20, 'pass': 20, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-management-move-unit.tap: node rc 0, {'tests': 3, 'pass': 3, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-management-move-unit.tap: node rc 0, {'tests': 3, 'pass': 3, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+RESULT: PASS
+[memory-guard] exit=0 peakTreeRssMiB=951 minHostAvailableMiB=21510
+[memory-guard] at peak: git:901 git:35 git-upload-pack:6 git:5 bash:4
+[queue] EXIT 0
