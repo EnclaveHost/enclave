@@ -1,0 +1,6 @@
+000e4ce28a5ef0e48d3366950000a4d741dcc200cf1a82be44a1d3a03dbe03f7  ./jobs/adapter-tests-r2.sh
+eb8049507ecca63a888ab142b0add15de3b13b35b223f37359004eaf342f0398  ./patches/finalized-writer-adapter-r2.patch
+5072531d357956001b597de64560823ba6350dfbe0f4428008e220e515d48423  ./relay/derived-writer-authority.mjs
+ad216c9a0a9fc8bd594b7077a340295869da040978a36dfb67b0917641b7e232  ./test/derived-writer-authority-abi.test.mjs
+a972ccce891505be6af5e5c4bc53086a935ee3144edfcfd33e4f614bb9ae49fe  ./test/derived-writer-authority-kvm-store.test.mjs
+4f22e647c09e18b2b4a32235b0d65b534cbdce2de22f8c1f577a5ba7d559a057  ./test/derived-writer-authority.test.mjs

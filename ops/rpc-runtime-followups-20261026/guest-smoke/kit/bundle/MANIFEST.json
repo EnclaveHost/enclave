@@ -1,0 +1,144 @@
+{
+ "anchor": {
+  "N": 52866960,
+  "game": "0x343b3a99527af07d2cfb2652747b9e37715e21ac",
+  "outputRoot": "0xa996c517b0e797b56426059d57c93ac8352b21b61e04b2fc66866dd61d056700",
+  "receiptSha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
+  "verdict": "A1-authenticated"
+ },
+ "externalPins": {
+  "base": {
+   "evidence": "guest /opt/enclave-rpc/manifest.json binaries.base (production-cutover-inventory-stage/evidence/guest-units-config.txt)",
+   "guestPath": "/opt/enclave-rpc/bin/base",
+   "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f"
+  },
+  "node": {
+   "evidence": "operator-supplied --node; guest node 18 per r16 install/MISSING.md; NOT pinned by sha here (unknown on the guest): record `node --version` and its sha256 in the run receipt",
+   "guestPath": "/usr/bin/node",
+   "sha256": null
+  },
+  "python": {
+   "evidence": "hashlib.file_digest; guest Python 3.12 per r16 install/MISSING.md",
+   "minimum": "3.11"
+  }
+ },
+ "files": {
+  "bin/guest-capture.sh": {
+   "mode": "0755",
+   "sha256": "9f891056ec773bb3f5681d5ba4b9f0378be4da8a03070dc13f49c1776c9b3d93",
+   "source": "historical-capture-deployment-stage/src/guest-capture.sh",
+   "sourceSha256": "9f891056ec773bb3f5681d5ba4b9f0378be4da8a03070dc13f49c1776c9b3d93"
+  },
+  "bin/historical-capture": {
+   "mode": "0755",
+   "sha256": "623abbc3050531190a56f19fa87c473b5cba44e9dc0d180da9f25062653220aa",
+   "source": "historical-capture-deployment-stage/src/historical-capture",
+   "sourceSha256": "623abbc3050531190a56f19fa87c473b5cba44e9dc0d180da9f25062653220aa"
+  },
+  "lib/anchored_acceptance.py": {
+   "mode": "0644",
+   "sha256": "cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d",
+   "source": "historical-origin-segments-stage/r4/src/anchored_acceptance.py",
+   "sourceSha256": "cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d"
+  },
+  "lib/anchored_origin.py": {
+   "mode": "0644",
+   "patch": "patches/anchored_origin.py.patch",
+   "sha256": "d088592d0398d017ce5101f0f9bf09849735be2fe0fb1c63ef710623be08d199",
+   "source": "historical-origin-segments-stage/r4/src/anchored_origin.py",
+   "sourceSha256": "ed1a547d4d8aea112cae66479c64cd9e556b531063ef361c9b156c6d2948ddfa"
+  },
+  "lib/bind_anchor.mjs": {
+   "mode": "0644",
+   "sha256": "f729420ca16127ae6b19745cc9d500df0b9ae4c97ec90e0656bfeceb9ccd43d8",
+   "source": "historical-origin-segments-stage/r4/src/bind_anchor.mjs",
+   "sourceSha256": "f729420ca16127ae6b19745cc9d500df0b9ae4c97ec90e0656bfeceb9ccd43d8"
+  },
+  "lib/segments.py": {
+   "mode": "0644",
+   "patch": "patches/segments.py.patch",
+   "sha256": "5a88a2e2894b5abb398e614db0251b313e5a6e15bbafc9d1055ec9707f602b56",
+   "source": "historical-origin-segments-stage/r4/src/segments.py",
+   "sourceSha256": "8764f5cc55cc42307eadbe71695bb986ca5fa86c07db671553d50d0635c51aa1"
+  },
+  "receipt/a1-evidence.json": {
+   "mode": "0644",
+   "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
+   "source": "source/ops/rpc-backend-bootstrap/2026-10-25/l1-anchor-a1/live-1958/a1-evidence.json",
+   "sourceSha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c"
+  },
+  "vendor/anchor-bootstrap.mjs": {
+   "mode": "0644",
+   "sha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8",
+   "source": "base-finality-proof-stage/r12-final/vendor/anchor-bootstrap.mjs",
+   "sourceSha256": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8"
+  },
+  "vendor/coverage/coverage_gate.py": {
+   "mode": "0644",
+   "sha256": "b4f6d639c3f9b12f73938d5993ce0897fe56dcbec1ada3123c4ad80d0ff3854b",
+   "source": "source/ops/rpc-backend-bootstrap/2026-10-25/coverage/coverage_gate.py",
+   "sourceSha256": "b4f6d639c3f9b12f73938d5993ce0897fe56dcbec1ada3123c4ad80d0ff3854b"
+  },
+  "vendor/coverage/kzgcheck": {
+   "mode": "0755",
+   "sha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+   "source": "coverage-stage/kzgcheck/target/release/kzgcheck",
+   "sourceSha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb"
+  },
+  "vendor/coverage/origin_extract.py": {
+   "mode": "0644",
+   "sha256": "6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c",
+   "source": "source/ops/rpc-backend-bootstrap/2026-10-25/coverage/origin_extract.py",
+   "sourceSha256": "6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c"
+  },
+  "vendor/node_modules/@noble/hashes/LICENSE": {
+   "mode": "0644",
+   "sha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec",
+   "source": "source/node_modules/@noble/hashes/LICENSE",
+   "sourceSha256": "4f221aee6e072336700c408c68ab3b96a3fc09f6aebe6f48f1bd99e5ef13faec"
+  },
+  "vendor/node_modules/@noble/hashes/_u64.js": {
+   "mode": "0644",
+   "sha256": "9b109bb57c0d8852bda12136f0f588ffea2a1a3c0f4241bdbb3727cd449976ae",
+   "source": "source/node_modules/@noble/hashes/_u64.js",
+   "sourceSha256": "9b109bb57c0d8852bda12136f0f588ffea2a1a3c0f4241bdbb3727cd449976ae"
+  },
+  "vendor/node_modules/@noble/hashes/cryptoNode.js": {
+   "mode": "0644",
+   "sha256": "7d96258d2ff9da048ceb1fe88fb68172c5f952e461dda65fd08f30e20b5416ae",
+   "source": "source/node_modules/@noble/hashes/cryptoNode.js",
+   "sourceSha256": "7d96258d2ff9da048ceb1fe88fb68172c5f952e461dda65fd08f30e20b5416ae"
+  },
+  "vendor/node_modules/@noble/hashes/package.json": {
+   "mode": "0644",
+   "sha256": "7c4657c5e616c22cefa2691cc30670824a639dc71d97bf83925be2d239dc60e3",
+   "source": "source/node_modules/@noble/hashes/package.json",
+   "sourceSha256": "7c4657c5e616c22cefa2691cc30670824a639dc71d97bf83925be2d239dc60e3"
+  },
+  "vendor/node_modules/@noble/hashes/sha3.js": {
+   "mode": "0644",
+   "sha256": "313da3570150e80b02c3631508ba99099438d2daff641b9cadb2198e0f1d18ec",
+   "source": "source/node_modules/@noble/hashes/sha3.js",
+   "sourceSha256": "313da3570150e80b02c3631508ba99099438d2daff641b9cadb2198e0f1d18ec"
+  },
+  "vendor/node_modules/@noble/hashes/utils.js": {
+   "mode": "0644",
+   "sha256": "7edf19720c345e1cb76e8d3a9306f3344457d4e03576bbb0b3e1ffd0a42d0d30",
+   "source": "source/node_modules/@noble/hashes/utils.js",
+   "sourceSha256": "7edf19720c345e1cb76e8d3a9306f3344457d4e03576bbb0b3e1ffd0a42d0d30"
+  }
+ },
+ "format": "enclave-historical-capture-bundle/v1",
+ "pins": {
+  "anchorBootstrap": "90a8afba31e7c7029a0fa860f97153cd40665f1d1b2ae87bb0a56fd98c25e8f8",
+  "bindAnchorScript": "f729420ca16127ae6b19745cc9d500df0b9ae4c97ec90e0656bfeceb9ccd43d8",
+  "coverageGate": "b4f6d639c3f9b12f73938d5993ce0897fe56dcbec1ada3123c4ad80d0ff3854b",
+  "gateHardMaxBlocks": 30000,
+  "kzgcheck": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+  "maxEvidenceAgeSec": 43200,
+  "nobleSha3": "313da3570150e80b02c3631508ba99099438d2daff641b9cadb2198e0f1d18ec",
+  "originExtract": "6b63b901ea07375ea273fd828cb0d0e97baa0859c1b83490c1cb60e15cb3c86c",
+  "seqWindow": 3600
+ },
+ "purpose": "exact-N read-only anchored origin extraction + segmented L1 receipt/beacon/KZG coverage (no activation, no chain.json write)"
+}

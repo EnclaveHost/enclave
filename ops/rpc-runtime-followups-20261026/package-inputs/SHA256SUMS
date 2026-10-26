@@ -1,0 +1,5 @@
+c591ab6af927465a114f2815e613bcd061a8466d024a7e6dc220e1aab54c3195  ./README.md
+3ee6e30c5e4069e8d2116f55274a9ee13413998fb0331c54f47d36cef091a7a4  ./jobs/root-package-inputs.sh
+3692b6558160d75962448f2d3ac78fc930b6f7636f02963f62a6e212c7320daa  ./patches/root-final-consumer.orig.sh
+a0eb2a08af3faf9604f1cfe84c252d8d7a039bf63a19353ec5f7e2470454ffba  ./patches/root-final-consumer.package-inputs.patch
+4ad09d4dff82a7fe0b66c5dbb3642ac668912698be13136648988fb7f076080e  ./patches/root-final-consumer.package-inputs.sh

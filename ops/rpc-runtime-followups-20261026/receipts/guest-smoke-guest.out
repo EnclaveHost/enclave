@@ -1,0 +1,37 @@
+node v18.19.1 f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d python 3.12 systemd systemd 255 (255.4-1ubuntu8.18)
+PASS T0 node v18.19.1 >= 18
+PASS T0 python 3.12 >= 3.11
+--- verify rc=0
+-units-config.txt)", "guestPath": "/opt/enclave-rpc/bin/base", "sha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f"}, "node": {"evidence": "operator-supplied --node; guest node 18 per r16 install/MISSING.md; NOT pinned by sha here (unknown on the guest): record `node --version` and its sha256 in the run receipt", "guestPath": "/usr/bin/node", "sha256": null}, "python": {"evidence": "hashlib.file_digest; guest Python 3.12 per r16 install/MISSING.md", "minimum": "3.11"}}, "files": 17, "ok": true, "root": "/var/lib/enclave-rpc/hcap-smoke/20261026T131535Z-9e875185/bundle"}
+
+PASS T1 kit bundle copy verifies (020cc8bf)
+--- tests rc=0
+usage: run_all.py [-h] --base-bin BASE_BIN --base-sha256 BASE_SHA256 --datadir
+                  DATADIR --scratch SCRATCH --receipt RECEIPT --node NODE
+                  --out OUT [--timeout TIMEOUT]
+run_all.py: error: --out exists; refusing to overwrite evidence
+{"refused": "receipt: /tmp/tmpw1xt208a/a1-evidence.json is not the pinned b9a90847bb3f"}
+{"pass": true, "testsRun": 9, "failures": 0, "errors": 0, "skipped": 0, "expectedFailures": 0, "unexpectedSuccesses": 0}
+
+{"errors": 0, "expectedFailures": 0, "failures": 0, "skipped": 0, "testsRun": 9, "unexpectedSuccesses": 0}
+PASS T2 test_anchored_origin 9/9 on node v18.19.1 (bundle-copy lib, rpcbase, private unit)
+--- badreceipt rc=2
+{"refused": "receipt: /var/lib/enclave-rpc/hcap-smoke/20261026T131535Z-9e875185/fx/bad-receipt.json is not the pinned b9a90847bb3f"}
+
+PASS T3 origin refuses a non-pinned receipt (rc 2)
+--- nodb rc=2
+{"refused": "datadir has no db/ (snapshot not extracted?)"}
+
+PASS T4 origin refuses a datadir without db/ (rc 2)
+--- rwbind rc=2
+{"refused": "datadir is not on a read-only mount; bind-mount it read-only first"}
+
+PASS T5a datadir writable inside the unit (ReadWritePaths): the CLI refuses 'not on a read-only mount'
+--- robind rc=2
+{"refused": "StageCheckpoints[Finish] absent: no completed pipeline tip"}
+
+PASS T5b with BindReadOnlyPaths (private): the read-only gate passes; stops at the next gate (Finish absent)
+PASS T6 no persistent mount: guest mountinfo unchanged; fixture datadir writable again
+INFO production bundle at /opt/enclave-rpc/historical-capture/020cc8bf8045cf48441349065c039171fc303783b2fa05dd5fa8f5a45296e22e verifies
+SMOKE PASS (runtime qualification only: refusals + private read-only semantics + 9 tests; NOT a positive capture proof)
+## guest-smoke 20261026T131535Z-9e875185 rc=0

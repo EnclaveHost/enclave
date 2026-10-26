@@ -1,0 +1,393 @@
+{
+ "format": "enclave-paid-derived-v3-composition/v1",
+ "base": {
+  "commit": "64156dcd91ff1e769e74f9c26a846be19254c716",
+  "tree": "602c922125459fc847c8a047386efa48aaa8f358"
+ },
+ "readerComposition": {
+  "stage": "reader-runtime-composition-stage/r2",
+  "tree": "9dd20e7615ca16f69417309664f95db96640399f",
+  "readerCommit": "34a3c0d6d4c5aebffffb2492437487c9de74fb66",
+  "stageSha256sums": "1c75125e58cf0db9753a038214759ff4d3eab8ec302c58fef654d04431743402",
+  "rootQualified": "33/33 (root, per root note)"
+ },
+ "paidPatch": {
+  "stage": "paid-derived-adapter-stage/r7",
+  "file": "patches/paid-derived-adapter-r7.patch",
+  "sha256": "b3b0da6bf7ddbffed91716f85a0a6f0911e0084f1d2f08ac90bb30aa12922390",
+  "stageSha256sums": "6dc6eb17ff91904ee94886a3d1d9d85258d7740f552632d79872ede0c973fdb7",
+  "files": 12
+ },
+ "finalTree": "5037054a3dc70ed860eb6e7599ae617727af4d33",
+ "filesVsBase": [
+  {
+   "path": "network/deployment-lifecycle-journal.mjs",
+   "status": "A",
+   "blob": "9dbf0864e78c91529d92ef02c0d922fdbff5b7fb",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/deployment-restart-policy.mjs",
+   "status": "A",
+   "blob": "83f5c52a1cfec88ed5ef62ea50cc99fe6d8137e8",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/derived-reader/COVERAGE.md",
+   "status": "A",
+   "blob": "d9855b737e0852bae6f11376f5335bcfea2ca735",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/README.md",
+   "status": "A",
+   "blob": "778d3638d1c4bcfa404094cd5d09c29c213b9de2",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/api.mjs",
+   "status": "A",
+   "blob": "b9a81d19cb9f7b94dc277107197b9a3258117c2b",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/config.example.json",
+   "status": "A",
+   "blob": "9e0cdb8db6096917188926660bdcdf622b202402",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/config.v3.example.json",
+   "status": "A",
+   "blob": "f0778f94737faf2eaba5ca5dd7147a685b12792d",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/coverage-store.mjs",
+   "status": "A",
+   "blob": "09a4da8073f046cdad513e786e6f90e16f040ae3",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/coverage.mjs",
+   "status": "A",
+   "blob": "434366ecd5282a64803750cf079547e887f5fc37",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/journal.mjs",
+   "status": "A",
+   "blob": "4c46336b012ffc8b7b8cc1d710ea68b3b6346abb",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/l1-runtime.mjs",
+   "status": "A",
+   "blob": "1fe5501589b8ea3326c08a752824aaaadde7fb99",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/libraries.mjs",
+   "status": "A",
+   "blob": "30ec60b2125e355d0240c8a4a0b79017d09e5d20",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/lifecycle.mjs",
+   "status": "A",
+   "blob": "d6de1afe455619afee95dfc0bfbf9800e970558d",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/main.mjs",
+   "status": "A",
+   "blob": "e6a8dbb5d542584d36296111a5ec989589abc854",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/native.mjs",
+   "status": "A",
+   "blob": "8f51e88940be8d18a33abb05ac5d0b8e9376a16b",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/process.mjs",
+   "status": "A",
+   "blob": "b1c4723df9ce044eef94f1fd0f9737a273414b8a",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/proof.mjs",
+   "status": "A",
+   "blob": "548efeb6fbb7a10c8e3bcb772b12039c163f7056",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/provider.mjs",
+   "status": "A",
+   "blob": "8478fae0a2f9351f195c84f99a0ccef653ca2184",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/qualification.json",
+   "status": "A",
+   "blob": "1de289939c3431095325f638c8cb92d94f3e63a9",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/rpc.mjs",
+   "status": "A",
+   "blob": "bef9491d302a34aa7d0d4d6d7194af907a5d9e23",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/a1-anchor.mjs",
+   "status": "A",
+   "blob": "ff261b164bc9821c975fe2fd7a05116559aecf34",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/anchor-bootstrap.mjs",
+   "status": "A",
+   "blob": "5473933dbd5c7411192dd99dcb20cd17483369c2",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/provenance.json",
+   "status": "A",
+   "blob": "a19c8a522ab5e479f70b3063c1fbea42ef4e4662",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule-input-r2.mjs",
+   "status": "A",
+   "blob": "09f8d7a3c0f317fb65713585f9631cae7133f9b8",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/derived-reader/vendor/schedule_reader.mjs",
+   "status": "A",
+   "blob": "caae47061d473412bc8f1212ee76d3ba7462838c",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader"
+  },
+  {
+   "path": "network/lifecycle-finality-bridge.mjs",
+   "status": "A",
+   "blob": "916f24c0af2ae888641bd565e5bb2ac0bd024184",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "network/onchain-qualification.mjs",
+   "status": "M",
+   "blob": "8ff7b9e5c645992585547fa956d8b188d430096d",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/op-receipts-root.mjs",
+   "status": "A",
+   "blob": "4f6d7b651c126ec18741f876690f1621f68f2f7f",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/attested-authority.mjs",
+   "status": "M",
+   "blob": "e5056b562ff82dc880d3d027739966ef03f69265",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/attested-submission.mjs",
+   "status": "M",
+   "blob": "df1946a9a5820093d79d3472da2ab74a263e34c0",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/derived-anchor-floor.mjs",
+   "status": "A",
+   "blob": "fdfd162add5c8deebd6425c520ad2d734312717c",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/derived-runtime.mjs",
+   "status": "A",
+   "blob": "c890ad2da7226735b5cf2e8e23d9ab47cb70639c",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/derived-submission.mjs",
+   "status": "A",
+   "blob": "57aae5d530f291b757adb63cdfaf3fa1a9352d60",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/install.sh",
+   "status": "M",
+   "blob": "2f729afdce31416d0be7ab33e86eec2322f420a7",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "network/wg-provider/main.mjs",
+   "status": "M",
+   "blob": "e6b1a0eca3fdad8a6e73afaed57831b583b259ce",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "scripts/network/build-consumers.mjs",
+   "status": "M",
+   "blob": "1b7434fa903d3f48fb9bc122b3f1c2943194ba95",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "test/derived-reader.test.mjs",
+   "status": "A",
+   "blob": "80e1cfe7dbefed9f5db605c63209f8a91dc2fafa",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/boundaries.test.mjs",
+   "status": "A",
+   "blob": "e9f66b43598b354d64030771ba1bc8286519840e",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/coverage.test.mjs",
+   "status": "A",
+   "blob": "c4e1e35829d0a12a646d14346f1d88aa7628fa21",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/helpers.mjs",
+   "status": "A",
+   "blob": "3b86d4ff424295e854761e92eb8018c7f52b8780",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/derived-reader/provider.test.mjs",
+   "status": "A",
+   "blob": "14dd6a49ddf05a99e83d980f64ebd4d4057fc2db",
+   "mode": "100644",
+   "origin": "34a3c0d6d via reader-runtime-composition-stage/r2",
+   "role": "reader-test"
+  },
+  {
+   "path": "test/lifecycle-finality-bridge.test.mjs",
+   "status": "A",
+   "blob": "b104fa39e48a5dc09b1e024586d45eaa5848a079",
+   "mode": "100644",
+   "origin": "c66b087ac (unchanged in 34a3c0d6d) via reader-runtime-composition-stage/r2",
+   "role": "lifecycle-closure"
+  },
+  {
+   "path": "test/paid-derived-adapter.test.mjs",
+   "status": "A",
+   "blob": "b9a92b8e38471ce74b9fc36885434ebc0df2942b",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  },
+  {
+   "path": "test/paid-derived-packaging.test.mjs",
+   "status": "A",
+   "blob": "e1a76e2f66838e1b069f5286bbed1cdf09a00794",
+   "mode": "100644",
+   "origin": "paid-derived-adapter-stage/r7 patch (b3b0da6b)",
+   "role": "paid-adapter"
+  }
+ ],
+ "counts": {
+  "added": 38,
+  "modified": 6,
+  "reader": 32,
+  "paid": 12
+ },
+ "patches": {
+  "final-vs-64156.patch": "b791b28840cc03ec9fe3b7d6bea61703b59d3e8e607462a101593e3dae3937fc",
+  "final-vs-reader-r2.patch": "6353aa9683223d498f3aca9d0c46f364765559e1d8bad5f714e6f09e2c9737f9"
+ },
+ "pins": {
+  "nativeV3": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
+  "scheduleReader": "688b7a1f09c898f66cc7b92473a9fbda042402ef833bb983ff794e5f07128fb0",
+  "helios": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0",
+  "packageLock": "9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20"
+ },
+ "activation": "none"
+}

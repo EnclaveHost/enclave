@@ -1,0 +1,13 @@
+# Runtime follow-ups and explicit incomplete release gates
+
+The full r18 bootstrap candidate passed root1324, including the actual93-test sampler and12 witness tests (peak236MiB, physical host minimum23757MiB). Root1326 ran nine historical-origin fixtures on the real RPC guest Node18.19.1 under rpcbase, verified private read-only mounts and refusal gates, and confirmed no persistent mounts or leftover test units/files. It touched no production database and did not activate a chain service.
+
+Root1329 passed13 reclamation fixture tests including actual fixture-space recovery, changed-copy rejection, path confinement and crash recovery. No real data has been reclaimed or moved. Root1330 passed11 hardened signed-capture tests with no skips; native execution still deliberately refuses a synthetic header. It is not positive chain execution or accepted authority.
+
+Consumer r1/r2/r3 are PREPARED source assemblies, not tested deployment releases. r2 adds the actual lazy reader runtime to the relay; r3 ships it and its schedule pin through measured guest sidecars. The120-second lease freshness requirement remains; finalized-only anchors cannot satisfy it. Recent-state authority and accepted-image assets remain incomplete.
+
+The original package job1320 returned0 by comparing baseline and candidate failures. That is NOT deployment qualification. Strict job1331 correctly returned1. In-tree read-only dependency mounts reproduced the exact committed e12c runtime hash and removed all2477 outside-tree input references. The remaining genuine defect is stale credit-vault-submitter generated code in the baseline. Regenerating it from existing source passes checks; composing that reviewed artifact correction is ongoing. Do not ship the layout-contaminated500e38e0 platform-api artifact from1320. Preserved verdicts and diffs show the distinction.
+
+ELF and unmodified signed-capture third-party node_modules are omitted from Git; exact omitted file hashes are in EXTERNAL-ARTIFACTS.json and the original unchanged stage/VENDOR manifests. KZG source/build recipe is already committed at ops/rpc-backend-bootstrap/2026-10-25/coverage. Signed-capture vendor/source-package-lock.json and VENDOR.json record dependency versions/origins and per-file hashes; restore identical dependencies before running its checks. All custom source and recipes are retained. Workstation paths are provenance, not a claim these operational stages are portable production packages.
+
+No administrator controls were removed. Production RPC replacement, historical KZG coverage, positive execution, accepted SNP serving, actual consumer cutover, mined writes and public-RPC blackout are still incomplete.

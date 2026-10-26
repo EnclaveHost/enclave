@@ -1,0 +1,67 @@
+{
+ "mode": "package",
+ "runtimeBundle": {
+  "identicalToBase": true,
+  "sha256": "18f8fccb9bcf94920fa8f29320824fef962d92496f58225021c417816c85b352",
+  "matchesCommittedPin": false
+ },
+ "committedGeneratedArtifacts": {
+  "host-packages-check": {
+   "pristine": 1,
+   "final": 1
+  },
+  "mcp-bundle-check": {
+   "pristine": 0,
+   "final": 0
+  },
+  "platform-api-check": {
+   "pristine": 1,
+   "final": 1
+  }
+ },
+ "platformApiGuestBundle": {
+  "committedStaleOnConsumer": true,
+  "regeneratedCheckRc": 0,
+  "regeneratedSha256": "500e38e085a5a6370ec1647cdc4e5ac82b97aa23e1a3466c8ec40d202fa0b8b5",
+  "regeneratedManifestSha256": "7b5a1bfa592e56ac1a1ad18089b17b33823e372a99de52cc0dac4124377ff596"
+ },
+ "packagedProvider": {
+  "alone/quorum": true,
+  "alone/derived-v3": true,
+  "rel/derived-v3": true,
+  "rel/quorum": true
+ },
+ "writerStartup": {
+  "ok": 5,
+  "fail": 0
+ },
+ "writerApiComposition": {
+  "rc": 0,
+  "checks": 6
+ },
+ "relayCheck": 0,
+ "relayDeployClosure": {
+  "pristine": {
+   "rc": 0,
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "final": {
+   "rc": 0,
+   "tests": 2,
+   "pass": 2,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "same": true,
+  "finalClean": true
+ },
+ "ok": true,
+ "scope": "release-candidate SOURCE assembly; NOT fresh-state authority, NOT feature availability, NOT production"
+}

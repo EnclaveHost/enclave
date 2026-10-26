@@ -1,0 +1,13 @@
+{
+  "format": "enclave-signed-capture-inputs/v2",
+  "nativeCandidateSha256": "581d56a6c052f80c49cc8557e6d0c16fe148be8c67939c00c3ece011a2dbadb8",
+  "nativeSourceManifestSha256": "a812cbdadb73520b7550add0775606877e9559a569da6b3593aaf87378ea9910",
+  "vendorManifestSha256": "18bc7bfbd061d6fb2c378f6636b784e45b9f2c81d04de859d2c190347bfec77a",
+  "runtimeInputs": {
+    "/usr/bin/node": "7af789e55afc0975d66bb19ccbc5a3b60c4b838f61d1ec10a117832ba70baaf9",
+    "/usr/bin/prlimit": "092bb6db10a743ecccfc7d6e72055007064abf8910c85d736832fb53697fff96"
+  },
+  "testsRun": false,
+  "liveCapture": false,
+  "releaseBuildRun": false
+}

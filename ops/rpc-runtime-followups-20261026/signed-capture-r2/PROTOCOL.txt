@@ -1,0 +1,144 @@
+Real signed-block capture/evaluation preparation — r2
+
+Native candidate r2 compiled with28 passing tests, SHA581d56a6c052f80c49cc8557e6d0c16fe148be8c67939c00c3ece011a2dbadb8.
+Capture r1 passed six tests in root1310. This new r2 is separate and untested. No live node was
+queried during preparation. Native r2 source, finalized verifier49f4 and all
+production readers remain unchanged.
+
+The capture tool acquires UNTRUSTED evidence. It does not prove an L1 root is
+qualified, a parent is finalized, or a signed branch is canonical. The evaluator
+proves conditional execution only. It cannot satisfy authority policy by itself.
+
+Online capture (root coordinates only when the owned Base witness node is ready):
+node capture.mjs --capture-untrusted plan.json commitment.json bootstrap-witness.json NEW_DIR
+
+plan.json exact fields:
+  format: enclave-signed-capture-plan/v1
+  endpoint: explicit owned loopback/RFC1918 IP origin; no hostname/public endpoint,
+            credentials, redirect, arbitrary paths or fallback
+  context: the r2 caller-owned context, except envelopeKeccak (computed here)
+
+context has format, base (existing exact ten native trusted fields), parentHash,
+parentNumber, unsafeSigner. Caller supplies qualified parent/L1/config bindings;
+the capture tool does not accept a claimed-qualified boolean as proof. Use an
+offline handoff file from the reviewed owned reader/caller, not node status JSON.
+The output-root expectation may be calculated from the signed header; it is an
+expectation to verify, not authority. The envelope must extend exactly that parent.
+
+commitment.json is the actual full signed commitment from the owned pinned
+gossip listener: data plus signature{r,s,yParity|v}. The existing local verifier
+checks chain8453/signer. This collector initially inherits its4MiB signed-data
+limit. Native bounded Snappy/V4 decoding and signature checks are independent.
+Do not invent a signature from an unsigned eth_getBlockByHash response.
+
+bootstrap-witness.json is the existing native JSON witness shape:
+  {preimageStore:{preimage_map:[[key,bytes],...]},blobData:{blobs:[],commitments:[],proofs:[]}}
+Required seed evidence includes agreed output-root preimage, parent header/body
+and configuration, L1 head/origin ancestry, complete L1 receipt trie nodes for
+deposits/SystemConfig, authenticated schedule/bootstrap account/storage/code
+preimages and any other bootstrap material used by BootInfo. The native evaluator
+checks these; the capture tool does not fabricate them or assume they are complete.
+Use the coordinated witness collector's actual preimages for this exact L1/parent
+context. A prior unrelated witness file is not a qualified bootstrap.
+
+Capture calls only debug_executePayload(parentHash, advisoryAttributes) followed
+by at most256 debug_getRawHeader(hash) calls, stopping at genesis. Metadata/raw
+transactions for advisoryAttributes are decoded from the signed V4 bytes. The
+native attribute builder independently regenerates system/deposit/upgrade data,
+so a capture parser error causes native refusal rather than changed authority.
+All returned state/codes/keys are hashed into Keccak preimages. Existing seed
+hashes are checked, Local boot overrides removed, non-hash key types rejected,
+and conflicting duplicate values refused. Raw ancestor headers are hash/height
+checked and canonical-RLP checked before inclusion. No raw-node receipt/log list
+is promoted into coverage; native execution generates all receipts.
+
+Bounds:258 calls,120s entire capture,15s per request,64MiB execution response,
+64KiB/header response,96MiB aggregate RPC bytes,24MiB raw preimages/150000 entries,
+128MiB serialized witness,128KiB plan,9MiB commitment JSON. RPC error, unavailable
+history, unsupported extraData/fork, oversized data or missing seed evidence
+refuses. Size limits are prototype scope; they may reduce availability and are
+not a reason to truncate evidence or increase resource allocation implicitly.
+Run capture under the shared memory guard; JSON amplification must be measured.
+
+Successful capture writes context.json, envelope.snappy, witness.json and a
+CAPTURE.json byte manifest. CAPTURE always says authority:false/nativeEvaluated:false.
+Its file hashes provide integrity/correlation, not attestation. Partial attempts
+leave FAILED.txt and never a successful CAPTURE receipt.
+
+Offline evaluation (new network namespace, coordinated memory guard):
+node evaluate.mjs PINNED_NATIVE_BINARY CAPTURE_DIR
+The runner requires an isolated network namespace, verifies capture file hashes,
+and copies the exact pinned native binary and inputs to a private temporary run path, then applies AS2GiB/CPU60s/wall90s and stdout16MiB/
+stderr64KiB bounds. It preserves refusal logs in the capture directory, removes all temporary copies,
+and issues EVALUATION.json only on native exit0 and exact candidate/coverage match.
+That receipt says conditionalTransitionVerified:true AND authority:false with
+qualifiedParentL1/branchPolicy/acceptedImage all false. It must not be used by any
+production consumer or represented as a live authorization check.
+
+Real positive fixture gate: native exit0 for actual signed envelope+witness with
+independently authenticated context; full computed header/root/receipts compared
+to an independent validated node. Retain all source/capture/binary/result pins.
+Then mutate signatures/domain/parent/L1 ancestry/deposits/config/preimages/header
+and prove refusal. The test suite's synthetic signed envelope only tests parsing,
+transport bounds and native Snappy/signature interoperability before an expected
+fabricated-header refusal. It is NOT a positive executed block or chain proof.
+
+Root test recipe: shared queue512 -> unshare -Urn bash test.sh PINNED_BINARY. The job uses the
+existing compiled binary, no Cargo build/dependency duplication, and clears
+NODE_TEST_CONTEXT so inherited test-runner state cannot silently suppress tests.
+
+Known gaps: full seed collection is an explicit external prerequisite; the
+debug_executePayload response alone cannot satisfy BootInfo/L1/parent evidence.
+Current r2 missing-witness errors do not provide a safe automatic fetch protocol:
+preimage keys store only31 digest bytes, so do NOT guess a full hash for debug_dbGet.
+A future hint-aware collector can reuse the pinned native host's full-hash hints;
+that requires its own build and review, not parsing a panic into authority.
+
+Revision r2 — Claude review remediation (not yet qualified)
+
+H2: parser files plus the complete installed viem dependency closure are vendored
+locally, without installing or executing package lifecycle scripts. VENDOR.json
+records all 11871 file hashes and package versions; runtime.mjs pins the manifest
+hash, rejects links/extra/missing/changed files, and verifies the closure BEFORE
+any dynamic parser import or witness RPC. A clean environment launcher is used.
+This is a frozen local bundle; do not modify files concurrently with a run. These
+hashes provide reproducibility, not protection against a malicious host rewriting
+the runner itself. Native verification and qualified caller obligations remain.
+
+M1/M2: capture() pins the reviewed mainnet unsafe signer, rollup config hash and
+schedule id in policy.mjs before signature parsing/RPC. collectWitness() is an
+explicit evidence-only helper used by synthetic transport tests; it makes no
+signature/policy claim. No synthetic signer exception exists in capture().
+The native combined harness check_boot_values checks boot.rollupConfigHash and
+scheduleId against caller context (derivation_harness_combined.rs, lines 164-176);
+signed_payload_candidate.rs emits both at line165. evaluate.mjs now checks these
+native output values against reviewed policy and the captured context. Canonical
+rollupConfig SHA256 records the sorted JSON input; it is NOT the native boot config
+hash and cannot authenticate a supplied config by itself. Native BootInfo computes
+and checks the actual config binding before a successful result.
+
+M3/M4: evaluator uses absolute /usr/bin/prlimit and fixed PATH=/usr/bin:/bin.
+CAPTURE records exact raw plan/commitment/bootstrap byte hashes (CLI), runner and
+parser source hashes, dependency manifest hash, endpoint origin, start/end UTC,
+Node version and canonical config input hash. EVALUATION retains this provenance.
+The original source and input bundles must also be retained by the caller. A
+receipt cannot independently prove its own provenance or parent/L1 qualification.
+
+L1-L4: evaluator refuses non-loopback interfaces in /proc/self/net/dev; root must
+launch in unshare -Urn. Temporary executable/inputs use a private TMPDIR location
+that must permit execution, are removed on normal success/refusal, and never add
+large duplicate inputs to evidence storage. An external SIGKILL can still leave a
+temporary directory; root must clean that job's directories after guard termination.
+Stderr is bounded to head/tail with byte count, not a reason to kill execution;
+CPU/wall/output bounds still hold. Unsupported0x79/0x7d transaction types refuse
+early. This harness requires Node22+ and is distinct from the Node18 historical
+guest capture kit. Runtime imports are local/relocatable; release recipe retains
+explicit workstation paths because it must reuse the existing native cache.
+
+H1/L5 remain UNMEASURED. The existing581d binary is a debug build. Do not claim
+real-block performance or silently expand limits. jobs/release-build-test.sh is a
+deferred private-mount/offline, single-job recipe using the exact frozen native r2
+source/lock and shared cache. It records release test/build results and binary hash;
+it does NOT update the accepted evaluator binary pin. Root must separately admit
+that build, review receipts, then qualify a new evaluator pin before positive use.
+No release build or real block capture was run while preparing this revision.

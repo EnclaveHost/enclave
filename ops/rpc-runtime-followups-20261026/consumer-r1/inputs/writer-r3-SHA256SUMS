@@ -1,0 +1,4 @@
+4aab99d144133c4b23f924805171a3432d12901804f719ab61d227381c3db54b  ./KVM-34a3-CLOSURE.blobs
+bffcb1c282705fe24c355a7cd5fa55437c8ce7059f2b4b609fa7dd79aaa36d86  ./KVM-INPUTS.sha256
+7f7e51c5446681063459d39e6a351cb80375fc0a8fe9a54d4757cf142aa92bdd  ./jobs/adapter-tests-r3.sh
+2e2ddcff1840dcfba0a7547a4c7ad06729aa232509c95b573b27b2d76d6d7245  ./jobs/api-composition-check.mjs
