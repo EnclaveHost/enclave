@@ -330,7 +330,7 @@ func main() {
 		}
 		shieldEG = &shieldEgress{deployment: "/secret.id", config: "/app.config", configUID: 0, hosts: "/etc/hosts", port: 443,
 			upstream:        func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, egressPort) },
-			audit:           func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
+			audit:           func(want []netip.AddrPort) error { return auditShieldListeners("/proc/net", want) },
 			logf:            func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
 			publicWebMarker: shieldconfig.PublicWebMarker, enc: shieldEncvol()}
 		if !directBootstrap {
