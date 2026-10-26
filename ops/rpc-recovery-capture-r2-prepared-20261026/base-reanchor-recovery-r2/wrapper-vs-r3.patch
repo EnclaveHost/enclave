@@ -1,0 +1,133 @@
+--- r3/chain_service.py
++++ r2/wrapper/chain_service.py
+@@ -457,6 +457,16 @@
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'
+ BASE_RELEASE_PATH = ROOT / 'releases' / ('base-m7m10-' + BASE_RELEASE_SHA256[:16]) / 'base'
+ BOOTSTRAP_DIR = pathlib.Path('/etc/enclave-rpc/base-bootstrap')
++# Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): every retired (rolled-back) launch directory lives here under its
++# launchSha256. The current launch's predecessor chain must name ALL of them (launch_lineage): one launch history, no fork.
++BOOTSTRAP_ARCHIVE = pathlib.Path('/etc/enclave-rpc/base-bootstrap-archive')
++MAX_LINEAGE = 64
++# r2: the persisted authenticated-finality watermark (see harness gate_watermark). Read-only here: a re-anchor launch starts only
++# while the latest accepted entry is exactly this launch's anchor, recorded by root `arm` (no write path in the wrapper).
++BOOTSTRAP_WATERMARK = pathlib.Path('/etc/enclave-rpc/base-finality-watermark')
++WATERMARK_FORMAT = 'enclave-base-finality-watermark/v1'
++WATERMARK_KINDS = {'launch-anchor', 'finality-proof'}
++WATERMARK_KEYS = {'format', 'seq', 'prevSha256', 'number', 'blockHash', 'kind', 'ref', 'at'}
+ LAUNCH_FORMAT = 'enclave-base-bootstrap-launch/v1'
+ JOURNAL_FORMAT = 'enclave-base-bootstrap-journal/v1'
+ ANCHOR_RE = re.compile(r'([1-9][0-9]{0,18}):(0x[0-9a-f]{64})')
+@@ -587,6 +597,104 @@
+     _instant(launch.get('notAfter'), 'launch notAfter')
+     return l_sha, launch, int(m.group(1))
+ 
++def _anchor_n(launch):
++    m = ANCHOR_RE.fullmatch(str(launch.get('anchor', '')))
++    assert m, 'launch anchor is not <number>:0x<64 lower-case hex>'
++    return int(m.group(1))
++
++def launch_lineage(launch, archive=None, owner=None, top=None):
++    """The launch's predecessor chain through BOOTSTRAP_ARCHIVE -> [anchor, ...] newest first. Each predecessor must be the
++    archived launch record named by its sha, terminally rolled back at exactly the named journal entry; anchors never move
++    backward (an equal height only for the identical anchor); and every archived launch must be in the chain. A first-bootstrap
++    launch (no predecessor) is therefore accepted only while the archive is empty."""
++    archive = pathlib.Path(archive or BOOTSTRAP_ARCHIVE); owner = ROOT_UID if owner is None else owner
++    archived = set()
++    if os.path.lexists(archive):
++        _secure_path(archive, owner, leaf='dir', top=top)
++        archived = set(os.listdir(archive))
++    chain, seen, cur = [launch.get('anchor')], [], launch
++    while cur.get('predecessor') is not None:
++        p = cur['predecessor']
++        assert isinstance(p, dict) and set(p) == {'launchSha256', 'rolledBackEntrySha256', 'anchor'} \
++            and all(isinstance(p[k], str) and HEX64.fullmatch(p[k]) for k in ('launchSha256', 'rolledBackEntrySha256')), \
++            'lineage: malformed predecessor'
++        name = p['launchSha256']
++        assert name in archived and name not in seen and len(seen) < MAX_LINEAGE, \
++            f'lineage: predecessor {name[:12]} is not an archived launch (or repeats)'
++        d = archive / name
++        _secure_path(d, owner, leaf='dir', top=top)
++        p_sha, prev = _evidence(d / 'launch.json', owner)
++        assert p_sha == name and prev.get('format') == LAUNCH_FORMAT and prev.get('anchor') == p['anchor'], \
++            'lineage: the archived launch record differs from its name or the named anchor'
++        assert _anchor_n(prev) < _anchor_n(cur) or prev['anchor'] == cur.get('anchor'), \
++            'lineage: the anchor moved backward (or changed at the same height)'
++        entries = journal_entries(d / 'journal', owner, p_sha, top)
++        assert entries[-1][1]['event'] == 'rolled-back' and entries[-1][0] == p['rolledBackEntrySha256'], \
++            'lineage: the predecessor is not terminally rolled back at the named journal entry'
++        seen.append(name); chain.append(prev['anchor']); cur = prev
++    assert set(seen) == archived, f"lineage: archived launches outside this launch's lineage: {sorted(archived - set(seen))[:3]}"
++    return chain
++
++def watermark_entries(store=None, owner=None, top=None):
++    """The verified watermark chain -> [(sha256, entry)] oldest first; [] if the store is absent or empty. Same rules as the
++    harness: root-owned, no symlinks, contiguous seq, hash chain, never regressing, one block per height."""
++    store = pathlib.Path(store or BOOTSTRAP_WATERMARK); owner = ROOT_UID if owner is None else owner
++    if not os.path.lexists(store):
++        return []
++    _secure_path(store, owner, leaf='dir', top=top)
++    out, prev = [], None
++    for name in sorted(os.listdir(store)):
++        if JOURNAL_PARTIAL.fullmatch(name):
++            continue
++        assert JOURNAL_ENTRY.fullmatch(name) and int(name[:6]) == len(out) + 1 <= MAX_JOURNAL, f'watermark: unexpected entry {name}'
++        e_sha, e = _evidence(store / name, owner)
++        assert set(e) == WATERMARK_KEYS and e['format'] == WATERMARK_FORMAT and e['seq'] == len(out) + 1 and e['prevSha256'] == prev \
++            and type(e['number']) is int and re.fullmatch(r'0x[0-9a-f]{64}', str(e['blockHash'])) and e['kind'] in WATERMARK_KINDS \
++            and isinstance(e['ref'], str) and HEX64.fullmatch(e['ref']), f'watermark: chain broken at {name}'
++        if out:
++            q = out[-1][1]
++            assert e['number'] > q['number'] or (e['number'] == q['number'] and e['blockHash'] == q['blockHash']), \
++                f'watermark: regresses or conflicts at {name}'
++        out.append((e_sha, e)); prev = e_sha
++    return out
++
++def watermark_append(store, owner, entries, number, block_hash, kind, ref, at, top=None):
++    """Durable append (fsynced sibling, link, directory fsync, re-verify); the caller holds the launch lock. Root only."""
++    store = pathlib.Path(store)
++    doc = {'format': WATERMARK_FORMAT, 'seq': len(entries) + 1, 'prevSha256': entries[-1][0] if entries else None, 'number': number,
++           'blockHash': block_hash, 'kind': kind, 'ref': ref, 'at': at}
++    b = json.dumps(doc, indent=1, sort_keys=True).encode()
++    for name in os.listdir(store):
++        if JOURNAL_PARTIAL.fullmatch(name):
++            os.unlink(store / name)
++    tmp = store / f'.partial-{os.getpid()}'
++    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o644)
++    try:
++        view = memoryview(b)
++        while view:
++            view = view[os.write(fd, view):]
++        os.fsync(fd)
++    finally:
++        os.close(fd)
++    os.link(tmp, store / f'{doc["seq"]:06d}.json')
++    os.unlink(tmp)
++    _fsync_dir(store)
++    after = watermark_entries(store, owner, top)
++    assert len(after) == doc['seq'] and after[-1][1] == doc, 'watermark append did not land (or broke the rules)'
++    return after
++
++def launch_watermark(launch, l_sha, store=None, owner=None, top=None):
++    """A first-bootstrap launch (no predecessor, no watermark binding) is unchanged. A re-anchor launch starts only while the
++    latest accepted watermark entry is this launch's anchor (root `arm` recorded it; nothing was accepted after it)."""
++    if launch.get('predecessor') is None and launch.get('watermark') is None:
++        return None
++    assert isinstance(launch.get('watermark'), dict), 'watermark: a re-anchor launch must bind the authenticated-finality watermark'
++    es = watermark_entries(store, owner, top)
++    n, h = _anchor_n(launch), launch['anchor'].split(':')[1]
++    assert es and es[-1][1]['kind'] == 'launch-anchor' and es[-1][1]['ref'] == l_sha and (es[-1][1]['number'], es[-1][1]['blockHash']) == (n, h), \
++        "watermark: the latest accepted authenticated-finality entry is not this launch's anchor (not armed, or changed since): refusing"
++    return es[-1][0]
++
+ def journal_entries(jd, owner, launch_sha, top=None):
+     """The verified journal -> [(sha256, entry)], oldest first. Refuses on any symlink, foreign owner, writable mode,
+     unexpected name, gap, broken hash chain, other launch record, or transition outside JOURNAL_NEXT. `.partial-<pid>`
+@@ -642,6 +750,8 @@
+     assert isinstance(lock_fd, int), 'the launch lock is not held'
+     directory = pathlib.Path(directory or BOOTSTRAP_DIR); owner = ROOT_UID if owner is None else owner
+     l_sha, launch, _n = launch_record(cfg, release_sha, directory, owner, top)
++    launch_lineage(launch, None, owner, top)                 # predecessor chain + archive coverage, before anything is consumed
++    launch_watermark(launch, l_sha, None, owner, top)        # r2: the accepted watermark is this launch's anchor
+     entries = journal_entries(directory / 'journal', owner, l_sha, top)
+     state = entries[-1][1]['event']
+     assert state != 'consumed', (f'bootstrap anchor already consumed (journal seq {len(entries)}): refusing; the anchor is '

@@ -1,0 +1,4 @@
+4182d861698d50fb9750a08f97273f5f258735c20977548ae3d3cb741aecef78  ./README.md
+3e8cb585c66992528b3377dea1f3e31458253444b30f26fda48e5512b763a3f2  ./canaries/public-rpc-egress-observe.sh
+8a7c4251ddb21a7e9ff5ff9c26f7d743555d1b8391cd2b5001802d639c3494ae  ./canaries/static-public-rpc-scan.sh
+45392189db88f3bdcd5c5043fa983660513f9cf0f6f5cde68e68225f0bfbbea4  ./canaries/windows-public-rpc-egress-observe.ps1

@@ -1,0 +1,312 @@
+--- r1/tests/test_reanchor_recovery.py
++++ r2/tests/test_reanchor_recovery.py
+@@ -1,4 +1,7 @@
+-"""Offline tests of the R-A re-anchor recovery (base-reanchor-recovery-stage). Root runs these; Claude did not.
++"""Offline tests of the R-A re-anchor recovery, r2 (base-reanchor-recovery-stage/r2). Root runs these; Claude did not.
++
++r2: the 7 r1 tests are kept, adapted only to the explicit watermark config and the directory-shaped capture boundary; 6 new tests
++cover the persisted authenticated-finality watermark, downtime refusals, crash points and gate_download on the reused DB.
+ 
+ The REAL pipeline: the recovery harness copy (harness/a2a4.py) drives the A2-A4 harness's own fake-base fixture (no reth, no
+ network); the recovery producer and wrapper copies run their real code; every start goes through the wrapper's real
+@@ -9,6 +12,8 @@
+   - the r3 suite's: fixture A1 recheck-mode pin, fake checker v2 pin, fake release, test-owned top/uid, LAUNCH_PRODUCER_REVIEWED
+     inside the wrapper module, recorded (not performed) privilege drop;
+   - BOOTSTRAP_ARCHIVE inside the wrapper module -> a test-owned archive;
++  - BOOTSTRAP_WATERMARK inside the wrapper module -> a test-owned store; wm_put() stands in for a FUTURE reviewed watermark
++    writer (record_finality is HOLD) using the real durable append;
+   - A1_CAPTURE_VERIFIER: a FAKE verifier, ONLY in the tests that exercise a NEWER anchor. The real interface owner
+     (a1-capture-binding-stage) has delivered nothing; with the real None verifier the newer-anchor path refuses (HOLD), which is
+     asserted. Passing the fake-verifier tests proves only that the rest of the pipeline is consistent, NOT capture binding."""
+@@ -38,7 +43,7 @@
+     def setUp(self):
+         super().setUp()
+         self.assertIsNone(R.A1_CAPTURE_VERIFIER, 'the capture-binding verifier is a pending interface (HOLD)')
+-        self.archive = self.d / 'etc/base-bootstrap-archive'; self.gen = 0
++        self.archive = self.d / 'etc/base-bootstrap-archive'; self.store = self.d / 'etc/base-finality-watermark'; self.gen = 0
+ 
+     def tearDown(self):
+         R.A1_CAPTURE_VERIFIER = None; super().tearDown()
+@@ -49,11 +54,11 @@
+         recs = sorted(pathlib.Path(self.cfg['workdir']).glob(f'run-{step}-*.json')); return code, json.loads(recs[-1].read_text())
+ 
+     def start(self, executor=None, **kw):
+-        with patch.object(W, 'BOOTSTRAP_ARCHIVE', self.archive):
++        with patch.object(W, 'BOOTSTRAP_ARCHIVE', self.archive), patch.object(W, 'BOOTSTRAP_WATERMARK', self.store):
+             return super().start(executor=executor, **kw)
+ 
+     def arm(self, **kw):
+-        return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, archive=self.archive, **kw)
++        return P.arm(self.out, self.d / 'cfg.json', A=A, W=W, owner=self.uid, top=self.top, archive=self.archive, watermark=self.store, **kw)
+ 
+     def retire(self):
+         return P.retire(self.out, self.archive, W=W, owner=self.uid, top=self.top)
+@@ -77,8 +82,14 @@
+         e = TA.fresh_a1(TA.utcnow() - TA.datetime.timedelta(hours=1), root=FX2['outputRoot']); e['N'] = str(N2)
+         self.initial = json.dumps(e).encode(); self.ini = json.loads(self.initial)
+         self.cfg.update(N=N2, outputRoot=FX2['outputRoot'], a1InitialSha256=sha(self.initial))
+-        cap = self.d / f'capture-{self.gen}.json'; cap.write_bytes(json.dumps({'capture': 'test', 'initial': sha(self.initial)}).encode())
+-        self.cfg['reanchor'].update(a1Capture=str(cap), a1CaptureSha256=sha(cap.read_bytes()))
++        self.cfg['reanchor'].update(a1Capture=str(self.d / f'capture-{self.gen}'), a1CaptureSha256='c1' * 32)   # a capture OUT dir
++
++    def reanchor_config(self, prev_n, legacy=None):
++        """Explicit: a watermark store always; legacyNoWatermark only when the store holds no accepted entry (or forced)."""
++        ra = {'predecessorN': prev_n, 'watermarkStore': str(self.store)}
++        if (not R.watermark_entries(self.store)) if legacy is None else legacy:
++            ra['legacyNoWatermark'] = True
++        self.cfg['reanchor'] = ra
+ 
+     def reanchor_pipeline(self, newer=False):
+         """R-A on the SAME datadir: A0 rollback + retire, fresh A1, A2, A3 unwind, A4 full rebuild, bytecodes, release (new workdir)."""
+@@ -86,7 +97,7 @@
+         self.assertEqual(self.rollback('crash: the consumed launch cannot restart')['event'], 'rolled-back')
+         self.assertEqual(self.retire()['retired'], prev)
+         self.gen += 1; self.cfg['workdir'] = str(self.d / f'work-{self.gen}')
+-        self.cfg['reanchor'] = {'predecessorN': prev_n}
++        self.reanchor_config(prev_n)
+         if newer:
+             self.newer_initial()
+         self.fresh_recheck()
+@@ -101,7 +112,7 @@
+         return prev
+ 
+     def produce_successor(self, prev, **kw):
+-        return self.produce(predecessor=prev, archive=self.archive, W=W, **kw)
++        return self.produce(predecessor=prev, archive=self.archive, W=W, watermark=self.store, **kw)
+ 
+     # ==== end to end ====================================================================================================
+     def test_crash_then_same_anchor_reanchor_recovers_exactly_once_twice(self):
+@@ -131,7 +142,7 @@
+         self.launched(); self.assertEqual(self.start(), 'exec')
+         self.node_ran(extra_headers=[(N2, FX2['header'])])
+         self.rollback('crash'); self.retire()
+-        self.cfg['workdir'] = str(self.d / 'work-1'); self.cfg['reanchor'] = {'predecessorN': N1}
++        self.cfg['workdir'] = str(self.d / 'work-1'); self.reanchor_config(N1)
+         self.newer_initial(); self.fresh_recheck()
+         rc, rec = self.run_step('a2')                                         # the REAL (None) verifier
+         self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith('a1_capture_pending:'), rec['refused'])
+@@ -140,8 +151,8 @@
+ 
+     def test_newer_anchor_pipeline_with_a_test_only_capture_verifier(self):
+         """TEST-ONLY verifier: it trusts the test's capture record. Proves pipeline consistency for N2 > N1, NOT capture binding."""
+-        R.A1_CAPTURE_VERIFIER = lambda rec, ini: {'initialSha256': sha(ini), 'N': json.loads(ini)['N'], 'game': json.loads(ini)['game'],
+-                                                  'outputRoot': json.loads(ini)['outputRoot']}
++        R.A1_CAPTURE_VERIFIER = lambda cap, ini: {'captureSha256': 'c1' * 32, 'initialSha256': sha(ini), 'N': json.loads(ini)['N'],
++                                                  'game': json.loads(ini)['game'], 'outputRoot': json.loads(ini)['outputRoot']}
+         self.launched(); self.assertEqual(self.start(), 'exec'); first = self.launch['anchor']
+         self.node_ran(extra_headers=[(N2, FX2['header'])])
+         prev = self.reanchor_pipeline(newer=True)
+@@ -149,7 +160,8 @@
+         self.assertEqual(self.launch['anchor'], f'{N2}:{FX2["blockHash"]}'); self.assertEqual(self.launch['predecessor']['anchor'], first)
+         self.arm(); self.assertEqual(self.start(), 'exec')
+         self.assertEqual(self.execs()[-1][2][-2:], ['--bootstrap.anchor', f'{N2}:{FX2["blockHash"]}'])
+-        R.A1_CAPTURE_VERIFIER = lambda rec, ini: {'initialSha256': sha(ini), 'N': str(N2 + 1), 'game': TA.GAME, 'outputRoot': FX2['outputRoot']}
++        R.A1_CAPTURE_VERIFIER = lambda cap, ini: {'captureSha256': 'c1' * 32, 'initialSha256': sha(ini), 'N': str(N2 + 1), 'game': TA.GAME,
++                                                  'outputRoot': FX2['outputRoot']}
+         self.refused(lambda: P._initial_ok(A, A.load_config(self.d / 'cfg.json'), {'initialSha256': self.cfg['a1InitialSha256']}), 'a1')
+ 
+     # ==== lineage (adversarial), through the real call path after a valid recovery =====================================
+@@ -227,17 +239,21 @@
+ 
+     def test_bounds_are_derived_never_widened(self):
+         self.bad_config(self.cfg_with(N=R.SNAPSHOT_HEAD))                          # first bootstrap: the static bound is unchanged
+-        ok = A.load_config(self.cfg_with(N=R.SNAPSHOT_HEAD + 10, reanchor={'predecessorN': N1}))
++        wm = str(self.store)
++        ok = A.load_config(self.cfg_with(N=R.SNAPSHOT_HEAD + 10, reanchor={'predecessorN': N1, 'watermarkStore': wm}))
+         self.assertEqual(ok['N'], R.SNAPSHOT_HEAD + 10, 'a re-anchor has no static upper bound ...')
+         self.bad_config(self.cfg_with(N=N1 - 1, reanchor={'predecessorN': N1}))   # backward
+         self.bad_config(self.cfg_with(N=N1, reanchor={'predecessorN': R.STATE_FLOOR - 1}))
+         self.bad_config(self.cfg_with(reanchor={'predecessorN': N1, 'extra': 1}))
+         self.bad_config(self.cfg_with(reanchor={'predecessorN': N1, 'a1Capture': '/x'}))
+-        self.bad_config(self.cfg_with(reanchor={'predecessorN': True}))
++        self.bad_config(self.cfg_with(reanchor={'predecessorN': True, 'watermarkStore': wm}))
++        self.bad_config(self.cfg_with(reanchor={'predecessorN': N1}))                          # r2: the watermark store is required
++        self.bad_config(self.cfg_with(reanchor={'predecessorN': N1, 'watermarkStore': 'rel'}))
++        self.bad_config(self.cfg_with(reanchor={'predecessorN': N1, 'watermarkStore': wm, 'legacyNoWatermark': 1}))
+         c = dict(self.cfg); [c.pop(k) for k in R.A1_RECHECK_KEYS]; c.update(a1Mode='fresh-initial', reanchor={'predecessorN': N1})
+         p = self.d / 'cfg-fresh.json'; p.write_text(json.dumps(c)); self.bad_config(p)
+         # ... its upper bound is the STOPPED DB: every stage must hold N (A1 isolated here so only the DB bound is exercised)
+-        c = A.load_config(self.cfg_with(N=R.SNAPSHOT_HEAD + 10, reanchor={'predecessorN': N1})); w = A.workdir(c)
++        c = A.load_config(self.cfg_with(N=R.SNAPSHOT_HEAD + 10, reanchor={'predecessorN': N1, 'watermarkStore': wm})); w = A.workdir(c)
+         with patch.object(A, 'gate_a1', return_value={}):
+             with self.assertRaisesRegex(A.Refused, '^below_anchor'):
+                 A.step_plan(c, A.Base(c, [], w), w)
+@@ -257,27 +273,164 @@
+             A.initial_pin(other)                                                     # first bootstrap: source pin only
+         with self.assertRaisesRegex(A.Refused, '^a1_initial_pin'):
+             A.initial_pin(dict(other, reanchor={'predecessorN': N1}))                # re-anchor without a capture record
+-        cap = self.d / 'cap.json'; cap.write_bytes(b'{"capture": "x"}')
+-        ra = {'predecessorN': N1, 'a1Capture': str(cap), 'a1CaptureSha256': '00' * 32}
+-        with self.assertRaisesRegex(A.Refused, '^a1_capture_sha'):
+-            A.initial_pin(dict(other, reanchor=ra))
+-        ra['a1CaptureSha256'] = sha(cap.read_bytes())
++        ra = {'predecessorN': N1, 'watermarkStore': str(self.store), 'a1Capture': str(self.d / 'capture-x'), 'a1CaptureSha256': 'c1' * 32}
+         with self.assertRaisesRegex(A.Refused, '^a1_capture_pending: HOLD'):
+-            A.initial_pin(dict(other, reanchor=ra))                                  # the REAL interface state
+-        cap.chmod(0o666)
+-        with self.assertRaisesRegex(A.Refused, '^untrusted_file'):
+-            A.initial_pin(dict(other, reanchor=ra))
+-        cap.chmod(0o644)
++            A.initial_pin(dict(other, reanchor=ra))                                  # the REAL interface state (50cf r2 not final)
+         real_ini = sha(self.initial); bound = dict(base, a1InitialSha256=real_ini, reanchor=ra)
++        good = lambda cap, ini: {'captureSha256': 'c1' * 32, 'initialSha256': sha(ini), 'N': str(base['N']), 'game': base['game'], 'outputRoot': base['outputRoot']}
+         with patch.object(A, 'A1_INITIAL_SHA256', '88' * 32):                       # (so the receipt is NOT the source pin)
+-            R.A1_CAPTURE_VERIFIER = lambda rec, ini: {'initialSha256': sha(ini), 'N': str(base['N']), 'game': base['game'], 'outputRoot': base['outputRoot']}
++            R.A1_CAPTURE_VERIFIER = lambda cap, ini: good(cap, ini) if cap == ra['a1Capture'] else None
+             self.assertEqual(A.initial_pin(bound), 'capture-bound')                  # TEST-ONLY verifier
+-            R.A1_CAPTURE_VERIFIER = lambda rec, ini: {'initialSha256': sha(ini), 'N': str(base['N'] + 1), 'game': base['game'], 'outputRoot': base['outputRoot']}
+-            with self.assertRaisesRegex(A.Refused, '^a1_capture_binding'):
+-                A.initial_pin(bound)
++            for wrong in ({'N': str(base['N'] + 1)}, {'captureSha256': 'c2' * 32}):
++                R.A1_CAPTURE_VERIFIER = lambda cap, ini, wrong=wrong: dict(good(cap, ini), **wrong)
++                with self.subTest(wrong), self.assertRaisesRegex(A.Refused, '^a1_capture_binding'):
++                    A.initial_pin(bound)
+             with self.assertRaisesRegex(A.Refused, '^a1_initial_pin'):
+                 A.initial_pin(dict(bound, a1InitialSha256='99' * 32))                # bytes are not the configured receipt
+ 
++    # ==== r2: the persisted authenticated-finality watermark ==========================================================
++    def crashed_and_retired(self, extra_headers=()):
++        """The first launch consumed, the node ran and crashed; rolled back and retired; a new workdir and a fresh recheck."""
++        self.launched(); self.assertEqual(self.start(), 'exec'); self.node_ran(extra_headers=extra_headers)
++        self.rollback('crash'); prev = self.retire()['retired']
++        self.gen += 1; self.cfg['workdir'] = str(self.d / f'work-{self.gen}'); self.fresh_recheck()
++        return prev
++
++    def wm_put(self, number, block_hash, kind='finality-proof', ref='ab' * 32):
++        """TEST-ONLY stand-in for a FUTURE reviewed watermark writer (record_finality is HOLD): the real durable append."""
++        if not self.store.exists():
++            self.store.mkdir(mode=0o755)
++        return W.watermark_append(self.store, self.uid, W.watermark_entries(self.store, self.uid, self.top), number, block_hash, kind, ref,
++                                  'now', self.top)
++
++    def step_refused(self, step, code, head=HEAD):
++        rc, rec = self.run_step(step); self.assertEqual(rc, 1, rec); self.assertTrue(rec['refused'].startswith(code + ':'), rec['refused'])
++        self.assertEqual(self.st()['cp']['execution'], head, 'the refusal changed nothing'); return rec
++
++    def test_missing_watermark_needs_explicit_legacy_and_legacy_only_without_one(self):
++        self.crashed_and_retired()
++        self.cfg['reanchor'] = {'predecessorN': N1, 'watermarkStore': str(self.store)}
++        self.step_refused('a2', 'watermark_missing')                                 # missing authority: never implicit
++        self.assertFalse((pathlib.Path(self.cfg['workdir']) / 'a2-authenticated.json').exists())
++        self.wm_put(N1, TA.FX['blockHash'], kind='launch-anchor')
++        self.cfg['reanchor']['legacyNoWatermark'] = True
++        self.step_refused('a2', 'watermark_legacy')                                  # legacy is only for a store with no entry
++        del self.cfg['reanchor']['legacyNoWatermark']
++        rc, rec = self.run_step('a2'); self.assertEqual(rc, 0, rec)                  # anchor == watermark height, same block
++        self.refused(lambda: P.record_finality(), 'hold_finality')                   # no finality-proof writer exists (HOLD)
++
++    def test_anchor_below_or_conflicting_with_the_watermark_refuses_before_any_mutation(self):
++        self.crashed_and_retired(extra_headers=[(N1 - 7, TA.FX['header'])])
++        self.cfg['reanchor'] = {'predecessorN': N1, 'watermarkStore': str(self.store)}
++        cases = [((N1 + 100, '0x' + 'cd' * 32, 'finality-proof'), 'watermark_below'),   # a later accepted finalized guarantee
++                 ((N1, '0x' + 'ee' * 32, 'launch-anchor'), 'watermark_conflict'),       # same height, another block
++                 ((N1 - 7, '0x' + 'ef' * 32, 'finality-proof'), 'watermark_conflict')]  # the DB holds another block there
++        for (n, h, kind), code in cases:
++            with self.subTest(code=code, n=n):
++                shutil.rmtree(self.store, ignore_errors=True); self.wm_put(n, h, kind)
++                self.step_refused('a2', code)
++                self.assertFalse((pathlib.Path(self.cfg['workdir']) / 'a2-authenticated.json').exists())
++        shutil.rmtree(self.store); self.wm_put(N1 - 7, TA.FX['blockHash'])             # the DB's block at the watermark: accepted
++        for st in ('a2', 'a3'):
++            rc, rec = self.run_step(st); self.assertEqual(rc, 0, (st, rec))
++
++    def full_recovery_with_seed(self):
++        """A recovery over a store seeded with an accepted entry at N1-7 (the DB's block there); returns after produce."""
++        prev = self.crashed_and_retired(extra_headers=[(N1 - 7, TA.FX['header'])])
++        self.wm_put(N1 - 7, TA.FX['blockHash']); self.reanchor_config(N1)
++        self.assertNotIn('legacyNoWatermark', self.cfg['reanchor'])
++        for st in ('a2', 'a3', 'a4'):
++            rc, rec = self.run_step(st); self.assertEqual(rc, 0, (st, rec))
++        self.checker(dict(TA.V2_GOOD, datadir=self.cfg['datadir'])); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']
++        rc, rec = self.run_step('bytecodes'); self.assertEqual(rc, 0, rec)
++        return prev
++
++    def test_watermark_accepted_during_downtime_refuses_release_arm_and_start(self):
++        prev = self.full_recovery_with_seed()
++        with self.assertRaises(FileNotFoundError):                                   # downtime: no launch directory: the wrapper
++            self.start()                                                              # exits non-zero before any gate
++        later = self.store / '000002.json'
++        self.wm_put(N1 + 50, '0x' + 'cd' * 32)                                       # accepted while Base was down
++        self.step_refused('release', 'watermark_below', head=N1); later.unlink()     # (A3 already unwound to N1)
++        rc, rec = self.run_step('release'); self.assertEqual(rc, 0, rec)
++        self.produce_successor(prev); self.assertEqual(self.launch['watermark']['number'], N1 - 7)
++        self.wm_put(N1 + 50, '0x' + 'cd' * 32)
++        self.refused(self.arm, 'watermark'); later.unlink()                         # changed since produce: re-produce
++        self.assertFalse((self.out / 'journal').exists())
++        self.arm(); self.assertEqual([e['kind'] for _, e in W.watermark_entries(self.store, self.uid, self.top)], ['finality-proof', 'launch-anchor'])
++        self.wm_put(N1 + 50, '0x' + 'cd' * 32)                                       # accepted after arm, before start
++        self.assertRegex(self.start(), "not this launch's anchor"); (self.store / '000003.json').unlink()
++        self.assertEqual(self.states(), ['armed'])
++        self.assertEqual(self.start(), 'exec')
++
++    def test_watermark_tamper_refuses_in_harness_and_wrapper_before_consuming(self):
++        prev = self.full_recovery_with_seed()
++        rc, rec = self.run_step('release'); self.assertEqual(rc, 0, rec); self.produce_successor(prev); self.arm(); before = self.journal()
++        s1, s2 = self.store / '000001.json', self.store / '000002.json'; b1, b2 = s1.read_bytes(), s2.read_bytes()
++
++        def edit():
++            d = json.loads(b1); d['at'] = 'edited'; s1.write_bytes(json.dumps(d).encode())
++        def regress():
++            prev_sha = sha(b2); (self.store / '000003.json').write_bytes(json.dumps({'format': W.WATERMARK_FORMAT, 'seq': 3, 'prevSha256': prev_sha,
++                'number': N1 - 100, 'blockHash': '0x' + '12' * 32, 'kind': 'finality-proof', 'ref': 'ab' * 32, 'at': 'now'}).encode())
++        def symlink():
++            self.store.rename(self.d / 'real-store'); self.store.symlink_to(self.d / 'real-store')
++        def restore():
++            if self.store.is_symlink():
++                self.store.unlink(); (self.d / 'real-store').rename(self.store)
++            for n in os.listdir(self.store):
++                if n not in ('000001.json', '000002.json'):
++                    os.unlink(self.store / n)
++            s1.write_bytes(b1); s1.chmod(0o644)
++            if not s2.exists():
++                s2.write_bytes(b2)
++        cases = [(edit, 'watermark: chain broken at 000002', ('watermark_tamper',)),
++                 (lambda: s2.rename(self.store / '000003.json'), 'watermark: unexpected entry 000003', ('watermark_tamper',)),
++                 (lambda: s1.chmod(0o666), 'non-writable', ('untrusted_file', 'watermark_tamper')),
++                 (symlink, 'is a symlink', ('watermark_tamper',)),
++                 (regress, 'watermark: regresses or conflicts at 000003', ('watermark_tamper',)),
++                 (lambda: s2.unlink(), "not this launch's anchor", None)]              # truncation: the harness sees a valid chain
++        for do, why, harness_codes in cases:
++            with self.subTest(why):
++                do()
++                self.assertRegex(self.start(), why)
++                if harness_codes:
++                    with self.assertRaises(A.Refused) as e:
++                        R.watermark_entries(self.store)
++                    self.assertTrue(str(e.exception).split(':')[0] in harness_codes, str(e.exception))
++                restore()
++        self.assertEqual(self.journal(), before); self.assertEqual(self.start(), 'exec')
++
++    def test_crash_points_retire_produce_arm_fail_closed_and_rearm_is_idempotent(self):
++        prev = self.crashed_and_retired(); self.reanchor_config(N1)
++        with self.assertRaises(FileNotFoundError):                                   # retired, nothing produced: the wrapper exits
++            self.start()                                                              # non-zero before any gate (fail closed)
++        for st in ('a2', 'a3', 'a4'):
++            rc, rec = self.run_step(st); self.assertEqual(rc, 0, (st, rec))
++        self.checker(dict(TA.V2_GOOD, datadir=self.cfg['datadir'])); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']
++        for st in ('bytecodes', 'release'):
++            rc, rec = self.run_step(st); self.assertEqual(rc, 0, (st, rec))
++        self.produce_successor(prev)
++        self.assertRegex(self.start(), 'launch lock .* unavailable')                 # produced, not armed
++        with patch.object(P, '_append', side_effect=OSError('simulated crash after the watermark record')):
++            with self.assertRaises(OSError):
++                self.arm()
++        self.assertEqual(len(W.watermark_entries(self.store, self.uid, self.top)), 1)
++        self.assertRegex(self.start(), 'no launch journal')                          # recorded, not armed: still no start
++        self.assertEqual(self.arm()['event'], 'armed')                               # re-arm: the watermark record is idempotent
++        self.assertEqual(len(W.watermark_entries(self.store, self.uid, self.top)), 1)
++        self.assertEqual(self.start(), 'exec'); self.assertRegex(self.start(), 'already consumed')
++
++    def test_gate_download_on_the_reused_db(self):
++        """The ORIGINAL receipt still qualifies the reused datadir's ORIGIN (A2 passes); a replaced datadir or a non-empty marker refuses."""
++        self.crashed_and_retired(); self.reanchor_config(N1)
++        rc, rec = self.run_step('a2'); self.assertEqual(rc, 0, rec)
++        dd = pathlib.Path(self.cfg['datadir']); os.rename(dd, self.d / 'datadir-old'); shutil.copytree(self.d / 'datadir-old', dd)
++        self.step_refused('a3', 'receipt_datadir')                                   # same bytes, another directory (dev/ino)
++        shutil.rmtree(dd); os.rename(self.d / 'datadir-old', dd)
++        pathlib.Path(self.cfg['snapshotMarker']).write_text('x')
++        self.step_refused('a3', 'marker')
++
+ 
+ if __name__ == '__main__':
+     unittest.main(verbosity=2)
