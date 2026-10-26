@@ -1,0 +1,63 @@
+TAP version 13
+# Subtest: 1. lost release answer + restart: the id stays HELD (chain module and the real Host), then the delayed landing settles RELEASED
+ok 1 - 1. lost release answer + restart: the id stays HELD (chain module and the real Host), then the delayed landing settles RELEASED
+  ---
+  duration_ms: 3028.881335
+  type: 'test'
+  ...
+# Subtest: 2/3. fences are not success: a never-landing release settles 'expired'; one whose nonce another operation consumed settles 'consumed'
+ok 2 - 2/3. fences are not success: a never-landing release settles 'expired'; one whose nonce another operation consumed settles 'consumed'
+  ---
+  duration_ms: 4352.850041
+  type: 'test'
+  ...
+# Subtest: 4. the journal cannot be written: nothing is signed and no relay sees a release
+not ok 3 - 4. the journal cannot be written: nothing is signed and no relay sees a release
+  ---
+  duration_ms: 77.622417
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/remaining-composition-triage-stage/runs/20261026T035918Z-821032/tree/test/windows-release-journal.test.mjs:158:1'
+  failureType: 'testCodeFailure'
+  error: "Missing expected exception: the fixture's read-only directory is writable here (CAP_DAC_OVERRIDE?): the permission negative cannot be tested"
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/remaining-composition-triage-stage/runs/20261026T035918Z-821032/tree/test/windows-release-journal.test.mjs:169:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# [lease-gas] release journal /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/remaining-composition-triage-stage/runs/20261026T035918Z-821032/tmp/windows-release-journal-u6AR3y/j5.json: unreadable (Unterminated string in JSON at position 39 (line 1 column 40)). It may hold an unresolved sponsored release: NO lease is claimed, renewed or released here and the file is not overwritten until an operator resolves it
+# Subtest: 5. a corrupt journal: every lease operation is refused and the file is never overwritten
+ok 4 - 5. a corrupt journal: every lease operation is refused and the file is never overwritten
+  ---
+  duration_ms: 26.159206
+  type: 'test'
+  ...
+# Subtest: 6. operator rotation: another key's higher nonce never settles a pending release; rotating back stays HELD; the late landing settles it
+ok 5 - 6. operator rotation: another key's higher nonce never settles a pending release; rotating back stays HELD; the late landing settles it
+  ---
+  duration_ms: 2671.524844
+  type: 'test'
+  ...
+# Subtest: 7. record rotation: a pending release signed under another reserve is not fenced by its nonce here; only its deadline settles it
+ok 6 - 7. record rotation: a pending release signed under another reserve is not fenced by its nonce here; only its deadline settles it
+  ---
+  duration_ms: 2223.294631
+  type: 'test'
+  ...
+# Subtest: 8. an entry whose identity was never recorded (an older journal) is HELD, never guessed from the current key
+ok 7 - 8. an entry whose identity was never recorded (an older journal) is HELD, never guessed from the current key
+  ---
+  duration_ms: 2133.756331
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 14692.117348

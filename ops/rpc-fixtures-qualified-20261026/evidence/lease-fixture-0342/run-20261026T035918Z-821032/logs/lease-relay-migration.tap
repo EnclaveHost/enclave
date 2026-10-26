@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: the chain module's four lease-gas imports are exported by this tree's self-contained runtime bundle
+ok 1 - the chain module's four lease-gas imports are exported by this tree's self-contained runtime bundle
+  ---
+  duration_ms: 800.940362
+  type: 'test'
+  ...
+# Subtest: the migration's node settings load in the runtime bundle as local-first + the alternate; the previous ones as before; tampering refuses
+ok 2 - the migration's node settings load in the runtime bundle as local-first + the alternate; the previous ones as before; tampering refuses
+  ---
+  duration_ms: 271.573604
+  type: 'test'
+  ...
+# Subtest: before the move: settings naming the source first relay through it; no operator ETH
+ok 3 - before the move: settings naming the source first relay through it; no operator ETH
+  ---
+  duration_ms: 329.288604
+  type: 'test'
+  ...
+# Subtest: the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central
+ok 4 - the source's unresolved send: a broadcast lost in the mempool leaves {nonce, raw, hash} on the source; the host fails over to eu-central
+  ---
+  duration_ms: 2187.788015
+  type: 'test'
+  ...
+# Subtest: the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key
+ok 5 - the migration gate: refuses an absent journal, another key's record, a consumed nonce and a source still serving; passes the moved key
+  ---
+  duration_ms: 1068.23005
+  type: 'test'
+  ...
+# Subtest: the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH
+ok 6 - the moved key on the target: same payee, the journal's bytes re-broadcast before any new send, local FIRST with the DO relays absent, no operator ETH
+  ---
+  duration_ms: 579.276754
+  type: 'test'
+  ...
+# Subtest: the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again
+ok 7 - the local relay down: the approved secondary (eu-central) serves; restarted on its own key and journal it is first again
+  ---
+  duration_ms: 613.830969
+  type: 'test'
+  ...
+# Subtest: settings without a local relay (a rollback of the settings) relay through the configured relays as before; the source is gone: the alternate serves
+ok 8 - settings without a local relay (a rollback of the settings) relay through the configured relays as before; the source is gone: the alternate serves
+  ---
+  duration_ms: 140.511029
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6393.039941

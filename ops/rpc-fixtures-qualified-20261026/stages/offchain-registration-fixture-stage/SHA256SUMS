@@ -1,0 +1,3 @@
+a373deb0e588f7707cbb26f4b0bdb73119d5cb35ecf5d90111fe928293b9c883  SOURCE-PINS.txt
+d970a0e92f1f62610c6ffc832cdc2a3982af6b68d9f940acfad5ceb3f33cac3c  jobs/root-offchain-registration-fixture.sh
+942b4ceab66ee74df0a33d00f4c07c1e5be665c5812fbd8b165395d77584c50d  patches/offchain-heartbeat-registration-adoption.patch

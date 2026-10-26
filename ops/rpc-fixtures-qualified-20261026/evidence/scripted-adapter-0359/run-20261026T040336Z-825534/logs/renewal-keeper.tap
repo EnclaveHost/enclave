@@ -1,0 +1,106 @@
+TAP version 13
+# Subtest: the outage: a pass's renew meets a lease-gas quorum failure; the keeper renews inside the window after the RPCs recover
+ok 1 - the outage: a pass's renew meets a lease-gas quorum failure; the keeper renews inside the window after the RPCs recover
+  ---
+  duration_ms: 502.750193
+  type: 'test'
+  ...
+# Subtest: a 7-minute pass that never reaches the window: renewed once inside it, never again on a lagging read
+ok 2 - a 7-minute pass that never reaches the window: renewed once inside it, never again on a lagging read
+  ---
+  duration_ms: 222.952559
+  type: 'test'
+  ...
+# Subtest: the pass and the keeper on one due lease: ONE renewal, never two sends in flight (either order)
+ok 3 - the pass and the keeper on one due lease: ONE renewal, never two sends in flight (either order)
+  ---
+  duration_ms: 963.909188
+  type: 'test'
+  ...
+# Subtest: REVIEW 1: an owner's version edit not yet served is never renewed by the keeper (paused reconcile, failed adoption, failed edit)
+ok 4 - REVIEW 1: an owner's version edit not yet served is never renewed by the keeper (paused reconcile, failed adoption, failed edit)
+  ---
+  duration_ms: 156.602957
+  type: 'test'
+  ...
+# Subtest: READINESS: a ready row also means reconciled and keeper-eligible for exactly this served lease and identity
+ok 5 - READINESS: a ready row also means reconciled and keeper-eligible for exactly this served lease and identity
+  ---
+  duration_ms: 1400.554695
+  type: 'test'
+  ...
+# Subtest: REVIEW 2: a hold, stop, ban or suspension arriving during the deferred lead read or while queued voids the renewal
+ok 6 - REVIEW 2: a hold, stop, ban or suspension arriving during the deferred lead read or while queued voids the renewal
+  ---
+  duration_ms: 2443.157917
+  type: 'test'
+  ...
+# Subtest: REVIEW 3: a renewal that hangs and then times out is never overlapped; it is retried after its pause, once
+ok 7 - REVIEW 3: a renewal that hangs and then times out is never overlapped; it is retried after its pause, once
+  ---
+  duration_ms: 1652.040482
+  type: 'test'
+  ...
+# Subtest: never renewed by the keeper: suspension, wallet ban or unknown, transfer, stop, private, another runner, a wallet hold, a pending release
+ok 8 - never renewed by the keeper: suspension, wallet ban or unknown, transfer, stop, private, another runner, a wallet hold, a pending release
+  ---
+  duration_ms: 412.59684
+  type: 'test'
+  ...
+# Subtest: an expired lease: the keeper never renews or claims it; the pass retires it; quorum failures retry boundedly, never the operator's ETH
+ok 9 - an expired lease: the keeper never renews or claims it; the pass retires it; quorum failures retry boundedly, never the operator's ETH
+  ---
+  duration_ms: 37.542455
+  type: 'test'
+  ...
+# Subtest: the window's lead is read once per lease per 5 minutes, not on every pass
+ok 10 - the window's lead is read once per lease per 5 minutes, not on every pass
+  ---
+  duration_ms: 137.454468
+  type: 'test'
+  ...
+# Subtest: a new process renews nothing before its own pass has served the row
+ok 11 - a new process renews nothing before its own pass has served the row
+  ---
+  duration_ms: 17.228994
+  type: 'test'
+  ...
+# Subtest: SERVING FIRST: a slow queued-claim sweep cannot delay an existing served app's readiness or its keeper renewal
+ok 12 - SERVING FIRST: a slow queued-claim sweep cannot delay an existing served app's readiness or its keeper renewal
+  ---
+  duration_ms: 13.599873
+  type: 'test'
+  ...
+# Subtest: SERVING FIRST: what the sweep resumes is reconciled in the same pass; a tracked re-claim waits until after the sweep
+ok 13 - SERVING FIRST: what the sweep resumes is reconciled in the same pass; a tracked re-claim waits until after the sweep
+  ---
+  duration_ms: 27.111177
+  type: 'test'
+  ...
+# Subtest: SERVING FIRST: a wallet refusal or unknown, a transfer and a suspension still block while the sweep is slow
+ok 14 - SERVING FIRST: a wallet refusal or unknown, a transfer and a suspension still block while the sweep is slow
+  ---
+  duration_ms: 67.221265
+  type: 'test'
+  ...
+# Subtest: F1: an own lease retired in phase 1 and re-claimed by the sweep in the same pass is reconciled in phase 2 (ready, keeper-eligible)
+ok 15 - F1: an own lease retired in phase 1 and re-claimed by the sweep in the same pass is reconciled in phase 2 (ready, keeper-eligible)
+  ---
+  duration_ms: 30.289453
+  type: 'test'
+  ...
+# Subtest: F3: ensureApp throwing for one app fails only that app's pass: the other reads ready, the sweep runs, it is neither ready nor renewed
+ok 16 - F3: ensureApp throwing for one app fails only that app's pass: the other reads ready, the sweep runs, it is neither ready nor renewed
+  ---
+  duration_ms: 23.117501
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8456.715326

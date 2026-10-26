@@ -1,0 +1,44 @@
+[queue] START available=23025MiB required=19200MiB cap=2560MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (no IPv4 route)
+[ok] r7 stage == SHA256SUMS
+[ok] r6 stage unchanged (frozen)
+[ok] r5 stage unchanged (frozen)
+[ok] r2 inputs unchanged (pinned)
+[ok] r6 run evidence == R6-RUN-RECEIPT.sha256 (28 files)
+[ok] root's r6 log/rc pinned
+[ok] r6: comparator 23/23 + EQUAL 426a71358fd9773b; its only failure the runner clean check
+[ok] dependency lock + noble pinned
+cli/independent.mjs: FAILED
+mcp/independent.mjs: FAILED
+mcp/independent-secrets.mjs: FAILED
+[ok] r6 trees: exact expected status, symlink, sources, patch, artifacts, cache
+cli/independent.mjs: FAILED
+mcp/independent.mjs: FAILED
+mcp/independent-secrets.mjs: FAILED
+[ok] private copies identical to r6's trees (r6 run untouched)
+[ok] forge on PATH is the pinned forge (lease-gas-forge.mjs runtime build)
+[ok] anvil + openssl present
+v22.23.3
+[ok] candidate syntax
+  candidate-mcp-independent-verifier.tap: node rc 0, {'tests': 9, 'pass': 9, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-mcp-independent-unit.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-mcp-independent.tap: node rc 0, {'tests': 13, 'pass': 13, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  candidate-cli-combined-independent.tap: node rc 1, {'tests': 4, 'pass': 3, 'fail': 1, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  FAIL
+  candidate-chain-authority.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-mcp-independent-unit.tap: node rc 0, {'tests': 10, 'pass': 10, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-mcp-independent.tap: node rc 0, {'tests': 13, 'pass': 13, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  PASS
+  base-cli-combined-independent.tap: node rc 1, {'tests': 4, 'pass': 3, 'fail': 1, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+  FAIL
+  base ignored-entry delta: 0 lines (recorded in IGNORED-DELTA-base.txt)
+  cand ignored-entry delta: 0 lines (recorded in IGNORED-DELTA-cand.txt)
+RESULT: FAIL
+[memory-guard] exit=1 peakTreeRssMiB=692 minHostAvailableMiB=21631
+[memory-guard] at peak: solc-0.8.35:460 node:93 node:57 forge:52 anvil:24 bash:4 timeout:2
+[queue] EXIT 1

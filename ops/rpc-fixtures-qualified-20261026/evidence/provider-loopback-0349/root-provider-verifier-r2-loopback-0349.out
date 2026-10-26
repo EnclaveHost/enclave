@@ -1,0 +1,22 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] START available=21939MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/pre-attested-chain-verifier.tap 1 {'tests': 15, 'pass': 14, 'fail': 1, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/attested-chain-verifier.tap 0 {'tests': 15, 'pass': 15, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/attested-route-composition.tap 0 {'tests': 7, 'pass': 7, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/metal-measured-control.tap 0 {'tests': 15, 'pass': 15, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/attested-paid-provider.tap 0 {'tests': 11, 'pass': 11, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/attested-provider-collateral.tap 0 {'tests': 8, 'pass': 8, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z/host-services-agent-verifier.tap 0 {'tests': 5, 'pass': 5, 'fail': 0, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+OK all checks; outputs in /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T035640Z; scratch /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/scratch-20261026T035640Z (delete when reviewed)
+[memory-guard] exit=0 peakTreeRssMiB=585 minHostAvailableMiB=21768
+[memory-guard] at peak: node:192 esbuild:179 node:117 node:62 anvil:29 bash:4 timeout:2
+[queue] EXIT 0

@@ -1,0 +1,24 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=22946MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+reused unpatched: final 0/1 (stale export) a446a6dd; route 16/16 907c8240
+{
+ "ok": true,
+ "rc": 0,
+ "tests": 16,
+ "pass": 16,
+ "fail": 0,
+ "skipped": 0,
+ "todo": 0,
+ "cancelled": 0,
+ "expected": "16/16, nothing skipped"
+}
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/scripted-lease-adapter-fix-stage/runs/20261026T040336Z-825534
+## scripted-adapter rc=0
+[memory-guard] exit=0 peakTreeRssMiB=185 minHostAvailableMiB=22443
+[memory-guard] at peak: node:114 node:62 bash:4 timeout:2 bash:2
+[queue] EXIT 0

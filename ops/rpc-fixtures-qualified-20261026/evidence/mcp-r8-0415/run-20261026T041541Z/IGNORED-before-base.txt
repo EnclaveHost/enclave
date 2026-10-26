@@ -1,0 +1,4 @@
+ M test/cli-combined-independent.test.mjs
+!! contracts/foundry/cache/
+!! contracts/foundry/out/
+?? node_modules
