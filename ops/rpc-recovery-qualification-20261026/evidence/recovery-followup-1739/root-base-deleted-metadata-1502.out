@@ -1,0 +1,29 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=30693MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+  "readonly": true,
+  "disk": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+  "commands": {
+    "superblock": {
+      "command": "stats",
+      "returncode": 0,
+      "elapsed": 14.389007712015882
+    },
+    "root": {
+      "command": "ls -l /",
+      "returncode": 0,
+      "elapsed": 0.21428441512398422
+    },
+    "deleted": {
+      "command": "lsdel",
+      "returncode": 0,
+      "elapsed": 0.21426461497321725
+    }
+  },
+  "unmountRc": 0,
+  "diskUnchanged": true
+}
+[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=30683
+[memory-guard] at peak: python3:21 qemu-nbd:17 nbdfuse:10 debugfs:6 timeout:2
+[queue] EXIT 0

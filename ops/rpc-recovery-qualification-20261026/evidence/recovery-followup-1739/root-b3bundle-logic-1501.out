@@ -1,0 +1,10 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=30626MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+PASS b3bundle-logic (NOT a qualification) rc 0 ran ['14'] final 'OK'
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/offline-b3sum-bundle-stage/r1/logs/tests-20261026T173759Z-2095408
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

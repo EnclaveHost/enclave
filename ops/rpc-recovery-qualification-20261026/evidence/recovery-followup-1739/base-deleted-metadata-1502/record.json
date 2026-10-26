@@ -1,0 +1,23 @@
+{
+  "readonly": true,
+  "disk": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+  "commands": {
+    "superblock": {
+      "command": "stats",
+      "returncode": 0,
+      "elapsed": 14.389007712015882
+    },
+    "root": {
+      "command": "ls -l /",
+      "returncode": 0,
+      "elapsed": 0.21428441512398422
+    },
+    "deleted": {
+      "command": "lsdel",
+      "returncode": 0,
+      "elapsed": 0.21426461497321725
+    }
+  },
+  "unmountRc": 0,
+  "diskUnchanged": true
+}

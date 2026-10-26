@@ -1,0 +1,15 @@
+{
+  "source": "/vm/enclave-volumes/.src/fable-fusion-27b-mtp-gguf/Fable-Fusion-27B-MTP-Q5_K_M.gguf",
+  "destination": "/mnt/usb/enclave-cold-model-sources/fable-fusion-27b-mtp-gguf/Fable-Fusion-27B-MTP-Q5_K_M.gguf",
+  "verifiedCopyReceipt": "logs/cold-model-copy-1497.json",
+  "sha256": "c0f73caef72a1f546092f93f0d8db6f4939ad121ac5e6e3665f0829657b86d7d",
+  "bytes": 21182275040,
+  "ntfsMtimePrecisionNs": 100,
+  "sourceMtimeNs": 1785178765544760044,
+  "destinationMtimeNs": 1785178765544760000,
+  "originalAllocatedBytes": 21182279680,
+  "freeBefore": 58717982720,
+  "freeAfter": 79900258304,
+  "cachePathPreserved": true,
+  "liveModelVolumeChanged": false
+}

@@ -1,0 +1,19 @@
+test_decompression_cap_and_truncation (__main__.Digests.test_decompression_cap_and_truncation) ... ok
+test_wrong_digest_refused_before_decompression (__main__.Digests.test_wrong_digest_refused_before_decompression) ... ok
+test_allowlists_and_pins (__main__.Inputs.test_allowlists_and_pins) ... ok
+test_exact_stanza_selected (__main__.Metadata.test_exact_stanza_selected) ... ok
+test_filename_traversal_and_malformed_fields_refuse (__main__.Metadata.test_filename_traversal_and_malformed_fields_refuse) ... ok
+test_missing_or_duplicate_version_refuses (__main__.Metadata.test_missing_or_duplicate_version_refuses) ... ok
+test_release_entries (__main__.Metadata.test_release_entries) ... ok
+test_release_refusals (__main__.Metadata.test_release_refusals) ... ok
+test_bad_statuses_refuse (__main__.Signature.test_bad_statuses_refuse) ... ok
+test_good_status_with_pinned_key (__main__.Signature.test_good_status_with_pinned_key) ... ok
+test_missing_or_unpinned_signature_refuses (__main__.Signature.test_missing_or_unpinned_signature_refuses) ... ok
+test_hostile_payloads_refused (__main__.ToolExtraction.test_hostile_payloads_refused) ... ok
+test_only_the_tool_member_is_returned (__main__.ToolExtraction.test_only_the_tool_member_is_returned) ... ok
+test_version_and_kat (__main__.ToolExtraction.test_version_and_kat) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.075s
+
+OK

@@ -1,0 +1,9 @@
+[queue] START available=30688MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/jobs/root-cold-model-relocate-1503.py", line 14, in <module>
+    assert a.st_size==b.st_size==r['size'] and a.st_mtime_ns==b.st_mtime_ns
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+[memory-guard] exit=1 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 1
