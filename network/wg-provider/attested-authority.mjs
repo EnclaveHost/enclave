@@ -87,7 +87,7 @@ export function providerChainAuthority(cfg, { readFile = (p) => fs.readFileSync(
   if (a !== 'attested-verifier') bad('chainAuthority must be quorum, verifier or attested-verifier');
   // one explicit authority: nothing that would read or write the chain another way may sit beside it
   if (cfg.rpc !== undefined) bad('rpc is not used with chainAuthority "attested-verifier" (one explicit authority, no fallback): remove it');
-  if (cfg.chainVerifier !== undefined) bad('chainVerifier (a local verifier) is not used with chainAuthority "attested-verifier": remove it');
+  if (cfg.chainVerifier !== undefined) bad('chainVerifier is not used with chainAuthority "attested-verifier" (a local verifier is a different authority): remove it');
   const paid = (cfg.pricePerGiB6 || 0) > 0;
   if (paid && cfg.txBackend === undefined) bad('a paid provider with chainAuthority "attested-verifier" needs txBackend: the operator\'s own Base node (loopback or private IPv4 literal) for its on-chain sends; nothing is sent through any other server');
   if (!paid && cfg.txBackend !== undefined) bad('txBackend is set but this provider is not paid (it sends nothing on chain): remove it');
@@ -123,6 +123,10 @@ export function providerHostPolicyRuntime(hostServices, chainAuth, { stateDir, l
   if (!hostServices) return null;
   const env = hostServicesPolicyEnv(hostServices);
   if (!env) return null;
+  // ONE explicit authority: under the provider's LOCAL verifier the policy branch below would read through the policy's own RPC
+  // quorum (a different authority than the provider's leases and registry). Refused, never mixed; quorum and attested-verifier
+  // keep their own complete policy paths.
+  if (chainAuth.mode === 'verifier') bad('host services with chainAuthority "verifier": the platform host policy would read through a different authority than the provider (its own RPC quorum) - never mixed: use chainAuthority quorum or attested-verifier for a provider with host services');
   const store = fileStore(path.join(stateDir, 'platform-host-policy.json'));
   if (chainAuth.mode !== 'attested-verifier') {
     const rt = createHostPolicyRuntime(resolveHostPolicyConfig({ env, chainId: 8453 }), { log, store, fetch, ...ttl });

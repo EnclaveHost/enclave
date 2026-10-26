@@ -89,7 +89,10 @@ test('the provider authority is ONE explicit choice: the quorum is unchanged; mi
   const q = providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'] });
   assert.equal(q.mode, 'quorum'); assert.deepEqual(q.leaseReaderOptions, {}); assert.equal(q.rpc.length, 2);
   assert.throws(() => providerChainAuthority({}), /two or more RPC endpoints required/);
-  assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'verifier' }), /quorum or attested-verifier/);
+  // INTENTIONAL API CHANGE (r10 composition): the verifier lineage's LOCAL-verifier provider mode (e0dfe98aa;
+  // attested-chain-verifier.test.mjs:366) is kept. Without its verifier it still refuses; a provider with host services may not use it.
+  assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'verifier' }), /needs chainVerifier/);
+  assert.throws(() => providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'local' }), /quorum, verifier or attested-verifier/);
   const lv = await startLoopbackVerifier({ upstream: 'http://127.0.0.1:1' }); after(() => lv.close());
   const g = await guest({ verifierPort: Number(new URL(lv.url).port) });
   const c = attestedCfg(g);
@@ -106,6 +109,10 @@ test('the provider authority is ONE explicit choice: the quorum is unchanged; mi
   assert.equal(auth.mode, 'attested-verifier'); assert.equal(auth.rpc.length, 0, 'no raw RPC client exists');
   const hs = (extra) => providerHostServices({ zone: 'app.enclave.host', platformHostPolicy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: ['https://mirror.example/policy'] }, ...extra }, { roles: ['ingress'] });
   assert.throws(() => providerHostPolicyRuntime(hs({ platformHostPolicyRpcs: ['https://a.example', 'https://b.example'] }), auth, { stateDir: tmp }), /platformHostPolicyRpcs is not used/);
+  const lvAuth = providerChainAuthority({ rpc: ['https://a.example', 'https://b.example'], chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:1/' });
+  assert.equal(lvAuth.mode, 'verifier');
+  assert.throws(() => providerHostPolicyRuntime(hs(), lvAuth, { stateDir: tmp }), /never mixed/, 'host services under the local verifier: refused, the policy is never read through another authority');
+  assert.equal(providerHostPolicyRuntime(null, lvAuth, { stateDir: tmp }), null, 'no host services: nothing to refuse');
   assert.throws(() => providerHostPolicyRuntime(providerHostServices({ zone: 'app.enclave.host', platformHostPolicy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [], rpcs: ['https://a.example', 'https://b.example'] } }, { roles: ['ingress'] }), auth, { stateDir: tmp }),
     /names its own RPCs or chain authority/);
   assert.throws(() => providerHostPolicyRuntime(providerHostServices({ zone: 'app.enclave.host', platformHostPolicy: { book: BOOK, hostOwnership: OWNERSHIP, mirrors: [], chainAuthority: 'verifier', chainVerifier: 'http://127.0.0.1:1/' } }, { roles: ['ingress'] }), auth, { stateDir: tmp }),

@@ -10,6 +10,7 @@
 import * as CV from "../js/core/credit-vault-independent.js";
 import { createQuorumReader, jsonRpc } from "../js/core/quorum.js";
 import * as GR from "../js/core/credit-vault-reserve.js";
+import { resolveReadAuthority, creditEndpoints } from "../js/core/read-authority.js";
 
 const $ = (id) => document.getElementById(id);
 const note = (t, bad) => { const n = $("note"); n.textContent = t || ""; n.className = bad ? "bad" : t ? "ok" : ""; };
@@ -30,7 +31,12 @@ try { cfg = readConfig(await (await fetch(new URL("credit-config.json", import.m
 catch (e){ cfgError = String(e && e.message || e).startsWith("credit-config") ? e.message : "credit-config.json could not be loaded"; }
 const L = await import("/vendor/credit-vault.js");
 const pins = cfg && cfg.pins;
-let endpoints = (() => { try { const s = JSON.parse(localStorage.getItem(RPC_KEY) || "null"); if (s && Array.isArray(s.rpcs)) return s; } catch {} return cfg ? { rpcs: cfg.rpcs, quorum: cfg.quorum } : { rpcs: [], quorum: 2 }; })();
+// the owner's saved endpoints first; else this release's read authority (scripts/build-site.mjs embeds the same reviewed
+// file as the main site): legacy -> credit-config.json; own-rpc -> only its endpoints, same quorum; invalid/too few -> refused
+const savedEndpoints = (() => { try { const s = JSON.parse(localStorage.getItem(RPC_KEY) || "null"); if (s && Array.isArray(s.rpcs)) return s; } catch {} return null; })();
+let endpointsError = null;
+let endpoints = (() => { try { return cfg ? { ...creditEndpoints({ authority: resolveReadAuthority({ legacy: [] }), saved: savedEndpoints, config: cfg }) } : null; }
+  catch (e){ endpointsError = String(e && e.message || e); return cfg ? { rpcs: [], quorum: cfg.quorum } : null; } })();
 let _reader = null;
 function reader(){
   if (!_reader) _reader = CV.withTxReads(createQuorumReader({ rpcs: endpoints.rpcs, quorum: endpoints.quorum, confirmations: cfg.confirmations,
@@ -45,6 +51,7 @@ const journal = () => CV.storageJournal(localStorage, pins.chainId);
 const fail = (e) => note(e && e.name === "NotAllowedError" ? "The passkey prompt was cancelled." : String(e && e.message || e), true);
 const guard = (fn) => async (...a) => { try { note(""); await fn(...a); } catch (e){ fail(e); } };
 
+if (cfg && endpointsError) note(endpointsError, true);   // reads refuse (no endpoint); the owner may still save their own
 if (!cfg){ note(cfgError, true); document.querySelectorAll("button, input, select, textarea").forEach((b) => { b.disabled = true; }); }
 else {
   $("origin-pin").textContent = pins.origin;

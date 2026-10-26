@@ -65,7 +65,7 @@ export function ownerSignatureReader({pins,leaseReader}){
  if(pins)return leaseReader;
  return leaseReader&&leaseReader.authority==='verifier'&&typeof leaseReader.agreed==='function'?leaseReader:undefined;
 }
-export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{}}){
+export async function createNetworkHost({config:c,account,runner,rpc,addressBook,authorityPins,leaseReader,providerReader=leaseReader,directory,authorize,forward,attestedKey=null,ownerNameRoots,fetch=globalThis.fetch,now=Date.now,log=()=>{},challengeOptions={}}){
  if(!c||typeof c!=='object')throw new Error('Enclave network configuration required');
  if(c.relay!==undefined){
   const u=new URL(c.relay);
