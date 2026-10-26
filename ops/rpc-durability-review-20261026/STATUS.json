@@ -1,0 +1,8 @@
+{
+  "format": "rpc-durability-review/v1",
+  "journalR1": "12 unit cases passed, no skips. Provider doubles only; full55, private IPC and production unqualified. Genesis only.",
+  "enrollmentR1": "Prepared source only. Security review found committed-seeding, partial genesis, race, monotonicity and runtime API blockers. DO NOT DEPLOY. Revisions in progress.",
+  "retention": "First snapshot finished; second run is active and redownloads mutable state after deleting staging MDBX outputs. Earlier claim that no force/prune flags prevents deletion is FALSE: pinned reth archive retry cleanup deletes mismatched outputs. No production consumers had cut over. Audit of safe recovery in progress.",
+  "capacity": "Boundary arithmetic audit found four extra history archives. State redownload additionally missing from old preflight; old sizing/26-marker is not full coverage evidence.",
+  "administration": "Administrator controls preserved; no production contract transactions."
+}
