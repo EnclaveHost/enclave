@@ -26,8 +26,9 @@
 import tls from 'node:tls';
 import http from 'node:http';
 import { createHash, X509Certificate } from 'node:crypto';
-import { verifyMeasuredControl } from '../metal/measured-control-verify.mjs';
-import { canonicalDirectConfig, configDigest, CHAIN_VERIFIER_ROUTE, CHAIN_VERIFIER_READ_METHODS, MAX_VERIFIER_ANSWER_BYTES } from '../metal/guest/measured-control.mjs';
+// the IMAGE lineage's exact guest verification (statement, config digest, HOST_DATA, SNP via verifier/snp.mjs), as the pinned
+// generated bundle built from that lineage (scripts/build-attested-guest-verify.mjs; its manifest names the source commit)
+import { verifyMeasuredControl, canonicalDirectConfig, configDigest, CHAIN_VERIFIER_ROUTE, CHAIN_VERIFIER_READ_METHODS, MAX_VERIFIER_ANSWER_BYTES } from './attested-guest-verify.bundle.mjs';
 import { TCB_FIELDS } from '../relay/snp-verify.mjs';
 import { markAttestedVerifierClient } from './attested-verifier-brand.mjs';
 
@@ -150,7 +151,9 @@ function within(p, deadline, signal, what) {
  * object for LeaseReader({authority:'verifier', verifier}) and verified-chain snapshots:
  * { request(method, params, ms, signal), attest(), status(), close() }. Its status is computed here only.
  */
-export function createAttestedVerifier({ replicas, unsafeSigner, collateral, reattestMs = 10 * 60_000, timeoutMs = 15000, allowTestRoots = false, log = () => {} } = {}) {
+// verifyNow: PROGRAMMATIC ONLY (tests): the clock the hardware report and AMD collateral are judged at (verifyMeasuredControl's
+// own `now`); absent, the real time. No configuration sets it.
+export function createAttestedVerifier({ replicas, unsafeSigner, collateral, reattestMs = 10 * 60_000, timeoutMs = 15000, allowTestRoots = false, verifyNow = null, log = () => {} } = {}) {
   const list = checkAttestedReplicas(replicas, { unsafeSigner, allowTestRoots });
   if (!collateral || typeof collateral !== 'object' || typeof collateral.chain !== 'function') bad('collateral: an AMD collateral adapter (verifier/collateral.mjs) is required; pre-seed it where possible');
   if (!Number.isSafeInteger(reattestMs) || reattestMs < 30_000 || reattestMs > 3_600_000) bad('reattestMs: 30000 to 3600000');
@@ -163,7 +166,7 @@ export function createAttestedVerifier({ replicas, unsafeSigner, collateral, rea
     const r = list[i], s = state[i];
     if (s.pending) return s.pending;
     s.pending = (async () => {
-      const v = await verifyMeasuredControl({ url: r.url, collateral, timeoutMs: Math.max(100, Math.min(timeoutMs, budgetMs)),
+      const v = await verifyMeasuredControl({ url: r.url, collateral, timeoutMs: Math.max(100, Math.min(timeoutMs, budgetMs)), ...(verifyNow ? { now: verifyNow() } : {}),
         expect: { config: r.config, measurements: [...r.measurements], minTcb: r.minTcb,
           ...(r.roots !== undefined ? { roots: r.roots } : {}), ...(r.product !== undefined ? { product: r.product } : {}), ...(r.guestPolicy !== undefined ? { guestPolicy: r.guestPolicy } : {}) } });
       const o = attestedOutcome(v);

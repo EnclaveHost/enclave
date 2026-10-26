@@ -3,7 +3,7 @@
 An independent host (see [independent-host-onboarding.md](independent-host-onboarding.md)) can run its supervisor in one
 of two places:
 
-- **On the host.** This is the path implemented by `cli/host-independent-lifecycle.mjs`. The supervisor
+- **On the host.** This is the default, `cli/host-independent-lifecycle.mjs` with no `control` section. The supervisor
   is an ordinary process the host operator controls. Its proof-of-time key, its session key and its `/v1/attestation`
   answers are only the operator's word. `check` never reports this as attested.
 - **In the measured control guest.** The supervisor runs inside an SEV-SNP control CVM booted from a reviewed image with
@@ -89,9 +89,8 @@ order:
 | `unknown` | Unreachable, the quorum did not agree, or collateral was unavailable. |
 | `rejected` | Any definite mismatch. |
 
-`host-independent-lifecycle check` does not yet perform this verification: its `control attestation` row is
-`unknown` when an attestation URL is configured, or `missing` otherwise. Use `verifyMeasuredControl` directly;
-configuring a URL alone is not proof that the measured guest owns the running supervisor keys.
+With the integration patch, `host-independent-lifecycle check` reports the `control attestation` row as READY only for
+`verified`.
 
 ## What this does not change, and what it cannot do
 
