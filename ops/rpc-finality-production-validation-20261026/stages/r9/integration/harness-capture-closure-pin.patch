@@ -1,0 +1,11 @@
+--- a/harness/a2a4.py
++++ b/harness/a2a4.py
+@@ -118,7 +118,7 @@
+ # (replay refused across steps and launches). The module is loaded from its exact pinned bytes; using it is HOLD until a reviewed
+ # change sets A1_CAPTURE_REVIEWED (root's run of that stage's 36 tests was queued, not run, when this was written).
+ A1_CAPTURE_SOURCE = pathlib.Path('/opt/enclave-rpc/a1-capture/a1_capture.py')    # HOLD: not installed
+-A1_CAPTURE_SHA256 = 'db81ea49a2c241ee16ea0018e11dcedccadeb8bb678f51e68394470185639d20'   # a1-capture-binding-stage/r4/src/a1_capture.py
++A1_CAPTURE_SHA256 = 'fc16b26cd23d1d6cc768f5248b92f8750ccc14e4154a9bba4605d995485afb0d'   # a1-capture-binding-stage/r4/src/a1_capture.py
+ A1_CAPTURE_REVIEWED = False
+ # r6 activation (base-finality-proof-stage/r6): a review flag is True only through its source constant OR the root-owned activation
+ # artifact that names THIS module's exact bytes for that flag (written only by install_verified.py `activate`, after qualification).

@@ -1,0 +1,7 @@
+[queue] START available=20726MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+selftest: 44/44 cases ok
+gitleaks-selftest: 8 generated secrets found by their rules, 8 look-alikes tolerated, no global allowlist swallows a bare 64-hex secret (.gitleaks.toml)
+hook-selftest: 5 real pushes through an absolute core.hooksPath, no temporary file left behind; a missing scanner refuses in both hooks; the scanner beside the hook or in the worktree suffices; an unloadable config falls back to the hook's own, and the crypto scanner refuses a generated key whatever the config
+[memory-guard] exit=0 peakTreeRssMiB=82 minHostAvailableMiB=20546
+[memory-guard] at peak: gitleaks:59 python3:20 bash:4
+[queue] EXIT 0

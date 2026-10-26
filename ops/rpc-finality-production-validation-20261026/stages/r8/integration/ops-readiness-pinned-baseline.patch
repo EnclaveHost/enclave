@@ -1,0 +1,20 @@
+--- a/tests/test_ops_readiness.py
++++ b/tests/test_ops_readiness.py
+@@ -2,7 +2,7 @@
+ import datetime, importlib.util, json, os, pathlib, sys, tempfile, time, types, unittest
+ 
+ TREE = pathlib.Path(__file__).resolve().parents[1]
+-R6 = TREE.parents[1] / 'r6'
++R6 = pathlib.Path('/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r6')   # r8: explicit pinned baseline (the job verifies its SHA256SUMS); never relative to a copy
+ 
+ 
+ def load(path, name):
+@@ -60,7 +60,7 @@
+ 
+     def test_r6_helper_flapped_on_the_same_healthy_report(self):
+         if not (R6 / 'readiness/require_ready.py').exists():
+-            self.skipTest('r6 stage not beside this tree')
++            self.fail(f'the pinned r6 baseline {R6} is missing')                    # r8: never a skip
+         old = load(R6 / 'readiness/require_ready.py', 'rr_r6')
+         ok, why = old.ready(report=self.report, owner_uid=UID, now=self.now)
+         self.assertFalse(ok); self.assertRegex(why, r'950 s old \(max 600\)')

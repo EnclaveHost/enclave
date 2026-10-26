@@ -1,0 +1,79 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -31,7 +31,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = '854c5d38d3afc7f7330d5db4171173ab448aa9d61e7034a4e8d3a7a23abc9f65'   # r6-followup-fixes/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = '501219fd9ddbce4c3bd0a90e57ed782ebef0de9e357865a51b979dc93e7bd464'   # base-finality-proof-stage/r8/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -74,7 +74,7 @@
+ 
+ 
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = 'b2ed0aaa27786615b66d4c4b644f79e461e87c5de2c4e807eb78323fd9d38327'   # r6-followup-fixes/src/finality_state.py
++FINALITY_STATE_SHA256 = 'ecfe11ba3df1b834e43726d2e023640b170440dcea451aa15cc252e1764efeb5'   # base-finality-proof-stage/r8/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # selection.py beside BOTH harnesses (identical)
+ WRAPPER_SHA256 = '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae'   # base-finality-proof-stage/r6/wrapper/chain_service.py
+@@ -511,6 +511,34 @@
+     return hit[0]['seq'], t['ref'], t['number'], t['blockHash'], t_sha
+ 
+ 
++def adopt_pending(d, finality_dir, *, W, F, owner=0, top='/', now=None, watermark=None):
++    """r8: ONLY the durable-adoption half of record_finality - no new qualification, no live process. An interrupted record (the
++    finality-proof watermark entry landed, the launch journal's `bootstrapped` did not) is adopted exactly as _dangling_proof allows;
++    nothing dangling -> None. Run BEFORE any new capture/qualification (reproof) and before a restart permit (permit-restart-auto), so a
++    newer proof is never recorded on top of an unadopted one. A needed adoption is still HOLD-gated like record_finality."""
++    now = now or datetime.datetime.now(datetime.timezone.utc); d = pathlib.Path(d)
++    lsha, launch = _launch(d, owner, top)
++    if getattr(F, 'OWNER', None) != owner:
++        refuse('finality', 'the finality tool trusts another owner than this launch')
++    store = pathlib.Path(watermark or W.BOOTSTRAP_WATERMARK)
++    fd = _locked(d, owner, top, W)
++    try:
++        entries = _journal(d, lsha, owner, top, W)
++        if entries[-1][1]['event'] not in ('consumed', 'bootstrapped', 'restarted'):
++            return None
++        dg = _dangling_proof(F, launch, lsha, entries, store, finality_dir, owner, top, W)
++        if dg is None:
++            return None
++        if not reviewed('FINALITY_PROOF_REVIEWED'):
++            refuse('hold_finality', 'HOLD: a durable finality proof awaits adoption, but FINALITY_PROOF_REVIEWED is False')
++        fseq, ref, n, h, wsha = dg
++        j = _append(d, lsha, entries, 'bootstrapped', {'watermarkEntrySha256': wsha, 'finalityEntrySha256': ref, 'finalitySeq': fseq, 'number': n,
++                    'blockHash': h}, owner, top, now, W)
++        return {'watermarkEntrySha256': wsha, 'number': n, 'journal': j, 'appended': False, 'adopted': True}
++    finally:
++        os.close(fd)
++
++
+ def _record_finality(d, chain_json, finality_dir, rpc_url, *, W, F, owner=0, top='/', now=None, watermark=None):
+     """r4. Under the launch lock, a STARTED launch (consumed|bootstrapped) whose finality_state status is CURRENT - the last finality
+     entry `qualified` for THIS journal head and THIS bound process (release sha, mdbx dev/ino, pid/starttime) - gets that entry's
+@@ -660,10 +688,12 @@
+         os.close(fd)
+ 
+ 
+-def permit_restart_auto(d, cfg_path, *, A, W, owner=0, top='/', now=None, watermark=None):
++def permit_restart_auto(d, cfg_path, *, A, W, F=None, owner=0, top='/', now=None, watermark=None):
+     """r6, for the unattended enclave-base-restart-permit.service (Before= the base unit): bootstrapped|restarted -> the SAME checked
+     permit_restart (no human step); restart-permitted or a pending anchored start -> nothing to do; anything else (consumed without
+     finality, finality-terminal, rolled-back) refuses: the base unit then stays down, never serving an unproven DB."""
++    if F is not None:                                  # r8: adopt an interrupted record first (else the permit refuses on it)
++        adopt_pending(d, pathlib.Path(d) / 'finality', W=W, F=F, owner=owner, top=top, now=now, watermark=watermark)
+     lsha, _launch_rec = _launch(pathlib.Path(d), owner, top)
+     fd = _locked(pathlib.Path(d), owner, top, W)
+     try:
+@@ -850,7 +880,8 @@
+             if argv[1] == 'quarantine':
+                 r = quarantine(argv[2], argv[3], A=A, W=W)
+             else:
+-                r = (permit_restart_auto if argv[1] == 'permit-restart-auto' else permit_restart)(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK)
++                r = permit_restart_auto(argv[2], argv[3], A=A, W=W, F=load_finality(), watermark=W.BOOTSTRAP_WATERMARK) if argv[1] == 'permit-restart-auto' \
++                    else permit_restart(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK)
+         else:                                                            # rollback <launch-dir> <reason>
+             r = rollback(argv[2], argv[3], W=_installed_wrapper())
+     except (Refused, OSError, KeyError, IndexError) as e:

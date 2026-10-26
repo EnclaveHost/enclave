@@ -1,0 +1,4 @@
+{"format": "enclave-base-finality-reproof/v1", "launchDir": "/etc/enclave-rpc/base-bootstrap", "chainJson": "/etc/enclave-rpc/chain.json",
+ "rpcUrl": "http://127.0.0.1:18545/", "statusOut": "/run/enclave-rpc/base-finality-status.json", "node": "/usr/bin/node",
+ "depsRoot": "/opt/enclave-rpc/finality/deps", "workdir": "/var/lib/enclave-rpc/finality-work", "capturesRoot": "/var/lib/enclave-rpc/finality-captures",
+ "captureSources": "/etc/enclave-rpc/a1-capture-sources.json"}

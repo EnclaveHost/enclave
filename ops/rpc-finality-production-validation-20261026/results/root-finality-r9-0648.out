@@ -1,0 +1,24 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] START available=20626MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+RECEIPT capture-closure 14: rc 0 (module bytes identical)
+RECEIPT sampler 93 / recovery-existing 34 / JS core 20: pinned (readiness, wrapper and core bytes unchanged)
+pins + manifest closure OK: 54 files 14 trees
+PASS tool Ran 34 (expected 34)
+## FAIL: integration: rc 1, Ran 17 (expected 17), last FAILED (failures=17) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/integration.txt)
+## FAIL: reproof: rc 1, Ran 9 (expected 9), last FAILED (failures=1, errors=7) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/reproof.txt)
+PASS ops-readiness Ran 27 (expected 27)
+PASS ops-installer Ran 13 (expected 13)
+PASS parser-recovery Ran 8 (expected 8)
+PASS parser-first Ran 8 (expected 8)
+## FAIL: reanchor-recovery: rc 1, Ran ? (expected 25), last none (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/reanchor-recovery.txt)
+## FAIL: r3-regression: rc 1, Ran 28 (expected 28), last FAILED (failures=1) (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/r3-regression.txt)
+## FAIL: r62-isolated: rc 1, Ran ? (expected 2), last none (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/r62-isolated.txt)
+## FAIL: forward-sync: rc 1, Ran ? (expected 8), last none (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/forward-sync.txt)
+PASS forward-sync-r2 Ran 6 (expected 6)
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706
+## r9 SHA256SUMS ba41aefa62740550b423adaa4f717d45994b9557088a4de7a3206f5db45c5b44
+## finality-r9 rc=1
+[memory-guard] exit=1 peakTreeRssMiB=173 minHostAvailableMiB=20114
+[memory-guard] at peak: python3:153 python3.14:12 bash:4 bash:2 timeout:2
+[queue] EXIT 1

@@ -49,6 +49,37 @@ def public_test_key(cfg):
     return None
 
 
+def verified_digests():
+    """the scanner's VERIFIED_MANIFEST_DIGESTS (read at run time: this file stays free of 64-hex literals)"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("scan_crypto_keys", os.path.join(HERE, "scan-crypto-keys.py"))
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    return sorted(m.VERIFIED_MANIFEST_DIGESTS)
+
+
+COINBASE_FILES = ["ops/rpc-finality-production-validation-20261026/stages/r9/bundle-origin.json",
+                  "ops/rpc-finality-production-validation-20261026/stages/r9/install/MANIFEST.json",
+                  "ops/rpc-finality-r7-development-20261026/stages/capture-closure/install/MANIFEST.json"]
+
+
+def coinbase_pairs(cfg):
+    """the (file, digest) pairs of the viem *Coinbase* digest allowlist, read from the config at run time (no literal here)"""
+    for al in cfg.get("allowlists", []):
+        if al.get("targetRules") == ["coinbase-access-token"] and "13 installed public viem" in al.get("description", ""):
+            out = []
+            for rx in al["regexes"]:
+                m = re.match(r'^\^\\s\*"(.+)"\\s\*:\\s\*"([0-9a-f]{64})",\?\\s\*\$$', rx)
+                out.append((re.sub(r"\\(.)", r"\1", m.group(1)), m.group(2)))
+            return out
+    return []
+
+
+def mnemonic_words(n=12):
+    with open(os.path.join(HERE, "bip39-english.txt")) as f:
+        words = [w.strip() for w in f if w.strip()]
+    return " ".join(secrets.choice(words) for _ in range(n))
+
+
 def cases(cfg):
     """(file name, text, rules that MUST fire (subset), must be clean). Built fresh each run."""
     k = [hex64() for _ in range(6)]
@@ -69,6 +100,41 @@ def cases(cfg):
         ("keystore.json", json.dumps({"crypto": {"kdf": "scr" + "ypt", "ciphertext": secrets.token_hex(32)}}) + "\n", {"web3-keystore-json"}),
         ("token.txt", f"GITHUB_TOKEN={pat}\n", {"github-pat"}),   # a default provider rule still active
     ]
+    # the verified viem digest allowlist (labelled rule): exact entries in install/MANIFEST.json or bundle-origin.json only
+    (vp, vd), (vp2, vd2) = verified_digests()[:2]
+    entry = lambda p, d: f'    "{p}": "{d}",\n'
+    L = {"ethereum-private-key-labelled"}
+    # the verified viem *Coinbase* digest allowlist (default coinbase-access-token rule only): exact path/digest lines, only in
+    # files NAMED install/MANIFEST.json or bundle-origin.json (any directory); everything else still fires
+    cb = coinbase_pairs(cfg)
+    if len(cb) == 13:
+        (cp, cd), (cp2, cd2) = cb[0], cb[1]
+        tok = "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(64))
+        C = {"coinbase-access-token"}
+        positive += [
+            ("c1/install/OTHER.json", "{\n" + entry(cp, cd) + "}\n", C),                              # another file name
+            ("c2/notes/MANIFEST.json", "{\n" + entry(cp, cd) + "}\n", C),                             # not an install manifest
+            ("c3/stages/r10/my-bundle-origin.json", "{\n" + entry(cp, cd) + "}\n", C),               # a look-alike file name
+            ("c4/stages/r10/bundle-origin.json.bak", "{\n" + entry(cp, cd) + "}\n", C),
+            ("c5/install/MANIFEST.json", "{\n" + entry(cp, hex64()) + "}\n", C),                     # changed digest
+            ("c6/bundle-origin.json", "{\n" + entry(cp, cd2) + "}\n", C),                            # another listed file's digest
+            ("c7/install/MANIFEST.json", "{\n" + f'  "coinbaseApiSecret": "{tok}",\n' + "}\n", C),  # a genuine-looking Coinbase token
+            ("c8/bundle-origin.json", "{\n" + f'    "{cp}": "{cd}", "coinbase_token": "{tok}",\n' + "}\n", C),   # extra content
+        ]
+    else:
+        positive.append(("coinbase-allowlist-missing.txt", "", {"coinbase-allowlist-present"}))      # makes the test fail loudly
+    positive += [
+        ("p1/install/MANIFEST.json", f'{{\n  "privateKey": "{vd}",\n}}\n', L),                       # the verified digest used as a key
+        ("p2/bundle-origin.json", f'{{\n  "signerKey": "0x{vd}",\n}}\n', L),
+        ("p3/install/OTHER.json", "{\n" + entry(vp, vd) + "}\n", L),                                  # another file
+        ("p4/notes/MANIFEST.json", "{\n" + entry(vp, vd) + "}\n", L),                                 # not an install manifest
+        ("p5/install/MANIFEST.json", "{\n" + entry(vp, hex64()) + "}\n", L),                          # changed digest, same path
+        ("p6/bundle-origin.json", "{\n" + entry(vp + "x", vd) + "}\n", L),                            # altered file name
+        ("p7/install/MANIFEST.json", "{\n" + entry(vp2, vd) + "}\n", L),                              # a verified digest under another listed path
+        ("p8/bundle-origin.json", "{\n" + f'    "{vp}": "{vd}", "operatorKey": "0x{hex64()}",\n' + "}\n", L),   # extra content on the line
+        ("p9/install/MANIFEST.json", f'{{\n  "operatorKey": "0x{k[5]}",\n}}\n', L),                  # an ordinary key in a manifest
+        ("p10/bundle-origin.json", f'{{\n  "mnemonic": "{mnemonic_words()}",\n}}\n', {"bip39-mnemonic-labelled"}),
+    ]
     negative = [
         ("digests.json", json.dumps({"sha256": h[0], "digest": h[1], "measurement": h[2], "cacheKey": h[3], "txHash": "0x" + h[4]}) + "\n"),
         ("hash-labelled.js", f'const operatorKeyHash = "0x{h[5]}";\nconst signerKeyFingerprint = "{h[6]}";\n'),
@@ -81,6 +147,10 @@ def cases(cfg):
         ("spki.txt", "transportKey: 302a300506032b6570032100" + secrets.token_hex(32) + "\n"),
         *([("public-test-key.js", f'const operatorKey = "0x{known}";\n')] if known else []),
         ("token-digest.json", json.dumps({"tokenSha256": secrets.token_hex(32)}) + "\n"),
+        *[(f, "{\n" + "".join(entry(p, d) for p, d in coinbase_pairs(cfg)) + "}\n") for f in COINBASE_FILES],
+        ("ops/a-later-snapshot-stage/r10/install/MANIFEST.json", "{\n" + "".join(entry(p, d) for p, d in coinbase_pairs(cfg)) + "}\n"),
+        ("n1/install/MANIFEST.json", "{\n" + "".join(entry(p, d) for p, d in verified_digests()) + "}\n"),
+        ("n2/stages/r9/bundle-origin.json", "{\n" + "".join(entry(p, d) for p, d in verified_digests()) + "}\n"),
     ]
     return positive, negative
 
@@ -136,11 +206,12 @@ def main():
     tmp = tempfile.mkdtemp(prefix="gitleaks-selftest-")
     try:
         for name, text, *_ in positive + negative:
+            os.makedirs(os.path.dirname(os.path.join(tmp, name)), exist_ok=True)
             with open(os.path.join(tmp, name), "w") as f:
                 f.write(text)
         report = os.path.join(tmp, ".report.json")
-        p = subprocess.run([gl, "dir", tmp, "--config", cfg, "--no-banner", "--redact=100", "--exit-code", "0",
-                            "--report-format", "json", "--report-path", report], capture_output=True, text=True)
+        p = subprocess.run([gl, "dir", ".", "--config", cfg, "--no-banner", "--redact=100", "--exit-code", "0",
+                            "--report-format", "json", "--report-path", report], capture_output=True, text=True, cwd=tmp)   # repo-relative paths, as in a real scan
         if p.returncode != 0 or not os.path.isfile(report):
             print(f"gitleaks-selftest: gitleaks failed (exit {p.returncode}): {(p.stderr or p.stdout).strip().splitlines()[-1:] }", file=sys.stderr)
             return 2
@@ -148,7 +219,8 @@ def main():
             found = json.load(f)
         by_file = {}
         for x in found:
-            by_file.setdefault(os.path.basename(x.get("File", "")), set()).add(x.get("RuleID"))
+            f = x.get("File", "")
+            by_file.setdefault(os.path.relpath(f if os.path.isabs(f) else os.path.join(tmp, f), tmp), set()).add(x.get("RuleID"))
         for name, _text, want in positive:
             got = by_file.get(name, set())
             if not want <= got:

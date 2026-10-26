@@ -1,0 +1,192 @@
+test_drop_order_ids_and_irreversibility (__main__.DropPrivileges.test_drop_order_ids_and_irreversibility) ... ok
+test_incomplete_or_reversible_drop_refuses (__main__.DropPrivileges.test_incomplete_or_reversible_drop_refuses) ... ok
+test_service_identity_is_never_root (__main__.DropPrivileges.test_service_identity_is_never_root) ... ok
+test_first_bootstrap_refuses_a_state_frontier_below_the_anchor (__main__.FirstBootstrapStateFrontier.test_first_bootstrap_refuses_a_state_frontier_below_the_anchor) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "state_below_anchor: the persisted state/trie frontier 52866950 (Finish.partial_state_trie) is below N: labels are not state"}
+FAIL
+test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db (__main__.Handshake.test_crash_after_consume_refuses_until_rearm_with_the_unchanged_db) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpfjvbzch1/srv/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpfjvbzch1/srv/data", "publicExecutionRpc": false}
+ok
+test_crash_before_consume_keeps_the_launch_pending (__main__.Handshake.test_crash_before_consume_keeps_the_launch_pending) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpj50a8i4i/srv/data", "publicExecutionRpc": false}
+ok
+test_expired_start_refuses_without_consuming (__main__.Handshake.test_expired_start_refuses_without_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmp_c88my3x/srv/data", "publicExecutionRpc": false}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmp_c88my3x'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_lock_and_journal_tamper_refuse (__main__.Handshake.test_lock_and_journal_tamper_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpjj1ljafn/srv/data", "publicExecutionRpc": false}
+ok
+test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse (__main__.Handshake.test_one_shot_gates_under_lock_consume_before_exec_and_restarts_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpf9nijbkf/srv/data", "publicExecutionRpc": false}
+ok
+test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n (__main__.Handshake.test_rearm_needs_a_consumed_start_and_arm_needs_the_db_at_n) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpfbti0bos'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n (__main__.Handshake.test_rearm_refuses_unless_the_stopped_db_is_unchanged_at_n) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpwk7sakgg/srv/data", "publicExecutionRpc": false}
+ok
+test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged (__main__.Handshake.test_release_mode_needs_the_root_handshake_and_legacy_is_unchanged) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpl0r4jsaq/srv/data", "publicExecutionRpc": false}
+ok
+test_rollback_is_terminal (__main__.Handshake.test_rollback_is_terminal) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_source_holds_refuse_before_consuming_and_no_finality_is_accepted (__main__.Handshake.test_source_holds_refuse_before_consuming_and_no_finality_is_accepted) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_two_concurrent_starts_launch_exactly_once (__main__.Handshake.test_two_concurrent_starts_launch_exactly_once)
+Deterministic: the lock holder blocks INSIDE its gates on a pipe until the parent releases it; no sleeps. ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmphkh8sfht/srv/data", "publicExecutionRpc": false}
+ok
+test_every_binding_mismatch_refuses_before_consuming (__main__.LaunchBinding.test_every_binding_mismatch_refuses_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmplvm8e129/srv/data", "publicExecutionRpc": false}
+ok
+test_launch_pin_is_the_immutable_record_only (__main__.LaunchBinding.test_launch_pin_is_the_immutable_record_only) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_binary_harness_and_coverage_bindings_refuse (__main__.ProduceRefusals.test_binary_harness_and_coverage_bindings_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_db_or_journal_change_after_the_scan_refuses (__main__.ProduceRefusals.test_db_or_journal_change_after_the_scan_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+/usr/lib/python3.14/tempfile.py:962: ResourceWarning: Implicitly cleaning up <TemporaryDirectory '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpijdopfwz'>
+  _warnings.warn(warn_message, ResourceWarning)
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_never_overwrites_and_needs_the_reviewed_harness_source (__main__.ProduceRefusals.test_never_overwrites_and_needs_the_reviewed_harness_source) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_produce_publishes_exact_copies_atomically (__main__.ProduceRefusals.test_produce_publishes_exact_copies_atomically) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_refuses_without_a_newest_successful_release (__main__.ProduceRefusals.test_refuses_without_a_newest_successful_release) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"step": "plan", "ok": true, "refused": null}
+ok
+test_stale_release_refuses (__main__.ProduceRefusals.test_stale_release_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_tampered_harness_records_refuse (__main__.ProduceRefusals.test_tampered_harness_records_refuse) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_the_production_a1_pin_refuses_the_fixture_receipt (__main__.ProduceRefusals.test_the_production_a1_pin_refuses_the_fixture_receipt) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_the_real_source_checker_pin_keeps_the_gap_open (__main__.ProduceRefusals.test_the_real_source_checker_pin_keeps_the_gap_open) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_tampered_release_refuses_in_the_real_call_path_before_consuming (__main__.ReleaseSelection.test_tampered_release_refuses_in_the_real_call_path_before_consuming) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_valid_release_selected_and_every_deviation_refused (__main__.ReleaseSelection.test_valid_release_selected_and_every_deviation_refused) ... ok
+
+======================================================================
+FAIL: test_first_bootstrap_refuses_a_state_frontier_below_the_anchor (__main__.FirstBootstrapStateFrontier.test_first_bootstrap_refuses_a_state_frontier_below_the_anchor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/recovery/tests/test_r3_launcher.py", line 595, in test_first_bootstrap_refuses_a_state_frontier_below_the_anchor
+    rec = json.loads(new[0].read_text()); self.assertTrue(str(rec.get('refused')).startswith('state_below_anchor'), rec)
+                                          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : {'step': 'a2', 'startedAt': '2026-10-26T06:47:32.906549+00:00', 'result': {'number': 52866960, 'blockHash': '0x94d32a4e67871f98782eae4b2a359e3d244026098bb2a8ad48e0dd9662ce8652', 'stateRoot': '0x69e39af32bd0cc2d5f8ad822a3afcd7fe8d7211e4ca7c42654cdbda7a9b74516', 'messagePasserStorageRoot': '0xc286d696c67d0c602a4562929e6b721ce6e8ec0a2e0173e0a816328b40062a6e'}, 'ok': True, 'commands': [{'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.065, 'stdoutBytes': 60, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064732983358Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 58, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064733048537Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 24, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064733112935Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 25, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064733177354Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 36, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064733240873Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'db', '--datadir', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/datadir', '--config', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.064, 'stdoutBytes': 37, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064733305419Z-0006.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/bin/base', 'reth', 'db', '--datadir', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/datadir', '--config', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/reth.toml', 'get', 'static-file', 'headers', '52866960'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 1681, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/tmpe2lkdin9/work/cmd/20261026T064733369155Z-0007.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-26T06:47:33.469922+00:00'}
+
+----------------------------------------------------------------------
+Ran 28 tests in 142.897s
+
+FAILED (failures=1)

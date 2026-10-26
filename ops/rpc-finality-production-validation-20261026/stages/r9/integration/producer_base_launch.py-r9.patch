@@ -1,0 +1,25 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -27,11 +27,11 @@
+ """
+ import datetime, hashlib, importlib.util, json, os, pathlib, re, stat, sys
+ 
+-A2A4_SOURCE_SHA256 = 'abe223d6a0c6c203f7d76aaa4c68d25f8f7ecb74894e64dd838383abf6aeeadd'   # a2-v2-release-bound-prepared/stage/a2a4.py
++A2A4_SOURCE_SHA256 = 'dbd4cbe37f9f3e433df2f07900d5b96201ad5af63b84a561bd7f9c835a243d3d'   # base-finality-proof-stage/r9/harness-first/a2a4.py (a2-v2 + pinned checkpoint parser)
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = '501219fd9ddbce4c3bd0a90e57ed782ebef0de9e357865a51b979dc93e7bd464'   # base-finality-proof-stage/r8/harness/a2a4.py
++RECOVERY_A2A4_SHA256 = '2efc6d66687afd31cff62e23aab705ed4df611c18df64c5afa740e12e8d3eb25'   # base-finality-proof-stage/r9/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -74,7 +74,7 @@
+ 
+ 
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = 'ecfe11ba3df1b834e43726d2e023640b170440dcea451aa15cc252e1764efeb5'   # base-finality-proof-stage/r8/src/finality_state.py
++FINALITY_STATE_SHA256 = '2fb4b6a854f6e4f187a25a01dfb34fd5682d6d58faa42aa5dc21ec5d7b4f8b0c'   # base-finality-proof-stage/r9/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
+ SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # selection.py beside BOTH harnesses (identical)
+ WRAPPER_SHA256 = '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae'   # base-finality-proof-stage/r6/wrapper/chain_service.py

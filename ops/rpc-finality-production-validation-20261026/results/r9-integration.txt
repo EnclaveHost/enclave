@@ -1,0 +1,431 @@
+test_before_finality_a_consumed_launch_still_refuses_restart (__main__.Integration.test_before_finality_a_consumed_launch_still_refuses_restart) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-erqz6v7i/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_capture_hold_and_unreviewed_tool_write_nothing (__main__.Integration.test_capture_hold_and_unreviewed_tool_write_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-vdjm5uaj/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_contradiction_stays_terminal_across_an_emptied_finality_directory (__main__.Integration.test_contradiction_stays_terminal_across_an_emptied_finality_directory) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-u75namma/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_dependency_tamper_refuses_core_runs_only_pinned_bytes (__main__.Integration.test_dependency_tamper_refuses_core_runs_only_pinned_bytes) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-od01r41c/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_first_bootstrap_floor_restart_requalify_and_retained_floor (__main__.Integration.test_first_bootstrap_floor_restart_requalify_and_retained_floor) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-1twfxr54/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_first_bootstrap_never_starts_once_a_floor_exists (__main__.Integration.test_first_bootstrap_never_starts_once_a_floor_exists) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-e49aigr6/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_freshness_is_rechecked_at_append_after_the_proof (__main__.Integration.test_freshness_is_rechecked_at_append_after_the_proof) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-49ouqpd_/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_harness_refuses_another_ledger_path_before_any_admission (__main__.Integration.test_harness_refuses_another_ledger_path_before_any_admission) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-77e7wmda/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_identity_change_at_append_refuses_and_writes_nothing (__main__.Integration.test_identity_change_at_append_refuses_and_writes_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-l4g1kcxz/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_interrupted_record_is_adopted_after_a_node_restart (__main__.Integration.test_interrupted_record_is_adopted_after_a_node_restart)
+r6.2: a crash between the watermark append and the journal append, then a node restart: adopted from durable state. ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-mi0lk8sj/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_interrupted_record_is_adopted_never_a_trap (__main__.Integration.test_interrupted_record_is_adopted_never_a_trap) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-xwgli8mi/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_readiness_gate_requires_a_post_restart_proof_end_to_end (__main__.Integration.test_readiness_gate_requires_a_post_restart_proof_end_to_end) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-q3ylqk7r/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_real_a1_rule_stale_recheck_capture_through_the_harness (__main__.Integration.test_real_a1_rule_stale_recheck_capture_through_the_harness) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-opv91hu9/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_reanchor_launch_appends_after_its_own_anchor_and_refuses_foreign_entries (__main__.Integration.test_reanchor_launch_appends_after_its_own_anchor_and_refuses_foreign_entries) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-gjlw4hjt/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_rollback_after_bootstrapped_is_terminal_and_rearm_never_allowed (__main__.Integration.test_rollback_after_bootstrapped_is_terminal_and_rearm_never_allowed) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-_ihasnfs/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_served_chain_check_against_the_bound_node (__main__.Integration.test_served_chain_check_against_the_bound_node) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-rqpdwc47/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_shared_ledger_refuses_replay_in_both_directions (__main__.Integration.test_shared_ledger_refuses_replay_in_both_directions) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-1/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-1/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-1/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-2/.partial-1070151/inputs/l1-authority-config.derived.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-2/.partial-1070151/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/tmp/fin4-8a5yg5iu/cap-2/.partial-1070151/inputs/l1-checkpoint.json' mode='r' encoding='utf-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+
+======================================================================
+FAIL: test_before_finality_a_consumed_launch_still_refuses_restart (__main__.Integration.test_before_finality_a_consumed_launch_still_refuses_restart)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 249, in test_before_finality_a_consumed_launch_still_refuses_restart
+    self.qualify(self.captures(NP)); self.record(); self.permit()
+                 ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:46:58.384676+00:00'}
+
+======================================================================
+FAIL: test_capture_hold_and_unreviewed_tool_write_nothing (__main__.Integration.test_capture_hold_and_unreviewed_tool_write_nothing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 361, in test_capture_hold_and_unreviewed_tool_write_nothing
+    self.launched(); cap = self.captures(NP)
+                           ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:46:59.440806+00:00'}
+
+======================================================================
+FAIL: test_contradiction_stays_terminal_across_an_emptied_finality_directory (__main__.Integration.test_contradiction_stays_terminal_across_an_emptied_finality_directory)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 315, in test_contradiction_stays_terminal_across_an_emptied_finality_directory
+    self.refused(FS, 'original_anchor:output_root', self.qualify, self.captures(NP, root=db['outputRoots'][str(NP)]))
+                                                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:00.522381+00:00'}
+
+======================================================================
+FAIL: test_dependency_tamper_refuses_core_runs_only_pinned_bytes (__main__.Integration.test_dependency_tamper_refuses_core_runs_only_pinned_bytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 351, in test_dependency_tamper_refuses_core_runs_only_pinned_bytes
+    self.launched(); cap = self.captures(NP)
+                           ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:01.540307+00:00'}
+
+======================================================================
+FAIL: test_first_bootstrap_floor_restart_requalify_and_retained_floor (__main__.Integration.test_first_bootstrap_floor_restart_requalify_and_retained_floor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 178, in test_first_bootstrap_floor_restart_requalify_and_retained_floor
+    self.launched(); cap = self.captures(NP)
+                           ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:02.595278+00:00'}
+
+======================================================================
+FAIL: test_first_bootstrap_never_starts_once_a_floor_exists (__main__.Integration.test_first_bootstrap_never_starts_once_a_floor_exists)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 336, in test_first_bootstrap_never_starts_once_a_floor_exists
+    self.launched(); self.qualify(self.captures(NP)); self.record()
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:03.692875+00:00'}
+
+======================================================================
+FAIL: test_freshness_is_rechecked_at_append_after_the_proof (__main__.Integration.test_freshness_is_rechecked_at_append_after_the_proof)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 332, in test_freshness_is_rechecked_at_append_after_the_proof
+    self.refused(FS, 'a1_stale_at_append', self.qualify, self.captures(NP))
+                                                         ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:04.835474+00:00'}
+
+======================================================================
+FAIL: test_harness_refuses_another_ledger_path_before_any_admission (__main__.Integration.test_harness_refuses_another_ledger_path_before_any_admission)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 280, in test_harness_refuses_another_ledger_path_before_any_admission
+    self.launched(); cap = self.captures(NP); other = self.t / 'etc/other-ledger.jsonl'
+                           ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:05.799320+00:00'}
+
+======================================================================
+FAIL: test_identity_change_at_append_refuses_and_writes_nothing (__main__.Integration.test_identity_change_at_append_refuses_and_writes_nothing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 236, in test_identity_change_at_append_refuses_and_writes_nothing
+    self.launched(); self.qualify(self.captures(NP)); calls = []
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:06.875745+00:00'}
+
+======================================================================
+FAIL: test_interrupted_record_is_adopted_after_a_node_restart (__main__.Integration.test_interrupted_record_is_adopted_after_a_node_restart)
+r6.2: a crash between the watermark append and the journal append, then a node restart: adopted from durable state.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 210, in test_interrupted_record_is_adopted_after_a_node_restart
+    self.launched(); self.qualify(self.captures(NP))
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:07.951911+00:00'}
+
+======================================================================
+FAIL: test_interrupted_record_is_adopted_never_a_trap (__main__.Integration.test_interrupted_record_is_adopted_never_a_trap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 223, in test_interrupted_record_is_adopted_never_a_trap
+    self.launched(); self.qualify(self.captures(NP))
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:10.630587+00:00'}
+
+======================================================================
+FAIL: test_readiness_gate_requires_a_post_restart_proof_end_to_end (__main__.Integration.test_readiness_gate_requires_a_post_restart_proof_end_to_end)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 289, in test_readiness_gate_requires_a_post_restart_proof_end_to_end
+    self.launched(); self.qualify(self.captures(NP)); self.record()
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:12.570565+00:00'}
+
+======================================================================
+FAIL: test_real_a1_rule_stale_recheck_capture_through_the_harness (__main__.Integration.test_real_a1_rule_stale_recheck_capture_through_the_harness)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 324, in test_real_a1_rule_stale_recheck_capture_through_the_harness
+    self.launched(); cap = self.captures(NP)
+                           ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:14.642179+00:00'}
+
+======================================================================
+FAIL: test_reanchor_launch_appends_after_its_own_anchor_and_refuses_foreign_entries (__main__.Integration.test_reanchor_launch_appends_after_its_own_anchor_and_refuses_foreign_entries)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 272, in test_reanchor_launch_appends_after_its_own_anchor_and_refuses_foreign_entries
+    self.qualify(self.captures(NP)); self.assertTrue(self.record()['appended'])
+                 ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:16.651011+00:00'}
+
+======================================================================
+FAIL: test_rollback_after_bootstrapped_is_terminal_and_rearm_never_allowed (__main__.Integration.test_rollback_after_bootstrapped_is_terminal_and_rearm_never_allowed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 255, in test_rollback_after_bootstrapped_is_terminal_and_rearm_never_allowed
+    self.launched(); self.qualify(self.captures(NP)); self.record()
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:19.231529+00:00'}
+
+======================================================================
+FAIL: test_served_chain_check_against_the_bound_node (__main__.Integration.test_served_chain_check_against_the_bound_node)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 342, in test_served_chain_check_against_the_bound_node
+    self.launched(); self.qualify(self.captures(NP)); self.record(); s = self.status()
+                                  ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:20.696736+00:00'}
+
+======================================================================
+FAIL: test_shared_ledger_refuses_replay_in_both_directions (__main__.Integration.test_shared_ledger_refuses_replay_in_both_directions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 202, in test_shared_ledger_refuses_replay_in_both_directions
+    a = self.captures(NP); self.reanchor_gate(a, NP)                                                    # re-anchor admitted it first
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r9/logs/root-finality-r9-tests-20261026T064649Z-1069706/stage/tests/test_finality_integration.py", line 99, in captures
+    self.assertTrue(ok, res); outs.append(out)
+    ~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: False is not true : {'format': 'enclave-a1-capture/v2', 'error': "NameError: name 'py' is not defined", 'processStopped': False, 'copiesAfterRun': False, 'finishedAt': '2026-10-26T06:47:22.051275+00:00'}
+
+----------------------------------------------------------------------
+Ran 17 tests in 24.680s
+
+FAILED (failures=17)
