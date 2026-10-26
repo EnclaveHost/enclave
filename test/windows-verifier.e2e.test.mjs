@@ -6,7 +6,10 @@
 // migration is followed and an outsider cannot repoint it; a session the owner terminates is refused on the next request;
 // tampered or missing witnesses and a stale head refuse with no provider fallback.
 // TEST-SIGNED HEAD (a local sequencer key in helios.toml), not real Base; NON-NATIVE: Node on Linux, not a Windows host.
-//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, TEST_TMP. Run inside `unshare -r -n`.
+// COMPOSED with the proof-aware gateway (as test/policy-verifier.e2e.test.mjs), which serves no unverified witness: the
+// gateway gets the witness-check helper and a root store, the head feed pushes each signed head to the root store before
+// serving it, and signs the block's real parent beacon root (so a commitment's hash matches its contents).
+//   env: RIG_CHAIN_NODE=reth (+ RIG_RETH_*), HELIOS_BASE_BIN, WITNESS_CHECK_BIN, TEST_TMP. Run inside `unshare -r -n`.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -18,6 +21,7 @@ import { stringToHex, toHex, keccak256, toBytes, encodeFunctionData } from 'viem
 import { privateKeyToAccount } from 'viem/accounts';
 import { startRig, haveTools, KEYS, freePort } from './helpers/cli-independent-rig.mjs';
 import { createWitnessGateway } from '../network/witness-gateway.mjs';
+import { createWitnessChecker, createRootStore } from '../network/witness-verify.mjs';
 import { makeCommitment, blockFields } from './fixtures/op-commitment.mjs';
 import { LeaseReader } from '../network/lease-reader.mjs';
 import { createNetworkHost } from '../network/enclave-network-host.mjs';
@@ -26,14 +30,14 @@ import { baseConfig } from '../windows/node/network-enroll.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DRIVER = path.join(REPO, 'test/helpers/windows-chain-driver.mjs');
-const { HELIOS_BASE_BIN } = process.env;
-const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)');
+const { HELIOS_BASE_BIN, WITNESS_CHECK_BIN } = process.env;
+const skip = haveTools() || (!HELIOS_BASE_BIN && 'HELIOS_BASE_BIN not set') || (!WITNESS_CHECK_BIN && 'WITNESS_CHECK_BIN not set') || (process.env.RIG_CHAIN_NODE !== 'reth' && 'needs the canonical-trie rig (RIG_CHAIN_NODE=reth)');
 const TMP = fs.mkdtempSync(path.join(process.env.TEST_TMP || '/tmp', 'win-verifier-'));
 const SEQ_KEY = '0x' + '5e'.repeat(32), seqSigner = privateKeyToAccount(SEQ_KEY).address;
 const OUT = path.join(REPO, 'contracts/foundry/out');
 const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, `${name}.json`), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let rig, helios, heliosUrl, feed, proxy, gateway, providers, pinsFile, book, bookAbi;
+let rig, helios, heliosUrl, feed, proxy, gateway, providers, pinsFile, book, bookAbi, checker, roots;
 const proxyMode = { value: 'ok' };
 
 async function rpc(url, method, params = []) {
@@ -57,7 +61,8 @@ function startFeed() {
         const n = served + 1n;
         const b = await rig.rpcCall('eth_getBlockByNumber', [toHex(n), false]);
         const txs = await Promise.all(b.transactions.map((h) => rig.rpcCall('eth_getRawTransactionByHash', [h])));
-        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs });
+        current = await makeCommitment(blockFields(b), { chainId: 8453, privateKey: SEQ_KEY, txs, ...(b.parentBeaconBlockRoot ? { parentBeaconRoot: b.parentBeaconBlockRoot } : {}) });
+        await roots.offer(current);     // bound before Helios can see the head
         served = n;
       }
     } catch {}
@@ -98,8 +103,10 @@ test.before(async () => {
   await rig.write(rig.wc(KEYS.deployer), book, bookAbi, 'set', [stringToHex('registry', { size: 32 }), rig.addresses.registry]);
   await rig.create(KEYS.owner); await rig.create(KEYS.owner);
   const last = await rig.create(KEYS.owner);
+  checker = createWitnessChecker({ bin: WITNESS_CHECK_BIN, chainId: 8453, signer: seqSigner });
+  roots = createRootStore({ checker });
   feed = await startFeed(); proxy = await startProxy(); providers = await countingProviders();
-  gateway = createWitnessGateway({ upstreams: [proxy.url] }); const gUrl = await gateway.listen(0);
+  gateway = createWitnessGateway({ upstreams: [proxy.url], proofs: { checker, roots } }); const gUrl = await gateway.listen(0);
   const home = path.join(TMP, 'home'); fs.mkdirSync(path.join(home, '.helios'), { recursive: true });
   fs.writeFileSync(path.join(home, '.helios', 'helios.toml'), `[base.chain]\nunsafe_signer = "${seqSigner}"\n`);
   const port = await freePort();
@@ -109,7 +116,7 @@ test.before(async () => {
 });
 test.after(async () => {
   helios?.kill('SIGKILL');
-  await gateway?.close(); feed?.srv.close(); proxy?.srv.close(); providers?.srv.close();
+  await gateway?.close(); feed?.srv.close(); proxy?.srv.close(); providers?.srv.close(); roots?.close?.(); checker?.close();
   await rig?.stop();
   fs.rmSync(TMP, { recursive: true, force: true });
 });
@@ -130,8 +137,12 @@ test('chain.mjs state reads through the verifier equal the chain: coherent paged
   const v = ok(r, 'resolveAppRef');
   const direct = await rig.pc.readContract({ address: rig.addresses.catalog, abi: rig.A.catalog.abi, functionName: 'getVersion', args: [rig.appRef.split('/')[2], BigInt(rig.appRef.split('/')[3])] });
   assert.ok(v.cid, 'the version names its artifact'); assert.equal(v.cid, direct.cid); assert.equal(v.version, direct.version);
-  assert.match(r.stateTx.error, /not a verified state read/);
-  assert.match(r.txNonce.error, /no transaction\/history transport/);
+  // a nonce at a block is ACCOUNT STATE: an account proof against that block's state root through the verifier
+  // (network/chain-authority.mjs: eth_getTransactionCount [V]; windows/node/chain.mjs transactionClient() is publicClient()),
+  // so both reads must equal the chain's own nonce exactly - and still nothing reaches BASE_RPCS (asserted below)
+  const nonce = BigInt(await rig.pc.getTransactionCount({ address: rig.operator }));
+  assert.equal(BigInt(ok(r, 'stateTx')), nonce, 'the verified account nonce equals the chain');
+  assert.equal(BigInt(ok(r, 'txNonce')), nonce, 'the transaction client reads the same verified nonce');
   assert.equal(providers.st.calls, 0, 'BASE_RPCS was never contacted');
 });
 
@@ -180,15 +191,20 @@ test('tampered or missing witnesses and a stale head refuse every Windows state 
     proxyMode.value = mode;
     try {
       await untilHelios(BigInt(await rpc(heliosUrl, 'eth_blockNumber')) + 2n);
-      const r = await drive([{ op: 'readEnclave', id }, { op: 'allDeployments' }, { op: 'checkEndpoint', endpoint: rig.endpoint, operator: rig.operator, registry: rig.addresses.registry }]);
+      // the explicit contract pins are loaded first (chain.mjs resolveAddresses: local, no chain read), so every refusal
+      // below is the witness/head failure itself, never an unset contract address
+      const r = await drive([{ op: 'resolveAddresses' }, { op: 'readEnclave', id }, { op: 'allDeployments' }, { op: 'checkEndpoint', endpoint: rig.endpoint, operator: rig.operator, registry: rig.addresses.registry }]);
+      assert.equal(String(ok(r, 'resolveAddresses').registry).toLowerCase(), rig.addresses.registry.toLowerCase(), `${mode} pins`);
       for (const op of ['readEnclave', 'allDeployments', 'checkEndpoint']) assert.equal(r[op].ok, false, `${mode} ${op}`);
     } finally { proxyMode.value = 'ok'; }
   }
   feed.freeze(true);
   try {
     await sleep(100000);                                              // past the readers' 90 s block-age bound
-    const r = await drive([{ op: 'readEnclave', id }]);
+    const r = await drive([{ op: 'resolveAddresses' }, { op: 'readEnclave', id }]);      // pins first, as above
+    assert.equal(String(ok(r, 'resolveAddresses').registry).toLowerCase(), rig.addresses.registry.toLowerCase(), 'stale pins');
     assert.equal(r.readEnclave.ok, false); assert.match(r.readEnclave.error, /stale|behind|older/i);
+    assert.doesNotMatch(r.readEnclave.error, /Invalid parameters/, 'a stale-head refusal, not an unset address');
   } finally { feed.freeze(false); }
   assert.equal(providers.st.calls, 0);
 });
@@ -213,7 +229,8 @@ test('network agent: a contract-wallet (SessionVault) owner policy verifies thro
   const envelope = await signNetworkPolicy(owner, policy);                     // signed by the vault's owner wallet
   const cfg = baseConfig({ agentDir: dir, binDir: dir, nodeBinary: process.execPath, operatorKeyFile: path.join(dir, 'k'), runner: rig.runner, endpoint: rig.endpoint,
     relayBase: 'http://127.0.0.1:9', policyFile: path.join(dir, 'p.json'), tpmBinary: 't', tpmSha256: 'aa'.repeat(32), addressBook: book, chainRpc: [],
-    chainAuthority: { authority: 'local-verifier', verifier: heliosUrl, tier: 'unsafe' }, enclaveNetwork: { checkers: [rig.operator.toLowerCase()] } });
+    // the node's own selection shape (windows/node/chain.mjs chainAuthoritySelection(): { authority: 'verifier', verifier })
+    chainAuthority: { authority: 'verifier', verifier: heliosUrl }, enclaveNetwork: { checkers: [rig.operator.toLowerCase()] } });
   assert.deepEqual(Object.keys(cfg.chain).sort(), ['addressBook', 'authority', 'verifier']);
   // the privacy agent's own construction (network/privacy-agent.mjs: LeaseReader({...cfg.chain}), createNetworkHost(...))
   const host = async () => createNetworkHost({ config: cfg.enclaveNetwork, rpc: cfg.chain?.rpc, addressBook: cfg.chain?.addressBook, authorityPins: cfg.chain?.authorityPins,
