@@ -1,0 +1,12 @@
+--- a/units/enclave-base-finality-reproof.service
++++ b/units/enclave-base-finality-reproof.service
+@@ -13,3 +13,9 @@
+ TimeoutStartSec=2h
+ NoNewPrivileges=yes
+ PrivateTmp=yes
++# production-bootstrap-wiring: publish_status refuses a missing /run/enclave-rpc (finality_state.secure_dir never creates it); after a
++# reboot this unit (OnBootSec=5min) is not ordered after enclave-base-finality-status.service, so it creates the SAME runtime
++# directory itself: root 0755, preserved across both units' stops (the status unit declares the identical three lines)
++RuntimeDirectory=enclave-rpc
++RuntimeDirectoryMode=0755
++RuntimeDirectoryPreserve=yes

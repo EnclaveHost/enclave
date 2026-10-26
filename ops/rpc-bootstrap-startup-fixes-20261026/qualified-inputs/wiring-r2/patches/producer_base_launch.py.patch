@@ -1,0 +1,88 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -5,7 +5,7 @@
+ `produce` is r1's, byte-for-byte in logic (see base-launch-producer-stage/producer/base_launch.py, kept unchanged): it reads ONLY
+ the completed A2-A4 workdir of the reviewed harness (a2-v2-release-bound a2a4.py, source pin below), re-validates it with THAT
+ module's own functions, and publishes a NEW directory atomically: launch.json (enclave-base-bootstrap-launch/v1) +
+-qualification/*. Root pins ONLY launch.json's sha256 in chain.json baseBootstrap.anchorLaunch {launchSha256}: the record is
++qualification/* + an empty root 0700 finality/ (production-bootstrap-wiring). Root pins ONLY launch.json's sha256 in chain.json baseBootstrap.anchorLaunch {launchSha256}: the record is
+ immutable, so it is pinned once and never re-pinned per lifecycle step.
+ 
+ The r1 lifecycle.json / mark-started design is REPLACED (root review: a manual mark after the launch leaves a replay window;
+@@ -27,7 +27,7 @@
+ """
+ import datetime, hashlib, importlib.util, json, os, pathlib, re, stat, sys
+ 
+-A2A4_SOURCE_SHA256 = 'dbd4cbe37f9f3e433df2f07900d5b96201ad5af63b84a561bd7f9c835a243d3d'   # base-finality-proof-stage/r9/harness-first/a2a4.py (a2-v2 + pinned checkpoint parser)
++A2A4_SOURCE_SHA256 = 'a2fd563a024f6b90246a815ad62db521f25eb3e54bcef600215a43944d7690e0'   # base-finality-proof-stage/r9/harness-first/a2a4.py (a2-v2 + pinned checkpoint parser)
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+@@ -45,6 +45,10 @@
+ # N' > N with its output root, and our node's header N' authenticated against that root (the harness's authenticate()), with
+ # N' a descendant of the anchor. Until such a validator is reviewed, `record-bootstrapped` refuses. Source constant, not config.
+ FINALITY_PROOF_REVIEWED = False
++# production-bootstrap-wiring (bootstrap-closure-review A1/C): a FIRST-bootstrap launch is produced only from harness-first
++# capture-original-recheck, whose A2 and release captures are RE-VERIFIED here (capture module verify via the harness's own
++# first_capture). The legacy receipt-file modes produce a launch only in tests:
++A1_LEGACY_TEST_ONLY = False
+ # r6 activation (base-finality-proof-stage/r6): a review flag is True only through its source constant OR the root-owned activation
+ # artifact that names THIS module's exact bytes for that flag (written only by install_verified.py `activate`, after qualification).
+ # The artifact is the deliberate, reviewable activation step: no source edit, so every byte pin stays valid. Absent -> False.
+@@ -200,11 +204,26 @@
+     return t
+ 
+ 
++def _first_capture_ok(A, c, rc):
++    """the recorded capture-original-recheck capture {outPath, captureId, captureSha256, evidenceSha256, finishedAt} re-verifies NOW
++    (the harness's first_capture: capture-module verify, mode recheck, the source-pinned initial receipt; age is the harness's job)"""
++    if not isinstance(rc, dict) or not isinstance(rc.get('outPath'), str) or not hasattr(A, 'first_capture'):
++        return False
++    try:
++        s, _ini, _ev = A.first_capture(c, out=rc['outPath'], fresh=False)
++    except A.Refused:
++        return False
++    return all(rc.get(k) == s.get(k) for k in ('captureId', 'captureSha256', 'evidenceSha256', 'finishedAt'))
++
++
+ def _initial_ok(A, c, g):
+-    """First bootstrap: the source pin, exactly as before. Re-anchor: the receipt A2 used is the configured one, and the harness's
++    """First bootstrap (production-bootstrap-wiring): capture-original-recheck with the source-pinned initial and the A2 capture
++    re-verified; the legacy source-pin-only check survives for tests only (A1_LEGACY_TEST_ONLY). Re-anchor: the receipt A2 used is the configured one, and the harness's
+     own initial_pin() binds it (source pin, or the pending capture-binding verifier; HOLD otherwise)."""
+     if c.get('reanchor') is None:
+-        return g.get('initialSha256') == A.A1_INITIAL_SHA256
++        if c.get('a1Mode') == 'capture-original-recheck':
++            return g.get('initialSha256') == A.A1_INITIAL_SHA256 and _first_capture_ok(A, c, g.get('recheckCapture'))
++        return A1_LEGACY_TEST_ONLY and g.get('initialSha256') == A.A1_INITIAL_SHA256
+     try:
+         if c['a1Mode'] == 'capture-recheck':                 # r3: the binding A2 recorded, re-verified (nothing admitted here)
+             bound, _sr, ini, _rk = A.capture_binding(c)
+@@ -274,6 +293,11 @@
+     if not _initial_ok(A, c, g) or str(g.get('N')) != str(N) or str(g.get('outputRoot', '')).lower() != c['outputRoot'] \
+             or str(g.get('game', '')).lower() != c['game'] or str(g.get('asr', '')).lower() != A.MAINNET['asr'] or not isinstance(g.get('l1Finalized'), int):
+         refuse('a1', 'the A1 gate recorded by A2 is not the pinned initial receipt / planned N, root, game, ASR')
++    if c.get('reanchor') is None and c.get('a1Mode') == 'capture-original-recheck':    # the release's OWN capture, re-verified too
++        rg = m10.get('a1Gate') or {}; rc = rg.get('recheckCapture') or {}
++        if not _first_capture_ok(A, c, rc) or any(rg.get(k) != g.get(k) for k in ('initialSha256', 'N', 'outputRoot', 'game', 'asr')) \
++                or rc.get('captureSha256') == (g.get('recheckCapture') or {}).get('captureSha256'):
++            refuse('a1', 'the release A1 capture is not a NEW, re-verified capture-original-recheck of the A2 receipt/N/root/game')
+     # --- bytecode gap: closed ONLY by the harness's own rule, for THIS A4, journal, download receipt, manifest ---
+     if bv.get('a4Sha256') != sha(a4_b) or bv.get('journal') != A.journal_digest(w) or bv.get('manifestSha256') != A.MANIFEST_SHA \
+             or bv.get('downloadReceiptSha256') != A._trusted_sha(c['downloadReceipt'], 'receipt', 1 << 20):
+@@ -335,11 +359,14 @@
+         launch['a1Capture'] = {'initialCapture': g['initialCapture']}   # the reviewed record of the capture A2 accepted
+     tmp = out.parent / f'.{out.name}.partial-{os.getpid()}'
+     os.mkdir(tmp, 0o755); os.mkdir(tmp / 'qualification', 0o755)
++    # production-bootstrap-wiring: the launch's ONLY finality directory (finality_state.secure_dir never creates it), root 0700, inside
++    # the atomically renamed directory: a published launch always has it, first bootstrap and re-anchor (forward recovery) alike
++    os.mkdir(tmp / 'finality', 0o700); os.chmod(tmp / 'finality', 0o700)
+     for k, f in QUAL.items():
+         _write_new(tmp / 'qualification' / f, files[k][0])
+     lb = json.dumps(launch, indent=1, sort_keys=True).encode()
+     _write_new(tmp / 'launch.json', lb)
+-    _fsync_dir(tmp / 'qualification'); _fsync_dir(tmp)
++    _fsync_dir(tmp / 'qualification'); _fsync_dir(tmp / 'finality'); _fsync_dir(tmp)
+     os.rename(tmp, out)                                                   # atomic publish (refused above if `out` existed)
+     _fsync_dir(out.parent)
+     return {'launchSha256': sha(lb), 'dir': str(out)}

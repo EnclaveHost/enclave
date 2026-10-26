@@ -1,0 +1,217 @@
+{
+ "base": {
+  "sha256sums": "9de0d8d7664516fac691f6cd8dc1d984c00e79ba175c406b6cda9ec97037bd7e",
+  "stage": "base-finality-proof-stage/r12-final"
+ },
+ "bundleOrigin": {
+  "add": {
+   "bundle/bootstrap/a1-initial-evidence.json": {
+    "origin": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-a1-live-1958/a1-evidence.json",
+    "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c"
+   },
+   "bundle/bootstrap/base-bytecode-check": {
+    "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/target/release/base-bytecode-check",
+    "sha256": "b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7"
+   }
+  }
+ },
+ "files": [
+  {
+   "action": "replace",
+   "baseSha256": "dbd4cbe37f9f3e433df2f07900d5b96201ad5af63b84a561bd7f9c835a243d3d",
+   "path": "harness-first/a2a4.py",
+   "sha256": "a2fd563a024f6b90246a815ad62db521f25eb3e54bcef600215a43944d7690e0",
+   "src": "overlay/harness-first/a2a4.py"
+  },
+  {
+   "action": "replace",
+   "baseSha256": "2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2",
+   "path": "producer/base_launch.py",
+   "sha256": "f56816bb6547ca346d9c2a1098462bf6a665e026ea83748666b1cedb7e655206",
+   "src": "overlay/producer/base_launch.py"
+  },
+  {
+   "action": "replace",
+   "baseSha256": "cc9ff0b41dc04a5c2213f1e8a34649e41dd1095dc92a1f4a46b474c1f05dbdd3",
+   "path": "src/reproof.py",
+   "sha256": "d55befc101c913a52b82c5c1ebd26c39eb2a8866e3e9ffa754d5a488221e6361",
+   "src": "overlay/src/reproof.py"
+  },
+  {
+   "action": "replace",
+   "baseSha256": "0470cce87f110e591503ee3ba6d3bc8b7e0d0558b5759f411f6c437f90d6e3e2",
+   "path": "units/enclave-base-finality-reproof.service",
+   "sha256": "b36ee8d8e700b9aabf302d9ee237c7131bb4ae8adedeecf0628854acf603e945",
+   "src": "overlay/units/enclave-base-finality-reproof.service"
+  },
+  {
+   "action": "replace",
+   "baseSha256": "690a1c997a06fc2c33a84ff46216d40e250237eeccb8c05b154d731182a3f771",
+   "path": "install/install_verified.py",
+   "sha256": "8d1d50d3787e2671b5ee4561074cd8b23204df9460aa02e96adffe01b214ad05",
+   "src": "overlay/install/install_verified.py"
+  },
+  {
+   "action": "replace",
+   "baseSha256": "7d899951e759a63bdf1a4d3181d51d0bc9236720827f88596420f24140a5b051",
+   "path": "tests/r7-ported/test_r3_launcher.py",
+   "sha256": "50b0cb88d85ad092ebb0e6258404e38082adc9983230ac2b2f83aa495d6cee8f",
+   "src": "overlay/tests/r7-ported/test_r3_launcher.py"
+  },
+  {
+   "action": "add",
+   "path": "bootstrap/holder_gate.py",
+   "sha256": "dd68006175135c3a72b668dbc483492980612f5c2ad075ffd481396234892c07",
+   "src": "overlay/bootstrap/holder_gate.py"
+  },
+  {
+   "action": "add",
+   "path": "bootstrap/release_install.py",
+   "sha256": "28064db741c75651a8f52f77489aa7644ce148830dcc127fb0591738ce0afa35",
+   "src": "overlay/bootstrap/release_install.py"
+  },
+  {
+   "action": "add",
+   "path": "bootstrap/a1_capture_original.py",
+   "sha256": "14065d4fa311a86c2eb402599f4677f622e77a3d416f640ac778fc1ec72acaa3",
+   "src": "overlay/bootstrap/a1_capture_original.py"
+  },
+  {
+   "action": "add",
+   "path": "units/enclave-base-holder.service.d/60-release-mode.conf",
+   "sha256": "2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be",
+   "src": "overlay/units/enclave-base-holder.service.d/60-release-mode.conf"
+  },
+  {
+   "action": "add",
+   "path": "tests/r7-ported/test_bootstrap_wiring.py",
+   "sha256": "e821218621cdd802f000ff5adfb8dc082ce223c862388cfe877227131df63368",
+   "src": "overlay/tests/r7-ported/test_bootstrap_wiring.py"
+  }
+ ],
+ "format": "enclave-r13-wiring-input/v1",
+ "manifest": {
+  "add": [
+   {
+    "dest": "/opt/enclave-rpc/bootstrap/holder_gate.py",
+    "mode": "0755",
+    "sha256": "dd68006175135c3a72b668dbc483492980612f5c2ad075ffd481396234892c07",
+    "src": "bootstrap/holder_gate.py"
+   },
+   {
+    "dest": "/opt/enclave-rpc/bootstrap/release_install.py",
+    "mode": "0755",
+    "sha256": "28064db741c75651a8f52f77489aa7644ce148830dcc127fb0591738ce0afa35",
+    "src": "bootstrap/release_install.py"
+   },
+   {
+    "dest": "/opt/enclave-rpc/bootstrap/a1_capture_original.py",
+    "mode": "0755",
+    "sha256": "14065d4fa311a86c2eb402599f4677f622e77a3d416f640ac778fc1ec72acaa3",
+    "src": "bootstrap/a1_capture_original.py"
+   },
+   {
+    "dest": "/etc/systemd/system/enclave-base-holder.service.d/60-release-mode.conf",
+    "mode": "0644",
+    "sha256": "2df07889f713d43a9d352ed954fa8f57489a9867ffcf879bb3e268acdaf6e6be",
+    "src": "units/enclave-base-holder.service.d/60-release-mode.conf",
+    "unit": true
+   },
+   {
+    "dest": "/opt/enclave-rpc/bootstrap/a1-initial-evidence.json",
+    "mode": "0644",
+    "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c",
+    "src": "bundle/bootstrap/a1-initial-evidence.json"
+   },
+   {
+    "dest": "/opt/enclave-rpc/bootstrap/base-bytecode-check",
+    "mode": "0755",
+    "sha256": "b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7",
+    "src": "bundle/bootstrap/base-bytecode-check"
+   }
+  ]
+ },
+ "notes": {
+  "installerFlag": {
+   "A1_FIRST_CAPTURE_REVIEWED": "/opt/enclave-rpc/a2a4/a2a4.py"
+  },
+  "notInManifest": {
+   "harness/downloader 9c44836d": "/opt/enclave-rpc/bin/base (already installed; never written)",
+   "release 4a7c013a": "/srv/m10-guest-validation/release/run-1/out/base (guest-built; release_install.py places it)"
+  },
+  "qualification": "EXTERNAL only (--wiring-qualification after the freeze); nothing here is self-derived",
+  "wrapper": "NOT in this input: wrapper-pruned-identity-stage 6a4d7aa5 is its own root-qualified composer input (--wrapper); producer/base_launch.py here keeps the r12-final wrapper pin 4fc3b970 for the composer to re-pin"
+ },
+ "pinEdges": {
+  "bootstrap/a1_capture_original.py": {
+   "harness-first/a2a4.py": 1
+  },
+  "bootstrap/holder_gate.py": {},
+  "bootstrap/release_install.py": {},
+  "harness-first/a2a4.py": {
+   "READER:a1-read.mjs": 1,
+   "READER:a1-recheck-read.mjs": 1,
+   "capture/a1_capture.py": 1
+  },
+  "install/install_verified.py": {},
+  "producer/base_launch.py": {
+   "harness-first/a2a4.py": 1,
+   "harness/a2a4.py": 1,
+   "src/finality_state.py": 1,
+   "wrapper/chain_service.py": 1
+  },
+  "src/reproof.py": {
+   "producer/base_launch.py": 1,
+   "src/finality_state.py": 1
+  },
+  "tests/r7-ported/test_bootstrap_wiring.py": {},
+  "tests/r7-ported/test_r3_launcher.py": {},
+  "units/enclave-base-finality-reproof.service": {},
+  "units/enclave-base-holder.service.d/60-release-mode.conf": {}
+ },
+ "suites": [
+  {
+   "argv": [
+    "/usr/bin/python3",
+    "-E",
+    "-s",
+    "-B",
+    "-u",
+    "tests/test_bootstrap_wiring.py"
+   ],
+   "env": {
+    "CAPTURE_MODULE": "{SC}/capture/a1_capture.py",
+    "FINALITY_NODE": "{NODE}",
+    "PINNED_FAKE_BASE": "{FAKE}",
+    "PRODUCER_WORK": "{WK}",
+    "R12_UNITS": "{SC}/units",
+    "WIRING_OVERLAY": "{SC}"
+   },
+   "kind": "unittest",
+   "name": "bootstrap-wiring",
+   "ran": 22,
+   "timeout": 3600,
+   "where": "recovery"
+  },
+  {
+   "argv": [
+    "/usr/bin/python3",
+    "-E",
+    "-s",
+    "-B",
+    "-u",
+    "tests/test_r3_launcher.py"
+   ],
+   "env": {
+    "CAPTURE_MODULE": "{SC}/capture/a1_capture.py",
+    "PINNED_FAKE_BASE": "{FAKE}",
+    "PRODUCER_WORK": "{WK}"
+   },
+   "kind": "unittest",
+   "name": "r3-regression",
+   "ran": 28,
+   "timeout": 3600,
+   "where": "recovery"
+  }
+ ]
+}

@@ -1,0 +1,7 @@
+# Qualified inputs; final release validation still pending
+
+Wiring r2 passed all 143 tests across nine suites, exit 0: installer18, integration17, reproof17, forward-sync-r2 six, bootstrap22, launcher28, reanchor25, r62 two, forward-sync eight. Actual receipts bind SHA256SUMS 89586568d38d7f6f9df5ef2cec591e65f5327b88c7459e2f8233a555a4f7f06a. Peak235MiB and host minimum18296MiB. Source fixes rechecking this workdir's already-admitted A2 capture without admitting it twice, and interrupted manifest journal handling. Original-game binding, proof verification and freshness remain required. Release packaging preserves the active downloader binary.
+
+Composer v4 focused engine tests passed19, but root review of the first real composition found its generated qualification job still asserting the wrapper was identical to the older version. It also emitted temporary paths in its handoff metadata. Therefore v4 is preserved as tested engine source, not approved release orchestration. Corrections are being developed separately; no production installation or activation occurred.
+
+These are immutable source snapshots with actual receipts. Final composition, actual original-game guest capture, service sandbox validation, complete snapshots, historical blobs, safe/finalized synchronization, accepted consumer-domain proof serving and mined transaction/cutover evidence remain required. Platform administrator controls are preserved. Qualification is not deployment or completed RPC replacement.
