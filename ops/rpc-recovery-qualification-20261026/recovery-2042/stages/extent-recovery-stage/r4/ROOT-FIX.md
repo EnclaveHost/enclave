@@ -1,0 +1,1 @@
+Root1651 r3 fixture failed because debugfs rejects block0. r4 reads group0 bitmap bit0 directly for that exact fixture block, with every other block independently queried through debugfs. No blocks omitted; runtime C/wrapper and all ten assertions unchanged. Real disk never touched by fixtures.

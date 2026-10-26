@@ -1,0 +1,45 @@
+[queue] START available=24656MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## verified SHA256SUMS de01e270aaee0549d17e010b9f3f43b52a56010179fcf582456f7131e15e7270
+test_block_accounting_must_match_and_depth0_depth1_trees_qualify (__main__.Checksums.test_block_accounting_must_match_and_depth0_depth1_trees_qualify) ... {"written": "/tmp/tmp.g3N27N0Zis/ext4csum-l68f0h6v/out1.json", "bytes": 3404}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-l68f0h6v/out2.json", "bytes": 1984}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-l68f0h6v/out3.json", "bytes": 2293}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-l68f0h6v/out4.json", "bytes": 2328}
+ok
+test_choice_is_the_newest_valid_image_at_or_before_the_inode_and_a_newer_invalid_one_blocks (__main__.Checksums.test_choice_is_the_newest_valid_image_at_or_before_the_inode_and_a_newer_invalid_one_blocks) ... {"written": "/tmp/tmp.g3N27N0Zis/ext4csum-w7ow5tj6/out1.json", "bytes": 3691}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-w7ow5tj6/out2.json", "bytes": 3977}
+ok
+test_crc32c_pure_table_equals_libext2fs_and_the_check_vector (__main__.Checksums.test_crc32c_pure_table_equals_libext2fs_and_the_check_vector) ... ok
+test_depth2_tree_all_checksums_valid_map_accounted_holes_and_sparse_tail_only_then (__main__.Checksums.test_depth2_tree_all_checksums_valid_map_accounted_holes_and_sparse_tail_only_then) ... {"written": "/tmp/tmp.g3N27N0Zis/ext4csum-hu2tz4k3/out1.json", "bytes": 3032}
+ok
+test_extent_blocks_bound_to_the_inode_generation_and_kernel_structure_rules (__main__.Checksums.test_extent_blocks_bound_to_the_inode_generation_and_kernel_structure_rules) ... {"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out1.json", "bytes": 3093}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out2.json", "bytes": 3053}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out3.json", "bytes": 3034}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out4.json", "bytes": 3032}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out5.json", "bytes": 3048}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out6.json", "bytes": 3049}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out7.json", "bytes": 3055}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out8.json", "bytes": 3070}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out9.json", "bytes": 3032}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-qa13k6_z/out10.json", "bytes": 1638}
+ok
+test_inode_versions_bad_checksum_other_generation_and_bounds (__main__.Checksums.test_inode_versions_bad_checksum_other_generation_and_bounds) ... {"written": "/tmp/tmp.g3N27N0Zis/ext4csum-ofgafnw7/out1.json", "bytes": 3466}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-ofgafnw7/out2.json", "bytes": 1574}
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-ofgafnw7/out3.json", "bytes": 1574}
+ok
+test_inputs_bounded_no_follow_and_refusals_write_nothing (__main__.Safety.test_inputs_bounded_no_follow_and_refusals_write_nothing) ... REFUSED: journal copy: cannot open without following a symlink (Too many levels of symbolic links)
+REFUSED: journal copy must be a regular file of root or this user, not group/world-writable, <= 1073741824 bytes
+REFUSED: journal copy must be exactly 1073741824 bytes
+REFUSED: inventory is not journal-recovery-r1-jbd2-inventory/v1
+REFUSED: only filesystems WITHOUT metadata_csum_seed are supported; assert --no-csum-seed after checking the superblock
+{"written": "/tmp/tmp.g3N27N0Zis/ext4csum-z4uvj2f4/o.json", "bytes": 3032}
+REFUSED: FileExistsError: File exists
+ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.101s
+
+OK
+## ext4-checksum-r2-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

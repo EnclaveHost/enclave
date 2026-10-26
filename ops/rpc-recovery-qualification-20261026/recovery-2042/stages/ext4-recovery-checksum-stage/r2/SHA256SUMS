@@ -1,0 +1,11 @@
+066aae9aed0e97cf8af0a97689e7615d22fd09feb972f31dd5678c1620e7f7b1  ROOT-FIX.md
+662291e5784a37c820f69902ef7b3c2fd6cf96d34822f60ce1df6f96db7da097  ext4_candidate_checksums.py
+024eddd397debf7145754052eb485fd0028f890a6cee2eae2901ec03b5d99ce4  jobs/run-real-copy.sh
+14d31d44f8dd33c9296f6e94565c389fa5c11d660fd5a0164b24fed48e8ecfa4  jobs/tests.sh
+ac0bce4c789ed25f380f11eef9086b9afcbb9b00b77d8fb2552da966f22fe0f1  refs/e2fsprogs-v1.47.2-lib-ext2fs-csum.c
+3a3cdc0439c0c828176bd9f6bc5f25b041f273de29ee0b53c3970716052f114e  refs/linux-v6.12-fs-ext4-ext4.h
+673cde1c12fe4d3f8cfbc1e879f6fec165cdb50bc8d595b9414ed24c24d3e48c  refs/linux-v6.12-fs-ext4-ext4_extents.h
+ca997b4124cdfd81fe4124187ff00c8c0e325afa4f0b8926b40c17063dc6fd65  refs/linux-v6.12-fs-ext4-extents.c
+a85d3c8a372212fabef113e9805c0101ec33dc02f7717b2f06bd6bfc40ecc4fa  refs/linux-v6.12-fs-ext4-inode.c
+7e40a398a52482bf47cc0c12e8a4cf22f3fc9b1103841823b8e800a17fd0ef13  refs/linux-v6.12-fs-ext4-super.c
+cef1ba448a82108129dcdc00837ca3353d5464cbd77086426b7deab4ba96eba4  tests/test_ext4_candidate_checksums.py

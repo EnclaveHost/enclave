@@ -1,0 +1,11 @@
+[queue] START available=24677MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## compile OK
+61d110416c9779c71c4b57edd7dd993bd6031ca202de12871422756d6c3e6520  /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/extent-recovery-stage/r5/runs/run-20261026T203604Z-2321914/ext4-extent-overlap
+Ran 10 tests in 0.346s
+
+OK
+## test_overlap PASS (10)
+## extent-overlap-r5 rc=0 (binary kept: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/extent-recovery-stage/r5/runs/run-20261026T203604Z-2321914/ext4-extent-overlap)
+[memory-guard] exit=0 peakTreeRssMiB=47 minHostAvailableMiB=24666
+[memory-guard] at peak: python3:42 bash:4 timeout:2
+[queue] EXIT 0

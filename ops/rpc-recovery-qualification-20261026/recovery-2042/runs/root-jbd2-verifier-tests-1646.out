@@ -1,0 +1,10 @@
+[queue] START available=24408MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## verified SHA256SUMS 1a7bcc31444776ddb4cf54b3fb2eca0c8d8f61b2e6b467b98f86752022cee46a
+{"written": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/journal-recovery-verifier-stage/r1/runs/tests-20261026T203136Z-2317436/tmp/tmpg38kq30w/out2.json"}
+{"written": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/journal-recovery-verifier-stage/r1/runs/tests-20261026T203136Z-2317436/tmp/tmpg38kq30w/jb.json"}
+{"written": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/journal-recovery-verifier-stage/r1/runs/tests-20261026T203136Z-2317436/tmp/tmp27_z_4ru/out2.json"}
+## FAIL (rc 0)
+## jrv-r1-tests rc=1
+[memory-guard] exit=1 peakTreeRssMiB=32 minHostAvailableMiB=24356
+[memory-guard] at peak: python3:26 bash:4 timeout:2
+[queue] EXIT 1
