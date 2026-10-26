@@ -1,0 +1,7 @@
+/dev/sdc ext4
+ERPC-BASE-740457FE
+3100000000000
+MainPID=4061
+NRestarts=0
+Filesystem         1B-blocks         Used     Available Use% Mounted on
+/dev/sdc       3097855307776 656617811968 2410220720128  22% /srv/enclave-base-holder

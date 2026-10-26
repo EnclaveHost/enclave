@@ -1,0 +1,28 @@
+        let client = BlockingClient::builder().timeout(Duration::from_secs(30)).build()?;
+        let mut total_size: Option<u64> = None;
+        let mut last_error: Option<eyre::Error> = None;
+
+        for attempt in 1..=max_download_retries {
+            let existing_size =
+                fs::metadata(self.paths.part_path()).map(|meta| meta.len()).unwrap_or(0);
+
+            if let Some(total) = total_size &&
+                existing_size >= total
+            {
+                return self.finalize_download(total)
+            }
+
+            if attempt > 1 {
+                info!(target: "reth::cli",
+                    file = %self.paths.file_name(),
+                    "Retry attempt {}/{} - resuming from {} bytes",
+                    attempt, max_download_retries, existing_size
+                );
+            }
+
+            let mut request = client.get(&self.url);
+            if existing_size > 0 {
+                request = request.header(RANGE, format!("bytes={existing_size}-"));
+                if !quiet && attempt == 1 {
+                    info!(target: "reth::cli", file = %self.paths.file_name(), "Resuming from {} bytes", existing_size);
+                }

@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-26T05:35:11.461593+00:00",
+  "vmPid": 3695222,
+  "vmStart": "125592894",
+  "node": "base0",
+  "image": "/mnt/usb/enclave-rpc-production/base-origin.qcow2",
+  "oldBytes": 3100000000000,
+  "newBytes": 4000000000000,
+  "restart": false
+}

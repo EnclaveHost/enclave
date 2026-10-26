@@ -1,0 +1,32 @@
+  File "<stdin>", line 7
+    print(f"{k}: chunked {n} files total {s/GB:.2f} GB; last 2 chunks {last2/GB:.2f} GB; chunk_files[-1]={v[\"chunk_files\"][-1]}")
+                                                                                                             ^
+SyntaxError: unexpected character after line continuation character
+socket:[55721]
+socket:[55721]
+unit=enclave-rpc-base-snapshot.service
+2026-10-26T05:26:08+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:08.405656Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.60 GB/770.80 GB
+2026-10-26T05:26:11+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:11.405688Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.60 GB/770.80 GB
+2026-10-26T05:26:14+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:14.405740Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.60 GB/770.80 GB
+2026-10-26T05:26:17+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:17.406379Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 47m bytes=538.60 GB/770.80 GB
+2026-10-26T05:26:20+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:20.421459Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.79 GB/770.80 GB
+2026-10-26T05:26:23+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:23.405827Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.85 GB/770.80 GB
+2026-10-26T05:26:26+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:26.406062Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.85 GB/770.80 GB
+2026-10-26T05:26:29+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:29.405838Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 5m eta=4h 46m bytes=538.85 GB/770.80 GB
+2026-10-26T05:26:32+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:32.405932Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=538.98 GB/770.80 GB
+2026-10-26T05:26:35+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:35.406467Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=538.98 GB/770.80 GB
+2026-10-26T05:26:38+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:38.405886Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=538.98 GB/770.80 GB
+2026-10-26T05:26:41+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:41.405967Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=539.04 GB/770.80 GB
+2026-10-26T05:26:44+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:44.421041Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=539.04 GB/770.80 GB
+2026-10-26T05:26:47+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:47.405823Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=539.04 GB/770.80 GB
+2026-10-26T05:26:50+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:50.406516Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=539.10 GB/770.80 GB
+2026-10-26T05:26:53+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:53.406547Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=539.10 GB/770.80 GB
+2026-10-26T05:26:56+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:56.406598Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=69.9% elapsed=11h 6m eta=4h 46m bytes=539.17 GB/770.80 GB
+2026-10-26T05:26:59+00:00 enclave-rpc base[4061]: 2026-10-26T05:26:59.405926Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 46m bytes=539.23 GB/770.80 GB
+2026-10-26T05:27:02+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:02.406064Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 46m bytes=539.35 GB/770.80 GB
+2026-10-26T05:27:05+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:05.413103Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 46m bytes=539.35 GB/770.80 GB
+2026-10-26T05:27:08+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:08.419151Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 45m bytes=539.48 GB/770.80 GB
+2026-10-26T05:27:11+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:11.406084Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 45m bytes=539.48 GB/770.80 GB
+2026-10-26T05:27:14+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:14.406109Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 45m bytes=539.60 GB/770.80 GB
+2026-10-26T05:27:17+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:17.406106Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 45m bytes=539.60 GB/770.80 GB
+2026-10-26T05:27:20+00:00 enclave-rpc base[4061]: 2026-10-26T05:27:20.405952Z  INFO reth::cli: Downloading snapshot archives archives=115/116 progress=70.0% elapsed=11h 6m eta=4h 45m bytes=539.60 GB/770.80 GB

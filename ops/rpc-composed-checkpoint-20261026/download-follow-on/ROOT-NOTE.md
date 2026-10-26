@@ -1,0 +1,3 @@
+The18 extra archives are a separate reviewed final-profile run:221,616,054,366 compressed bytes and409,990,674,216 output bytes. The current116 archive run must finish first, and free-space admission must be repeated then. Following this report, the VM disk was grown online to4TB; see the adjacent bootstrap capacity-growth record. No archive was restarted or deleted.
+
+The report overstates causality in a few sentences. One TCP connection was observed and disks/CPU were mostly idle during the sample; this points to the transfer path. CDN throttling, transport behavior and congestion have not been distinguished, and the observation does not prove that multiple connections would improve throughput. No alternative transfer method was tested or applied.
