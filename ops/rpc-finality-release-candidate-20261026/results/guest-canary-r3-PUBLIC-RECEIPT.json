@@ -1,0 +1,79 @@
+{
+ "run": "run-20261026T071038Z-0aa8a393",
+ "moduleSha256": "47c49b114e6d596a7dd3c46a9f4a5e55bb016cd140a95e001a58ff9a0e69c5b5",
+ "failedAt": "initial-capture",
+ "failure": "None",
+ "initial": {
+  "captureOk": false,
+  "captureSec": 142.0,
+  "forwardProgress": {
+   "checkpointPayloadNumber": 26271752,
+   "heliosFinalized": {
+    "number": 26275226,
+    "hash": "0x3f9ec71a1242acbff4c1b0600394b6a3904e960b64f9951e9015c414c8346ce8",
+    "timestamp": 1792997975,
+    "ageSec": 786
+   },
+   "ownElHashAtHeliosFinalized": "0x3f9ec71a1242acbff4c1b0600394b6a3904e960b64f9951e9015c414c8346ce8",
+   "ok": true
+  },
+  "el": {
+   "elUrl": "http://127.0.0.1:18645",
+   "a1ConfigSha256": "c91cfa7693f4005089e404002d26de7eb78e8898c9dd5cdb5feabe6f08c8fee6",
+   "verifyBound": null,
+   "ok": true
+  }
+ },
+ "initialVerified": false,
+ "consumerExpectedInitialCaptureSha256": null,
+ "recheck": {
+  "captureOk": null,
+  "captureSec": null,
+  "forwardProgress": null,
+  "el": null
+ },
+ "recheckVerified": false,
+ "recheckInitialBinding": null,
+ "finalityCore": null,
+ "liveBaseProof": null,
+ "l1": {
+  "checkpoint": {
+   "root": "0xb5d8034017f25328b5ae1455d3efe12de0a49d3e759f63129bcb0296e7847094",
+   "slot": 15511008,
+   "recordedAt": "2026-10-25T19:38:24.779941+00:00"
+  },
+  "agreeingSources": [
+   [
+    "own-lighthouse",
+    "127.0.0.1"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "mainnet.checkpoint.sigp.io"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "sync-mainnet.beaconcha.in"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "beaconstate.ethstaker.cc"
+   ],
+   [
+    "checkpoint-sync-provider",
+    "beaconstate-mainnet.chainsafe.io"
+   ]
+  ],
+  "clCheckpointBlockSlot": 15511008,
+  "clFinalizedSlot": 15514464,
+  "checkpointPayload": {
+   "number": 26271752,
+   "hash": "0xb3a52f0d6364e8c055e5de56b3397cb5400897a913c9366c1ef12790ba70d563"
+  },
+  "elFinalized": {
+   "number": 26275194,
+   "hash": "0x41e95429e8153eb2108c212262e84b0d5d34d893b37d79cc01ba30fe4eadb884"
+  }
+ },
+ "pidsUnchanged": true
+}

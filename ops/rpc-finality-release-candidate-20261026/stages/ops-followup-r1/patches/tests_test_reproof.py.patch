@@ -1,0 +1,73 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r10/tests/test_reproof.py	2026-10-25 23:34:11.000000000 -0700
++++ tests/test_reproof.py	2026-10-26 00:06:55.952191717 -0700
+@@ -4,7 +4,7 @@
+ live mutation), the shared admission ledger, the pinned core over the loopback chain, the r7 wrapper journal/watermark and the r7
+ producer record_finality. The only seam is capture_fn: it runs the real C.capture with the fixture's stub Sources/pins (production uses
+ the module's own reviewed Sources)."""
+-import json, os, pathlib, sys, types, unittest
++import datetime, json, os, pathlib, sys, types, unittest
+ from unittest.mock import patch
+ 
+ HERE = pathlib.Path(__file__).resolve().parent
+@@ -119,6 +119,61 @@
+         self.assertEqual(cm.exception.code, 'hold_prototype'); self.assertIn('hold_prototype', RP.HOLD_CODES)
+         self.assertFalse(self.ledger.exists()); self.assertEqual(os.listdir(self.fdir), [])
+ 
++    # ---- r10-ops-followup: every attempt leaves a receipt; failed attempts are bounded; proof pairs and active attempts are kept ----
++    def history(self):
++        h = self.t / 'caps' / RP.HISTORY
++        return [json.loads(l) for l in h.read_text().splitlines()] if h.exists() else []
++
++    def at(self, s):
++        return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=s)
++
++    def receipt(self, n):
++        return json.loads((self.t / 'caps' / n / 'attempt.json').read_text())
++
++    def test_failed_attempts_are_retired_with_receipts_and_bounded(self):
++        self.launched()
++        for i in range(3):
++            with self.assertRaises(RP.Refused) as cm:
++                self.reproof(capture_fn=self.capture_fn(NP, fail='recheck-capture'), now=self.at(i))
++            self.assertEqual(cm.exception.code, 'capture')
++        names = self.pairs(); failed = [n for n in names if n.startswith('failed-')]
++        self.assertEqual((len(failed), names), (RP.FAILED_KEEP, failed))           # nothing failed stays in the proof-pair namespace
++        h = self.history(); self.assertEqual([(r['outcome'], r['code']) for r in h], [('failed', 'capture')] * 3)
++        self.assertEqual(sorted('failed-' + r['attempt'] for r in h)[-RP.FAILED_KEEP:], failed)   # newest kept; the oldest is history only
++        self.assertEqual({self.receipt(n)['outcome'] for n in failed}, {'failed'})
++        self.assertEqual(self.reproof(capture_fn=self.capture_fn(NP), now=self.at(10))['action'], 'reproved')
++        rec = [n for n in self.pairs() if not n.startswith('failed-')]; self.assertEqual(len(rec), 1)
++        self.assertEqual(self.receipt(rec[0])['outcome'], 'recorded'); self.assertFalse((self.t / 'caps' / rec[0] / RP.IN_PROGRESS).exists())
++        self.assertTrue((self.t / 'caps' / rec[0] / 'initial').exists() and (self.t / 'caps' / rec[0] / 'recheck').exists())
++        self.assertEqual((len(self.history()), len([n for n in self.pairs() if n.startswith('failed-')])), (4, RP.FAILED_KEEP))
++
++    def test_a_not_newer_attempt_is_retired_and_the_recorded_pair_is_kept(self):
++        self.launched(); self.reproof(capture_fn=self.capture_fn(NP), now=self.at(0)); self.permit(); self.handshake(); self.proc('778')
++        recorded = self.pairs()
++        with self.assertRaises(FS.Refused) as cm:
++            self.reproof(capture_fn=self.capture_fn(NP, l1_bump=50), now=self.at(5))
++        self.assertEqual(cm.exception.code, 'not_newer')
++        names = self.pairs()
++        self.assertEqual(([n for n in names if not n.startswith('failed-')], len(names)), (recorded, 2))
++        self.assertEqual([(r['outcome'], r.get('code')) for r in self.history()], [('recorded', None), ('failed', 'not_newer')])
++
++    def test_an_interrupted_attempt_is_retired_under_the_lock_and_older_pairs_are_kept(self):
++        self.launched(); caps = self.t / 'caps'; caps.mkdir(mode=0o700, exist_ok=True)
++        old = caps / '20261020T000000000000Z'; old.mkdir(mode=0o700); (old / 'initial').mkdir()           # an r10-era pair: no marker
++        cut = caps / '20261021T000000000000Z'; cut.mkdir(mode=0o700); (cut / RP.IN_PROGRESS).write_bytes(b'')  # a killed attempt
++        self.assertEqual(self.reproof(capture_fn=self.capture_fn(NP), now=self.at(0))['action'], 'reproved')
++        names = self.pairs()
++        self.assertIn(old.name, names); self.assertIn('failed-' + cut.name, names); self.assertNotIn(cut.name, names)
++        self.assertEqual([(r['outcome'], r['attempt']) for r in self.history()][0], ('interrupted', cut.name))
++        self.assertEqual(self.receipt('failed-' + cut.name)['outcome'], 'interrupted')
++
++    def test_a_qualified_but_unrecorded_attempt_keeps_its_captures_for_adoption(self):
++        self.interrupted_second_record()
++        h = self.history(); self.assertEqual([r['outcome'] for r in h], ['recorded', 'qualified-unrecorded'])
++        kept = [n for n in self.pairs() if not n.startswith('failed-')]
++        self.assertEqual((len(kept), h[1]['attempt']), (2, kept[-1])); self.assertFalse((self.t / 'caps' / kept[-1] / RP.IN_PROGRESS).exists())
++        self.assertEqual(self.reproof(capture_fn=self.no_capture)['action'], 'adopted')
++
+ 
+ for _n in [n for n in dir(TI.Integration) if n.startswith('test_')]:
+     setattr(Reproof, _n, None)

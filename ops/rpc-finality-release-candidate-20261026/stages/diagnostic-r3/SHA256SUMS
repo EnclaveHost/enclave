@@ -1,0 +1,10 @@
+2593bc1eaca13afcbe0530277edfab7d1008a2602e3ceff931ede5c33cf5fa2f  ./README.md
+709b4ab95b022c897998c2b519ab8478239c8ffde41b008e9de1d714d474da63  ./guest/cleanup.sh
+e0e16e881ea54323102ff8fda8faa36d7846c7c56f0560037bfa69edaed3d96f  ./guest/diag.sh
+44d5acf3e9d30d35b130573bf7b27da551d7e807e4b687d9e9180effe25c6ecf  ./guest/el_probe.mjs
+5fafa9f61648973f16c40e7efadb6a410e8015e5a91bbfb36e49e41b62d8d3c3  ./guest/helios_probe.mjs
+f2b22d58d44b695b34cc49908fbd76261acd9d8cf552dbe5a9b0892806befd39  ./guest/rpc_log_proxy.py
+542216efdafd7fb858166cd8c6e13f2260c84cb0e20892740f40c5b1e1b78174  ./jobs/root-guest-call-diagnostic-r3.sh
+a9e5d00b5d8edaa8ef43dfc84c47acf21fe2be1511183081eb490e6355427ddd  ./jobs/root-probe-fixture-tests.sh
+266e245098e33cad49bba6519fa2157422c49215916ac14fabb6f15b3a764de2  ./tests/test_probes.py
+1cfb65f3159fd9c5bcf7e5a309a2370585ba1062588069f72e990236b63de5b8  ./tools/status.py

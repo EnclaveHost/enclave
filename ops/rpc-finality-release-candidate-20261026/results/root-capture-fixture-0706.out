@@ -1,0 +1,10 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: yielding to reserved small allocation
+[q.sh] try 2 not started; sleep 30
+[queue] START available=19984MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+PASS capture-r10 Ran 3 (expected 3)
+## r10-capture-fixture-fix rc=0
+[memory-guard] exit=0 peakTreeRssMiB=133 minHostAvailableMiB=18784
+[memory-guard] at peak: python3:125 bash:4 bash:2 timeout:2
+[queue] EXIT 0

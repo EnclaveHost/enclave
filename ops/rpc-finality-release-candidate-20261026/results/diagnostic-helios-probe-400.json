@@ -1,0 +1,43 @@
+{
+ "format": "enclave-helios-probe/v3",
+ "selector": "0x5c0cba33",
+ "startedAt": "2026-10-26T07:36:14.685Z",
+ "complete": true,
+ "finalized": {
+  "number": 26275321,
+  "hash": "0x74fc8339e0407def2abe9a6fd8b3d61c00d68d970d050d32816b9a0d326fceea",
+  "ageSec": 1050
+ },
+ "steps": [
+  {
+   "label": "A1-exact: call@finalizedHash 20s",
+   "method": "eth_call",
+   "startMs": 3062,
+   "ms": 3247,
+   "result": "\"0x000000000000000000000000909f6cf47ed12f010a796527f562bfc26c7f4e72\""
+  },
+  {
+   "label": "diag: call@finalizedHash 240s",
+   "method": "eth_call",
+   "startMs": 6310,
+   "ms": 3274,
+   "result": "\"0x000000000000000000000000909f6cf47ed12f010a796527f562bfc26c7f4e72\""
+  },
+  {
+   "label": "diag: call@finalizedTag 240s",
+   "method": "eth_call",
+   "startMs": 9585,
+   "ms": 3259,
+   "result": "\"0x000000000000000000000000909f6cf47ed12f010a796527f562bfc26c7f4e72\""
+  },
+  {
+   "label": "diag: call@latest 240s",
+   "method": "eth_call",
+   "startMs": 12844,
+   "ms": 53,
+   "result": "\"0x000000000000000000000000909f6cf47ed12f010a796527f562bfc26c7f4e72\""
+  }
+ ],
+ "readyMs": 3062,
+ "finishedAt": "2026-10-26T07:36:27.583Z"
+}

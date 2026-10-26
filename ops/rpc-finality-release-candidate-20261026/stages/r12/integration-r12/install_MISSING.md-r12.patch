@@ -1,0 +1,13 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r11/install/MISSING.md	2026-10-26 00:25:59.526552923 -0700
++++ install/MISSING.md	2026-10-26 00:31:32.614562426 -0700
+@@ -1,8 +1,8 @@
+-# r11: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
++# r12: what genuinely awaits real artifacts, the guest canary, or root (each fails closed while absent)
+ 
+ | Item | Needed by | Status |
+ |---|---|---|
+-| L1 checkpoint freshness | `/etc/enclave-rpc/l1-checkpoint.json` | PROVIDED (`bundle/config/l1-checkpoint.json`, sha `2e8502e6`; recorded 2026-10-25T19:38:24Z; 5 HTTP-200 distinct sources: our Lighthouse + 4 independent checkpoint-sync providers). With `maxCheckpointAgeSec` 604800 it expires about 2026-11-01T19:38Z; then a new reviewed record |
++| L1 checkpoint freshness | `/etc/enclave-rpc/l1-checkpoint.json` | PROVIDED (`bundle/config/l1-checkpoint.json`, sha `2e8502e6`; recorded 2026-10-25T19:38:24Z; 5 HTTP-200 distinct sources: our Lighthouse + 4 independent checkpoint-sync providers). With `maxCheckpointAgeSec` 604800 it expires about **2026-11-01T19:22Z** (root-confirmed: the age is bound to the checkpoint SLOT 15511008 = 2026-10-25T19:21:59Z, + 604800 s; not the 19:38:24Z record time); then a new reviewed record |
+ | guest runtime proof: Python 3.12 / node 18 + libnode / Helios actually running the A1 modules, viem closure and finality core | capture, finality core | **6d24 guest canary r3** (recipe: `CANARY-R3-RECIPE.md`, the SAME r10 capture bytes `47c49b11`). Runtime pins are operator-observed, not upstream-verified |
+ | coverage receipt, verdict and origin, plus the expected snapshot-manifest and chain-config sha | `readiness-settings.json` | Real snapshot coverage qualification (download/coverage) |
+ | the exact harness config the launch record bound | `/etc/enclave-rpc/base-a2a4-config.json` (permit-restart-auto) | Produced at the real first bootstrap |

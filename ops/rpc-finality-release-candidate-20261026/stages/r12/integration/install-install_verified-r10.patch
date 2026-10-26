@@ -1,0 +1,22 @@
+--- ../r9/install/install_verified.py	2026-10-25 23:35:37.796487374 -0700
++++ install/install_verified.py	2026-10-25 23:56:12.844004552 -0700
+@@ -3,7 +3,7 @@
+ qualified bytes named in MANIFEST.json. Default: a dry run (the plan is printed; nothing is written). --commit installs.
+ PREFLIGHT (no mutation at all) refuses unless:
+   - this stage's files equal its SHA256SUMS and MANIFEST.json is the one SHA256SUMS lists;
+-  - root's qualification run of THIS stage passed: --qualification <out> has '## finality-r9 rc=0' and '## r9 SHA256SUMS <sha>' with
++  - root's qualification run of THIS stage passed: --qualification <out> has '## finality-r10 rc=0' and '## r10 SHA256SUMS <sha>' with
+     this stage's SHA256SUMS sha, and --rc <file> holds 0;
+   - every source equals its manifest sha and still carries its review flags = False (trees: exactly the listed files, each sha);
+   - every destination parent is a real root-owned directory, not group/other writable, no symlink (absent ones are created 0755);
+@@ -53,8 +53,8 @@
+ 
+ def qualified(out, rc, sums_sha):
+     o = pathlib.Path(out).read_text(errors='replace').splitlines()
+-    if pathlib.Path(rc).read_text().strip() != '0' or '## finality-r9 rc=0' not in o or f'## r9 SHA256SUMS {sums_sha}' not in o:
+-        refuse('no passing root qualification of THIS stage (rc 0, "## finality-r9 rc=0", "## r9 SHA256SUMS <this sha>")')
++    if pathlib.Path(rc).read_text().strip() != '0' or '## finality-r10 rc=0' not in o or f'## r10 SHA256SUMS {sums_sha}' not in o:   # r10: only an r10 run qualifies r10
++        refuse('no passing root qualification of THIS stage (rc 0, "## finality-r10 rc=0", "## r10 SHA256SUMS <this sha>")')
+ 
+ 
+ def tree_sha256(root):

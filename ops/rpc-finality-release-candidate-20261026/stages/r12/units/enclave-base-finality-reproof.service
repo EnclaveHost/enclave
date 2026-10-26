@@ -1,0 +1,15 @@
+# base-finality-proof-stage/r7 (SOURCE ONLY; not installed): the live finality qualification / re-proof path. After a first start or an
+# ordinary restart, the readiness gates refuse until a NEW proof for the running node is durably recorded; this runs the reviewed capture
+# -> qualify -> record-finality -> status-publish chain (HOLD flags fail it closed until root's deliberate activation).
+[Unit]
+Description=Base post-anchor finality re-proof (capture, qualify, record, publish)
+After=enclave-base-holder.service
+Requisite=enclave-base-holder.service
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/finality/src/reproof.py /etc/enclave-rpc/base-finality-reproof.json
+SuccessExitStatus=75
+TimeoutStartSec=2h
+NoNewPrivileges=yes
+PrivateTmp=yes

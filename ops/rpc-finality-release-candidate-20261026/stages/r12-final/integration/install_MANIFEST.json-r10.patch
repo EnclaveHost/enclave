@@ -1,0 +1,78 @@
+--- a/install/MANIFEST.json
++++ b/install/MANIFEST.json
+@@ -1,6 +1,6 @@
+ {
+  "format": "enclave-finality-install-manifest/v1",
+- "stage": "base-finality-proof-stage/r9",
++ "stage": "base-finality-proof-stage/r10",
+  "env": {
+   "FINALITY_NODE": "the reviewed node binary",
+   "FINALITY_DEPS_ROOT": "/opt/enclave-rpc/finality/deps",
+@@ -10,7 +10,7 @@
+   {
+    "src": "src/finality_state.py",
+    "dest": "/opt/enclave-rpc/finality/src/finality_state.py",
+-   "sha256": "2fb4b6a854f6e4f187a25a01dfb34fd5682d6d58faa42aa5dc21ec5d7b4f8b0c",
++   "sha256": "218bbfe56caec03e6da0829e442b793b88d4cc148a890a324892f0fafd7c78f4",
+    "mode": "0644",
+    "flagsFalse": [
+     "FINALITY_PROTOTYPE_REVIEWED"
+@@ -49,7 +49,7 @@
+   {
+    "src": "harness/a2a4.py",
+    "dest": "/opt/enclave-rpc/a2a4-recovery/a2a4.py",
+-   "sha256": "2efc6d66687afd31cff62e23aab705ed4df611c18df64c5afa740e12e8d3eb25",
++   "sha256": "6c1d0b1bf767acebaf0f9c7235dcd46ad1aaab2fa60ca4c3456cb34c56a37805",
+    "mode": "0644",
+    "flagsFalse": [
+     "A1_CAPTURE_REVIEWED"
+@@ -64,7 +64,7 @@
+   {
+    "src": "producer/base_launch.py",
+    "dest": "/opt/enclave-rpc/base-launch/base_launch.py",
+-   "sha256": "d7289489e7b9fb5a79f751135ece3b142a2d60f099dc9e9bdc730bc338077b2b",
++   "sha256": "2f9450cd5c73de3cf693dd7f7d52b2f4f3a8fe0b66a5a76b1d068dda919ac4e2",
+    "mode": "0755",
+    "flagsFalse": [
+     "FINALITY_PROOF_REVIEWED"
+@@ -179,7 +179,7 @@
+    "src": "src/reproof.py",
+    "dest": "/opt/enclave-rpc/finality/src/reproof.py",
+    "mode": "0755",
+-   "sha256": "536f5a685308f2de632df0cf8fd1ebd95888b087c0b71c38ab81e084f4fedcd3"
++   "sha256": "360f7234945c597d88c14441eaf86b593f89fb73b5d62dbbe9b9dac522a6c7bd"
+   },
+   {
+    "src": "units/enclave-base-finality-reproof.service",
+@@ -199,7 +199,7 @@
+    "src": "recovery/forward_sync.py",
+    "dest": "/opt/enclave-rpc/recovery/forward_sync.py",
+    "mode": "0755",
+-   "sha256": "e0a8592bb23f80e7ba466528973f2e84fd83362d4e66073a7e38b736a606ce15"
++   "sha256": "0aeaaaeb38f5bac9cf2070d6bde9defbc31795f0fbd1a29c3f0827617e9a1725"
+   },
+   {
+    "src": "units/forward-sync/enclave-base-forward-sync.service",
+@@ -232,7 +232,7 @@
+    "src": "capture/a1_capture.py",
+    "dest": "/opt/enclave-rpc/a1-capture/a1_capture.py",
+    "mode": "0644",
+-   "sha256": "fc16b26cd23d1d6cc768f5248b92f8750ccc14e4154a9bba4605d995485afb0d"
++   "sha256": "47c49b114e6d596a7dd3c46a9f4a5e55bb016cd140a95e001a58ff9a0e69c5b5"
+   },
+   {
+    "src": "a1gate/a1-gate.mjs",
+@@ -362,6 +362,13 @@
+    "mode": "0644",
+    "config": true,
+    "sha256": "3d37e42a0686c9c446b583695cc9cbb3a77eec7c342b2ba94eaaa62b4782b397"
++  },
++  {
++   "src": "bundle/config/l1-checkpoint.json",
++   "dest": "/etc/enclave-rpc/l1-checkpoint.json",
++   "mode": "0644",
++   "config": true,
++   "sha256": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
+   }
+  ],
+  "trees": [
