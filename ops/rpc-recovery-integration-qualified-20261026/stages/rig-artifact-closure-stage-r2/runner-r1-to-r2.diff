@@ -1,0 +1,98 @@
+--- a/jobs/root-r12-impacted-rerun.sh
++++ b/r2/jobs/root-r12-impacted-rerun.sh
+@@ -1,4 +1,12 @@
+ #!/usr/bin/env bash
++# r2 (rig-artifact-closure-stage/r2): the FROZEN original runner (../../jobs/root-r12-impacted-rerun.sh) with ONLY these corrections
++#   (remaining-composition-triage findings): (a) offchain-heartbeat-writers' negative control gets the EXACT historical base
++#   supervisor.js (6f2c7da46^:supervisor.js, blob 3ad76690...) as a file in the PRIVATE COPIED tree root, for that test only - production
++#   source is never altered; the same 3/3, 0-skip requirement; (b) RESULTS rows are parsed by exact shape (component/REGRESS 5 fields,
++#   STACK and NATIVE 3); NATIVE rows (F2, CHAIN_VERIFIER_INPUTS) are never artifact rows and keep their own verdict; an unknown shape is
++#   HOLD; an adapted 'ok (...)' row is ok; (c) PATH holds exactly the pinned forge/anvil for the rigs' runtime builds. Selection is
++#   unchanged otherwise: not-ok AND statically reaching the missing artifact AND its ENOENT in the actual receipt (finite closure).
++# Root:  ./jobs/q-exit-status.sh r12-impacted-rerun-r2 2560 unshare -rn bash rig-artifact-closure-stage/r2/jobs/root-r12-impacted-rerun.sh
+ # rig-artifact-closure-stage: POST-RUN amendment of composition r12 for the ONE artifact its B2 subset missed (PREPARED; NOT run by
+ # Claude). Run only AFTER root-composition-r12-full-0313 has finished. r12 (stage, run dir, its trees, its receipts) is READ ONLY.
+ # Root, from work/rpc-production-final-20261025:
+@@ -17,19 +25,22 @@
+ # failed; 20 SETUP/HOLD (never a verdict).
+ set -uo pipefail
+ W=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025
+-ST=$W/rig-artifact-closure-stage; R12=$W/rpc-runtime-composition-stage/r12; X=$R12/run/r4-20261026T031250Z; LOG=$W/logs/root-composition-r12-full-0313.out
++ST=$W/rig-artifact-closure-stage; ST2=$ST/r2; R12=$W/rpc-runtime-composition-stage/r12; X=$R12/run/r4-20261026T031250Z; LOG=$W/logs/root-composition-r12-full-0313.out
+ setup() { echo "[FAIL] $1"; echo "RESULT: SETUP-FAILURE (not a test verdict)"; exit 20; }
+ ok() { echo "[ok] $1"; }
+ ip link set lo up 2>/dev/null || true
+ [ -z "$(tail -n +2 /proc/self/net/route)" ] && ok "offline (no IPv4 route)" || setup "network route present"
+ (cd $ST && sha256sum -c --quiet SHA256SUMS) && ok "closure stage == SHA256SUMS" || setup "closure stage manifest"
++(cd $ST2 && sha256sum -c --quiet SHA256SUMS) && ok "r2 == r2/SHA256SUMS" || setup "r2 manifest"
+ (cd $R12 && sha256sum -c --quiet SHA256SUMS) && ok "r12 stage unchanged (frozen)" || setup "r12 stage manifest"
+ grep -qE '^(## summary|RESULT:)' $LOG && [ -s $X/RECEIPTS.sha256 ] && [ -s $X/RESULTS.tsv ] || setup "r12 run has not finished (no summary/RECEIPTS.sha256): run this afterwards"
+ (cd $X && sha256sum -c --quiet RECEIPTS.sha256) && ok "r12 results/receipts unchanged" || setup "r12 RECEIPTS.sha256 does not verify"
+ FORGE=/home/steven/.foundry/bin/forge SOLC=/home/steven/.local/share/svm/0.8.35/solc-0.8.35
+ [ "$(sha256sum < $FORGE | cut -c1-64)" = 4f77da0810de94325734855d0ad58d70640aa8a5b2a837608ddf8c26da34355c ] && $FORGE --version | grep -q 4072e48705af9d93e3c0f6e29e93b5e9a40caed8 && ok "forge 1.7.1 (4072e487) pinned" || setup "forge is not the pinned one"
+ [ "$(sha256sum < $SOLC | cut -c1-64)" = fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4 ] && $SOLC --version | grep -q '0.8.35+commit.47b9dedd' && ok "solc 0.8.35+commit.47b9dedd pinned" || setup "solc is not the pinned one"
+-OUT=$ST/run/$(date -u +%Y%m%dT%H%M%SZ); [ ! -e $OUT ] || setup "run dir exists"; mkdir -p $OUT/trees $OUT/tmp $OUT/logs; export TEST_TMP=$OUT/tmp TMPDIR=$OUT/tmp
++export PATH=/home/steven/.foundry/bin:/usr/bin:/bin
++[ "$(command -v forge)" = $FORGE ] && [ "$(sha256sum < "$(command -v anvil)" | cut -c1-64)" = 10c1c727d6c1de973aeb160e59875b9a9a23464d6e74149ee8abb30b3500311b ] && ok "PATH forge/anvil are the pinned binaries (rig runtime builds)" || setup "PATH forge/anvil are not the pinned ones"
++OUT=$ST2/run/$(date -u +%Y%m%dT%H%M%SZ); [ ! -e $OUT ] || setup "run dir exists"; mkdir -p $OUT/trees $OUT/tmp $OUT/logs; export TEST_TMP=$OUT/tmp TMPDIR=$OUT/tmp
+ # ---- 1+2: derived missing set and the impacted selection (python, read only) -------------------------------------------------
+ python3 -I - $ST $X $OUT <<'PY' || setup "selection: see above (HOLD)"
+ import csv, glob, os, re, sys
+@@ -58,13 +69,15 @@
+     return bool(p and os.path.exists(p) and any(f'contracts/foundry/out/{a}' in open(p, errors='replace').read() and 'ENOENT' in open(p, errors='replace').read() for a in missing))
+ sel, rows = [], list(csv.reader(open(f'{X}/RESULTS.tsv'), delimiter='\t'))
+ for i, r in enumerate(rows):
+-    if r[0] == 'STACK': pairs = [('final', r[1], r[2].split(': ', 1)[1])]; verdict = 'ok' if clean(pairs[0][2]) else 'FAIL'
+-    elif r[0] == 'REGRESS':
++    if r[0] == 'NATIVE' and len(r) == 3 and r[2].startswith('rc '): continue      # F2 native-input rows: never artifact rows
++    if r[0] == 'STACK' and len(r) == 3 and r[2].startswith('final: '): pairs = [('final', r[1], r[2].split(': ', 1)[1])]; verdict = 'ok' if clean(pairs[0][2]) else 'FAIL'
++    elif r[0] == 'REGRESS' and len(r) == 5 and re.match(r'baseline\(([^)]*)\): ', r[2]) and r[3].startswith('final: '):
+         bt = re.match(r'baseline\(([^)]*)\)', r[2]).group(1); pairs = [('final', r[1], r[3].split(': ', 1)[1])]
+         if bt not in ('none', ''): pairs.append((bt, r[1], r[2].split(': ', 1)[1]))
+         verdict = r[4]
+-    else: pairs = [(r[0], r[1], r[2].split(': ', 1)[1]), ('final', r[1], r[3].split(': ', 1)[1])]; verdict = r[4]
+-    if verdict == 'ok' or not any((t, s) in M for t, s, _ in pairs): continue
++    elif len(r) == 5 and r[2].startswith('component: ') and r[3].startswith('final: '): pairs = [(r[0], r[1], r[2].split(': ', 1)[1]), ('final', r[1], r[3].split(': ', 1)[1])]; verdict = r[4]
++    else: print(f'  HOLD: RESULTS row {i} has an unknown shape: {r[:3]}'); sys.exit(1)
++    if verdict.startswith('ok') or not any((t, s) in M for t, s, _ in pairs): continue
+     if not any(enoent(t, s) for t, s, _ in pairs): print(f'  row {i} {r[0]} {r[1]}: not ok but NO missing-artifact ENOENT -> unrelated, kept'); continue
+     for t, s, summ in pairs:
+         sel.append((i, t, s, 'rerun' if not clean(summ) else 'reuse', rec.get((t, s), '-'), summ))
+@@ -117,10 +130,18 @@
+ [ -e $OUT/NOTHING ] || [ "$(for t in $TREES; do python3 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['EnclaveDeployments.multicallValue.t.sol/MockFeed.json'])" $OUT/objs-after-$t.json; done | sort -u | wc -l)" = 1 ] && ok "MockFeed bytecode identical in every copy" || setup "MockFeed bytecode differs between copies"
+ # ---- 4: rerun exactly the unclean impacted pairs; completeness against the r12 receipt counts; amended results -------------------
+ rc=0
++# r2: the heartbeat negative control's EXACT historical base supervisor, only in the private copies that rerun that test
++HB=test/offchain-heartbeat-writers.test.mjs HBP=6f2c7da466dc26e5f7aac88c574a6b807e1a03df HBB=3ad766906ea1dc34dc6b8010370b15ee7d47b6da HBF=supervisor.base-6f2c7da46.js
++for t in $(awk -F'\t' -v hb=$HB '$4=="rerun" && $3==hb {print $2}' $OUT/SELECTED.tsv | sort -u); do
++  [ "$(git -C $OUT/trees/$t rev-parse $HBP^:supervisor.js)" = $HBB ] || setup "$t: $HBP^:supervisor.js is not blob $HBB"
++  [ ! -e $OUT/trees/$t/$HBF ] || setup "$t: $HBF already exists"
++  git -C $OUT/trees/$t cat-file blob $HBB > $OUT/trees/$t/$HBF && [ "$(git -C $OUT/trees/$t hash-object $OUT/trees/$t/$HBF)" = $HBB ] || setup "$t: base supervisor not written exactly"
++  echo "$HBB  trees/$t/$HBF" >> $OUT/HB-BASE.txt; ok "$t: base supervisor $HBB at the copied tree root (heartbeat negative control only)"; done
+ while IFS=$'\t' read -r row tree test mode key summ; do
+   [ "$mode" = rerun ] || continue
+   log=$OUT/logs/rerun--$tree--$(echo $test | tr / _).tap
+-  (cd $OUT/trees/$tree && timeout -k 10 600 node --test --test-reporter=tap --test-timeout=300000 "$test") > $log 2>&1; nrc=$?
++  if [ "$test" = $HB ]; then (cd $OUT/trees/$tree && OFFCHAIN_HEARTBEAT_BASE_SUPERVISOR=$OUT/trees/$tree/$HBF timeout -k 10 600 node --test --test-reporter=tap --test-timeout=300000 "$test") > $log 2>&1; nrc=$?
++  else (cd $OUT/trees/$tree && timeout -k 10 600 node --test --test-reporter=tap --test-timeout=300000 "$test") > $log 2>&1; nrc=$?; fi
+   echo -e "$row\t$tree\t$test\t$nrc\t$(sha256sum < $log | cut -c1-64)" >> $OUT/RERUN.tsv
+ done < $OUT/SELECTED.tsv
+ python3 -I - $X $OUT <<'PY'; rc=$?
+@@ -146,13 +167,15 @@
+     for i, r in enumerate(rows):
+         v = verdict.get(str(i))
+         if v is not None: new = 'ok(amended: missing artifact closed; rerun)' if all(v) else 'NOT-CLEAN(amended rerun)'
+-        else: new = r[-1] if r[0] != 'STACK' else ('ok' if clean(r[2].split(': ', 1)[1]) else 'FAIL')
++        elif r[0] == 'STACK': new = 'ok' if clean(r[2].split(': ', 1)[1]) else 'FAIL'
++        elif r[0] == 'NATIVE': new = 'ok' if r[2] == 'rc 0 OK' else 'FAIL'   # F2's own row; its skip refusal is a separate r12 [FAIL] line
++        else: new = r[-1]
+         remaining += not new.startswith('ok'); f.write('\t'.join(r + [new]) + '\n')
+ print(f'  amended rows: {len(rows)} total, {len(verdict)} amended, {remaining} still not ok')
+ sys.exit(1 if failed else (3 if remaining else 0))
+ PY
+ OTHER=$(grep -c '^\[FAIL\]' $LOG); echo "  r12 phase [FAIL] lines (not artifact rows; unchanged by this job): $OTHER"
+-(cd $OUT && sha256sum SELECTED.tsv RESULTS-AMENDED.tsv BUILD-*.txt ARTIFACTS-after-*.sha256 $( [ -e RERUN.tsv ] && echo RERUN.tsv ) logs/* > RECEIPTS.sha256)
++(cd $OUT && sha256sum SELECTED.tsv RESULTS-AMENDED.tsv BUILD-*.txt ARTIFACTS-after-*.sha256 $( [ -e RERUN.tsv ] && echo RERUN.tsv ) $( [ -e HB-BASE.txt ] && echo HB-BASE.txt ) logs/* > RECEIPTS.sha256)
+ [ $rc = 0 ] && [ "$OTHER" != 0 ] && rc=3
+ case $rc in 0) echo "RESULT: PASS (every r12 row ok after the amendment; no other r12 failure)";; 3) echo "RESULT: IMPACTED-FIXED, r12 STILL NOT PASSING (unrelated rows/phase failures remain)";; *) echo "RESULT: FAIL";; esac
+ exit $rc

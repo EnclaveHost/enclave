@@ -1,0 +1,8 @@
+[queue] START available=22365MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+REUSED (exact r6 evidence, product byte-identical): baseline-existing 34 + recovery-existing 34 + r3-regression 27 = 95 PASS
+PASS reanchor-recovery Ran 19 (expected 19)
+## logs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-reanchor-recovery-stage/r7/logs/root-reanchor-r7-tests-20261026T034325Z
+## aggregate (95 reused + 19 executed) rc=0
+[memory-guard] exit=0 peakTreeRssMiB=219 minHostAvailableMiB=21577
+[memory-guard] at peak: python3:38 python3:29 python3:29 python3:29 python3:29 python3:29 python3:29 bash:4
+[queue] EXIT 0

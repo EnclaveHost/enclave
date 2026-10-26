@@ -1,0 +1,32 @@
+TAP version 13
+# file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/windows/node/chain.mjs:36
+# import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openReleaseJournal, chainAuthorityFromEnv, refusingChainAuthority } from "./lease-gas-runtime.bundle.mjs";
+#                                                                                             ^^^^^^^^^^^^^^^^^^^^^
+# SyntaxError: The requested module './lease-gas-runtime.bundle.mjs' does not provide an export named 'chainAuthorityFromEnv'
+#     at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+#     at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+#     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+#     at async file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/windows-node-lease-renewal-keeper.test.mjs:42:15
+# Node.js v22.23.3
+# Subtest: test/windows-node-lease-renewal-keeper.test.mjs
+not ok 1 - test/windows-node-lease-renewal-keeper.test.mjs
+  ---
+  duration_ms: 268.655913
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/windows-node-lease-renewal-keeper.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 275.046135

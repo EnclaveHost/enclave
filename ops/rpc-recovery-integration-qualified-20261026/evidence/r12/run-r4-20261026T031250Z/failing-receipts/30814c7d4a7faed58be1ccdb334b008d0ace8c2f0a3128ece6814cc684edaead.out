@@ -1,0 +1,95 @@
+TAP version 13
+# Subtest: account-first: a passkey account creates itself through its own bundler with its own ETH - no wallet anywhere
+not ok 1 - account-first: a passkey account creates itself through its own bundler with its own ETH - no wallet anywhere
+  ---
+  duration_ms: 30201.658712
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:114:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:53:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: the account as identity, paying its own gas: a session, the Apps deploy dialog, a row action - every transaction through its own bundler
+not ok 2 - the account as identity, paying its own gas: a session, the Apps deploy dialog, a row action - every transaction through its own bundler
+  ---
+  duration_ms: 1.384537
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:170:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:53:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: an outcome the bundler holds back: unknown, blocks the next operation, never resent; then confirmed from the EntryPoint's own event
+not ok 3 - an outcome the bundler holds back: unknown, blocks the next operation, never resent; then confirmed from the EntryPoint's own event
+  ---
+  duration_ms: 0.07173
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:227:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:53:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: /grant under the account: Sign only is handed to a SEPARATE gas payer and checked exactly; Approve and open goes through the account's own bundler
+not ok 4 - /grant under the account: Sign only is handed to a SEPARATE gas payer and checked exactly; Approve and open goes through the account's own bundler
+  ---
+  duration_ms: 0.03904
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:256:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:53:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: account-first with an owner-chosen paymaster (ERC-7677): an account with NO ETH creates itself; the named paymaster pays from its EntryPoint deposit
+not ok 5 - account-first with an owner-chosen paymaster (ERC-7677): an account with NO ETH creates itself; the named paymaster pays from its EntryPoint deposit
+  ---
+  duration_ms: 0.052989
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:297:1'
+  failureType: 'hookFailed'
+  error: 'fetch failed'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    node:internal/deps/undici/undici:15270:13
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rpc (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:38:51)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/ownercli/test/site-independent-account-first.test.mjs:53:5)
+    async TestHook.run (node:internal/test_runner/test:1054:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 0
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30544.854955

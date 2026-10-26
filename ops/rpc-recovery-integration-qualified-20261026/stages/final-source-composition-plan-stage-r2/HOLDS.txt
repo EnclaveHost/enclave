@@ -1,0 +1,5 @@
+production qualification: windows-node-lease-readiness test 9 SKIP (PWSH unset; external cutover tools missing) - needs the native PowerShell gate on a Windows host
+production qualification: site-independent-account-first/management/passkey-aa (5+10+7 = 22 tests) need a fork of public Base (blocked offline) - own historical RPC pending
+production qualification: windows-verifier.e2e needs the Helios/reth rig (a skip is never a pass)
+production qualification: the regenerated MCP guest bundle changes the measured image - a NEW image build + measurement + canary is required; no image is qualified
+production qualification: custody v2 stays REFUSED; lease consumers stay on HOLD; the control-guest cutover is not authorized (its gates HOLD)

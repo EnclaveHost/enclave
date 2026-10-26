@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "scope": "Root assessment of the corrected D audit only, not full composition PASS",
+  "rawAuditSha256": "25a259918de668324d74ea1d4999691dddc3ff7ec9c313ad108c587f8287a86e",
+  "rawAuditPassed": false,
+  "onlyRemainingFinding": "listing: unexpected: metal/__pycache__/overlay-control-image.cpython-314.pyc (not an exact recorded file with recorded bytes)",
+  "classification": "Exact post-test Python cache, matches the unchanged tracked source and current Python compiler; absent from both built images",
+  "pycSha256": "5fbb45b8820fcc734a17b0a7c8034fafbf32c2856a4b8b6e69335029791064bf",
+  "sourceSha256": "10db3d3d43a8319ede07d67b47d7fcd8434e0a94a7e411ff2c2ddc4e18d3c31e",
+  "pythonMagic": "2b0e0d0a",
+  "timestampAndSizeMatch": true,
+  "codeObjectMatchesCompilation": true,
+  "frozenRunModified": false,
+  "fullCompositionPass": false
+}

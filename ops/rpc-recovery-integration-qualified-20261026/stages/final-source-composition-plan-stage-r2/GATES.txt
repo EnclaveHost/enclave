@@ -1,0 +1,8 @@
+# job-level receipts: name|rc file|allowed rc (space-separated)|out file|required exact line|forbidden ERE   (paths relative to work/rpc-production-final-20261025)
+P1-enrollment-82988|logs/root-enrollment-fix-0333.rc|0|logs/root-enrollment-fix-0333.out|## enrollment-fix rc=0|
+P2-provider-g5-r2-92355|logs/root-provider-verifier-r2-0327.rc|0|logs/root-provider-verifier-r2-0327.out|[queue] EXIT 0|^\[FAIL\]|INCOMPLETE
+P3-lease-adapter-29692|logs/root-lease-fixture-fix-0342.rc|0|logs/root-lease-fixture-fix-0342.out|## lease-fixture rc=0|
+P4-mcp-r6-68896|logs/root-mcp-authority-r6-0333.rc|0|logs/root-mcp-authority-r6-0333.out|RESULT: PASS|INCOMPLETE|FAIL|skipped|SETUP
+P5-stack-import-50cf|logs/root-stack-import-fixture.rc|0|logs/root-stack-import-fixture.out|[queue] EXIT 0|^\[FAIL\]|INCOMPLETE
+rig-impacted-r2|logs/root-r12-impacted-rerun-r2-0346.rc|0 3|logs/root-r12-impacted-rerun-r2-0346.out||
+P6-scripted-adapter-fix (windows-lease-scripted-fixture.mjs pass-through exports; NOT prepared)||0|||

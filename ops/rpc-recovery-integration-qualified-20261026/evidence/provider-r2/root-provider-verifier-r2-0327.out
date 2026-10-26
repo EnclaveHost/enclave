@@ -1,0 +1,34 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] START available=22522MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/provider-verifier-composition-review-stage/r2/jobs/out-20261026T034552Z/pre-attested-chain-verifier.tap 1 {'tests': 15, 'pass': 6, 'fail': 9, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+AssertionError: {'tests': 15, 'pass': 6, 'fail': 9, 'cancelled': 0, 'skipped': 0, 'todo': 0}
+[memory-guard] exit=1 peakTreeRssMiB=519 minHostAvailableMiB=21548
+[memory-guard] at peak: esbuild:162 node:134 node:127 node:62 anvil:27 bash:4 timeout:2
+[queue] EXIT 1

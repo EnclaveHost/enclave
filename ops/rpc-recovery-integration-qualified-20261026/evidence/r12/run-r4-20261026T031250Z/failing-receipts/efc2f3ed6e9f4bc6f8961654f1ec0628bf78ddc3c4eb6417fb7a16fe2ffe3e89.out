@@ -1,0 +1,230 @@
+TAP version 13
+# Subtest: setup: a session-held deployment claimed by host A, and A's operator-signed browser record in the profile's directory
+not ok 1 - setup: a session-held deployment claimed by host A, and A's operator-signed browser record in the profile's directory
+  ---
+  duration_ms: 680.45129
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:266:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart
+not ok 2 - every operation through the Manage tab: status, logs, host-reported attestation, app token, CPU profile, restart
+  ---
+  duration_ms: 0.546755
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:289:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: a restart whose answer is lost: outcome unknown, check status, never resent
+not ok 3 - a restart whose answer is lost: outcome unknown, check status, never resent
+  ---
+  duration_ms: 0.070129
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:336:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload
+not ok 4 - records: a directory-swapped record is ignored; a replayed older record after a newer one is refused, across a reload
+  ---
+  duration_ms: 0.099609
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:354:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor
+not ok 5 - a record that does not list this dashboard, and a gateway that refuses its CORS: nothing reaches the supervisor
+  ---
+  duration_ms: 0.06201
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:386:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed
+not ok 6 - DNS and CA failures: refused with the native fallback; the native path is named, never the SPKI claimed
+  ---
+  duration_ms: 0.037149
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:407:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding
+not ok 7 - no agreeing RPCs: the page refuses before contacting the host; a gateway without quorum refuses before forwarding
+  ---
+  duration_ms: 0.03744
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:428:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: a stale owner: once the deployment has left this wallet and its vault, the next action is refused before any request
+not ok 8 - a stale owner: once the deployment has left this wallet and its vault, the next action is refused before any request
+  ---
+  duration_ms: 0.08556
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:445:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it
+not ok 9 - a passkey account (Safe) as the identity: Manage signs with the account's own session; a Safe-held record needs the Safe's own delegation; the wallet's identity cannot act for it
+  ---
+  duration_ms: 0.303438
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:489:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+# Subtest: nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage
+not ok 10 - nothing reached Enclave; only the dashboard, the operator origins, the profile's RPCs and directory; the app token is in no log or storage
+  ---
+  duration_ms: 0.149448
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:575:1'
+  failureType: 'hookFailed'
+  error: |-
+    browserType.launch: Executable doesn't exist at /home/steven/.cache/ms-playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell
+    ╔════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright was just installed or updated.       ║
+    ║ Please run the following command to download new browsers: ║
+    ║                                                            ║
+    ║     npx playwright install                                 ║
+    ║                                                            ║
+    ║ <3 Playwright Team                                         ║
+    ╚════════════════════════════════════════════════════════════╝
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    setup (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:209:28)
+    async TestContext.<anonymous> (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r12/run/r4-20261026T031250Z/trees/final/test/site-independent-management.test.mjs:169:9)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 0
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6394.587787

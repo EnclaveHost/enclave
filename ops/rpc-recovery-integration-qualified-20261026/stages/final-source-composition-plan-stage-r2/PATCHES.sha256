@@ -1,0 +1,5 @@
+266be4414964703e69feb25ec0867273fece452b183ccb1f490523cadbd8c767  enrollment-composition-fix-stage/patches/network-enroll-rpcs.patch
+478bc424a2d431928962a3d4e48280e398d571b37cf7695609b0254dc0ffc652  provider-verifier-composition-review-stage/r2/patch/g5-exact-cause.patch
+34988b0a3139c54b394f7f7a074cf168c6c5bd54adba9e10e2aded69e1cebbee  remaining-composition-triage-stage/patches/windows-lease-runtime-fixture-exports.patch
+dccad59c208273c25c9da7e08b33341e44481c7d68b5e9a5ad180f103a034604  standalone-mcp-authority-stage/r2/standalone-mcp-authority-r2.patch
+517d529ddd65a55ac759558e7ce4b37abda93716bcee2b662a22a26fbf6f1360  stack-import-fixture-stage/patches/stack-windows-chain-reader-imports.patch
