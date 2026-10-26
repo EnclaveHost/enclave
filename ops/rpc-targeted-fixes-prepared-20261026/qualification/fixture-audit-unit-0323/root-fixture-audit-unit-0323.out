@@ -1,0 +1,6 @@
+[queue] START available=22237MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 13 tests in 4.128s
+13 audit unit tests passed; actual full-run audit remains pending.
+[memory-guard] exit=0 peakTreeRssMiB=67 minHostAvailableMiB=22126
+[memory-guard] at peak: python3:24 python3:19 python3:18 bash:4 timeout:2
+[queue] EXIT 0

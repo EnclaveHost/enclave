@@ -1,0 +1,12 @@
+--- a/windows/node/network-enroll.mjs
++++ b/windows/node/network-enroll.mjs
+@@ -227,6 +227,9 @@
+     // and on k11-4 two of its three public RPCs rate-limited, so 2 of 3 agreeing failed most rounds (2026-10-18). The agent
+     // reads them at start, so a change restarts it once.
+     // the node's explicit verifier replaces the RPC list (and leaving it restores the list); either change restarts once
++    // the node's https RPC list (legacy only): declared here exactly as on consumer-windows e4f507d6b; the composition lost it
++    // (route moved it below its own verified block, which the composition replaced with this agentChain() authority block)
++    const rpcs = Array.isArray(config.chainRpc) ? config.chainRpc.filter((u) => /^https:\/\//.test(String(u))) : [];
+     // under the node's explicit chain authority the agent's chain is exactly agentChain(): the old public rpc list (and any
+     // stale selection) is removed, never kept beside the verifier; a change restarts the agent once
+     if (!fresh && config.chainAuthority) {

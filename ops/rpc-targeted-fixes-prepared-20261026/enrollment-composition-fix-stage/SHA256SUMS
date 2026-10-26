@@ -1,0 +1,4 @@
+c4a0cca2944b42ab1ff868b7795d13f9a05bd799ab085773c1cb59a7b12813ae  ./README.md
+f93cf7abca7f367b4a25e79f3d6af6e83ee69e938c1fb07c8698a60ff8e1f98b  ./jobs/root-enrollment-fix.sh
+266be4414964703e69feb25ec0867273fece452b183ccb1f490523cadbd8c767  ./patches/network-enroll-rpcs.patch
+21c8a9c9201bed85d7940ec881ccb6233a9fc95f0a5a21b2abe41654fbd7d898  ./tests/network-enroll-chain-rpcs.test.mjs

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# TEST STUB (enclave-api-relay.service only). State in <root>/state; never touches the real system.
+#   state/fail-<verb> N   the N-th call of daemon-reload|restart fails      state/hook-<verb>   one-shot script run first
+#   state/mutate-env K=V  one-shot: the next start gets K=V (simulates a lost/changed admin value)
+set -u; RT=$(cd "$(dirname "$0")/.." && pwd); ST=$RT/state; echo "systemctl $*" >> "$ST/calls"
+DD=$RT/etc/systemd/system/enclave-api-relay.service.d
+must_fail() { local c=0; [ -f "$ST/count-$1" ] && c=$(cat "$ST/count-$1"); c=$((c+1)); echo $c > "$ST/count-$1"; [ -f "$ST/fail-$1" ] && [ "$(cat "$ST/fail-$1")" = $c ]; }
+hook() { if [ -f "$ST/hook-$1" ]; then mv "$ST/hook-$1" "$ST/hook-$1.ran"; bash "$ST/hook-$1.ran"; fi; }
+start() {
+  declare -A E; local l k v n f pid inv
+  while IFS= read -r l; do [ -n "$l" ] && E[${l%%=*}]=${l#*=}; done < "$ST/env.base"
+  for f in "$DD"/*.conf; do [ -f "$f" ] || continue
+    while IFS= read -r l; do case $l in
+      Environment=*) l=${l#Environment=}; E[${l%%=*}]=${l#*=};;
+      UnsetEnvironment=*) for n in ${l#UnsetEnvironment=}; do unset "E[$n]"; done;; esac; done < "$f"; done
+  if [ -f "$ST/mutate-env" ]; then l=$(cat "$ST/mutate-env"); E[${l%%=*}]=${l#*=}; rm -f "$ST/mutate-env"; fi
+  inv=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); pid=$(( $(cat "$ST/pid" 2>/dev/null || echo 1000) + 1 ))
+  E[INVOCATION_ID]=$inv; E[JOURNAL_STREAM]=8:$RANDOM
+  mkdir -p "$RT/proc/$pid"; : > "$RT/proc/$pid/environ"
+  for k in $(printf '%s\n' "${!E[@]}" | sort); do printf '%s=%s\0' "$k" "${E[$k]}" >> "$RT/proc/$pid/environ"; done
+  echo "$inv" > "$ST/inv"; echo "$pid" > "$ST/pid"; echo active > "$ST/active"
+  echo "$inv [api] listening on 127.0.0.1:8100" >> "$ST/journal"
+  if grep -q relay-chain-authority "$RT/opt/nan-relay/api-relay.js" && [ "${E[ENCLAVE_CHAIN_AUTHORITY]:-}" = verifier ]; then
+    echo "$inv [chain] relay chain authority: local verifier ${E[ENCLAVE_CHAIN_VERIFIER]} (unsafe tier, no L1 finality); tx backend set" >> "$ST/journal"
+  else echo "$inv [chain] BASE_RPC pool" >> "$ST/journal"; fi
+}
+case ${1:-} in
+  show) case ${3:-} in InvocationID) cat "$ST/inv";; MainPID) cat "$ST/pid";; *) echo;; esac ;;
+  is-active) [ "$(cat "$ST/active")" = active ] ;;
+  cat) echo "# /etc/systemd/system/enclave-api-relay.service (stub)"; cat "$DD"/*.conf 2>/dev/null; true ;;
+  daemon-reload) hook daemon-reload; must_fail daemon-reload && exit 1; exit 0 ;;
+  restart) hook restart; if must_fail restart; then echo failed > "$ST/active"; exit 1; fi; start ;;
+  *) echo "stub systemctl: unsupported $*" >&2; exit 2 ;;
+esac
