@@ -26,7 +26,8 @@ function fixture(t) {
   const policy = { revision: 1, threshold: 3, witnesses: accounts.slice(0, 4).map(a => a.address),
     maxAnchorAgeSec: 1800, maxTransitionWei: '1000', stopReserveWei: '1000' };
   const anchor = { proofVerified: true, tier: 'finalized', hash: hash('anchor'), number: 100, timestamp: 1000, observedAt: 2000,
-    admitted: true, funded: true, fundedUntil: 2800, balanceWei: '100000', policyHash: certificateWitnessesHash(policy),
+    enabled: true, admitted: true, hostAdmission: { host: nextHost, admitted: true },
+    funded: true, fundedUntil: 2800, balanceWei: '100000', policyHash: certificateWitnessesHash(policy),
     ownerAuthority: accounts[7].address,
     assignment: { deployment: id, generation: 2, state: 'running', host: oldHost, operator: accounts[5].address,
       changedAt: 1000, startAfter: 0, failures: 0, crashHeld: false } };
@@ -84,7 +85,7 @@ test('a partitioned old host cannot obtain a quorum after three witnesses fenced
   const f = fixture(t); await certify(f, 1);
   const record = { deployment: id, host: oldHost, generation: 2, policyRevision: 1, sequence: 1, issuedAt: 2000, validUntil: 2020 };
   const signature = await signServingPermit(accounts[5], f.pins, record);
-  const isolated = { ...f, certificates: [] };
+  const isolated = { ...f, anchor: { ...f.anchor, hostAdmission: { host: oldHost, admitted: true } }, certificates: [] };
   for (const w of f.witnesses.slice(0, 3)) {
     w.authority.read = async () => ({ generationAuthority: isolated });
     w.health.verify = async () => ({ verified: true, deployment: id, host: oldHost, generation: 2, ready: true, validUntil: 2020 });
@@ -121,6 +122,7 @@ test('freshly observing an over-age anchor, missing current proof, or changing w
 });
 test('an authenticated unsafe denial persists through restart and a later unsafe allow cannot restore service', async t => {
   const f = fixture(t);
+  f.anchor.hostAdmission = { host: oldHost, admitted: true };
   f.witnesses[0].health.verify = async () => ({ verified: true, deployment: id, host: oldHost, generation: 2, ready: true, validUntil: 2020 });
   const record = { deployment: id, host: oldHost, generation: 2, policyRevision: 1, sequence: 1, issuedAt: 2000, validUntil: 2020 };
   const signature = await signServingPermit(accounts[5], f.pins, record);
@@ -155,6 +157,69 @@ test('runner serves a quorum-certified mined transition while retaining its inte
   assert.deepEqual(calls, ['serve', 'fence', 'stop']);
   outcome = 'finalized';
   assert.equal((await runner.reconcile(id)).status, 'running'); assert.equal(journal.read(id).minedTransitions.length, 0);
+});
+function scopedRunner(f) {
+  const calls = [], journal = openLifecycleJournal(path.join(f.dir, 'scoped-host.json'));
+  const snapshot = { schema: 2, id, thisHost: oldHost, enabled: false, admitted: true, generationAuthority: f };
+  const runner = new DeploymentLifecycleRunner({ pins: f.pins, journal, now: () => f.nowSec * 1000,
+    chain: { read: async () => snapshot,
+      prepare: async (_id, _snapshot, target) => { calls.push(`prepare:${target}`); return { payload: target, digest: hash(target) }; },
+      submit: async () => calls.push('submit') },
+    runtime: { health: async () => ({ ready: true }), serve: async () => calls.push('serve'),
+      fence: async () => calls.push('fence'), stop: async () => { calls.push('stop'); return true; },
+      ensureStaged: async () => { calls.push('stage'); return { ready: true }; } },
+  });
+  return { runner, calls, snapshot, journal };
+}
+test('operational host refusal queues its running assignment without globally stopping the app', async t => {
+  const f = fixture(t); f.anchor.hostAdmission = { host: oldHost, admitted: false };
+  const { runner, calls } = scopedRunner(f);
+  assert.equal((await runner.reconcile(id)).status, 'pending');
+  assert.deepEqual(calls, ['fence', 'stop', 'prepare:queued', 'submit']);
+});
+test('operational host refusal leaves queued work available without starting or charging it', async t => {
+  const f = fixture(t); f.anchor.hostAdmission = { host: oldHost, admitted: false };
+  Object.assign(f.anchor.assignment, { state: 'queued', host: zero, operator: noAddress });
+  const { runner, calls } = scopedRunner(f);
+  assert.equal((await runner.reconcile(id)).status, 'queued');
+  assert.deepEqual(calls, ['fence', 'stop']);
+});
+test('missing or differently scoped host admission cannot be repaired by outer snapshot booleans', async t => {
+  for (const hostAdmission of [undefined, { host: nextHost, admitted: true }, { host: oldHost, admitted: 'true' }]) {
+    const f = fixture(t); f.anchor.hostAdmission = hostAdmission;
+    const { runner, calls } = scopedRunner(f);
+    assert.equal((await runner.reconcile(id)).status, 'held');
+    assert.deepEqual(calls, ['fence']);
+  }
+});
+test('global disable and current denial retain precedence over host admission', async t => {
+  for (const change of [f => { f.anchor.enabled = false; }, f => { delete f.anchor.enabled; },
+    f => { f.anchor.admitted = false; }, f => { f.head.denied = true; }]) {
+    const f = fixture(t); f.anchor.hostAdmission = { host: oldHost, admitted: true }; change(f);
+    const { runner, calls } = scopedRunner(f);
+    assert.equal((await runner.reconcile(id)).status, 'held');
+    assert.equal(calls.includes('serve') || calls.includes('stage') || calls.includes('submit'), false);
+    assert.equal(canRestoreLifecycleDenial({ blockNumber: 100 }, { ...f.anchor, enabled: false }, f.nowSec), false);
+  }
+});
+test('witnesses refuse serving on a globally enabled but ineligible or differently scoped host', async t => {
+  for (const hostAdmission of [undefined, { host: oldHost, admitted: false }, { host: nextHost, admitted: true }]) {
+    const f = fixture(t); f.anchor.hostAdmission = hostAdmission;
+    const record = { deployment: id, host: oldHost, generation: 2, policyRevision: 1, sequence: 1, issuedAt: 2000, validUntil: 2020 };
+    const signature = await signServingPermit(accounts[5], f.pins, record);
+    await assert.rejects(f.witnesses[0].permit(record, signature), /host.*(admi|missing)/);
+    assert.equal(f.witnesses[0].journal.read(id).digest, null);
+  }
+});
+test('generation witnesses refuse a successor lacking matching anchored host admission', async t => {
+  for (const hostAdmission of [undefined, { host: nextHost, admitted: false }, { host: oldHost, admitted: true }]) {
+    const f = fixture(t); await certify(f, 1); f.advance(22);
+    f.anchor.hostAdmission = hostAdmission;
+    const p = await proposal(f, 2);
+    const before = f.witnesses[0].journal.read(id);
+    await assert.rejects(f.witnesses[0].generation(p), /host.*(admi|missing)/);
+    assert.deepEqual(f.witnesses[0].journal.read(id), before);
+  }
 });
 test('HTTP generation collection verifies both signatures and returns contract-ordered approvals', async t => {
   const f = fixture(t), p = await proposal(f, 1), endpoints = [], servers = [];

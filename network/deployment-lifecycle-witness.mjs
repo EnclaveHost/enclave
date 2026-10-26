@@ -5,7 +5,7 @@ import { getAddress, recoverTypedDataAddress, hashTypedData } from 'viem';
 import { validateServingPermitContext, signServingPermit, servingAssignmentBinding, resolveServingContext } from './deployment-serving-permit.mjs';
 import { verifyGenerationChain, prepareGenerationProposal } from './deployment-generation-certificate.mjs';
 import { transitionTypedData } from './deployment-transition-intent.mjs';
-import { canRestoreLifecycleDenial } from './deployment-authority-window.mjs';
+import { canRestoreLifecycleDenial, lifecycleHostAdmitted } from './deployment-authority-window.mjs';
 
 export class DeploymentLifecycleWitness {
   constructor({ pins, account, journal, authority, health, now = Date.now, requestTimeoutMs = 10000 }) {
@@ -97,6 +97,7 @@ export class DeploymentLifecycleWitness {
       if (actorSignature) actor = getAddress(await recoverTypedDataAddress({ ...typedIntent, signature: actorSignature }));
       const owner = getAddress(source.anchor.ownerAuthority);
       if (record.action === 2) {
+        if (!lifecycleHostAdmitted(source.anchor, record.host)) throw Error('candidate host is not admitted');
         const candidate = source.candidate;
         if (candidate?.proofVerified !== true || candidate.blockHash !== source.anchor.hash || candidate.host !== record.host ||
             candidate.eligible !== true || getAddress(candidate.operator) !== getAddress(record.operator) || actor !== getAddress(record.operator))

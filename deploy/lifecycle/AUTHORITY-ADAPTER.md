@@ -74,7 +74,8 @@ The `generationAuthority` input to witnesses/runner contains:
   anchor: {
     proofVerified: true, tier: 'l1-finalized-derived',
     number, hash, timestamp, observedAt,
-    admitted, funded, fundedUntil, balanceWei, ownerAuthority, policyHash,
+    enabled, admitted, hostAdmission: { host, admitted },
+    funded, fundedUntil, balanceWei, ownerAuthority, policyHash,
     assignment: {
       deployment, generation, state, host, operator,
       changedAt, startAfter, failures, crashHeld
@@ -97,6 +98,21 @@ All times here are **seconds**. `policyHash` is calculated by
 is additional restrictive state; it cannot grant service. For candidate signing,
 `readGeneration` additionally returns an anchored, proof-qualified candidate
 `{ blockHash, host, operator, eligible, proofVerified }`.
+
+`anchor.enabled` and the retained `anchor.admitted` field describe **global**
+deployment admission (owner enablement, catalog and administrator policy).
+Neither may include a refusal specific to the host requesting the read.
+`anchor.hostAdmission` is the separate host-scoped result from the same pinned
+snapshot, including registry, placement, host-owner policy and host affordability.
+Its `host` must exactly match the host requested by the runner, serving witness
+or successor witness. Missing, mismatched or non-boolean admission is unknown,
+never permission. A known false host admission queues this host's own running
+assignment or leaves an already queued deployment available to other hosts.
+It cannot cause a deployment-global stopped transition. Serving and successor
+signing both require matching true host admission; a verified global generation
+chain alone is insufficient. Outer snapshot booleans do not override these
+authenticated fields. Current denial and sticky restoration gates still take
+precedence; this separation does not qualify the pending denial-only stop relay.
 
 `head` needs independently authenticated current-head authority AND verified
 ancestry to the anchor. An arbitrary header chain ending at a known ancestor is

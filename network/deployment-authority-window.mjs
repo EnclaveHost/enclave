@@ -5,6 +5,14 @@
 export const OBSERVATION_SEC = 20, SKEW_SEC = 2, MAX_ANCHOR_LAG_SEC = 3600;
 const HASH = /^0x[0-9a-f]{64}$/;
 const integer = n => Number.isSafeInteger(n) && n >= 0;
+// This is a scoped read at the same authenticated anchor, not a host's assertion
+// about itself. Global admission alone cannot authorize a particular host.
+export function lifecycleHostAdmitted(anchor, host) {
+  const admission = anchor?.hostAdmission;
+  if (!HASH.test(host || '') || admission?.host !== host || typeof admission.admitted !== 'boolean')
+    throw Error('authenticated admission for the requested host is missing');
+  return admission.admitted;
+}
 function timestamp(n, now, maxAge, what) {
   if (!integer(n) || n > now + SKEW_SEC || now - n > maxAge) throw Error(`stale or invalid ${what}`);
 }
@@ -27,7 +35,7 @@ export function validateLifecycleAuthorityWindow({ anchor, head, policy, nowSec,
   if (head.denied) throw Object.assign(Error('deployment denied; authenticated restoration required'), {
     code: 'LIFECYCLE_DENIED', denial: { blockNumber: head.number, blockHash: head.hash, observedAt: head.observedAt, revision: policy.revision } });
   if (denyFloor) throw Error('deployment denied; authenticated restoration required');
-  if (anchor.admitted !== true || anchor.funded !== true) throw Error('policy anchor does not grant service');
+  if (anchor.enabled !== true || anchor.admitted !== true || anchor.funded !== true) throw Error('policy anchor does not grant service');
   if (!integer(anchor.fundedUntil) || anchor.fundedUntil <= nowSec) throw Error('funded runtime exhausted');
   return { validUntil: Math.min(anchor.timestamp + lag, anchor.observedAt + OBSERVATION_SEC,
     head.timestamp + OBSERVATION_SEC, head.observedAt + OBSERVATION_SEC, anchor.fundedUntil),
@@ -44,5 +52,5 @@ export function canRestoreLifecycleDenial(denial, anchor, nowSec) {
   return !!(denial && anchor?.proofVerified === true && ['finalized', 'l1-finalized-derived'].includes(anchor.tier) &&
     integer(anchor.number) && anchor.number >= denial.blockNumber && HASH.test(anchor.hash || '') &&
     integer(anchor.observedAt) && anchor.observedAt <= nowSec + SKEW_SEC && nowSec - anchor.observedAt <= OBSERVATION_SEC &&
-    anchor.admitted === true && anchor.funded === true && anchor.fundedUntil > nowSec);
+    anchor.enabled === true && anchor.admitted === true && anchor.funded === true && anchor.fundedUntil > nowSec);
 }

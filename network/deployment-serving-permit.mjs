@@ -5,7 +5,7 @@
 // No function in this module sends a blockchain transaction.
 import { recoverTypedDataAddress, hashTypedData, getAddress, keccak256, toBytes } from 'viem';
 import { verifyGenerationChain } from './deployment-generation-certificate.mjs';
-import { canRestoreLifecycleDenial } from './deployment-authority-window.mjs';
+import { canRestoreLifecycleDenial, lifecycleHostAdmitted } from './deployment-authority-window.mjs';
 const OPERATIONAL = Symbol('verified generation authority');
 
 export const MAX_PERMIT_SEC = 20;
@@ -52,6 +52,7 @@ export async function resolveServingContext(options) {
   const denial = options.denyFloor ?? g.denyFloor;
   if (denial && !canRestoreLifecycleDenial(denial, g.anchor, options.nowSec)) throw Error('deployment denied; authenticated restoration required');
   const a = result.assignment;
+  if (!lifecycleHostAdmitted(g.anchor, a.host)) throw Error('assigned host is not admitted');
   return { ...options, restoredAt: denial ? g.anchor.number : null, policy: g.policy, assignment: { ...a, policyRevision: g.policy.revision,
     proofVerified: true, authorityTier: g.anchor.tier, admitted: g.anchor.admitted,
     funded: a.remainingWei > BigInt(g.policy.stopReserveWei) && a.fundedUntil > options.nowSec,

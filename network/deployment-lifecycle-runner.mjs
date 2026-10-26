@@ -8,7 +8,7 @@
 // runtime.fence revokes existing streams/storage access as well as new requests.
 // A chain read is never considered verified merely because HTTP returned 200.
 import { verifyGenerationChain } from './deployment-generation-certificate.mjs';
-import { canRestoreLifecycleDenial } from './deployment-authority-window.mjs';
+import { canRestoreLifecycleDenial, lifecycleHostAdmitted } from './deployment-authority-window.mjs';
 
 export class DeploymentLifecycleRunner {
   constructor({ chain, runtime, journal, pins = null, now = Date.now, random = Math.random }) {
@@ -36,11 +36,13 @@ export class DeploymentLifecycleRunner {
         const localDenial = this.journal.read(id).denial;
         const denial = localDenial || g.denyFloor;
         operational = await verifyGenerationChain(g.certificates, { ...g, pins: this.pins, nowSec: Math.floor(now / 1000), denyFloor: null });
+        const hostAdmitted = lifecycleHostAdmitted(g.anchor, snapshot.thisHost);
         if (denial && !canRestoreLifecycleDenial(denial, g.anchor, Math.floor(now / 1000))) throw Error('authenticated restoration required');
         if (localDenial) this.journal.restoreDenial(id, g.anchor.number);
         const a = operational.assignment;
         snapshot = { ...snapshot, verified: true, authorityTier: g.anchor.tier,
-          enabled: g.anchor.admitted === true, funded: a.remainingWei > BigInt(g.policy.stopReserveWei) && a.fundedUntil * 1000 > now,
+          enabled: g.anchor.enabled === true, admitted: hostAdmitted,
+          funded: a.remainingWei > BigInt(g.policy.stopReserveWei) && a.fundedUntil * 1000 > now,
           policy: g.policy, servingContext: { generationAuthority: g },
           assignment: { ...a, revision: g.policy.revision, startAfter: a.startAfter * 1000 } };
       } catch (e) {
