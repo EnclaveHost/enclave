@@ -1,0 +1,5 @@
+a38407cf84445eea3a98189922f00b253f5eed2c8be554665660655a7640bd19  ./PROVENANCE.md
+c537fc6f0bb16c4d14d0de85b49475c9f23e9ecc8aec7ab9cada13adac6cf41e  ./inputs/claude-replica-enrollment-r3-review.md
+90c579ab62bb9ffe7389e049fc5743b2fe67e55688ae202561517e88c8bf8875  ./jobs/kvm-overlay.py
+561f17b38a4135d8e9dc8ba493441a2517f9ae5555ff939f6919f96cbfe37420  ./jobs/root-accepted-image-enrollment-r5.sh
+4b85e68edca5c9e5dcffcccc45cd736886a4270f03253c1eff16bc2a700df88c  ./patches/accepted-image-enrollment-r5-vs-r4.patch

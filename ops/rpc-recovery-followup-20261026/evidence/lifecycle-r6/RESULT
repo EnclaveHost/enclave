@@ -1,0 +1,1 @@
+PASS lifecycle-chain-adapter-r6 abi 5 + policy 9 + proof 10 + kvm-host-admission 35 + runtime-expiry 7 = 66

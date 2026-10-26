@@ -1,0 +1,142 @@
+TAP version 13
+# Subtest: exact bytes are copied, hashed and acknowledged strictly; false, mutation and deadlines refuse
+ok 1 - exact bytes are copied, hashed and acknowledged strictly; false, mutation and deadlines refuse
+  ---
+  duration_ms: 21.96128
+  type: 'test'
+  ...
+# Subtest: derived floor is unavailable until exact byte ACK; concurrent reads and writes cannot publish
+ok 2 - derived floor is unavailable until exact byte ACK; concurrent reads and writes cannot publish
+  ---
+  duration_ms: 7.168725
+  type: 'test'
+  ...
+# Subtest: lost ACK fences derived journal permanently and late ACK cannot revive it
+ok 3 - lost ACK fences derived journal permanently and late ACK cannot revive it
+  ---
+  duration_ms: 22.950381
+  type: 'test'
+  ...
+# Subtest: close aborts pending derived commit and releases exclusion after local settlement
+ok 4 - close aborts pending derived commit and releases exclusion after local settlement
+  ---
+  duration_ms: 4.815696
+  type: 'test'
+  ...
+# Subtest: required replication cannot initialize missing or unenrolled journals
+ok 5 - required replication cannot initialize missing or unenrolled journals
+  ---
+  duration_ms: 3.726996
+  type: 'test'
+  ...
+# Subtest: lifecycle anchor publication waits for ACK, rows refuse replication bypass, close preserves exclusion
+ok 6 - lifecycle anchor publication waits for ACK, rows refuse replication bypass, close preserves exclusion
+  ---
+  duration_ms: 6.56882
+  type: 'test'
+  ...
+# Subtest: split paths are explicit and disjoint; legacy layout remains available
+ok 7 - split paths are explicit and disjoint; legacy layout remains available
+  ---
+  duration_ms: 0.602755
+  type: 'test'
+  ...
+# Subtest: verified genesis seeds both exact journals before opening; cached or JSON enrollment grants nothing
+ok 8 - verified genesis seeds both exact journals before opening; cached or JSON enrollment grants nothing
+  ---
+  duration_ms: 11.822042
+  type: 'test'
+  ...
+# Subtest: provider binding, floor, previous state, rotation and recovery cannot be accepted as genesis
+ok 9 - provider binding, floor, previous state, rotation and recovery cannot be accepted as genesis
+  ---
+  duration_ms: 20.195636
+  type: 'test'
+  ...
+# Subtest: every failed seed ACK including final committed-phase write leaves an explicit recovery fence
+ok 10 - every failed seed ACK including final committed-phase write leaves an explicit recovery fence
+  ---
+  duration_ms: 24.531147
+  type: 'test'
+  ...
+# Subtest: verification cancellation/deadline makes no journal and ignores late provider success
+ok 11 - verification cancellation/deadline makes no journal and ignores late provider success
+  ---
+  duration_ms: 26.691487
+  type: 'test'
+  ...
+# Subtest: an empty disposable coverage cache can initialize; any orphan bytes or temp manifest refuse
+ok 12 - an empty disposable coverage cache can initialize; any orphan bytes or temp manifest refuse
+  ---
+  duration_ms: 6.225354
+  type: 'test'
+  ...
+# Subtest: runtime declares the exact durable state API and exported binding
+ok 13 - runtime declares the exact durable state API and exported binding
+  ---
+  duration_ms: 0.111889
+  type: 'test'
+  ...
+# Subtest: outcome-unknown genesis resumes only the exact committed prefix under the same enrollment
+ok 14 - outcome-unknown genesis resumes only the exact committed prefix under the same enrollment
+  ---
+  duration_ms: 58.342969
+  type: 'test'
+  ...
+# Subtest: committed but advanced, foreign, divergent or non-prefix state is never reseeded
+ok 15 - committed but advanced, foreign, divergent or non-prefix state is never reseeded
+  ---
+  duration_ms: 35.260639
+  type: 'test'
+  ...
+# Subtest: rotation carries the stronger reader or bridge floor and links the signed original state
+ok 16 - rotation carries the stronger reader or bridge floor and links the signed original state
+  ---
+  duration_ms: 21.637013
+  type: 'test'
+  ...
+# Subtest: recover requires the signed high-water and raises both journals above both saved floors
+ok 17 - recover requires the signed high-water and raises both journals above both saved floors
+  ---
+  duration_ms: 21.241687
+  type: 'test'
+  ...
+# Subtest: same-height field conflicts and incomparable Base/L1 floors refuse before enrollment writes
+ok 18 - same-height field conflicts and incomparable Base/L1 floors refuse before enrollment writes
+  ---
+  duration_ms: 7.873869
+  type: 'test'
+  ...
+# Subtest: wrong previous binding, enrollment, manifest, signed floor or high-water cannot authorize rebind
+ok 19 - wrong previous binding, enrollment, manifest, signed floor or high-water cannot authorize rebind
+  ---
+  duration_ms: 85.199154
+  type: 'test'
+  ...
+# Subtest: rotation and recovery reconcile every lost-ACK prefix without reducing either floor
+ok 20 - rotation and recovery reconcile every lost-ACK prefix without reducing either floor
+  ---
+  duration_ms: 167.119658
+  type: 'test'
+  ...
+# Subtest: signed recover can restore missing archive journals above retained high-water; rotate cannot
+ok 21 - signed recover can restore missing archive journals above retained high-water; rotate cannot
+  ---
+  duration_ms: 40.553831
+  type: 'test'
+  ...
+# Subtest: advanced new progress and altered pending original manifest cannot replay an older rebind
+ok 22 - advanced new progress and altered pending original manifest cannot replay an older rebind
+  ---
+  duration_ms: 20.294575
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 792.924469
