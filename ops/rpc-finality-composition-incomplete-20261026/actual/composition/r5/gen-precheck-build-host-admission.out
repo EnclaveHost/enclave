@@ -1,0 +1,8 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z/trees/final/scripts/build-host-admission.mjs:11
+  if(!Buffer.from(bytes).equals(await fs.readFile(file)))throw Error('host admission bundle is stale; run node scripts/build-host-admission.mjs');
+                                                               ^
+
+Error: host admission bundle is stale; run node scripts/build-host-admission.mjs
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z/trees/final/scripts/build-host-admission.mjs:11:64
+
+Node.js v22.23.3

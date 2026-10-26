@@ -1,0 +1,48 @@
+[queue] START available=22659MiB required=19456MiB cap=2560MiB floor=16384MiB concurrentSmall=256MiB
+== A. static precheck (nothing cloned, copied, built or tested)
+[ok] offline namespace (lo only, no route)
+[ok] user namespace root (unshare -r)
+[ok] r5 files == SHA256SUMS
+[ok] r3 frozen inputs == R3-PINS.sha256
+[ok] r4 stage unchanged (frozen; its runner is the base of this one)
+[ok] r3 private refs == r3/REFS.txt
+[ok] candidate is the r3 candidate c4de37a3
+[ok] pinned image commit 0235e7d9659f1ccbf9f258bd03593d26f32f3f3a present
+[ok] generator scripts are the pinned blobs
+[ok] build-attested-guest-verify argv contract: <image tree> <image commit> [--check]
+[ok] both guest-verify manifests pin image commit 0235e7d9659f1ccbf9f258bd03593d26f32f3f3a
+[ok] node v22.23.3
+/home/steven/.foundry/bin/anvil
+[ok] anvil present (attested-route-composition needs it; a skip is never clean)
+[ok] esbuild 0.28.1 in the closure
+[ok] dependency closures match every tree's lockfiles: root 4e0328411792 network 2a1d5be8df94 relay f3459e00dbe4
+[ok] closures equal the recorded identities (DEPS.txt)
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z
+[ok] inventory consumers: 10 tests
+[ok] inventory leaseRelay: 4 tests
+[ok] inventory verifier: 2 tests
+[ok] inventory route: 4 tests
+[ok] inventory seam: 6 tests
+[ok] stack inventory: 8 tests present
+[ok] native chain-verifier inputs: PINS verify and equal the candidate image record (no skipped native test)
+[ok] disk: >= 4 GiB free for 6 trees + closures
+== B. exact checkouts with the dependency closures INSIDE each
+[ok] consumers 81ba668531d1 + closures in-tree
+[ok] leaseRelay 433f04fa1998 + closures in-tree
+[ok] verifier 2b8894a37d01 + closures in-tree
+[ok] route b3fde181257e + closures in-tree
+[ok] seam aebf4c932127 + closures in-tree
+[ok] final c4de37a3f97a + closures in-tree
+== C. the pinned image tree, twice (independent git-archive exports, outside the checkouts)
+== D. generated bundles in dependency order
+[pre] build-windows-lease-runtime --check rc 1 (stale before regeneration is expected)
+[pre] build-metal-lease-gas --check rc 1 (stale before regeneration is expected)
+[pre] build-host-admission --check rc 1 (stale before regeneration is expected)
+[pre] build-host-service-packages --check rc 1 (stale before regeneration is expected)
+[pre] build-mcp-guest-bundle --check rc 1 (stale before regeneration is expected)
+[pre] build-platform-api-guest-bundle --check rc 1 (stale before regeneration is expected)
+[FAIL] relay/build-network.mjs (1)
+RESULT: FAIL (bundle)
+[memory-guard] exit=1 peakTreeRssMiB=164 minHostAvailableMiB=21326
+[memory-guard] at peak: esbuild:92 node:66 bash:4 timeout:2
+[queue] EXIT 1

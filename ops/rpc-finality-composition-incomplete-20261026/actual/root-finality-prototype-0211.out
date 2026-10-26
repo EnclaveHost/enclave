@@ -1,0 +1,8 @@
+[queue] START available=22528MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## FAIL: Python: final line is not exactly OK (no skips allowed)
+## FAIL: Python rc 1
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/logs/root-finality-tests-20261026T020942Z-557130
+## finality rc=1
+[memory-guard] exit=1 peakTreeRssMiB=138 minHostAvailableMiB=22383
+[memory-guard] at peak: node:73 node:58 bash:4 bash:2 timeout:2
+[queue] EXIT 1

@@ -1,0 +1,19 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -327,7 +327,15 @@
+     if not FINALITY_PROOF_REVIEWED:
+         refuse('hold_finality', 'HOLD: no reviewed proof that finality passed N (an own-node head or label is not finality); '
+                'needs a fresh A1-authenticated receipt N\' > N plus header N\' authenticated against it')
+-    raise AssertionError('unreachable while FINALITY_PROOF_REVIEWED is False')
++    # OPTIONAL wiring (base-finality-proof-stage/integration; NOT applied; FINALITY_PROOF_REVIEWED stays False): the launch
++    # journal gains NO event. `proof` = (chain_json, finality_dir, rpc_url); the answer is finality_state.status(): CURRENT
++    # only for this launch-journal head and this running process. Nothing here accepts a proof file or a node label.
++    import finality_state as F                                        # installed beside this module after review (pinned)
++    chain_json, fdir, rpc_url = proof
++    s = F.status(d, chain_json, fdir, rpc_url, W=_installed_wrapper(), top=top)
++    if s.get('qualified') is not True:
++        refuse('not_qualified', f'post-anchor finality is not current: {s.get("state")}')
++    return s
+ 
+ 
+ def rollback(d, reason, *, W, owner=0, top='/', now=None):

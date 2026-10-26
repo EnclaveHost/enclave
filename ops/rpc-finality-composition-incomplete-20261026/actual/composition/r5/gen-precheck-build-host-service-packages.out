@@ -1,0 +1,8 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z/trees/final/scripts/build-host-service-packages.mjs:83
+      if (!have || !have.equals(content)) throw new Error(`${name} is stale; run node scripts/build-host-service-packages.mjs`);
+                                                ^
+
+Error: directory-replica.mjs is stale; run node scripts/build-host-service-packages.mjs
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-runtime-composition-stage/r5/run/r4-20261026T020028Z/trees/final/scripts/build-host-service-packages.mjs:83:49
+
+Node.js v22.23.3
