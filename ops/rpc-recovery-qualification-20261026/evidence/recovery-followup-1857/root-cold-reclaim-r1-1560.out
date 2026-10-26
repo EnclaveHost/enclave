@@ -1,0 +1,13 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] START available=29234MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+Ran 10 tests in 4.858s
+
+OK
+## test_reclaim PASS (10)
+## cold-reclaim-r1 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=41 minHostAvailableMiB=29255
+[memory-guard] at peak: python3:29 bash:4 rsync:3 rsync:2 timeout:2
+[queue] EXIT 0
