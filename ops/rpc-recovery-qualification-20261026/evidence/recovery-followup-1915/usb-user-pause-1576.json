@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-26T19:15:19Z",
+  "fetchPidGone": true,
+  "fetchJobRc": "143",
+  "committed": 122742112256,
+  "archiveBytes": 122742112256,
+  "sameSize": true,
+  "visibleUsbWriters": [],
+  "unreadableProcEntries": 568,
+  "pauseUntil": "explicit user resumption; no automatic heartbeat restart"
+}
