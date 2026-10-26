@@ -1,0 +1,2 @@
+{"finality-status": "/run/enclave-rpc/base-finality-status.json", "coverage-receipt": null, "coverage-verdict": null, "coverage-origin": null,
+ "expect-snapshot-manifest-sha256": null, "expect-chain-config-sha256": null}

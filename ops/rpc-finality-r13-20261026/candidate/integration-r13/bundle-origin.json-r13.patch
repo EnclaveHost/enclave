@@ -1,0 +1,49 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r12-final/bundle-origin.json	2026-10-25 23:52:33.000000000 -0700
++++ /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/.r13-final.partial-1289574/bundle-origin.json	2026-10-26 02:04:18.009163414 -0700
+@@ -3,8 +3,8 @@
+  "note": "workstation origins for tools/assemble_bundle.py ONLY; never read on the guest",
+  "entries": {
+   "bundle/a1-capture/l1-anchor-a1/a1-read.mjs": {
+-   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/l1-anchor-a1/a1-read.mjs",
+-   "sha256": "a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8"
++   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/cold-proof-timeout-stage/r3/src/l1-anchor-a1/a1-read.mjs",
++   "sha256": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85"
+   },
+   "bundle/a1-capture/l1-anchor-a1/a1-anchor.mjs": {
+    "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/l1-anchor-a1/a1-anchor.mjs",
+@@ -23,16 +23,16 @@
+    "sha256": "2eeadf2457f108de71ea8199724e36dbc58f805b2afa74d23f904a2219774270"
+   },
+   "bundle/a1-capture/a1-original-game-prepared/a1-recheck-read.mjs": {
+-   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a1-original-game-prepared/a1-recheck-read.mjs",
+-   "sha256": "41b83975e96fc816bd5743e56626dd309aa7f0ee03c6efb9912788eb184a7715"
++   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/cold-proof-timeout-stage/r3/src/a1-original-game-prepared/a1-recheck-read.mjs",
++   "sha256": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+   },
+   "bundle/a1-capture/a1-original-game-prepared/a1-recheck.mjs": {
+    "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a1-original-game-prepared/a1-recheck.mjs",
+    "sha256": "f591f3247fe672f6470685f2be36eb529ceb9280044c03c6a2396174bb0ad9d8"
+   },
+   "bundle/a1-capture/a1-original-game-prepared/a1-read.mjs": {
+-   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a1-original-game-prepared/a1-read.mjs",
+-   "sha256": "a501a3ec56ebd56e6bf1fc43c0c3725da57d013addac5f1efb13a99e598e0ab8"
++   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/cold-proof-timeout-stage/r3/src/a1-original-game-prepared/a1-read.mjs",
++   "sha256": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85"
+   },
+   "bundle/a1-capture/a1-original-game-prepared/a1-anchor.mjs": {
+    "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/rpc-backend-bootstrap/2026-10-25/a1-original-game-prepared/a1-anchor.mjs",
+@@ -12262,6 +12262,14 @@
+   "bundle/config/l1-checkpoint.json": {
+    "origin": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-authority-live-1941/checkpoint.json",
+    "sha256": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
++  },
++  "bundle/bootstrap/a1-initial-evidence.json": {
++   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/l1-a1-live-1958/a1-evidence.json",
++   "sha256": "b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c"
++  },
++  "bundle/bootstrap/base-bytecode-check": {
++   "origin": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/finality-stage/bytecode-v2-recovery/build/target/release/base-bytecode-check",
++   "sha256": "b55e6b78c6ac8e0a672f69e238135eca7466d1081479cd0868204cee9a1654d7"
+   }
+  }
+ }

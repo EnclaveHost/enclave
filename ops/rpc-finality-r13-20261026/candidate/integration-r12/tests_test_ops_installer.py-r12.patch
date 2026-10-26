@@ -1,0 +1,48 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r11/tests/test_ops_installer.py	2026-10-26 00:25:59.517033904 -0700
++++ tests/test_ops_installer.py	2026-10-26 00:31:32.614511576 -0700
+@@ -187,8 +187,8 @@
+ 
+     def test_qualification_needs_the_exact_r6_lines(self):
+         q, rc = self.t / 'q.out', self.t / 'q.rc'; rc.write_text('0\n')
+-        q.write_text('## finality-r11 rc=0\n## r11 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
+-        for bad in ('## finality-r5 rc=0\n## r11 SHA256SUMS abc\n', '## finality-r9 rc=0\n## r9 SHA256SUMS abc\n', '## finality-r10 rc=0\n## r10 SHA256SUMS abc\n'):   # r11: no earlier run qualifies r11
++        q.write_text('## finality-r12 rc=0\n## r12 SHA256SUMS abc\n'); IV.qualified(q, rc, 'abc')
++        for bad in ('## finality-r5 rc=0\n## r12 SHA256SUMS abc\n', '## finality-r9 rc=0\n## r9 SHA256SUMS abc\n', '## finality-r10 rc=0\n## r10 SHA256SUMS abc\n', '## finality-r11 rc=0\n## r11 SHA256SUMS abc\n'):   # r12: no earlier run qualifies r12
+             q.write_text(bad)
+             with self.assertRaises(IV.Refused):
+                 IV.qualified(q, rc, 'abc')
+@@ -262,12 +262,31 @@
+             IV.preflight(m, replace=True, include_wrapper=False, include_units=False, include_configs=True, stage=self.stage)
+ 
+     def test_a_config_appearing_after_preflight_is_not_written_over(self):
+-        b, m = self.config_manifest('/etc/late.json'); before = self.tree()
++        # r12 fixture fix (root run 0728, 17/18): the r1 whole-tree compare missed that commit creates and KEEPS the install journal - and
++        # its previously absent parents /var, /var/lib, /var/lib/enclave-rpc - by design (the rolled-back journal and its backups are the
++        # retained record). Now every part is accounted for explicitly: no broad filesystem ignore, no product change.
++        b, m = self.config_manifest('/etc/late.json'); before = self.snapshot()
++        jd = IV.R(IV.JOURNAL_DIR); jrel = 'var/lib/enclave-rpc/install-journal'; jparents = ['var', 'var/lib', 'var/lib/enclave-rpc']
++        self.assertFalse(any(os.path.lexists(IV.ROOT / k) for k in jparents))           # the journal and its parents come from this commit
+         ops, _ = IV.preflight(m, replace=True, include_wrapper=False, include_units=False, include_configs=True, stage=self.stage)
+-        late = IV.ROOT / 'etc/late.json'; late.write_bytes(b'root wrote this\n')
++        late = IV.ROOT / 'etc/late.json'; late.write_bytes(b'root wrote this\n'); os.chmod(late, 0o600)
+         with self.assertRaisesRegex(IV.Refused, 'appeared during the install'):
+             IV.commit(ops, 'late')
+-        late.unlink(); self.assertEqual(self.tree(), before)                                  # everything else rolled back exactly
++        st = os.lstat(late)                                                                   # root's late config, BEFORE any cleanup: exact
++        self.assertEqual((stat.S_ISREG(st.st_mode), stat.S_IMODE(st.st_mode), late.read_bytes()), (True, 0o600, b'root wrote this\n'))
++        j = json.loads((jd / 'late.json').read_bytes())                                      # the journal: rolled back and RETAINED
++        self.assertEqual((j['state'], [o['dest'] for o in j['ops']], {o['step'] for o in j['ops']}),
++                         ('rolled-back', ['/opt/x/a.py', '/opt/x/b.py', '/opt/y/c.py', '/etc/late.json'], {'rolled-back'}))
++        bk = jd / 'late.backup'                                                               # ... with the replaced files' original bytes
++        self.assertEqual({p.relative_to(bk).as_posix(): p.read_bytes() for p in bk.rglob('*') if p.is_file()}, {'opt/x/a.py': b'OLD A\n', 'opt/x/b.py': b'OLD B\n'})
++        after = self.snapshot(); after.pop('etc/late.json')
++        self.assertEqual({k: v for k, v in after.items() if k in before}, before)             # every existing app file/dir: bytes AND mode restored
++        added = sorted(set(after) - set(before))                                              # (c.py and /opt/y, created then rolled back, are gone)
++        self.assertEqual([k for k in added if not k.startswith(jrel)], jparents)              # the ONLY additions: the journal's parents (dirs) ...
++        self.assertTrue(all(after[k][1] is None for k in jparents))
++        self.assertEqual([k for k in added if k.startswith(jrel)], sorted([jrel] + [f'{jrel}/{x}' for x in (     # ... and the journal subtree itself
++            'late.json', 'late.backup', 'late.backup/opt', 'late.backup/opt/x', 'late.backup/opt/x/a.py', 'late.backup/opt/x/b.py')]))
++        late.unlink()
+ 
+ 
+ if __name__ == '__main__':

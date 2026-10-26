@@ -1,0 +1,12 @@
+{
+ "stage": null,
+ "stageSha256sums": null,
+ "canaryUnits": null,
+ "files": {
+  "bootstrap/holder_gate.py": null,
+  "wrapper/chain_service.py": null,
+  "src/finality_state.py": null,
+  "units/enclave-base-holder.service.d/60-release-mode.conf": null,
+  "units/enclave-base-finality-reproof.service": null
+ }
+}
