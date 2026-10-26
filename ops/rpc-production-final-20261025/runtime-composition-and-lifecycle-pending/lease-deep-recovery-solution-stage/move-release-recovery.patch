@@ -1,0 +1,269 @@
+--- a/cli/enclave.mjs
++++ b/cli/enclave.mjs
+@@ -46,6 +46,7 @@
+ import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+ 
+ import {publishArtifactReplicas,verifyArtifactReplicas} from "../sdk/storage/artifacts.mjs";
++import { confirmSourceLeaseCleared } from "./move-release-confirm.mjs";
+ import {publishPackageReplicas,verifyPackageReplicas,validateStoragePlan} from "../sdk/bootstrap/storage.mjs";
+ import {directUploadHeaders} from "../sdk/storage/upload-auth.mjs";
+ import {loadContractPins} from "../network/contract-pins.mjs";
+@@ -5525,32 +5526,34 @@
+     if (!(await confirm(`move ${short(id)} off ${short(m.runner)} to ${short(target)}? The app stops there and relaunches on the target; `
+         + `about ${usd6(tail)} of unused lease returns to the balance; the target charges ${usd6(m.rate * 3600n)}/h (now ${usd6(BigInt(m.d.rate) * 3600n)}/h)`)))
+       return say("aborted");
+-    // ONE release. Whatever the answer, the quorum decides whether the lease was handed back; it is never resent here.
+-    let rel = null, relErr = null;
+-    try { rel = await client.release(); } catch (e) { relErr = e; }
+-    if (rel) say(`the source reports the lease released${rel.json.txHash ? ` (${rel.json.txHash})` : ""}; confirming on the quorum…`);
+-    else say(`the source's release answer: ${RELEASE_STATES[relErr.code] || relErr.message}${relErr.outcomeUnknown ? " (outcome unknown)" : ""}; reading the quorum…`);
+-    // 90 s for a release the host reported (or whose answer was lost); 15 s when the host answered a definite state
+-    // (stop_unconfirmed; release_unconfirmed: the host resolves its transaction in the background, so it may still land)
+-    let cleared = null;
+-    for (const until = Date.now() + (rel || !relErr.code ? 90_000 : 15_000); Date.now() < until;) {
+-      const n = await moveSnapshot(id, null).catch(() => null);
+-      if (n && !(n.runner === m.runner && n.held)) { cleared = n; break; }
+-      if (!rel && relErr && !relErr.outcomeUnknown) break;                 // a definite refusal: the lease stays where it was
+-      await new Promise((r) => setTimeout(r, 3000));
+-    }
+-    if (!cleared) {
+-      if (relErr && !relErr.outcomeUnknown)
+-        throw new Error(`the source refused the release (${relErr.message}); the lease is still held by ${short(m.runner)}; nothing changed`);
+-      stderr.write(`error: the lease is still held by ${short(m.runner)} on the quorum: the app may be stopped there and the release is not confirmed. `
+-        + `Check \`enclave status ${short(id)} --host\`, then run the move again (a release that already landed cannot refund twice).\n`);
++    // ONE release. Whatever the answer, only the owner's reading of the CURRENT ledger decides whether the source's lease is
++    // gone (move-release-confirm.mjs); it is never resent here. The host's release receipt is not re-verified: a release
++    // the host could only resolve after a restart or an outage (e.g. deeper than its canonical verifier's window) still
++    // moves on once the source's lease is absent on two successive blocks, but it is never reported as a verified release.
++    const c = await confirmSourceLeaseCleared({ source: m.runner, release: () => client.release(),
++      snapshot: () => moveSnapshot(id, null), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now() });
++    const a = c.answer;
++    if (a.kind === "released") say(`the source reports the lease released${a.txHash ? ` (${a.txHash})` : ""}; confirming on the quorum…`);
++    else say(`the source's release answer: ${RELEASE_STATES[a.code] || a.message}${a.kind === "unknown" ? " (outcome unknown)" : ""}; reading the quorum…`);
++    if (c.outcome === "refused")
++      throw new Error(`the source refused the release (${a.message}); the lease is still held by ${short(m.runner)}${c.block != null ? ` (quorum, block ${c.block})` : ""}; nothing changed`);
++    if (c.outcome !== "cleared") {
++      const why = c.outcome === "quorum-unavailable"
++        ? `the quorum could not be read (${c.failures} failed reads), so the lease state is UNKNOWN: the app may be stopped there and the release may or may not have landed`
++        : c.outcome === "clear-unconfirmed"
++        ? `the quorum showed the source's lease gone${c.block != null ? ` (block ${c.block})` : ""} but not on two successive blocks${c.heldAgainAt != null ? `, and held again at block ${c.heldAgainAt}` : ""}, so it is not confirmed`
++        : `the lease is still held by ${short(m.runner)} on the quorum${c.block != null ? ` (block ${c.block})` : ""}: the app may be stopped there and the release is not confirmed`;
++      stderr.write(`error: ${why}. Nothing more was sent. Check \`enclave status ${short(id)} --host\`, then run the move again `
++        + `(a release that already landed cannot refund twice; a new move reads the ledger first).\n`);
+       exit(4);
+     }
++    const cleared = { block: c.block, runner: c.runner, d: c.d };
+     clearedBlock = cleared.block;
++    const proof = c.receiptVerified ? "" : "; the source's release receipt is NOT verified here (current-ledger absence only)";
+     // the runner field says which: cleared = a release landed; still the source's id = its lease simply ran out
+-    if (/^0x0{64}$/.test(cleared.runner)) say(`lease released (quorum, block ${cleared.block}): balance ${usd6(BigInt(cleared.d.balance6))}`);
+-    else if (cleared.runner === m.runner) say(`no live lease (quorum, block ${cleared.block}): the source's lease ran out rather than being released; balance ${usd6(BigInt(cleared.d.balance6))}`);
+-    else say(`no lease of the source any more (quorum, block ${cleared.block}): ${short(cleared.runner)} holds it`);
++    if (c.how === "released") say(`lease released (quorum, blocks ${c.firstBlock}..${cleared.block}): balance ${usd6(BigInt(cleared.d.balance6))}${proof}`);
++    else if (c.how === "lapsed") say(`no live lease (quorum, blocks ${c.firstBlock}..${cleared.block}): the source's lease ran out rather than being released; balance ${usd6(BigInt(cleared.d.balance6))}`);
++    else say(`no lease of the source any more (quorum, blocks ${c.firstBlock}..${cleared.block}): ${short(cleared.runner)} holds it${proof}`);
+   } else say(`${short(id)} holds no live lease (${at}): asking ${short(target)} to claim it`);
+   // the signed hint, repeated (idempotent) while the quorum is polled; only the ledger says where it landed
+   let landed = null, last = "";
+--- /dev/null
++++ b/cli/move-release-confirm.mjs
+@@ -0,0 +1,73 @@
++// The owner-move hand-off decision (cli/enclave.mjs cmdMoveIndependent), pure: no network, no chain, no clock of its own.
++// ONE release request is sent; whatever it answers, only the owner's own reading of the CURRENT ledger decides whether
++// the source's lease is gone. The host's release receipt is never re-verified here, and nothing here claims it was: a
++// release that landed long ago (e.g. more than the canonical verifier's 256-block window before the host could resolve
++// it, after a restart or an outage) is reported as "the source no longer holds the lease", never as a verified
++// release. That absence is read at the unsafe head, so it must hold on `confirmations` successive snapshots at strictly
++// increasing blocks: a snapshot showing the source's lease again (a reorg, or a stale read) resets the count. It is not
++// finality. A quorum that cannot be read is "unknown", never "still held", and never a reason to send anything again.
++//
++// confirmSourceLeaseCleared({release, snapshot, source, sleep, now, ...}) -> {outcome, ...}
++//   release()      the source host's release (management-client.mjs): resolves {json} for a host-reported release, or
++//                  throws a ManagementError {code, outcomeUnknown}. Called EXACTLY once.
++//   snapshot()     the owner's ledger read (moveSnapshot(id, null)): {runner, held, block, d}; throws when unreadable.
++//   source         the runner id that held the lease before the move (m.runner).
++// outcomes:
++//   cleared            the source's lease is absent on `confirmations` snapshots; {block, how, released, receiptVerified}
++//                      how: 'released' (runner zeroed) | 'lapsed' (still the source's id, lease ran out) | 'taken'
++//                      (another runner holds it). receiptVerified is true ONLY when the host answered released:true.
++//   refused            the host refused before any effect (a definite answer) and the source still holds the lease
++//   still-held         every readable snapshot until the deadline showed the source's lease
++//   clear-unconfirmed  absence was seen, but not on `confirmations` increasing blocks before the deadline (or it was
++//                      contradicted afterwards): unknown, not cleared
++//   quorum-unavailable no snapshot could be read before the deadline: unknown
++export const MOVE_RELEASE = Object.freeze({ answerWaitMs: 90_000, pollMs: 3000, confirmations: 2 });
++
++const ZERO = /^0x0{64}$/;
++
++export async function confirmSourceLeaseCleared({ release, snapshot, source, sleep, now, waitMs = MOVE_RELEASE.answerWaitMs,
++  pollMs = MOVE_RELEASE.pollMs, confirmations = MOVE_RELEASE.confirmations } = {}) {
++  if (typeof release !== "function" || typeof snapshot !== "function" || typeof sleep !== "function" || typeof now !== "function")
++    throw new TypeError("release, snapshot, sleep and now are required");
++  if (!(Number.isInteger(confirmations) && confirmations >= 1)) throw new TypeError("confirmations must be a positive integer");
++  const src = String(source).toLowerCase();
++  let rel = null, relErr = null;
++  try { rel = await release(); } catch (e) { relErr = e || new Error("release failed"); }
++  // a definite refusal (outcomeUnknown false, a code the host answers before any effect): nothing was stopped or signed
++  const definite = !rel && !!relErr && !relErr.outcomeUnknown;
++  const answer = rel ? { kind: "released", txHash: rel.json?.txHash ?? null }
++    : { kind: definite ? "refused" : "unknown", code: relErr.code ?? null, message: String(relErr.message || "") };
++  const receiptVerified = !!(rel && rel.json && rel.json.released === true);
++  let reads = 0, failures = 0, streak = [], sawClear = false, lastHeldBlock = null;
++  for (const until = now() + waitMs; ;) {
++    let n = null;
++    try { n = await snapshot(); } catch { failures++; }
++    if (n && Number.isSafeInteger(n.block)) {
++      reads++;
++      const runner = String(n.runner).toLowerCase();
++      const sourceHolds = runner === src && !!n.held;
++      if (sourceHolds) { streak = []; lastHeldBlock = n.block; }
++      else if (!streak.length || n.block > streak[streak.length - 1].block) {
++        // only a later block counts; a read at the same or a lower block (a lagging peer) neither adds nor resets
++        streak.push({ block: n.block, runner, held: !!n.held, d: n.d });
++        sawClear = true;
++      }
++      if (streak.length >= confirmations) {
++        const last = streak[streak.length - 1];
++        const how = ZERO.test(last.runner) ? "released" : last.runner === src ? "lapsed" : "taken";
++        return { outcome: "cleared", block: last.block, firstBlock: streak[0].block, how, runner: last.runner, d: last.d,
++                 answer, receiptVerified, reads, failures };
++      }
++    } else if (n) failures++;
++    // a definite refusal reads the ledger once (the lease may already be gone for another reason), then stops
++    if (definite && (reads > 0 || now() >= until)) {
++      if (!streak.length) return { outcome: "refused", answer, receiptVerified: false, reads, failures, block: lastHeldBlock };
++    }
++    if (now() >= until) break;
++    await sleep(pollMs);
++  }
++  if (!reads) return { outcome: "quorum-unavailable", answer, receiptVerified, reads, failures };
++  if (sawClear) return { outcome: "clear-unconfirmed", answer, receiptVerified, reads, failures,
++                         block: streak.length ? streak[streak.length - 1].block : null, heldAgainAt: lastHeldBlock };
++  return { outcome: "still-held", answer, receiptVerified, reads, failures, block: lastHeldBlock };
++}
+--- /dev/null
++++ b/test/move-release-confirm.test.mjs
+@@ -0,0 +1,123 @@
++// The owner-move hand-off decision (cli/move-release-confirm.mjs), the REAL module over a fake boundary: the source
++// host's management answer (as management-client.mjs throws it: ManagementError {code, outcomeUnknown}) and the owner's
++// ledger reads (moveSnapshot: {runner, held, block, d}). No network, no chain, a fake clock. Covers the deep-receipt
++// restart/outage case (the host answers 503 release_unconfirmed because its canonical verifier cannot verify a receipt
++// older than its window): the move continues ONLY on the current ledger's absence of the source's lease, confirmed on two
++// increasing blocks, and is never labelled a verified release.
++import test from "node:test";
++import assert from "node:assert/strict";
++import { confirmSourceLeaseCleared, MOVE_RELEASE } from "../cli/move-release-confirm.mjs";
++
++const SRC = "0x" + "a1".repeat(32), OTHER = "0x" + "b2".repeat(32), ZERO = "0x" + "00".repeat(32);
++const D = { balance6: 5_000_000n };
++const snap = (block, runner, held) => ({ block, runner, held, d: D });
++const DOWN = Symbol("quorum down");
++class ManagementError extends Error {
++  constructor(message, { status = null, code = null, outcomeUnknown = false } = {}) { super(message); Object.assign(this, { status, code, outcomeUnknown }); }
++}
++const UNCONFIRMED = () => new ManagementError("the release may have run; its outcome is unknown (HTTP 503 release_unconfirmed)",
++  { status: 503, code: "release_unconfirmed", outcomeUnknown: true });
++const LOST = () => new ManagementError("the release may have run; its outcome is unknown (the answer was cut off)", { outcomeUnknown: true });
++const BLOCKED = () => new ManagementError("management release refused (HTTP 409)", { status: 409, code: "release_blocked", outcomeUnknown: false });
++
++/** One move: `answer` is the host's answer (an object resolves, an Error throws); `reads` are the ledger reads in order
++ *  (DOWN throws; the last one repeats). Returns the decision plus the exact calls made at the boundary. */
++async function run({ answer, reads, ...opts }) {
++  let t = 1_000_000, i = 0;
++  const calls = { release: 0, snapshot: 0, sleeps: 0 };
++  const out = await confirmSourceLeaseCleared({
++    source: SRC,
++    release: async () => { calls.release++; if (answer instanceof Error) throw answer; return answer; },
++    snapshot: async () => { calls.snapshot++; const r = reads[Math.min(i++, reads.length - 1)]; if (r === DOWN) throw new Error("quorum unreachable"); return r; },
++    sleep: async (ms) => { calls.sleeps++; t += ms; },
++    now: () => t,
++    ...opts,
++  });
++  return { out, calls };
++}
++
++test("a host-verified release confirmed on two blocks: cleared, released, receipt verified, ONE release", async () => {
++  const { out, calls } = await run({ answer: { json: { id: "x", released: true, txHash: "0xabc" } },
++    reads: [snap(100, ZERO, false), snap(101, ZERO, false)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.how, "released"); assert.equal(out.receiptVerified, true);
++  assert.deepEqual([out.firstBlock, out.block], [100, 101]); assert.equal(out.answer.txHash, "0xabc");
++  assert.equal(calls.release, 1);
++});
++
++test("deep receipt after restart/outage: 503 release_unconfirmed + current absence -> cleared, receipt NOT verified", async () => {
++  const { out, calls } = await run({ answer: UNCONFIRMED(), reads: [snap(5000, ZERO, false), snap(5001, ZERO, false)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.how, "released");
++  assert.equal(out.receiptVerified, false, "a release the host could not verify is never labelled verified");
++  assert.equal(out.answer.kind, "unknown"); assert.equal(out.answer.code, "release_unconfirmed");
++  assert.equal(calls.release, 1);
++});
++
++test("release_unconfirmed whose transaction lands late is still followed for the full 90 s answer window", async () => {
++  const held = Array.from({ length: 20 }, (_, k) => snap(200 + k, SRC, true));   // 20 reads x 3 s = 60 s still held
++  const { out, calls } = await run({ answer: UNCONFIRMED(), reads: [...held, snap(220, ZERO, false), snap(221, ZERO, false)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.firstBlock, 220);
++  assert.ok(MOVE_RELEASE.answerWaitMs >= 90_000); assert.equal(calls.release, 1);
++});
++
++test("changed generation: another runner holds the lease -> cleared as taken, receipt not verified", async () => {
++  const { out } = await run({ answer: UNCONFIRMED(), reads: [snap(300, OTHER, true), snap(301, OTHER, true)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.how, "taken"); assert.equal(out.runner, OTHER); assert.equal(out.receiptVerified, false);
++});
++
++test("the source's own lease that ran out (same runner id, not held) -> cleared as lapsed", async () => {
++  const { out } = await run({ answer: LOST(), reads: [snap(400, SRC, false), snap(401, SRC, false)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.how, "lapsed");
++});
++
++test("reorg: absence then the source's lease again resets the count; a later two-block absence clears from there", async () => {
++  const { out } = await run({ answer: UNCONFIRMED(),
++    reads: [snap(500, ZERO, false), snap(501, SRC, true), snap(502, ZERO, false), snap(503, ZERO, false)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.firstBlock, 502); assert.equal(out.block, 503);
++});
++
++test("reorg that persists: absence seen once, then held until the deadline -> clear-unconfirmed (unknown), not cleared", async () => {
++  const { out, calls } = await run({ answer: UNCONFIRMED(), reads: [snap(600, ZERO, false), snap(601, SRC, true)] });
++  assert.equal(out.outcome, "clear-unconfirmed"); assert.equal(out.heldAgainAt, 601); assert.equal(calls.release, 1);
++});
++
++test("a lagging read at the same or a lower block neither confirms nor resets", async () => {
++  const { out } = await run({ answer: UNCONFIRMED(),
++    reads: [snap(700, ZERO, false), snap(700, ZERO, false), snap(699, ZERO, false), snap(701, ZERO, false)] });
++  assert.equal(out.outcome, "cleared"); assert.deepEqual([out.firstBlock, out.block], [700, 701]);
++});
++
++test("quorum outage for the whole window -> quorum-unavailable (unknown, never 'still held'), bounded, ONE release", async () => {
++  const { out, calls } = await run({ answer: UNCONFIRMED(), reads: [DOWN] });
++  assert.equal(out.outcome, "quorum-unavailable"); assert.equal(out.reads, 0); assert.ok(out.failures > 0);
++  assert.equal(calls.release, 1);
++  assert.ok(calls.sleeps <= Math.ceil(MOVE_RELEASE.answerWaitMs / MOVE_RELEASE.pollMs) + 1, "the poll is bounded by the answer window");
++});
++
++test("outage then recovery inside the window: cleared once two increasing blocks agree", async () => {
++  const { out } = await run({ answer: LOST(), reads: [DOWN, DOWN, snap(800, ZERO, false), DOWN, snap(801, ZERO, false)] });
++  assert.equal(out.outcome, "cleared"); assert.equal(out.failures, 3);
++});
++
++test("the source keeps its lease for the whole window -> still-held", async () => {
++  const { out, calls } = await run({ answer: UNCONFIRMED(), reads: [snap(900, SRC, true)] });
++  assert.equal(out.outcome, "still-held"); assert.equal(out.block, 900); assert.equal(calls.release, 1);
++});
++
++test("a definite refusal before any effect reads the ledger once and stops: refused, no sleep, no second send", async () => {
++  const { out, calls } = await run({ answer: BLOCKED(), reads: [snap(1000, SRC, true)] });
++  assert.equal(out.outcome, "refused"); assert.equal(calls.snapshot, 1); assert.equal(calls.sleeps, 0); assert.equal(calls.release, 1);
++});
++
++test("a malformed snapshot (no integer block) is a failed read, not an absence", async () => {
++  const { out } = await run({ answer: UNCONFIRMED(), reads: [{ runner: ZERO, held: false, block: "x" }] });
++  assert.equal(out.outcome, "quorum-unavailable");
++});
++
++test("the boundary is required and the release is never sent twice in any outcome", async () => {
++  await assert.rejects(confirmSourceLeaseCleared({}), TypeError);
++  for (const [answer, reads] of [[UNCONFIRMED(), [DOWN]], [LOST(), [snap(1, SRC, true)]], [BLOCKED(), [snap(1, ZERO, false), snap(2, ZERO, false)]],
++                                 [{ json: { released: true } }, [snap(1, ZERO, false), snap(2, ZERO, false)]]]) {
++    const { calls } = await run({ answer, reads });
++    assert.equal(calls.release, 1);
++  }
++});

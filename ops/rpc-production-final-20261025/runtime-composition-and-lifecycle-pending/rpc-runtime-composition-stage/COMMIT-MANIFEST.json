@@ -1,0 +1,273 @@
+{
+ "format": "rpc-runtime-composition-manifest/v1",
+ "remote": "https://github.com/EnclaveHost/enclave.git (all four heads are on its fix/* branches; nothing is fetched from it)",
+ "heads": {
+  "consumers": {
+   "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/linux-rpc-consumer-closure-20261023/repo",
+   "branch": "fix/rpc-relay-consumers-20261025",
+   "commit": "81ba668531d17151db810e14562c77a672d742e4",
+   "base": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+   "tree": "5542a7f830b14be9ebe010d96a30faa75687dd3b",
+   "segment": [
+    {
+     "commit": "d6fbafb931ae53a9a97e4259bae6d3f43dc5e92a",
+     "parents": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+     "subject": "feat: prepare verifier authority for relay consumers with explicit fencing limits"
+    },
+    {
+     "commit": "ab371cbc22e02575bf4b121ac6358a271f91ae2c",
+     "parents": "d6fbafb931ae53a9a97e4259bae6d3f43dc5e92a",
+     "subject": "test: exercise sponsored registration and counterfactual wallets on the real verifier"
+    },
+    {
+     "commit": "deab174851fcd7e4a67cb1f3462ca8020f06d6c1",
+     "parents": "ab371cbc22e02575bf4b121ac6358a271f91ae2c",
+     "subject": "Add explicit local-verifier authority for network qualification and reject mixed directory inputs"
+    },
+    {
+     "commit": "e78a764d1df935fbc74b27348b82115803b885ce",
+     "parents": "deab174851fcd7e4a67cb1f3462ca8020f06d6c1",
+     "subject": "Prepare explicit v1 custody verifier mode and refuse unsupported v2 canonical reads"
+    },
+    {
+     "commit": "bf77da364373a9c7d881489af5b760207a03997c",
+     "parents": "e78a764d1df935fbc74b27348b82115803b885ce",
+     "subject": "Route DNS fleet reads through the selected relay chain authority"
+    },
+    {
+     "commit": "f468b301ca6a3bca97fc24a752f338a109107171",
+     "parents": "bf77da364373a9c7d881489af5b760207a03997c",
+     "subject": "Refresh management bundle provenance after history migration"
+    },
+    {
+     "commit": "81ba668531d17151db810e14562c77a672d742e4",
+     "parents": "f468b301ca6a3bca97fc24a752f338a109107171",
+     "subject": "Add opt-in self-hosted RPC authority for browser reads"
+    }
+   ]
+  },
+  "leaseRelay": {
+   "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/linux-rpc-consumer-closure-20261023/repo",
+   "branch": "fix/rpc-lease-relay-verifier-20261025",
+   "commit": "433f04fa19981037713ba8f7af7e0fbdebdd456c",
+   "base": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+   "tree": "a25d391b8ff8dace8f64836371f96a15c2bcbebf",
+   "segment": [
+    {
+     "commit": "433f04fa19981037713ba8f7af7e0fbdebdd456c",
+     "parents": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+     "subject": "Support verified lease relay reads and durable own-backend submissions"
+    }
+   ]
+  },
+  "verifier": {
+   "repo": "/home/steven/Documents/Codex/2026-10-18/wo/work/linux-rpc-consumer-closure-20261023/repo",
+   "branch": "fix/rpc-attested-verifier-20261025",
+   "commit": "2b8894a37d01f2b327580732cbc22e54a768a0e7",
+   "base": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+   "tree": "f1c9b9f97834415d7e3054a98097ce4b5b935841",
+   "segment": [
+    {
+     "commit": "e0dfe98aa4536976394bf6f2f16c670f0b95ea7c",
+     "parents": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+     "subject": "Add attested remote verifier source candidate with bound configuration"
+    },
+    {
+     "commit": "b42d6b3e79bfe3cc3bcc391bf6193a3032f59a6f",
+     "parents": "e0dfe98aa4536976394bf6f2f16c670f0b95ea7c",
+     "subject": "build: refresh measured verifier bundles from reviewed sources"
+    },
+    {
+     "commit": "0235e7d9659f1ccbf9f258bd03593d26f32f3f3a",
+     "parents": "b42d6b3e79bfe3cc3bcc391bf6193a3032f59a6f",
+     "subject": "fix: regenerate guest bundles in dependency order"
+    },
+    {
+     "commit": "238a16b2e8e200c222f42c848911e07e47780133",
+     "parents": "0235e7d9659f1ccbf9f258bd03593d26f32f3f3a",
+     "subject": "Record verifier-only SNP hardware canary and rejection evidence"
+    },
+    {
+     "commit": "77d6cc859fbd3dba0fcf28d372e8fe463e5a589c",
+     "parents": "238a16b2e8e200c222f42c848911e07e47780133",
+     "subject": "Include public AMD certificates and sanitized canary test logs"
+    },
+    {
+     "commit": "c61dbe5fd2b086978ce9813dc148af526d8ed203",
+     "parents": "77d6cc859fbd3dba0fcf28d372e8fe463e5a589c",
+     "subject": "Pin tested canonical-hash Helios verifier build"
+    },
+    {
+     "commit": "2b8894a37d01f2b327580732cbc22e54a768a0e7",
+     "parents": "c61dbe5fd2b086978ce9813dc148af526d8ed203",
+     "subject": "Build the canonical verifier from its pinned patched source"
+    }
+   ]
+  },
+  "route": {
+   "repo": "/home/steven/Projects/enclave",
+   "branch": "fix/rpc-attested-route-composition-20261025",
+   "commit": "b3fde181257ea2eb3c0ec95b7002b33e02bf9a43",
+   "base": "5ca9e61ddacd7d5887c02cacef80408d82605c5f",
+   "tree": "af2abb6c2286331b9929cf30b8a5bcfe6e715620",
+   "segment": [
+    {
+     "commit": "9a4880464b274e19f330fac7e80d82b641814ef1",
+     "parents": "5ca9e61ddacd7d5887c02cacef80408d82605c5f",
+     "subject": "snapshot: preserve tested RPC route source without checkpoint archive ancestry"
+    },
+    {
+     "commit": "94a639558e687c3d0ab17d534f602b166751e328",
+     "parents": "9a4880464b274e19f330fac7e80d82b641814ef1",
+     "subject": "feat: use explicit verifier authority for host-service admission"
+    },
+    {
+     "commit": "3e36501d90ab258b19627e73a501d61b89569c74",
+     "parents": "94a639558e687c3d0ab17d534f602b166751e328",
+     "subject": "feat: compose attested provider reads with current host policy"
+    },
+    {
+     "commit": "d69bc38a6ef9a996fa583bd1bbb4aafcdba66f71",
+     "parents": "3e36501d90ab258b19627e73a501d61b89569c74",
+     "subject": "chore: scope verified viem source digest exceptions to attested manifests"
+    },
+    {
+     "commit": "14418268b5a194ddad1820220a38f6c96fd98d26",
+     "parents": "d69bc38a6ef9a996fa583bd1bbb4aafcdba66f71",
+     "subject": "Add durable own-backend sends for attested paid providers"
+    },
+    {
+     "commit": "b3fde181257ea2eb3c0ec95b7002b33e02bf9a43",
+     "parents": "14418268b5a194ddad1820220a38f6c96fd98d26",
+     "subject": "Refresh attested provider collateral through authenticated cache"
+    }
+   ]
+  }
+ },
+ "lineages": {
+  "9fa02e1bc6": {
+   "commit": "9fa02e1bc6b2179e3a0e1de9d5e98dc16f579b4e",
+   "over7752": 73,
+   "note": "shared base of consumers, leaseRelay, verifier"
+  },
+  "origin/main 5ca9e61dd": {
+   "commit": "5ca9e61ddacd7d5887c02cacef80408d82605c5f",
+   "commits": [
+    {
+     "commit": "d2ea087fa3d20ee1fb052036f8699cbbd3bdc255",
+     "parents": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+     "subject": "docs: Windows host-OS memory exclusion demonstrated box-local (E3) [skip ci]"
+    },
+    {
+     "commit": "544088d1b266b7cfec982efb22d7be6b0d354e65",
+     "parents": "d2ea087fa3d20ee1fb052036f8699cbbd3bdc255",
+     "subject": "docs(README): host-OS exclusion is by the isolation mechanism (demonstrated), not separation alone; keep operator unexcluded [skip ci]"
+    },
+    {
+     "commit": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+     "parents": "544088d1b266b7cfec982efb22d7be6b0d354e65",
+     "subject": "docs(README): simpler wording for the protections paragraph [skip ci]"
+    },
+    {
+     "commit": "69262a06e0d8c4fac5306fbf2636e6a2b7c64b47",
+     "parents": "68b82926968c99503d38ae78dbcb04694cc2c56c",
+     "subject": "fix: include available capacity in version upgrades"
+    },
+    {
+     "commit": "f8dece5f2f7621992617c7d5cf9358de3084dafc",
+     "parents": "69262a06e0d8c4fac5306fbf2636e6a2b7c64b47",
+     "subject": "fix: bypass cached incorrect SVG logo content types"
+    },
+    {
+     "commit": "c6f5beec3d91e7ccb66bdff7a178ee8d1cca1584",
+     "parents": "f8dece5f2f7621992617c7d5cf9358de3084dafc",
+     "subject": "docs: align Windows host-exclusion evidence in README"
+    },
+    {
+     "commit": "be4c1a723dc8e6c111b540a12ed5f74f46fd5ac0",
+     "parents": "c6f5beec3d91e7ccb66bdff7a178ee8d1cca1584",
+     "subject": "docs: qualify homepage isolation and verification claims"
+    },
+    {
+     "commit": "19c51b1242cec035e09da551d44682e794b3bdd1",
+     "parents": "be4c1a723dc8e6c111b540a12ed5f74f46fd5ac0",
+     "subject": "deploy: benchmark sources and the CPU-kernel test harness under wasm/ are not image inputs"
+    },
+    {
+     "commit": "14e01bf451050bfddebe4efca086d415279502af",
+     "parents": "19c51b1242cec035e09da551d44682e794b3bdd1",
+     "subject": "test: recover robust Shield helper wakeup checks from archived work"
+    },
+    {
+     "commit": "5ca9e61ddacd7d5887c02cacef80408d82605c5f",
+     "parents": "14e01bf451050bfddebe4efca086d415279502af",
+     "subject": "test: exclude ignored archives from deployment input checks"
+    }
+   ],
+   "files": [
+    ".github/workflows/deploy.yml",
+    "PRODUCT.md",
+    "README.md",
+    "docs/security/nucbox-custom-vm-verifier.md",
+    "e2e/version-panel-fixture.mjs",
+    "site/components/attest-chain/attest-chain.html",
+    "site/components/attest-chain/attest-chain.js",
+    "site/components/deployments/deployments.js",
+    "site/components/flow/flow.html",
+    "site/components/live-verify/live-verify.css",
+    "site/components/live-verify/live-verify.html",
+    "site/css/site.css",
+    "site/index.html",
+    "site/js/core/catalog.js",
+    "site/js/core/share-resize.js",
+    "site/js/core/version-allocation.js",
+    "test/deploy-wasm-noninput.test.mjs",
+    "test/fixtures/shielded-parwork.c",
+    "test/share-resize.test.mjs",
+    "test/vaultsvc.test.mjs",
+    "test/version-allocation.test.mjs"
+   ],
+   "note": "enters ONLY as route's base (route = main + 6); never merged on its own; 21 files, all outside the 9fa02 lineage's versions -> review"
+  },
+  "octopusBase": "7752a4239b3bec2cf452491cd1b95164a8c2bdb8",
+  "routeSnapshot": {
+   "commit": "9a4880464b274e19f330fac7e80d82b641814ef1",
+   "subject": "snapshot: preserve tested RPC route source without checkpoint archive ancestry",
+   "note": "a squashed snapshot WITHOUT the source lineage's ancestry: 1207 files vs main; its tree matches no commit of 7752..9fa02 (closest 193 files apart)"
+  }
+ },
+ "stages": {
+  "1": {
+   "order": [
+    "consumers",
+    "leaseRelay",
+    "verifier"
+   ],
+   "conflicts": 0,
+   "expectedTreeAfterLeaseRelay": "a10153ac3569ea3968c39237161fbafe6faecfa3",
+   "expectedTree": "2c03405993d9c6127e92ec2df4c0044b41715352",
+   "autoMergedOverlap": [
+    "metal/guest/measured-control.mjs"
+   ],
+   "status": "clean 3-way merges (ort); the overlap file is auto-merged -> review"
+  },
+  "2": {
+   "merge": "route",
+   "conflicts": 124,
+   "classes": "CONFLICTS.tsv",
+   "status": "RESOLUTION REQUIRED (no automatic or blind resolution)"
+  }
+ },
+ "pendingInputs": {
+  "leaseConsumerSeam": {
+   "commit": "26393ac5",
+   "status": "NOT APPROVED (root r3 tests active)",
+   "include": false,
+   "toInclude": "compose.sh --seam <full sha> --seam-receipt <root receipt .out> --seam-receipt-sha256 <sha>: the receipt must end with ## rc=0 and name the sha; merged LAST, after stage 2"
+  }
+ },
+ "excluded": [
+  "the Base wrapper producer and deep-recovery workers (separate, active)",
+  "any file copy not in a listed commit"
+ ]
+}
