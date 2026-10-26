@@ -1,0 +1,33 @@
+--- a/test/helpers/windows-chain-driver.mjs
++++ b/test/helpers/windows-chain-driver.mjs
+@@ -10,6 +10,21 @@
+ const nodeDir = process.argv[3] || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../windows/node');
+ const load = (f) => import(pathToFileURL(path.join(nodeDir, f)).href);
+ const plain = (v) => JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? x.toString() : x)));
++// DIAGNOSTIC ONLY (the reported text, never ok/code): the cause chain, innermost first - bounded (8 levels, 400 chars each)
++// and cycle-safe - then the outer message. viem wraps a transport refusal (e.g. network/chain-authority.mjs fail(code, msg))
++// in request metadata long enough to push the real reason past any fixed cut of the outer message.
++function errorText(e) {
++  const parts = [], seen = new Set();
++  for (let x = e, i = 0; x && typeof x === 'object' && !seen.has(x) && i < 8; x = x.cause, i++) {
++    seen.add(x);
++    const m = String(x.shortMessage || x.message || '').split('\n')[0].trim();
++    const d = typeof x.details === 'string' ? x.details.split('\n')[0].trim() : '';
++    const line = [x.code !== undefined && x.code !== null ? `[${String(x.code).slice(0, 40)}]` : '', m, d && d !== m ? `(${d})` : ''].filter(Boolean).join(' ').slice(0, 400);
++    if (line) parts.push(line);
++  }
++  const outer = String(e?.message || e);
++  return (parts.length ? parts.reverse().join(' <- ') + ' || ' + outer : outer).slice(0, 4000);
++}
+ const results = [];
+ let chain;
+ for (const o of ops) {
+@@ -46,7 +61,7 @@
+       default: throw new Error('unknown op ' + o.op);
+     }
+     results.push({ op: o.op, ok: true, value: plain(value) });
+-  } catch (e) { results.push({ op: o.op, ok: false, error: String(e?.message || e).slice(0, 800), code: e?.code ?? e?.cause?.code ?? null }); }
++  } catch (e) { results.push({ op: o.op, ok: false, error: errorText(e), code: e?.code ?? e?.cause?.code ?? null }); }
+ }
+ process.stdout.write(JSON.stringify({ results }) + '\n');
+ process.exit(0);
