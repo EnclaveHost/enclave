@@ -1,0 +1,6 @@
+cli/enclave.mjs
+test/cli-combined-independent.test.mjs
+test/cli-independent.test.mjs
+test/custody-cli-independent.test.mjs
+test/helpers/windows-chain-driver.mjs
+test/windows-verifier.e2e.test.mjs
