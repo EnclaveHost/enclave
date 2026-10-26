@@ -1,0 +1,64 @@
+--- a/wrapper/chain_service.py
++++ b/wrapper/chain_service.py
+@@ -464,7 +464,8 @@
+ # r2: the persisted authenticated-finality watermark (see harness gate_watermark). Read-only here: a re-anchor launch starts only
+ # while the latest accepted entry is exactly this launch's anchor, recorded by root `arm` (no write path in the wrapper).
+ BOOTSTRAP_WATERMARK = pathlib.Path('/etc/enclave-rpc/base-finality-watermark')
+-# r4 (base-finality-proof-stage/r4): the ONE A1 admission ledger shared by re-anchor admissions (the harness, enforced at `arm`)
++# r4/r5 (base-finality-proof-stage): the ONE A1 admission ledger shared by re-anchor admissions (the r5 harness refuses any other
++# path before admission; the producer re-checks at `arm`)
+ # and post-anchor finality admissions (finality_state): a capture serves exactly one of them, once.
+ A1_ADMISSION_LEDGER = pathlib.Path('/etc/enclave-rpc/base-a1-admission.jsonl')
+ WATERMARK_FORMAT = 'enclave-base-finality-watermark/v1'
+@@ -489,12 +490,16 @@
+ #   armed (root `arm`, stopped DB at N) | rearmed (root `rearm`, stopped DB unchanged at N)  -> pending: one anchored start
+ #   consumed (THIS wrapper, under the lock, durably, BEFORE execve)  -> refuse every start until root `rearm`
+ #   rolled-back (root)  -> terminal
+-#   bootstrapped (r4: root `record_finality`, a qualified post-anchor finality proof N' > N recorded as a finality-proof watermark
+-#                 entry)  -> ordinary restarts WITHOUT the anchor (the anchor is never replayed); each restart makes the finality
+-#                 qualification stale until a new proof (finality_state status); a newer proof appends another `bootstrapped`
++#   bootstrapped (root `record-finality`: a qualified post-anchor finality proof N' > N, recorded as a finality-proof watermark
++#                 entry; a newer proof appends another) -> no start by itself
++#   restart-permitted (r5: root `permit-restart`: the STOPPED DB proven by the harness at/above the latest recorded floor, the
++#                 DB file's exact dev/ino/size/mtime recorded) -> ONE ordinary start WITHOUT the anchor (never replayed): this
++#                 wrapper consumes it as `restarted` only if the DB file is byte-identity-unchanged since the permit
++#   restarted    -> running; finality is stale until a new proof (readiness gate post-anchor-finality); a crash needs a new permit
+ # A launch that never reached `bootstrapped` keeps r7's rule: after `consumed` only `rearm` (DB unchanged at N) or rollback.
+ JOURNAL_NEXT = {None: {'armed'}, 'armed': {'consumed', 'rolled-back'}, 'rearmed': {'consumed', 'rolled-back'},
+-                'consumed': {'rearmed', 'rolled-back', 'bootstrapped'}, 'bootstrapped': {'bootstrapped', 'rolled-back'},
++                'consumed': {'rearmed', 'rolled-back', 'bootstrapped'}, 'bootstrapped': {'bootstrapped', 'restart-permitted', 'rolled-back'},
++                'restart-permitted': {'restarted', 'rolled-back'}, 'restarted': {'bootstrapped', 'restart-permitted', 'rolled-back'},
+                 'rolled-back': set()}
+ PENDING = {'armed', 'rearmed'}
+ JOURNAL_ENTRY = re.compile(r'[0-9]{6}\.json')
+@@ -779,15 +784,24 @@
+     launch_lineage(launch, None, owner, top)                 # predecessor chain + archive coverage, before anything is consumed
+     entries = journal_entries(directory / 'journal', owner, l_sha, top)
+     state = entries[-1][1]['event']
+-    if state == 'bootstrapped':
+-        # r4: finality past the anchor is recorded (and is the accepted watermark): an ORDINARY restart of the same DB, without
+-        # --bootstrap.anchor (never replayed); nothing is consumed. The finality qualification is stale after it (new process).
+-        launch_finality(launch, l_sha, entries, None, owner, top)
++    if state in ('bootstrapped', 'restarted'):
++        raise AssertionError('bootstrapped launch: an ordinary restart needs root `permit-restart` first (the STOPPED DB proven at or '
++                             'above its recorded finality floor); nothing started')
++    if state == 'restart-permitted':
++        # r5: ONE ordinary start of the same DB, without --bootstrap.anchor (never replayed). The permit names the latest recorded
++        # floor and the DB file's exact identity at the harness check; any write since (an in-place rollback, a restore) refuses.
++        own = launch_finality(launch, l_sha, entries, None, owner, top)
++        permit = entries[-1][1].get('evidence') or {}
++        assert own and permit.get('floor') == {'entrySha256': own[-1][0], 'number': own[-1][1]['number'], 'blockHash': own[-1][1]['blockHash']}, \
++            'restart permit is not for the latest recorded finality floor: refusing'
+         want = ((launch.get('bindings') or {}).get('dbIdentity') or {}).get('mdbx') or {}
+         st = os.stat(pathlib.Path((launch.get('bindings') or {}).get('datadir', '/nonexistent'), 'db', 'mdbx.dat'))
+-        assert (st.st_dev, st.st_ino) == (want.get('dev'), want.get('ino')), \
+-            'bootstrapped launch: the DB file is not the one the launch record bound (refusing; rollback + re-anchor)'
++        now_id = {'dev': st.st_dev, 'ino': st.st_ino, 'size': st.st_size, 'mtimeNs': st.st_mtime_ns}
++        assert (st.st_dev, st.st_ino) == (want.get('dev'), want.get('ino')) and now_id == permit.get('mdbx'), \
++            'the DB file changed since the restart permit (or is not the launch DB): refusing; root re-runs permit-restart'
+         assert LAUNCH_PRODUCER_REVIEWED, 'HOLD: the launch-record producer is not reviewed (nothing started)'
++        journal_append(directory / 'journal', owner, l_sha, entries, 'restarted', {'permitEntrySha256': entries[-1][0], 'pid': os.getpid()},
++                       datetime.datetime.fromtimestamp(_now(), datetime.timezone.utc).isoformat(), top)
+         return []
+     launch_watermark(launch, l_sha, None, owner, top)        # r2: the accepted watermark is this launch's anchor
+     assert state != 'consumed', (f'bootstrap anchor already consumed (journal seq {len(entries)}): refusing; the anchor is '

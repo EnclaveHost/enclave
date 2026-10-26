@@ -1,0 +1,114 @@
+test_current_proof_passes_and_every_other_state_is_not_ready (__main__.PostAnchorFinalityGate.test_current_proof_passes_and_every_other_state_is_not_ready) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/readiness/test_readiness_sampler.py:1084: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/self/stat' mode='r' encoding='utf-8'>
+  st = start or open('/proc/self/stat').read().rsplit(')', 1)[1].split()[19]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/readiness/test_readiness_sampler.py:1112: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/logs/root-finality-r5-tests-20261026T053244Z-933337/tmp/tmpo4njxq4t/bad.json' mode='w' encoding='utf-8'>
+  q = os.path.join(self.tmp.name, 'bad.json'); open(q, 'w').write('{"format": "x"}'); self.assertEqual(self.check(q, rs.Negative), 'finality-status-malformed')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_post_anchor_finality_is_a_readiness_gate (__main__.PostAnchorFinalityGate.test_post_anchor_finality_is_a_readiness_gate) ... ok
+test_base_el_syncing (__main__.TestBaseNegative.test_base_el_syncing) ... ok
+test_base_finality_rewritten_between_samples (__main__.TestBaseNegative.test_base_finality_rewritten_between_samples) ... ok
+test_l1origin_not_canonical_on_our_l1 (__main__.TestBaseNegative.test_l1origin_not_canonical_on_our_l1) ... ok
+test_nonadvancing_finality (__main__.TestBaseNegative.test_nonadvancing_finality) ... ok
+test_nonadvancing_safe (__main__.TestBaseNegative.test_nonadvancing_safe) ... ok
+test_reported_l1origin_disagrees_with_deposit (__main__.TestBaseNegative.test_reported_l1origin_disagrees_with_deposit) ... ok
+test_rollup_finalized_l1_ahead_of_our_finality (__main__.TestBaseNegative.test_rollup_finalized_l1_ahead_of_our_finality) ... ok
+test_safe_hash_mismatch_with_base_el (__main__.TestBaseNegative.test_safe_hash_mismatch_with_base_el) ... ok
+test_stale_safe_head (__main__.TestBaseNegative.test_stale_safe_head) ... ok
+test_unsafe_latest_alone_is_never_ready (__main__.TestBaseNegative.test_unsafe_latest_alone_is_never_ready) ... ok
+test_wrong_base_chain_in_rollup_config (__main__.TestBaseNegative.test_wrong_base_chain_in_rollup_config) ... ok
+test_wrong_base_el_chain (__main__.TestBaseNegative.test_wrong_base_el_chain) ... ok
+test_cli_bounds_rejected (__main__.TestBounds.test_cli_bounds_rejected) ... ok
+test_no_url_option_exists (__main__.TestBounds.test_no_url_option_exists) ... ok
+test_oversized_response_is_cut (__main__.TestBounds.test_oversized_response_is_cut) ... ok
+test_redirect_is_not_followed (__main__.TestBounds.test_redirect_is_not_followed) ... ok
+test_request_budget (__main__.TestBounds.test_request_budget) ... ok
+test_slow_drip_body_is_cut_by_wall_timeout (__main__.TestBounds.test_slow_drip_body_is_cut_by_wall_timeout) ... ok
+test_slow_response_times_out (__main__.TestBounds.test_slow_response_times_out) ... ok
+test_window_too_short_is_incomplete (__main__.TestBounds.test_window_too_short_is_incomplete) ... ok
+test_absent_identity_pins_is_incomplete (__main__.TestCoverage.test_absent_identity_pins_is_incomplete) ... ok
+test_binding_mismatch (__main__.TestCoverage.test_binding_mismatch) ... ok
+test_boolean_flag_is_not_evidence (__main__.TestCoverage.test_boolean_flag_is_not_evidence) ... ok
+test_config_identity_mismatch (__main__.TestCoverage.test_config_identity_mismatch) ... ok
+test_missing_data_counts (__main__.TestCoverage.test_missing_data_counts) ... ok
+test_no_persisted_safe_origin (__main__.TestCoverage.test_no_persisted_safe_origin) ... ok
+test_partial_range (__main__.TestCoverage.test_partial_range) ... ok
+test_receipt_without_verdict_is_incomplete (__main__.TestCoverage.test_receipt_without_verdict_is_incomplete) ... ok
+test_refused_verdict (__main__.TestCoverage.test_refused_verdict) ... ok
+test_self_review_rejected (__main__.TestCoverage.test_self_review_rejected) ... ok
+test_snapshot_block_pruned_is_incomplete (__main__.TestCoverage.test_snapshot_block_pruned_is_incomplete) ... ok
+test_snapshot_identity_mismatch (__main__.TestCoverage.test_snapshot_identity_mismatch) ... ok
+test_snapshot_not_ancestor_of_running_chain (__main__.TestCoverage.test_snapshot_not_ancestor_of_running_chain) ... ok
+test_tampered_verdict_bytes (__main__.TestCoverage.test_tampered_verdict_bytes) ... ok
+test_tip_walk_verdict_not_eligible (__main__.TestCoverage.test_tip_walk_verdict_not_eligible) ... ok
+test_tool_pin_mismatch (__main__.TestCoverage.test_tool_pin_mismatch) ... ok
+test_matches_origin_extract (__main__.TestDecoderParity.test_matches_origin_extract) ... ERROR
+test_ahead_tag_beyond_bound_is_incoherent (__main__.TestElLabels.test_ahead_tag_beyond_bound_is_incoherent) ... ok
+test_ahead_tag_canonical_race_is_allowed (__main__.TestElLabels.test_ahead_tag_canonical_race_is_allowed) ... ok
+test_ahead_tag_with_wrong_hash (__main__.TestElLabels.test_ahead_tag_with_wrong_hash) ... ok
+test_behind_tag_is_incomplete (__main__.TestElLabels.test_behind_tag_is_incomplete) ... ok
+test_finalized_tag_ahead_of_safe_tag (__main__.TestElLabels.test_finalized_tag_ahead_of_safe_tag) ... ok
+test_finalized_tag_hash_contradicts (__main__.TestElLabels.test_finalized_tag_hash_contradicts) ... ok
+test_finalized_tag_parent_contradicts (__main__.TestElLabels.test_finalized_tag_parent_contradicts) ... ok
+test_root_probe_both_tags_contradict_canonical (__main__.TestElLabels.test_root_probe_both_tags_contradict_canonical) ... ok
+test_safe_tag_hash_contradicts (__main__.TestElLabels.test_safe_tag_hash_contradicts) ... ok
+test_safe_tag_timestamp_contradicts (__main__.TestElLabels.test_safe_tag_timestamp_contradicts) ... ok
+test_same_height_tag_must_equal_validated_rollup_ref (__main__.TestElLabels.test_same_height_tag_must_equal_validated_rollup_ref) ... ok
+test_healthy_chain_with_valid_reviewed_coverage_is_ready (__main__.TestHealthy.test_healthy_chain_with_valid_reviewed_coverage_is_ready) ... ok
+test_healthy_chain_without_coverage_is_incomplete_not_ready (__main__.TestHealthy.test_healthy_chain_without_coverage_is_incomplete_not_ready) ... ok
+test_out_is_never_overwritten (__main__.TestHealthy.test_out_is_never_overwritten) ... ok
+test_missing_jsonrpc_version (__main__.TestJsonRpcEnvelope.test_missing_jsonrpc_version) ... ok
+test_missing_result (__main__.TestJsonRpcEnvelope.test_missing_result) ... ok
+test_result_and_error (__main__.TestJsonRpcEnvelope.test_result_and_error) ... ok
+test_wrong_request_id (__main__.TestJsonRpcEnvelope.test_wrong_request_id) ... ok
+test_cl_el_head_payload_mismatch (__main__.TestL1Negative.test_cl_el_head_payload_mismatch) ... ok
+test_cl_el_head_timestamp_mismatch (__main__.TestL1Negative.test_cl_el_head_timestamp_mismatch) ... ok
+test_cl_optimistic (__main__.TestL1Negative.test_cl_optimistic) ... ok
+test_el_finalized_tag_diverges_from_beacon (__main__.TestL1Negative.test_el_finalized_tag_diverges_from_beacon) ... ok
+test_el_syncing (__main__.TestL1Negative.test_el_syncing) ... ok
+test_finalized_block_optimistic (__main__.TestL1Negative.test_finalized_block_optimistic) ... ok
+test_head_block_optimistic (__main__.TestL1Negative.test_head_block_optimistic) ... ok
+test_low_custody (__main__.TestL1Negative.test_low_custody) ... ok
+test_nonadvancing_l1_head (__main__.TestL1Negative.test_nonadvancing_l1_head) ... ok
+test_stale_l1_head (__main__.TestL1Negative.test_stale_l1_head) ... ok
+test_wrong_cl_genesis (__main__.TestL1Negative.test_wrong_cl_genesis) ... ok
+test_wrong_l1_chain (__main__.TestL1Negative.test_wrong_l1_chain) ... ok
+test_wrong_lighthouse_version (__main__.TestL1Negative.test_wrong_lighthouse_version) ... ok
+test_finalized_below_live_earliest_is_incomplete (__main__.TestPrunedIdentity.test_finalized_below_live_earliest_is_incomplete) ... ok
+test_live_refusal_text_is_matched_exactly (__main__.TestPrunedIdentity.test_live_refusal_text_is_matched_exactly) ... ok
+test_null_genesis_is_incomplete_not_accepted (__main__.TestPrunedIdentity.test_null_genesis_is_incomplete_not_accepted) ... ok
+test_other_rpc_errors_are_never_accepted (__main__.TestPrunedIdentity.test_other_rpc_errors_are_never_accepted) ... ok
+test_pruned_base_downgraded_when_l1_identity_fails (__main__.TestPrunedIdentity.test_pruned_base_downgraded_when_l1_identity_fails) ... ok
+test_pruned_base_el_not_serving_derived_finalized_fails (__main__.TestPrunedIdentity.test_pruned_base_el_not_serving_derived_finalized_fails) ... ok
+test_pruned_base_still_requires_mainnet_identity (__main__.TestPrunedIdentity.test_pruned_base_still_requires_mainnet_identity) ... ok
+test_pruned_base_without_derived_heads_is_not_accepted (__main__.TestPrunedIdentity.test_pruned_base_without_derived_heads_is_not_accepted) ... ok
+test_pruned_identity_downgraded_when_pairing_later_fails (__main__.TestPrunedIdentity.test_pruned_identity_downgraded_when_pairing_later_fails) ... ok
+test_pruned_l1_and_base_genesis_compensated_ready_only_with_coverage (__main__.TestPrunedIdentity.test_pruned_l1_and_base_genesis_compensated_ready_only_with_coverage) ... ok
+test_pruned_l1_el_not_serving_beacon_finalized_fails (__main__.TestPrunedIdentity.test_pruned_l1_el_not_serving_beacon_finalized_fails) ... ok
+test_pruned_l1_optimistic_finalized_fails (__main__.TestPrunedIdentity.test_pruned_l1_optimistic_finalized_fails) ... ok
+test_pruned_l1_still_requires_mainnet_identity (__main__.TestPrunedIdentity.test_pruned_l1_still_requires_mainnet_identity) ... ok
+test_served_genesis_keeps_block_basis (__main__.TestPrunedIdentity.test_served_genesis_keeps_block_basis) ... ok
+test_served_wrong_genesis_still_fails (__main__.TestPrunedIdentity.test_served_wrong_genesis_still_fails) ... ok
+test_beacon_404_head_is_unavailable (__main__.TestUnavailable.test_beacon_404_head_is_unavailable) ... ok
+test_el_port_closed (__main__.TestUnavailable.test_el_port_closed) ... ok
+test_jsonrpc_error_is_unavailable (__main__.TestUnavailable.test_jsonrpc_error_is_unavailable) ... ok
+test_malformed_sync_status_is_unavailable (__main__.TestUnavailable.test_malformed_sync_status_is_unavailable) ... ok
+test_rollup_http_500_is_incomplete_not_negative (__main__.TestUnavailable.test_rollup_http_500_is_incomplete_not_negative) ... ok
+test_rollup_port_closed (__main__.TestUnavailable.test_rollup_port_closed) ... ok
+
+======================================================================
+ERROR: test_matches_origin_extract (__main__.TestDecoderParity.test_matches_origin_extract)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/readiness/test_readiness_sampler.py", line 1068, in test_matches_origin_extract
+    spec.loader.exec_module(oe)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^
+  File "<frozen importlib._bootstrap_external>", line 759, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 896, in get_code
+  File "<frozen importlib._bootstrap_external>", line 954, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r5/readiness/../coverage/origin_extract.py'
+
+----------------------------------------------------------------------
+Ran 91 tests in 144.705s
+
+FAILED (errors=1)
