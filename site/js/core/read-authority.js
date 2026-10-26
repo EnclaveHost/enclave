@@ -91,6 +91,29 @@ export function sessionsRpc(relayRpc, authority, pool){
   throw new Error("this site release's chain read authority is " + (authority.mode === "invalid" ? "invalid (" + authority.error + ")" : "not usable for sessions") + ": refusing");
 }
 
+/** /credit/ (site/credit/credit.js) chain endpoints. The credit page reads through its OWN quorum reader (quorum.js: at
+ *  least two origins, a quorum of at least two), so a release authority changes WHICH endpoints it asks, never how many
+ *  must agree:
+ *   - the owner's saved endpoints (the page's "save endpoints" form) keep precedence: the owner's explicit choice;
+ *   - legacy (no release authority): credit-config.json's endpoints and quorum, exactly as before;
+ *   - own-rpc: ONLY the release's own endpoints, with credit-config.json's quorum. Fewer own endpoints than that quorum
+ *     is REFUSED (never one own RPC standing in for the quorum, never the public defaults);
+ *   - invalid: refused (no endpoint at all).
+ *  -> {rpcs, quorum, source: "owner" | "config" | "release-own-rpc"}; throws for a refusal. A trusted self-hosted transport,
+ *  not proof verification (see above). */
+export function creditEndpoints({ authority, saved = null, config }){
+  if (saved && Array.isArray(saved.rpcs) && Number.isSafeInteger(saved.quorum)) return Object.freeze({ rpcs: [...saved.rpcs], quorum: saved.quorum, source: "owner" });
+  if (!config || !Array.isArray(config.rpcs) || !Number.isSafeInteger(config.quorum)) throw new Error("credit-config.json names no endpoints");
+  if (!authority || authority.mode === "legacy") return Object.freeze({ rpcs: [...config.rpcs], quorum: config.quorum, source: "config" });
+  if (authority.mode === "own-rpc"){
+    if (authority.rpcs.length < config.quorum)
+      throw new Error("this site release's own read authority names " + authority.rpcs.length + " endpoint(s), but the credit page needs "
+        + config.quorum + " agreeing: refusing (one own RPC never replaces the quorum, and no public endpoint is used)");
+    return Object.freeze({ rpcs: [...authority.rpcs], quorum: config.quorum, source: "release-own-rpc" });
+  }
+  throw new Error("this site release's chain read authority is " + (authority.mode === "invalid" ? "invalid (" + authority.error + ")" : "not usable here") + ": refusing");
+}
+
 /** wallet.js fallbackRead (a read the WALLET could not answer): the legacy hosted page asks Base's public RPC; under an
  *  independent profile or a release read authority it must use the read pool (baseRpc) - never a public default. */
 export const fallbackUsesPool = (independentState, authority) => independentState !== "off" || !authority || authority.mode !== "legacy";

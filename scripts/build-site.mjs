@@ -134,6 +134,8 @@ const creditResult = await build({
   outfile: path.join(DIST, "credit/credit.js"),
   external: ["/vendor/*"],
   metafile: true,
+  // the SAME reviewed release read authority as the main site (its credit page defaults then follow it; see read-authority.js)
+  plugins: [...(READ_AUTH ? [readAuthorityPlugin(READ_AUTH.text, SITE)] : [])],
 });
 for (const f of ["index.html", "credit-config.json"])
   fs.copyFileSync(path.join(SITE, "credit", f), path.join(DIST, "credit", f));
