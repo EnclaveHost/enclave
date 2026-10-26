@@ -1,0 +1,7 @@
+[queue] START available=22195MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{'inputs': ['checkpoint.json', 'derivation_harness_lease_v3', 'helios', 'ld-linux-x86-64.so.2', 'libc.so.6', 'libgcc_s.so.1', 'libm.so.6'], 'mismatch': {}}
+{"checkpoint":"2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33","slot":15511008,"expiresUtc":"2026-11-01T19:21:59.000Z"}
+{'ok': True, 'rc': 0, 'tests': 25, 'failed': [], 'derivedReader': [('test_committed_record_and_config_agree_and_hold_no_private_data', 'ok'), ('test_control_image_without_inputs_records_absent_and_plain_images_refuse_the_flag', 'ok'), ('test_installer_places_pinned_files_read_only_under_opt_enclave', 'ok'), ('test_installer_refusals', 'ok'), ('test_with_real_inputs_a_changed_native_file_refuses_and_writes_nothing', 'ok'), ('test_with_real_inputs_every_pinned_file_is_installed_in_the_control_image', 'ok')], 'skipped': []}
+[memory-guard] exit=0 peakTreeRssMiB=488 minHostAvailableMiB=21866
+[memory-guard] at peak: python3:482 bash:4 timeout:2
+[queue] EXIT 0

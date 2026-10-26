@@ -1,0 +1,6 @@
+[queue] START available=22537MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## SETUP: composed tree is not 5052bd58e8399f9d5040aef911b91ca8632a2501
+## accepted-image-assets assets rc=9
+[memory-guard] exit=9 peakTreeRssMiB=162 minHostAvailableMiB=20888
+[memory-guard] at peak: git:155 bash:4 tar:3
+[queue] EXIT 9

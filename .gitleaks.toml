@@ -221,3 +221,32 @@ regexes = [
   '''^\s*"account\-abstraction/accounts/implementations/toCoinbaseSmartAccount\.ts"\s*:\s*"e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6",?\s*$''',
   '''^\s*"actions/test/setCoinbase\.ts"\s*:\s*"52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072",?\s*$''',
 ]
+
+# The committed signed-capture r2 vendor manifest is ONE compact JSON line (1.5 MB) of public viem 2.53.1 file paths and their
+# sha256. 14 of those files are named *Coinbase*; each digest was recomputed against the vendored file (review:
+# ops/rpc-runtime-followups-20261026/public-digest-scan-review.json). The default coinbase-access-token rule matches 13 of them
+# (toCoinbaseSmartAccount.d.ts.map puts 22 characters between "coinbase" and the separator, beyond the rule's 20); all 14 audited
+# digests are listed. condition = "AND": exactly this one path AND the SECRET is exactly one of these digests (a LINE target would
+# allowlist everything on the single line). Only this default rule, no crypto rule: a forged digest, a token, a key or a mnemonic
+# in the same file, or these digests anywhere else, still fire (.githooks/gitleaks-selftest.py VENDOR scenarios v1-v7).
+[[allowlists]]
+description = "14 audited public viem 2.53.1 *Coinbase* file digests in the committed signed-capture r2 VENDOR.json; exact path and exact digest only"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^ops/rpc-runtime-followups-20261026/signed-capture-r2/VENDOR\.json$''']
+regexes = [
+  '''^ccffc5536cd901914eaee2b279f08c983ae7b3ed6ae180ffd309cd9d4011f1b6$''',
+  '''^db3574564ad9130d19d89277b88b70da8f6ba27c97843ee737a8839e43609450$''',
+  '''^9d77333d14f993f37fa7f101068b6c0399622e932b628597b3ff1a2d1d8125ea$''',
+  '''^508bf1493b23e8fe823519de960c8545059870214e86c3d9572c1663b53b81c5$''',
+  '''^e66a4b64e7684f42f557e9212318e2394508b833d5a6e197eb02b6a5b9c1ca21$''',
+  '''^4c588c7240f580902577a6e21824e9e0ea4517e6a72ec051bfca65227f702cd5$''',
+  '''^c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb$''',
+  '''^05dd8b6ec6a67ea0730c24f4d8b17af83621e82eafe2092b74be0f8841dace02$''',
+  '''^f4b79c91693fbed54cbc52c904ec5ab8fea9a6f6e875fee00f23df7d366d0ae8$''',
+  '''^3c970490971d0be5bd0ccccd79fc7481bc8ffb84300327d388518813d7c44b67$''',
+  '''^91d378f564d91afa23da2a7985d2a721cee70494e02b96a439ae3d156297e8ce$''',
+  '''^989a876500a3fa277df29a5bbea7d106e95f02b734f274978f3ddce21fcee423$''',
+  '''^e61ddd268dd9c5e588d3cb65599ca9c478743e78596243c027b96bc1350238a6$''',
+  '''^52ef6c939763a0597d1241035a9eda94d90fc44e34abe6e9af687a861c3e8072$''',
+]

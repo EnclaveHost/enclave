@@ -1,0 +1,7 @@
+5487007725e4660940821619d67dae8cbba084338d634090d72c89dd8206db04  ./COMPOSED-TREE
+6868c290d28ad0621689702e10d71b6dfbe1075d384b552db61c5b183938a7b4  ./patches/accepted-image-assets-vs-r4.patch
+306678638bb84a9780f0f68809cca23633485e5983e3ae209c162cd6f8ae45c8  ./jobs/root-accepted-image-assets.sh
+8077b3c7ba193b9900965451c2470590426dc7e34e21bf63f6b278548be16cdb  ./files/metal/derived-reader-config.v3.json
+db7f4852062beb5a9d98d6e040a74193df0f922448b8102150561103e91b7c80  ./files/metal/derived-reader-image.json
+a40a9047559ca0538cc07c0247efd31c149f99657f2012c1a3afffee9557f9da  ./files/metal/overlay-control-image.py
+51101f0dd6d73be799d79d21623f75005acd32758fe8f380cfae7158364572d8  ./files/test/metal-control-overlay.test.py

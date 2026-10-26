@@ -1,0 +1,4 @@
+b72d1b2d8d47c19d89d06e1be15b96fae1cd50ca7743b7d3e841a29bc6c05fc8  ./jobs/root-controller-offline.sh
+9e3efacd4a124226eb1835066ccaf5e581c40af9c81cf3bb92d3e7bec5450e39  ./retention-live-controller.sh
+8740b6b4644ec87909b4e87cddbfbb56ce37fa72985574ded1bf975a36e7cf35  ./tests/fake_guest.py
+218e12d96b4a29435095a2a25088ff20eea1c914f18f90ac1e417a881a2be0ba  ./tests/test_controller.py

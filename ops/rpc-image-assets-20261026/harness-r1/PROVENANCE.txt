@@ -1,0 +1,1 @@
+Root1354 failed composition before any tests: git archive initial tree had63 tracked files covered by .gitignore, omitted by newrepo git add-A. This job uses git add-f-A inside private fresh exported tree, requires exact original5052bd58 tree before continuing. No source or pins changed. Original job SHA 306678638bb84a9780f0f68809cca23633485e5983e3ae209c162cd6f8ae45c8

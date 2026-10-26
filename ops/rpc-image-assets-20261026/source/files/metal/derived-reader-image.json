@@ -1,0 +1,49 @@
+{
+ "format": "enclave-derived-reader-image/v1",
+ "binaries": {
+  "native": {
+   "path": "/opt/enclave/bin/derivation_harness_lease_v3",
+   "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa"
+  },
+  "l1": {
+   "path": "/opt/enclave/bin/helios",
+   "sha256": "cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0"
+  }
+ },
+ "files": {
+  "checkpoint": {
+   "path": "/opt/enclave/policy/checkpoint.json",
+   "sha256": "2e8502e68864abb49a230a69612bd7c98c94775d8dd81f956a0185d53652ac33"
+  }
+ },
+ "config": {
+  "path": "/opt/enclave/policy/derived-reader-v3.json",
+  "source": "metal/derived-reader-config.v3.json",
+  "sha256": "8077b3c7ba193b9900965451c2470590426dc7e34e21bf63f6b278548be16cdb"
+ },
+ "glibcRuntime": {
+  "dir": "/opt/enclave/glibc",
+  "build": "arch glibc 2.44+r50+g1848099f063e-1, gcc-libs 16.2.1+r23+gd564253eb6c8-1 (the build host of the pinned binaries)",
+  "files": {
+   "ld-linux-x86-64.so.2": "f5e11cc62f8f2c24dff532982559f4303dba3b17e7450551372a88c8e7ea8757",
+   "libc.so.6": "02c8c3d06180beee9c7d0392aa85736c7d19f274a81e7f8f0b3d9e28e0641524",
+   "libm.so.6": "965106704753eefe8c31ae7da6daba3ead3d18c52b19b5fcc41178bcc4aa999d",
+   "libgcc_s.so.1": "e618cb9c90c2eb3a1dad1cfea5b6c1eebcf2e799ad805976f4ae47bdd61c716a"
+  }
+ },
+ "private": {
+  "stateDir": "/run/measured-control/platform-api/derived-reader-v3",
+  "note": "NOT in the image: the reader's state, coverage store and journal live only in the guest's encrypted RAM state directory (created 0700 by the reader). The image carries no state and no secret; nothing is passed through from the host."
+ },
+ "relayEnv": {
+  "ENCLAVE_WRITER_AUTHORITY_SOURCE": "derived",
+  "ENCLAVE_DERIVED_READER_CONFIG": "/opt/enclave/policy/derived-reader-v3.json",
+  "ENCLAVE_DERIVED_ANCHOR_JOURNAL": "/run/measured-control/platform-api/derived-reader-v3/anchor-journal.json"
+ },
+ "provenance": {
+  "native": "derivation_harness_lease_v3 49f4d7e3: root native v3 r2 build (14/14 Rust tests; source+receipts committed 8594bc1ee); network/derived-reader/native.mjs DERIVATION_V3_BUILDS. Not SNP/accepted-image qualified.",
+  "l1": "helios-eeffcc9 ethereum mode cc962e2b: network/derived-reader/l1-runtime.mjs L1_BUILDS (a different build from the chain verifier's 8250f08a, which stays in metal/chain-verifier-image.json).",
+  "checkpoint": "network/derived-reader/l1-runtime.mjs CHECKPOINT_RECORDS 2e8502e6 (mainnet slot 15511008, five-source); readCheckpoint refuses it 7 days after the slot (about 2026-11-01): rotation is a reviewed source change.",
+  "glibcRuntime": "network/rpc-runtime.mjs PINNED_GLIBC_RUNTIMES (the same four files the chain verifier uses; the guest base is Debian 12 glibc 2.36)"
+ }
+}
