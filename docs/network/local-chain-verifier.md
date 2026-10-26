@@ -60,7 +60,7 @@ Any failure runs every registered cleanup in reverse order and the process exits
   "chain": { "chainId": 8453, "unsafeSigner": "0xaf6e19be0f9ce7f8afd49a1824851023a8249e8a" },
   "binaries": {
     "listener":     { "path": "/opt/enclave/rpc-runtime/enclave-base-head-listener", "sha256": "ebd045b4…" },
-    "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "cc962e2b…" },
+    "helios":       { "path": "/opt/enclave/rpc-runtime/helios",                     "sha256": "8250f08a…" },
     "witnessCheck": { "path": "/opt/enclave/rpc-runtime/witness-check",              "sha256": "4fe0cd3b…" }
   },
   "proofSources": { "untrusted": ["https://<execution rpc 1>/", "https://<execution rpc 2>/"] },
@@ -117,8 +117,10 @@ scripts/rpc-runtime/build-binaries.sh <new-work-dir> <helios repo with ef320298>
     gateway needs). The earlier release build `a33770482…` was of `aca81764` and is no longer accepted; no release of
     `ef320298` was built;
   - the Helios release build (fat LTO) exceeded the 1536 MiB build allocation and was stopped. Until a larger, reviewed
-    allocation builds it, the tested Helios is the debug build `cc962e2b…`. Debug builds are slower; no optimized or
-    reproducible-release claim is made.
+    allocation builds it, the tested Helios is the debug build `8250f08a…`: enclave-base-evm `eeffcc9` plus
+    canonical-block.patch `41667ec9` (exact-hash and canonical-ancestry block checks), built once offline with the recorded
+    debug recipe. It replaces `cc962e2b…` (`eeffcc9` without the patch), which the runtime no longer accepts. Debug builds
+    are slower; no optimized, independently reproduced or reproducible-release claim is made.
 
 ```
 node network/rpc-runtime-main.mjs check /etc/enclave/rpc-runtime.json   # validate + hash every binary, print the plan

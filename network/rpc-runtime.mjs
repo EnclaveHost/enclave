@@ -67,7 +67,7 @@ export const PINNED_BUILDS = Object.freeze({
     '9ca75047ab9ee4f2c44a211b237aa5a8171af1661b17047aafaf2e9b63d10ba3': 'enclave-base-head-listener 5e178676, release profile, scripts/rpc-runtime/build-binaries.sh (closure.json), Rust 1.96.0',
   }),
   helios: Object.freeze({
-    cc962e2b97d545930a3c2051aa6e1c5b08a6c43a4b6b8021eead462ac02c07f0: 'helios enclave-base-evm eeffcc9 (CLI source identical in function to ef320298: later commits change only the witness-check helper), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release)',
+    '8250f08a7b0e1f2432ea6262903ca3203b60bca6a8e17abd6d9bccbe0dbfa378': 'helios enclave-base-evm eeffcc9 + canonical-block.patch 41667ec9 (exact-hash canonical block checks), base/base v1.5.1 EVM, Rust 1.96.0, debug profile (not an optimized release); build build-20261026T004633Z',
   }),
   witnessCheck: Object.freeze({
     // the final gateway needs the helper's `block`/`header` ops (Helios ef320298); the older aca81764 builds
