@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-10-26T02:52:55.566906+00:00",
+  "productionActivated": false,
+  "localIdentity": "user namespace root mapped to existing operator user; not host-root or attested identity",
+  "sourceSha256": "2352df7b27c39299011038bab9aace681756c2eaef5cf216c665d82f9149d277",
+  "captureOk": true,
+  "error": "Refused: input: /home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/a1-capture-live-0252/initial/capture/capture.json exceeds 1048576 bytes",
+  "finishedAt": "2026-10-26T02:54:20.251389+00:00"
+}

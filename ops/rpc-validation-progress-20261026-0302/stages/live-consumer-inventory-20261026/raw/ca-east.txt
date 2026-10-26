@@ -1,0 +1,19 @@
+utc=2026-10-26T02:46:13Z host=ca-east
+listen 0.0.0.0:443 users:(("node",pid=302827))
+listen 0.0.0.0:80 users:(("node",pid=302827))
+listen 0.0.0.0:8188 users:(("node",pid=299190))
+listen 127.0.0.1:8080 users:(("caddy",pid=62302))
+listen 127.0.0.1:8443 users:(("caddy",pid=62302))
+unit caddy.service
+unit enclave-bootstrap-gateway.service
+unit enclave-bootstrap-tls.service
+unit enclave-custodian.service
+unit enclave-dns-front.service
+unit enclave-network-provider.service
+unit enclave-public-directory.service
+unit enclave-route-dns.service
+node pid=222936 unit=enclave-route-dns.service exe=/usr/local/bin/node script=/opt/enclave-route-dns/caa-e8fe12132621/dns.mjs cwd=/ sha16=e8fe12132621ba4e
+node pid=243376 unit=enclave-bootstrap-gateway.service exe=/usr/local/bin/node script=/opt/enclave-retained/cc96aad/server.mjs cwd=/ sha16=bac818554bee24b8
+node pid=299190 unit=enclave-public-directory.service exe=/usr/local/bin/node script=/opt/enclave-directory/runtime-37366ab/enclave-directory.mjs cwd=/ sha16=37366abb5a33725c
+node pid=302827 unit=enclave-network-provider.service exe=/usr/local/bin/node script=/opt/enclave-network/hs-transport-39d1513b/wg-provider.mjs cwd=/ sha16=39d1513b8a884317
+node pid=64446 unit=enclave-custodian.service exe=/usr/local/bin/node script=/opt/enclave-custodian/current/custodian.mjs cwd=/ sha16=07e2a0668a0f5083

@@ -1,0 +1,17 @@
+utc=2026-10-26T02:49:56Z host=NUCBOX_K11
+task Node path=\Enclave\ state=Running user=SYSTEM lastrun= target_files=C:\ProgramData\Enclave\run-node.cmd
+  file C:\ProgramData\Enclave\run-node.cmd sha16=0fdc3699228c9d7a
+    references C:\ProgramData\Enclave\node-config.cmd
+    references C:\ProgramData\Enclave\node\contract-pins.json
+    references C:\Program Files\Enclave\runtime\node\node.exe
+task Relay path=\Enclave\ state=Running user=SYSTEM lastrun= target_files=C:\ProgramData\Enclave\run-relay.cmd
+  file C:\ProgramData\Enclave\run-relay.cmd sha16=d2e71e463e561c19
+    references C:\ProgramData\Enclave\lease-relay\relay-config.cmd
+    references C:\Program Files\Enclave\runtime\node\node.exe
+    references C:\Program Files\Enclave\runtime\node\node.exe
+cmd pid=9524 children=conhost.exe/9500,shielded-worker.exe/9364
+cmd pid=3756 children=conhost.exe/4036,node.exe/4552
+cmd pid=10316 children=conhost.exe/23504,node.exe/5180
+cmd pid=21328 children=conhost.exe/13272,node.exe/16008
+cmd pid=16272 children=conhost.exe/18972,node.exe/4716
+chain_mjs sha16=b257fcf64e7e0f44 mentions_ENCLAVE_CHAIN_AUTHORITY=False mentions_BASE_RPCS=True

@@ -1,0 +1,17 @@
+utc=2026-10-26T02:54:00Z host=warden-host
+est local=192.168.8.249:56808 peer=146.190.246.39:443 pid=1036966 comm=qemu-system-x86 exe=/usr/bin/qemu-system-x86_64 ppid=1034366 pcomm=node cgroup=enclave-metal.service uid=1000
+est local=192.168.8.249:40610 peer=165.245.191.129:443 pid=1036966 comm=qemu-system-x86 exe=/usr/bin/qemu-system-x86_64 ppid=1034366 pcomm=node cgroup=enclave-metal.service uid=1000
+est local=192.168.8.249:36410 peer=134.209.248.172:22 pid=650133 comm=ssh exe=/usr/bin/ssh ppid=1 pcomm=systemd cgroup=app-org.chromium.Chromium-2190679.scope uid=1000
+est local=192.168.8.249:45004 peer=146.190.246.39:22 pid=650735 comm=ssh exe=/usr/bin/ssh ppid=1 pcomm=systemd cgroup=app-org.chromium.Chromium-2190679.scope uid=1000
+est local=192.168.8.249:60910 peer=134.199.235.187:22 pid=650156 comm=ssh exe=/usr/bin/ssh ppid=1 pcomm=systemd cgroup=app-org.chromium.Chromium-2190679.scope uid=1000
+est local=192.168.8.249:46826 peer=165.245.191.129:22 pid=650943 comm=ssh exe=/usr/bin/ssh ppid=1 pcomm=systemd cgroup=app-org.chromium.Chromium-2190679.scope uid=1000
+est local=192.168.8.249:51038 peer=134.199.235.187:443 pid=3641065 comm=chromium exe=/usr/lib/chromium/chromium ppid=3641030 pcomm=chromium cgroup=session-c1.scope uid=1000
+est local=192.168.8.249:33758 peer=146.190.246.39:443 pid=3817658 comm=qemu-system-x86 exe=/usr/bin/qemu-system-x86_64 (deleted) ppid=3817646 pcomm=node cgroup=enclave-custodian-v2.service uid=1000
+est local=192.168.8.249:33760 peer=146.190.246.39:443 pid=1036966 comm=qemu-system-x86 exe=/usr/bin/qemu-system-x86_64 ppid=1034366 pcomm=node cgroup=enclave-metal.service uid=1000
+est_unattributed_count=9
+qemu pid=663844 exe=/usr/bin/bash cgroup=app-org.chromium.Chromium-2190679.scope name=
+qemu pid=1036966 exe=/usr/bin/qemu-system-x86_64 cgroup=enclave-metal.service name=
+qemu pid=2129788 exe=/usr/bin/qemu-system-x86_64 cgroup=kvm-box-controller-726c0318.service name=
+qemu pid=2129873 exe=/usr/bin/qemu-system-x86_64 cgroup=kvm-box-desktop-726c0318.service name=
+qemu pid=3695222 exe=/usr/bin/qemu-system-x86_64 cgroup=enclave-rpc-production-vm.service name=enclave-rpc-production
+qemu pid=3817658 exe=/usr/bin/qemu-system-x86_64 (deleted) cgroup=enclave-custodian-v2.service name=

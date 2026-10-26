@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-26T02:58:03.166202+00:00",
+  "latest": {
+    "number": "0x190e8e5",
+    "hash": "0x23d49810dd11a8174dc1c3314d797357a1d1a2e08c49560036d24118c2d19556",
+    "timestamp": "0x6adec1b7"
+  },
+  "safe": {
+    "number": "0x190e8bd",
+    "hash": "0x198b52fae31785d7e50ee73d53ee3da6ff572ef26abb9f8b2b3362b5b84a487c",
+    "timestamp": "0x6adebfd7"
+  },
+  "finalized": {
+    "number": "0x190e89d",
+    "hash": "0xbe5ab8110ee88c8785d01ec46fdc98239a3745ec006dad3a28f19700ef1667a0",
+    "timestamp": "0x6adebe57"
+  },
+  "consensus": {
+    "data": {
+      "is_syncing": false,
+      "is_optimistic": false,
+      "el_offline": false,
+      "head_slot": "15513288",
+      "sync_distance": "0"
+    }
+  }
+}

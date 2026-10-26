@@ -1,0 +1,153 @@
+--- r3/harness/a2a4.py
++++ r4/harness/a2a4.py
+@@ -29,7 +29,7 @@
+     (from==0 -> full rebuild; validate_state_root against header N; mismatch -> exit 1)
+   - `db get` exits 0 with EMPTY output on a missing key -> every read here requires non-empty, parsed output.
+ """
+-import base64, datetime, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
++import base64, datetime, fcntl, hashlib, json, os, pathlib, re, shutil, signal, stat, subprocess, sys, tempfile, time, types
+ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+ import selection as SEL
+ 
+@@ -249,32 +249,120 @@
+     return bound, sr, ini, rk
+ 
+ 
+-def admit_captures(c, summaries):
+-    """Durable replay refusal: each capture (id, record, evidence) is admitted at most once, across steps and launches. The ledger
+-    line is appended and fsynced BEFORE the step proceeds; a step that fails later needs a NEW capture (never a replay)."""
+-    C = load_capture(); p = pathlib.Path(c['reanchor']['admissionLedger']); seen = set()
+-    if os.path.lexists(p):
+-        for line in _read_trusted(str(p), 'A1 admission ledger', 16 << 20).splitlines():
+-            try:
+-                seen |= set(json.loads(line)['keys'])
+-            except (ValueError, KeyError, TypeError):
+-                refuse('a1_ledger', 'the admission ledger is not JSON lines of {at, keys}')
+-    new = set(seen)
++# r4: the admission ledger is a strict, hash-chained JSON-lines file, read, checked and appended ONLY while holding an exclusive
++# flock on a stable root-owned sibling `<ledger>.lock`. The lock is keyed by the LEDGER path, not by a workdir (the harness has
++# no per-workdir lock), so steps of different workdirs/launches serialize on it. C.admit() is only the in-memory replay rule;
++# durability is the full-write + fsync append below, re-verified before the step proceeds.
++LEDGER_FORMAT = 'enclave-a1-admission-ledger/v1'
++LEDGER_KEYS = {'format', 'seq', 'prevSha256', 'at', 'keys'}
++LEDGER_KEY = re.compile(r'(capture|evidence|record):[0-9a-f]{32,64}')
++LEDGER_MAX = 16 << 20
++LEDGER_LOCK_TIMEOUT_SEC = 60
++
++
++def ledger_line(rec):
++    """The one canonical encoding of a ledger record (sorted keys, no spaces) + newline."""
++    return json.dumps(rec, sort_keys=True, separators=(',', ':')).encode() + b'\n'
++
++
++def _ledger_paths(c):
++    p = pathlib.Path(c['reanchor']['admissionLedger'])
++    st = os.lstat(p.parent)
++    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o022:
++        refuse('untrusted_file', f'{p.parent} (the ledger directory) must be a real directory owned by uid {TRUSTED_UID}, not group/other-writable')
++    return p, p.with_name(p.name + '.lock')
++
++
++def _ledger_lock(lock):
++    """Exclusive flock on the stable sibling lock file (created 0600 if absent; never a symlink; owner TRUSTED_UID; fd == path)."""
+     try:
+-        for summary in summaries:
+-            C.admit(summary, new)
+-    except C.Refused as e:
+-        refuse('a1_replayed', f'{e.code}: {e}')
+-    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++        fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++    except OSError as e:
++        refuse('untrusted_file', f'ledger lock {lock} cannot be opened safely ({type(e).__name__}: a symlink is refused)')
+     try:
+-        os.write(fd, (json.dumps({'at': now().isoformat(), 'keys': sorted(new - seen)}, sort_keys=True) + '\n').encode()); os.fsync(fd)
+-    finally:
++        st, ln = os.fstat(fd), os.lstat(lock)
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != TRUSTED_UID or st.st_mode & 0o077 or (st.st_dev, st.st_ino) != (ln.st_dev, ln.st_ino):
++            refuse('untrusted_file', f'ledger lock {lock} must be a private regular file owned by uid {TRUSTED_UID}')
++        deadline = time.monotonic() + LEDGER_LOCK_TIMEOUT_SEC
++        while True:
++            try:
++                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
++                return fd
++            except BlockingIOError:
++                if time.monotonic() > deadline:
++                    refuse('a1_ledger_busy', f'the admission ledger lock is held for > {LEDGER_LOCK_TIMEOUT_SEC} s: nothing admitted')
++                time.sleep(0.02)
++    except BaseException:
+         os.close(fd)
+-    dfd = os.open(p.parent, os.O_RDONLY | os.O_DIRECTORY)
++        raise
++
++
++def ledger_records(p):
++    """The verified ledger -> ([(sha256 of line, record)], admitted key set, raw bytes). Refuses an incomplete tail (interrupted
++    append), any non-canonical line, schema/seq/chain break, unsorted/empty/malformed keys, or a key admitted twice."""
++    if not os.path.lexists(p):
++        return [], set(), b''
++    b = _read_trusted(str(p), 'A1 admission ledger', LEDGER_MAX)
++    if b and not b.endswith(b'\n'):
++        refuse('a1_ledger', 'the ledger ends in an incomplete record (an interrupted append): ambiguous, so nothing is admitted until root resolves it')
++    out, seen, prev = [], set(), None
++    for i, line in enumerate(b.split(b'\n')[:-1], 1):
++        try:
++            r = json.loads(line)
++        except ValueError:
++            refuse('a1_ledger', f'ledger record {i} is not JSON')
++        if not (isinstance(r, dict) and set(r) == LEDGER_KEYS and r['format'] == LEDGER_FORMAT and r['seq'] == i and r['prevSha256'] == prev
++                and isinstance(r['at'], str) and isinstance(r['keys'], list) and r['keys'] and r['keys'] == sorted(set(r['keys']))
++                and all(isinstance(k, str) and LEDGER_KEY.fullmatch(k) for k in r['keys'])) or ledger_line(r) != line + b'\n':
++            refuse('a1_ledger', f'ledger record {i} breaks the schema, sequence, hash chain or canonical encoding')
++        if seen & set(r['keys']):
++            refuse('a1_ledger', f'ledger record {i} repeats an already admitted key {sorted(seen & set(r["keys"]))[0]}')
++        seen |= set(r['keys']); prev = hashlib.sha256(line + b'\n').hexdigest(); out.append((prev, r))
++    return out, seen, b
++
++
++def admit_captures(c, summaries):
++    """Durable replay refusal: each capture (id, record, evidence) is admitted at most once, across steps, workdirs and launches.
++    Under the ledger lock: read + verify the whole ledger, apply C.admit (in memory), append ONE canonical record with an exact
++    full write + fsync (+ directory fsync when created), re-verify that it landed. Only then does the step proceed. A step that
++    fails later needs a NEW capture (never a replay)."""
++    C = load_capture(); p, lock = _ledger_paths(c)
++    fd = _ledger_lock(lock)
+     try:
+-        os.fsync(dfd)
++        recs, seen, raw = ledger_records(p)
++        new = set(seen)
++        try:
++            for summary in summaries:
++                C.admit(summary, new)                     # the replay RULE only; nothing here is durable by itself
++        except C.Refused as e:
++            refuse('a1_replayed', f'{e.code}: {e}')
++        rec = {'format': LEDGER_FORMAT, 'seq': len(recs) + 1, 'prevSha256': recs[-1][0] if recs else None, 'at': now().isoformat(),
++               'keys': sorted(new - seen)}
++        line = ledger_line(rec); created = not os.path.lexists(p)
++        wfd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC | (os.O_CREAT | os.O_EXCL if created else 0), 0o600)
++        try:
++            if os.fstat(wfd).st_size != len(raw):
++                refuse('a1_ledger', 'the ledger changed while the lock was held')
++            view = memoryview(line)
++            while view:
++                n = os.write(wfd, view)
++                if n <= 0:
++                    refuse('a1_ledger', 'short write to the ledger')
++                view = view[n:]
++            os.fsync(wfd)
++        finally:
++            os.close(wfd)
++        if created:
++            dfd = os.open(p.parent, os.O_RDONLY | os.O_DIRECTORY)
++            try:
++                os.fsync(dfd)
++            finally:
++                os.close(dfd)
++        after, _seen, _raw = ledger_records(p)
++        if len(after) != rec['seq'] or after[-1][1] != rec:
++            refuse('a1_ledger', 'the ledger append did not land')
+     finally:
+-        os.close(dfd)
++        os.close(fd)
+ 
+ 
+ def watermark_entries(store):

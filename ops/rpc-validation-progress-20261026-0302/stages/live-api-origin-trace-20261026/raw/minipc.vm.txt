@@ -1,0 +1,2 @@
+utc=2026-10-26T02:58:16Z host=NUCBOX_K11
+vm name=enclave-control state=Running uptime=2.18:27:04.4360000 started_utc=2026-10-23T08:31:12Z ips=172.17.28.159

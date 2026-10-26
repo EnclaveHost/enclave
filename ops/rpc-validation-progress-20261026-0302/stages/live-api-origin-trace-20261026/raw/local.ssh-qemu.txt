@@ -1,0 +1,10 @@
+utc=2026-10-26T02:54:55Z host=warden-host
+local_ssh pid=650133 started=2026-10-26T02:46:05Z has_R=n has_RemoteForward=n has_tunnel_user=n master=y
+local_ssh pid=650156 started=2026-10-26T02:46:09Z has_R=n has_RemoteForward=n has_tunnel_user=n master=y
+local_ssh pid=650735 started=2026-10-26T02:46:12Z has_R=n has_RemoteForward=n has_tunnel_user=n master=y
+local_ssh pid=650943 started=2026-10-26T02:46:17Z has_R=n has_RemoteForward=n has_tunnel_user=n master=y
+qemu pid=1036966 unit=enclave-metal.service started=2026-10-24T04:26:30Z netdev_types=user, hostfwd=hostfwd=tcp:127.0.0.1:18080-:8080, guestfwd= sev_snp=y
+qemu pid=2129788 unit=kvm-box-controller-726c0318.service started=2026-10-24T18:35:38Z netdev_types= hostfwd= guestfwd= sev_snp=y
+qemu pid=2129873 unit=kvm-box-desktop-726c0318.service started=2026-10-24T18:35:45Z netdev_types=user, hostfwd= guestfwd= sev_snp=y
+qemu pid=3695222 unit=enclave-rpc-production-vm.service started=2026-10-25T17:53:36Z netdev_types=user, hostfwd=hostfwd=tcp:127.0.0.1:22850-10.0.2.15:22,hostfwd=tcp:127.0.0.1:28545-10.0.2.15:28545,hostfwd=tcp:127.0.0.1:28645-10.0.2.15:28645,hostfwd=tcp:127.0.0.1:25052-10.0.2.15:25052, guestfwd= sev_snp=n
+qemu pid=3817658 unit=enclave-custodian-v2.service started=2026-10-14T23:34:36Z netdev_types=user, hostfwd=hostfwd=tcp:127.0.0.1:18787-:8787, guestfwd= sev_snp=y

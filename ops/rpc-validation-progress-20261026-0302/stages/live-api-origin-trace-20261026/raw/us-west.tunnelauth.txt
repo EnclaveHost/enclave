@@ -1,0 +1,13 @@
+utc=2026-10-26T02:55:30Z host=us-west
+accept 2026-10-23T08:31:20.126751+00:00 Accepted publickey for enclave-control-tunnel from 4.15.13.178 port 50154 ssh2: ED25519 SHA256:AJ9e7qoY87oouCCs53DIAJVvcfKEgHNikJ83RxSvLsI
+tunnel_user_home=/var/lib/enclave-control-tunnel shell=/bin/sh
+authorized_keys sha16=e6e433a1b901fae9 lines=1
+  key bits/fp/type=256 SHA256:AJ9e7qoY87oouCCs53DIAJVvcfKEgHNikJ83RxSvLsI (ED25519) comment= enclave-control-tunnel-20261019 opts=restrict permitlisten="127.0.0.1:30443" permitlisten="127.0.0.1:30080" permitlisten="127.0.0.1:31053" command(set) 
+sshd_cfg     AllowTcpForwarding remote
+sshd_cfg     PermitListen 127.0.0.1:29443 127.0.0.1:29080
+sshd_cfg     GatewayPorts no
+sshd_cfg Match User enclave-control-tunnel
+sshd_cfg     AllowTcpForwarding remote
+sshd_cfg     PermitListen 127.0.0.1:30443 127.0.0.1:30080 127.0.0.1:31053
+sshd_cfg     GatewayPorts no
+sshd_cfg Match User enclave-control-tunnel

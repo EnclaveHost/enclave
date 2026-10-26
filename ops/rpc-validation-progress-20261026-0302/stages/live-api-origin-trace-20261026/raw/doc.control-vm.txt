@@ -1,0 +1,7 @@
+utc=2026-10-26T02:58:15Z source=work/control-vm/install-tunnels.py sha16=6838aab305728444
+documented_forward -R 127.0.0.1:30080:127.0.0.1:30080
+documented_forward -R 127.0.0.1:30443:127.0.0.1:30443
+documented_forward -R 127.0.0.1:31053:127.0.0.1:1053
+seed_user - name: controladmin
+known_hosts_entry host=# type=127.0.0.1:32423
+known_hosts_entry host=[127.0.0.1]:32423 type=ssh-ed25519

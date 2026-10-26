@@ -1,0 +1,3 @@
+f8287525a20f166485ed8ccef10d125c5e3f1c73f4dfad09cc13b7a43bfa8f5c  ./README.md
+3139c23f7d1cccf8f9e1d5ba75dfc5de6d3de27539b050cf4f5465e5684c8861  ./jobs/root-baseline-fixes.sh
+654b3f1788f4fccb3b1852968f9eb9987e68ea2d2804edbf7c2b9a2da47230e7  ./patches/native-relay-remote-verifier-refusal.patch
