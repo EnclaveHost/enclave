@@ -4,7 +4,11 @@
 //
 // Every setting is explicit; nothing has a default (in particular no float, no quorum, no port):
 //   LEASE_RELAY_RECORD, LEASE_RELAY_DIGEST    the reviewed deployment record file and its sha256 ("sha256:<hex>")
-//   LEASE_RELAY_RPCS, LEASE_RELAY_QUORUM      2..16 distinct https RPCs and a strict majority of at least 2
+//   LEASE_RELAY_RPCS, LEASE_RELAY_QUORUM      2..16 distinct https RPCs and a strict majority of at least 2, OR (never both):
+//   ENCLAVE_CHAIN_AUTHORITY=verifier          the operator's local verifier authority (network/chain-authority.mjs) with
+//     ENCLAVE_CHAIN_VERIFIER                  its loopback URL (http(s) to 127.0.0.1, [::1] or localhost) and
+//     ENCLAVE_CHAIN_TX_BACKEND                the own transaction backend: http(s) to a loopback or private IPv4 literal
+//                                             (127/8, 10/8, 172.16/12, 192.168/16) or [::1]; no name, credentials, query
 //   LEASE_RELAY_MAX_FLOAT_ETH, _MIN_FLOAT_ETH the hot key's cap and refill threshold (min < max, both > 0)
 //   LEASE_RELAY_LISTEN                        a loopback host:port; TLS is terminated in front of it
 //   LEASE_RELAY_KEY_FILE                      owner-only (0600/0400) regular file; its CONTENT is never read here
@@ -18,6 +22,24 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const DECIMAL = /^(0|[1-9][0-9]{0,6})(\.[0-9]{1,18})?$/;
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+/** The same URL rules network/chain-authority.mjs (checkOwnBackend) and network/verified-chain.mjs (verifierEndpoint)
+ *  enforce at start, restated here without imports: -> null, or what is wrong. */
+function chainUrlProblem(raw, kind) {
+  let u; try { u = new URL(raw); } catch { return "is not a URL"; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return "must be http(s)";
+  if (u.username || u.password || u.search || u.hash || raw.includes("#") || raw.includes("?")) return "must carry no credentials, query or fragment";
+  const h = u.hostname.toLowerCase();
+  if (h === "[::1]") return null;
+  if (kind === "verifier" && h === "localhost") return null;
+  const m = IPV4.exec(h);
+  if (!m) return kind === "verifier" ? "must be a loopback address (a remote server is not a verifier)" : "must be a loopback or private IPv4 address literal (a name could be anyone's)";
+  const o = m.slice(1).map(Number);
+  if (o.some((x) => x > 255)) return "is a malformed IPv4 address";
+  if (kind === "verifier") return h === "127.0.0.1" ? null : "must be 127.0.0.1, [::1] or localhost (a remote server is not a verifier)";
+  if (o[0] === 127 || o[0] === 10 || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168)) return null;
+  return "must be a loopback or private IPv4 address literal (a public address is not the operator's own backend)";
+}
 const wei = (s) => { const [i, f = ""] = s.split("."); return BigInt(i) * 10n ** 18n + BigInt((f + "0".repeat(18)).slice(0, 18)); };
 
 /** The relay's persisted send state: null when it is exactly {} or one {nonce, raw, hash}; otherwise what is wrong. */
@@ -51,19 +73,37 @@ export function checkRelayConfig(env, { releaseDir, nodeVersion = process.versio
       }
     } catch (e) { problems.push(`${recordFile}: ${e.code || e.message}`); }
   }
-  const rpcs = need("LEASE_RELAY_RPCS").split(",").map((s) => s.trim()).filter(Boolean), quorumRaw = need("LEASE_RELAY_QUORUM");
-  if (rpcs.length && (rpcs.length < 2 || rpcs.length > 16)) problems.push(`LEASE_RELAY_RPCS lists ${rpcs.length} RPC(s): 2..16 independent providers are required`);
-  const hosts = new Set();
-  for (const u of rpcs) {
-    let url = null; try { url = new URL(u); } catch { problems.push(`LEASE_RELAY_RPCS: ${u.slice(0, 80)} is not a URL`); continue; }
-    if (url.protocol !== "https:" || url.username || url.password || url.hash) problems.push(`LEASE_RELAY_RPCS: ${url.origin} must be https, without credentials or fragment`);
-    const id = url.host.toLowerCase().replace(/\.$/, "");
-    if (hosts.has(id)) problems.push(`LEASE_RELAY_RPCS: ${id} appears twice (one provider is one vote)`);
-    hosts.add(id);
-  }
-  if (quorumRaw) {
-    const q = Number(quorumRaw);
-    if (!/^[0-9]+$/.test(quorumRaw) || q < 2 || q > rpcs.length || q <= rpcs.length / 2) problems.push(`LEASE_RELAY_QUORUM=${quorumRaw} must be a strict majority (and at least 2) of the ${rpcs.length} RPCs`);
+  // the chain access: EXACTLY one of the provider quorum or the local verifier authority (never both, no fallback)
+  const val = (k) => String(env[k] ?? "").trim();
+  const authority = val("ENCLAVE_CHAIN_AUTHORITY"), verifierMode = authority === "verifier";
+  let rpcs = [], quorumRaw = "", chainSummary = "";
+  if (authority && authority !== "quorum" && !verifierMode) problems.push(`ENCLAVE_CHAIN_AUTHORITY=${authority.slice(0, 40)} must be quorum or verifier`);
+  if (verifierMode) {
+    for (const k of ["LEASE_RELAY_RPCS", "LEASE_RELAY_QUORUM"]) if (val(k))
+      problems.push(`${k} is set with ENCLAVE_CHAIN_AUTHORITY=verifier: the relay uses ONE authority (the local verifier and its own backend), never mixed with providers`);
+    const verifier = need("ENCLAVE_CHAIN_VERIFIER"), backend = need("ENCLAVE_CHAIN_TX_BACKEND");
+    const vp = verifier && chainUrlProblem(verifier, "verifier"), bp = backend && chainUrlProblem(backend, "backend");
+    if (vp) problems.push(`ENCLAVE_CHAIN_VERIFIER ${vp}`);
+    if (bp) problems.push(`ENCLAVE_CHAIN_TX_BACKEND ${bp}`);
+    if (!vp && !bp && verifier && backend) { const host = (x) => { const u = new URL(x); return `${u.hostname}:${u.port || (u.protocol === "https:" ? 443 : 80)}`; };
+      chainSummary = `local verifier ${host(verifier)}, own backend ${host(backend)}`; }
+  } else {
+    for (const k of ["ENCLAVE_CHAIN_VERIFIER", "ENCLAVE_CHAIN_TX_BACKEND"]) if (val(k)) problems.push(`${k} is set but ENCLAVE_CHAIN_AUTHORITY is not verifier`);
+    rpcs = need("LEASE_RELAY_RPCS").split(",").map((s) => s.trim()).filter(Boolean); quorumRaw = need("LEASE_RELAY_QUORUM");
+    if (rpcs.length && (rpcs.length < 2 || rpcs.length > 16)) problems.push(`LEASE_RELAY_RPCS lists ${rpcs.length} RPC(s): 2..16 independent providers are required`);
+    const hosts = new Set();
+    for (const u of rpcs) {
+      let url = null; try { url = new URL(u); } catch { problems.push(`LEASE_RELAY_RPCS: ${u.slice(0, 80)} is not a URL`); continue; }
+      if (url.protocol !== "https:" || url.username || url.password || url.hash) problems.push(`LEASE_RELAY_RPCS: ${url.origin} must be https, without credentials or fragment`);
+      const id = url.host.toLowerCase().replace(/\.$/, "");
+      if (hosts.has(id)) problems.push(`LEASE_RELAY_RPCS: ${id} appears twice (one provider is one vote)`);
+      hosts.add(id);
+    }
+    if (quorumRaw) {
+      const q = Number(quorumRaw);
+      if (!/^[0-9]+$/.test(quorumRaw) || q < 2 || q > rpcs.length || q <= rpcs.length / 2) problems.push(`LEASE_RELAY_QUORUM=${quorumRaw} must be a strict majority (and at least 2) of the ${rpcs.length} RPCs`);
+    }
+    chainSummary = `${rpcs.length} RPCs (quorum ${quorumRaw})`;
   }
   const maxF = need("LEASE_RELAY_MAX_FLOAT_ETH"), minF = need("LEASE_RELAY_MIN_FLOAT_ETH");
   for (const [k, v] of [["LEASE_RELAY_MAX_FLOAT_ETH", maxF], ["LEASE_RELAY_MIN_FLOAT_ETH", minF]]) if (v && (!DECIMAL.test(v) || wei(v) === 0n)) problems.push(`${k}=${v} must be a positive decimal ETH amount`);
@@ -113,7 +153,7 @@ export function checkRelayConfig(env, { releaseDir, nodeVersion = process.versio
     } catch (e) { problems.push(`lease-relay.mjs: ${e.code || e.message}`); }
   }
   const summary = problems.length ? null
-    : `lease relay configuration ok: record ${digest.slice(7, 19)}..., ${rpcs.length} RPCs (quorum ${quorumRaw}), float ${minF}..${maxF} ETH, listen ${listen}, artifact ${want.slice(0, 12)}...${pendingSend ? `; unresolved send ${pendingSend} (re-broadcast before any new one)` : ""}`;
+    : `lease relay configuration ok: record ${digest.slice(7, 19)}..., ${chainSummary}, float ${minF}..${maxF} ETH, listen ${listen}, artifact ${want.slice(0, 12)}...${pendingSend ? `; unresolved send ${pendingSend} (re-broadcast before any new one)` : ""}`;
   return { ok: !problems.length, problems, summary };
 }
 

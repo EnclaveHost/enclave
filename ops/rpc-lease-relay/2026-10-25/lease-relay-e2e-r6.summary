@@ -1,0 +1,22 @@
+ok 1 - the host's lease reads are ONE local-verifier authority (no provider anywhere in its configuration)
+ok 2 - an app-funded claim through the real relay, verified by the verifier: landed, charged to the app's reserve once
+ok 3 - the relay's answer is lost after the lease landed: decided from the chain through the verifier; nothing is posted twice; a restarted client resolves the journal as landed
+ok 4 - no proof source answers: the claim refuses before anything is signed or posted
+ok 5 - the relay runs on ONE local-verifier authority: no provider configured, its own backend bound at the verifier's head
+ok 6 - the verifier executes the authorization's state override exactly as the chain node does (never vacuously)
+ok 7 - an app-funded claim through the verifier-authority relay: landed once, its bytes sent ONCE to the own backend, which is never asked for state
+ok 8 - an own backend on another chain (unbound) is refused BEFORE anything is signed: no bytes, no record, no landing
+ok 9 - an own backend behind the verifier is refused BEFORE anything is signed: no bytes, no record, no landing
+ok 10 - a definite refusal by the backend: "Rejected", the record is cleared (nothing can be pending), the host gets no success
+ok 11 - the backend fails to forward (relay receipt wait 30 s): its 502 "not confirmed" reaches the host; never sent or landed; same bytes after a restart; the journaled intent lands once
+ok 12 - the backend fails to forward under the PRODUCTION waits (request 60 s, receipt 120 s): the host gets the relay's 60 s answer, the job keeps the key, the same bytes land after a restart
+ok 13 - a stalled upload is cut at the 10 s receipt bound with 408 (the bound that stays for slow clients)
+ok 14 - a float above the cap is refused at start through the verifier (the balance is a proven account read)
+ok 15 - teardown: the runtime stops its detached Helios and listener on SIGTERM, reth exits, and no process of this test remains
+# tests 15
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# duration_ms 739395.896256
+rc=0

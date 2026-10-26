@@ -67,7 +67,7 @@ test.before(async () => {
   A = createChainAuthority({ verifier: rt.url, chain: W.chain });
 });
 test.after(async () => {
-  rt?.stop(); proxy?.close(); proof?.srv.close(); await svc?.close();
+  await rt?.stop(); proxy?.close(); proof?.srv.close(); await svc?.close();   // awaited: its detached Helios/listener are stopped by identity
   try { reth?.kill('SIGKILL'); } catch {}
   if (reth?.dataDir) fs.rmSync(reth.dataDir, { recursive: true, force: true });
   fs.rmSync(TMP, { recursive: true, force: true });
