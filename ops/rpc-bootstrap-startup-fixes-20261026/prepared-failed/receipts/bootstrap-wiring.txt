@@ -1,0 +1,166 @@
+test_a_legacy_first_launch_is_refused_by_the_producer (__main__.FirstCapture.test_a_legacy_first_launch_is_refused_by_the_producer) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_capture_refusals (__main__.FirstCapture.test_capture_refusals) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-1/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-1/.partial-1211570/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-1/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-1/.partial-1211570/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_capture_binding: the A1 capture is not the capture module's original-game recheck (mode recheck)"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-2/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-2/.partial-1211570/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-2/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-2/.partial-1211570/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_capture: tampered: tampered: helios.out differs from result.json"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-3/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-3/.partial-1211570/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-3/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-3/.partial-1211570/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_stale: the recheck capture finished 605 s ago (max 600): capture a new recheck"}
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-4/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-4/.partial-1211570/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-4/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpg05i9_t8/cap-4/.partial-1211570/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": false, "refused": "a1_initial_pin: the capture rechecked another initial receipt than the source pin 000000000000..."}
+FAIL
+test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both (__main__.FirstCapture.test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/cap-1/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/cap-1/.partial-1211570/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/cap-1/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/cap-1/.partial-1211570/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": true, "refused": null}
+{"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": false, "refused": "a1_replayed: replayed: replayed: this capture (or its evidence) was already admitted"}
+FAIL
+test_legacy_receipt_files_are_refused_in_production_b1 (__main__.FirstCapture.test_legacy_receipt_files_are_refused_in_production_b1) ... ERROR
+test_the_original_pinned_live_receipt_passes_plan (__main__.FirstCapture.test_the_original_pinned_live_receipt_passes_plan) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmp88aytwqz/cap-1/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmp88aytwqz/cap-1/.partial-1211570/inputs/l1-authority-config.derived.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmp88aytwqz/cap-1/.partial-1211570/code/l1_authority.py:4: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmp88aytwqz/cap-1/.partial-1211570/inputs/l1-checkpoint.json' mode='r' encoding='UTF-8'>
+  cfg = json.load(open(path)); json.load(open(cfg['checkpointFile']))            # the derived config must name the copy
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+{"step": "plan", "ok": true, "refused": null}
+ok
+test_datadir_idle (__main__.HolderGate.test_datadir_idle) ... ok
+test_own_datadir_two_passes_no_hardlink_no_symlink_follow (__main__.HolderGate.test_own_datadir_two_passes_no_hardlink_no_symlink_follow) ... ok
+test_wait_l1_is_bounded (__main__.HolderGate.test_wait_l1_is_bounded) ... ok
+test_armed_permit_then_start_consumes_and_a_restart_before_the_first_proof_refuses (__main__.Ordering.test_armed_permit_then_start_consumes_and_a_restart_before_the_first_proof_refuses) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+{"starting": "base", "datadir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmp2z4qf0u1/srv/data", "publicExecutionRpc": false}
+ok
+test_produce_creates_a_private_finality_dir_atomically_and_never_overwrites (__main__.Ordering.test_produce_creates_a_private_finality_dir_atomically_and_never_overwrites) ... {"step": "a2", "ok": true, "refused": null}
+{"step": "a3", "ok": true, "refused": null}
+{"step": "a4", "ok": true, "refused": null}
+{"step": "bytecodes", "ok": true, "refused": null}
+{"step": "release", "ok": true, "refused": null}
+ok
+test_crash_points_recover_to_old_or_new_bytes (__main__.ReleaseInstall.test_crash_points_recover_to_old_or_new_bytes) ... 
+  test_crash_points_recover_to_old_or_new_bytes (__main__.ReleaseInstall.test_crash_points_recover_to_old_or_new_bytes) (point='after-replace') ... FAIL
+test_manifest_switch_needs_release_and_quiet_datadir (__main__.ReleaseInstall.test_manifest_switch_needs_release_and_quiet_datadir) ... ok
+test_release_placement_never_overwrites (__main__.ReleaseInstall.test_release_placement_never_overwrites) ... ok
+test_secure_refuses_special_linked_writable_and_symlinked_paths (__main__.ReleaseInstall.test_secure_refuses_special_linked_writable_and_symlinked_paths) ... ok
+test_release_drop_in_changes_identity_and_adds_only_the_journal_paths (__main__.Units.test_release_drop_in_changes_identity_and_adds_only_the_journal_paths) ... FAIL
+test_reproof_creates_the_status_runtime_dir_exactly_as_the_status_unit (__main__.Units.test_reproof_creates_the_status_runtime_dir_exactly_as_the_status_unit) ... ok
+
+======================================================================
+ERROR: test_legacy_receipt_files_are_refused_in_production_b1 (__main__.FirstCapture.test_legacy_receipt_files_are_refused_in_production_b1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 121, in test_legacy_receipt_files_are_refused_in_production_b1
+    self.assertEqual(self.step_code('plan'), (1, 'a1_legacy'))
+                     ~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 89, in step_code
+    rc, rec = self.run_step(st); return rc, (rec.get('refused') or '').split(':')[0]
+              ~~~~~~~~~~~~~^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/work/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/test/test_a2a4.py", line 126, in run_step
+    self.write(); code = A.main(['a2a4.py', step, str(self.d / 'cfg.json')])
+                         ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/work/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/a2a4.py", line 1162, in main
+    c = load_config(argv[2]); w = workdir(c); log = []
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/work/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/a2a4.py", line 178, in load_config
+    refuse('a1_legacy', f'a1Mode {c["a1Mode"]} accepts self-asserted receipt files: refused in production; the first bootstrap runs '
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           'capture-original-recheck (a verified capture-module recheck of the pinned initial receipt)')
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/work/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/a2a4.py", line 124, in refuse
+    raise Refused(f'{code}: {why}')
+a2a4.Refused: a1_legacy: a1Mode original-game-recheck accepts self-asserted receipt files: refused in production; the first bootstrap runs capture-original-recheck (a verified capture-module recheck of the pinned initial receipt)
+
+======================================================================
+FAIL: test_capture_refusals (__main__.FirstCapture.test_capture_refusals)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 144, in test_capture_refusals
+    self.assertEqual(self.step_code('plan'), (1, 'a1_initial_pin'))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (1, 'a1_stale') != (1, 'a1_initial_pin')
+
+First differing element 1:
+'a1_stale'
+'a1_initial_pin'
+
+- (1, 'a1_stale')
++ (1, 'a1_initial_pin')
+
+======================================================================
+FAIL: test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both (__main__.FirstCapture.test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 103, in test_first_bootstrap_runs_only_on_verified_admitted_captures_and_the_producer_reverifies_both
+    c1, c2 = self.released_by_capture()
+             ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 95, in released_by_capture
+    TA.BytecodeGate.ready(self, TA.V2_GOOD); A.BYTECODE_CHECKER_V2_SHA256 = self.cfg['bytecodeCheckerSha256']   # a2 (admits c1), a3, a4
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/work/source/ops/rpc-backend-bootstrap/2026-10-25/a2-v2-release-bound-prepared/stage/test/test_a2a4.py", line 565, in ready
+    r, rec = self.run_step(st); self.assertEqual(r, 0, (st, rec))
+                                ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : ('a3', {'step': 'a3', 'startedAt': '2026-10-26T08:31:49.734032+00:00', 'ok': False, 'refused': 'a1_replayed: replayed: replayed: this capture (or its evidence) was already admitted', 'commands': [{'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/bin/base', 'reth', 'stage', 'unwind', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.065, 'stdoutBytes': 60, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/work/cmd/20261026T083149782269Z-0001.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/bin/base', 'reth', 'stage', 'run', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.062, 'stdoutBytes': 58, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/work/cmd/20261026T083149847516Z-0002.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/bin/base', 'reth', 'stage', 'drop', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.066, 'stdoutBytes': 24, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/work/cmd/20261026T083149909818Z-0003.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/bin/base', 'reth', 'db', 'get', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.067, 'stdoutBytes': 25, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/work/cmd/20261026T083149976179Z-0004.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/bin/base', 'reth', 'db', '--help'], 'class': 'help', 'rc': 0, 'sec': 0.065, 'stdoutBytes': 36, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/work/cmd/20261026T083150043140Z-0005.out', 'stderrTail': '', 'stopped': None}, {'argv': ['/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/bin/base', 'reth', 'db', '--datadir', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/datadir', '--config', '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/reth.toml', 'settings', 'get'], 'class': 'read', 'rc': 0, 'sec': 0.063, 'stdoutBytes': 37, 'stdoutLog': '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/tmp/tmpwwcuym8p/work/cmd/20261026T083150107875Z-0006.out', 'stderrTail': '', 'stopped': None}], 'finishedAt': '2026-10-26T08:31:50.315752+00:00'})
+
+======================================================================
+FAIL: test_crash_points_recover_to_old_or_new_bytes (__main__.ReleaseInstall.test_crash_points_recover_to_old_or_new_bytes) (point='after-replace')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 310, in test_crash_points_recover_to_old_or_new_bytes
+    self.assertIn('recover first', self.code(self.switch))
+                                   ~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 257, in code
+    with self.assertRaises(RI.Refused) as e:
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: Refused not raised
+
+======================================================================
+FAIL: test_release_drop_in_changes_identity_and_adds_only_the_journal_paths (__main__.Units.test_release_drop_in_changes_identity_and_adds_only_the_journal_paths)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/production-bootstrap-wiring-stage/logs/run-20261026T082939Z-1205390/recovery/tests/test_bootstrap_wiring.py", line 336, in test_release_drop_in_changes_identity_and_adds_only_the_journal_paths
+    self.assertEqual([x.split()[-2:] for x in d['ExecStartPre']], [['holder_gate.py', 'own-datadir'], ['wait-l1', '3600']])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [['/opt/enclave-rpc/bootstrap/holder_gate.py[34 chars]00']] != [['holder_gate.py', 'own-datadir'], ['wait-l1', '3600']]
+
+First differing element 0:
+['/opt/enclave-rpc/bootstrap/holder_gate.py', 'own-datadir']
+['holder_gate.py', 'own-datadir']
+
++ [['holder_gate.py', 'own-datadir'], ['wait-l1', '3600']]
+- [['/opt/enclave-rpc/bootstrap/holder_gate.py', 'own-datadir'],
+-  ['wait-l1', '3600']]
+
+----------------------------------------------------------------------
+Ran 16 tests in 21.697s
+
+FAILED (failures=4, errors=1)
