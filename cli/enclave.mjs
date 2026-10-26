@@ -3097,6 +3097,13 @@ async function secretsFleetWarn() {
   } catch {}
 }
 async function cmdSecrets(rest) {
+  // independent: owner-readable custody v2 ONLY (cli/custody-independent.mjs cmdSecretsIndependent: the policy's own ownerRead
+  // opt-in, the committee's owner read, revision-guarded writes); never the relay-held hosted secrets below
+  if (INDEPENDENT) {
+    const { cmdSecretsIndependent } = await import("./custody-independent.mjs");
+    // --yes is also a global flag (approve prompts), taken out of argv before the command runs: `secrets clear` needs it
+    return cmdSecretsIndependent([...rest, ...(opt.yes ? ["--yes"] : [])], independentCustodyHandles());
+  }
   const sub = rest.shift();
   const usage = "usage: enclave secrets set <id> KEY=VALUE… [--file .env] [--restart]\n"
               + "     | enclave secrets ls <id> [--show]\n"
@@ -3164,6 +3171,9 @@ async function cmdArtifact(rest) {
 }
 
 // ---- secret custody (cli/custody.mjs; docs/security/secret-custody.md): the CLI's own helpers, handed in ----------
+// independent custody AND secrets get the same handles: the quorum chain, trust and the independent writer (never the API)
+const independentCustodyHandles = () => ({ flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
+  readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
 async function cmdCustodyHere(rest) {
   // independent: custody v2 only, every read a quorum of the operator's RPCs, every write the independent writer, the vault
   // the reviewed pin; no Enclave API, relay or first-answer RPC (cli/custody-independent.mjs; work/custody-cli-interface.txt)
@@ -3174,8 +3184,7 @@ async function cmdCustodyHere(rest) {
     const from = commandFlag("custody", "--from");
     if (from !== null && opt.from === from) opt.from = null;
     rest = [...rest, ...(from !== null ? ["--from", from] : []), ...(opt.yes ? ["--yes"] : [])];
-    return cmdCustodyIndependent(rest, { flags, loadKey, say, jout, short, secretsKv, env, json: !!opt.json, warn: (m) => console.error(m),
-      readFile: (p) => fs.readFileSync(p, "utf8"), chain: INDEPENDENT.chain, trust: INDEPENDENT.trust, send: INDEPENDENT.send });
+    return cmdCustodyIndependent(rest, independentCustodyHandles());
   }
   // loaded on use: the custody code imports ../custody (and viem from the repo root), which a bare `cli/` install lacks
   const { cmdCustody } = await import("./custody.mjs");
@@ -5200,13 +5209,9 @@ stop:   systemctl --user disable --now enclave-metal`);
 const INDEPENDENT_COMMANDS = new Set(["key", "whoami", "ls", "list", "status", "hosts", "pricing", "availability", "apps",
   "deploy", "fund", "stop", "suspend", "resume", "rate-cap", "cap", "refund", "cancel", "transfer", "upgrade", "set-version",
   "resize", "bootstrap", "artifact", "session", "logs", "restart", "attest", "publish", "app-token", "cpu-profile",
-  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "lease-gas", "history"]);
+  "config", "encvol", "host", "gpu", "move", "login", "logout", "account", "signer", "custody", "secrets", "lease-gas", "history"]);
 // Why each remaining command has no independent path (work/cli-remaining-interface.txt has the exact missing pieces).
-const INDEPENDENT_REFUSALS = {
-  secrets: "relay-held secrets are a hosted service. Independently, `custody status|set|migrate|pause|resume|clear|claim` "
-    + "stores the WHOLE map in custody v2; listing, showing, removing one KEY or merging need the owner read "
-    + "(work/owner-secrets-interface.txt), which is not integrated yet: it needs its final source and a new measured custodian image",
-};
+const INDEPENDENT_REFUSALS = {};   // secrets: owner-readable custody v2 (cmdSecretsIndependent); nothing left refused by name
 async function configureIndependent() {
   const asked = opt.independent || opt.profile || opt.profileDigest;
   const strays = ["quorum", "confirmations", "maxBlockAge", "usdcToken", "maxFeeGwei", "signerMode", "chainVerifier"].filter((k) => opt[k] !== null);

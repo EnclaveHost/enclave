@@ -415,4 +415,9 @@ test("the CLI entry point: --independent custody status / set through cli/enclav
   assert.notEqual(r.code, 0); assert.match(r.err + r.out, /do not allow an owner read/); assert.ok(!(r.out + r.err).includes("s3cret"));
   r = await cli(["--json", "custody", "status", id]);
   assert.equal(r.code, 0, r.err); assert.equal(JSON.parse(r.out).ownerRead, false);
+  // a real deployment of this owner with NO custody v2 policy: the exact missing-policy refusal, before any custodian request
+  const bare = await W.dep(owner);
+  r = await cli(["secrets", "ls", bare]);
+  assert.notEqual(r.code, 0); assert.match(r.err + r.out, /no custody v2 policy for \S+: create one with `custody set \S+ … --rules … --committee … --owner-read on`/);
+  assert.ok(!(r.out + r.err).includes("s3cret"));
 });

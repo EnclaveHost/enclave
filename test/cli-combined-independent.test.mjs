@@ -153,10 +153,14 @@ test("host: init/install/run/check through `enclave host` with the plan's quorum
   noEnclave();
 });
 
-test("dispatch: custody and signer reach their commands; secrets stays refused, naming the pending owner read; --signer-mode needs --independent", T, async () => {
+test("dispatch: custody, secrets and signer reach their commands; secrets is the owner read, stopped at the vault pin; --signer-mode needs --independent", T, async () => {
+  // secrets is routed to the owner read (cli/custody-independent.mjs cmdSecretsIndependent), never the hosted relay: these rig
+  // pins carry no secretVaultV2, so it stops at the exact pin refusal before any chain read, signature or custodian request
   const sec = await cli(["secrets", "ls", "0x" + "11".repeat(32)]);
   assert.notEqual(sec.code, 0);
-  assert.match(sec.all, /not available in independent mode: .*custody status\|set\|migrate.*owner read .*not integrated yet/);
+  assert.match(sec.all, /independent custody needs a pinned EnclaveSecretVaultV2: a reviewed --profile, or --contract-pins naming secretVaultV2/);
+  assert.doesNotMatch(sec.all, /not available in independent mode/);
+  noEnclave();
   // custody runs its own pin check (these rig pins carry no secretVaultV2), not the old blanket refusal
   const cus = await cli(["custody", "status", "0x" + "11".repeat(32)]);
   assert.notEqual(cus.code, 0); assert.doesNotMatch(cus.all, /not available in independent mode/);

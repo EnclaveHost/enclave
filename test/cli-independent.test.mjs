@@ -255,7 +255,13 @@ test("a record that changed hands is refused before anything is signed", T, asyn
 
 test("hosted-only commands, session relaying and an external signer are refused in independent mode", T, async () => {
   // move is an independent command now (test/cli-independent-move.test.mjs), but only toward a registry host id, never a name
-  for (const [args, re] of [[["secrets", "list", "0x" + "11".repeat(32)]], [["move", "0x11111111", "box"], /registry host id.*no host names/]]) {
+  // secrets is the owner read now (cli/custody-independent.mjs cmdSecretsIndependent), not a hosted-only refusal: for a real
+  // deployment of this key it stops at the exact vault-pin refusal (these rig pins carry no secretVaultV2), before any read
+  const sid = r.createdId(await r.create(KEYS.owner));
+  const s = await cli(["secrets", "list", sid]);
+  assert.equal(s.code, 1); assert.match(s.err, /independent custody needs a pinned EnclaveSecretVaultV2: a reviewed --profile, or --contract-pins naming secretVaultV2/);
+  assert.doesNotMatch(s.err + s.out, /not available in independent mode/);
+  for (const [args, re] of [[["move", "0x11111111", "box"], /registry host id.*no host names/]]) {
     const x = await cli(args);
     assert.equal(x.code, 1); assert.match(x.err, re || /not available in independent mode/);
   }
