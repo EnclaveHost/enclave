@@ -1,0 +1,11 @@
+[queue] START available=23083MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+[fix/rpc-attested-verifier-20261025 2b8894a37] Build the canonical verifier from its pinned patched source
+ 6 files changed, 1367 insertions(+), 15 deletions(-)
+ create mode 100644 scripts/rpc-runtime/canonical-block.PATCHED.sha256
+ create mode 100644 scripts/rpc-runtime/canonical-block.patch
+ create mode 100644 scripts/rpc-runtime/verify-patched-tree.py
+To https://github.com/EnclaveHost/enclave.git
+   c61dbe5fd..2b8894a37  HEAD -> fix/rpc-attested-verifier-20261025
+[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=23034
+[memory-guard] at peak: gh:38 git-remote-http:15 git:5 git:4 bash:4
+[queue] EXIT 0

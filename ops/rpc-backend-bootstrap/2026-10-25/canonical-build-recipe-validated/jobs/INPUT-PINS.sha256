@@ -1,0 +1,11 @@
+# read-only input pins recorded 2026-10-26T01:07:42Z (paths relative to work/rpc-production-final-20261025)
+41667ec946d2f591498e4ab9d791914a6d5c886221996c5f0c920a0be39dcc31  verifier-canonical-stage/canonical-block.patch
+7e87fad838fcccdf801fa3ee732ca878b56799f44b4d64973a2265853769b0f3  verifier-canonical-stage/PATCHED.sha256
+b7d063660a7850278874d06f2dcccd9bf358f487eb0bcb45d0f878c40ae8ad65  canonical-integration-actual/SOURCE-FILES.sha256
+a44ee631208cb02dd6392d9d3024acaf6e43e9a1a101e78e2bd0873833ba3904  canonical-integration-actual/CHANGED-FILES.txt
+b5d7a1c81787a0d71c08afe7a8fd29aec6d5c163424ce503fda7f98d8feaba48  canonical-integration-actual/SHA256SUMS
+9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012  ../resume-after-checkpoint-20261022/rpc-runtime-final-integration/closure/src/base-5476069f.tar.gz
+8173e5af674704ade08e81391125751326adad50d19107165ea89145e373f0b0  logs/root-canonical-helios-build-0046.out
+c019901688d07a547a4337e9bc6279f76041d5edc51d586c0b98ddd5bb62fa6e  canonical-verifier-binary-stage/run/build-20261026T004633Z/out/SHA256SUMS
+47d708f87612610fc34f6de8346386d8b2e4ab38f79c110aa33f7c14bf7f147f  logs/root-canonical-integration-0104.out
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa  logs/root-canonical-integration-0104.rc

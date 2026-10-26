@@ -1,0 +1,1 @@
+Root requires actual baseline closure check rc0 as well as candidate, actual per-phase rc receipts, and OK/no skipped or expected-failure plumbing tests. No native compilation or independent artifact reproduction is performed by this job. Original prepared runner preserved before first execution.

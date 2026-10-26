@@ -1,0 +1,38 @@
+[queue] START available=23282MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+[ok] offline (lo only, no route)
+[ok] stage files == SHA256SUMS
+[ok] recorded inputs unchanged
+[ok] candidate 'before' blobs at 77d6cc859fbd3dba0fcf28d372e8fe463e5a589c and 'after' files as recorded
+[ok] vendored patch + manifest are byte copies of the tested ones
+[ok] runtime pin/behaviour files == the integration-tested candidate (rpc-runtime.mjs, image json, e2e comment)
+[ok] fresh /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/canonical-build-recipe-stage/run/tests-20261026T010959Z
+[ok] candidate tree differs from 77d6cc859fbd3dba0fcf28d372e8fe463e5a589c in exactly CHANGED-FILES
+== T-stub-cargo-plumbing
+
+----------------------------------------------------------------------
+Ran 11 tests in 7.964s
+
+FAILED (failures=2)
+## T-stub-cargo-plumbing rc=1
+== R: real closure check (real cargo metadata --locked --offline, nothing compiled) on private cargo-home copies
+[ok] cargo-home-helios copy == original
+[ok] cargo-home-listener copy == original
+== R1-check-candidate
+helios: resolves --locked --offline; packages 979; lock 28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4
+helios-cli: resolves --locked --offline; packages 979; lock 28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4
+listener: resolves --locked --offline; packages 625; lock 5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb
+rustc 1.96.0 (ac68faa20 2026-05-25); base 9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012; helios ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 tree eec339e18296d850a514f72de2efdd8729302efd; helios-cli eeffcc980a4a9aa092e23e07b1077c1f3fdfc95e tree 2171ad2bfd3c97f2e0e029e866b1a8535cbbd187 + patch 41667ec946d2f591498e4ab9d791914a6d5c886221996c5f0c920a0be39dcc31; listener 5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 tree 00e3a61d48c91a6072355bf0ac67564490a6fc8b
+CLOSURE_CHECK_OK
+## R1-check-candidate rc=0
+== R2-check-77d6cc859-control
+}
+helios: resolves --locked --offline; packages 979; lock 28f4400cef93f04c28c2a0fe012cef917937c821560387456369ee88241cabc4
+listener: resolves --locked --offline; packages 625; lock 5ad182d75859595c7e8f70f03b9ae35da9eeae3f6ef7890b367dca78b349c0eb
+rustc 1.96.0 (ac68faa20 2026-05-25); base 9784e20a3cfeac555d96e8d1f15526d5264f0e6d8885b951c6f1220355038012; helios ef3202982b475212d9bb6adfdc3eed4ebb0b83c5 tree eec339e18296d850a514f72de2efdd8729302efd; listener 5e178676bbe0ce5cda7ea95a3ccfefa8dca8a4b7 tree 00e3a61d48c91a6072355bf0ac67564490a6fc8b
+CLOSURE_CHECK_OK
+## R2-check-77d6cc859-control rc=0
+## summary: T=1 R1=0 R2-control=0
+RESULT: RECIPE-TESTS-FAILED
+[memory-guard] exit=1 peakTreeRssMiB=208 minHostAvailableMiB=22620
+[memory-guard] at peak: cargo:196 bash:4 bash:4 timeout:2 bash:2
+[queue] EXIT 1

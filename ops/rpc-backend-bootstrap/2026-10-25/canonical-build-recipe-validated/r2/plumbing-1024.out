@@ -1,0 +1,16 @@
+test_01_check_mode_exports_three_trees_applies_and_verifies_the_patch_offline (__main__.Recipe.test_01_check_mode_exports_three_trees_applies_and_verifies_the_patch_offline) ... ok
+test_02_build_plumbing_each_binary_from_its_own_tree_and_only_the_cli_gets_the_epoch (__main__.Recipe.test_02_build_plumbing_each_binary_from_its_own_tree_and_only_the_cli_gets_the_epoch) ... ok
+test_03_tampered_patch_refused_before_any_export (__main__.Recipe.test_03_tampered_patch_refused_before_any_export) ... ok
+test_04_tampered_manifest_refused (__main__.Recipe.test_04_tampered_manifest_refused) ... ok
+test_05_wrong_helios_and_listener_repositories_refused (__main__.Recipe.test_05_wrong_helios_and_listener_repositories_refused) ... ok
+test_06_a_changed_lock_is_refused_in_check_and_build (__main__.Recipe.test_06_a_changed_lock_is_refused_in_check_and_build) ... ok
+test_07_patched_tree_verifier_rejects_any_drift (__main__.Recipe.test_07_patched_tree_verifier_rejects_any_drift) ... ok
+test_08_bad_arguments_and_nonempty_work_refused (__main__.Recipe.test_08_bad_arguments_and_nonempty_work_refused) ... ok
+test_09_static_no_download_and_old_listener_helper_lines_preserved (__main__.Recipe.test_09_static_no_download_and_old_listener_helper_lines_preserved) ... ok
+test_10_closure_and_docs_agree_with_the_script_pins (__main__.Recipe.test_10_closure_and_docs_agree_with_the_script_pins) ... ok
+test_11_the_77d6cc859_script_is_the_gap_control (__main__.Recipe.test_11_the_77d6cc859_script_is_the_gap_control) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 3.649s
+
+OK

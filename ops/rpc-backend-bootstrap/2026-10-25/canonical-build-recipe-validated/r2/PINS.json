@@ -1,0 +1,10 @@
+{
+  "canonical-build-recipe-stage/SOURCE-FILES.sha256": "9e3ea48364f60db2c334c10bd08c7eac4eb6171fc9a135cb2176439aa3b86950",
+  "canonical-build-recipe-stage/candidate.diff": "f5d3dfce84062074aadab045c4a5c47b5c67151b8cb5fb987378bad8f39308ef",
+  "canonical-build-recipe-stage/r2/test-build-recipe.py": "7ada1807e69b39c098bf500c617fb7f9f3b265c30e72c544a896aef9578511af",
+  "canonical-build-recipe-stage/run/tests-20261026T010959Z/logs/R1-check-candidate.out": "7a579398d14c78822306dac1804e8a971c2586d0797a3cc2d18e50fff0f7e166",
+  "canonical-build-recipe-stage/run/tests-20261026T010959Z/logs/R1-check-candidate.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "canonical-build-recipe-stage/run/tests-20261026T010959Z/logs/R2-check-77d6cc859-control.out": "d89d89a06981166846896b9245b724c903b7d92da496b6c1375593514bc3799d",
+  "canonical-build-recipe-stage/run/tests-20261026T010959Z/logs/R2-check-77d6cc859-control.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+  "logs/root-canonical-build-recipe-0116.rc": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+}
