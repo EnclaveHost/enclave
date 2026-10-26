@@ -1,0 +1,25 @@
+[queue] START available=24113MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+Ran 10 tests in 5.544s
+
+OK
+{
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "format": "bsro-guard-test-receipt/r5",
+ "pass": true,
+ "ran": [
+  "10"
+ ],
+ "rc": 0,
+ "stageSums": "71e5fac4008a1776271cb83434311d6ece1621c8cdf0f29f3ba8edf9471c988f"
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r5/runs/guard-tests-20261026T220212Z-2398446
+## bsro-r5-guard-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=24061
+[memory-guard] at peak: python3:18 python3:16 python3:12 bash:4 sleep:2 sleep:2 timeout:2
+[queue] EXIT 0
