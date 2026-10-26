@@ -1,0 +1,244 @@
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+   Compiling helios-core v0.12.0 (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261026T000001Z/helios/core)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "node_canonical_methods") generated 2 warnings
+warning: `helios-core` (test "rpc_exact_hash_postcondition") generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized] target(s) in 19.52s
+     Running unittests src/lib.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/helios_core-a57aff7ace29f8c1)
+
+running 18 tests
+test client::node::tests::hash_handoff_authenticates_and_normalizes_rpc_block ... ok
+test client::node::tests::hash_handoff_rejects_forged_header_body_and_transaction_metadata ... ok
+test execution::cache::state::tests::test_code_caching ... ok
+test execution::cache::state::tests::test_content_addressed_storage_sharing ... ok
+test execution::cache::state::tests::test_get_account_proof_with_missing_slots ... ok
+test execution::cache::state::tests::test_get_code_optimistically ... ok
+test execution::cache::state::tests::test_insert_and_get_storage ... ok
+test execution::proof::tests::test_create_receipt_proof ... ok
+test execution::proof::tests::test_ordered_trie_root_noop_encoder ... ok
+test execution::proof::tests::test_verify_account_proof ... ok
+test execution::proof::tests::test_verify_block_receipts ... ok
+test execution::proof::tests::test_verify_code_hash_proof ... ok
+test execution::proof::tests::test_verify_code_hash_proof_empty_hash ... ok
+test execution::proof::tests::test_verify_code_hash_proof_empty_keccak ... ok
+test execution::proof::tests::test_verify_receipt_proof ... ok
+test execution::proof::tests::test_verify_receipt_proof_without_transaction_index ... ok
+test execution::proof::tests::test_verify_storage_proof ... ok
+test execution::proof::tests::test_verify_transaction_proof_without_transaction_index ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.04s
+
+     Running tests/ancestor_block_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/ancestor_block_hash-8ea0a35e3be143a2)
+
+running 4 tests
+test ancestor_follows_pinned_chain_not_canonical_by_number ... ok
+test ancestor_refuses_broken_link_and_wrong_pinned_answer ... ok
+test ancestor_refuses_unknown_pinned_and_outside_window ... ok
+test ancestor_through_block_cache_after_aba ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/block_body.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_body-0f3f7cfae277f2bf)
+
+running 2 tests
+test rejects_missing_withdrawals ... ok
+test rejects_unproven_transaction_hashes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)
+
+running 4 tests
+test aba_resolves_only_the_current_block ... ok
+test finalized_conflict_drops_unsafe_branch_and_clears_latest ... ok
+test multi_height_reorg_drops_stale_descendants ... ok
+test reorg_a_to_b_unindexes_a ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/canonical_block_gate.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/canonical_block_gate-556848c2e31ae5ef)
+
+running 17 tests
+test aba_during_read_answers_a_and_post_check_passes ... ok
+test block_cache_root_counterexample_refused ... ok
+test concurrent_head_advance_keeps_ancestor_and_reorg_refuses ... ok
+test every_block_id_method_is_gated_before_and_after ... ok
+test gate_beyond_window_and_missing_link_refused ... ok
+test gate_false_and_absent_on_known_noncanonical_pass ... ok
+test gate_forged_ancestry_link_refused ... ok
+test gate_never_uses_height_lookup ... ok
+test gate_other_branch_below_head_refused_by_ancestry ... ok
+test gate_root_counterexample_retained_descendant_refused ... ok
+test gate_true_missing_head_refuses ... ok
+test gate_true_on_canonical_block_passes ... ok
+test gate_true_on_known_noncanonical_refuses_not_canonical ... ok
+test gate_true_stale_head_refuses_false_passes ... ok
+test gate_unknown_hash_refused_for_every_flag ... ok
+test gate_wrong_block_for_hash_refused_for_every_flag ... ok
+test reorg_during_read_refuses_at_post_check ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/execution.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/execution-159b26f5a0dfd82a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/historical_request.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/historical_request-9cc5e59386a67330)
+
+running 1 test
+test historical_blocks_must_match_the_requested_hash_or_height ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/log_metadata.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/log_metadata-f1c9432df81145e0)
+
+running 9 tests
+test accepts_valid_logs_with_optional_timestamps ... ok
+test empty_results_do_not_fetch_receipts ... ok
+test rejects_forged_block_number_alongside_genuine_logs ... ok
+test rejects_forged_log_metadata_with_genuine_receipts ... ok
+test rejects_forged_timestamp_when_receipt_omits_it ... ok
+test rejects_missing_log_metadata_without_panicking ... ok
+test rejects_payload_from_a_different_log_index ... ok
+test rejects_unverified_block_numbers ... ok
+test verifies_logs_from_multiple_blocks_with_one_receipt_request_each ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/node_canonical_methods.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/node_canonical_methods-89e1577db508d61a)
+
+running 8 tests
+test node_aba_during_read_answers_a ... ok
+test node_hash_reads_bind_the_exact_block_for_every_flag ... ok
+test node_head_advance_during_read_still_answers ... ok
+test node_reorg_during_read_refuses_every_method ... ok
+test node_reorg_during_read_without_require_canonical_answers_exact_a ... ok
+test node_root_counterexample_retained_descendant_refused ... ok
+test node_stale_head_refuses_true_only ... ok
+test node_unknown_hash_refused_for_every_method ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/receipt_forks.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/receipt_forks-3cc0fff0b34c4749)
+
+running 6 tests
+test active_ethereum_networks_use_their_own_bpo_activation_times ... ok
+test all_types_creation_failure_forks_and_global_log_indices ... ok
+test bpo1_correct_blob_fee_must_be_accepted ... ok
+test bpo2_correct_blob_fee_must_be_accepted ... ok
+test bpo2_forged_prague_blob_fee_must_be_rejected ... ok
+test real_mainnet_bpo2_block_receipts_must_be_accepted ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s
+
+     Running tests/receipt_metadata.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/receipt_metadata-819c1175f63cd126)
+
+running 2 tests
+test rejects_forged_log_locations_even_with_valid_receipts_root ... ok
+test rejects_forged_receipt_metadata_even_with_valid_receipts_root ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/rpc_account_proof.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_account_proof-b469431243f149d5)
+
+running 1 test
+test rejects_account_proof_for_different_address ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/rpc_exact_hash_postcondition.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_exact_hash_postcondition-d8cdde9a01b67333)
+
+running 2 tests
+test provider_refuses_a_different_block_for_a_hash ... ok
+test provider_still_answers_the_exact_block ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/rpc_request_budget.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_request_budget-881e2d92fe3c0f34)
+
+running 4 tests
+test cached_blocks_accounts_and_receipts_keep_their_request_budgets ... ok
+test empty_log_results_only_make_the_original_log_request ... ok
+test historical_reads_keep_the_same_full_body_payload_and_request_budgets ... ok
+test multiblock_log_queries_preserve_parallel_rpc_stages ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/rpc_storage_proof.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_storage_proof-ffe6a83d5356feb8)
+
+running 1 test
+test rejects_missing_requested_storage_proof ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/submitted_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/submitted_hash-cf218d45c4ae888c)
+
+running 1 test
+test rejects_wrong_submitted_transaction_hash ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sync_readiness.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/sync_readiness-0b0952a524bbf0de)
+
+running 5 tests
+test consensus_failure_is_propagated_without_waiting_for_blocks ... ok
+test full_latest_block_without_finalized_head_needs_no_rpc_requests ... ok
+test invalid_initial_heads_return_errors_without_reporting_ready_or_retrying ... ok
+test stopped_consensus_unblocks_pending_readiness ... ok
+test waits_for_both_validated_heads_with_two_concurrent_requests ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+     Running tests/transaction_lookup.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/transaction_lookup-9cfc518783989e23)
+
+running 1 test
+test rpc_cannot_substitute_another_transaction ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/transaction_metadata.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/transaction_metadata-840966dd40632a87)
+
+running 5 tests
+test does_not_expose_unproven_optional_block_metadata ... ok
+test hash_only_responses_derive_hashes_and_discard_unproven_transaction_fields ... ok
+test hash_only_responses_still_authenticate_the_full_body ... ok
+test rejects_forged_cached_transaction_hash_and_location ... ok
+test rejects_forged_transaction_sender ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests helios_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

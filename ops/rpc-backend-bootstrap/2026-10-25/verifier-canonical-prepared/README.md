@@ -1,6 +1,57 @@
-# Verifier canonical block-hash (EIP-1898 requireCanonical): PREPARED source, UNTESTED candidate
+# Verifier canonical block-hash (EIP-1898 requireCanonical): native tests PASSED (root run 0000); mutants run 0006 FAILED (harness classifier defect), negative controls UNPROVEN
 
-**Status: source preparation only. The current candidate (test lifetime fix) is UNTESTED, not a fixed production patch.**
+## Current status (actual root result, 2026-10-26 UTC)
+
+**`root-canonical-native-build-tests-0000`: rc 0, `RESULT: PASS`, `[queue] EXIT 0`.**
+- **Peak memory:** 1206 MiB tree RSS; minimum host available 22331 MiB.
+- **Candidate:** the current patch `canonical-block.patch` (`41667ec9…`, `PATCHED.sha256` `7e87fad8…`), applied to a fresh
+  clone of `eeffcc9` and checked with `[ok] patched files == PATCHED.sha256`.
+- **Harness:** `jobs/` as published in `66bc7468a` (phase A is `cargo build … --keep-going`).
+- **Setup:** every pre-check was `[ok]`. The A0 locked closure and `cargo fetch --offline --locked` passed (both
+  `fetch.out` and `metadata.err` are empty), and `Cargo.lock` was unchanged at the start and the end.
+
+**Phase results (counts are from the logs, `runs/tests-20261026T000001Z/`):**
+- **A** (compile all 5 new test targets): ok.
+- **B** (`b.out`): **35 passed, 0 failed, 0 ignored, 0 measured, 0 filtered**, in exactly 5 binaries. The named check
+  passed (`named=0`).
+
+  | Binary | Passed |
+  | --- | --- |
+  | `ancestor_block_hash` | 4 |
+  | `block_cache_exact_hash` | 4 |
+  | `canonical_block_gate` | 17 |
+  | `node_canonical_methods` | 8 |
+  | `rpc_exact_hash_postcondition` | 2 |
+- **C** (`c.out`, all `helios-core` tests): **91 passed, 0 failed, 0 ignored, 0 measured, 0 filtered** over 20 summaries
+  (lib unit tests 18, 18 integration binaries, doc-tests 0). Two of the summaries ran 0 tests (`execution.rs` and the
+  doc-tests), but neither had anything ignored or filtered. The regression check passed (`regression=0`).
+- **`helios-revm-utils` build:** ok (`revm=0`).
+- **D** (Helios CLI debug build): ok (`cli=0`).
+
+**Build warnings (not failures):** 3 unused imports in `revm-utils/src/proof_db.rs` (`BlockResponse`, `HeaderResponse`,
+`ExecutionError`), and unused fixture functions in two test targets.
+
+**Cache reuse:** the run reused, as mutable caches, the cargo-home and target of the ended run
+`run/tests-20261025T234358Z` (the 2345 run): `CACHE-REUSED-FROM`, with every reuse guard `[ok]` and the cargo-home
+content equal to the reviewed CH0. **This is not an independent reproduction.**
+
+**What this is NOT:**
+- **Negative controls UNPROVEN:** the mutants run `root-canonical-mutants-0006` ended with **rc 1, `[queue] EXIT 1`**.
+  - **Its classifications:** M0–M12 and I2 were all `INVALID (compiler error)`; I1 and I3 `SURVIVED`.
+  - **Every `--no-run` mutant build succeeded.** The INVALID labels come from a **defect in
+    `jobs/check_cargo_output.py mutant`**. Its rule `^error(\[E\d+\])?:` also matches cargo's normal trailer after a
+    test failure, `error: test failed, to rerun pass …`. So a mutant whose tests FAILED is labelled a compiler error.
+  - **Example:** M1's output shows `canonical_block_gate` with 7 failed tests followed by that trailer.
+  - **No kill is claimed or inferred from this run.** The classifier needs a fix and the mutants a rerun (root's
+    stage). The earlier synthetic parser self-test did not include that trailer line.
+- **No production claims:** no production release, no measured release, no deployment and no independent
+  reproduction. **Not security-complete.** There is still no reth forced-reorg E2E and no full EVM (`call`,
+  `estimate_gas`, `create_access_list`) test through the real Node. Depth is limited to 256.
+- **Custody v2 stays REFUSED.**
+
+## Earlier status (kept as written before run 0000; those records were UNTESTED at the time)
+
+**Status then: source preparation only. The candidate (test lifetime fix) was UNTESTED, not a fixed production patch.**
 - **Four native runs, all FAILED exit 20 before any test ran** (see "Native run history"):
   - `root-canonical-native-2309`: the dependency closure was incomplete. The harness was repaired.
   - `root-canonical-native-closure-2318`: the closure passed, then `helios-core` (lib) failed with 13 × E0599, because
@@ -27,6 +78,9 @@
 | `root-canonical-native-closure-2318` | **FAIL, exit 20, COMPILE-FAILURE before tests.** All pre-checks `[ok]`; A0 closure passed (26 path packages, 0 outside the work dir; `cargo fetch --offline --locked` ok; `Cargo.lock` unchanged). 401 crates compiled, then `helios-core` (lib) failed: 13 × E0599 (`number`/`timestamp`/`parent_hash` not found on `N::HeaderResponse`; the trait `BlockHeader` is not in scope), 7 in `core/src/client/canonical.rs`, 6 in `core/src/execution/ancestry.rs`. Peak RSS 677 MiB. **Not a test verdict; no test binary was built.** | `root-canonical-native-closure-2318.{out,guard,rc}` |
 | `root-canonical-native-import-2333` | **FAIL, exit 20, COMPILE-FAILURE before tests.** Production `helios-core` (lib) and `helios-revm-utils` compiled (2 unused-import warnings in `proof_db.rs`). The test target `node_canonical_methods` failed with 5 × E0576: `TransactionResponse` (lines 84, 85), `ReceiptResponse` (91, 92) and `TransactionRequest` (100) were not found in trait `NetworkSpec`, because they belong to `alloy::network::Network` (`NetworkSpec: Network`). Peak RSS 676 MiB. **Not a test verdict; no test ran.** | `root-canonical-native-import-2333.{out,guard,rc}` |
 | `root-canonical-native-types-2345` | **FAIL, exit 20, COMPILE-FAILURE before tests.** The 5 E0576 errors from 2333 were gone. The test target `canonical_block_gate` failed with 1 × E0106 (missing lifetime specifier) at 125:87, in the helper `fn push(c: &BlockCache<Ethereum>, b: &Blk) -> impl Future<Output = ()> + '_`. Peak RSS 680 MiB. **Not a test verdict; no test ran.** | `root-canonical-native-types-2345.{out,guard,rc}` |
+| `root-canonical-native-reuse-2358` | **FAIL, exit 20, before compiling** (root's record below): `cargo test --keep-going` is unsupported by Cargo 1.96. **Not a test verdict.** | `root-canonical-native-reuse-2358.{out,guard,rc}` |
+| `root-canonical-native-build-tests-0000` | **PASS, exit 0.** B 35/35 in 5 binaries; C 91 passed, 0 failed/ignored/filtered; revm-utils and CLI builds ok; `Cargo.lock` unchanged. Cache reused from `tests-20261025T234358Z` (not an independent reproduction). Peak 1206 MiB. | `root-canonical-native-build-tests-0000.{out,guard,rc}`, `tests-20261026T000001Z/{b.out,c.out,fetch.out,metadata.err,CACHE-REUSED-FROM}` |
+| `root-canonical-mutants-0006` | **FAIL, rc 1** (completed; `.rc` and `[queue] EXIT 1` present). All pre-checks and cache-reuse guards `[ok]`. Every mutant build (`--no-run`) succeeded. Then M0–M12 and I2 were classified `INVALID (compiler error)` and I1 and I3 `SURVIVED`. **The INVALID classification is a harness defect:** the parser's compiler-error rule matches cargo's `error: test failed, to rerun pass …` trailer. **Negative controls unproven; no kill claimed.** Peak 684 MiB. | `root-canonical-mutants-0006.{out,guard,rc}` |
 
 **Import fix (after 2318).**
 - **Source change:** `use alloy::consensus::BlockHeader;` is added to `core/src/client/canonical.rs` and

@@ -1,0 +1,97 @@
+warning: unused imports: `BlockResponse` and `primitives::HeaderResponse`
+ --> revm-utils/src/proof_db.rs:5:15
+  |
+5 |     network::{primitives::HeaderResponse, BlockResponse},
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `helios_core::execution::errors::ExecutionError`
+  --> revm-utils/src/proof_db.rs:21:5
+   |
+21 | use helios_core::execution::errors::ExecutionError;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `helios-revm-utils` (lib) generated 2 warnings (run `cargo fix --lib -p helios-revm-utils` to apply 2 suggestions)
+warning: function `envelopes` is never used
+  --> core/tests/support/metadata.rs:23:15
+   |
+23 | pub(crate) fn envelopes(create: bool) -> Vec<TxEnvelope> {
+   |               ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fixture` is never used
+  --> core/tests/support/metadata.rs:84:15
+   |
+84 | pub(crate) fn fixture(
+   |               ^^^^^^^
+
+warning: `helios-core` (test "rpc_exact_hash_postcondition") generated 2 warnings
+warning: `helios-core` (test "node_canonical_methods") generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized] target(s) in 0.25s
+     Running tests/ancestor_block_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/ancestor_block_hash-8ea0a35e3be143a2)
+
+running 4 tests
+test ancestor_follows_pinned_chain_not_canonical_by_number ... ok
+test ancestor_refuses_broken_link_and_wrong_pinned_answer ... ok
+test ancestor_refuses_unknown_pinned_and_outside_window ... ok
+test ancestor_through_block_cache_after_aba ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/block_cache_exact_hash.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/block_cache_exact_hash-9e4af358f095d119)
+
+running 4 tests
+test aba_resolves_only_the_current_block ... ok
+test finalized_conflict_drops_unsafe_branch_and_clears_latest ... ok
+test multi_height_reorg_drops_stale_descendants ... ok
+test reorg_a_to_b_unindexes_a ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/canonical_block_gate.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/canonical_block_gate-556848c2e31ae5ef)
+
+running 17 tests
+test aba_during_read_answers_a_and_post_check_passes ... ok
+test block_cache_root_counterexample_refused ... ok
+test concurrent_head_advance_keeps_ancestor_and_reorg_refuses ... ok
+test every_block_id_method_is_gated_before_and_after ... ok
+test gate_beyond_window_and_missing_link_refused ... ok
+test gate_false_and_absent_on_known_noncanonical_pass ... ok
+test gate_forged_ancestry_link_refused ... ok
+test gate_never_uses_height_lookup ... ok
+test gate_other_branch_below_head_refused_by_ancestry ... ok
+test gate_root_counterexample_retained_descendant_refused ... ok
+test gate_true_missing_head_refuses ... ok
+test gate_true_on_canonical_block_passes ... ok
+test gate_true_on_known_noncanonical_refuses_not_canonical ... ok
+test gate_true_stale_head_refuses_false_passes ... ok
+test gate_unknown_hash_refused_for_every_flag ... ok
+test gate_wrong_block_for_hash_refused_for_every_flag ... ok
+test reorg_during_read_refuses_at_post_check ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/node_canonical_methods.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/node_canonical_methods-89e1577db508d61a)
+
+running 8 tests
+test node_aba_during_read_answers_a ... ok
+test node_hash_reads_bind_the_exact_block_for_every_flag ... ok
+test node_head_advance_during_read_still_answers ... ok
+test node_reorg_during_read_refuses_every_method ... ok
+test node_reorg_during_read_without_require_canonical_answers_exact_a ... ok
+test node_root_counterexample_retained_descendant_refused ... ok
+test node_stale_head_refuses_true_only ... ok
+test node_unknown_hash_refused_for_every_method ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/rpc_exact_hash_postcondition.rs (/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/verifier-canonical-stage/run/tests-20261025T234358Z/target/debug/deps/rpc_exact_hash_postcondition-d8cdde9a01b67333)
+
+running 2 tests
+test provider_refuses_a_different_block_for_a_hash ... ok
+test provider_still_answers_the_exact_block ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
