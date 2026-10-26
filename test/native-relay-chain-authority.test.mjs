@@ -208,7 +208,13 @@ test('dns-relay process (challenge replica child): the app-zone reader reads onl
   assert.equal(v.calls.length, asked, 'the default quorum never asks the verifier');
   const bad = await start({ ...base, chain: pinsOnly, chainAuthority: 'verifier', chainVerifier: v.url }, { ENCLAVE_CHAIN_VERIFIER: 'https://rpc.example.org/' });
   await waitFor(() => bad.child.exitCode !== null);
-  assert.equal(bad.child.exitCode, 1, bad.out.slice(-800)); assert.match(bad.out, /fatal: APP_CHALLENGE_AUTH: .*local endpoint/);
+  // bf77da364 (Route DNS fleet reads through the selected relay chain authority) moved this refusal EARLIER: the fleet's
+  // relay chain authority (relay/dns-relay.js:88-89) validates the same ENCLAVE_CHAIN_VERIFIER before the app-zone block,
+  // so the process stops with THAT exact message - before any app-zone reader exists and without asking any verifier
+  assert.equal(bad.child.exitCode, 1, bad.out.slice(-800));
+  assert.match(bad.out, /fatal: chain authority: the verifier must be a local endpoint \(loopback\); a remote server is not a verifier/);
+  assert.doesNotMatch(bad.out, /app-zone chain reads:/, 'stopped before the app-zone reader was built');
+  assert.equal(v.calls.length, asked, 'the refused start asked no verifier');
 });
 
 // ---- host-services directory replica: role config -> directory-server process --------------------------------------------
