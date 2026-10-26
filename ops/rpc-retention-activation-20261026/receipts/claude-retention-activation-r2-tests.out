@@ -1,0 +1,264 @@
+[queue] START available=18419MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_real_first_batch_then_resume_with_partial_then_complete (__main__.RealManifest.test_real_first_batch_then_resume_with_partial_then_complete) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-4ob83xdg/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/base-download-tuning/snapshot-manifest-observed.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-4ob83xdg/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:219: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/outputs/rpc-production-final-20261025/base-download-tuning/snapshot-manifest-observed.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_real_manifest_is_pinned_and_selects_the_exact_26 (__main__.RealManifest.test_real_manifest_is_pinned_and_selects_the_exact_26) ... ok
+test_activation_script_busy_check_and_conservatism (__main__.Synthetic.test_activation_script_busy_check_and_conservatism) ... ok
+test_admitted_with_the_first_batch_present_and_18_missing (__main__.Synthetic.test_admitted_with_the_first_batch_present_and_18_missing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-sn0puy1j/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-sn0puy1j/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-sn0puy1j/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_any_datadir_user_or_running_base_binary_refuses (__main__.Synthetic.test_any_datadir_user_or_running_base_binary_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-abcukjxu/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-abcukjxu/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-abcukjxu/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_wt04d14/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_wt04d14/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_wt04d14/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-z4u_l7v8/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-z4u_l7v8/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-z4u_l7v8/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-1x9_o3gi/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-1x9_o3gi/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-1x9_o3gi/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_capacity_refusal_and_policy_drift_refuse (__main__.Synthetic.test_capacity_refusal_and_policy_drift_refuse) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ahsq9m4w/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ahsq9m4w/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ahsq9m4w/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-odnkohlq/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-odnkohlq/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-odnkohlq/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_first_download_archives_absent_refuses (__main__.Synthetic.test_first_download_archives_absent_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-eoj2f49p/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-eoj2f49p/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-eoj2f49p/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_first_download_not_finished_successfully_refuses (__main__.Synthetic.test_first_download_not_finished_successfully_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ddkp1ajn/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ddkp1ajn/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ddkp1ajn/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-zq163ebr/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-zq163ebr/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-zq163ebr/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-p1vabgaz/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-p1vabgaz/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-p1vabgaz/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-qdyb59u_/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-qdyb59u_/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-qdyb59u_/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-7nxhe0tx/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-7nxhe0tx/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-7nxhe0tx/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_holder_running_or_enabled_refuses (__main__.Synthetic.test_holder_running_or_enabled_refuses) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-20d_poey/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-20d_poey/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-20d_poey/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ove44s45/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ove44s45/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-ove44s45/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-mjwtcj8c/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-mjwtcj8c/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-mjwtcj8c/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-q_ckt0u0/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-q_ckt0u0/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-q_ckt0u0/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-93buhhpe/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-93buhhpe/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-93buhhpe/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-cfol12lt/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-cfol12lt/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-cfol12lt/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_memory_floor (__main__.Synthetic.test_memory_floor) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-op3ppqwq/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-op3ppqwq/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-op3ppqwq/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_partial_and_leftovers_reported_never_deleted (__main__.Synthetic.test_partial_and_leftovers_reported_never_deleted) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-r5ywzwe9/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-r5ywzwe9/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-r5ywzwe9/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_pins_refuse (__main__.Synthetic.test_pins_refuse) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-78zs588s/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-78zs588s/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-78zs588s/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_mt635o_/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_mt635o_/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_mt635o_/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-jtx16t28/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-jtx16t28/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-jtx16t28/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_post_needs_all_26_and_writes_a_read_only_marker_once (__main__.Synthetic.test_post_needs_all_26_and_writes_a_read_only_marker_once) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:219: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_nrbt6mg/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:180: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_nrbt6mg/opt/install-manifest.json' mode='r' encoding='utf-8'>
+  if (json.load(open(env['installManifest'])).get('binaries') or {}).get('base') != BASE_BIN_SHA256:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:184: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_nrbt6mg/opt/manifest.json' mode='r' encoding='utf-8'>
+  manifest = json.load(open(env['snapshotManifest']))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-retention-stage/activation-r2/retention_guard.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/retention-r2-_nrbt6mg/meminfo' mode='r' encoding='utf-8'>
+  return int(l.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_shipped_pins_equal_their_sources (__main__.Synthetic.test_shipped_pins_equal_their_sources) ... ok
+test_unit_file_is_the_reviewed_shape (__main__.Synthetic.test_unit_file_is_the_reviewed_shape) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.260s
+
+OK
+[memory-guard] exit=0 peakTreeRssMiB=42 minHostAvailableMiB=18346
+[memory-guard] at peak: python3:42
+[queue] EXIT 0
