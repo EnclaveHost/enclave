@@ -222,7 +222,8 @@ if (cfg.control !== undefined && cfg.control !== null) {
 // HOST_DATA-bound direct config.
 if (DIRECT && cfg.leaseGas !== undefined && cfg.leaseGas !== null)
   throw new Error('control: "direct" takes leaseGas only inside the bound direct config (HOST_DATA binds it there), not from the host config');
-const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f) });
+const LEASE_GAS = DIRECT ? null : leaseGasTransit(cfg.leaseGas, { readFile: (f) => fs.readFileSync(f),
+  verifierBound: cfg.chainVerifier !== undefined && cfg.chainVerifier !== null });   // checked below (CHAIN_VERIFIER); lease reads then use it only
 if (LEASE_GAS) console.log(`[enclave-metal] app-funded lease gas: record ${LEASE_GAS.digest.slice(0, 19)}…, reserve ${LEASE_GAS.reserve}, `
   + `${LEASE_GAS.relays.length} relay(s), ${LEASE_GAS.rpcs.length} RPC(s)${LEASE_GAS.quorum ? `, quorum ${LEASE_GAS.quorum}` : ''}`);
 // The operator's owner nomination for the ORIGINAL EnclaveHostOwnership (metal/guest/owner-nomination.mjs): public, the host

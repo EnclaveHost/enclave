@@ -99,7 +99,10 @@ test("the shared loader: pinned relays may be the ONLY route; partial or invalid
   assert.throws(() => loadLeaseGasConfig({ env: ENV(), ...BINDING }), /require ENCLAVE_LEASE_GAS_RELAYS/, "no route at all: refused, never operator-paid");
   // absent: the exact fields as before (no pinnedRelays key)
   const plain = loadLeaseGasConfig({ env: ENV({ ENCLAVE_LEASE_GAS_RELAYS: "https://relay.example.org" }), ...BINDING });
-  assert.deepEqual(Object.keys(plain).sort(), ["allowLoopbackHttp", "clients", "deployment", "localRelays", "quorum", "relayDiscovery", "relays", "reserve", "rpcTimeoutMs"]);
+  // `authority` joined the exact fields with the chain authority: loadLeaseGasConfig returns authority: peers.authority
+  // (network/lease-gas-runtime.mjs); leaseRpcSet's default for a non-verifier client set is "rpc-quorum" (client/lease-executor-authority.mjs)
+  assert.deepEqual(Object.keys(plain).sort(), ["allowLoopbackHttp", "authority", "clients", "deployment", "localRelays", "quorum", "relayDiscovery", "relays", "reserve", "rpcTimeoutMs"]);
+  assert.equal(plain.authority, "rpc-quorum", "absent chain authority: the legacy RPC quorum, exactly as before");
 });
 
 test("a pinned relay is never usable without the platform policy's admission: the client refuses to be built without it; the factory's policy-off decision refuses", async () => {

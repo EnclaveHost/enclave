@@ -9,6 +9,9 @@ import { discoverLeaseRelays, cachedRelayDiscovery, relayPolicyDecider, relayAdm
 import { validateIndexPin } from "./service-index.mjs";
 import { chainVerifierOf } from "./verified-chain.mjs";
 import { chainAuthorityFromEnv } from "./chain-authority.mjs";
+// lease-consumer-seams: re-exported (unchanged) so a host that receives this module as a bundle (windows/node/chain.mjs) builds
+// its explicit chain authority with the SAME constructors as supervisor.js (chainAuthorityFromEnv / refusingChainAuthority).
+export { chainAuthorityFromEnv, refusingChainAuthority } from "./chain-authority.mjs";
 
 // Where a host's lease operations are submitted (at least one): LOCAL_RELAY, an OPTIONAL relay of the host's own on this
 // machine (loopback only); RELAYS, configured relays; SERVICE_INDEX (<index address>@<runtime code hash>), DESIGNATED relays

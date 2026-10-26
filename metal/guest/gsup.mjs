@@ -481,7 +481,7 @@ else if (CONTROL) log(`metal.control=${CONTROL} is not a known control mode; no 
 // invalid: the supervisor gets a configuration that cannot load, so every claim, renewal and release REFUSES and the
 // operator's own ETH is never spent on them. These names come ONLY from here (withLeaseGasEnv drops any other source).
 // A direct control guest takes it only from its HOST_DATA-bound config (measured-control.mjs).
-const LEASE_GAS = CONTROL ? null : leaseGasGuest(fw.leaseGas);
+const LEASE_GAS = CONTROL ? null : leaseGasGuest(fw.leaseGas, { verifierBound: fw.chainVerifier !== undefined && fw.chainVerifier !== null });
 if (LEASE_GAS?.configured && LEASE_GAS.ok) {
   try {
     for (const [file, bytes] of Object.entries(LEASE_GAS.files)) {

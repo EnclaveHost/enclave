@@ -1,13 +1,13 @@
 {
   "bundle": "metal/guest/lease-gas-conduit.bundle.mjs",
   "entry": "network/lease-gas-conduit.mjs",
-  "sha256": "48bd059a57356fed542c3a6a8c0b4ddd7fdf6bca42ad7729754234445b746fd5",
-  "bytes": 41371,
+  "sha256": "7735609f3e70ad15d37ce2b8dcd4f979e1f3591b43e525212c12c11fe86c3683",
+  "bytes": 41828,
   "inputs": {
     "client/lease-executor-authority.mjs": "0dff0df7d8d8b06fa197cc92e5bec12d83b89a0baaf4fb7af852742ac180b6ca",
     "client/lease-executor-client.mjs": "bd082b005f770b36d29495ee1cb3e193efc458ecbe49056997cdfb48876ab2dd",
     "network/lease-executor-client.mjs": "c2eb2e6a6246cf8c65bc3410f306acd1b119991464825c7d78e1476dd02bcb1a",
-    "network/lease-gas-conduit.mjs": "1974ad9378a45b0bffa1bf30e32802ef7abd7f863f7ec81371cd2c9650e1aaa9",
+    "network/lease-gas-conduit.mjs": "f1b9304494ad0327aa8c1ab0e499dd7ffa9958dba0c2ea3431cfa3ca7e20ebb7",
     "network/lease-gas-owner.mjs": "92cc322a0eb201f3561dc0dd1c8a245459d907222c64f9073a112cdfb3d95988",
     "network/lease-release-journal.mjs": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
     "network/rpc-identity.mjs": "74cb965ee1ae031566ac0f060e4ebdf512089cc702c0ec54c2f98113834c5d57",
