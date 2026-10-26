@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: constants: 20 s transport, 60 s proof class (eth_call, eth_getProof only), 200 s budget below capture's 240 s a1_timeout
+ok 1 - constants: 20 s transport, 60 s proof class (eth_call, eth_getProof only), 200 s budget below capture's 240 s a1_timeout
+  ---
+  duration_ms: 1.216328
+  type: 'test'
+  ...
+# Subtest: rpc(url, {timeoutMs}) keeps explicit short-deadline semantics for EVERY method (proof class defaults to timeoutMs)
+ok 2 - rpc(url, {timeoutMs}) keeps explicit short-deadline semantics for EVERY method (proof class defaults to timeoutMs)
+  ---
+  duration_ms: 208.422316
+  type: 'test'
+  ...
+# Subtest: proofTimeoutMs applies to proof-bearing methods only; other methods keep timeoutMs
+ok 3 - proofTimeoutMs applies to proof-bearing methods only; other methods keep timeoutMs
+  ---
+  duration_ms: 815.603905
+  type: 'test'
+  ...
+# Subtest: the read budget caps a proof request and an exhausted budget refuses BEFORE sending
+ok 4 - the read budget caps a proof request and an exhausted budget refuses BEFORE sending
+  ---
+  duration_ms: 152.322468
+  type: 'test'
+  ...
+# Subtest: no retry: a timeout, an HTTP error and a JSON-RPC error each cost exactly ONE request
+ok 5 - no retry: a timeout, an HTTP error and a JSON-RPC error each cost exactly ONE request
+  ---
+  duration_ms: 510.188752
+  type: 'test'
+  ...
+# Subtest: envelope and size rules unchanged for the long proof class (wrong id, result+error, non-JSON, oversize)
+ok 6 - envelope and size rules unchanged for the long proof class (wrong id, result+error, non-JSON, oversize)
+  ---
+  duration_ms: 13.337553
+  type: 'test'
+  ...
+# Subtest: malformed proof bodies that pass transport are still refused by the UNCHANGED proof verifier (checkProofResponse)
+ok 7 - malformed proof bodies that pass transport are still refused by the UNCHANGED proof verifier (checkProofResponse)
+  ---
+  duration_ms: 1.65643
+  type: 'test'
+  ...
+# Subtest: a1io: loopback-only URLs, production deadlines, one shared budget
+ok 8 - a1io: loopback-only URLs, production deadlines, one shared budget
+  ---
+  duration_ms: 0.501774
+  type: 'test'
+  ...
+# Subtest: checkFreshAfterRead: the pinned age rule holds when the read FINISHES (stale-after-read, future, missing timestamp)
+ok 9 - checkFreshAfterRead: the pinned age rule holds when the read FINISHES (stale-after-read, future, missing timestamp)
+  ---
+  duration_ms: 0.494023
+  type: 'test'
+  ...
+# Subtest: both REAL reader CLIs (initial and original-game recheck) refuse through a1io against a live mock: wrong_chain, exit 3, one request
+ok 10 - both REAL reader CLIs (initial and original-game recheck) refuse through a1io against a live mock: wrong_chain, exit 3, one request
+  ---
+  duration_ms: 285.116365
+  type: 'test'
+  ...
+# Subtest: r2: the total MONOTONIC budget is enforced AFTER the last request (parse/crypto/evaluate time counts) and before emission
+ok 11 - r2: the total MONOTONIC budget is enforced AFTER the last request (parse/crypto/evaluate time counts) and before emission
+  ---
+  duration_ms: 4.070766
+  type: 'test'
+  ...
+# Subtest: r2: finishRead = budget (monotonic) then header age (wall clock); independent clocks; success returns both
+ok 12 - r2: finishRead = budget (monotonic) then header age (wall clock); independent clocks; success returns both
+  ---
+  duration_ms: 0.541333
+  type: 'test'
+  ...
+# Subtest: r3: a FRACTIONAL remaining budget is floored to whole ms (valid AbortSignal), < 1 ms refuses before fetch, the real monotonic clock works
+ok 13 - r3: a FRACTIONAL remaining budget is floored to whole ms (valid AbortSignal), < 1 ms refuses before fetch, the real monotonic clock works
+  ---
+  duration_ms: 160.167772
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2543.997186

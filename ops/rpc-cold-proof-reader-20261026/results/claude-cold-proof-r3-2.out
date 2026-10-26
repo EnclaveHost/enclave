@@ -1,0 +1,7 @@
+[queue] START available=18619MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+policy files == r12-final pins
+PASS cold-proof-tests r3 transport 13 a1-anchor 27/27 a1-recheck 27 stage-sums 4a637e0109ca4030e31bd6738b00ad028479ebcddb6cfba331450a77a873b68c
+## cold-proof-tests r3 rc=0
+[memory-guard] exit=0 peakTreeRssMiB=220 minHostAvailableMiB=17497
+[memory-guard] at peak: node:86 node:67 node:58 bash:4 bash:2 timeout:2
+[queue] EXIT 0

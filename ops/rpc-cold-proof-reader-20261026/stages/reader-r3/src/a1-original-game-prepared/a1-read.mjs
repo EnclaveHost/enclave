@@ -1,0 +1,102 @@
+#!/usr/bin/env node
+// A1 live READ-ONLY runner for root (never run by this stage). Usage:
+//   ANCHOR_DEPS_ROOT=<checkout> node a1-read.mjs CONFIG.json > a1-evidence.json
+// CONFIG: { heliosUrl, elUrl, portal, asr, portalAsrGetter, expectedChainId: 1, pinBy?, proofSlots?, asrCandidates? }
+// heliosUrl = the l1-authority Helios loopback listener (the VERIFIER); elUrl = our own reth (an UNTRUSTED proof source).
+// Both must be http://<loopback literal>:<port>: no public RPC, no names, no credentials. JSON-RPC POST only (reads).
+// cold-proof-timeout-stage (PROPOSED fix; root guest diagnostic run-20261026T073520Z-2f5bf737): a COLD historical eth_getProof on our
+// own reth at the Helios-finalized block (82 behind head) took 21986 ms (> the old 20 s per-request abort; repeats 5390/1614 ms; a plain
+// eth_call 8 ms). Only the per-request DEADLINE changes, by method class: proof-bearing requests (eth_getProof to our EL; eth_call to
+// Helios, which fetches proofs from our EL to execute it) get PROOF_TIMEOUT_MS, every other request keeps 20 s, the whole read is capped
+// by READ_BUDGET_MS (< capture()'s a1_timeout 240 s, so the reader refuses cleanly before it is killed). ONE attempt per request: no
+// retry anywhere. Loopback-only URLs, redirect:error, streamed byte cap, JSON-RPC envelope checks, block-hash pinning, proofs, finality
+// and every A1 rule (./a1-anchor.mjs, unmodified) are unchanged. NEW: the finalized header's age is re-checked when the read FINISHES
+// (checkFreshAfterRead), so a long read can never emit evidence older than maxFinalizedAgeSec (time-of-check/time-of-use).
+// r2 (root review): the read budget is MONOTONIC (performance.now, independent of the wall clock used for header age) and is checked
+// AGAIN after the last request, parsing, proof crypto and evaluation, immediately before evidence is emitted (finishRead): a read
+// that exceeded READ_BUDGET_MS refuses read_budget_exceeded even if no further request was due. capture()'s 240 s stays the hard kill.
+// r3 (root review): the monotonic clock is fractional, so the per-request deadline is FLOORED to whole ms (AbortSignal.timeout needs an
+// integer) and a request with < 1 ms of budget left is refused before any fetch.
+import fs from "node:fs";
+import { keccak_256 } from "./test/deps.mjs";
+import { headerHash } from "./vendor/anchor-bootstrap.mjs";
+import { runA1, A1Error, validateConfig, MAX_FUTURE_SKEW_SEC } from "./a1-anchor.mjs";
+
+export const TRANSPORT_TIMEOUT_MS = 20000;                     // every non-proof request (the unchanged default)
+export const PROOF_TIMEOUT_MS = 60000;                         // proof-bearing requests only: 2.7x the measured cold 21986 ms
+export const PROOF_METHODS = Object.freeze(["eth_call", "eth_getProof"]);
+export const READ_BUDGET_MS = 200000;                          // whole A1 read (monotonic); capture() kills the reader at a1_timeout = 240 s
+const monotonic = () => performance.now();
+
+export function loopbackUrl(u, what) {
+  let x; try { x = new URL(u); } catch { throw new A1Error("bad_config", `${what} is not a URL`); }
+  const host = x.hostname.replace(/^\[|\]$/g, "");
+  if (x.protocol !== "http:" || x.username || x.password || x.search || x.hash || !(host === "127.0.0.1" || host === "::1") || !x.port)
+    throw new A1Error("bad_config", `${what} must be http://127.0.0.1:<port> or http://[::1]:<port>`);
+  return x.href;
+}
+// rpc(url) alone keeps the explicit short semantics: EVERY method gets timeoutMs (default 20 s). proofTimeoutMs applies to PROOF_METHODS
+// only; `deadline` (epoch ms, from `now`) caps every request; an exhausted budget refuses BEFORE sending. One fetch per call, no retry.
+export function rpc(url, { timeoutMs = TRANSPORT_TIMEOUT_MS, maxBytes = 8 << 20, proofTimeoutMs = timeoutMs, deadline = Infinity, now = Date.now } = {}) {
+  let id = 0;
+  return async (method, params) => {
+    const rid = ++id;
+    const ms = Math.floor(Math.min(PROOF_METHODS.includes(method) ? proofTimeoutMs : timeoutMs, deadline - now()));
+    if (!(ms >= 1)) throw new Error(`A1 read budget exhausted before ${method}`);
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, redirect: "error",
+      body: JSON.stringify({ jsonrpc: "2.0", id: rid, method, params }), signal: AbortSignal.timeout(ms) });
+    if (!r.ok) { try { await r.body?.cancel(); } catch {} throw new Error(`HTTP ${r.status}`); }
+    const declared = Number(r.headers.get("content-length"));
+    if (declared > maxBytes) { try { await r.body?.cancel(); } catch {} throw new Error("reply too large (declared)"); }
+    // stream the body and refuse as soon as the BYTE count passes maxBytes: nothing beyond the cap is buffered
+    const reader = r.body.getReader(), chunks = [];
+    let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      n += value.byteLength;
+      if (n > maxBytes) { try { await reader.cancel(); } catch {} throw new Error("reply too large"); }
+      chunks.push(value);
+    }
+    const j = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (j.jsonrpc !== "2.0" || j.id !== rid || ("result" in j) === ("error" in j)) throw new Error("bad JSON-RPC envelope");
+    if (j.error) throw new Error(`${j.error.code}: ${j.error.message}`);
+    return j.result;
+  };
+}
+// the production transport for BOTH readers: one shared read budget, per-class deadlines, loopback-only
+export function a1io(cfg, { now = monotonic, budgetMs = READ_BUDGET_MS } = {}) {
+  const start = now(), o = { timeoutMs: TRANSPORT_TIMEOUT_MS, proofTimeoutMs: PROOF_TIMEOUT_MS, deadline: start + budgetMs, now };
+  const checkBudget = () => {                                   // the WHOLE read, incl. work after the last request
+    const used = now() - start;
+    if (!(used <= budgetMs)) throw new A1Error("read_budget_exceeded", `the A1 read took ${Math.round(used)} ms (monotonic) > budget ${budgetMs} ms`);
+    return used;
+  };
+  return { helios: rpc(loopbackUrl(cfg.heliosUrl, "heliosUrl"), o), el: rpc(loopbackUrl(cfg.elUrl, "elUrl"), o), checkBudget };
+}
+// the finalized header must STILL be within the pinned age rule when the read finishes (same validateConfig bound as at the start)
+export function checkFreshAfterRead(out, cfg, nowMs) {
+  const max = validateConfig(cfg).maxFinalizedAgeSec, ts = out?.l1?.timestamp, t = Math.floor(nowMs / 1000);
+  if (!Number.isSafeInteger(ts)) throw new A1Error("no_l1_timestamp", "the read produced no finalized L1 timestamp");
+  if (ts > t + MAX_FUTURE_SKEW_SEC) throw new A1Error("finalized_future", `finalized header is ${ts - t} s in the future`);
+  if (t - ts > max) throw new A1Error("finalized_stale_after_read", `finalized header is ${t - ts} s old when the read finished (max ${max})`);
+  return t - ts;
+}
+// the ONE gate before any evidence is emitted (both readers): total monotonic budget first, then the wall-clock header age rule
+export function finishRead(io, out, cfg, wallNowMs) {
+  const usedMs = io.checkBudget();
+  const ageSec = checkFreshAfterRead(out, cfg, wallNowMs);
+  return { usedMs, ageSec };
+}
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+    const io = a1io(cfg);
+    const out = await runA1(cfg, io, { keccak: (b) => keccak_256(b), headerHash, now: () => Date.now() });
+    const end = Date.now(); finishRead(io, out, cfg, end);
+    process.stdout.write(JSON.stringify({ ...out, at: new Date(end).toISOString(), label: "A1 read: Helios-light-client-relative; not SNP/attested" }, (k, v) => typeof v === "bigint" ? v.toString() : v, 1) + "\n");
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ verdict: "refused", code: e.code || "error", message: String(e.message || e).slice(0, 300) }) + "\n");
+    process.exitCode = 3;
+  }
+}

@@ -1,0 +1,12 @@
+{
+ "note": "Filled ONLY after 50cf freezes the composition that integrates cold-proof-timeout-stage/r3 (stage path relative to work/rpc-production-final-20261025) AND root's qualification of it passes. Any null refuses. a1Read/a1RecheckRead are this stage's reviewed reader bytes and must be what the composition installs. Re-freeze cold-proof-timeout-stage/r3 after filling.",
+ "stage": null,
+ "stageSha256sums": null,
+ "manifest": null,
+ "bundleOrigin": null,
+ "captureModule": null,
+ "finalityState": null,
+ "finalityCore": null,
+ "a1Read": "da9a9e9c6eff2dcaae344a2311a7d4824efc3d0895aba766805787067f274f85",
+ "a1RecheckRead": "78df2211342fd73e180f3f771af8078b76888b2687cd993edff081b118f18825"
+}
