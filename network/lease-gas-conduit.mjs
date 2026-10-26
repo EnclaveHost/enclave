@@ -100,11 +100,15 @@ function quorumOf(q, rpcs) {
  * The transit object, from its parts, every part checked. `record` is the exact record bytes. -> frozen
  * { version, record (base64), digest, chainId, reserve, rpcs, relays, quorum[, pinnedRelays] } (pinnedRelays only when given).
  */
-function transitOf({ record, digest, rpcs, relays, reserve, quorum, pinnedRelays }, { published = false } = {}) {
+const MIXED = "a chain-verifier-bound leaseGas carries no public rpcs or quorum: a mixed provider + verifier configuration is refused";
+function transitOf({ record, digest, rpcs, relays, reserve, quorum, pinnedRelays }, { published = false, verifierBound = false } = {}) {
   if (typeof digest !== "string" || !DIGEST.test(digest)) fail("digest must be the reviewed sha256:<64 hex> of the deployment record");
   const dep = parseDeploymentRecord(record, { expectedDigest: digest });
   const pr = pinnedList(pinnedRelays);
-  const r = rpcList(rpcs, { published }), rl = relayList(relays, { pinned: !!pr });
+  // verifierBound (lease-consumer-seams): the guest's lease reads go ONLY to its bound local chain verifier, so no public RPC is
+  // configured, transited or installed; absent or an empty list are the only accepted forms. Legacy (not bound): unchanged.
+  if (verifierBound && ((rpcs !== undefined && rpcs !== null && !(Array.isArray(rpcs) && rpcs.length === 0)) || (quorum !== undefined && quorum !== null))) fail(MIXED);
+  const r = verifierBound ? [] : rpcList(rpcs, { published }), rl = relayList(relays, { pinned: !!pr });
   if (pr && rl.some((o) => pr.some((p) => p.origin === o))) fail("pinnedRelays repeat a relay origin");
   if (reserve !== undefined && reserve !== null && (typeof reserve !== "string" || reserve.toLowerCase() !== dep.reserve.toLowerCase()))
     fail("reserve differs from the reviewed deployment record");
@@ -117,21 +121,22 @@ function transitOf({ record, digest, rpcs, relays, reserve, quorum, pinnedRelays
  *   { recordFile, digest, rpcs: [...], relays: [...], reserve?, quorum?, pinnedRelays? } (relays optional with pinnedRelays)
  * Absent (undefined/null) is the only "off". Anything else must be complete and valid, or this throws (the launch stops).
  */
-export function leaseGasTransit(cfg, { readFile, chainId = null } = {}) {
+export function leaseGasTransit(cfg, { readFile, chainId = null, verifierBound = false } = {}) {
   if (cfg === undefined || cfg === null) return null;
   only(cfg, ["recordFile", "digest", "rpcs", "relays", "reserve", "quorum", "pinnedRelays"], "leaseGas");
-  const needed = cfg.pinnedRelays === undefined || cfg.pinnedRelays === null ? ["recordFile", "digest", "rpcs", "relays"] : ["recordFile", "digest", "rpcs"];
+  const needed = (cfg.pinnedRelays === undefined || cfg.pinnedRelays === null ? ["recordFile", "digest", "rpcs", "relays"] : ["recordFile", "digest", "rpcs"])
+    .filter((k) => !(verifierBound && k === "rpcs"));
   for (const k of needed) if (cfg[k] === undefined || cfg[k] === null || cfg[k] === "")
     fail(`leaseGas.${k} is required: a partial configuration never falls back to the operator's wallet`);
   if (typeof cfg.recordFile !== "string") fail("leaseGas.recordFile must be a path");
   if (typeof readFile !== "function") fail("no file reader");
-  const t = transitOf({ ...cfg, record: readFile(cfg.recordFile) });
+  const t = transitOf({ ...cfg, record: readFile(cfg.recordFile) }, { verifierBound });
   if (chainId !== null && t.chainId !== chainId) fail(`the deployment record is for chain ${t.chainId}, this host runs chain ${chainId}`);
   return t;
 }
 
 /** Re-check a transit as received (fw_cfg is the host's word; a direct config's is bound). -> the transit (frozen). */
-export function checkTransit(t, { published = false } = {}) {
+export function checkTransit(t, { published = false, verifierBound = false } = {}) {
   only(t, ["version", "record", "digest", "chainId", "reserve", "rpcs", "relays", "quorum", "pinnedRelays"], "leaseGas transit");
   if ("pinnedRelays" in t && (t.pinnedRelays === undefined || t.pinnedRelays === null)) fail("transit pinnedRelays is either a list or absent");
   if (!Array.isArray(t.relays)) fail("transit relays must be a list");
@@ -139,7 +144,7 @@ export function checkTransit(t, { published = false } = {}) {
   if (typeof t.record !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(t.record)) fail("transit record must be base64");
   const record = Buffer.from(t.record, "base64");
   if (record.toString("base64") !== t.record) fail("transit record is not canonical base64");
-  const again = transitOf({ record, digest: t.digest, rpcs: t.rpcs, relays: t.relays, reserve: t.reserve, quorum: t.quorum, pinnedRelays: t.pinnedRelays }, { published });
+  const again = transitOf({ record, digest: t.digest, rpcs: t.rpcs, relays: t.relays, reserve: t.reserve, quorum: t.quorum, pinnedRelays: t.pinnedRelays }, { published, verifierBound });
   if (again.chainId !== t.chainId) fail("transit chainId differs from its record");
   return again;
 }
@@ -151,16 +156,16 @@ export function checkTransit(t, { published = false } = {}) {
  *                                                          when pinned relays are configured, the record file; nothing else)
  *   -> { configured: true, ok: false, env, files: {}, reason } (refused: "configured but unloadable", fail closed)
  */
-export function leaseGasGuest(transit, { recordFile = GUEST_RECORD_FILE, published = false } = {}) {
+export function leaseGasGuest(transit, { recordFile = GUEST_RECORD_FILE, published = false, verifierBound = false } = {}) {
   if (transit === undefined || transit === null) return { configured: false, env: {}, files: {} };
   let t;
-  try { t = checkTransit(transit, { published }); }
+  try { t = checkTransit(transit, { published, verifierBound }); }
   catch (e) { return { configured: true, ok: false, env: { ENCLAVE_LEASE_GAS_FILE: REFUSED_RECORD_FILE }, files: {}, reason: e.message }; }
-  const env = { ENCLAVE_LEASE_GAS_FILE: recordFile, ENCLAVE_LEASE_GAS_DIGEST: t.digest, ENCLAVE_LEASE_GAS_RPCS: t.rpcs.join(","),
+  const env = { ENCLAVE_LEASE_GAS_FILE: recordFile, ENCLAVE_LEASE_GAS_DIGEST: t.digest, ...(t.rpcs.length ? { ENCLAVE_LEASE_GAS_RPCS: t.rpcs.join(",") } : {}),
     ...(t.relays.length ? { ENCLAVE_LEASE_GAS_RELAYS: t.relays.join(",") } : {}), ENCLAVE_LEASE_GAS_RESERVE: t.reserve,
     ...(t.quorum ? { ENCLAVE_LEASE_GAS_QUORUM: String(t.quorum) } : {}), ...(t.pinnedRelays ? { [PINNED_ENV_NAME]: pinnedRelaysValue(t.pinnedRelays) } : {}) };
   return { configured: true, ok: true, env, files: { [recordFile]: Buffer.from(t.record, "base64") },
-    summary: `reserve ${t.reserve}, record ${t.digest.slice(0, 19)}…, ${t.relays.length} relay(s)${t.pinnedRelays ? `, ${t.pinnedRelays.length} pinned host relay(s) ${t.pinnedRelays.map((p) => p.origin).join(", ")}` : ""}, RPCs ${t.rpcs.map(rpcLabel).join(", ")}${t.quorum ? ` (quorum ${t.quorum})` : ""}` };
+    summary: `reserve ${t.reserve}, record ${t.digest.slice(0, 19)}…, ${t.relays.length} relay(s)${t.pinnedRelays ? `, ${t.pinnedRelays.length} pinned host relay(s) ${t.pinnedRelays.map((p) => p.origin).join(", ")}` : ""}, ${t.rpcs.length ? `RPCs ${t.rpcs.map(rpcLabel).join(", ")}` : "reads via the bound local chain verifier (no public RPC)"}${t.quorum ? ` (quorum ${t.quorum})` : ""}` };
 }
 
 /**

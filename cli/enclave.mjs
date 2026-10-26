@@ -46,6 +46,7 @@ import { base } from "viem/chains";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 import {publishArtifactReplicas,verifyArtifactReplicas} from "../sdk/storage/artifacts.mjs";
+import { confirmSourceLeaseCleared } from "./move-release-confirm.mjs";
 import {publishPackageReplicas,verifyPackageReplicas,validateStoragePlan} from "../sdk/bootstrap/storage.mjs";
 import {directUploadHeaders} from "../sdk/storage/upload-auth.mjs";
 import {loadContractPins} from "../network/contract-pins.mjs";
@@ -5525,32 +5526,36 @@ async function cmdMoveIndependent(rest) {
     if (!(await confirm(`move ${short(id)} off ${short(m.runner)} to ${short(target)}? The app stops there and relaunches on the target; `
         + `about ${usd6(tail)} of unused lease returns to the balance; the target charges ${usd6(m.rate * 3600n)}/h (now ${usd6(BigInt(m.d.rate) * 3600n)}/h)`)))
       return say("aborted");
-    // ONE release. Whatever the answer, the quorum decides whether the lease was handed back; it is never resent here.
-    let rel = null, relErr = null;
-    try { rel = await client.release(); } catch (e) { relErr = e; }
-    if (rel) say(`the source reports the lease released${rel.json.txHash ? ` (${rel.json.txHash})` : ""}; confirming on the quorum…`);
-    else say(`the source's release answer: ${RELEASE_STATES[relErr.code] || relErr.message}${relErr.outcomeUnknown ? " (outcome unknown)" : ""}; reading the quorum…`);
-    // 90 s for a release the host reported (or whose answer was lost); 15 s when the host answered a definite state
-    // (stop_unconfirmed; release_unconfirmed: the host resolves its transaction in the background, so it may still land)
-    let cleared = null;
-    for (const until = Date.now() + (rel || !relErr.code ? 90_000 : 15_000); Date.now() < until;) {
-      const n = await moveSnapshot(id, null).catch(() => null);
-      if (n && !(n.runner === m.runner && n.held)) { cleared = n; break; }
-      if (!rel && relErr && !relErr.outcomeUnknown) break;                 // a definite refusal: the lease stays where it was
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-    if (!cleared) {
-      if (relErr && !relErr.outcomeUnknown)
-        throw new Error(`the source refused the release (${relErr.message}); the lease is still held by ${short(m.runner)}; nothing changed`);
-      stderr.write(`error: the lease is still held by ${short(m.runner)} on the quorum: the app may be stopped there and the release is not confirmed. `
-        + `Check \`enclave status ${short(id)} --host\`, then run the move again (a release that already landed cannot refund twice).\n`);
+    // ONE release. Whatever the answer, only the owner's reading of the CURRENT ledger decides whether the source's lease is
+    // gone (move-release-confirm.mjs); it is never resent here. The host's answer is reported as the host's claim, never
+    // as a verified release: a release the host could only resolve after a restart or an outage (e.g. deeper than its
+    // canonical verifier's window) moves on only once the source's lease is observed absent on two validated snapshots
+    // at increasing blocks. That is a repeated observation of the quorum's chosen block, not reorg protection or finality.
+    const c = await confirmSourceLeaseCleared({ source: m.runner, release: () => client.release(),
+      snapshot: () => moveSnapshot(id, null), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now() });
+    const a = c.answer;
+    if (a.kind === "released") say(`the source host reports its release receipt${a.txHash ? ` (${a.txHash})` : ""} (the host's claim, not verified here); reading the quorum…`);
+    else say(`the source's release answer: ${RELEASE_STATES[a.code] || a.message || "none"}${a.kind === "unknown" ? " (outcome unknown)" : ""}; reading the quorum…`);
+    if (c.outcome === "refused")
+      throw new Error(`the source refused the release (${a.message}); the lease is still held by ${short(m.runner)} (quorum, block ${c.block}); nothing changed`);
+    if (c.outcome !== "cleared") {
+      const bad = c.malformed ? `, ${c.malformed} malformed` : "";
+      const why = c.outcome === "quorum-unavailable"
+        ? `no valid quorum read (${c.failures} failed${bad}), so the lease state is UNKNOWN: the app may be stopped there and the release may or may not have landed`
+        : c.outcome === "clear-unconfirmed"
+        ? `the quorum showed the source's lease gone${c.block != null ? ` (block ${c.block})` : ""} but not on two increasing blocks${c.heldAgainAt != null ? `, and the source's lease again at block ${c.heldAgainAt}` : ""}, so its absence is not confirmed`
+        : `the lease is still held by ${short(m.runner)} on the quorum (block ${c.block}): the app may be stopped there and the release is not confirmed`;
+      stderr.write(`error: ${why}. Nothing more was sent. Check \`enclave status ${short(id)} --host\`, then run the move again `
+        + `(a release that already landed cannot refund twice; a new move reads the ledger first).\n`);
       exit(4);
     }
+    const cleared = { block: c.block, runner: c.runner, d: c.d };
     clearedBlock = cleared.block;
-    // the runner field says which: cleared = a release landed; still the source's id = its lease simply ran out
-    if (/^0x0{64}$/.test(cleared.runner)) say(`lease released (quorum, block ${cleared.block}): balance ${usd6(BigInt(cleared.d.balance6))}`);
-    else if (cleared.runner === m.runner) say(`no live lease (quorum, block ${cleared.block}): the source's lease ran out rather than being released; balance ${usd6(BigInt(cleared.d.balance6))}`);
-    else say(`no lease of the source any more (quorum, block ${cleared.block}): ${short(cleared.runner)} holds it`);
+    const claim = c.sourceReportedReleased ? "; the source host reported its release receipt (its claim, not verified here)"
+      : "; the source host reported no release receipt: only the ledger's current state was observed";
+    if (c.how === "runner-cleared") say(`no runner on the ledger (quorum, blocks ${c.firstBlock}..${cleared.block}): balance ${usd6(BigInt(cleared.d.balance6))}${claim}`);
+    else if (c.how === "lapsed") say(`no live lease (quorum, blocks ${c.firstBlock}..${cleared.block}): the source's lease ran out rather than being released; balance ${usd6(BigInt(cleared.d.balance6))}`);
+    else say(`no lease of the source any more (quorum, blocks ${c.firstBlock}..${cleared.block}): ${short(cleared.runner)} holds it${claim}`);
   } else say(`${short(id)} holds no live lease (${at}): asking ${short(target)} to claim it`);
   // the signed hint, repeated (idempotent) while the quorum is polled; only the ledger says where it landed
   let landed = null, last = "";

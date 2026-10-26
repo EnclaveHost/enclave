@@ -210,7 +210,7 @@ export function canonicalDirectConfig(raw) {
     isolation: { managerUrl: raw.isolation.managerUrl, dataAddr: raw.isolation.dataAddr },
     hostAdmissionSha256: raw.hostAdmissionSha256, controlPort,
     // optional and absent from every config written before it: those keep their exact canonical bytes and digest
-    ...(raw.leaseGas !== undefined ? { leaseGas: directLeaseGas(raw.leaseGas) } : {}),
+    ...(raw.leaseGas !== undefined ? { leaseGas: directLeaseGas(raw.leaseGas, { verifierBound: chainVerifier !== null }) } : {}),
     ...(mcp ? { mcp } : {}),
     ...(platformApi ? { platformApi } : {}),
     ...(ownerNomination ? { ownerNomination } : {}),
@@ -496,9 +496,9 @@ export function directNativeLaunch(cfg, { paths = GUEST_PATHS } = {}) {
 }
 // The bound lease-gas member: exactly a conduit transit (lease-gas-conduit.mjs leaseGasTransit makes one from the host form),
 // re-checked as PUBLISHED (an owner document a verifier recomputes: no RPC query, which could hold a key), chain 8453.
-function directLeaseGas(raw) {
+function directLeaseGas(raw, { verifierBound = false } = {}) {
   let t;
-  try { t = checkTransit(raw, { published: true }); } catch (e) { bad(`leaseGas: ${e.message}`); }
+  try { t = checkTransit(raw, { published: true, verifierBound }); } catch (e) { bad(`leaseGas: ${e.message}`); }
   if (t.chainId !== CHAIN_ID) bad(`leaseGas: the deployment record is for chain ${t.chainId}, not ${CHAIN_ID}`);
   if (canonicalJson(t) !== canonicalJson(raw)) bad('leaseGas must be written in its checked form (lease-gas-conduit.mjs leaseGasTransit)');
   return JSON.parse(canonicalJson(t));
@@ -575,7 +575,7 @@ export function directSupervisorEnv(cfg, { paths = GUEST_PATHS, capacity = {}, s
   delete env[CARRIERS_ENV];
   if (cfg.platformPolicyCarriers) env[CARRIERS_ENV] = canonicalJson(cfg.platformPolicyCarriers);
   // app-funded lease gas: only from the bound config (never flavor or host policy), absent = none of these names at all
-  const out = { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null),
+  const out = { ...withLeaseGasEnv(env, cfg.leaseGas ? leaseGasGuest(cfg.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true, verifierBound: !!cfg.chainVerifier }) : null),
     // the owner nomination: only from the bound config, absent = no such name
     ...ownerNominationEnv(cfg.ownerNomination || null) };
   // the chain authority: ONLY from the bound chainVerifier (the local verifier this guest starts before the supervisor, and
@@ -724,7 +724,7 @@ export async function planDirectBoot({ cmdline, fw = {}, reportHostData = '', ca
   if (problems.length) return { ok: false, reasons: problems.map((p) => `derived environment: ${p}`), mode, digest, hostData };
   const carrierProblem = await supervisorCarrierProblem(env, paths.hostAdmissionBundle || GUEST_PATHS.hostAdmissionBundle);
   if (carrierProblem) return { ok: false, reasons: [`platformPolicyCarriers: ${carrierProblem}`], mode, digest, hostData };
-  const leaseGas = config.leaseGas ? leaseGasGuest(config.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true }) : null;
+  const leaseGas = config.leaseGas ? leaseGasGuest(config.leaseGas, { recordFile: paths.leaseGasRecord || LEASE_GAS_RECORD, published: true, verifierBound: !!config.chainVerifier }) : null;
   if (leaseGas && !leaseGas.ok) return { ok: false, reasons: [`leaseGas: ${leaseGas.reason}`], mode, digest, hostData };
   const files = { [paths.pins]: JSON.stringify(contractPinsDoc(config)), [paths.pairKey]: fw.isolation.pairingKey + '\n',
     ...(config.replicas.storagePlan ? { [paths.storagePlan]: JSON.stringify(config.replicas.storagePlan) } : {}),

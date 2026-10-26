@@ -32,7 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseWaf } from "./waf.mjs";
 import { planCheckpoints } from "./verification-checkpoints.mjs";
-import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openReleaseJournal } from "./lease-gas-runtime.bundle.mjs";
+import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openReleaseJournal, chainAuthorityFromEnv, refusingChainAuthority } from "./lease-gas-runtime.bundle.mjs";
 
 // five public RPCs: the privacy agent wants 2 agreeing (network/lease-reader.mjs) and drpc / mainnet.base.org rate-limit often
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org")
@@ -310,6 +310,15 @@ export const setPrices = (id, cpuPricePerSec6, gpuPricePerSec6) =>
 const leaseGasEnv = Object.freeze(Object.fromEntries(Object.entries(process.env)
   .filter(([key]) => /^(ENCLAVE_)?LEASE_GAS_/.test(key))));
 let leaseGas = null, leaseJournal = null, onLeaseSigned = null, leaseRelayPolicy;   // undefined: not set by the host yet
+// The host's explicit chain authority for app-funded lease reads, exactly as supervisor.js:327-331: ENCLAVE_CHAIN_AUTHORITY=verifier +
+// ENCLAVE_CHAIN_VERIFIER (network/chain-authority.mjs) -> every lease read goes to that ONE local verifier and ENCLAVE_LEASE_GAS_RPCS
+// is never contacted; an INVALID selection refuses every lease read (no provider is used); unset -> null -> the legacy RPC quorum,
+// unchanged. (leaseGasEnv above holds only LEASE_GAS_ names, so the authority could never be found inside it.)
+const LEASE_CHAIN_AUTHORITY = (() => {
+  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
+  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every app-funded lease read refuses; no provider is used`);
+              return refusingChainAuthority(e.message, { chain: base }); }
+})();
 // until the host sets its platform host policy, a discovered relay is refused (null is set only when it is explicitly off)
 const RELAY_POLICY_UNSET = async () => { throw new Error("this host has not set its platform host policy: no discovered relay is admitted"); };
 /** The host's platform host policy for designated relays (host.mjs passes its policy gate, a refusing decider when on but
@@ -321,7 +330,7 @@ function leaseSender() {
   if (!leaseGasActive()) return null;
   if (!acct) throw new Error("no operator key on this box");
   if (!leaseGas) {
-    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings() });
+    const config = loadLeaseGasConfig({ env: leaseGasEnv, ...leaseBindings(), chainAuthority: LEASE_CHAIN_AUTHORITY });
     leaseGas = configuredLeaseSender({ config, account: acct, getBindings: leaseBindings, relayPolicy: leaseRelayPolicy === undefined ? RELAY_POLICY_UNSET : leaseRelayPolicy,
       onSigned: (s) => (onLeaseSigned ? onLeaseSigned(s) : undefined) });
   }
