@@ -25,28 +25,60 @@ const ID = /^0x[0-9a-f]{64}$/;
 export const RETIRED_KEYS = ["nknRpc", "inventory", "control", "runtime", "defaults", "tunaUSDC", "currencyManagement"];
 
 /** The privacy agent's config for this box, apps empty (the NucBox's production shape). */
+/** The privacy agent's `chain` (network/privacy-agent.mjs: LeaseReader({...cfg.chain}), the provider bootstrap, the network host):
+ *  - the node's explicit verifier (chain.mjs chainAuthoritySelection() {authority:'verifier', verifier}): exactly
+ *    {addressBook, authority, verifier} - validated by the agent's own lease-reader.mjs chainAuthorityOptions, and NO rpc;
+ *  - an INVALID node selection ({invalid}): {addressBook} only - no RPC at all, so the agent's readers refuse (never public);
+ *  - legacy (null): {addressBook, rpc}, unchanged. A selection carrying both a verifier and RPCs is refused (never mixed). */
+export function agentChain({ addressBook, chainRpc, chainAuthority = null }) {
+  if (chainAuthority === null || chainAuthority === undefined) return { addressBook, rpc: chainRpc };
+  if (typeof chainAuthority !== "object" || Array.isArray(chainAuthority)) throw new Error("invalid chain authority selection for the agent");
+  if (Array.isArray(chainRpc) && chainRpc.length) throw new Error("the node selected its own chain authority but RPCs were also passed: never mixed");
+  if (chainAuthority.invalid !== undefined) return { addressBook };
+  // the same rule as the agent's own check (network/lease-reader.mjs chainAuthorityOptions + verifierEndpoint): authority
+  // 'verifier' with a LOOPBACK http(s) URL; the agent validates it again before building any reader
+  if (chainAuthority.authority !== "verifier") throw new Error("the agent's chain authority must be verifier");
+  let u; try { u = new URL(String(chainAuthority.verifier)); } catch { throw new Error("the agent's chain verifier must be a URL"); }
+  const loop = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(u.hostname) || u.hostname === "[::1]";
+  if ((u.protocol !== "http:" && u.protocol !== "https:") || !loop || u.username || u.password || u.search || u.hash)
+    throw new Error("the agent's chain verifier must be a loopback http(s) URL without credentials, query or fragment");
+  return { addressBook, authority: "verifier", verifier: u.href };
+}
 export function baseConfig({ agentDir, binDir, nodeBinary, operatorKeyFile, runner, endpoint, relayBase, policyFile, tpmBinary, tpmSha256,
-                             addressBook, chainRpc, manager = "http://127.0.0.1:8091", dataAddr = "127.0.0.1:8092", upstream = "http://127.0.0.1:9600",
+                             addressBook, chainRpc, chainAuthority = null, manager = "http://127.0.0.1:8091", dataAddr = "127.0.0.1:8092", upstream = "http://127.0.0.1:9600",
                              enclaveNetwork }) {
   return { version: 2, directory: path.join(agentDir, "state"), operatorKeyFile, runner, endpoint, apps: [],
-    chain: { addressBook, rpc: chainRpc }, upstream,
+    chain: agentChain({ addressBook, chainRpc, chainAuthority }), upstream,
     shield: { policyFile, tpmBinary, tpmSha256, ingress: { url: manager, dataAddr }, manager },
     dns: [{ address: "1.1.1.1:443", serverName: "cloudflare-dns.com", path: "/dns-query" }, { address: "8.8.8.8:443", serverName: "dns.google", path: "/resolve" }],
     mirror: relayBase, enclaveNetwork: networkConfig({ binDir, nodeBinary, relayBase, ...enclaveNetwork }) };
 }
 
 /** The privacy agent's enclaveNetwork section: every app, the box's own control circuits, the bundled binaries. */
-export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid, directories }) {
+export function networkConfig({ binDir, nodeBinary, relayBase, checkers, paid, directories, egressProbeUrls }) {
   const bin = (f) => path.join(binDir, f);
   if (!Array.isArray(checkers) || !checkers.length || checkers.some((c) => !/^0x[0-9a-f]{40}$/.test(c))) throw new Error("Enclave network: trusted checker addresses required");
   return { relay: relayBase, checkers, apps: "all", control: true, wgBinary: bin("enclave-wg.exe"), nodeBinary,
     workerModule: bin("windows-circuit-worker.mjs"), firewallBinary: bin("enclave-circuit-firewall.exe"),
     ...(directories ? { directories: validDirectories(directories) } : {}),
+    // egress connectivity probes (only set under the node's explicit chain authority, where no chain RPC exists to derive them from)
+    ...(egressProbeUrls ? { egressProbeUrls: validProbeUrls(egressProbeUrls) } : {}),
     // paid providers (used only for apps whose owners authorized them on chain): this box's registry proof key signs
     // the bandwidth receipts, its operator key pays the settlement gas; up to 0.01 USDC per provider is settled in a batch
-    ...(paid ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, rpc: paid.rpc || "https://base-rpc.publicnode.com", maxPending6: paid.maxPending6 || "10000" } } : {}) };
+    // paid settlement: legacy -> its HTTPS RPC (default unchanged); under the node's explicit chain authority (paid.txBackend
+    // present) -> the own transaction backend, NO rpc (network/paid-network.mjs settlementChain: verifier reads + receipts,
+    // gated submission); under the authority without an own backend (txBackend null) paid settlement is NOT configured -
+    // nothing could be submitted, and no public RPC is used instead
+    ...(paid && paid.txBackend === undefined ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, rpc: paid.rpc || "https://base-rpc.publicnode.com", maxPending6: paid.maxPending6 || "10000" } } : {}),
+    ...(paid && typeof paid.txBackend === "string" && paid.txBackend ? { paid: { proofKeyFile: paid.proofKeyFile, gasKeyFile: paid.gasKeyFile, txBackend: paid.txBackend, maxPending6: paid.maxPending6 || "10000" } } : {}) };
 }
 
+export function validProbeUrls(values) {
+  if (!Array.isArray(values) || !values.length || values.length > 8) throw new Error("1..8 egress probe URLs required");
+  return values.map((value) => { const u = new URL(value);
+    if (u.protocol !== "https:" || u.username || u.password || u.hash) throw new Error("egress probes require HTTPS without credentials or fragments");
+    return u.href; });
+}
 export function validDirectories(values) {
   if (!Array.isArray(values) || !values.length || values.length > 8) throw new Error("1..8 public directory origins required");
   return [...new Set(values.map(value => {
@@ -114,7 +146,19 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     // and on k11-4 two of its three public RPCs rate-limited, so 2 of 3 agreeing failed most rounds (2026-10-18). The agent
     // reads them at start, so a change restarts it once.
     const rpcs = Array.isArray(config.chainRpc) ? config.chainRpc.filter((u) => /^https:\/\//.test(String(u))) : [];
-    if (!fresh && rpcs.length >= 2 && JSON.stringify(cfg.chain?.rpc || []) !== JSON.stringify(rpcs)) {
+    // under the node's explicit chain authority the agent's chain is exactly agentChain(): the old public rpc list (and any
+    // stale selection) is removed, never kept beside the verifier; a change restarts the agent once
+    if (!fresh && config.chainAuthority) {
+      const want = agentChain({ addressBook: cfg.chain?.addressBook ?? config.addressBook, chainRpc: [], chainAuthority: config.chainAuthority });
+      if (JSON.stringify(cfg.chain || {}) !== JSON.stringify(want)) {
+        cfg.chain = want; switched = true; changed = true;
+        log(want.authority ? `chain: the node's local verifier ${new URL(want.verifier).host} (no public RPC)` : "chain: the node's chain authority selection is INVALID - no RPC is configured, the agent's chain reads refuse");
+      }
+    } else if (!fresh && rpcs.length >= 2 && cfg.chain?.authority !== undefined) {
+      // back to legacy: drop the verifier selection explicitly and take the node's list
+      cfg.chain = { addressBook: cfg.chain.addressBook, rpc: rpcs }; switched = true; changed = true;
+      log(`chain: legacy RPCs ${rpcs.map((u) => new URL(u).host).join(", ")} (the verifier selection was removed)`);
+    } else if (!fresh && rpcs.length >= 2 && JSON.stringify(cfg.chain?.rpc || []) !== JSON.stringify(rpcs)) {
       cfg.chain = { ...(cfg.chain || {}), rpc: rpcs }; switched = true; changed = true;
       log(`chain RPCs now ${rpcs.map((u) => new URL(u).host).join(", ")}`);
     }

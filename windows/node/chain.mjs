@@ -38,8 +38,48 @@ import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openRele
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
-/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). */
-export const rpcUrls = () => [...RPCS];
+// THE LOCAL VERIFIER (the operator's explicit ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER, network/chain-authority.mjs),
+// exactly as supervisor.js:323-339: every chain read of this node (publicClient, the operator wallet's preparation, receipts,
+// logs, the shielded startup reader) is proven by the local verifier (the unsafe tier: its sequencer-signed head chain);
+// submissions and the pending-pool nonce/fee hints go to the operator's OWN backend (ENCLAVE_CHAIN_TX_BACKEND) only, bound to
+// the verifier's chain before each send; a transaction is never sent to the verifier, and nothing - not BASE_RPCS, not a
+// public default - is contacted. An INVALID selection refuses every chain read and transaction. Unset: the RPC list above.
+const CHAIN_AUTHORITY = (() => {
+  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
+  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every chain read and transaction refuses; no provider is used`);
+              return refusingChainAuthority(e.message, { chain: base }); }
+})();
+const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
+if (CHAIN_AUTHORITY) { const d = CHAIN_AUTHORITY.describe();
+  console.log(`[chain] authority: ${d.authority === "refusing" ? "REFUSING (" + d.why + ")" : `local verifier ${d.verifier} (unsafe tier, no L1 finality); `
+    + (d.backend ? `submissions and pool/fee hints via the own backend ${d.backend.label} (bound to the verifier's chain before each send)` : "no own transaction backend: nothing is submitted")
+    + "; logs prove inclusion only; no provider RPC is used"}`); }
+/** The node's explicit chain authority (null = the legacy RPC list). Its .client is ONE authority (VERIFIER_CLIENT). */
+export const chainAuthority = () => CHAIN_AUTHORITY;
+/** The selection to hand to a separate process (the privacy agent's chain config): null in legacy mode,
+ *  {authority: 'verifier', verifier} for a valid explicit selection, {invalid: why} for an invalid one (never a public list). */
+export function chainAuthoritySelection() {
+  if (!CHAIN_AUTHORITY) return null;
+  const d = CHAIN_AUTHORITY.describe();
+  if (d.authority === "refusing") return { invalid: String(d.why || "invalid chain authority selection") };
+  return { authority: "verifier", verifier: String(process.env.ENCLAVE_CHAIN_VERIFIER || "").trim() };
+}
+/** The operator's own transaction backend under a VALID explicit authority (for the agent's paid settlement), else null. */
+export function ownTxBackend() {
+  if (!CHAIN_AUTHORITY || CHAIN_AUTHORITY.describe().authority === "refusing") return null;
+  return String(process.env.ENCLAVE_CHAIN_TX_BACKEND || "").trim() || null;
+}
+/** HTTPS origins the privacy agent may probe for EGRESS CONNECTIVITY only (network/egress-probes.mjs: "not an authority over
+ *  leases or app identity"); legacy derived them from its chain RPCs. Under the explicit authority no chain RPC exists, so the
+ *  configured list's origins are handed over explicitly for that purpose alone (ENCLAVE_NETWORK_EGRESS_PROBES overrides). */
+export function connectivityProbeUrls() {
+  const own = String(process.env.ENCLAVE_NETWORK_EGRESS_PROBES || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const list = own.length ? own : RPCS;
+  return [...new Set(list.filter((u) => /^https:\/\//.test(u)).map((u) => new URL(u).origin + "/"))].slice(0, 8);
+}
+/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). Under an explicit chain
+ *  authority there are NONE: no public RPC list is handed to any consumer (each uses chainAuthority()/chainAuthoritySelection()). */
+export const rpcUrls = () => (CHAIN_AUTHORITY ? [] : [...RPCS]);
 /** The EnclaveAddressBook this node resolves contracts from (session-api-auth.mjs reads sessionVaultFactory there). */
 export const addressBook = () => BOOK;
 
@@ -135,7 +175,7 @@ let pub = null, acct = null, wal = null;
 const keyOf = (name) => pad(stringToHex(name), { dir: "right", size: 32 });
 
 export function publicClient() {
-  if (!pub) pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
+  if (!pub) pub = createPublicClient({ chain: base, transport: rpcTransport() });
   return pub;
 }
 /** The operator key: generated on THIS box, never leaves it, and controls nothing but this row. */
@@ -146,7 +186,7 @@ export function loadOperator(keyFile) {
   if (!hex) return null;
   if (!/^0x[0-9a-fA-F]{64}$/.test(hex)) throw new Error("operator key must be 0x + 64 hex chars");
   acct = privateKeyToAccount(hex);
-  wal = createWalletClient({ account: acct, chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
+  wal = createWalletClient({ account: acct, chain: base, transport: rpcTransport() });
   return acct;
 }
 export function newOperatorKey(keyFile) {
@@ -216,6 +256,9 @@ const TRANSIENT = /nonce.*(lower|too low)|replacement transaction underpriced|al
 async function send(address, abi, functionName, args) {
   const job = async () => {
     if (!wal) throw new Error("no operator key on this box");
+    // under the explicit authority: the verifier's head is fresh and the own backend is bound to its chain, or nothing is
+    // simulated, signed or sent (refused in words). Legacy: nothing here, exactly as before.
+    if (CHAIN_AUTHORITY) await CHAIN_AUTHORITY.actionGate({ what: functionName, submit: true });
     for (let attempt = 0; ; attempt++) {
       try {
         await publicClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
@@ -262,11 +305,7 @@ let leaseGas = null, leaseJournal = null, onLeaseSigned = null, leaseRelayPolicy
 // ENCLAVE_CHAIN_VERIFIER (network/chain-authority.mjs) -> every lease read goes to that ONE local verifier and ENCLAVE_LEASE_GAS_RPCS
 // is never contacted; an INVALID selection refuses every lease read (no provider is used); unset -> null -> the legacy RPC quorum,
 // unchanged. (leaseGasEnv above holds only LEASE_GAS_ names, so the authority could never be found inside it.)
-const LEASE_CHAIN_AUTHORITY = (() => {
-  try { return chainAuthorityFromEnv(process.env, { chain: base }); }
-  catch (e) { console.error(`[chain] the chain authority selection is INVALID (${e.message}): every app-funded lease read refuses; no provider is used`);
-              return refusingChainAuthority(e.message, { chain: base }); }
-})();
+const LEASE_CHAIN_AUTHORITY = CHAIN_AUTHORITY;   // the same explicit selection as every other chain read here
 // until the host sets its platform host policy, a discovered relay is refused (null is set only when it is explicitly off)
 const RELAY_POLICY_UNSET = async () => { throw new Error("this host has not set its platform host policy: no discovered relay is admitted"); };
 /** The host's platform host policy for designated relays (host.mjs passes its policy gate, a refusing decider when on but

@@ -278,6 +278,61 @@ export function quorumReader({ clients, chainId = 8453, confirmations = 2, maxBl
     },
   };
 }
+// THE SAME READER CONTRACT over the node's explicit local verifier (network/chain-authority.mjs, chain.mjs chainAuthority()):
+// ONE authority whose state is proven against the block, not voted on - so instead of two agreeing peers it requires the
+// client to carry the in-process VERIFIER_CLIENT mark (Symbol.for, set only by createChainAuthority; a JSON value or an
+// ordinary RPC client can never carry it). Every per-read policy of quorumReader is kept: the chain id, the target block
+// = head - confirmations, never below a block already accepted, the block read before AND after the value with the same
+// hash and timestamp (a reorg during the read refuses), freshness at both ends, and the deadline. No fallback: a failure
+// is a refusal. (The verifier's tier is its sequencer-signed head chain: unsafe, no L1 finality.)
+const VERIFIER_MARK = Symbol.for("enclave.chain-authority.local-verifier");
+export function verifierReader({ client, chainId = 8453, confirmations = 2, maxBlockAgeMs = 90_000, deadlineMs = 30_000, now = Date.now }) {
+  if (!client || typeof client !== "object" || !client[VERIFIER_MARK]) throw new Error("the single-authority reader needs the node's local verifier client (one RPC never decides what the chain says)");
+  if (PEER_METHODS.some((m) => typeof client[m] !== "function")) throw new Error(`the verifier client needs ${PEER_METHODS.join(", ")}`);
+  if (!inRange(chainId, 1, Number.MAX_SAFE_INTEGER)) throw new Error("chainId must be a positive integer");
+  if (!inRange(confirmations, 1, 1000)) throw new Error("confirmations must be a whole number from 1 to 1000");
+  if (!inRange(maxBlockAgeMs, 1000, 3_600_000)) throw new Error("maxBlockAgeMs must be a whole number of ms from 1 s to 1 h");
+  if (!inRange(deadlineMs, 100, 600_000)) throw new Error("deadlineMs must be a whole number of ms from 0.1 s to 10 min");
+  if (typeof now !== "function") throw new Error("now must be a function");
+  const conf = BigInt(confirmations);
+  let lastBlock = 0n;
+  const why = (e) => redactUrls(String(e?.shortMessage || e?.message || e)).slice(0, 300);
+  const fresh = (t) => Number.isSafeInteger(t) && t <= now() + 5000 && t + maxBlockAgeMs > now();
+  const checkBlock = (b, at) => {
+    let n, t;
+    try { n = BigInt(b.number); t = Number(BigInt(b.timestamp)) * 1000; } catch { throw new Error("malformed chain block"); }
+    if (n !== at) throw new Error(`asked for block ${at}, got block ${n}`);
+    if (typeof b.hash !== "string" || !BLOCK_HASH.test(b.hash)) throw new Error("malformed chain block hash");
+    if (!Number.isSafeInteger(t)) throw new Error("malformed chain block timestamp");
+    return { hash: b.hash.toLowerCase(), t };
+  };
+  return {
+    single: true,
+    async agreed(fn, failures = []) {
+      const stop = new AbortController();
+      let timer;
+      const deadline = new Promise((_, reject) => { timer = setTimeout(() => { stop.abort(); reject(new Error(`no fresh verified chain read within ${deadlineMs / 1000} s${failures.length ? `: ${failures.join("; ")}` : ""}`)); }, deadlineMs); });
+      const read = (async () => {
+        const [id, number] = await Promise.all([client.getChainId(), client.getBlockNumber({ cacheTime: 0 })]);
+        if (Number(id) !== chainId) throw new Error(`wrong chain ${id}`);
+        let at = BigInt(number) - conf;
+        if (at < 0n) throw new Error("no confirmed block yet");
+        if (at < lastBlock) at = lastBlock;                 // never roll back below a block already accepted
+        const first = checkBlock(await client.getBlock({ blockNumber: at }), at);
+        if (!fresh(first.t)) throw new Error("stale chain block");
+        const value = await fn(client, at, stop.signal);
+        const again = checkBlock(await client.getBlock({ blockNumber: at }), at);
+        if (again.hash !== first.hash || again.t !== first.t) throw new Error("chain reorganized during read");
+        if (!fresh(first.t)) throw new Error("chain block went stale during the read");
+        if (at > lastBlock) lastBlock = at;
+        return value;
+      })();
+      try { return await Promise.race([read, deadline]); }
+      catch (e) { failures.push(why(e)); throw new Error(`verified chain read refused: ${why(e)}`); }
+      finally { clearTimeout(timer); stop.abort(); read.catch(() => {}); }
+    },
+  };
+}
 /** viem clients for two or more RPCs on distinct hosts (one operator's two URLs are one RPC). */
 export async function rpcClients(rpcs) {
   if (!Array.isArray(rpcs) || rpcs.length > MAX_PEERS) throw new Error(`at most ${MAX_PEERS} RPCs`);

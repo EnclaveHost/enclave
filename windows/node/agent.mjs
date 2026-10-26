@@ -1061,14 +1061,17 @@ async function startHostingControls() {
             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
-                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(), chainAuthority: chainMod.chainAuthoritySelection(),
                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
                       // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
                       // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
                       enclaveNetwork: { checkers: String(process.env.ENCLAVE_NETWORK_CHECKERS || '').toLowerCase().split(',').map((c) => c.trim()).filter(Boolean),
                         ...(ID.networkDirectories.length ? { directories: ID.networkDirectories } : {}),
+                        // under the explicit chain authority the agent has no chain RPC to derive egress probes from: hand it the
+                        // connectivity-only probe origins explicitly (chain.mjs connectivityProbeUrls)
+                        ...(chainMod.chainAuthority() && chainMod.connectivityProbeUrls().length ? { egressProbeUrls: chainMod.connectivityProbeUrls() } : {}),
                         // the box's registry proof key and operator key, beside each other here (keys.mjs): paid providers settle with them
-                        ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key') } } : {}) } },
+                        ...(fs.existsSync(path.join(DIR, 'proof.key')) && fs.existsSync(path.join(DIR, 'operator.key')) ? { paid: { proofKeyFile: path.join(DIR, 'proof.key'), gasKeyFile: path.join(DIR, 'operator.key'), ...(chainMod.chainAuthority() ? { txBackend: chainMod.ownTxBackend() } : {}) } } : {}) } },
             // a box whose network configuration changes restarts its network agent once (the \Enclave\Network task starts it again in 10 s)
             restartAgent: async () => { const { execFile } = await import('node:child_process'); await new Promise((res) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
               "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'privacy-agent\\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],

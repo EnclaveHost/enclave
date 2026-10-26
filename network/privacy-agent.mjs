@@ -252,7 +252,7 @@ export async function runPrivacy(configFile){
   if(cfg.enclaveNetwork.control===true){wgControl=new WgControlTransport({runtime:network.runtime,providers:network.providers,
     probeUrls:(cfg.enclaveNetwork.directories||[cfg.enclaveNetwork.relay]).map(origin=>new URL('/v1/network/providers',origin).href),log});await wgControl.start();}
   // paid providers (enclaveNetwork.paid): the lease must carry the on-chain connectivity authorization
-  paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,providers:network.providers,fetchFn:networkFetch,log}):null;
+  paid=cfg.enclaveNetwork.paid?await createPaidNetwork({config:cfg.enclaveNetwork.paid,directory:path.join(cfg.directory,'paid'),leaseReader,chainVerifier:cfg.chain?.authority==='verifier'?cfg.chain.verifier:undefined,providers:network.providers,fetchFn:networkFetch,log}):null;
   agent=new PrivacyAgent({apps,runner:cfg.runner,account,leaseReader,directory:cfg.directory,dns:cfg.dns,network,paid,log,
     // the route publisher attaches the host's direct-hosting qualification to a direct route (v5)
     qualification:network.direct?.envelope,
