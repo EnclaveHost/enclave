@@ -1,0 +1,20 @@
+{
+ "counts": {
+  "errors": 0,
+  "expectedFailures": 0,
+  "failures": 0,
+  "skipped": 1,
+  "testsRun": 33,
+  "unexpectedSuccesses": 0
+ },
+ "expectedTests": "any",
+ "failureDetails": [],
+ "format": "historical-origin-segments-test-receipt/v2",
+ "modules": [
+  "test_coverage_activation"
+ ],
+ "notPassed": [
+  "setUpClass (test_coverage_activation.RealManifest)"
+ ],
+ "pass": false
+}

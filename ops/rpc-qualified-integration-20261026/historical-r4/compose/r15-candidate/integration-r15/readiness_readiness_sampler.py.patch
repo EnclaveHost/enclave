@@ -1,0 +1,92 @@
+--- a/readiness/readiness_sampler.py
++++ b/readiness/readiness_sampler.py
+@@ -352,8 +352,79 @@
+     return True
+ 
+ 
++# ---- N-anchored segmented coverage (historical-origin-segments-stage/r4): the SAME verification core the wrapper runs ----------
++ANCHORED_COVERAGE_LIB = '/opt/enclave-rpc/lib/anchored-coverage'
++ANCHORED_COVERAGE_PINS = {
++    'anchored_origin.py': 'ed1a547d4d8aea112cae66479c64cd9e556b531063ef361c9b156c6d2948ddfa',
++    'segments.py': '8764f5cc55cc42307eadbe71695bb986ca5fa86c07db671553d50d0635c51aa1',
++    'anchored_acceptance.py': 'cb68413866d0534822bdfc37702e253acfe04abad30d98e34b2231595518138d'}
++ANCHORED_A1_SHA256 = 'b9a90847bb3f779262681cabc35af64d7c3b785c9ad5cd2b99e9700b9725256c'   # the source-pinned original A1 receipt (N 52866960)
++ANCHORED_SEQ_WINDOW = BASE_SEQ_WINDOW                         # need_from = l1Origin(N) - 3600 (the same Base seq_window_size)
++
++
++def _anchored_lib(owner):
++    """Load the pinned verification modules from the root-owned library (no symlink, not group/other writable, exact bytes)."""
++    st = os.lstat(ANCHORED_COVERAGE_LIB)
++    if not (stat.S_ISDIR(st.st_mode) and st.st_uid == owner and not st.st_mode & 0o022):
++        raise Negative('anchored-verifier-not-pinned', 'anchored coverage library directory is not operator-controlled')
++    mods = {}
++    for name in ('anchored_origin.py', 'segments.py', 'anchored_acceptance.py'):   # dependency order
++        p = os.path.join(ANCHORED_COVERAGE_LIB, name)
++        fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++        with os.fdopen(fd, 'rb') as f:
++            fs = os.fstat(f.fileno())
++            raw = f.read(1 << 22)
++        if not (stat.S_ISREG(fs.st_mode) and fs.st_uid == owner and not fs.st_mode & 0o022) \
++                or hashlib.sha256(raw).hexdigest() != ANCHORED_COVERAGE_PINS[name]:
++            raise Negative('anchored-verifier-not-pinned', f'{name} is not the pinned, operator-owned verifier')
++        mod = type(sys)(name[:-3]); mod.__file__ = p
++        sys.modules[name[:-3]] = mod
++        exec(compile(raw, p, 'exec'), mod.__dict__)
++        mods[name] = mod
++    return mods['anchored_acceptance.py']
++
++
++def validate_anchored_coverage(a):
++    """--coverage-anchored-dir: header N authenticated by the original A1 output root, its L1 origin bound by the parent-beacon-root/
++    mixHash linkage, complete segmented coverage re-aggregated from root-owned evidence: exactly the wrapper's verification. The
++    binding has the legacy shape, so the live gate is unchanged: the running Base chain must serve block N with the authenticated
++    header hash, and the bound L1 origin must be canonical on our L1."""
++    if a.expect_anchored_receipt_sha256 is None:
++        raise Unavailable('anchored-receipt-pin-absent', '--expect-anchored-receipt-sha256 (root pin of receipt.json) is required')
++    if a.expect_snapshot_manifest_sha256 is None or a.expect_chain_config_sha256 is None:
++        raise Unavailable('expected-identity-absent',
++                          '--expect-snapshot-manifest-sha256 and --expect-chain-config-sha256 must be pinned by root')
++    try:
++        aa = _anchored_lib(a.coverage_owner_uid)
++    except OSError as e:
++        raise Unavailable('anchored-verifier-unavailable', f'anchored coverage library: {type(e).__name__}')
++    try:
++        b = aa.verify_anchored_evidence(a.coverage_anchored_dir, a.coverage_owner_uid, a.expect_anchored_receipt_sha256,
++                                        a.expect_kzg_sha256, a.expect_base_sha256, ANCHORED_SEQ_WINDOW, ANCHORED_A1_SHA256, time.time())
++    except aa.Rejected as e:
++        if e.code == 'evidence-unreadable':
++            raise Unavailable('coverage-evidence-unreadable', e.detail)
++        raise Negative(e.code, e.detail)
++    rc = b['receipt']
++    if rc.get('snapshotManifestSha256') != a.expect_snapshot_manifest_sha256:
++        raise Negative('snapshot-identity-mismatch', 'receipt snapshot manifest differs from the expected pin')
++    if rc.get('chainConfigSha256') != a.expect_chain_config_sha256:
++        raise Negative('config-identity-mismatch', 'receipt chain config differs from the expected pin')
++    return {'mode': 'anchored-segments', 'receiptSha256': b['evidence']['receiptSha256'], 'aggregateSha256': b['evidence']['aggregateSha256'],
++            'snapshotSafe': {'number': b['anchor']['N'], 'hash': b['anchor']['headerHash']},
++            'snapshotSafeL1Origin': {'number': b['l1Origin']['number'], 'hash': b['l1Origin']['hash']},
++            'needFromBlock': b['l1Block'], 'toBlock': b['toBlock'], 'blobSlot': b['blobSlot'], 'anchor': b['anchor'],
++            'review': {'reviewer': _cut(b['review']['reviewer']), 'gateRunner': _cut(b['review']['gateRunner'])},
++            'trust': 'origin binding + availability (not consensus authority); evidence hash-bound to the root-pinned receipt; '
++                     'reviewer identity is unsigned'}
++
++
+ def validate_coverage_files(a):
+     """Static validation. Returns the binding the live check must confirm, or raises Unavailable/Negative."""
++    if getattr(a, 'coverage_anchored_dir', None) is not None:
++        if a.coverage_receipt is not None or a.coverage_verdict is not None or a.coverage_origin is not None:
++            raise Negative('coverage-mode-conflict', 'anchored coverage and the legacy receipt/verdict/origin are mutually exclusive')
++        return validate_anchored_coverage(a)
+     if a.coverage_receipt is None:
+         raise Unavailable('coverage-receipt-absent',
+                           'historical coverage UNCHECKED: root must attach an independently reviewed COVERED receipt')
+@@ -988,6 +1059,9 @@
+     for k, v in PORTS.items():
+         ap.add_argument(f'--{k}-port', type=int, default=v)
+     ap.add_argument('--coverage-receipt')
++    ap.add_argument('--coverage-anchored-dir', help='N-anchored segmented coverage evidence directory (root-owned)')
++    ap.add_argument('--expect-anchored-receipt-sha256', type=_sha_arg)
++    ap.add_argument('--coverage-owner-uid', type=int, default=0)
+     ap.add_argument('--finality-status', help='root-published finality_state status-publish file (gate post-anchor-finality)')
+     ap.add_argument('--finality-status-uid', type=int, default=0)
+     ap.add_argument('--max-finality-status-age', type=int, default=900)

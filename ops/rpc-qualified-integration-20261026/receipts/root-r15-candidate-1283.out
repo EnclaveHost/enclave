@@ -1,0 +1,26 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] START available=18382MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+r14 composition OK: 106 files byte-identical to r13-manifest-final; ['install/MANIFEST.json', 'producer/base_launch.py', 'recovery/forward_sync.py', 'src/finality_state.py', 'src/reproof.py', 'wrapper/chain_service.py'] + ['units/enclave-witness-bridge-base.service', 'units/enclave-witness-bridge-l1.service', 'witness/witness_rpc_bridge.py']
+r15 candidate = r14 (1ba2d51a) + ['install/MANIFEST.json', 'producer/base_launch.py', 'readiness/publish_readiness.py', 'readiness/readiness_sampler.py', 'recovery/forward_sync.py', 'src/finality_state.py', 'src/reproof.py', 'wrapper/chain_service.py'] + ['lib/anchored-coverage/anchored_acceptance.py', 'lib/anchored-coverage/anchored_origin.py', 'lib/anchored-coverage/segments.py']
+NOT REUSED readiness (candidate changes readiness_sampler/publish_readiness): ops-readiness 27 + sampler 93 run below
+HISTORY r12-final 0738 PASS (superseded: changed bytes); ops-followup-r2 0728 ops-installer 17/18, recovery-fixture-r2 FAIL, r3 0732 no-test: pinned, superseded; r3 0733 single PASS (informational)
+NOT REUSED recovery-existing 34 (old wrapper 4fc3b970): the new wrapper's existing 34-test suite runs in wrapper-pruned (49)
+REUSED JS core 20 (tap receipt)
+r13-manifest-final = r13-final except install/MANIFEST.json (stage)
+REUSED parser-recovery Ran 8 OK (receipt 23012c11e1dc)
+REUSED parser-first Ran 8 OK (receipt 23012c11e1dc)
+REUSED capture-closure Ran 14 OK (receipt d572c9ee6c76)
+REUSED cold-proof (0918 receipt b8fc0e8e)
+Traceback (most recent call last):
+  File "<stdin>", line 8, in <module>
+AssertionError: [("'9ecaa494ed3a4cb6d12311bb481acc4631f52382f726dfb2e440994ead11eb2d')", 'src/reproof.py')]
+## SETUP: source pins / manifest closure
+## finality-r13 rc=9
+[memory-guard] exit=9 peakTreeRssMiB=4 minHostAvailableMiB=18361
+[memory-guard] at peak: bash:4
+[queue] EXIT 9

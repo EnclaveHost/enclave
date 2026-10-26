@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic
+ok 1 - a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic
+  ---
+  duration_ms: 4.88239
+  type: 'test'
+  ...
+# Subtest: stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes
+ok 2 - stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes
+  ---
+  duration_ms: 0.989654
+  type: 'test'
+  ...
+# Subtest: ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards
+ok 3 - ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards
+  ---
+  duration_ms: 302.41464
+  type: 'test'
+  ...
+# Subtest: inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical
+ok 4 - inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical
+  ---
+  duration_ms: 1.513741
+  type: 'test'
+  ...
+# Subtest: the explicit authority choice: quorum by default, verifier only when said, local only
+ok 5 - the explicit authority choice: quorum by default, verifier only when said, local only
+  ---
+  duration_ms: 0.862595
+  type: 'test'
+  ...
+# Subtest: service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors
+ok 6 - service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors
+  ---
+  duration_ms: 11.16269
+  type: 'test'
+  ...
+# Subtest: platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused
+ok 7 - platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused
+  ---
+  duration_ms: 0.764305
+  type: 'test'
+  ...
+# Subtest: the policy snapshot follows the configured authority, with quorumSnapshot's interface and result shape
+ok 8 - the policy snapshot follows the configured authority, with quorumSnapshot's interface and result shape
+  ---
+  duration_ms: 1.56528
+  type: 'test'
+  ...
+# Subtest: host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones
+ok 9 - host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones
+  ---
+  duration_ms: 1.855238
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 489.178839

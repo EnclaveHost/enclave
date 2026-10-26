@@ -1,0 +1,142 @@
+{
+ "new": {
+  "test/paid-derived-adapter.test.mjs": {
+   "rc": 0,
+   "tests": 15,
+   "pass": 15,
+   "fail": 0,
+   "skipped": 0,
+   "todo": 0,
+   "cancelled": 0
+  },
+  "expected": "15/15, nothing skipped"
+ },
+ "regression": {},
+ "mutants": {
+  "ancestry-hash-ignored": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "backend-binding-hash-ignored": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "stale head, forged tier, wrong chain, foreign pending: refused BEFORE anything is signed, recorded or sent",
+    "reorg: a receipt on a non-canonical fork is not a receipt; the same bytes land on the derived chain and resolve there"
+   ]
+  },
+  "consumed-offchain-hint-accepted-as-none": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "duplicate-call-signed-again": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "two back-to-back submissions: nonces P and P+1 from the proven nonce plus the own journal; an identical call is not signed twice"
+   ]
+  },
+  "foreign-pending-gate-removed": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "stale head, forged tier, wrong chain, foreign pending: refused BEFORE anything is signed, recorded or sent",
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  },
+  "journal-gap-at-proven-nonce-ignored": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  },
+  "journal-load-gap-accepted": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  },
+  "lost-bytes-not-rebroadcast": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "timeout, restart and re-broadcast: the journal survives; lost bytes are re-broadcast unchanged; the next nonce follows them",
+    "reorg: a receipt on a non-canonical fork is not a receipt; the same bytes land on the derived chain and resolve there"
+   ]
+  },
+  "nonce-consumed-reported-as-success": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 13,
+   "fail": 2,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed",
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "pending-costs-not-committed": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "two back-to-back submissions: nonces P and P+1 from the proven nonce plus the own journal; an identical call is not signed twice"
+   ]
+  },
+  "receipts-root-unverified": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header"
+   ]
+  },
+  "tx-root-check-removed": {
+   "rc": 1,
+   "tests": 15,
+   "pass": 14,
+   "fail": 1,
+   "killed": true,
+   "failed": [
+    "gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed"
+   ]
+  }
+ },
+ "ok": true
+}

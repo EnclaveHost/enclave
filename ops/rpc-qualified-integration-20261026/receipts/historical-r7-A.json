@@ -1,0 +1,21 @@
+{
+ "counts": {
+  "errors": 0,
+  "expectedFailures": 0,
+  "failures": 0,
+  "skipped": 0,
+  "testsRun": 54,
+  "unexpectedSuccesses": 0
+ },
+ "expectedTests": "54",
+ "failureDetails": [],
+ "format": "historical-origin-segments-test-receipt/v2",
+ "modules": [
+  "test_anchored_origin",
+  "test_segments",
+  "test_r3_integration",
+  "test_r5_continuation"
+ ],
+ "notPassed": [],
+ "pass": true
+}

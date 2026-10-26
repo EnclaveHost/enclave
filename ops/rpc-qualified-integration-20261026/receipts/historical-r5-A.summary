@@ -1,0 +1,67 @@
+usage: run_all.py [-h] --base-bin BASE_BIN --base-sha256 BASE_SHA256
+                  --datadir DATADIR --scratch SCRATCH --receipt RECEIPT
+                  --node NODE --out OUT [--timeout TIMEOUT]
+run_all.py: error: --out exists; refusing to overwrite evidence
+usage: run_all.py [-h] {plan,run-segment,aggregate} ...
+run_all.py: error: --out exists; refusing to overwrite evidence
+{"refused": "receipt: /tmp/hos-r5.52Rk7g/tmp7acw50x_/a1-evidence.json is not the pinned b9a90847bb3f"}
+{"verdict": "REFUSED", "refusal": {"code": "missing-data", "detail": "1 slots/blocks lack EL, receipt, beacon or blob data"}, "out": "/tmp/hos-r5.52Rk7g/tmp_h96ni1z/03-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/hos-r5.52Rk7g/tmp_h96ni1z/04-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpj7514l1l/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpj7514l1l/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp_qhmhs8w/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp_qhmhs8w/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpfcn3mer0/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpfcn3mer0/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp1kr84712/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp1kr84712/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgy6t13vg/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgy6t13vg/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpw1t4d00x/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpw1t4d00x/04-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/hos-r5.52Rk7g/tmp53qlq27k/03-seg0/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/hos-r5.52Rk7g/tmp53qlq27k/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcma5srvc/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcma5srvc/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpkvo5pddx/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpkvo5pddx/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgxkk2_ls/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgxkk2_ls/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgxkk2_ls/05-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgxkk2_ls/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpgxkk2_ls/09-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpeb8qhzfk/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpeb8qhzfk/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpe8ypyors/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpe8ypyors/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpzzn0tzga/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpzzn0tzga/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/03-cli-seg1/gate-report.json"}
+{"index": 1, "from": 1005, "to": 1008, "gateVerdict": "COVERED", "gateRefusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/03-cli-seg1"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/04-cli-seg0/gate-report.json"}
+{"index": 0, "from": 1000, "to": 1004, "gateVerdict": "COVERED", "gateRefusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/04-cli-seg0"}
+{"verdict": "COVERED_ALL_SEGMENTS", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/05-agg.json"}
+{"verdict": "REFUSED", "refusal": {"code": "partial-coverage", "detail": "segments [0] of 2 not supplied"}, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/06-agg2.json"}
+{"verdict": "REFUSED", "refusal": {"code": "receipt-not-pinned", "detail": "receipt: /tmp/hos-r5.52Rk7g/tmpa2_kcnbm/a1-evidence.json is not the pinned b9a90847bb3f"}, "out": "/tmp/hos-r5.52Rk7g/tmpi1nhl8tg/07-agg3.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcmceeb1g/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcmceeb1g/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcmceeb1g/07-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcmceeb1g/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcmceeb1g/09-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpcmceeb1g/10-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp927fba1r/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp927fba1r/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmplcc7924e/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmplcc7924e/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmplcc7924e/07-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmplcc7924e/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpwbdq62iz/seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpwbdq62iz/seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpu49zjwyu/seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmpu49zjwyu/seg1/gate-report.json"}
+{"starting": "base", "datadir": "/srv/enclave-base-holder/data", "publicExecutionRpc": false}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp3r5ii6uv/seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/hos-r5.52Rk7g/tmp3r5ii6uv/seg1/gate-report.json"}
+{"starting": "base", "datadir": "/tmp/hos-r5.52Rk7g/tmpvuiyybxd/tmpt16y4fsp/srv/data", "publicExecutionRpc": false}
+{"starting": "base", "datadir": "/tmp/hos-r5.52Rk7g/tmpach26g7i/tmp5zusm2kb/srv/data", "publicExecutionRpc": false}
+{"pass": false, "testsRun": 54, "failures": 1, "errors": 4, "skipped": 0, "expectedFailures": 0, "unexpectedSuccesses": 0}

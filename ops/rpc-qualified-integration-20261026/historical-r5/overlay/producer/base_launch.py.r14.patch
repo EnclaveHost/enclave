@@ -1,0 +1,87 @@
+--- /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-finality-proof-stage/r14-witness/producer/base_launch.py	2026-10-26 03:34:56.904023535 -0700
++++ overlay/producer/base_launch.py	2026-10-26 05:01:48.988529581 -0700
+@@ -662,7 +662,38 @@
+         os.close(fd)
+ 
+ 
+-def permit_restart(d, cfg_path, *, A, W, owner=0, top='/', now=None, watermark=None):
++def _floor_timestamp(header):
++    """historical-origin-segments-stage/r5: the floor block's own timestamp, from the header object whose keccak hash the caller checks
++    equals the recorded floor block (so it is bound by that proof, not by any saved clock). Quantity hex or int, never bool/float."""
++    v = header.get('timestamp') if isinstance(header, dict) else None
++    if isinstance(v, str) and re.fullmatch(r'0x[0-9a-f]{1,16}', v):
++        return int(v, 16)
++    if type(v) is int and v >= 0:
++        return v
++    refuse('floor_time', 'the floor header carries no well-formed timestamp')
++
++
++def _floor_a1_l1(F, finality_dir, lsha, wentry, top):
++    """historical-origin-segments-stage/r5: the EXACT L1 block (number, hash) that the qualified finality entry recorded for the floor's
++    A1 game (finality_state qualify -> evidence.a1.l1 = gate_a1 l1Finalized/l1Hash). The floor watermark entry's `ref` names that
++    finality entry; its evidence.fresh must be exactly the floor. This is the A1 L1 view, NOT the floor block's L1 origin (which no
++    qualified record binds)."""
++    try:
++        q = [e for e in F.entries(finality_dir, lsha, top) if e.get('sha') == wentry['ref']]
++    except F.Refused as e:
++        refuse('floor_record', str(e))
++    if len(q) != 1 or q[0].get('event') != 'qualified':
++        refuse('floor_record', 'the floor names no qualified finality entry of this launch')
++    ev = q[0].get('evidence') or {}
++    fresh, l1 = ev.get('fresh') or {}, (ev.get('a1') or {}).get('l1') or {}
++    if (fresh.get('N'), fresh.get('blockHash')) != (wentry['number'], wentry['blockHash']):
++        refuse('floor_record', 'the qualified entry is not for the recorded floor block')
++    if type(l1.get('number')) is not int or not re.fullmatch(r'0x[0-9a-f]{64}', str(l1.get('hash'))):
++        refuse('floor_record', 'the qualified entry binds no exact A1 L1 block (number, hash)')
++    return {'number': l1['number'], 'hash': l1['hash']}
++
++
++def permit_restart(d, cfg_path, *, A, W, owner=0, top='/', now=None, watermark=None, F=None):
+     """r5: bootstrapped|restarted -> restart-permitted, ONLY with the STOPPED DB proven at or above its latest recorded finality floor
+     by the REAL harness: the launch's DB file (dev/ino), gate_static (units stopped, pins, layout), EVERY stage checkpoint >= the
+     floor height, the DB header at the floor height hashing to the floor block, the file unchanged during the reads. Inode presence
+@@ -702,14 +733,24 @@
+             if any(type(v) is not int or v < fn for v in cps.values()):
+                 refuse('below_floor', f'stage checkpoints {cps} are below the recorded finality floor {fn}: the DB was rolled back (in place '
+                        'or restored); never served - rollback + re-anchor at or above the floor')
+-            got = A.header_hash(c, A.read_header(c, base, fn))
++            hdr = A.read_header(c, base, fn)
++            got = A.header_hash(c, hdr)
+         except A.Refused as e:
+             refuse('stopped_db', str(e))
+         if got != fh:
+             refuse('floor_conflict', f'the DB header at the floor height {fn} is not the recorded finality block: another chain')
++        # r5 (recorded, never a new refusal here, so the legacy permit is unchanged): the anchored-mode wrapper REQUIRES both for a
++        # continuation start and refuses on a recorded reason; legacy mode never reads them.
++        extra = {}
++        for key, fn_ in (('floorTimestamp', lambda: _floor_timestamp(hdr)),      # bound by got == fh above (the same header object)
++                         ('floorA1L1', lambda: _floor_a1_l1(F, d / 'finality', lsha, fe, top) if F is not None else refuse('floor_record', 'no finality tool given'))):
++            try:
++                extra[key] = fn_()
++            except (Refused, OSError, ValueError, KeyError, TypeError, AttributeError) as e:
++                extra[key + 'Unavailable'] = str(e)[:200]
+         if ident() != before:
+             refuse('db_changed', 'the DB file changed during the checks (the node is not stopped)')
+-        evidence = {'floor': {'entrySha256': fsha, 'number': fn, 'blockHash': fh}, 'checkpoints': cps, 'mdbx': before}
++        evidence = {'floor': {'entrySha256': fsha, 'number': fn, 'blockHash': fh}, 'checkpoints': cps, 'mdbx': before, **extra}
+         return _append(d, lsha, entries, 'restart-permitted', evidence, owner, top, now, W)
+     finally:
+         os.close(fd)
+@@ -731,7 +772,7 @@
+         return {'event': None, 'state': state, 'note': 'nothing to permit'}
+     if state not in ('bootstrapped', 'restarted'):
+         refuse('not_restartable', f'journal state {state!r}: no unattended restart (root rollback / re-anchor)')
+-    return permit_restart(d, cfg_path, A=A, W=W, owner=owner, top=top, now=now, watermark=watermark)
++    return permit_restart(d, cfg_path, A=A, W=W, owner=owner, top=top, now=now, watermark=watermark, F=F)
+ 
+ 
+ def quarantine(d, cfg_path, *, A, owner=0, top='/', W):
+@@ -908,7 +949,7 @@
+                 r = quarantine(argv[2], argv[3], A=A, W=W)
+             else:
+                 r = permit_restart_auto(argv[2], argv[3], A=A, W=W, F=load_finality(), watermark=W.BOOTSTRAP_WATERMARK) if argv[1] == 'permit-restart-auto' \
+-                    else permit_restart(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK)
++                    else permit_restart(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK, F=load_finality())
+         else:                                                            # rollback <launch-dir> <reason>
+             r = rollback(argv[2], argv[3], W=_installed_wrapper())
+     except (Refused, OSError, KeyError, IndexError) as e:

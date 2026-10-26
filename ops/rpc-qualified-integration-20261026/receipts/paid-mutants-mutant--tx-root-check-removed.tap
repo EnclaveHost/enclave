@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: config: explicit opt-in only; every invalid mix and every public fallback is refused; existing modes unchanged
+ok 1 - config: explicit opt-in only; every invalid mix and every public fallback is refused; existing modes unchanged
+  ---
+  duration_ms: 3.180148
+  type: 'test'
+  ...
+# Subtest: constructor and journal ownership: in-process reader only, the named executor only, one exclusive owner of the nonce journal
+ok 2 - constructor and journal ownership: in-process reader only, the named executor only, one exclusive owner of the nonce journal
+  ---
+  duration_ms: 32.688903
+  type: 'test'
+  ...
+# Subtest: end to end through ensureHost: signed at a derived block, resolved ONLY once a derived anchor covers the proven receipt
+ok 3 - end to end through ensureHost: signed at a derived block, resolved ONLY once a derived anchor covers the proven receipt
+  ---
+  duration_ms: 262.32652
+  type: 'test'
+  ...
+# Subtest: the proven receipt from ordinary eth methods on a SEPARATE history source: status, gas, logs; reverted stays reverted
+ok 4 - the proven receipt from ordinary eth methods on a SEPARATE history source: status, gas, logs; reverted stays reverted
+  ---
+  duration_ms: 163.756734
+  type: 'test'
+  ...
+# Subtest: ordinary-RPC transaction bodies re-encode to the signed bytes; a wrong or unknown body fails closed
+ok 5 - ordinary-RPC transaction bodies re-encode to the signed bytes; a wrong or unknown body fails closed
+  ---
+  duration_ms: 10.08395
+  type: 'test'
+  ...
+# Subtest: stale head, forged tier, wrong chain, foreign pending: refused BEFORE anything is signed, recorded or sent
+ok 6 - stale head, forged tier, wrong chain, foreign pending: refused BEFORE anything is signed, recorded or sent
+  ---
+  duration_ms: 69.418828
+  type: 'test'
+  ...
+# Subtest: two back-to-back submissions: nonces P and P+1 from the proven nonce plus the own journal; an identical call is not signed twice
+ok 7 - two back-to-back submissions: nonces P and P+1 from the proven nonce plus the own journal; an identical call is not signed twice
+  ---
+  duration_ms: 169.127607
+  type: 'test'
+  ...
+# Subtest: finalized advancement resolves a prefix only; the rest stays pending at the next proven nonce
+ok 8 - finalized advancement resolves a prefix only; the rest stays pending at the next proven nonce
+  ---
+  duration_ms: 182.663023
+  type: 'test'
+  ...
+# Subtest: timeout, restart and re-broadcast: the journal survives; lost bytes are re-broadcast unchanged; the next nonce follows them
+ok 9 - timeout, restart and re-broadcast: the journal survives; lost bytes are re-broadcast unchanged; the next nonce follows them
+  ---
+  duration_ms: 156.922451
+  type: 'test'
+  ...
+# Subtest: gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed
+not ok 10 - gap and conflict: a non-contiguous journal, a journal above the proven nonce, and an external use of a journal nonce all fail closed
+  ---
+  duration_ms: 69.345638
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T124458Z-mutants-1735945/patched/test/paid-derived-adapter.test.mjs:495:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/paid-derived-v3-composition-stage/runs/20261026T124458Z-mutants-1735945/patched/test/paid-derived-adapter.test.mjs:520:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: pipelined qualification: both attestations are submitted before the first proof; default (sequential) behaviour unchanged
+ok 11 - pipelined qualification: both attestations are submitted before the first proof; default (sequential) behaviour unchanged
+  ---
+  duration_ms: 258.967723
+  type: 'test'
+  ...
+# Subtest: forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header
+ok 12 - forged or tampered history never resolves a consumed nonce: off-chain, above-anchor or wrong-block hints, flipped status, altered body/list/header
+  ---
+  duration_ms: 310.279317
+  type: 'test'
+  ...
+# Subtest: reorg: a receipt on a non-canonical fork is not a receipt; the same bytes land on the derived chain and resolve there
+ok 13 - reorg: a receipt on a non-canonical fork is not a receipt; the same bytes land on the derived chain and resolve there
+  ---
+  duration_ms: 142.130834
+  type: 'test'
+  ...
+# Subtest: restart and the derived floor: an older or contradicting anchor is refused; a foreign-signed journal is refused
+ok 14 - restart and the derived floor: an older or contradicting anchor is refused; a foreign-signed journal is refused
+  ---
+  duration_ms: 33.278049
+  type: 'test'
+  ...
+# Subtest: own-backend broadcast only; the executor saw only state pinned to served derived hashes; no public, debug or unsafe path
+ok 15 - own-backend broadcast only; the executor saw only state pinned to served derived hashes; no public, debug or unsafe path
+  ---
+  duration_ms: 1.360561
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 14
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2207.466851

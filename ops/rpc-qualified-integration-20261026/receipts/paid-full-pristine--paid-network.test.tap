@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: a paid provider admits an app only under the owner's current on-chain authorization of it, with budget left
+ok 1 - a paid provider admits an app only under the owner's current on-chain authorization of it, with budget left
+  ---
+  duration_ms: 1.52869
+  type: 'test'
+  ...
+# Subtest: the provider meters each paid peer durably: counter growth only, a restarted counter counts in full, totals survive a restart
+ok 2 - the provider meters each paid peer durably: counter growth only, a restarted counter counts in full, totals survive a restart
+  ---
+  duration_ms: 6.742508
+  type: 'test'
+  ...
+# Subtest: a paid provider grants only authorized apps, meters them, and drops their peers when the authorization ends
+ok 3 - a paid provider grants only authorized apps, meters them, and drops their peers when the authorization ends
+  ---
+  duration_ms: 13.007199
+  type: 'test'
+  ...
+# Subtest: host and provider sign one receipt for the provider-observed traffic; the provider refuses more than it saw
+ok 4 - host and provider sign one receipt for the provider-observed traffic; the provider refuses more than it saw
+  ---
+  duration_ms: 157.500061
+  type: 'test'
+  ...
+# Subtest: the host meters paid hops, debits cumulatively, and the manager closes a circuit whose debit is refused
+ok 5 - the host meters paid hops, debits cumulatively, and the manager closes a circuit whose debit is refused
+  ---
+  duration_ms: 19.809807
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 499.080817

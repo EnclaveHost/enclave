@@ -1,0 +1,21 @@
+{
+ "out": "/tmp/hos-r5.52Rk7g/r16-regen",
+ "edited": [
+  "install/MANIFEST.json",
+  "producer/base_launch.py",
+  "readiness/publish_readiness.py",
+  "readiness/readiness_sampler.py",
+  "recovery/forward_sync.py",
+  "src/finality_state.py",
+  "src/reproof.py",
+  "wrapper/chain_service.py"
+ ],
+ "new": [
+  "lib/anchored-coverage/anchored_acceptance.py",
+  "lib/anchored-coverage/anchored_origin.py",
+  "lib/anchored-coverage/segments.py"
+ ],
+ "manifestFiles": 67,
+ "manifestTrees": 14,
+ "SHA256SUMS": "6ecc079434042415b3abb6f8ad7b97d175f6918fc9a6b1a2eb11263ecbec9818"
+}

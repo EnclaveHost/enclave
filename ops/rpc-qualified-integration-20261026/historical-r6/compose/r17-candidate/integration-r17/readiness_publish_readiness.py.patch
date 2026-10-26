@@ -1,0 +1,28 @@
+--- a/readiness/publish_readiness.py
++++ b/readiness/publish_readiness.py
+@@ -12,6 +12,9 @@
+ 
+ REQUIRED = {'coverage-receipt': 'path', 'coverage-verdict': 'path', 'coverage-origin': 'path', 'finality-status': 'path',
+             'expect-snapshot-manifest-sha256': 'sha', 'expect-chain-config-sha256': 'sha'}
++# historical-origin-segments-stage/r3: the N-anchored coverage evidence replaces (never joins) the legacy receipt/verdict/origin triple
++ANCHORED_REQUIRED = {'coverage-anchored-dir': 'path', 'expect-anchored-receipt-sha256': 'sha', 'finality-status': 'path',
++                     'expect-snapshot-manifest-sha256': 'sha', 'expect-chain-config-sha256': 'sha'}
+ OPTIONAL = {'expect-kzg-sha256': 'sha', 'expect-base-sha256': 'sha', 'samples': 'int', 'interval': 'num', 'min-window': 'num',
+             'max-finality-status-age': 'int'}
+ SHA = re.compile(r'[0-9a-f]{64}')
+@@ -36,12 +39,13 @@
+             raise Config('settings are not JSON')
+     if not isinstance(doc, dict):
+         raise Config('settings are not an object')
+-    missing, extra = sorted(set(REQUIRED) - set(doc)), sorted(set(doc) - set(REQUIRED) - set(OPTIONAL))
++    required = ANCHORED_REQUIRED if set(doc) & (set(ANCHORED_REQUIRED) - set(REQUIRED)) else REQUIRED
++    missing, extra = sorted(set(required) - set(doc)), sorted(set(doc) - set(required) - set(OPTIONAL))
+     if missing or extra:
+         raise Config(f'settings: missing {missing}, unknown {extra}')
+     args = []
+     for k, v in doc.items():
+-        kind = {**REQUIRED, **OPTIONAL}[k]
++        kind = {**required, **OPTIONAL}[k]
+         ok = {'path': isinstance(v, str) and v.startswith('/') and '\0' not in v,
+               'sha': isinstance(v, str) and bool(SHA.fullmatch(v)),
+               'int': isinstance(v, int) and not isinstance(v, bool),
