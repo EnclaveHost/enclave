@@ -1,0 +1,6 @@
+[queue] START available=22740MiB required=17664MiB cap=1024MiB floor=16384MiB concurrentSmall=0MiB
+## outputs: /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/a1-capture-binding-stage/r3/logs/root-capture-tests-20261026T030526Z-691636
+## capture rc=0
+[memory-guard] exit=0 peakTreeRssMiB=208 minHostAvailableMiB=21710
+[memory-guard] at peak: python3:189 python3.14:12 bash:4 bash:2 timeout:2
+[queue] EXIT 0

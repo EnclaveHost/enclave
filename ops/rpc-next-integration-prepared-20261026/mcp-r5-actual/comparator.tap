@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: equal when ONLY the observed nondeterministic values differ (build ids, their order, cache timestamps)
+ok 1 - equal when ONLY the observed nondeterministic values differ (build ids, their order, cache timestamps)
+  ---
+  duration_ms: 8.643258
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: bytecode
+ok 2 - a semantic difference is NOT equal: bytecode
+  ---
+  duration_ms: 3.624915
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: deployed bytecode
+ok 3 - a semantic difference is NOT equal: deployed bytecode
+  ---
+  duration_ms: 1.886507
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: abi
+ok 4 - a semantic difference is NOT equal: abi
+  ---
+  duration_ms: 1.713698
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: optimizer settings (in both metadata forms)
+ok 5 - a semantic difference is NOT equal: optimizer settings (in both metadata forms)
+  ---
+  duration_ms: 1.820357
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: source ids / build composition
+ok 6 - a semantic difference is NOT equal: source ids / build composition
+  ---
+  duration_ms: 1.42271
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: cache contentHash
+ok 7 - a semantic difference is NOT equal: cache contentHash
+  ---
+  duration_ms: 1.665858
+  type: 'test'
+  ...
+# Subtest: a semantic difference is NOT equal: cache profile settings
+ok 8 - a semantic difference is NOT equal: cache profile settings
+  ---
+  duration_ms: 1.739547
+  type: 'test'
+  ...
+# Subtest: the compiler version is bound to the pin
+ok 9 - the compiler version is bound to the pin
+  ---
+  duration_ms: 1.291141
+  type: 'test'
+  ...
+# Subtest: every metadata source keccak256 is bound to the ACTUAL source file
+ok 10 - every metadata source keccak256 is bound to the ACTUAL source file
+  ---
+  duration_ms: 1.583509
+  type: 'test'
+  ...
+# Subtest: forge metadata must agree with the raw solc metadata on every binding field
+ok 11 - forge metadata must agree with the raw solc metadata on every binding field
+  ---
+  duration_ms: 1.561109
+  type: 'test'
+  ...
+# Subtest: malformed build-info: extra key, id != file name, gap in source ids, duplicate source map
+ok 12 - malformed build-info: extra key, id != file name, gap in source ids, duplicate source map
+  ---
+  duration_ms: 2.085625
+  type: 'test'
+  ...
+# Subtest: missing, extra or orphaned outputs and dangling references refuse
+ok 13 - missing, extra or orphaned outputs and dangling references refuse
+  ---
+  duration_ms: 4.2709
+  type: 'test'
+  ...
+# Subtest: required artifacts need bytecode; required sources must be compiled
+ok 14 - required artifacts need bytecode; required sources must be compiled
+  ---
+  duration_ms: 1.736798
+  type: 'test'
+  ...
+# Subtest: malformed or unsafe files refuse: non-JSON artifact, bad rawMetadata, non-json file, symlink, cache shape
+ok 15 - malformed or unsafe files refuse: non-JSON artifact, bad rawMetadata, non-json file, symlink, cache shape
+  ---
+  duration_ms: 3.643344
+  type: 'test'
+  ...
+# Subtest: renaming build ids is the ONLY normalization: a consistent rename stays equal, the raw build-info bytes are still kept
+ok 16 - renaming build ids is the ONLY normalization: a consistent rename stays equal, the raw build-info bytes are still kept
+  ---
+  duration_ms: 1.721047
+  type: 'test'
+  ...
+# Subtest: CLI: exit 0 + exclusive report when equal, exit 1 when different, exit 2 on usage
+ok 17 - CLI: exit 0 + exclusive report when equal, exit 1 when different, exit 2 on usage
+  ---
+  duration_ms: 152.483513
+  type: 'test'
+  ...
+# Subtest: unlinked library: the exact solc placeholder at exactly its linkReference is accepted; trees with it compare EQUAL
+ok 18 - unlinked library: the exact solc placeholder at exactly its linkReference is accepted; trees with it compare EQUAL
+  ---
+  duration_ms: 2.412053
+  type: 'test'
+  ...
+# Subtest: linked (pure hex, no linkReferences) and unlinked builds both load but are NOT equal (byte identity kept)
+ok 19 - linked (pure hex, no linkReferences) and unlinked builds both load but are NOT equal (byte identity kept)
+  ---
+  duration_ms: 3.010888
+  type: 'test'
+  ...
+# Subtest: malformed link data refuses (synthetic): bad/unmatched placeholder, out of bounds, overlap, bad ref, foreign source, non-hex
+ok 20 - malformed link data refuses (synthetic): bad/unmatched placeholder, out of bounds, overlap, bad ref, foreign source, non-hex
+  ---
+  duration_ms: 7.672105
+  type: 'test'
+  ...
+# Subtest: REAL trees: both load and compare EQUAL; every real placeholder is solc's hash at exactly its linkReference
+ok 21 - REAL trees: both load and compare EQUAL; every real placeholder is solc's hash at exactly its linkReference
+  ---
+  duration_ms: 198.649473
+  type: 'test'
+  ...
+# Subtest: REAL EnclaveDeployments.json mutated: bad/unmatched placeholder, out of bounds, overlap, wrong library/source, filled slot refuse
+ok 22 - REAL EnclaveDeployments.json mutated: bad/unmatched placeholder, out of bounds, overlap, wrong library/source, filled slot refuse
+  ---
+  duration_ms: 278.294875
+  type: 'test'
+  ...
+# Subtest: REAL artifact correctly LINKED (address in every slot, linkReferences {}) loads, and is NOT equal to the unlinked real build
+ok 23 - REAL artifact correctly LINKED (address in every slot, linkReferences {}) loads, and is NOT equal to the unlinked real build
+  ---
+  duration_ms: 318.941975
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1067.275538

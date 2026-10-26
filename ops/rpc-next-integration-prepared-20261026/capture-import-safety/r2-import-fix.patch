@@ -1,0 +1,40 @@
+--- r2/src/a1_capture.py
++++ import-fix/src/a1_capture.py
+@@ -258,9 +258,16 @@
+     return json.dumps(cfg, indent=2, sort_keys=True).encode()
+ 
+ 
+-def load_module(path, name):
+-    import importlib.util
+-    spec = importlib.util.spec_from_file_location(name, path); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
++def load_pinned(b, path, name, want):
++    """the PINNED module from its VERIFIED bytes, compiled and executed in memory. Never importlib's file loader: that reads
++    the path a second time and, unless the CALLER disabled bytecode, writes __pycache__/*.pyc beside the bound copy, i.e.
++    an unbound file inside the capture that the strict file_set check then (correctly) refuses."""
++    import importlib.machinery, types
++    if sha(b) != want:
++        refuse('l1_authority_pin', 'l1_authority.py is not the reviewed launcher')
++    m = types.ModuleType(name); m.__file__ = str(path); m.__loader__ = None
++    m.__spec__ = importlib.machinery.ModuleSpec(name, None, origin=str(path))
++    exec(compile(b, str(path), 'exec', dont_inherit=True), m.__dict__)
+     return m
+ 
+ 
+@@ -295,7 +302,7 @@
+         b = read_once(src.l1_authority)
+         if sha(b) != pins.l1_authority:
+             refuse('l1_authority_pin', 'l1_authority.py is not the reviewed launcher')
+-        l1a = put('code/l1_authority.py', b, 'l1-authority', src.l1_authority)
++        l1a, l1b_code = put('code/l1_authority.py', b, 'l1-authority', src.l1_authority), b
+         b = read_once(pathlib.Path(src.deps_root, 'package-lock.json'), 64 << 20)
+         if sha(b) != pins.lock:
+             refuse('deps_lock', 'package-lock.json is not the pinned lock')
+@@ -319,7 +326,7 @@
+         cpb = read_once(json.loads(l1b)['checkpointFile'])
+         cp = put('inputs/l1-checkpoint.json', cpb, 'l1-checkpoint', json.loads(l1b)['checkpointFile'])
+         l1d = put('inputs/l1-authority-config.derived.json', derive_l1_config(l1b, cp), 'l1-config-derived', '(derived)')
+-        L = load_module(l1a, 'l1_authority_copy')
++        L = load_pinned(l1b_code, l1a, 'l1_authority_copy', pins.l1_authority)
+         c = L.load_config(str(l1d))
+         if c['cfg']['binary']['sha256'] != pins.helios:
+             refuse('helios_pin', 'the l1-authority config pins another Helios binary')
