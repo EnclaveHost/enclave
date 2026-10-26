@@ -1,0 +1,8 @@
+{
+  "controlled_stop": "124/143 expected",
+  "offset": 1610612736,
+  "archive_size": 1610612736,
+  "prefix64KiBSha256": "6b1e01fbe3e7c2f516d118b47c1795309af8afa1422e7349ec473de44ac7e5c2",
+  "chunk_temporary_files_removed": true,
+  "scope": "transport resume consistency, not full archive integrity"
+}

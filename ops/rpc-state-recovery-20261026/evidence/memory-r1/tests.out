@@ -1,0 +1,417 @@
+test_only_the_reviewed_fields_change_for_each_size (test_rpc_memory_r1.Build.test_only_the_reviewed_fields_change_for_each_size) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:82: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/l3.py'>
+  p = os.path.join(self.t.name, f'l{len(os.listdir(self.t.name))}.py'); open(p, 'wb').write(b); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:82: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/l4.py'>
+  p = os.path.join(self.t.name, f'l{len(os.listdir(self.t.name))}.py'); open(p, 'wb').write(b); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:82: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpc8_lrtsu/l5.py'>
+  p = os.path.join(self.t.name, f'l{len(os.listdir(self.t.name))}.py'); open(p, 'wb').write(b); return p
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_unreviewed_sizes_and_changed_originals_refuse (test_rpc_memory_r1.Build.test_unreviewed_sizes_and_changed_originals_refuse) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpcyi0dixg/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpcyi0dixg/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpcyi0dixg/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpcyi0dixg/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpcyi0dixg/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpurc_vyas/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpurc_vyas/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpurc_vyas/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpurc_vyas/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpurc_vyas/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:91: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpurc_vyas/state/provision_vm.py'>
+  os.chmod(f[k], 0o600); open(f[k], 'ab').write(mut)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpvxnxpy4v/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpvxnxpy4v/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpvxnxpy4v/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpvxnxpy4v/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpvxnxpy4v/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:91: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpvxnxpy4v/state/manifest.json'>
+  os.chmod(f[k], 0o600); open(f[k], 'ab').write(mut)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpfwesgyl0/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpfwesgyl0/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpfwesgyl0/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpfwesgyl0/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpfwesgyl0/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:91: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpfwesgyl0/units/enclave-rpc-production-vm.service'>
+  os.chmod(f[k], 0o600); open(f[k], 'ab').write(mut)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpi2hj4rmm/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpi2hj4rmm/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpi2hj4rmm/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpi2hj4rmm/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpi2hj4rmm/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:91: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpi2hj4rmm/units/enclave-rpc-production-guard.service'>
+  os.chmod(f[k], 0o600); open(f[k], 'ab').write(mut)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_gpt_root_partition (test_rpc_memory_r1.Inspect.test_gpt_root_partition) ... ok
+test_refuses_while_the_vm_or_guard_is_active (test_rpc_memory_r1.Inspect.test_refuses_while_the_vm_or_guard_is_active) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/inspect_os_disk.py:144: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/.local/state/enclave-rpc-production/manifest.json' mode='r' encoding='UTF-8'>
+  osd = json.load(open(a.manifest))['disks']['os']['path']
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_unit_identity_dropins_and_enabled_links (test_rpc_memory_r1.Inspect.test_unit_identity_dropins_and_enabled_links) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:230: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/units/enclave-rpc-base-snapshot.service'>
+  payload = open(I.DEFAULT_PAYLOAD, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/inspect_os_disk.py:124: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/payload-v2/units/enclave-rpc-base-snapshot.service'>
+  ptext = open(payload, 'rb').read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_16_gib_is_download_only_and_needs_fresh_l1_off_evidence (test_rpc_memory_r1.Install.test_16_gib_is_download_only_and_needs_fresh_l1_off_evidence) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:147: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/ev.json' mode='w' encoding='UTF-8'>
+  json.dump({**ev, **bad}, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:151: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/ev.json' mode='w' encoding='UTF-8'>
+  json.dump(ev, open(p, 'w'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjpfp66ox/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_failure_mid_install_restores_every_original (test_rpc_memory_r1.Install.test_failure_mid_install_restores_every_original) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpnpgibkx8/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpnpgibkx8/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpnpgibkx8/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpnpgibkx8/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpnpgibkx8/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp98ygug01/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpjrpmkk7h/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmptq7ed8s3/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_install_48_backs_up_exact_originals_and_reverifies_then_rollback_restores (test_rpc_memory_r1.Install.test_install_48_backs_up_exact_originals_and_reverifies_then_rollback_restores) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:100: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/staged-48/PLAN.json' mode='r' encoding='UTF-8'>
+  live = self.live(); plan = json.load(open(os.path.join(st, 'PLAN.json')))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:105: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/backup-memory-20261026T161202Z-a28432151c9a/launcher'>
+  self.assertEqual({k: open(os.path.join(b, k), 'rb').read() for k in live}, self.orig)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:105: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/backup-memory-20261026T161202Z-a28432151c9a/manifest'>
+  self.assertEqual({k: open(os.path.join(b, k), 'rb').read() for k in live}, self.orig)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:105: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/backup-memory-20261026T161202Z-a28432151c9a/unit'>
+  self.assertEqual({k: open(os.path.join(b, k), 'rb').read() for k in live}, self.orig)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:105: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp3q4jefj2/state/backup-memory-20261026T161202Z-a28432151c9a/guard'>
+  self.assertEqual({k: open(os.path.join(b, k), 'rb').read() for k in live}, self.orig)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_install_refusals_write_nothing (test_rpc_memory_r1.Install.test_install_refusals_write_nothing) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:124: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmp0cp193mu/staged-48/manifest'>
+  self.setmem(81 * GIB); os.chmod(os.path.join(st, 'manifest'), 0o600); open(os.path.join(st, 'manifest'), 'ab').write(b' ')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_rollback_refusals (test_rpc_memory_r1.Install.test_rollback_refusals) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:159: ResourceWarning: unclosed file <_io.BufferedWriter name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/state/backup-memory-20261026T161202Z-a28432151c9a/unit'>
+  os.chmod(os.path.join(r['backup'], 'unit'), 0o600); open(os.path.join(r['backup'], 'unit'), 'ab').write(b'\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/state/provision_vm.py'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/state/manifest.json'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/units/enclave-rpc-production-vm.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:56: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpz2cuwgz9/units/enclave-rpc-production-guard.service'>
+  return {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_installed_launcher_refuses_below_its_floor_and_a_stale_cgroup_cap (test_rpc_memory_r1.Launcher.test_installed_launcher_refuses_below_its_floor_and_a_stale_cgroup_cap) ... /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:50: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/meminfo' mode='w' encoding='UTF-8'>
+  open(self.mem, 'w').write(f'MemTotal: 130874596 kB\nMemAvailable: {b // 1024} kB\n')
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/state/provision_vm.py'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/state/manifest.json'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/units/enclave-rpc-production-vm.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:41: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/units/enclave-rpc-production-guard.service'>
+  self.orig = {k: open(p, 'rb').read() for k, p in R.files_of(self.env).items()}
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/resize_vm_memory.py:140: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/meminfo' mode='r' encoding='UTF-8'>
+  return int(line.split()[1]) * 1024
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:176: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/state/manifest.json' mode='r' encoding='UTF-8'>
+  m = json.load(open(f['manifest'])); msha = sha(open(f['manifest'], 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:176: ResourceWarning: unclosed file <_io.BufferedReader name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/state/manifest.json'>
+  m = json.load(open(f['manifest'])); msha = sha(open(f['manifest'], 'rb').read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/test_rpc_memory_r1.py:187: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/rpc-memory-recovery-stage/r1/runs/20261026T161202Z-2006153/tmp/tmpy65dfim5/units/enclave-rpc-production-vm.service' mode='r' encoding='UTF-8'>
+  self.assertIn(f'MemoryMax={pv.MEMORY_MAX}\nMemorySwapMax=0\n', open(f['unit']).read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.711s
+
+OK
+{"refused": "enclave-rpc-production-vm.service is active: inspect only the stopped VM"}
+{"refused": "enclave-rpc-production-guard.service is activating: inspect only the stopped VM"}

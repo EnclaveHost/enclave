@@ -1,0 +1,399 @@
+diff --git a/test/derived-state-enrollment.test.mjs b/test/derived-state-enrollment.test.mjs
+index 9c5e0e9..0f1bd14 100644
+--- a/test/derived-state-enrollment.test.mjs
++++ b/test/derived-state-enrollment.test.mjs
+@@ -140,11 +140,18 @@ async function bootMember(i) {
+   const roleCfg = { ...JSON.parse(launch.files[P.platformApiConfig]), listen: ports, askMs: 300 };
+   fs.mkdirSync(roleCfg.dirs.root, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(roleCfg.dirs.root, "k"), K, { mode: 0o600 });
+   const m = { i, roleCfg, ports, controlUrl: config.platformApi.members[i].controlUrl, logs: [] };
+-  m.role = await startRole({ cfg: roleCfg, recoverMessageAddress, verifyPeer: async () => ({ ok: false, reason: "not in this test" }), log: (x) => m.logs.push(x),
++  const logFile = process.env.AIE_ROLE_LOG_DIR ? path.join(process.env.AIE_ROLE_LOG_DIR, `enrollment-role-${i}.log`) : null;
++  m.role = await startRole({ cfg: roleCfg, recoverMessageAddress, verifyPeer: async () => ({ ok: false, reason: "not in this test" }),
++    log: (x) => { m.logs.push(x); if (logFile) fs.appendFileSync(logFile, `${new Date().toISOString()} ${x}\n`); },
+     relayArgv: [process.execPath, STUB], postImpl: postFor(i), derivedImage: IMAGE, derivedStableMs: 1000, derivedRetryMs: 4000, derivedExitWaitMs: 3000, spawnImpl: delayedExitSpawn });
+   return m;
+ }
+ const leader = () => M.find((m) => !m.stopped && m.role.status().role === "leader" && m.role.status().relay);
++// the PRIMARY (no relay needed: admin packages go to the peer port; an enrollment quiesces and restarts the relay) and a primary
++// WITH its relay (for relay-API calls); both wait instead of reading a transient undefined (root 1435: r5 fixture failure)
++const primary = () => M.find((m) => !m.stopped && m.role.status().role === "leader");
++const prim = () => waitFor("the primary", () => primary(), 30000);
++const live = () => waitFor("a primary with its relay", () => leader(), 30000);
+ function req(port, method, p, body, headers = {}) {
+   return new Promise((ok, no) => {
+     const b = body === undefined ? null : Buffer.from(JSON.stringify(body));
+@@ -189,7 +196,7 @@ test("unenrolled: derivedReader bound without an enrollment -> relay serving, on
+ 
+ let genesisDigest = null;
+ test("enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused", { timeout: 60000 }, async () => {
+-  const l = leader(), s = M.find((m) => m !== l && !m.stopped);
++  const l = await live(), s = M.find((m) => m !== l && !m.stopped);
+   const cases = [
+     [await pkgFor(l, {}, STRANGER), 403, "not_admin"],
+     [await pkgFor(l, { kind: "credentials" }), 403, "wrong_target"],
+@@ -210,12 +217,12 @@ test("enrollment refusals, then an admin genesis bound to the primary's boot; a
+   assert.equal((await enroll(l, tampered)).status, 403);
+   assert.equal((await enroll(s, await pkgFor(s, {}))).json.error, "not_primary");
+   await waitFor("the relay back after the refusals", () => leader());
+-  assert.equal(statusOf(leader()).enrolled, false, "no refusal wrote anything");
+-  const g = await pkgFor(leader(), {});
+-  const ok = await enroll(leader(), g); assert.equal(ok.status, 200, JSON.stringify(ok.json)); genesisDigest = ok.json.digest;
+-  assert.equal((await enroll(leader(), g)).json.error, "not_newer");
+-  assert.equal((await enroll(leader(), await pkgFor(leader(), {}))).json.error, "wrong_previous", "a second genesis is refused");
+-  const e = await waitFor("the relay restarted with the enrollment", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; });
++  assert.equal(statusOf(primary()).enrolled, false, "no refusal wrote anything");
++  const g = await pkgFor(await prim(), {});
++  const ok = await enroll(await prim(), g); assert.equal(ok.status, 200, JSON.stringify(ok.json)); genesisDigest = ok.json.digest;
++  assert.equal((await enroll(await prim(), g)).json.error, "not_newer");
++  assert.equal((await enroll(await prim(), await pkgFor(await prim(), {}))).json.error, "wrong_previous", "a second genesis is refused");
++  const e = await waitFor("the relay restarted with the enrollment", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; });
+   assert.equal(e.env.ENCLAVE_WRITER_AUTHORITY_SOURCE, "derived"); assert.match(e.env.ENCLAVE_DERIVED_COMMIT_BOOT, /^[0-9a-f]{32}$/);
+   assert.equal(e.descriptor.enrollment.mode, "genesis"); assert.equal(e.descriptor.enrollment.digest, genesisDigest);
+   assert.deepEqual(e.descriptor.files, []);
+@@ -225,7 +232,7 @@ test("enrollment refusals, then an admin genesis bound to the primary's boot; a
+ });
+ 
+ test("IPC commit: only the exact committed bytes are acknowledged; refusals say nothing was written; the role's deadline is enforced", { timeout: 60000 }, async () => {
+-  const l = leader();
++  const l = await live();
+   const v = await relay(l, "POST", "/verify", { binding: BINDING, floorDigest: NULL_FLOOR });
+   assert.equal(v.ok, true, JSON.stringify(v)); assert.equal(v.result.format, DS.RESULT_FORMAT); assert.equal(v.result.mode, "genesis");
+   assert.equal(v.result.digest, genesisDigest); assert.deepEqual(v.result.priorFiles, {}); assert.equal(v.result.committed, true);
+@@ -257,7 +264,7 @@ test("IPC commit: only the exact committed bytes are acknowledged; refusals say
+ });
+ 
+ test("restart: a new child gets a new boot and the COMMITTED copies; the old boot is refused", { timeout: 60000 }, async () => {
+-  const l = leader(), before = await relay(l, "GET", "/env");
++  const l = await live(), before = await relay(l, "GET", "/env");
+   await restartChild(l);
+   const e = await relay(l, "GET", "/env");
+   assert.notEqual(e.env.ENCLAVE_DERIVED_COMMIT_BOOT, before.env.ENCLAVE_DERIVED_COMMIT_BOOT);
+@@ -268,30 +275,30 @@ test("restart: a new child gets a new boot and the COMMITTED copies; the old boo
+ });
+ 
+ test("seeding uses ONLY the scan of a fresh majority round: a local-only write is committed by that round (never assumed absent); a foreign local file refuses", { timeout: 90000 }, async () => {
+-  let l = leader();
++  let l = await live();
+   DS.writeStateFile(l.roleCfg.dirs.data, BR, Buffer.from(X));                  // an outcome-unknown local write, never acknowledged
+-  await restartChild(l); l = leader();
++  await restartChild(l); l = await live();
+   const e = await relay(l, "GET", "/env");
+   assert.deepEqual(e.seeded, { [BR]: sha(X) });
+   for (const m of M) await waitFor(`member ${m.i} to hold the now-committed X`, () => committedSha(m, BR) === sha(X));
+   const foreign = path.join(l.roleCfg.dirs.data, DS.STATE_DIR, "reader", "other.json");
+   fs.mkdirSync(path.dirname(foreign), { recursive: true }); fs.writeFileSync(foreign, "{}");
+-  await restartChild(l); l = leader();
++  await restartChild(l); l = await live();
+   const r = await relay(l, "GET", "/env");
+   assert.deepEqual(r.env, { ENCLAVE_DERIVED_INTENDED: "1" }); assert.match(statusOf(l).reason, /unexpected derived-authority file/);
+   fs.rmSync(foreign);
+-  await restartChild(l); l = leader();
+-  const back = await waitFor("derived again", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; });
++  await restartChild(l); l = await live();
++  const back = await waitFor("derived again", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; });
+   assert.deepEqual(back.seeded, { [BR]: sha(X) });
+ });
+ 
+ test("client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fences; the late ack resolves nothing", { timeout: 60000 }, async () => {
+-  const l = leader();
++  const l = await live();
+   fs.writeFileSync(path.join(CTL, "timeout"), "400"); await restartChild(l);
+   NET.delayMs = 250;                                                             // the majority round now takes > 500 ms
+   const r = await relay(l, "POST", "/commit", { file: BR, text: D });
+   assert.equal(r.code, "derived_commit_outcome_unknown", JSON.stringify(r));
+-  const st = await waitFor("the late reply", async () => { const s = await relay(leader(), "GET", "/status"); return s?.lateReplies >= 1 ? s : null; });
++  const st = await waitFor("the late reply", async () => { const s = await relay(await live(), "GET", "/status"); return s?.lateReplies >= 1 ? s : null; });
+   assert.equal(st.fenced, "deadline"); assert.equal(st.committed, 0);
+   NET.delayMs = 0;
+   assert.equal((await relay(l, "POST", "/commit", { file: BR, text: A })).code, "derived_commit_fenced");
+@@ -299,7 +306,7 @@ test("client deadline: a commit not confirmed in time is OUTCOME UNKNOWN and fen
+ });
+ 
+ test("quorum loss: no majority -> never acknowledged, the primary steps down and stops its relay; healed, every member agrees on the seeded bytes", { timeout: 90000 }, async () => {
+-  let l = leader(); await restartChild(l); l = leader();
++  let l = await live(); await restartChild(l); l = await live();
+   for (const m of M.filter((x) => x !== l && !x.stopped)) NET.down.add(m.i);
+   const r = await relay(l, "POST", "/commit", { file: BR, text: C }).catch((e) => ({ transport: e.message }));
+   assert.notEqual(r?.ok, true, "never acknowledged without a majority");
+@@ -313,7 +320,7 @@ test("quorum loss: no majority -> never acknowledged, the primary steps down and
+ });
+ 
+ test("failover: a stopped primary's successor seeds the same committed copy", { timeout: 90000 }, async () => {
+-  const l = leader(), want = committedSha(l, BR);
++  const l = await live(), want = committedSha(l, BR);
+   l.stopped = true; await l.role.stop();
+   const n = await waitFor("a new primary", () => leader());
+   assert.notEqual(n, l);
+@@ -325,66 +332,66 @@ test("failover: a stopped primary's successor seeds the same committed copy", {
+ const rotateNow = async (l, extra = {}) => { const st = statusOf(l); return enroll(l, await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: st.dominatingFloorDigest, ...extra })); };
+ test("crash guard: a derived child dying before serving, or soon after, disables derived (relay serving, no loop); the backoff timer retries it (M4); a rotate re-enables it", { timeout: 120000 }, async () => {
+   for (const flag of ["crash", "crash-after"]) {
+-    let l = leader();
++    let l = await live();
+     fs.writeFileSync(path.join(CTL, flag), "1");
+     await sleep(1200); process.kill(childPid(l), "SIGKILL");
+     await waitFor(`derived disabled (${flag}) and the relay serving without it`, async () => {
+       const x = leader(); if (!x || !statusOf(x).disabled) return false; const e = await relay(x, "GET", "/env"); return e && !e.descriptor && e.env.ENCLAVE_DERIVED_INTENDED === "1";
+     });
+-    l = leader(); const pid = childPid(l); await sleep(2500); assert.equal(childPid(l), pid, "no restart loop");
++    l = await live(); const pid = childPid(l); await sleep(2500); assert.equal(childPid(l), pid, "no restart loop");
+     assert.equal(statusOf(l).configured, false);
+     fs.rmSync(path.join(CTL, flag));
+     if (flag === "crash") {
+       // M4: the backoff (derivedRetryMs 4 s) expires while a healthy relay serves WITHOUT derived: the role retries by itself,
+       // with the SAME enrollment (no admin action), and derived returns
+       const digest = statusOf(l).digest;
+-      const back = await waitFor("derived back after the backoff, no enrollment", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; }, 20000);
++      const back = await waitFor("derived back after the backoff, no enrollment", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; }, 20000);
+       assert.equal(back.descriptor.enrollment.digest, digest, "the same enrollment: a timer retry, not a new package");
+-      assert.ok(leader().logs.some((x) => /derived retry: the backoff/.test(x)));
++      assert.ok(primary().logs.some((x) => /derived retry: the backoff/.test(x)));
+       continue;
+     }
+     assert.equal((await rotateNow(l, { stateDigest: "33".repeat(32) })).json.error, "wrong_state");
+     const ok = await rotateNow(l); assert.equal(ok.status, 200, JSON.stringify(ok.json));
+-    const e = await waitFor("derived again", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; });
++    const e = await waitFor("derived again", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; });
+     assert.equal(e.descriptor.enrollment.mode, "rotate");
+-    assert.equal(e.seeded[BR], committedSha(leader(), BR), "the state is carried, not reset");
++    assert.equal(e.seeded[BR], committedSha(primary(), BR), "the state is carried, not reset");
+   }
+ });
+ 
+ test("rotation binds the COMMITTED floor: another reader image is unenrolled until a rotate naming exactly that floor", { timeout: 90000 }, async () => {
+-  let l = leader();
++  let l = await live();
+   assert.deepEqual(await relay(l, "POST", "/commit", { file: BR, text: bridgeWith(HW) }), { ok: true });
+   const oldPins = pins();
+   fs.writeFileSync(IMAGE, JSON.stringify(record, null, 1));                     // same record, other bytes = other pins
+-  await restartChild(l); l = leader();
++  await restartChild(l); l = await live();
+   assert.equal((await relay(l, "GET", "/env")).descriptor, null);
+   assert.match(statusOf(l).reason, /another reader image/);
+   assert.deepEqual(statusOf(l).bridgeFloor, HW); assert.deepEqual(statusOf(l).dominatingFloor, HW);
+-  assert.equal((await rotateNow(leader(), { floorDigest: NULL_FLOOR })).json.error, "wrong_floor", "a rotate cannot carry an older (null) floor");
+-  assert.equal((await rotateNow(leader(), { floorDigest: DS.floorDigestOf(anchor(99, 50)) })).json.error, "wrong_floor");
+-  const ok = await rotateNow(leader()); assert.equal(ok.status, 200, JSON.stringify(ok.json));
+-  const e = await waitFor("derived under the new pins", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; });
++  assert.equal((await rotateNow(await prim(), { floorDigest: NULL_FLOOR })).json.error, "wrong_floor", "a rotate cannot carry an older (null) floor");
++  assert.equal((await rotateNow(await prim(), { floorDigest: DS.floorDigestOf(anchor(99, 50)) })).json.error, "wrong_floor");
++  const ok = await rotateNow(await prim()); assert.equal(ok.status, 200, JSON.stringify(ok.json));
++  const e = await waitFor("derived under the new pins", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; });
+   assert.equal(e.descriptor.enrollment.readerPins, pins()); assert.equal(e.descriptor.enrollment.previousReaderPins, oldPins);
+   assert.equal(e.descriptor.enrollment.floorDigest, DS.floorDigestOf(HW)); assert.equal(e.seeded[BR], sha(bridgeWith(HW)));
+ });
+ 
+ test("enrollment quiesces the writer: a racing derived commit either lands before (the enrollment is then refused as stale) or is refused - never both", { timeout: 90000 }, async () => {
+-  const l = leader(), st = statusOf(l), F = bridgeWith(anchor(101, 51));
++  const l = await live(), st = statusOf(l), F = bridgeWith(anchor(101, 51));
+   const pkg = await pkgFor(l, { mode: "rotate", previousDigest: st.digest, stateDigest: st.stateDigest, floorDigest: st.dominatingFloorDigest });
+   NET.delayMs = 40;
+   const [c, en] = await Promise.all([relay(l, "POST", "/commit", { file: BR, text: F }).catch(() => null), enroll(l, pkg)]);
+   NET.delayMs = 0;
+   await waitFor("the relay back", () => leader());
+-  const after = statusOf(leader());
++  const after = statusOf(primary());
+   // judged by the COMMITTED bytes (the child's HTTP answer may be cut by the quiescing stop)
+-  const landed = committedSha(leader(), BR) === sha(F);
++  const landed = committedSha(primary(), BR) === sha(F);
+   if (en.status === 200) { assert.equal(landed, false, "the commit cannot also have landed"); assert.notEqual(c?.ok, true); assert.equal(after.stateDigest, st.stateDigest); assert.equal(after.digest, en.json.digest); }
+   else { assert.equal(en.json.error, "wrong_state", JSON.stringify(en.json)); assert.equal(landed, true); assert.equal(after.digest, st.digest); }
+ });
+ 
+ const inode = (p) => { try { const st = fs.statSync(p); return `${st.ino}:${st.mtimeMs}`; } catch { return null; } };
+ test("B1: the previous child's exit not CONFIRMED -> nothing is composed or seeded (journal and lock inodes untouched); retried once it exits", { timeout: 120000 }, async () => {
+-  let l = leader();
++  let l = await live();
+   await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
+   const sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3"), binding = statusOf(l).binding;
+   const locks = [path.join(sd, "journal", "derived-state.lock"), path.join(sd, "coverage", binding, "coverage.lock"), path.join(sd, "runs", "runs.lock"), path.join(sd, "anchor-journal.json.lock")];
+@@ -394,19 +401,19 @@ test("B1: the previous child's exit not CONFIRMED -> nothing is composed or seed
+   // exit is not yet confirmed (EXIT_DELAY > derivedExitWaitMs 3 s)
+   EXIT_DELAY.ms = 6000;
+   await sleep(1200); const rot = await rotateNow(l); assert.equal(rot.status, 200, JSON.stringify(rot.json));
+-  await waitFor("the refused start", () => /has not exited/.test(statusOf(leader()).reason || ""), 15000);
++  await waitFor("the refused start", () => /has not exited/.test(statusOf(primary()).reason || ""), 15000);
+   EXIT_DELAY.ms = 0;
+-  l = leader();
++  l = await live();
+   assert.deepEqual((await relay(l, "GET", "/env")).env, { ENCLAVE_DERIVED_INTENDED: "1" }, "the relay serves without derived");
+   for (const [p, v] of Object.entries(before)) assert.equal(inode(p), v, `untouched while the previous child may live: ${path.basename(p)}`);
+-  const e = await waitFor("derived back once the exit is confirmed (no admin action)", async () => { const x = await relay(leader(), "GET", "/env"); return x?.descriptor ? x : null; }, 20000);
+-  assert.ok(leader().logs.some((x) => /derived retry: the previous relay has exited/.test(x)));
++  const e = await waitFor("derived back once the exit is confirmed (no admin action)", async () => { const x = await relay(await live(), "GET", "/env"); return x?.descriptor ? x : null; }, 20000);
++  assert.ok(primary().logs.some((x) => /derived retry: the previous relay has exited/.test(x)));
+   for (const p of locks) assert.equal(inode(p), before[p], `a lock file is never unlinked or replaced: ${path.basename(p)}`);
+-  assert.equal(e.seeded[BR], committedSha(leader(), BR), "then seeded with the committed bytes");
++  assert.equal(e.seeded[BR], committedSha(primary(), BR), "then seeded with the committed bytes");
+ });
+ 
+ test("B2: leadership lost during the exit wait -> the stale term seeds nothing; the new primary seeds ITS committed scan", { timeout: 150000 }, async () => {
+-  const l = leader(), sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3"), anchorBefore = inode(path.join(sd, "anchor-journal.json"));
++  const l = await live(), sd = path.join(l.roleCfg.dirs.root, "derived-reader-v3"), anchorBefore = inode(path.join(sd, "anchor-journal.json"));
+   EXIT_DELAY.ms = 2800;                                                          // < derivedExitWaitMs (3 s): the exit IS confirmed, after the term is gone
+   await sleep(1200); const rot = await rotateNow(l); assert.equal(rot.status, 200, JSON.stringify(rot.json));   // stop + start: the plan waits for the exit
+   await sleep(300); NET.down.add(l.i);                                           // its lease cannot be renewed: it steps down during the wait
+@@ -421,7 +428,7 @@ test("B2: leadership lost during the exit wait -> the stale term seeds nothing;
+ });
+ 
+ test("M3: a rejecting replica commit is a plain failure: the child's commit is OUTCOME UNKNOWN, the barrier answers ok:false, no unhandled rejection", { timeout: 90000 }, async () => {
+-  let l = leader(); await restartChild(l); l = leader();
++  let l = await live(); await restartChild(l); l = await live();
+   await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
+   let unhandled = 0; const onU = () => { unhandled++; }; process.on("unhandledRejection", onU);
+   const node = l.role.node(), real = node.commit;
+@@ -437,6 +444,23 @@ test("M3: a rejecting replica commit is a plain failure: the child's commit is O
+   await waitFor("a primary with its relay", () => leader());
+ });
+ 
++test("stop with a commit IN FLIGHT (review item 7): the commit completes under the role lock, the reply to the dead child is harmless, the restart's seed carries exactly the committed bytes", { timeout: 90000 }, async () => {
++  const l = await live();
++  await waitFor("derived up", async () => (await relay(l, "GET", "/env"))?.descriptor);
++  const T = JSON.stringify({ inflight: Date.now() });
++  await sleep(1200);                                                             // past the crash guard's stable window
++  NET.delayMs = 400;                                                             // the majority round now takes > 800 ms
++  const pending = relay(l, "POST", "/commit", { file: BR, text: T }).catch((e) => ({ transport: e.message }));
++  await sleep(150);                                                              // the role holds the lock: written, awaiting node.commit()
++  const old = childPid(l); process.kill(old, "SIGKILL");
++  const r = await pending;
++  NET.delayMs = 0;
++  assert.notEqual(r?.ok, true, "the killed child never reported an acknowledgement");
++  const e = await waitFor("the restarted child with derived", async () => { const x = await live(); if (childPid(x) === old) return null; const y = await relay(x, "GET", "/env"); return y?.descriptor ? y : null; });
++  assert.equal(e.seeded[BR], sha(T), "the in-flight commit completed and the next seed (queued behind it on the lock) carries it");
++  for (const m of M.filter((x) => !x.stopped)) await waitFor(`member ${m.i} to hold it`, () => committedSha(m, BR) === sha(T));
++});
++
+ // ---- restore and floor rules, on the role's own functions over a real data directory and the replica's own scan ----
+ test("restore/recover: the archive is not freshness - high-water at least the restored floors PER CHAIN, exact on ties; never-enrolled recover carries no state", () => {
+   const groupId = "g".repeat(32), st = "s".repeat(64), rp = "ab".repeat(32), now = Date.now();
+diff --git a/test/derived-state-kvm-composition.test.mjs b/test/derived-state-kvm-composition.test.mjs
+index 7ef5936..d4f73f8 100644
+--- a/test/derived-state-kvm-composition.test.mjs
++++ b/test/derived-state-kvm-composition.test.mjs
+@@ -80,9 +80,15 @@ const runtime = { ...REAL,
+     const none = async () => { throw new Error("no live reader in this test"); }; return { reader: { readDerivedLogs: none }, snapshot: none, close: async () => {} }; } };
+ let authority = null;
+ if (process.env.ENCLAVE_WRITER_AUTHORITY_SOURCE) {
+-  try { authority = await derivedWriterAuthorityFromEnv(process.env, { relayChain: { client: {} }, loadRuntime: async () => runtime, readFile: (p, e) => fs.promises.readFile(p, e),
++  // the relay's local verifier is the writer authority's DENY-ONLY check (relay/derived-writer-authority.mjs createDerivedWriterAuthority
++  // requires one); here every call throws, so it can never confirm anything (r5 passed {} and every start died: root 1435)
++  const noVerifier = async () => { throw new Error("no live local verifier in this test"); };
++  const client = { getBlockNumber: noVerifier, request: noVerifier, readContract: noVerifier };
++  try { authority = await derivedWriterAuthorityFromEnv(process.env, { relayChain: { client }, loadRuntime: async () => runtime, readFile: (p, e) => fs.promises.readFile(p, e),
+     createCommitter, log: (m) => events.push(["log", m]) }); }
+-  catch (e) { fs.appendFileSync(path.join(CTL, "fatal.log"), e.message + "\\n"); process.exit(1); }     // as relay/api-relay.js
++  catch (e) { fs.appendFileSync(path.join(CTL, "fatal.log"), e.message + "\\n");
++    if (process.env.STUB_FATAL_LOG) fs.appendFileSync(process.env.STUB_FATAL_LOG, new Date().toISOString() + " " + e.message + "\\n");
++    process.exit(1); }     // as relay/api-relay.js
+ }
+ const ram = (p) => { try { const b = fs.readFileSync(p); return { sha256: createHash("sha256").update(b).digest("hex"), text: b.toString() }; } catch { return null; } };
+ const s = http.createServer((req, res) => {
+@@ -103,7 +109,7 @@ const postFor = (from) => async (url, buf) => {
+ const PA = () => ({ apiPort: 8098, peerPort: 8099, hostname: HOSTNAME,
+   members: OPS.map((op, i) => ({ operator: op, publicUrl: `https://host-${i}.example.org`, controlUrl: `https://198.51.100.${10 + i}:8444` })),
+   measurements: ["77".repeat(48)], minTcb: null, admins: [ADMIN.address.toLowerCase()], recovery: ["11".repeat(32)], archives: [], archiveMs: 30000,
+-  relayEnv: { STUB_CTL: CTL, ADDRESS_BOOK_ADDRESS: "0x7777777777777777777777777777777777777777", ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:9" }, leaseMs: 2000,
++  relayEnv: { STUB_CTL: CTL, ...(process.env.AIE_ROLE_LOG_DIR ? { STUB_FATAL_LOG: path.join(process.env.AIE_ROLE_LOG_DIR, "composition-relay-fatal.log") } : {}), ADDRESS_BOOK_ADDRESS: "0x7777777777777777777777777777777777777777", ENCLAVE_CHAIN_AUTHORITY: "verifier", ENCLAVE_CHAIN_VERIFIER: "http://127.0.0.1:9" }, leaseMs: 2000,
+   derivedReader: { format: MC.DERIVED_READER_ENDPOINTS_FORMAT, l1ConsensusUrl: "http://10.0.2.2:25052", l1ExecutionUrl: "http://10.0.2.2:28645", baseUrl: "http://10.0.2.2:28545" } });
+ async function bootMember(i) {
+   const d = fs.mkdtempSync(path.join(tmp, `m${i}-`));
+@@ -121,11 +127,18 @@ async function bootMember(i) {
+   const roleCfg = { ...JSON.parse(launch.files[P.platformApiConfig]), listen: ports, askMs: 300 };
+   fs.mkdirSync(roleCfg.dirs.root, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(roleCfg.dirs.root, "k"), K, { mode: 0o600 });
+   const m = { i, roleCfg, ports, controlUrl: config.platformApi.members[i].controlUrl };
+-  m.role = await startRole({ cfg: roleCfg, recoverMessageAddress, verifyPeer: async () => ({ ok: false, reason: "not in this test" }), log: () => {},
++  const logFile = process.env.AIE_ROLE_LOG_DIR ? path.join(process.env.AIE_ROLE_LOG_DIR, `composition-role-${i}.log`) : null;
++  m.role = await startRole({ cfg: roleCfg, recoverMessageAddress, verifyPeer: async () => ({ ok: false, reason: "not in this test" }),
++    log: (x) => { if (logFile) fs.appendFileSync(logFile, `${new Date().toISOString()} ${x}\n`); },
+     relayArgv: [process.execPath, STUB], postImpl: postFor(i), derivedImage: IMAGE, derivedStableMs: 1000, derivedRetryMs: 1500 });
+   return m;
+ }
+ const leader = () => M.find((m) => !m.stopped && m.role.status().role === "leader" && m.role.status().relay);
++// the PRIMARY (no relay needed: admin packages go to the peer port; an enrollment quiesces and restarts the relay) and a primary
++// WITH its relay (for relay-API calls); both wait instead of reading a transient undefined (root 1435: r5 fixture failure)
++const primary = () => M.find((m) => !m.stopped && m.role.status().role === "leader");
++const prim = () => waitFor("the primary", () => primary(), 30000);
++const live = () => waitFor("a primary with its relay", () => leader(), 30000);
+ const get = (m) => new Promise((ok, no) => { const r = http.request({ host: "127.0.0.1", port: m.ports.api, path: "/state", agent: false, headers: { host: HOSTNAME, "x-enclave-client-ip": "127.0.0.1" } }, (res) => {
+   const c = []; res.on("data", (x) => c.push(x)); res.on("end", () => { try { ok(JSON.parse(Buffer.concat(c).toString())); } catch (e) { no(e); } }); }); r.on("error", no); r.end(); });
+ const enroll = (m, pkg) => new Promise((ok, no) => { const b = Buffer.from(JSON.stringify(pkg));
+@@ -156,7 +169,7 @@ test("genesis through REAL KVM + role IPC + ReplicaNode: a crash after ACK 1 res
+   assert.equal((await get(l)).intended, true);
+   fs.writeFileSync(path.join(CTL, "die-after-ack"), "1");
+   const r = await enroll(l, await pkgFor(l, {})); assert.equal(r.status, 200, JSON.stringify(r.json)); DIGEST = r.json.digest;
+-  const s = await waitFor("derived authority after the resumed genesis", async () => { const x = await get(leader()); return x.authority ? x : null; });
++  const s = await waitFor("derived authority after the resumed genesis", async () => { const x = await get(await live()); return x.authority ? x : null; });
+   assert.equal(fs.existsSync(path.join(CTL, "die-after-ack")), false, "the first child crashed after ACK 1");
+   assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [s.descriptor.paths[BR], s.descriptor.paths[RD]].map((p) => p), "the resumed child sent ONLY the remaining two writes");
+   assert.deepEqual(s.events.find((e) => e[0] === "enroll")[1], { hasStateDir: false, coverageDir: path.join(path.dirname(s.descriptor.journalDir), "coverage", BINDING) });
+@@ -168,7 +181,7 @@ test("genesis through REAL KVM + role IPC + ReplicaNode: a crash after ACK 1 res
+ });
+ 
+ test("a complete matching enrollment opens normally (no enrollment call) after a restart", { timeout: 120000 }, async () => {
+-  const l = leader(); await sleep(1200); const old = l.role.status().childPid; process.kill(old, "SIGKILL");
++  const l = await live(); await sleep(1200); const old = l.role.status().childPid; process.kill(old, "SIGKILL");
+   const s = await waitFor("a new child with derived authority", async () => { const x = leader(); if (!x || x.role.status().childPid === old) return null; const y = await get(x); return y.authority ? y : null; });
+   assert.equal(s.events.some((e) => e[0] === "enroll"), false); assert.equal(s.events.some((e) => e[0] === "ack"), false);
+   assert.deepEqual(s.descriptor.files.map((f) => f.rel).sort(), [BR, RD]);
+@@ -180,8 +193,8 @@ const anchor = (b, l, salt = 0) => ({ tier: "l1-finalized-derived", base: { numb
+   l1: { number: l, timestamp: 1690000000 + l, hash: H(4000 + l + salt), stateRoot: H(5000 + l + salt) } });
+ const canon = (x) => JSON.parse(DS_canonical(x));
+ const DS_canonical = (v) => v === null || typeof v !== "object" ? JSON.stringify(v) : Array.isArray(v) ? `[${v.map(DS_canonical).join(",")}]` : `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${DS_canonical(v[k])}`).join(",")}}`;
+-const st = () => leader().role.status().derived;
+-const restartChild = async () => { await sleep(1200); const l = leader(), old = l.role.status().childPid; process.kill(old, "SIGKILL");
++const st = () => primary().role.status().derived;
++const restartChild = async () => { await sleep(1200); const l = await live(), old = l.role.status().childPid; process.kill(old, "SIGKILL");
+   await waitFor("a new relay child", () => { const x = leader(); return x && x.role.status().childPid && x.role.status().childPid !== old; }); };
+ const derivedUp = (what) => waitFor(what, async () => { const x = leader(); if (!x) return null; const y = await get(x); return y.authority ? y : null; });
+ const everyMemberHolds = (rel, text) => Promise.all(M.map((m) => waitFor(`member ${m.i} to hold ${rel}`, () => committed(m, rel) === sha(text))));
+@@ -209,13 +222,13 @@ test("ROTATE to a new binding carries EXACTLY the dominating floor (the reader's
+   BINDING2 = derivedReaderBinding({ ...t2, stateDir: undefined, journalDir: "/x/journal", coverageDir: "/x/coverage", runsDir: "/x/runs" });
+   assert.notEqual(BINDING2, BINDING);
+   await restartChild();
+-  await waitFor("unenrolled for the new image (relay serving, INTENDED)", async () => { const y = await get(leader()); return !y.authority && y.intended && /another reader image/.test(st().reason || "") ? y : null; });
++  await waitFor("unenrolled for the new image (relay serving, INTENDED)", async () => { const y = await get(await live()); return !y.authority && y.intended && /another reader image/.test(st().reason || "") ? y : null; });
+   const base = { mode: "rotate", readerPins: pins2, binding: BINDING2, previousDigest: st().digest, stateDigest: st().stateDigest };
+   for (const [fd, why] of [[DS.floorDigestOf(FB), "the bridge floor (lower than the reader's)"], [DS.floorDigestOf(null), "a null floor"]]) {
+-    const r = await enroll(leader(), await pkgFor(leader(), { ...base, floorDigest: fd })); assert.equal(r.json.error, "wrong_floor", why);
++    const r = await enroll(await prim(), await pkgFor(await prim(), { ...base, floorDigest: fd })); assert.equal(r.json.error, "wrong_floor", why);
+   }
+   fs.writeFileSync(path.join(CTL, "die-after-ack"), "2");
+-  const r = await enroll(leader(), await pkgFor(leader(), { ...base, floorDigest: DS.floorDigestOf(FR) })); assert.equal(r.status, 200, JSON.stringify(r.json)); ROTATE = r.json.digest;
++  const r = await enroll(await prim(), await pkgFor(await prim(), { ...base, floorDigest: DS.floorDigestOf(FR) })); assert.equal(r.status, 200, JSON.stringify(r.json)); ROTATE = r.json.digest;
+   const s = await waitFor("the resumed rotation", async () => { const y = await derivedUp("derived under the new binding"); return JSON.parse(y.reader.text).binding === BINDING2 ? y : null; });
+   assert.equal(fs.existsSync(path.join(CTL, "die-after-ack")), false, "the first rotating child crashed after ACK 2");
+   assert.deepEqual(s.events.filter((e) => e[0] === "ack").map((e) => e[1]), [s.descriptor.paths[RD]], "the resumed child sent ONLY the final reader record");
+@@ -229,19 +242,19 @@ test("ROTATE to a new binding carries EXACTLY the dominating floor (the reader's
+ });
+ 
+ test("RECOVER after a restore marker needs the signed retained high-water; it raises BOTH floors to it; a crash after ACK 3 reopens normally from the committed scan", { timeout: 180000 }, async () => {
+-  const l = leader();
++  const l = await prim();
+   DS.writeMarker(l.roleCfg.dirs.data, DS.restoreMarker({ head: l.role.node().head, archivedAt: Date.now() - 60000, at: Date.now() }));   // as the admin restore bootstrap writes it
+   await restartChild();
+-  await waitFor("unenrolled after the restore (relay serving, INTENDED)", async () => { const y = await get(leader()); return !y.authority && /restored from an archive/.test(st().reason || "") ? y : null; });
++  await waitFor("unenrolled after the restore (relay serving, INTENDED)", async () => { const y = await get(await live()); return !y.authority && /restored from an archive/.test(st().reason || "") ? y : null; });
+   const s0 = st(), base = { mode: "recover", readerPins: s0.readerPins, binding: BINDING2, previousDigest: s0.digest, stateDigest: s0.stateDigest, markerDigest: s0.restoreMarker };
+   const HW = anchor(300, 150);
+   for (const [hw, err, why] of [[null, "high_water", "no archive-only recovery"], [anchor(190, 100), "high_water_below_restored", "below the restored floor"],
+                                 [anchor(200, 120, 7), "high_water_below_restored", "same Base height, other block"], [{ ...HW, tier: "l1-finalized-asr-anchor" }, "high_water", "not an enrollment tier"]]) {
+-    const r = await enroll(leader(), await pkgFor(leader(), { ...base, highWater: hw, floorDigest: DS.floorDigestOf(hw) })); assert.equal(r.json.error, err, why);
++    const r = await enroll(await prim(), await pkgFor(await prim(), { ...base, highWater: hw, floorDigest: DS.floorDigestOf(hw) })); assert.equal(r.json.error, err, why);
+   }
+-  assert.equal((await enroll(leader(), await pkgFor(leader(), { ...base, mode: "rotate", floorDigest: s0.dominatingFloorDigest }))).json.error, "wrong_marker", "a rotate never clears a restore");
++  assert.equal((await enroll(await prim(), await pkgFor(await prim(), { ...base, mode: "rotate", floorDigest: s0.dominatingFloorDigest }))).json.error, "wrong_marker", "a rotate never clears a restore");
+   fs.writeFileSync(path.join(CTL, "die-after-ack"), "3");
+-  const r = await enroll(leader(), await pkgFor(leader(), { ...base, highWater: HW, floorDigest: DS.floorDigestOf(HW) })); assert.equal(r.status, 200, JSON.stringify(r.json));
++  const r = await enroll(await prim(), await pkgFor(await prim(), { ...base, highWater: HW, floorDigest: DS.floorDigestOf(HW) })); assert.equal(r.status, 200, JSON.stringify(r.json));
+   const s = await waitFor("derived after the recovered rebind", async () => { const y = await derivedUp("derived"); return JSON.parse(y.reader.text).enrollment.digest === r.json.digest ? y : null; });
+   assert.equal(fs.existsSync(path.join(CTL, "die-after-ack")), false, "the first recovering child crashed after ACK 3");
+   assert.equal(s.events.some((e) => e[0] === "enroll"), false, "the lost ACK 3 was reconciled by the committed scan: normal open");
+@@ -250,7 +263,7 @@ test("RECOVER after a restore marker needs the signed retained high-water; it ra
+   assert.equal(rd.enrollment.mode, "recover"); assert.equal(rd.enrollment.previousBinding, BINDING2); assert.equal(rd.enrollment.previousEnrollmentDigest, ROTATE);
+   assert.equal(s.marker, false, "the seed discarded the dead child's local in-flight marker");
+   // no floor reset afterwards: a rotate naming the old (lower) floor is refused
+-  const r2 = await enroll(leader(), await pkgFor(leader(), { mode: "rotate", readerPins: st().readerPins, binding: BINDING2, previousDigest: st().digest, stateDigest: st().stateDigest,
++  const r2 = await enroll(await prim(), await pkgFor(await prim(), { mode: "rotate", readerPins: st().readerPins, binding: BINDING2, previousDigest: st().digest, stateDigest: st().stateDigest,
+     markerDigest: st().restoreMarker, floorDigest: DS.floorDigestOf(FR) }));
+   assert.equal(r2.json.error, "wrong_floor");
+ });

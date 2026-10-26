@@ -1,0 +1,82 @@
+{
+ "bootSnapshotSafe": false,
+ "enabled": {
+  "enclave-base-holder.path": false,
+  "enclave-base-holder.service": false,
+  "enclave-base-retention.service": false,
+  "enclave-l1-cl.service": true,
+  "enclave-l1-el.path": true,
+  "enclave-l1-el.service": false,
+  "enclave-rpc-base-snapshot.service": true,
+  "enclave-rpc-l1-snapshot.service": true
+ },
+ "format": "enclave-rpc-os-disk-inspection/r1",
+ "fstabBaseMount": [
+  "UUID=11c6bbac-f823-4052-a87a-066eed6ad590 /srv/enclave-base-holder ext4 noauto,noatime,errors=remount-ro,x-systemd.device-timeout=120s 0 2"
+ ],
+ "note": "read-only; the snapshot-complete marker is on the base disk (not read); verify it in the guest before any holder start",
+ "osDisk": "/vm/enclave-volumes/rpc-production/os.qcow2",
+ "osDiskIno": 147981797,
+ "osDiskMtimeNs": 1793030445722920013,
+ "osDiskSha256Prefix": "55fc06b297df27dede277c5d3778e04f7f78bf34b0a075e5d8fcbd8f19be6031",
+ "osDiskSize": 18581159936,
+ "rootOffset": 1074790400,
+ "rootPartition": {
+  "first": 2099200,
+  "index": 1,
+  "last": 67108830,
+  "name": "",
+  "type": "0fc63daf-8483-4772-8e79-3d69d8477de4"
+ },
+ "snapshotDropinContents": {
+  "30-download-concurrency.conf": {
+   "rc": 0,
+   "text": "[Service]\nExecStart=\nExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-path /opt/enclave-rpc/snapshots/base-1792886410-manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 16 --resumable=true -y\n"
+  }
+ },
+ "snapshotUnit": {
+  "dropIns": [
+   "30-download-concurrency.conf"
+  ],
+  "guards": [
+   "RequiresMountsFor=/srv/enclave-base-holder",
+   "ConditionPathIsMountPoint=/srv/enclave-base-holder",
+   "ConditionPathExists=!/srv/enclave-base-holder/snapshot-complete",
+   "ExecStartPre=/usr/bin/mountpoint -q /srv/enclave-base-holder",
+   "ExecStart=/opt/enclave-rpc/bin/base snapshot download --chain base --with-txs-distance 140000 --with-receipts-distance 140000 --with-state-history-distance 140000 --manifest-url https://mainnet-v2-snapshots.base.org/1792886410/manifest.json --datadir /srv/enclave-base-holder/data --download-concurrency 8 --resumable=true -y"
+  ],
+  "identicalToPayload": true,
+  "payloadSha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4",
+  "present": true,
+  "sha256": "f7a193f1f50ab147aa15d33cb7de9fbddc1ad0c01c244ffef852b417551950f4"
+ },
+ "wantsDirs": [
+  "cloud-config.target.wants",
+  "cloud-final.service.wants",
+  "cloud-init.target.wants",
+  "emergency.target.wants",
+  "final.target.wants",
+  "getty.target.wants",
+  "graphical.target.wants",
+  "hibernate.target.wants",
+  "hybrid-sleep.target.wants",
+  "mdmonitor.service.wants",
+  "multi-user.target.wants",
+  "network-online.target.wants",
+  "paths.target.wants",
+  "rescue.target.wants",
+  "sleep.target.wants",
+  "sockets.target.wants",
+  "suspend-then-hibernate.target.wants",
+  "suspend.target.wants",
+  "sysinit.target.wants",
+  "sysstat.service.wants",
+  "timers.target.wants"
+ ],
+ "wantsLinks": {
+  "multi-user.target.wants/enclave-l1-cl.service": "/etc/systemd/system/enclave-l1-cl.service",
+  "multi-user.target.wants/enclave-l1-el.path": "/etc/systemd/system/enclave-l1-el.path",
+  "multi-user.target.wants/enclave-rpc-base-snapshot.service": "/etc/systemd/system/enclave-rpc-base-snapshot.service",
+  "multi-user.target.wants/enclave-rpc-l1-snapshot.service": "/etc/systemd/system/enclave-rpc-l1-snapshot.service"
+ }
+}

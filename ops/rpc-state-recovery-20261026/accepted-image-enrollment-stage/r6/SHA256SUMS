@@ -1,0 +1,8 @@
+600e0dcacef58d1c173f2bd971a3409047c83291641d36d1b8ea2924bffabf24  ./PROVENANCE.md
+6ca4f7a226f4de7663a3c69fbd6ed133c7b9354780077b263f48ded48c10d5e0  ./inputs/claude-enrollment-r6-failures.md
+f01dadf8a91d10c8971f4abbe719e797285f81474e5b227bf62bcc3adbe13262  ./inputs/root-1435/composition.tap
+a53d1329143c1ceb2d608d359b048c2962bee027862cdaad996159d55bcce1e6  ./inputs/root-1435/enrollment.tap
+d0a255e696f9690522af2b9f8436ad28b7dfb375d6a7ee55099c856d3916a1a8  ./inputs/root-1435/verdict.json
+90c579ab62bb9ffe7389e049fc5743b2fe67e55688ae202561517e88c8bf8875  ./jobs/kvm-overlay.py
+79143829adb5072ea359101fecf9c73b846acd15b4d89afa65155daee5be2dc1  ./jobs/root-accepted-image-enrollment-r6.sh
+09dd093e4965a10380a1a5ae10914712240c9d0311a573b15a947273c175f06c  ./patches/accepted-image-enrollment-r6-vs-r5.patch
