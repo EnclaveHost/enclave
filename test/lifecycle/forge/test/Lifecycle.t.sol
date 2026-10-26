@@ -215,4 +215,13 @@ contract LifecycleTest is Test {
         assertEq(ledger.get(app).leaseUntil,previous);
         assertEq(usdc.balanceOf(appOwner),1_000_000);
     }
+    function test_offchainAuthorityIsOwnerOptInAndCannotChangeWhileRunning() public {
+        assertEq(lc.maxAnchorAgeSec(app),0);
+        vm.expectRevert("not owner"); lc.setAuthorityPolicy(app,1800);
+        vm.expectRevert("anchor age bound"); vm.prank(appOwner); lc.setAuthorityPolicy(app,3601);
+        vm.prank(appOwner); lc.setAuthorityPolicy(app,1800);
+        assertEq(lc.maxAnchorAgeSec(app),1800);
+        _run();
+        vm.expectRevert("assignment active"); vm.prank(appOwner); lc.setAuthorityPolicy(app,0);
+    }
 }

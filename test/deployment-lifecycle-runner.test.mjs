@@ -20,7 +20,8 @@ function fixture(t) {
       const payload = JSON.stringify({ generation: s.assignment.generation, target });
       return { payload, digest: keccak256(toBytes(payload)) }; },
     submit: async () => { f.calls.push('submit'); if (f.uncertain) throw Error('response lost'); },
-    resolve: async (_id, pending) => ({ verified: true, digest: pending.digest, outcome: f.confirmed ? 'confirmed' : 'unknown' }),
+    resolve: async (_id, pending) => ({ verified: true, proofVerified: f.proofVerified !== false,
+      authorityTier: f.receiptTier || 'finalized', digest: pending.digest, outcome: f.confirmed ? 'confirmed' : 'unknown' }),
   };
   const runtime = {
     fence: async () => f.calls.push('fence'), stop: async () => { f.calls.push('stop'); return f.confirmStop; },
@@ -93,4 +94,16 @@ test('a fresh proof of an older assignment cannot roll back the durable generati
   assert.equal((await f.runner.reconcile(id)).status, 'held');
   assert.deepEqual(f.calls, ['fence']);
   assert.equal(f.journal.read(id).generation, 2);
+});
+test('a merely mined or unproved receipt cannot clear the durable transition outbox', async t => {
+  const f = fixture(t); f.snapshot.assignment.state = 'queued';
+  await f.runner.reconcile(id); const digest = f.journal.read(id).pending.digest;
+  f.confirmed = true; f.receiptTier = 'unsafe';
+  assert.equal((await f.runner.reconcile(id)).status, 'pending');
+  f.receiptTier = 'finalized'; f.proofVerified = false;
+  assert.equal((await f.runner.reconcile(id)).status, 'pending');
+  assert.equal(f.journal.read(id).pending.digest, digest);
+  f.proofVerified = true;
+  assert.equal((await f.runner.reconcile(id)).status, 'reconcile');
+  assert.equal(f.journal.read(id).pending, null);
 });

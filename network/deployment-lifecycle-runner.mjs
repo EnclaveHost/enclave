@@ -7,26 +7,54 @@
 // runtime.serve may enable traffic only after obtaining a fresh quorum permit.
 // runtime.fence revokes existing streams/storage access as well as new requests.
 // A chain read is never considered verified merely because HTTP returned 200.
+import { verifyGenerationChain } from './deployment-generation-certificate.mjs';
+import { canRestoreLifecycleDenial } from './deployment-authority-window.mjs';
 
 export class DeploymentLifecycleRunner {
-  constructor({ chain, runtime, journal, now = Date.now, random = Math.random }) {
+  constructor({ chain, runtime, journal, pins = null, now = Date.now, random = Math.random }) {
     this.chain = chain; this.runtime = runtime; this.journal = journal;
-    this.now = now; this.random = random; this.busy = new Set();
+    this.now = now; this.random = random; this.pins = pins; this.busy = new Set();
   }
   async reconcile(id) {
     if (this.busy.has(id)) return { status: 'busy' };
     this.busy.add(id);
     try { return await this.#reconcile(id); }
+    catch (e) { await this.runtime.fence(id); return { status: 'held', reason: `lifecycle adapter failed: ${e.message}` }; }
     finally { this.busy.delete(id); }
   }
   async #reconcile(id) {
-    const now = this.now();
+    let now = this.now();
     let snapshot;
     try { snapshot = await this.chain.read(id); }
     catch (e) { await this.runtime.fence(id); return { status: 'held', reason: `chain authority unavailable: ${e.message}` }; }
+    now = this.now();
+    let operational = null;
+    if (snapshot.generationAuthority) {
+      try {
+        if (!this.pins) throw Error('reviewed lifecycle pins required');
+        const g = snapshot.generationAuthority;
+        const localDenial = this.journal.read(id).denial;
+        const denial = localDenial || g.denyFloor;
+        operational = await verifyGenerationChain(g.certificates, { ...g, pins: this.pins, nowSec: Math.floor(now / 1000), denyFloor: null });
+        if (denial && !canRestoreLifecycleDenial(denial, g.anchor, Math.floor(now / 1000))) throw Error('authenticated restoration required');
+        if (localDenial) this.journal.restoreDenial(id, g.anchor.number);
+        const a = operational.assignment;
+        snapshot = { ...snapshot, verified: true, authorityTier: g.anchor.tier,
+          enabled: g.anchor.admitted === true, funded: a.remainingWei > BigInt(g.policy.stopReserveWei) && a.fundedUntil * 1000 > now,
+          policy: g.policy, servingContext: { generationAuthority: g },
+          assignment: { ...a, revision: g.policy.revision, startAfter: a.startAfter * 1000 } };
+      } catch (e) {
+        await this.runtime.fence(id);
+        if (e.code === 'LIFECYCLE_DENIED' && e.denial) {
+          this.journal.deny(id, e.denial);
+          await this.runtime.stop(id);
+        }
+        return { status: 'held', reason: `operational authority refused: ${e.message}` };
+      }
+    }
     if (snapshot.schema !== 2 || snapshot.id !== id || snapshot.verified !== true ||
-        !['safe', 'finalized'].includes(snapshot.authorityTier) ||
-        !Number.isSafeInteger(snapshot.blockAt) || snapshot.blockAt > now + 2000 || now - snapshot.blockAt > 20000) {
+        !['safe', 'finalized', 'l1-finalized-derived'].includes(snapshot.authorityTier) ||
+        (!operational && (!Number.isSafeInteger(snapshot.blockAt) || snapshot.blockAt > now + 2000 || now - snapshot.blockAt > 20000))) {
       await this.runtime.fence(id);
       return { status: 'held', reason: 'unqualified or stale lifecycle authority' };
     }
@@ -42,15 +70,36 @@ export class DeploymentLifecycleRunner {
       return { status: 'held', reason: `assignment journal refused: ${e.message}` };
     }
     const local = this.journal.read(id);
+    if (local.minedTransitions.length) {
+      if (typeof this.chain.finalize !== 'function') { await this.runtime.fence(id); return { status: 'held', reason: 'finality reconciliation adapter missing' }; }
+      for (const intent of local.minedTransitions) {
+        const resolution = await this.chain.finalize(id, intent);
+        if (resolution?.verified !== true || resolution.digest !== intent.digest) continue;
+        if (resolution.outcome === 'finalized' && resolution.proofVerified === true &&
+            ['finalized', 'l1-finalized-derived'].includes(resolution.authorityTier)) this.journal.settleMined(id, intent.digest);
+        else if (resolution.outcome === 'reorged' && resolution.proofVerified === true) {
+          await this.runtime.fence(id); await this.runtime.stop(id);
+          return { status: 'held', reason: 'mined transition reorganized; exact intent retained for recovery' };
+        }
+      }
+    }
     // A lost relay response is NOT a failed transition. Settle/replay the exact
     // durable intent before preparing any replacement or launching a new VM.
     if (local.pending) {
       const resolution = await this.chain.resolve(id, local.pending);
-      if (resolution.verified !== true || resolution.digest !== local.pending.digest ||
-          !['confirmed', 'finalized-fence'].includes(resolution.outcome))
-        return { status: 'pending', reason: 'transition outcome unresolved' };
-      this.journal.settleTransition(id, local.pending.digest);
-      return { status: 'reconcile', reason: 'transition settled; refresh assignment' };
+      const certified = operational && snapshot.generationAuthority.certificates.some(c => c.record.transitionIntent === local.pending.digest);
+      if (certified && resolution?.verified === true && resolution.digest === local.pending.digest && resolution.outcome === 'mined' &&
+          resolution.proofVerified === true && ['unsafe', 'safe', 'finalized'].includes(resolution.authorityTier)) {
+        if (typeof this.chain.finalize !== 'function') { await this.runtime.fence(id); return { status: 'held', reason: 'finality reconciliation adapter missing' }; }
+        this.journal.archiveMined(id, local.pending.digest, resolution);
+      } else {
+        if (resolution?.verified !== true || resolution.proofVerified !== true ||
+            !['finalized', 'l1-finalized-derived'].includes(resolution.authorityTier) || resolution.digest !== local.pending.digest ||
+            !['confirmed', 'finalized-fence'].includes(resolution.outcome))
+          return { status: 'pending', reason: 'transition outcome unresolved' };
+        this.journal.settleTransition(id, local.pending.digest);
+        return { status: 'reconcile', reason: 'transition settled; refresh assignment' };
+      }
     }
     if (assignment.state === 'stopped') {
       await this.runtime.fence(id); await this.runtime.stop(id);

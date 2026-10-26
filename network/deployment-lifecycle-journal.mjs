@@ -12,22 +12,50 @@ const int = n => Number.isSafeInteger(n) && n >= 0;
 function validate(j) {
   if (!j || j.version !== 1 || !Array.isArray(j.deployments) || j.deployments.length > 65536)
     throw new Error('invalid lifecycle journal');
+  j.authorityAnchors ??= {};
+  if (!j.authorityAnchors || typeof j.authorityAnchors !== 'object' || Array.isArray(j.authorityAnchors) ||
+      Object.keys(j.authorityAnchors).length > 32) throw Error('invalid authority anchor journal');
+  for (const [chain, anchor] of Object.entries(j.authorityAnchors)) {
+    if (!/^[1-9][0-9]{0,14}$/.test(chain) || !validAnchor(anchor)) throw Error('invalid durable authority anchor');
+  }
   const seen = new Set();
   for (const row of j.deployments) {
     if (!row || !ID.test(row.id) || seen.has(row.id)) throw new Error('invalid or duplicate deployment');
     seen.add(row.id); validateRestartState(row.restart);
+    row.bindingDigest ??= null;
+    row.successorVote ??= null;
+    row.denial ??= null;
+    row.attemptSequence ??= 0; row.runtime ??= null;
+    row.minedTransitions ??= [];
+    if (!Array.isArray(row.minedTransitions) || row.minedTransitions.length > 128 || row.minedTransitions.some(x =>
+      !ID.test(x?.digest) || typeof x.payload !== 'string' || x.payload.length > 32768 ||
+      !ID.test(x.transactionHash) || !ID.test(x.blockHash) || !int(x.blockNumber))) throw new Error('invalid mined transition journal');
+    if (!int(row.attemptSequence) || row.runtime !== null && (!int(row.runtime.generation) || !int(row.runtime.startedAt) ||
+        typeof row.runtime.instance !== 'string' || !row.runtime.instance.length || row.runtime.instance.length > 256))
+      throw new Error('invalid runtime journal');
+    if (row.denial !== null && (!int(row.denial.blockNumber) || !ID.test(row.denial.blockHash) ||
+        !int(row.denial.observedAt) || !int(row.denial.revision))) throw new Error('invalid denial floor');
+    if (row.successorVote !== null && (!int(row.successorVote.generation) || !ID.test(row.successorVote.digest) ||
+        !ID.test(row.successorVote.previous) || typeof row.successorVote.payload !== 'string' || row.successorVote.payload.length > 8192))
+      throw new Error('invalid successor vote');
     if (!int(row.generation) || !int(row.revision) || !int(row.sequence) || typeof row.fenced !== 'boolean' ||
-        !(row.digest === null || ID.test(row.digest))) throw new Error('invalid witness state');
+        !(row.digest === null || ID.test(row.digest)) ||
+        !(row.bindingDigest === null || ID.test(row.bindingDigest))) throw new Error('invalid witness state');
     if (row.pending !== null && (typeof row.pending !== 'object' || !ID.test(row.pending.digest) ||
         typeof row.pending.payload !== 'string' || row.pending.payload.length > 32768)) throw new Error('invalid transition outbox');
   }
   return j;
 }
+function validAnchor(a) {
+  return a?.tier === 'l1-finalized-derived' && [a.base, a.l1].every(b => b && int(b.number) && int(b.timestamp) && ID.test(b.hash)) &&
+    ID.test(a.base.stateRoot) && ID.test(a.base.outputRoot);
+}
 const fresh = id => ({ id, restart: initialRestartState(), generation: 0, revision: 0,
-  sequence: 0, digest: null, fenced: false, pending: null });
+  sequence: 0, digest: null, bindingDigest: null, successorVote: null, denial: null,
+  attemptSequence: 0, runtime: null, minedTransitions: [], fenced: false, pending: null });
 
 export function openLifecycleJournal(file, { fsImpl = fs, platform = process.platform } = {}) {
-  let state = { version: 1, deployments: [] }, failed = null;
+  let state = { version: 1, deployments: [], authorityAnchors: {} }, failed = null;
   if (fsImpl.existsSync(file)) {
     try { state = validate(JSON.parse(fsImpl.readFileSync(file, 'utf8'))); }
     catch (e) { failed = `lifecycle journal is unreadable: ${e.message}`; }
@@ -46,19 +74,38 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
   }
   return {
     read,
+    readAnchor(chainId) { check(); return structuredClone(state.authorityAnchors[String(chainId)] || null); },
+    acceptAnchor(chainId, anchor) {
+      check();
+      if (!Number.isSafeInteger(chainId) || chainId < 1 || !validAnchor(anchor)) throw Error('invalid durable authority anchor');
+      const old = state.authorityAnchors[String(chainId)];
+      if (old && ['base', 'l1'].some(k => anchor[k].number < old[k].number ||
+          anchor[k].number === old[k].number && anchor[k].hash !== old[k].hash)) throw Error('durable authority anchor rollback');
+      if (old && anchor.base.number === old.base.number &&
+          (anchor.base.stateRoot !== old.base.stateRoot || anchor.base.outputRoot !== old.base.outputRoot || anchor.base.timestamp !== old.base.timestamp))
+        throw Error('durable authority anchor contradiction');
+      const next = structuredClone(state); next.authorityAnchors[String(chainId)] = structuredClone(anchor); validate(next);
+      try { strictWriteFile(file, JSON.stringify(next), { fsImpl, platform }); }
+      catch (e) { failed = `lifecycle journal write failed: ${e.message}`; throw e; }
+      state = next;
+    },
     failure(id, args) { return update(id, row => ({ ...row, restart: restartFailure(row.restart, args) })); },
     healthy(id, args) { return update(id, row => ({ ...row, restart: restartHealthy(row.restart, args) })); },
     unhealthy(id, now) { return update(id, row => ({ ...row, restart: restartUnhealthy(row.restart, now) })); },
     decision(id, now) { return restartDecision(read(id).restart, now); },
     // Called only AFTER authenticating an explicit owner resume.
     resume(id, now) { return update(id, row => ({ ...row, restart: ownerResumeRestartState(row.restart, now) })); },
-    observeAssignment(id, generation, revision) {
+    observeAssignment(id, generation, revision, bindingDigest = null) {
       if (!int(generation) || !int(revision) || generation === 0 || revision === 0) throw new Error('invalid assignment');
+      if (bindingDigest !== null && !ID.test(bindingDigest)) throw new Error('invalid assignment binding');
       return update(id, row => {
         if (generation < row.generation || generation === row.generation && revision < row.revision) throw new Error('assignment rollback');
-        if (generation === row.generation && revision === row.revision) return row;
+        if (generation === row.generation && revision === row.revision) {
+          if (row.bindingDigest && bindingDigest && row.bindingDigest !== bindingDigest) throw new Error('conflicting assignment binding');
+          return { ...row, bindingDigest: row.bindingDigest || bindingDigest };
+        }
         // A policy edit must not revive an assignment that this witness fenced.
-        return { ...row, generation, revision, sequence: 0, digest: null,
+        return { ...row, generation, revision, sequence: 0, digest: null, bindingDigest,
           fenced: generation === row.generation ? row.fenced : false };
       });
     },
@@ -76,6 +123,45 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
         return { ...row, fenced: true };
       });
     },
+    voteSuccessor(id, { generation, previous, digest, payload }) {
+      return update(id, row => {
+        if (generation !== row.generation + 1) throw new Error('successor does not follow observed generation');
+        const old = row.successorVote;
+        if (old && (generation < old.generation || generation === old.generation &&
+            (old.digest !== digest || old.previous !== previous || old.payload !== payload)))
+          throw new Error('conflicting successor vote');
+        return { ...row, fenced: true, successorVote: { generation, previous, digest, payload } };
+      });
+    },
+    deny(id, denial) {
+      return update(id, row => ({ ...row, denial: !row.denial || denial.blockNumber >= row.denial.blockNumber ? denial : row.denial }));
+    },
+    // Only after authenticating finalized positive policy beyond the denial.
+    restoreDenial(id, blockNumber) {
+      return update(id, row => {
+        if (!row.denial || !int(blockNumber) || blockNumber < row.denial.blockNumber) throw new Error('restoration precedes denial');
+        return { ...row, denial: null };
+      });
+    },
+    beginAttempt(id) {
+      return update(id, row => ({ ...row, attemptSequence: row.attemptSequence + 1 })).attemptSequence;
+    },
+    rememberRuntime(id, { instance, generation, now }) {
+      return update(id, row => {
+        if (row.runtime && (row.runtime.generation > generation || row.runtime.generation === generation && row.runtime.instance !== instance))
+          throw new Error('conflicting runtime instance');
+        return { ...row, runtime: { instance, generation,
+          startedAt: row.runtime?.instance === instance && row.runtime.generation === generation ? row.runtime.startedAt : now } };
+      }).runtime;
+    },
+    // Only after the manager confirms this concrete instance is retired AND
+    // every serving/data boundary is held. It does not reset crash accounting.
+    retireRuntime(id, instance) {
+      return update(id, row => {
+        if (row.runtime && row.runtime.instance !== instance) throw Error('wrong runtime retirement');
+        return { ...row, runtime: null };
+      });
+    },
     prepareTransition(id, { digest, payload }) {
       return update(id, row => {
         if (row.pending && (row.pending.digest !== digest || row.pending.payload !== payload))
@@ -89,6 +175,21 @@ export function openLifecycleJournal(file, { fsImpl = fs, platform = process.pla
       return update(id, row => {
         if (!row.pending || row.pending.digest !== digest) throw new Error('wrong transition settlement');
         return { ...row, pending: null };
+      });
+    },
+    // A proof-verified mined receipt plus an anchored quorum certificate may
+    // advance operational state, but the exact intent remains until finality.
+    archiveMined(id, digest, receipt) {
+      return update(id, row => {
+        if (!row.pending || row.pending.digest !== digest) throw new Error('wrong mined transition');
+        return { ...row, pending: null, minedTransitions: [...row.minedTransitions, { ...row.pending,
+          transactionHash: receipt.transactionHash, blockHash: receipt.blockHash, blockNumber: receipt.blockNumber }] };
+      });
+    },
+    settleMined(id, digest) {
+      return update(id, row => {
+        if (!row.minedTransitions.some(x => x.digest === digest)) throw new Error('unknown mined transition');
+        return { ...row, minedTransitions: row.minedTransitions.filter(x => x.digest !== digest) };
       });
     },
   };

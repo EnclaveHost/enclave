@@ -45,65 +45,97 @@ quorum can attest ten minutes of actual continuous health at the next failure
 transition to reset the failure count; elapsed wall time alone cannot reset it.
 
 The journal durably records crash counts, generation fences, permit replay
-floors and exact pending transaction intents. Corruption or write failure fails
-closed. Its current API assumes one owning process; a production adapter must
-enforce exclusive ownership of its file.
+floors, exact pending/mined transaction intents, runtime identities and accepted
+Base/L1 anchor floors. Corruption or write failure fails closed. The exclusive
+owner adapter uses a kernel file lock on Linux and a named pipe on Windows.
+Both release ownership when the process dies. A missing journal refuses normal
+startup; explicit initialization is reserved for initial enrollment. These mechanisms do not protect
+against a malicious disk rollback or erased journal: a restored host/witness
+must recover an authenticated floor before it may sign or serve again.
 
-## Authority and fencing: current rollout blocker
+## Authority and fencing
 
-Heartbeats and serving permits stay off chain. The permit design requires an
-owner-selected quorum greater than two thirds (normally 3 of 4). Witnesses must
-durably fence a generation before voting it out. Permits last at most 20 seconds,
-and takeover waits at least 22 seconds for expiry plus clock skew. Restart
-backoff can extend that delay. This removes a fixed 30-minute reservation wait;
-it is **not a demonstrated end-to-end recovery-time guarantee**.
+Heartbeats and serving permits stay off chain. Each owner selects a quorum
+greater than two thirds (normally 3 of 4). Witnesses durably fence a generation
+before voting it out. Permits last at most 20 seconds; takeover waits at least
+22 seconds for expiry plus clock skew. Restart backoff can extend that delay.
+This removes a fixed 30-minute reservation wait; it is **not a demonstrated
+end-to-end recovery-time guarantee**.
 
-The prototype currently requires a proof-qualified safe/finalized authority
-snapshot whose underlying block is at most 20 seconds old. The coordinated RPC
-work measured a finalized state about 1,034 seconds behind wall time. A newly
-verified read of that state does not make the block current. Therefore this
-prototype will fail closed on that feed and MUST NOT be activated there.
+The candidate separates authenticated policy age, recent verification, current
+denials and operational generation authority. `maxAnchorAgeSec = 0` is the
+on-chain default and retains the strict finality-only path. An idle deployment's
+owner can explicitly authorize a 20–3,600 second policy-anchor bound. This is a
+maximum proof age, not a renewable on-chain reservation. The bound cannot be
+changed while running. No fast-mode policy has been activated for a real app.
 
-The final design must distinguish:
+With that explicit policy, a chained quorum certificate can authorize a newer
+generation while its transaction awaits finality. Every certificate binds the
+chain, controller, deployment, anchor hash/height, witness policy/revision,
+predecessor, generation, host/operator, exact payable transition intent, expiry,
+remaining reserve and funded horizon. It cannot mint budget or extend paid
+runtime. The host requires a proof-qualified mined receipt for a pending local
+transition before proceeding; it retains that exact intent until finality.
+A proved reorganization fences and stops the runtime. Automatic replay after a
+reorganization is not implemented and must not silently replace an intent.
 
-1. authenticated block timestamp and finality;
-2. freshness of verification/observation;
-3. quorum knowledge of a durably fenced generation;
-4. when an administrator disable, host ban or owner change becomes authoritative.
+A current denial check must be observed within 20 seconds and independently
+proof-qualified, with authenticated ancestry to the policy anchor. An unsafe
+head may deny service but cannot supply a new owner, witness set, funding grant
+or restoration. Denials persist across restart; only authenticated positive
+finalized state at or beyond the denial height may restore service. Administrator
+upgrades, moderation, bans and owner restrictions retain precedence. Ancestry
+alone does not authenticate the latest head.
 
-Changing a timestamp to the time of a successful HTTP response, accepting unsafe
-latest state, or removing the bound is not a resolution. A measured protocol
-and integration test must establish what revocation/failover latency is actually
-supported. Administrator upgrades, moderation and bans remain authoritative;
-witnesses cannot override them.
+The old 1,034-second measurement came from the **Ethereum** finalized reader,
+not a qualified Base reader. A resolved ASR-game anchor can be days old and is
+not suitable as a near-current lifecycle policy source. The new finality bridge
+accepts only an in-domain `l1-finalized-derived` anchor and then pins local
+proof-executing state reads to its exact Base hash. A fresh HTTP response does
+not change the authenticated block timestamp. The bridge persists accepted
+Base/L1 floors before publishing a snapshot and rejects rollback after restart.
 
-## Integration contract
+**The required live derivation provider is still being built by the coordinated
+RPC work.** Neither an ASR status adapter nor the existing sequencer-signed unsafe
+reader implements that provider. There is no automatic fallback or production
+activation. See [AUTHORITY-ADAPTER.md](AUTHORITY-ADAPTER.md) for the exact boundary.
 
-`network/deployment-lifecycle-runner.mjs` is an adapter-driven state machine.
-Its unit tests inject adapters; it is not connected to a production host.
+The contract supports quorum-attested continuous health to reset crash counts.
+The fast certificate path currently requires `healthySince = 0`, conservatively
+retaining failures until a new authenticated anchor or owner resume establishes
+the reset. It cannot infer health from elapsed time.
 
-- `chain.read` must authenticate schema, assignment, policy, funds, ownership,
-  registry and catalog/admin admission at a coherent authority snapshot. Global
-  `enabled` is distinct from host-specific `admitted`. For queued apps, `funded`
-  means sufficient transition budget and affordable candidate-host runtime;
-  do not use the controller's running-only `funded()` for queued apps.
-- `chain.prepare` returns the exact unsigned generation/revision/domain/fee-bound
-  intent. `submit` signs only after durable outbox persistence. `resolve` verifies
-  the exact receipt or a finalized fence; a transport timeout is not a failed tx.
-- `runtime.ensureStaged` may boot but must not authorize serving or data writes.
-  `serve` must acquire a validated quorum permit, persist its replay floor and
-  schedule expiry independently of the reconciliation loop.
-- `runtime.fence` must revoke existing streams, storage writes and access to
-  secrets as well as new connections. `stop` must confirm retirement before the
-  controller queues a replacement. Process termination alone is insufficient
-  protection against a hostile old host with copied data.
-- Witness signing must integrate durable fence/anti-equivocation state, verified
-  owner policy, authenticated health and bounded resource use. A raw signing
-  helper is not a witness service.
-- A production host must use one lifecycle implementation per deployment and
-  never run the old renewal loop concurrently. Ingress, storage and secret
-  release must enforce the same generation. The current code does not install
-  these adapters, services or UI status mapping.
+## Implemented adapters and remaining composition
+
+- `deployment-lifecycle-witness.mjs` and `deployment-witness-http.mjs` implement
+  bounded witness endpoints. Requests require operator authorization and local
+  authority/readiness verification; clients cannot supply a signing snapshot.
+  Successor votes persist before either certificate or transition signatures.
+- `deployment-permit-collector.mjs` collects permits and generation certificates
+  from configured HTTPS witnesses. It verifies both generation and payable-intent
+  signatures and returns contract-ordered approvals. HTTP is available only
+  through an explicit loopback fixture option.
+- `deployment-permit-gate.mjs` revokes already-open resources on expiry and checks
+  wall and monotonic deadlines before new writes or secret release. Replaying a
+  permit cannot restart its lifetime. A clock discontinuity closes the gate.
+- `deployment-isolation-runtime.mjs` uses the existing Windows/Linux manager HTTP
+  contract. It stages under held I/O boundaries, requires independent measured
+  readiness, and retires the concrete VM on permit expiry even if reconciliation
+  stalls. A verified failed-boot retirement permits a later boot without clearing
+  the crash counter. Ambiguous POSTs reconcile against the manager's name-based
+  idempotence contract before another spawn; unknown inventory cannot launch.
+- `deployment-lifecycle-runner.mjs` handles funded running, failure queueing,
+  final-stop reserve depletion and durable transaction reconciliation. A qualified
+  current denial retires the local runtime immediately. Recording the resulting
+  stopped state from a denial-only source still needs the production relay path.
+
+The modules are implemented; their production composition is not installed.
+The host must wire real measured launch/readiness, registry/catalog/admin reads,
+generation collection and transaction relay, and ingress/storage/secret services
+that enforce the same absolute deadline and generation. Boundary acknowledgments
+are a local adapter contract, not proof that an arbitrary remote service enforces
+expiry. Never run the old lease loop for the same deployment. Process termination
+cannot revoke raw data already copied by a hostile host.
 
 Paid proof-of-service accounting is inherited and still needs qualification.
 Those settlement checkpoints are distinct from liveness heartbeats. This

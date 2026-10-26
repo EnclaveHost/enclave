@@ -154,10 +154,10 @@
     },
     "EnclaveDeploymentLifecycle": {
       "source": "contracts/EnclaveDeploymentLifecycle.sol",
-      "sourceSha256": "9298aa3327d09d329fe281c1c40511595d6419ef7ff993ebf9bae2ba04e70e31",
-      "runtimeBytes": 11639,
-      "creationKeccak256": "0x1af10e7e5eee99914763e806d99d3572f8623f3afa675acc83347aaabaa682a5",
-      "runtimeTemplateKeccak256": "0x141d7289c565744be1b9f16e1fd12cd6784dd7c3160bee76e79d3c1ef1afd5e3",
+      "sourceSha256": "13071b9e808346521982e63550f6aa6f4bd17e3825bdee3619d1736ef43594d9",
+      "runtimeBytes": 12325,
+      "creationKeccak256": "0xa58fedb707ef2ca0dd32b3cabbfefa3a351c50a121b0919fab8b8849c663b635",
+      "runtimeTemplateKeccak256": "0xa3e8ae1ac865c4752613394c0a279f590454147234697026a633f01e1c7d9f9a",
       "selectors": {
         "FENCE_SEC": "0xb50695e3",
         "HEALTHY_RESET_SEC": "0x730106e4",
@@ -172,8 +172,10 @@
         "funded": "0x9f9b3d3b",
         "l1Oracle": "0x02163425",
         "ledger": "0x56397c35",
+        "maxAnchorAgeSec": "0x98dd7c86",
         "ownerAuthority": "0xd29ce80d",
         "resume": "0xfa7a2962",
+        "setAuthorityPolicy": "0x3fee87f1",
         "spendable": "0x38f645fb",
         "threshold": "0x25605b6d",
         "transition": "0x9dce69e0",
@@ -182,6 +184,7 @@
         "witnessesOf": "0x6bb1fc49"
       },
       "events": {
+        "AuthorityPolicySet": "0xe577d0dd16c58c0c118f9d09034a20146d87b0cd8694e4408968bc5de0fb30fb",
         "Configured": "0x24c7a6fb5bcc63382948a9e170cc423097e0db6e2bbd09a077edda8da899871f",
         "Deposited": "0x87d4c0b5e30d6808bc8a94ba1c4d839b29d664151551a31753387ee9ef48429b",
         "Resumed": "0xc682f5ef14e0731e8e6595cf21a7b656e34f88c8ff96355e91a000ed57c5a623",
@@ -204,8 +207,8 @@
     }
   },
   "rolloutBlocks": [
-    "Authenticated safe/finalized block age does not satisfy the current 20-second authority bound.",
-    "Witness service and host, ingress, storage and secret-release fencing adapters are not wired.",
+    "A qualified in-domain near-current derived authority reader is not yet available; ASR anchors and unsafe heads cannot substitute.",
+    "Portable witness and manager adapters exist; production admission and ingress/storage/secret enforcement composition is not activated.",
     "Live migration, paid-service settlement and Base receipt fee bounds are not qualified."
   ]
 }

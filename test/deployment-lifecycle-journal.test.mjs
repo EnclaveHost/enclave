@@ -39,3 +39,21 @@ test('corrupt journal is held without overwriting, and a failed durable write ne
   assert.throws(() => j.read(id), /write failed/);
   assert.equal(fs.existsSync(file), false);
 });
+test('operationally mined intents remain durable until their exact finalized receipts settle', t => {
+  const file = setup(t); let j = openLifecycleJournal(file);
+  j.prepareTransition(id, { digest, payload: '{"generation":2}' });
+  j.archiveMined(id, digest, { transactionHash: keccak256(toBytes('tx')), blockHash: keccak256(toBytes('block')), blockNumber: 30 });
+  j = openLifecycleJournal(file);
+  assert.equal(j.read(id).pending, null); assert.equal(j.read(id).minedTransitions[0].digest, digest);
+  j.prepareTransition(id, { digest: keccak256(toBytes('next')), payload: '{"generation":3}' });
+  assert.throws(() => j.settleMined(id, keccak256(toBytes('wrong'))), /unknown/);
+  j.settleMined(id, digest); assert.equal(j.read(id).minedTransitions.length, 0);
+});
+test('same-generation host bindings and successor votes cannot conflict through restart', t => {
+  const file = setup(t); let j = openLifecycleJournal(file);
+  j.observeAssignment(id, 2, 1, digest);
+  j.voteSuccessor(id, { generation: 3, previous: digest, digest, payload: '{}' });
+  j = openLifecycleJournal(file);
+  assert.throws(() => j.observeAssignment(id, 2, 1, keccak256(toBytes('other host'))), /conflicting/);
+  assert.throws(() => j.voteSuccessor(id, { generation: 3, previous: digest, digest: keccak256(toBytes('other successor')), payload: '{}' }), /conflicting/);
+});

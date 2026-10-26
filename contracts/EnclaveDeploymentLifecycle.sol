@@ -67,6 +67,9 @@ contract EnclaveDeploymentLifecycle {
     mapping(bytes32 => address[]) private _witnesses;
     mapping(bytes32 => mapping(address => bool)) public witness;
     mapping(bytes32 => uint8) public threshold;
+    // Zero keeps finality-only authorization. Opting into bounded off-chain
+    // generation certificates is an explicit owner policy, never an RPC hint.
+    mapping(bytes32 => uint32) public maxAnchorAgeSec;
     // Generation fencing is a short, off-chain permit bound, not a reservation
     // renewal. No write is needed when this delay elapses.
     uint64 public constant FENCE_SEC = 22;
@@ -86,6 +89,7 @@ contract EnclaveDeploymentLifecycle {
     event TransitionPaid(bytes32 indexed id, bytes32 indexed intent, address indexed payee, uint256 chargedWei);
     event Resumed(bytes32 indexed id, uint64 revision);
     event Withdrawn(bytes32 indexed id, address indexed owner, uint256 amountWei);
+    event AuthorityPolicySet(bytes32 indexed id, uint64 revision, uint32 maxAnchorAgeSec);
 
     modifier nonReentrant() { require(!entered, "reentrant"); entered = true; _; entered = false; }
     constructor(address ledger_, address l1Oracle_) {
@@ -124,6 +128,7 @@ contract EnclaveDeploymentLifecycle {
             _witnesses[id].push(witnesses[i]);
         }
         threshold[id] = required;
+        if (a.owner != owner) maxAnchorAgeSec[id] = 0;
         a.owner = owner;
         ++a.revision;
         Budget storage b = budgets[id];
@@ -142,6 +147,15 @@ contract EnclaveDeploymentLifecycle {
     }
 
     function witnessesOf(bytes32 id) external view returns (address[] memory) { return _witnesses[id]; }
+    function setAuthorityPolicy(bytes32 id, uint32 lagSec) external nonReentrant {
+        Assignment storage a = assignments[id];
+        require(a.owner != address(0) && a.owner == ledger.lifecycleOwner(id) && msg.sender == ownerAuthority(id), "not owner");
+        require(a.state != State.Running && block.timestamp >= a.startAfter, "assignment active");
+        require(lagSec == 0 || (lagSec >= 20 && lagSec <= 3600), "anchor age bound");
+        maxAnchorAgeSec[id] = lagSec;
+        ++a.revision;
+        emit AuthorityPolicySet(id, a.revision, lagSec);
+    }
     function spendable(bytes32 id) public view returns (uint256) {
         Budget storage b = budgets[id];
         return b.balanceWei > b.stopReserveWei ? b.balanceWei - b.stopReserveWei : 0;

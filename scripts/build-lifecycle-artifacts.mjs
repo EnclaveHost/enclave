@@ -28,8 +28,8 @@ const definitions = [
 const outputs = new Map();
 const manifest = { schema: 1, qualification: 'candidate; not enabled for production', compiler: version,
   settings, contracts: {}, rolloutBlocks: [
-    'Authenticated safe/finalized block age does not satisfy the current 20-second authority bound.',
-    'Witness service and host, ingress, storage and secret-release fencing adapters are not wired.',
+    'A qualified in-domain near-current derived authority reader is not yet available; ASR anchors and unsafe heads cannot substitute.',
+    'Portable witness and manager adapters exist; production admission and ingress/storage/secret enforcement composition is not activated.',
     'Live migration, paid-service settlement and Base receipt fee bounds are not qualified.',
   ] };
 for (const [name, source] of definitions) {

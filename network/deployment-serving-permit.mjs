@@ -3,7 +3,10 @@
 // exact generation. Witnesses durably stop granting the old generation before
 // certifying failure. A takeover waits out MAX_PERMIT_SEC + CLOCK_SKEW_SEC.
 // No function in this module sends a blockchain transaction.
-import { recoverTypedDataAddress, hashTypedData, getAddress } from 'viem';
+import { recoverTypedDataAddress, hashTypedData, getAddress, keccak256, toBytes } from 'viem';
+import { verifyGenerationChain } from './deployment-generation-certificate.mjs';
+import { canRestoreLifecycleDenial } from './deployment-authority-window.mjs';
+const OPERATIONAL = Symbol('verified generation authority');
 
 export const MAX_PERMIT_SEC = 20;
 export const CLOCK_SKEW_SEC = 2;
@@ -31,9 +34,33 @@ export async function signServingPermit(account, pins, record) {
   return account.signTypedData(servingPermitTypedData(pins, record));
 }
 
-export async function verifyServingPermit(envelope, { pins, assignment, policy, nowSec, floor = null }) {
+// Same generation/revision cannot acquire another host or witness set even if
+// a later RPC response calls the conflicting snapshot verified.
+export function servingAssignmentBinding(pins, assignment, policy) {
+  return keccak256(toBytes(JSON.stringify([pins.chainId, getAddress(pins.lifecycle),
+    assignment.deployment.toLowerCase(), assignment.host.toLowerCase(), getAddress(assignment.operator),
+    assignment.generation, assignment.policyRevision, policy.threshold, policy.witnesses.map(a => getAddress(a))])));
+}
+
+export async function resolveServingContext(options) {
+  if (!options.generationAuthority) {
+    if (options.denyFloor) throw Error('deployment denied; authenticated restoration required');
+    return options;
+  }
+  const g = options.generationAuthority;
+  const result = await verifyGenerationChain(g.certificates, { ...g, denyFloor: null, pins: options.pins, nowSec: options.nowSec });
+  const denial = options.denyFloor ?? g.denyFloor;
+  if (denial && !canRestoreLifecycleDenial(denial, g.anchor, options.nowSec)) throw Error('deployment denied; authenticated restoration required');
+  const a = result.assignment;
+  return { ...options, restoredAt: denial ? g.anchor.number : null, policy: g.policy, assignment: { ...a, policyRevision: g.policy.revision,
+    proofVerified: true, authorityTier: g.anchor.tier, admitted: g.anchor.admitted,
+    funded: a.remainingWei > BigInt(g.policy.stopReserveWei) && a.fundedUntil > options.nowSec,
+    [OPERATIONAL]: result.authority.validUntil } };
+}
+
+export function validateServingPermitContext(record, { pins, assignment, policy, nowSec, floor = null }) {
   if (!Number.isSafeInteger(nowSec) || nowSec < 0) throw new Error('invalid clock');
-  const data = servingPermitTypedData(pins, envelope?.record || {}), r = envelope.record;
+  const data = servingPermitTypedData(pins, record || {}), r = record;
   // assignment/policy are read by the caller's existing authenticated chain
   // reader, NEVER taken from the heartbeat transport. The bounded snapshot
   // prevents an isolated old host from serving indefinitely on a cached head.
@@ -41,11 +68,13 @@ export async function verifyServingPermit(envelope, { pins, assignment, policy, 
       assignment.deployment?.toLowerCase() !== r.deployment.toLowerCase() || assignment.generation !== r.generation ||
       assignment.policyRevision !== r.policyRevision) throw new Error('permit is not for the current running assignment');
   if (assignment.admitted !== true || assignment.funded !== true) throw new Error('deployment is disabled, banned or unfunded');
-  if (!['safe', 'finalized'].includes(assignment.authorityTier) || assignment.proofVerified !== true)
+  if (!['safe', 'finalized', 'l1-finalized-derived'].includes(assignment.authorityTier) || assignment.proofVerified !== true)
     throw new Error('unqualified assignment authority');
-  if (!Number.isSafeInteger(assignment.observedAt) || assignment.observedAt > nowSec + CLOCK_SKEW_SEC ||
+  const operationalUntil = assignment[OPERATIONAL];
+  if (operationalUntil !== undefined ? operationalUntil <= nowSec :
+      (!Number.isSafeInteger(assignment.observedAt) || assignment.observedAt > nowSec + CLOCK_SKEW_SEC ||
       nowSec - assignment.observedAt > MAX_AUTHORITY_AGE_SEC || !Number.isSafeInteger(assignment.blockTimestamp) ||
-      assignment.blockTimestamp > nowSec + CLOCK_SKEW_SEC || nowSec - assignment.blockTimestamp > MAX_AUTHORITY_AGE_SEC)
+      assignment.blockTimestamp > nowSec + CLOCK_SKEW_SEC || nowSec - assignment.blockTimestamp > MAX_AUTHORITY_AGE_SEC))
     throw new Error('stale assignment authority');
   if (r.issuedAt > nowSec + CLOCK_SKEW_SEC || r.validUntil <= nowSec + CLOCK_SKEW_SEC)
     throw new Error('permit expired or from the future');
@@ -59,6 +88,14 @@ export async function verifyServingPermit(envelope, { pins, assignment, policy, 
   if (floor && (floor.generation > r.generation || floor.generation === r.generation &&
       (floor.sequence > r.sequence || floor.sequence === r.sequence && floor.digest !== digest)))
     throw new Error('permit replay or equivocation');
+  return { data, record: r, digest, allowed,
+    serveUntil: Math.min(r.validUntil - CLOCK_SKEW_SEC, operationalUntil ?? assignment.blockTimestamp + MAX_AUTHORITY_AGE_SEC) };
+}
+
+export async function verifyServingPermit(envelope, options) {
+  options = await resolveServingContext(options);
+  const { policy } = options;
+  const { data, record: r, digest, allowed, serveUntil } = validateServingPermitContext(envelope?.record, options);
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length < policy.threshold ||
       envelope.signatures.length > policy.witnesses.length) throw new Error('missing witness quorum');
   const signers = new Set();
@@ -67,7 +104,8 @@ export async function verifyServingPermit(envelope, { pins, assignment, policy, 
     if (!allowed.has(signer) || signers.has(signer)) throw new Error('unauthorized or duplicate witness');
     signers.add(signer);
   }
-  return { record: r, signers: [...signers], floor: { generation: r.generation, sequence: r.sequence, digest },
+  return { record: r, assignment: options.assignment, policy, restoredAt: options.restoredAt,
+    signers: [...signers], floor: { generation: r.generation, sequence: r.sequence, digest },
     // Consumers must drop existing streams/writes as well as refuse new ones.
-    serveUntil: Math.min(r.validUntil - CLOCK_SKEW_SEC, assignment.blockTimestamp + MAX_AUTHORITY_AGE_SEC) };
+    serveUntil };
 }
