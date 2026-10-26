@@ -1,0 +1,21 @@
+utc=2026-10-26T11:52:13Z host=ap-southeast kernel=6.8.0-146-generic
+unit caddy.service active=active enabled=enabled mainpid=65358 script=/usr/bin/caddy sha16=9681d054b6e5137d
+unit enclave-bootstrap-gateway.service active=active enabled=enabled mainpid=253047 script=/usr/local/bin/node sha16=fde6a4bf8d0562f7
+unit enclave-bootstrap-tls.service active=active enabled=enabled mainpid=227529 script=none sha16=n/a
+unit enclave-custodian.service active=active enabled=enabled mainpid=67654 script=/opt/enclave-custodian/current/custodian.mjs sha16=07e2a0668a0f5083
+unit enclave-dns-front.service active=active enabled=enabled mainpid=322201 script=/usr/bin/dnsdist sha16=a58cac114c23e437
+unit enclave-network-provider.service active=active enabled=enabled mainpid=227519 script=/usr/local/bin/node sha16=fde6a4bf8d0562f7
+unit enclave-public-directory.service active=active enabled=enabled mainpid=303512 script=/usr/local/bin/node sha16=fde6a4bf8d0562f7
+unit enclave-route-dns.service active=active enabled=enabled mainpid=230360 script=/usr/local/bin/node sha16=fde6a4bf8d0562f7
+netif wg-exit type=65534
+netif wg-guard type=65534
+public_tcp_listen 0.0.0.0:22 0.0.0.0:443 0.0.0.0:51822 0.0.0.0:80 0.0.0.0:8188 0.0.0.0:8189 165.245.191.129:53 [::]:22 
+public_udp_listen 0.0.0.0:51820 0.0.0.0:51821 165.245.191.129:53 [::]:51820 [::]:51821 
+provider_cfg {"file":"/etc/enclave-network/provider-pinned-8b37c37.before-bootstrap-tls.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+provider_cfg {"file":"/etc/enclave-network/provider-pinned-8b37c37.before-control-routes.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+provider_cfg {"file":"/etc/enclave-network/provider-pinned-8b37c37.before-storage-20261019.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+provider_cfg {"file":"/etc/enclave-network/provider-pinned-8b37c37.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+provider_cfg {"file":"/etc/enclave-network/provider.before-directories.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+provider_cfg {"file":"/etc/enclave-network/provider.before-removing-nan-directory.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+provider_cfg {"file":"/etc/enclave-network/provider.json","rpc":["https://mainnet.base.org","https://base-rpc.publicnode.com","https://base.drpc.org"],"relay":"https://api.enclave.host","region":"sgp1","kind":"enclave","roles":["guard","ingress","egress"],"chainAuthority":null}
+release_link /opt/enclave-custodian/current -> /opt/enclave-custodian/custodian-20261014194902-09895e649
