@@ -1,0 +1,14 @@
+605f785424e8da7d2fc01dec3027c44b42dbb35d46fdc51958a2be45c6944424  ./PROVENANCE.md
+3a2116b1629b85ea568870aff0a9a5fe5d008ef89a777b05d631ccb501f1b67c  ./inputs/claude-history-r5-retained-budget-1609.md
+3fa67ab1a94008243e1a564c3e6f03bba9bd1887e66af02b1d94bcb90b02c9ab  ./inputs/integrated-r3-known-failure-stop-1613.json
+5faad44b59f439f6db4b58633d1d32029f4d78a2117156a6e931b083d7025b2e  ./jobs/root-writer-integrated-r5.sh
+287b85414e9414d4bd8b4038ae6c1a46d3a8d77e6d895c4145493d911e813f61  ./patches/writer-integrated-r5-vs-cold-recovery-r5-plus-driver-r1.patch
+2ddd0cecddc86d59554cbc22fcac03c7d548d81a02f6a7ee6b9dff989d25ffe3  ./release.git/HEAD
+4558dadd96031989afa6d56f665e0848612c7b5efa9bf6c94ae4603d71d9aec5  ./release.git/config
+85ab6c163d43a17ea9cf7788308bca1466f1b0a8d1cc92e26e9bf63da4062aee  ./release.git/description
+6671fe83b7a07c8932ee89164d1f2793b2318058eb8b98dc5c06ee0a5a3b0ec1  ./release.git/info/exclude
+a8d18a9d31203fe6978a710c5ca9a388ab2186858aa7d1e77ffe95f6cd4bc288  ./release.git/objects/pack/pack-64d082a306eee0d2c50ecea1cd87934e7d4507b6.idx
+7418ab7cf65a3fd7fb46a79e73d9a7cefae50d6c90fb41da0e6b82dd656e30bc  ./release.git/objects/pack/pack-64d082a306eee0d2c50ecea1cd87934e7d4507b6.pack
+23b82fcc6c24954a07564d42d420b1dca33b624d04ec79069687d7ae71e96144  ./release.git/objects/pack/pack-64d082a306eee0d2c50ecea1cd87934e7d4507b6.rev
+2c414004ee7f7015152e7d0602732044019ad7cd974d510bdd9220b9ca0a9251  ./release.git/packed-refs
+ede64d4f2ef74a839920d819369a33353005c8f96bfe2fa77c289ff01e276b4d  ./release.git/refs/tags/base-r4d

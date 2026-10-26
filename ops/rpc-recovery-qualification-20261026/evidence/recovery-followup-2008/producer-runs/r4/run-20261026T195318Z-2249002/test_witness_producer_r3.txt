@@ -1,0 +1,63 @@
+EFE/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py:91: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r4/runs/run-20261026T195318Z-2249002/tmp/wp3qzj31vjp/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.F../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py:197: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r1/producer/witness_producer.py' mode='r' encoding='utf-8'>
+  r1 = open(f"{R1}/producer/witness_producer.py").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.E.
+======================================================================
+ERROR: test_an_unknown_leftover_is_kept_and_logged_never_deleted (__main__.Cleanup.test_an_unknown_leftover_is_kept_and_logged_never_deleted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py", line 180, in test_an_unknown_leftover_is_kept_and_logged_never_deleted
+    self.assertEqual(self.logs[-1]["leftover"], ["extra.bin"])
+                     ~~~~~~~~~^^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_a_child_killed_by_sigxfsz_is_refused_and_cleaned (__main__.OutputBound.test_a_child_killed_by_sigxfsz_is_refused_and_cleaned)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py", line 134, in test_a_child_killed_by_sigxfsz_is_refused_and_cleaned
+    self.assertEqual(self.logs[-1]["rc"], -signal.SIGXFSZ)
+                     ~~~~~~~~~^^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_a_50_mb_stderr_flood_is_drained_into_a_bounded_tail_never_a_file (__main__.Stderr.test_a_50_mb_stderr_flood_is_drained_into_a_bounded_tail_never_a_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py", line 161, in test_a_50_mb_stderr_flood_is_drained_into_a_bounded_tail_never_a_file
+    tail = self.logs[-1]["stderrTail"]
+           ~~~~~~~~~^^^^
+IndexError: list index out of range
+
+======================================================================
+FAIL: test_the_upstream_fetchers_config_files_are_removed (__main__.Cleanup.test_the_upstream_fetchers_config_files_are_removed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py", line 175, in test_the_upstream_fetchers_config_files_are_removed
+    self.assertEqual(os.listdir(self.work), []); self.assertEqual(self.logs[-1]["leftover"], [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['w-51_6tu9j'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'w-51_6tu9j'
+
+- ['w-51_6tu9j']
++ []
+
+======================================================================
+FAIL: test_a_witness_of_exactly_the_cap_is_served_one_byte_over_is_not (__main__.OutputBound.test_a_witness_of_exactly_the_cap_is_served_one_byte_over_is_not)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r3/tests/test_witness_producer_r3.py", line 153, in test_a_witness_of_exactly_the_cap_is_served_one_byte_over_is_not
+    self.assertEqual(st, 502); self.assertEqual(os.listdir(self.work), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 503 != 502
+
+----------------------------------------------------------------------
+Ran 10 tests in 3.671s
+
+FAILED (failures=2, errors=3)

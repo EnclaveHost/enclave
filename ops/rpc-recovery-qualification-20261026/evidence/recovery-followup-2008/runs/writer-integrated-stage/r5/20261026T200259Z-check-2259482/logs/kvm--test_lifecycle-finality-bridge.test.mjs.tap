@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: bridge pins every state read to the independently authenticated derived hash and closes retained clients
+ok 1 - bridge pins every state read to the independently authenticated derived hash and closes retained clients
+  ---
+  duration_ms: 4.697435
+  type: 'test'
+  ...
+# Subtest: ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+ok 2 - ASR labels, mismatched local roots, and genuinely old anchors cannot be relabeled as current
+  ---
+  duration_ms: 1.741929
+  type: 'test'
+  ...
+# Subtest: failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+ok 3 - failed durable anchoring or a hung derivation callback refuses without granting a snapshot
+  ---
+  duration_ms: 22.27559
+  type: 'test'
+  ...
+# Subtest: a restarted bridge rejects a prior derived anchor using the durable journal floor
+ok 4 - a restarted bridge rejects a prior derived anchor using the durable journal floor
+  ---
+  duration_ms: 4.035673
+  type: 'test'
+  ...
+# Subtest: replication delay cannot publish a snapshot that aged past its original bound
+ok 5 - replication delay cannot publish a snapshot that aged past its original bound
+  ---
+  duration_ms: 2.068666
+  type: 'test'
+  ...
+# Subtest: snapshot deadline aborts durable commit; late ACK cannot release a value
+ok 6 - snapshot deadline aborts durable commit; late ACK cannot release a value
+  ---
+  duration_ms: 51.659948
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 286.997477

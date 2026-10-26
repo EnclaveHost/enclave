@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result
+ok 1 - native deadline, cancellation, oversized stdout and nonzero exit cannot yield a result
+  ---
+  duration_ms: 77.53369
+  type: 'test'
+  ...
+# Subtest: journal has one owner, refuses missing/corrupt state, and binds its runtime configuration
+ok 2 - journal has one owner, refuses missing/corrupt state, and binds its runtime configuration
+  ---
+  duration_ms: 9.204121
+  type: 'test'
+  ...
+# Subtest: checkpoint cannot outlive its reviewed weak-subjectivity window
+ok 3 - checkpoint cannot outlive its reviewed weak-subjectivity window
+  ---
+  duration_ms: 1.010918
+  type: 'test'
+  ...
+# Subtest: local HTTP orchestration enforces exact shape, payload cap and cancellation
+ok 4 - local HTTP orchestration enforces exact shape, payload cap and cancellation
+  ---
+  duration_ms: 83.378958
+  type: 'test'
+  ...
+# Subtest: startup deadline cancels a hung owned L1 response and cleans up its child record
+ok 5 - startup deadline cancels a hung owned L1 response and cleans up its child record
+  ---
+  duration_ms: 638.273948
+  type: 'test'
+  ...
+# Subtest: saved native ownership is reaped before its private executable is removed
+ok 6 - saved native ownership is reaped before its private executable is removed
+  ---
+  duration_ms: 145.063582
+  type: 'test'
+  ...
+# Subtest: explicit loader selection cannot introduce an unreviewed library set
+ok 7 - explicit loader selection cannot introduce an unreviewed library set
+  ---
+  duration_ms: 1.175727
+  type: 'test'
+  ...
+# Subtest: the lifecycle snapshot consumes the local reader capability and pins state reads to its derived hash
+ok 8 - the lifecycle snapshot consumes the local reader capability and pins state reads to its derived hash
+  ---
+  duration_ms: 328.784274
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1483.30167

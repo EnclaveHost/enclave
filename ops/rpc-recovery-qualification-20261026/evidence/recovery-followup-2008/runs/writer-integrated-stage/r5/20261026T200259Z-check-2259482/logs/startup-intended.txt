@@ -1,0 +1,13 @@
+[host-policy] platform host policy off: not the production chain/book (chain 8453, book 0x7777777777777777777777777777777777777777): platform host policy off unless configured
+[lease-generation] writer authority REFUSED: the role intended the derived reader and it is unavailable (writer_authority_unproven); no public-RPC fallback
+[chain] network lease reader: provider-quorum (provider-reported tier)
+[api-relay] registry read failed: no registry address (book unresolved and REGISTRY_ADDRESS unset)
+[account] no data dir (AUTH_DATA_DIR/StateDirectory) - accounts disabled
+[sso] SSO_SIGNER_KEY unset - sign-in token mint disabled
+[billing] no data dir - billing disabled
+[secrets] disabled (SECRETS_KEY unset) — per-deployment secrets 503
+[domains] disabled (no writable AUTH_DATA_DIR) — custom domains 503
+[sessions] disabled: sessions need AUTH_DATA_DIR
+[certs] disabled (CERTS_KEY or SECRETS_KEY, DNS_API, DNS_TXT_KEY, APP_ZONE unset) — /v1/certs/issue 503
+[api-relay] NOTE: binding ALL interfaces (no API_RELAY_BIND). If a local Caddy fronts this relay, set API_RELAY_BIND=127.0.0.1 so :0 isn't reachable directly.
+[api-relay] :0 · EnclaveRegistry  · 0/0 live

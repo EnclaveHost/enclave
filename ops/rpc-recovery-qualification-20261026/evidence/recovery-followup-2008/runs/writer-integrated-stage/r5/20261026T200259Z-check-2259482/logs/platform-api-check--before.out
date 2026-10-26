@@ -1,0 +1,8 @@
+file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/scripts/build-platform-api-guest-bundle.mjs:47
+  if (!bytes.equals(await fs.readFile(output))) throw new Error("the platform API guest bundle is stale; run node scripts/build-platform-api-guest-bundle.mjs");
+                                                      ^
+
+Error: the platform API guest bundle is stale; run node scripts/build-platform-api-guest-bundle.mjs
+    at file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r5/runs/20261026T200259Z-check-2259482/repo/scripts/build-platform-api-guest-bundle.mjs:47:55
+
+Node.js v22.23.3

@@ -1,0 +1,38 @@
+TAP version 13
+# Subtest: unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+not ok 1 - unenrolled: derivedReader bound without an enrollment -> relay serving, only the INTENDED marker, no state, no crash loop
+  ---
+  duration_ms: 3.327414
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/test/derived-state-enrollment.test.mjs:185:1'
+  failureType: 'testCodeFailure'
+  error: 'platformApi.derivedReader is missing: witnessUrl'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ControlError'
+  stack: |-
+    bad (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/metal/guest/measured-control.mjs:90:28)
+    only (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/metal/guest/measured-control.mjs:114:23)
+    derivedReaderEndpoints (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/metal/guest/measured-control.mjs:402:3)
+    directPlatformApi (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/metal/guest/measured-control.mjs:488:71)
+    Module.canonicalDirectConfig (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/metal/guest/measured-control.mjs:188:55)
+    bootMember (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/test/derived-state-enrollment.test.mjs:135:21)
+    TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/test/derived-state-enrollment.test.mjs:186:44)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+  ...
+# Subtest: enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+not ok 2 - enrollment refusals, then an admin genesis bound to the primary's boot; a replay is refused
+  ---
+  duration_ms: 30075.139663
+  type: 'test'
+  location: '/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/test/derived-state-enrollment.test.mjs:198:1'
+  failureType: 'testCodeFailure'
+  error: 'timed out waiting for a primary with its relay (undefined)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    waitFor (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/test/derived-state-enrollment.test.mjs:39:229)
+    async TestContext.<anonymous> (file:///home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/writer-integrated-stage/r3/runs/20261026T195450Z-slice-2250833/repo/test/derived-state-enrollment.test.mjs:199:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...

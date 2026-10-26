@@ -1,0 +1,24 @@
+[queue] START available=23783MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+## verified SHA256SUMS 6a4fda7edab4be6c52c2177a6ef1852ce65ebbceea689c3c43efcb6fe42e8aac
+test_bounded_timeout (__main__.Supervisor.test_bounded_timeout) ... ok
+test_lost_owner_heartbeat_stops_the_scan (__main__.Supervisor.test_lost_owner_heartbeat_stops_the_scan) ... ok
+test_memory_floor_stops_the_scan_group_exactly (__main__.Supervisor.test_memory_floor_stops_the_scan_group_exactly) ... ok
+test_missing_or_symlinked_heartbeat_never_starts_and_is_never_followed (__main__.Supervisor.test_missing_or_symlinked_heartbeat_never_starts_and_is_never_followed) ... ok
+test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group (__main__.Supervisor.test_normal_exit_returns_the_child_rc_and_leaves_no_member_of_its_group) ... ok
+test_root_entry_accepts_only_the_staged_shape_and_starts_nothing_otherwise (__main__.Supervisor.test_root_entry_accepts_only_the_staged_shape_and_starts_nothing_otherwise) ... supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+supervisor: usage: root_scan_supervisor.py /run/nvme-cold-wc10.XXXXXXXX /ABS/CONFIG.json /ABS/HEARTBEAT
+ok
+test_signal_to_the_supervisor_and_its_sudden_death_both_end_the_child (__main__.Supervisor.test_signal_to_the_supervisor_and_its_sudden_death_both_end_the_child) ... ok
+test_unreadable_meminfo_fails_closed_and_start_bound_refuses_to_start (__main__.Supervisor.test_unreadable_meminfo_fails_closed_and_start_bound_refuses_to_start) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 2.972s
+
+OK
+## cold-scan-v3-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=34 minHostAvailableMiB=24344
+[memory-guard] at peak: python3:18 bash:4 sh:4 bash:2 sleep:2 sleep:2 timeout:2
+[queue] EXIT 0

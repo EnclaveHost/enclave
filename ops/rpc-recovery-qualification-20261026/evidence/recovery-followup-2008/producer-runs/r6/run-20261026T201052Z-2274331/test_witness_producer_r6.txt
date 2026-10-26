@@ -1,0 +1,38 @@
+../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_witness_producer_r6.py:95: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/runs/run-20261026T201052Z-2274331/tmp/wp3mn9_ru5d/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_witness_producer_r6.py:95: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/runs/run-20261026T201052Z-2274331/tmp/wp3ckjzlrvt/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...Exception in thread Thread-22 (<lambda>):
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/lib/python3.14/threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_witness_producer_r6.py", line 251, in <lambda>
+    th = threading.Thread(target=lambda: res.update(r=self._raw_post(self.body()))); th.start()
+                                                      ^^^^^^^^^^^^^^
+AttributeError: 'Ownership' object has no attribute '_raw_post'
+F.../home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_witness_producer_r6.py:205: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r1/producer/witness_producer.py' mode='r' encoding='utf-8'>
+  r1 = open(f"{R1}/producer/witness_producer.py").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_witness_producer_r6.py:95: ResourceWarning: unclosed file <_io.TextIOWrapper name='/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/runs/run-20261026T201052Z-2274331/tmp/wp3pymv2qhy/fetch/ran' mode='r' encoding='utf-8'>
+  return [json.loads(l) for l in open(p)] if os.path.exists(p) else []
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...
+======================================================================
+FAIL: test_a_reaped_fetch_is_never_signalled_even_while_its_stderr_is_still_open (__main__.Ownership.test_a_reaped_fetch_is_never_signalled_even_while_its_stderr_is_still_open)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r6/tests/test_witness_producer_r6.py", line 262, in test_a_reaped_fetch_is_never_signalled_even_while_its_stderr_is_still_open
+    self.fail("never observed the post-reap, stderr-still-open window")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: never observed the post-reap, stderr-still-open window
+
+----------------------------------------------------------------------
+Ran 14 tests in 23.395s
+
+FAILED (failures=1)

@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: REAL Base headers: 52 parent-linked headers authenticate from N down to the floor INCLUSIVE; blooms decide (and only exclusion skips)
+ok 1 - REAL Base headers: 52 parent-linked headers authenticate from N down to the floor INCLUSIVE; blooms decide (and only exclusion skips)
+  ---
+  duration_ms: 583.002697
+  type: 'test'
+  ...
+# Subtest: bloom rule: skip ONLY when the authenticated bloom excludes the ledger or every lease topic
+ok 2 - bloom rule: skip ONLY when the authenticated bloom excludes the ledger or every lease topic
+  ---
+  duration_ms: 1.072657
+  type: 'test'
+  ...
+# Subtest: complete authenticated history: EVERY lease event of the ledger in [floor, N] (floor inclusive), exact positions and transaction hashes; noise excluded
+ok 3 - complete authenticated history: EVERY lease event of the ledger in [floor, N] (floor inclusive), exact positions and transaction hashes; noise excluded
+  ---
+  duration_ms: 29.812259
+  type: 'test'
+  ...
+# Subtest: receipts and transactions are authenticated: wrong roots, missing / reordered receipts, forged log positions and transaction hashes refuse
+ok 4 - receipts and transactions are authenticated: wrong roots, missing / reordered receipts, forged log positions and transaction hashes refuse
+  ---
+  duration_ms: 45.411836
+  type: 'test'
+  ...
+# Subtest: typed and deposit receipts per pinned base v1.5.1: 0x0/0x1/0x2/0x4/0x7e verify; a post-Canyon deposit without its version and type 0x79 refuse
+ok 5 - typed and deposit receipts per pinned base v1.5.1: 0x0/0x1/0x2/0x4/0x7e verify; a post-Canyon deposit without its version and type 0x79 refuse
+  ---
+  duration_ms: 18.572572
+  type: 'test'
+  ...
+# Subtest: outages, truncation and bounds fail closed: nothing partial is ever returned
+ok 6 - outages, truncation and bounds fail closed: nothing partial is ever returned
+  ---
+  duration_ms: 18.783149
+  type: 'test'
+  ...
+# Subtest: restart cache: untrusted header chunks are re-authenticated from N on every use; a tampered chunk is discarded and fetched again; never authority
+ok 7 - restart cache: untrusted header chunks are re-authenticated from N on every use; a tampered chunk is discarded and fetched again; never authority
+  ---
+  duration_ms: 29.429174
+  type: 'test'
+  ...
+# Subtest: provider: the pre-bootstrap claim is served only after the authenticated scan completed AND joined this start's coverage at N+1; replay finds it
+ok 8 - provider: the pre-bootstrap claim is served only after the authenticated scan completed AND joined this start's coverage at N+1; replay finds it
+  ---
+  duration_ms: 397.097224
+  type: 'test'
+  ...
+# Subtest: provider: an own-node outage during the scan fails closed (no history served), and the scan is retried, never trusted partially
+ok 9 - provider: an own-node outage during the scan fails closed (no history served), and the scan is retried, never trusted partially
+  ---
+  duration_ms: 347.204363
+  type: 'test'
+  ...
+# Subtest: policy: disabled by default (binding unchanged), exact keys, and never on a self-initialized (unsigned) reader state
+ok 10 - policy: disabled by default (binding unchanged), exact keys, and never on a self-initialized (unsigned) reader state
+  ---
+  duration_ms: 244.673007
+  type: 'test'
+  ...
+# Subtest: r3 cache (root 1571): the default bound is a POSITIVE 2 GiB; reads are bounded, regular and no-follow; only hashed fields; eviction bounds files and bytes
+ok 11 - r3 cache (root 1571): the default bound is a POSITIVE 2 GiB; reads are bounded, regular and no-follow; only hashed fields; eviction bounds files and bytes
+  ---
+  duration_ms: 67.745245
+  type: 'test'
+  ...
+# Subtest: r3 F3: ABSOLUTE chunks: after a restart with a CHANGED N every complete cached chunk is reused (and a smaller N slices one); full history
+ok 12 - r3 F3: ABSOLUTE chunks: after a restart with a CHANGED N every complete cached chunk is reused (and a smaller N slices one); full history
+  ---
+  duration_ms: 30.65239
+  type: 'test'
+  ...
+# Subtest: r3 F2/F4/F5: bounded receipt concurrency, RAM-only resume of a failed scan, and the signed raw method pre-flighted at N
+ok 13 - r3 F2/F4/F5: bounded receipt concurrency, RAM-only resume of a failed scan, and the signed raw method pre-flighted at N
+  ---
+  duration_ms: 66.926634
+  type: 'test'
+  ...
+# Subtest: r4 M1/M2: a 64-header chunk runs under the scan-wide call budget; a failed header aborts its batch and EVERY call settles before the scan rejects
+ok 14 - r4 M1/M2: a 64-header chunk runs under the scan-wide call budget; a failed header aborts its batch and EVERY call settles before the scan rejects
+  ---
+  duration_ms: 213.462905
+  type: 'test'
+  ...
+# Subtest: r4 M1: per-index raw transactions of CONCURRENT receipt blocks share one global cap; a failed raw call aborts and settles the rest
+ok 15 - r4 M1: per-index raw transactions of CONCURRENT receipt blocks share one global cap; a failed raw call aborts and settles the rest
+  ---
+  duration_ms: 407.768306
+  type: 'test'
+  ...
+# Subtest: r4 M1: the ACTUAL boundedRpc transport, one per method: an oversized header or raw-transaction reply is refused before its body is fully read; receipts keep 32 MiB
+ok 16 - r4 M1: the ACTUAL boundedRpc transport, one per method: an oversized header or raw-transaction reply is refused before its body is fully read; receipts keep 32 MiB
+  ---
+  duration_ms: 92.829061
+  type: 'test'
+  ...
+# Subtest: r5: production retained-byte caps are fixed constants; MANY header replies each within their 4 MiB cap retain only lean bytes (baggage dropped at arrival)
+ok 17 - r5: production retained-byte caps are fixed constants; MANY header replies each within their 4 MiB cap retain only lean bytes (baggage dropped at arrival)
+  ---
+  duration_ms: 239.453441
+  type: 'test'
+  ...
+# Subtest: r5: ONE header whose HASHED fields exceed the per-header retained cap is refused at arrival: the chunk aborts and settles, nothing committed
+ok 18 - r5: ONE header whose HASHED fields exceed the per-header retained cap is refused at arrival: the chunk aborts and settles, nothing committed
+  ---
+  duration_ms: 182.163294
+  type: 'test'
+  ...
+# Subtest: r5: per-index raw transactions of one block are bounded IN AGGREGATE (each within 1 MiB is not enough): refusal aborts and settles; the full transactions root still decides
+ok 19 - r5: per-index raw transactions of one block are bounded IN AGGREGATE (each within 1 MiB is not enough): refusal aborts and settles; the full transactions root still decides
+  ---
+  duration_ms: 209.314797
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3490.966439

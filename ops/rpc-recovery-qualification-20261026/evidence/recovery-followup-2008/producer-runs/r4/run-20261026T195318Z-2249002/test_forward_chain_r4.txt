@@ -1,0 +1,36 @@
+F/usr/lib/python3.14/unittest/case.py:668: ResourceWarning: unclosed <socket.socket fd=5, family=2, type=1, proto=0, laddr=('10.0.2.2', 56207), raddr=('10.0.2.15', 34753)>
+  with outcome.testPartExecutor(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FF....
+======================================================================
+FAIL: test_an_idle_forwarded_connection_holds_the_single_slot_then_releases_it (__main__.Chain.test_an_idle_forwarded_connection_holds_the_single_slot_then_releases_it)
+1603's 503, asserted as the real behaviour: single flight through the proxy, refused unread, freed on close
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r4/tests/test_forward_chain_r4.py", line 159, in test_an_idle_forwarded_connection_holds_the_single_slot_then_releases_it
+    self.assertEqual(self.prod.active, 1)                                            # the proxy's upstream connection is admitted
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_host_link_peer_reaches_the_loopback_producer_through_the_real_proxy (__main__.Chain.test_host_link_peer_reaches_the_loopback_producer_through_the_real_proxy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r4/tests/test_forward_chain_r4.py", line 136, in test_host_link_peer_reaches_the_loopback_producer_through_the_real_proxy
+    self.assertIn(b" 200 ", st); self.assertIn(b"application/octet-stream", head.lower())
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+AssertionError: b' 200 ' not found in b'HTTP/1.1 503 Service Unavailable'
+
+======================================================================
+FAIL: test_malformed_requests_through_the_forward_never_reach_the_fetcher (__main__.Chain.test_malformed_requests_through_the_forward_never_reach_the_fetcher)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/witness-producer-service-stage/r4/tests/test_forward_chain_r4.py", line 150, in test_malformed_requests_through_the_forward_never_reach_the_fetcher
+    self.assertIn(b" 400 ", st, d)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: b' 400 ' not found in b'HTTP/1.1 503 Service Unavailable' : b'{}'
+
+----------------------------------------------------------------------
+Ran 7 tests in 10.241s
+
+FAILED (failures=3)

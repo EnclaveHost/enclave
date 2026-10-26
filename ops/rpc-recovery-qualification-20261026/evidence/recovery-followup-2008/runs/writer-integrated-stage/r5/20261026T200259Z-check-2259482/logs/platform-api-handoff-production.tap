@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: setup: the holder (a REAL role through the production wiring) receives K from the admin's genesis
+ok 1 - setup: the holder (a REAL role through the production wiring) receives K from the admin's genesis
+  ---
+  duration_ms: 103.78924
+  type: 'test'
+  ...
+# Subtest: regression: the PRE-FIX main wiring (productionVerifier(cfg), no AMD collateral) verifies no newcomer; the production wiring does, over its cache
+ok 2 - regression: the PRE-FIX main wiring (productionVerifier(cfg), no AMD collateral) verifies no newcomer; the production wiring does, over its cache
+  ---
+  duration_ms: 602.672773
+  type: 'test'
+  ...
+# Subtest: an admitted newcomer (a REAL role, chip b) obtains K through the production handoff
+ok 3 - an admitted newcomer (a REAL role, chip b) obtains K through the production handoff
+  ---
+  duration_ms: 359.204278
+  type: 'test'
+  ...
+# Subtest: a host ban (registryId) and an operator ban refuse the newcomer; another admitted member is unaffected
+ok 4 - a host ban (registryId) and an operator ban refuse the newcomer; another admitted member is unaffected
+  ---
+  duration_ms: 391.284649
+  type: 'test'
+  ...
+# Subtest: a chip ban refuses the member on that chip only (the chip the verifier proved)
+ok 5 - a chip ban refuses the member on that chip only (the chip the verifier proved)
+  ---
+  duration_ms: 261.473634
+  type: 'test'
+  ...
+# Subtest: an unreadable policy (RPC outage, a new anchor whose document no mirror serves) and an explicitly-off policy refuse
+ok 6 - an unreadable policy (RPC outage, a new anchor whose document no mirror serves) and an explicitly-off policy refuse
+  ---
+  duration_ms: 352.476471
+  type: 'test'
+  ...
+# Subtest: an inactive row refuses: in the original registry, and in the policy's registry facts
+ok 7 - an inactive row refuses: in the original registry, and in the policy's registry facts
+  ---
+  duration_ms: 98.123733
+  type: 'test'
+  ...
+# Subtest: a policy row of another operator than the attested one, and a non-member identity, refuse
+ok 8 - a policy row of another operator than the attested one, and a non-member identity, refuse
+  ---
+  duration_ms: 81.329064
+  type: 'test'
+  ...
+# Subtest: a banned member that reboots (its RAM state gone) stays without K; once the admin lifts the ban it obtains K
+ok 9 - a banned member that reboots (its RAM state gone) stays without K; once the admin lifts the ban it obtains K
+  ---
+  duration_ms: 4305.511744
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10566.714404

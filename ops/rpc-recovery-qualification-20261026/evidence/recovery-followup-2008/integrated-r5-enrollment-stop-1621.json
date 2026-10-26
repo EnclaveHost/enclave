@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-26T20:07:00.363171+00:00",
+  "pid": 2262498,
+  "cmd": "timeout -k 10 900 node --test --test-reporter=tap --test-concurrency=1 --test-timeout=600000 test/derived-state-enrollment.test.mjs ",
+  "signal": "SIGTERM",
+  "reason": "initial positive genesis failed not_primary409; dependent tests cascade without enrollment. Preserve failed verdict; stop identified owned suite, allow other check phases."
+}

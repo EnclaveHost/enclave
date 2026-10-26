@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: two anchors: the FINAL claim's unchanged lease16 fact, current-ness at S, coverage asked at S, deny-only after S
+ok 1 - two anchors: the FINAL claim's unchanged lease16 fact, current-ness at S, coverage asked at S, deny-only after S
+  ---
+  duration_ms: 4.33491
+  type: 'test'
+  ...
+# Subtest: the 120 s ceiling applies to S unchanged: 120 accepted, 121 refused, +5 accepted, +6 refused; never raised; refused before the verifier
+ok 2 - the 120 s ceiling applies to S unchanged: 120 accepted, 121 refused, +5 accepted, +6 refused; never raised; refused before the verifier
+  ---
+  duration_ms: 1.890231
+  type: 'test'
+  ...
+# Subtest: B_f has its own liveness bound: an old finalized anchor refuses even with a fresh S; S never refreshes it
+ok 3 - B_f has its own liveness bound: an old finalized anchor refuses even with a fresh S; S never refreshes it
+  ---
+  duration_ms: 1.112907
+  type: 'test'
+  ...
+# Subtest: claim finality: a claim anywhere in (B_f, S] is claim_not_final, never a fact; a claim AT B_f is final
+ok 4 - claim finality: a claim anywhere in (B_f, S] is claim_not_final, never a fact; a claim AT B_f is final
+  ---
+  duration_ms: 1.43975
+  type: 'test'
+  ...
+# Subtest: same-runner release + re-claim in (B_f, S]: the rows at B_f and S look identical, only the complete coverage shows it -> claim_not_final
+ok 5 - same-runner release + re-claim in (B_f, S]: the rows at B_f and S look identical, only the complete coverage shows it -> claim_not_final
+  ---
+  duration_ms: 0.45177
+  type: 'test'
+  ...
+# Subtest: positive coverage: a Released in (B_f, S] refuses (row released at S), and a replay through B_f must agree with the row at B_f
+ok 6 - positive coverage: a Released in (B_f, S] refuses (row released at S), and a replay through B_f must agree with the row at B_f
+  ---
+  duration_ms: 0.625897
+  type: 'test'
+  ...
+# Subtest: incomplete coverage through S refuses (coverage_incomplete); coverage starting after B_f is claim_not_covered
+ok 7 - incomplete coverage through S refuses (coverage_incomplete); coverage starting after B_f is claim_not_covered
+  ---
+  duration_ms: 1.075908
+  type: 'test'
+  ...
+# Subtest: anchor binding: relabelled tiers, a state anchor not after B_f, mismatched snapshot blocks or a moved ledger refuse
+ok 8 - anchor binding: relabelled tiers, a state anchor not after B_f, mismatched snapshot blocks or a moved ledger refuse
+  ---
+  duration_ms: 0.879092
+  type: 'test'
+  ...
+# Subtest: the unsafe verifier stays deny-only after S: later claim/release refuse, silence creates nothing, a newer head never refreshes S
+ok 9 - the unsafe verifier stays deny-only after S: later claim/release refuse, silence creates nothing, a newer head never refreshes S
+  ---
+  duration_ms: 1.023669
+  type: 'test'
+  ...
+# Subtest: selector: two anchors only on the ENROLLED state with the runtime's stateSnapshot + fact evidence; no env, config or unsigned path enables it
+ok 10 - selector: two anchors only on the ENROLLED state with the runtime's stateSnapshot + fact evidence; no env, config or unsigned path enables it
+  ---
+  duration_ms: 9.787077
+  type: 'test'
+  ...
+# Subtest: A2: every two-anchor fact's S is durably recorded BEFORE the fact is returned, after every check; not recorded = no fact
+ok 11 - A2: every two-anchor fact's S is durably recorded BEFORE the fact is returned, after every check; not recorded = no fact
+  ---
+  duration_ms: 1.628036
+  type: 'test'
+  ...
+# Subtest: A2: the durable disable marker refuses (provisional_disabled), from the reader or the evidence journal, and is logged ONCE at error level
+ok 12 - A2: the durable disable marker refuses (provisional_disabled), from the reader or the evidence journal, and is logged ONCE at error level
+  ---
+  duration_ms: 0.725025
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 103.644714
