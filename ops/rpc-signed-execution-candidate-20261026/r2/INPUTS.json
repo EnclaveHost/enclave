@@ -1,0 +1,25 @@
+{
+  "baseCommit": "5476069f",
+  "cache": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750",
+  "inputs": {
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-client-stage/combined-r1/src/zk-utils/examples/derivation_harness_combined.rs": "faa1427108d6b44ab1d4da4d79ca168b39da35d39306dc13e92889dce17353a5",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/r2/src/zk-utils/examples/derivation_harness_lease_v3.rs": "3dfebbe46e0f5457fa53aa8cbf3469cd557f193aaa97553f7d14ba684d7f580b",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/Cargo.lock": "f122da76b80d5df44c9dc0c6fc4efc335abe295280fa49325f367ddcfc7b6a8f",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/zk/utils/Cargo.toml": "df5792c011465021410ec0e447a5d0e5d30b005cabfc6796ce6dbeb8cc57cccc",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/proof/src/executor.rs": "228bc18ae87f3815b7e3dec4722ae424d65427aa0abd1e73795c32504023d1e1",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/proof/src/l1/chain_provider.rs": "f1a58ad6811f96d5cea0890e587c5996c5f5914d6c1855ddd8974f75fc7f86f9",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/proof/src/l2/chain_provider.rs": "197c7b698ea3d62d7bc568f4cd1955367f8edf9f6f5297575a8a0fe6ac544bea",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/consensus/derive/src/attributes/stateful.rs": "1bcf954fd15ba369fbe215665c1fba7a59f38c0db7fe841aedcda9d01cef7de7",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/common/rpc-types-engine/src/envelope.rs": "7b673313dff1a2cd4cc559ee8c6bd34accb3b2d11bb7038c7969e0a3950d61df",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/executor/src/builder/core.rs": "7b68ca36f32156c980c1b98483df2bc6ceab250f823ffb1968e4fd05a16e4358",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/executor/src/builder/assemble.rs": "d154e8bf0c40a314ea93f760805076a47ce78c87ee357c94b43061f812c1101b",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/executor/src/db/mod.rs": "ef46b894162e30f43fced53ad2349946b62165477e027a506cb3c7b42f369e51",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/proof/src/boot.rs": "866f0c92f1cba892db5d3616433f4510140f7c9e9242314c748580c3801543dd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/proof/src/sync.rs": "91ac7f84e048b68157ac75e18fd375782793babc131b1363d9ddabafdae6aafd",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/derivation-lease-coverage-stage/build/deps-43698236e9186750/base/crates/proof/zk/utils/src/witness/preimage_store.rs": "22999bb9004c54917a6b7c4d176571d3ca0d5c083c84e48a04a64c2c34e20b52"
+  },
+  "nativeFinalizedBinaryUnchanged": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
+  "compiled": false,
+  "positiveSignedExecution": false,
+  "revision": "r2 direct bounded bootstrap"
+}

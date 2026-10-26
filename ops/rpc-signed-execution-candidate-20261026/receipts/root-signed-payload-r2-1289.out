@@ -1,0 +1,16 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: available=17967MiB required=18176MiB cap=1536MiB
+[q.sh] try 5 not started; sleep 30
+[queue] START available=18214MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+Pinned input bytes verified
+C candidate compiled; receipts in /home/steven/Documents/Codex/2026-10-23/it/work/signed-payload-execution-stage/r2/logs/run-20261026T122202Z-1675824; positive real execution and production qualification remain pending
+[memory-guard] exit=0 peakTreeRssMiB=857 minHostAvailableMiB=16890
+[memory-guard] at peak: rustc:633 cargo:219 bash:4 timeout:2
+[queue] EXIT 0
