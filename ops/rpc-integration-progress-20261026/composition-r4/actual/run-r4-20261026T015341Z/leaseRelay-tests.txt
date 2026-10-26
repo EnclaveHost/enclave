@@ -1,0 +1,4 @@
+test/lease-pinned-relay-config.test.mjs
+test/lease-relay-host-policy.test.mjs
+test/lease-relay-release.test.mjs
+test/lease-relay-verifier-config.test.mjs

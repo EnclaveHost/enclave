@@ -1,0 +1,3 @@
+test/windows-chain-authority-runtime.test.mjs candidate 8
+test/lease-seams-windows.test.mjs candidate 3
+test/move-release-confirm.test.mjs candidate 20

@@ -1,0 +1,9 @@
+{"2": {"take": ["//   * absent / \"quorum\": the configured RPC quorum (cfg.rpc, two or more) for every chain read, and the host-services platform", "//     host policy over its own policy RPC quorum - exactly as before;", "//   * \"verifier\": the local loopback verifier (network/lease-reader.mjs chainAuthorityOptions), exactly as before;"], "why": "union: route's quorum scope + the lineage's local verifier mode"},
+ "5": {"take": "theirs-edit", "why": "route's full read scope; the lineage's 'a local verifier' added to what is refused beside it"},
+ "10": {"take": "theirs", "why": "route adds cacheDir and txBackend; lineage text is the subset"},
+ "34": {"take": "theirs", "why": "route signature adds verifyNow (cache clock) and returns txBackend"},
+ "40": {"take": "ours", "why": "keeps the lineage's 'verifier' (local loopback) mode"},
+ "43": {"take": ["    const opts = chainAuthorityOptions(cfg);", "    return { mode: opts.authority === 'verifier' ? 'verifier' : 'quorum', rpc: cfg.rpc, leaseReaderOptions: opts, verifier: null, txBackend: null,", "      describe: opts.authority === 'verifier' ? 'local loopback verifier' : `RPC quorum of ${cfg.rpc.length}` };"], "why": "lineage's quorum/verifier selection + route's txBackend:null result field"},
+ "47": {"take": ["  if (a !== 'attested-verifier') bad('chainAuthority must be quorum, verifier or attested-verifier');", "  // one explicit authority: nothing that would read or write the chain another way may sit beside it"], "why": "all three modes named"},
+ "50": {"take": "theirs-edit50", "why": "route's paid-provider txBackend rule (route-tested) replaces the lineage's blanket paid refusal; lineage's local-verifier wording kept"},
+ "63": {"take": "theirs", "why": "route's authenticated collateral cache + txBackend on the attested verifier"}}
