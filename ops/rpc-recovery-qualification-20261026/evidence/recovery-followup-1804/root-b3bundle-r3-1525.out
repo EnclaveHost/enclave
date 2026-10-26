@@ -1,0 +1,6 @@
+[queue] START available=30063MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+PASS b3bundle-r3-logic (NOT a qualification) rc 0 ran ['34'] final 'OK'
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/offline-b3sum-bundle-stage/r3/logs/tests-20261026T175852Z-2116114
+[memory-guard] exit=0 peakTreeRssMiB=66 minHostAvailableMiB=30023
+[memory-guard] at peak: python3:60 bash:4 timeout:2
+[queue] EXIT 0

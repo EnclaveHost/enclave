@@ -1,0 +1,32 @@
+[queue] START available=30175MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+{
+ "capacity": {
+  "destAvail": 826233090048,
+  "destAvailAfter": 826233090048,
+  "destFloor": 300000000000,
+  "notInventoried": [
+   "2026-10-24/home/hf-convert",
+   "2026-10-24/home/gvs5h",
+   "2026-10-24/home/gguf-e2b"
+  ],
+  "remainingInventoriedNeed": 0,
+  "sourceFreeInformational": 79900258304
+ },
+ "checks": [
+  "source /vm (cryptvm ext4) and destination / (cryptroot ext4) are the pinned mounts",
+  "destination path private (0700, owner) where it exists; no symlinks",
+  "destination and journal are on the pinned / filesystem, not on /vm",
+  "2026-10-24/home/hf-convert: 24 manifest links resolve into /vm",
+  "2026-10-24/home/gvs5h: 6 manifest links resolve into /vm",
+  "2026-10-24/home/gguf-e2b: 78 manifest links resolve into /vm"
+ ],
+ "notes": [
+  "/vm space is freed ONLY by a separately reviewed reclamation of the .retire-* trees (no deletion here)",
+  "the three subtrees free about 328 GB, about 22 GB above the current qualification threshold; the live Qwen padbank can still grow by about 64 GB: if it resumes, that margin (and the qualification capacity) is lost",
+  "source free is informational only; the production RPC VM prepare/controller/guard thresholds are unchanged and are enforced by their own tools, not by this relief copy (which writes only to /)",
+  "as uid 1000: /proc complete=False hits=0 (informational only)"
+ ]
+}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

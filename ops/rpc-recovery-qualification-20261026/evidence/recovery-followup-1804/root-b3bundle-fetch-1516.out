@@ -1,0 +1,6 @@
+[queue] START available=30352MiB required=18432MiB cap=1536MiB floor=16384MiB concurrentSmall=256MiB
+{"event": "refused", "code": 8, "reason": "Packages decompressed beyond 536870912 bytes, truncated or with trailing data", "detail": {}}
+## fetch rc 8; logs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/offline-b3sum-bundle-stage/r2/logs/fetch-20261026T175209Z-2106927; peakTreeRssMiB/minHostAvailableMiB: logs/root-b3bundle-fetch.guard
+[memory-guard] exit=8 peakTreeRssMiB=116 minHostAvailableMiB=30241
+[memory-guard] at peak: python3:110 bash:4 timeout:2
+[queue] EXIT 8
