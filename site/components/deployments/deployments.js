@@ -996,7 +996,9 @@ class Deployments extends EnclaveElement {
       this._why.set(d.id, { ...(c || {}), at: Date.now() });   // stamp before the await: overlapping polls must not double-probe
       try {
         const r = await fetch(Enclave.base + "/claim-hint", { method: "POST",
-          headers: { "content-type": "application/json" }, body: JSON.stringify({ id: d.id }) });
+          // Resolve the committed host pin before probing; a fleet-wide first
+          // refusal can report another host's price instead of this app's blocker.
+          headers: { "content-type": "application/json" }, body: JSON.stringify({ id: d.id, strategy: "preferred" }) });
         const h = await r.json();
         if (h && h.accepted === false && h.reason)
           this._why.set(d.id, { at: Date.now(), reason: h.reason, terminal: WHY_TERMINAL.test(h.reason) });
