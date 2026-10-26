@@ -1,0 +1,4 @@
+325d910c8493769564d28efa8aa224a6eafb578f309b3a65cd59cd66a22b42bd  PROVENANCE.md
+d4958a5f4c4a5dae73642272cb39c31fe5b934a048f3b55a0ba18733ebce425a  inputs/claude-history-r3-review-1592.md
+22ff6d759e5786ff6b80732b066c9b0c7efcca169a3fc88ed5977a16127b2656  jobs/root-writer-cold-recovery-r4.sh
+d73f127d0b19ead245ee024d2cf3328ca006832be3ad708e839c8d7c8aa977c0  patches/writer-cold-recovery-r4-vs-r3.patch

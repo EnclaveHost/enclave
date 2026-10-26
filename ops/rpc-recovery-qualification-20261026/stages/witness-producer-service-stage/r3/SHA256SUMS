@@ -1,0 +1,4 @@
+994dbbc635bda22bca95c950e3b755f56b964658028859b4db4ce4fbb43e4b72  ./README.md
+4fc42300aa31dc573c953229502b130782698757ba8d7b3fe12dff59dec6873f  ./jobs/tests.sh
+133eed31a4be91f944447ed9f91e9fb667c91ef2ef18fcc01b2f8811e5c1df0e  ./producer/witness_producer.py
+edf46e3e118fe337c2275bf9cb7acf5ae4434177db28913ef42adc89ef660406  ./tests/test_witness_producer_r3.py

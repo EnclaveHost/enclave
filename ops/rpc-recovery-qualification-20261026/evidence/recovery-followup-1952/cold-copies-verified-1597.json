@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-26T19:39:18Z",
+  "sourceJournal": "/home/steven/.local/state/nvme-cold-subtree-r7/state.json",
+  "sourceJob": "root-cold-hf-copy-1579",
+  "jobRc": 0,
+  "copies": [
+    {
+      "subtree": "2026-10-24/home/gguf-e2b",
+      "bytes": 43957352504,
+      "verified": {
+        "dest_identity": "88452a0d3e1ebc66a13bc3420be8b5151dc9f05ccf1dc0da246c1d12a784cedb",
+        "logical": "7f993d7ce3cd294a1d573adc52a16baeb44049911d7780fae4ad6d0035dbc3de",
+        "source_identity": "8dea59bb44e723aac712d6a6d8e54503cbea50cf92944bce351c1e609ee8632e",
+        "t": 1793038421.5358183
+      },
+      "cutover": false
+    },
+    {
+      "subtree": "2026-10-24/home/gvs5h",
+      "bytes": 125195719424,
+      "verified": {
+        "dest_identity": "a6a564402d9cd6f8a3cc1ed1ca92442b69b21ccdcf1c2b693cf6532dc1662e1d",
+        "logical": "566784a08712e71eae9f6484e08f1a0f5392ba0f3355abdb651b23c19e4b76d2",
+        "source_identity": "42a3cc900eb133982b90191f86788abb1e912f17498a9cc4f7bd6c2318d4a77d",
+        "t": 1793040790.7963436
+      },
+      "cutover": false
+    },
+    {
+      "subtree": "2026-10-24/home/hf-convert",
+      "bytes": 158749500752,
+      "verified": {
+        "dest_identity": "81b9a529d4024548a76a88a82207883dff9c2cf558a990f435d95022fc414043",
+        "logical": "2e632b9bd558cdb398416dacd258da89cfcd52024bdf3b15f651844e56be03e7",
+        "source_identity": "bd241ce597dd401b60458e74bba7f20ac39bec82e8b961609b8af21bb9f0dd75",
+        "t": 1793043462.4502635
+      },
+      "cutover": false
+    }
+  ],
+  "totalVerifiedBytes": 327902572680,
+  "originalsRetained": true,
+  "reclaimedBytes": 0,
+  "usbWritesPaused": true
+}

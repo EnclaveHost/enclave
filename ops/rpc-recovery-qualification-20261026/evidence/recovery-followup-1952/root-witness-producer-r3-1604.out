@@ -1,0 +1,8 @@
+[queue] START available=26949MiB required=17408MiB cap=512MiB floor=16384MiB concurrentSmall=256MiB
+sha256sum: ./bridge/__pycache__/witness_rpc_bridge.cpython-314.pyc: No such file or directory
+./bridge/__pycache__/witness_rpc_bridge.cpython-314.pyc: FAILED open or read
+sha256sum: WARNING: 1 listed file could not be read
+r14 witness-r2 changed
+[memory-guard] exit=9 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 9

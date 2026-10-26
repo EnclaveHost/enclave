@@ -1,0 +1,13 @@
+# witness-placement r2 (PREPARED; NOT installed): the RPC VM side of the EXISTING host-link forward pattern
+# (rpc-backend-bootstrap provision_vm.py: host 127.0.0.1:port -> QEMU hostfwd -> guest 10.0.2.15:port -> socket proxy ->
+# guest 127.0.0.1:target), one more entry {name: witness, port: 28747, target: 18747}.
+# Exact peer: every host-forwarded connection arrives from the QEMU user-net gateway 10.0.2.2; nothing else may connect.
+# No [Install]: root enables it explicitly after the measured route test.
+[Unit]
+Description=Enclave witness producer forward (RPC VM ingress 10.0.2.15:28747 from the host link only)
+
+[Socket]
+ListenStream=10.0.2.15:28747
+FreeBind=yes
+IPAddressDeny=any
+IPAddressAllow=10.0.2.2/32
