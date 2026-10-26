@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+ok 1 - config: ONE explicit authority; a paid attested provider needs a valid own backend; the quorum is unchanged; the packaged provider reports it
+  ---
+  duration_ms: 1095.683294
+  type: 'test'
+  ...
+# Subtest: R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+ok 2 - R2 backend answers are checked STRICTLY: exactly this id, JSON-RPC 2.0, exactly one of result or a well-formed error; anything else is no answer
+  ---
+  duration_ms: 49.085916
+  type: 'test'
+  ...
+# Subtest: attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+ok 3 - attested QUALIFICATION + PRICE flow on the real contracts: reads, simulation, nonce and receipts from the attested verifier; the own backend only submits
+  ---
+  duration_ms: 30213.08651
+  type: 'test'
+  ...
+# Subtest: PRE-SIGN gates: a refused, unavailable, unbound, behind or wrong-chain backend, a stale or down verifier, a foreign pending nonce, a revert (incl. the registry ban), caps and funds sign NOTHING
+ok 4 - PRE-SIGN gates: a refused, unavailable, unbound, behind or wrong-chain backend, a stale or down verifier, a foreign pending nonce, a revert (incl. the registry ban), caps and funds sign NOTHING
+  ---
+  duration_ms: 9007.105047
+  type: 'test'
+  ...
+# Subtest: LOST broadcast reply and RESTART: the same signed bytes are re-broadcast, never re-signed; a returned hash or a pool entry is not a receipt
+ok 5 - LOST broadcast reply and RESTART: the same signed bytes are re-broadcast, never re-signed; a returned hash or a pool entry is not a receipt
+  ---
+  duration_ms: 3976.968865
+  type: 'test'
+  ...
+# Subtest: R1 a backend REFUSAL is not proof that nothing is pending: forwarded-then-refused bytes stay recorded and are retried identically after restart; R2 malformed broadcast answers are unknown
+ok 6 - R1 a backend REFUSAL is not proof that nothing is pending: forwarded-then-refused bytes stay recorded and are retried identically after restart; R2 malformed broadcast answers are unknown
+  ---
+  duration_ms: 553.109429
+  type: 'test'
+  ...
+# Subtest: CHANGED NONCE: another transaction of the operator key consumes the recorded nonce - resolved from the verifier as "not landed", never as success
+ok 7 - CHANGED NONCE: another transaction of the operator key consumes the recorded nonce - resolved from the verifier as "not landed", never as success
+  ---
+  duration_ms: 1696.821109
+  type: 'test'
+  ...
+# Subtest: RESTART state: an invalid, foreign or non-regular send record REFUSES every send (never cleared or overwritten); a record that cannot be written is never broadcast
+ok 8 - RESTART state: an invalid, foreign or non-regular send record REFUSES every send (never cleared or overwritten); a record that cannot be written is never broadcast
+  ---
+  duration_ms: 183.652401
+  type: 'test'
+  ...
+# Subtest: EXISTING paid-provider behaviour (the quorum branch's plain viem wallet and client over one node, unchanged): setHost, qualify, no resend
+ok 9 - EXISTING paid-provider behaviour (the quorum branch's plain viem wallet and client over one node, unchanged): setHost, qualify, no resend
+  ---
+  duration_ms: 8037.031461
+  type: 'test'
+  ...
+# Subtest: a VERIFIED REVERTED receipt: a qualify that passed the verified simulation reverts on inclusion - the caller sees the revert, the record resolves
+ok 10 - a VERIFIED REVERTED receipt: a qualify that passed the verified simulation reverts on inclusion - the caller sees the revert, the record resolves
+  ---
+  duration_ms: 332.561405
+  type: 'test'
+  ...
+# Subtest: ZERO public calls: every connection this file made went to loopback (the attested route, the own backend proxy, the test node)
+ok 11 - ZERO public calls: every connection this file made went to loopback (the attested route, the own backend proxy, the test node)
+  ---
+  duration_ms: 0.344648
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 60357.658045

@@ -1,0 +1,8 @@
+directory-replica: bundle 717638 bytes sha256:12c7715b1c2d4d40…, manifest sha256:076c1fa8c2d24d680c4a197682b8e2d7d53cb17696f16ae873ff2d52a89eda82, 1219 inputs
+bootstrap-replica: bundle 5033 bytes sha256:1e45e75f1f4a7d2b…, manifest sha256:7732950bc2f6385275278553bd36f5372a799f3183b2e26abebadd940414dffc, 1 inputs
+route-dns: bundle 5419960 bytes sha256:56652f6ceb44dea8…, manifest sha256:fbdc1e40538da01021c2761dd52fad3f6cc591a622b4549baf26c288081e032e, 1218 inputs
+policy-mirror: bundle 648626 bytes sha256:c19707e6aa425fdd…, manifest sha256:5d986da50c46cdda4c7b582b9f09a04efc02f0c3d0734717c579836b2ae6702c, 433 inputs
+credit-vault-submitter: bundle 1298017 bytes sha256:46a33b197d1b7c62…, manifest sha256:858b32800c5b59ef6f30da6b9240a93aa15d4c68a6df610b78c0c19e93384924, 1324 inputs
+public-rpc: bundle 31352 bytes sha256:24aabe4b6514c6e3…, manifest sha256:4014ad115a6f01b35d4557a8140ba22f0dfc5e9d6c865d852049dda06f2fecb4, 3 inputs
+service-tls: bundle 812832 bytes sha256:e1d3764c6b06dd20…, manifest sha256:c7b846dd769b0fde26ed3d1bf5af9d64650e625c534fff8239c41df88c43f85e, 442 inputs
+npm inputs locked by: package-lock.json sha256:9ada1611f431d9cc804af46bea54a5aca9e92b44bee40000ee7e995e25d69f20, relay/package-lock.json sha256:e5d896baf563d6cc1662000fb87b56f9673c87c502b4cb8ea43836b1687f0b56

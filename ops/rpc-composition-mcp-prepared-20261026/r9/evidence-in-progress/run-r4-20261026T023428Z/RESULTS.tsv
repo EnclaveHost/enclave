@@ -1,0 +1,16 @@
+consumers	test/browser-read-authority.test.mjs	component: 0 pass=12 fail=0 skip=0 todo=0	final: 0 pass=12 fail=0 skip=0 todo=0	ok
+consumers	test/custody-chain-source.test.mjs	component: 0 pass=11 fail=0 skip=0 todo=0	final: 0 pass=11 fail=0 skip=0 todo=0	ok
+consumers	test/directory-reader-authority.test.mjs	component: 0 pass=4 fail=0 skip=0 todo=0	final: 0 pass=4 fail=0 skip=0 todo=0	ok
+consumers	test/dns-relay-chain-authority.smoke.test.mjs	component: 1 pass=0 fail=4 skip=0 todo=0	final: 0 pass=4 fail=0 skip=0 todo=0	BASELINE-NOT-CLEAN
+consumers	test/native-relay-chain-authority.test.mjs	component: 1 pass=7 fail=1 skip=0 todo=0	final: 1 pass=7 fail=1 skip=0 todo=0	BASELINE-NOT-CLEAN
+consumers	test/qualifier-chain-authority.test.mjs	component: 0 pass=5 fail=0 skip=0 todo=0	final: 0 pass=5 fail=0 skip=0 todo=0	ok
+consumers	test/relay-chain-authority.test.mjs	component: 0 pass=11 fail=0 skip=0 todo=0	final: 0 pass=11 fail=0 skip=0 todo=0	ok
+consumers	test/relay-chain-consumers.test.mjs	component: 0 pass=10 fail=0 skip=0 todo=0	final: 0 pass=10 fail=0 skip=0 todo=0	ok
+consumers	test/relay-fleet-chain-authority.test.mjs	component: 0 pass=6 fail=0 skip=0 todo=0	final: 0 pass=6 fail=0 skip=0 todo=0	ok
+consumers	test/storage-front-binding-release.test.mjs	component: 1 pass=0 fail=5 skip=0 todo=0	final: 1 pass=0 fail=5 skip=0 todo=0	BASELINE-NOT-CLEAN
+leaseRelay	test/lease-pinned-relay-config.test.mjs	component: 0 pass=9 fail=0 skip=0 todo=0	final: 0 pass=9 fail=0 skip=0 todo=0	ok
+leaseRelay	test/lease-relay-host-policy.test.mjs	component: 0 pass=6 fail=0 skip=3 todo=0	final: 0 pass=6 fail=0 skip=3 todo=0	BASELINE-NOT-CLEAN
+leaseRelay	test/lease-relay-release.test.mjs	component: 0 pass=9 fail=0 skip=0 todo=0	final: 0 pass=9 fail=0 skip=0 todo=0	ok
+leaseRelay	test/lease-relay-verifier-config.test.mjs	component: 0 pass=5 fail=0 skip=0 todo=0	final: 0 pass=5 fail=0 skip=0 todo=0	ok
+verifier	test/attested-chain-verifier.test.mjs	component: 0 pass=15 fail=0 skip=0 todo=0	final: 0 pass=15 fail=0 skip=0 todo=0	ok
+verifier	test/metal-measured-control.test.mjs	component: 0 pass=15 fail=0 skip=0 todo=0	final: 0 pass=15 fail=0 skip=0 todo=0	ok

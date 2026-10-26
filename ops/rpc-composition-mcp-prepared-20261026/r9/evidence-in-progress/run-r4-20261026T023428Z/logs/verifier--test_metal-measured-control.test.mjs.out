@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+ok 1 - the direct config is strict and canonical; its digest names it exactly and HOST_DATA derives from it
+  ---
+  duration_ms: 3.301137
+  type: 'test'
+  ...
+# Subtest: planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+ok 2 - planDirectBoot: a bound config yields the direct-only supervisor; the real supervisor's rules accept its environment
+  ---
+  duration_ms: 142.547531
+  type: 'test'
+  ...
+# Subtest: planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+ok 3 - planDirectBoot refuses, listing why: wrong HOST_DATA, legacy inputs, another operator, unbound policy, missing measured tokens
+  ---
+  duration_ms: 12.389983
+  type: 'test'
+  ...
+# Subtest: gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+ok 4 - gsup: the legacy path is untouched; the direct branch runs only for metal.control=direct
+  ---
+  duration_ms: 11.971586
+  type: 'test'
+  ...
+# Subtest: keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+ok 5 - keys are minted in the guest where the supervisor reuses them; the statement is canonical and bound with the role
+  ---
+  duration_ms: 6.808352
+  type: 'test'
+  ...
+# Subtest: end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+ok 6 - end to end: the real supervisor adopts the minted keys, and the verifier accepts the guest only through every check
+  ---
+  duration_ms: 472.386721
+  type: 'test'
+  ...
+# Subtest: registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+ok 7 - registry through the owner's quorum: unregistered or not-yet-republished is PENDING, another operator REJECTED, disagreement UNKNOWN
+  ---
+  duration_ms: 59.155606
+  type: 'test'
+  ...
+# Subtest: refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+ok 8 - refused: forged signature, foreign or replayed binding, an app guest's report, wrong measurement, wrong HOST_DATA, an unattested launch
+  ---
+  duration_ms: 44.747967
+  type: 'test'
+  ...
+# Subtest: refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+ok 9 - refused: a TLS endpoint that is not the attested key, and a supervisor process that does not hold the minted keys
+  ---
+  duration_ms: 15.160284
+  type: 'test'
+  ...
+# Subtest: the front: nonce is required and fresh, only path and query reach the supervisor
+ok 10 - the front: nonce is required and fresh, only path and query reach the supervisor
+  ---
+  duration_ms: 16.900742
+  type: 'test'
+  ...
+# Subtest: the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+ok 11 - the real launcher: measured token, the owner's config in fw_cfg, HOST_DATA binding it, the operator key checked
+  ---
+  duration_ms: 2314.750882
+  type: 'test'
+  ...
+# Subtest: the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+ok 12 - the real launcher refuses legacy inputs, a bypassing port forward, another operator's key, and an unbound policy
+  ---
+  duration_ms: 821.428243
+  type: 'test'
+  ...
+# Subtest: builder and overlay carry the helper and the measured token
+ok 13 - builder and overlay carry the helper and the measured token
+  ---
+  duration_ms: 3.580305
+  type: 'test'
+  ...
+# Subtest: chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports
+ok 14 - chainVerifier in the bound direct config: optional (absent keeps every earlier digest), checked, bound by HOST_DATA, distinct ports
+  ---
+  duration_ms: 1.911436
+  type: 'test'
+  ...
+# Subtest: planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot
+ok 15 - planDirectBoot with a bound chainVerifier: the image's pinned runtime is started before the supervisor, whose ONLY chain authority names come from it; no runtime in the image refuses the boot
+  ---
+  duration_ms: 5.975158
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7835.366573

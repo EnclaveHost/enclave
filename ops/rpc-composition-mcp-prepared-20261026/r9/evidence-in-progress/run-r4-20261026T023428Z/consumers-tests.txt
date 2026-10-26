@@ -1,0 +1,10 @@
+test/browser-read-authority.test.mjs
+test/custody-chain-source.test.mjs
+test/directory-reader-authority.test.mjs
+test/dns-relay-chain-authority.smoke.test.mjs
+test/native-relay-chain-authority.test.mjs
+test/qualifier-chain-authority.test.mjs
+test/relay-chain-authority.test.mjs
+test/relay-chain-consumers.test.mjs
+test/relay-fleet-chain-authority.test.mjs
+test/storage-front-binding-release.test.mjs

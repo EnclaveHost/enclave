@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+ok 1 - G2: the guest checker and the runtime accept http at a PRIVATE IPv4 literal as an untrusted witness source, nothing wider
+  ---
+  duration_ms: 2.690571
+  type: 'test'
+  ...
+# Subtest: G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+ok 2 - G1: expose "attested" exists only in the HOST_DATA-bound direct config; absent keeps every earlier digest; it makes a verifier-only guest
+  ---
+  duration_ms: 2.442753
+  type: 'test'
+  ...
+# Subtest: G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+ok 3 - G1: planDirectBoot of a verifier-only guest: the verifier is the only chain authority, every RPC name refuses, nothing is sold, one filtered route
+  ---
+  duration_ms: 24.509899
+  type: 'test'
+  ...
+# Subtest: the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+ok 4 - the front exposes ONLY filtered reads of the bound verifier; refusals never reach it; the route shape is fixed
+  ---
+  duration_ms: 65.193585
+  type: 'test'
+  ...
+# Subtest: a verifier answer above the bound is cut off, never served as complete
+ok 5 - a verifier answer above the bound is cut off, never served as complete
+  ---
+  duration_ms: 68.828289
+  type: 'test'
+  ...
+# Subtest: G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+ok 6 - G3: a replica is used only after attestation through the UNCHANGED verifier; the outcome is "attested", never "verified"
+  ---
+  duration_ms: 33.093509
+  type: 'test'
+  ...
+# Subtest: G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+ok 7 - G3: wrong measurement, another config, a HOST_DATA that binds nothing, an unattested front, and a key change all refuse; failover is availability only
+  ---
+  duration_ms: 74.289301
+  type: 'test'
+  ...
+# Subtest: G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+ok 8 - G4: a plain object is never "attested", whatever it claims (the brand marks only client-built objects; not a boundary against same-process code)
+  ---
+  duration_ms: 0.600825
+  type: 'test'
+  ...
+# Subtest: ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+ok 9 - ERC-1271 and SessionVault owner signatures through the ATTESTED verifier on a real chain: the exact call shapes, no public RPC
+  ---
+  duration_ms: 12346.675496
+  type: 'test'
+  ...
+# Subtest: config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+ok 10 - config: minTcb is validated as the verifier does (supported product line, exactly its fields, integers 0-255); roots only with the programmatic flag
+  ---
+  duration_ms: 4.953815
+  type: 'test'
+  ...
+# Subtest: ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+ok 11 - ONE deadline across attestation and every replica: 8 hanging replicas settle at the caller's deadline, not 8 x timeout; 8 dead ones fail fast
+  ---
+  duration_ms: 2022.618392
+  type: 'test'
+  ...
+# Subtest: aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+ok 12 - aborts settle promptly while an attestation is pending; repeated aborts share one attestation; close() leaves no socket open
+  ---
+  duration_ms: 310.233068
+  type: 'test'
+  ...
+# Subtest: G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+ok 13 - G5: the provider authority is ONE explicit choice; legacy modes unchanged; mixed, paid and root-naming configs refuse
+  ---
+  duration_ms: 22.573282
+  type: 'test'
+  ...
+# Subtest: packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+ok 14 - packaging: separately bundled reader and client share ONE brand (no duplicate-module mislabel); the provider bundle resolves its closure
+  ---
+  duration_ms: 232.533612
+  type: 'test'
+  ...
+# Subtest: the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+ok 15 - the REAL supervisor starts in a verifier-only boot (refusing RPC names) and, behind the real front, passes attestation step 6
+  ---
+  duration_ms: 444.549198
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18162.866924

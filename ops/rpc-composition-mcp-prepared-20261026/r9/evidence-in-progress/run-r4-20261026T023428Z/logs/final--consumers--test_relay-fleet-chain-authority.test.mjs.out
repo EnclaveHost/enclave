@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: injected chain authority: every registry read goes to it, no provider URL is contacted
+ok 1 - injected chain authority: every registry read goes to it, no provider URL is contacted
+  ---
+  duration_ms: 2.448633
+  type: 'test'
+  ...
+# Subtest: injected authority outage fails closed: empty fleet, no fallback to BASE_RPC
+ok 2 - injected authority outage fails closed: empty fleet, no fallback to BASE_RPC
+  ---
+  duration_ms: 0.310948
+  type: 'test'
+  ...
+# Subtest: legacy default unchanged: without an injected authority the fleet reads BASE_RPC (default mainnet.base.org)
+ok 3 - legacy default unchanged: without an injected authority the fleet reads BASE_RPC (default mainnet.base.org)
+  ---
+  duration_ms: 1106.027797
+  type: 'test'
+  ...
+# Subtest: the DNS relay's selection: unset keeps the legacy path; verifier + BASE_RPC is refused, not resolved
+ok 4 - the DNS relay's selection: unset keeps the legacy path; verifier + BASE_RPC is refused, not resolved
+  ---
+  duration_ms: 2.031556
+  type: 'test'
+  ...
+# Subtest: address book and deployments ledger are read through the injected authority (both client sites)
+ok 5 - address book and deployments ledger are read through the injected authority (both client sites)
+  ---
+  duration_ms: 2.462423
+  type: 'test'
+  ...
+# Subtest: outage AFTER a healthy refresh: no public fallback; the INHERITED stale-cache behaviour is kept and documented
+ok 6 - outage AFTER a healthy refresh: no public fallback; the INHERITED stale-cache behaviour is kept and documented
+  ---
+  duration_ms: 301.555016
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1705.806292
