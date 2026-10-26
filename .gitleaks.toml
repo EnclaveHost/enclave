@@ -275,3 +275,13 @@ targetRules = ["coinbase-access-token"]
 paths = ['''^ops/rpc-consumer-final-r4-20261026/stage/inputs/regenerated/credit-vault-submitter\.package\.json$''']
 regexTarget = "line"
 regexes = ['''^\s*"node_modules/viem/_esm/actions/test/setCoinbase\.js"\s*:\s*"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",?\s*$''']
+
+# Public Solidity test-double class name, defined in the archived LifecycleR5Doubles.sol.
+# This is not credential material. Exact file + exact matched class name only.
+[[allowlists]]
+description = "Public R4SecretVaultV2 fixture class name at its one ABI conformance test"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^ops/rpc-rollout-integration-20261026/lifecycle-r6/test/deployment-chain-adapter-r5-abi\.test\.mjs$''']
+regexTarget = "secret"
+regexes = ['''^R4SecretVaultV2$''']
