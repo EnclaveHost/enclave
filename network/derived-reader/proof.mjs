@@ -5,6 +5,7 @@ import { readSchedule, CONFIG_HASH_PIN_CANDIDATE } from './vendor/schedule_reade
 import { buildTrustedInput } from './vendor/schedule-input-r2.mjs';
 import { assertL1Runtime } from './l1-runtime.mjs';
 import { finalizedHeader } from './rpc.mjs';
+import { validateCoverage } from './coverage.mjs';
 export const keccak = bytes => toBytes(keccak256(bytes));
 const HASH = /^0x[0-9a-f]{64}$/;
 
@@ -52,7 +53,14 @@ export async function prepareProof({ l1, l1Head, agreed, header, rollupConfigTem
     expectedRollupConfigHash: CONFIG_HASH_PIN_CANDIDATE.value, intermediateBlockInterval });
 }
 export function bindNativeV2(result, input, header, l1Head) {
-  if (result?.format !== 'enclave-base-derivation-result/v2' || Object.hasOwn(result, 'refused')) throw Error('combined native derivation v2 result required');
+  return bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v2');
+}
+export function bindNativeV3(result, input, header, l1Head) {
+  const anchor = bindNative(result, input, header, l1Head, 'enclave-base-derivation-result/v3');
+  return { anchor, coverage: validateCoverage(result, input, anchor) };
+}
+function bindNative(result, input, header, l1Head, format) {
+  if (result?.format !== format || Object.hasOwn(result, 'refused')) throw Error(`combined native derivation ${format} result required`);
   const t = input.trusted;
   const fields = { chainId: 8453, l1Head: t.l1Head, l1HeadNumber: t.l1HeadNumber, agreedL2OutputRoot: t.agreedL2OutputRoot,
     l2PreBlockNumber: input.bound.agreedL2BlockNumber, l2BlockNumber: t.claimedL2BlockNumber, l2OutputRoot: t.claimedL2OutputRoot,

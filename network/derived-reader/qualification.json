@@ -45,10 +45,11 @@
     "localNegativeInvocations": "PASS with system and explicitly pinned loaders; not positive derivation"
   },
   "composition": {
-    "readerTests": 16,
+    "readerTests": 29,
     "bridgeTests": 4,
-    "passed": 20,
-    "authorityFixtures": true
+    "passed": 33,
+    "authorityFixtures": true,
+    "leaseCoverageTests": 13
   },
   "liveL1SchedulePinnedLoader": {
     "status": "passed",
@@ -64,5 +65,17 @@
     "l1AgeSec": 869,
     "productionPidsUnchanged": true,
     "cleaned": true
+  },
+  "nativeV3": {
+    "sha256": "49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa",
+    "sourceBundleSha256": "c990e67156f32992ab0c10d7e9c7d4ad98ea94485125eb2a57df538701f6deb0",
+    "nativeChecks": 14,
+    "ignored": 0,
+    "filtered": 0,
+    "cargoLockUnchanged": true,
+    "buildReceiptCommit": "8594bc1ee",
+    "localNegativeInvocations": "PASS with explicit pinned loader: malformed witness, wrong chain, interval != 1",
+    "livePositiveBaseDerivation": false,
+    "acceptedImageQualified": false
   }
 }

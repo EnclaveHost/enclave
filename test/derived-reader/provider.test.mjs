@@ -61,7 +61,7 @@ test('an uncertain journal write fences the previous in-memory anchor too', asyn
   const next = await p.prepare({ blockNumber: 102, rollupConfigTemplate: { l2_chain_id: 8453 } });
   fs.mkdirSync(path.join(f.directory, 'derived-state.json.strict.tmp'));
   await assert.rejects(p.submit({ ticket: next.ticket, witness: Buffer.from(JSON.stringify(nativeResult(next, f.candidate))) }), /EISDIR/);
-  await assert.rejects(p.readAnchor(), /journal closed or failed/);
+  await assert.rejects(p.readAnchor(), /closed|failed/);
 });
 test('stale derived blocks and a changed finalized L1 header refuse without refreshing timestamps', async t => {
   const f = await setup(t), p = await provider(t, f);

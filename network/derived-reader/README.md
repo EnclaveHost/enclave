@@ -3,7 +3,8 @@
 This is the callable local derivation provider for the lifecycle bridge. It owns
 an Ethereum light client, authenticates the Base bootstrap and upgrade schedule,
 executes the pinned native derivation verifier, and publishes the exact executed
-Base header only after durable acceptance. The implementation is available;
+Base header only after durable acceptance. Optional complete lease-event coverage is described in [COVERAGE.md](COVERAGE.md).
+The implementation is available;
 **positive live Base derivation and accepted-enclave-image qualification remain
 pending**. The ordinary sequencer-signed RPC service is not upgraded by importing
 this module. Production services have not been switched.
@@ -119,7 +120,7 @@ Run through the shared resource guard:
 ```sh
 node --test --test-concurrency=1 test/derived-reader.test.mjs test/lifecycle-finality-bridge.test.mjs
 ```
- The 16 reader tests and four bridge tests cover ownership,
+ The 29 reader tests and four bridge tests cover ownership,
 shutdown, expiry, replay, false results, durable restart, bounded native output,
 API cancellation and direct hash-pinned lifecycle composition. Transport/native
 fixtures in those tests are explicitly not consensus proofs.

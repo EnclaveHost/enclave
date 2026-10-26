@@ -9,16 +9,21 @@ import { stageBinary, reapRun } from './process.mjs';
 import { startL1Runtime, assertL1Runtime, readCheckpoint } from './l1-runtime.mjs';
 import { stageLibraries } from './libraries.mjs';
 import { boundedRpc, finalizedHeader } from './rpc.mjs';
-import { authenticateBootstrap, prepareProof, bindNativeV2 } from './proof.mjs';
-import { invokeDerivation, DERIVATION_BUILDS } from './native.mjs';
+import { authenticateBootstrap, prepareProof, bindNativeV2, bindNativeV3 } from './proof.mjs';
+import { invokeDerivation, DERIVATION_BUILDS, DERIVATION_V3_BUILDS } from './native.mjs';
+import { openCoverageStore, MAX_HISTORY_BYTES } from './coverage-store.mjs';
+import { MAX_COVERAGE_BYTES } from './coverage.mjs';
 export const BOOTSTRAP_POLICY = Object.freeze({ expectedChainId: 1, pinBy: 'hash',
   portal: '0x49048044d57e1c92a77f79988d21fa8faf74e97e', asr: '0x909f6cf47ed12f010a796527f562bfc26c7f4e72',
   portalAsrGetter: 'anchorStateRegistry()', maxFinalizedAgeSec: 1800 });
 
 export async function createDerivedProvider({ l1, journal, executable, runtime = null, workDir, bootstrap, base,
+  resultVersion = 2, coverageStore = null,
   maxBlocks = 1800, intermediateBlockInterval = 1, maxAnchorAgeSec = 1800, nativeTimeoutMs = 180000,
   maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, now = Date.now }) {
   assertL1Runtime(l1);
+  if (![2, 3].includes(resultVersion) || resultVersion === 3 && (!coverageStore || intermediateBlockInterval !== 1) ||
+      resultVersion === 2 && coverageStore) throw Error('v3 coverage needs explicit version, store, and interval one');
   if (!Number.isInteger(maxBlocks) || maxBlocks < 1 || maxBlocks > 1800 ||
       !Number.isInteger(intermediateBlockInterval) || intermediateBlockInterval < 1 || intermediateBlockInterval > maxBlocks ||
       !Number.isInteger(maxAnchorAgeSec) || maxAnchorAgeSec < 20 || maxAnchorAgeSec > 3600 ||
@@ -29,7 +34,13 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
   const alive = () => {
     if (closed) throw Error('derived provider closed');
     journal.read(); // A failed/uncertain persistence operation fences even the previous in-memory anchor.
+    coverageStore?.status();
     assertL1Runtime(l1);
+  };
+  const savedFloor = () => {
+    const a = journal.read().floor, c = coverageStore?.status().savedFloor;
+    if (a && c && a.base.number === c.base.number && a.base.hash !== c.base.hash) throw Error('anchor and coverage floors contradict');
+    return !a || c && c.base.number > a.base.number ? c : a;
   };
   const consistentL1 = async (head, signal) => {
     const raw = await l1.request('eth_getBlockByNumber', [`0x${head.number.toString(16)}`, false], { signal });
@@ -45,6 +56,14 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
     try { return await run(controller.signal); }
     finally { signal?.removeEventListener('abort', abort); busy = false; active = null; finished(); }
   }
+  async function currentAnchor(signal) {
+    if (!latest) throw Error('no locally derived anchor; bootstrap/catch-up is required');
+    const value = latest, seconds = Math.floor(now() / 1000);
+    if (seconds - value.base.timestamp > maxAnchorAgeSec || value.base.timestamp > seconds + 2) throw Error('derived Base anchor is stale');
+    await consistentL1(value.l1, signal); signal?.throwIfAborted(); alive();
+    if (Math.floor(now() / 1000) - value.base.timestamp > maxAnchorAgeSec) throw Error('derived Base anchor aged out while reading');
+    return structuredClone(value);
+  }
   return Object.freeze({
     // Public fields are proposed inputs for the untrusted witness builder.
     // The ticket's authoritative copy remains private to this process.
@@ -57,7 +76,7 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
           if (seed.tier !== 'l1-finalized-asr-anchor') throw Error('initial agreed root must be freshly ASR-authenticated');
           agreed = seed; // never load an agreed root from journal JSON
         }
-        const floor = journal.read().floor;
+        const floor = savedFloor();
         if (!Number.isSafeInteger(blockNumber) || blockNumber <= agreed.base.number || blockNumber - agreed.base.number > maxBlocks ||
             (blockNumber - agreed.base.number) % intermediateBlockInterval !== 0) throw Error('candidate range exceeds reader bounds');
         if (floor && agreed.base.number < floor.base.number && blockNumber > floor.base.number) throw Error('recovery must derive the saved floor exactly before passing it');
@@ -79,30 +98,39 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
         const proof = pending; pending = null; // one-shot; no concurrent replay
         const result = await invokeDerivation({ executable, runtime, trusted: proof.input.trusted, witness, workDir, signal: proofSignal,
           timeoutMs: Math.min(nativeTimeoutMs, proof.expiresAt - now()), maxWitnessBytes, maxMemoryMiB,
-          outputBytes: 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
-        const accepted = bindNativeV2(result, proof.input, proof.header, proof.head);
+          outputBytes: resultVersion === 3 ? MAX_COVERAGE_BYTES : 65536 + Math.ceil((proof.input.trusted.claimedL2BlockNumber - proof.agreed.base.number) / intermediateBlockInterval) * 192 });
+        const bound = resultVersion === 3 ? bindNativeV3(result, proof.input, proof.header, proof.head) : null;
+        const accepted = bound?.anchor || bindNativeV2(result, proof.input, proof.header, proof.head);
         if (accepted.base.timestamp < proof.agreed.base.timestamp || accepted.base.timestamp > Math.floor(now() / 1000) + 2) throw Error('derived block timestamp regressed or is from the future');
         await consistentL1(proof.head, proofSignal); proofSignal.throwIfAborted(); alive();
-        const floor = journal.read().floor;
-        if (floor && accepted.base.number < floor.base.number) {
-          agreed = accepted;
-          return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
-        }
-        // Atomic persistence occurs before any publication. A same-height hash
-        // conflict with the saved floor refuses rather than authorizing a fork.
-        journal.accept(proof.agreed, accepted);
+        const floor = savedFloor();
+        const publishCoverage = bound ? coverageStore.stage(bound.coverage, proof.agreed, accepted) : null;
+        try {
+          if (floor && accepted.base.number < floor.base.number) {
+            publishCoverage?.();
+            agreed = accepted;
+            return { status: 'recovering', verifiedThrough: accepted.base.number, requiredFloor: floor.base.number };
+          }
+          // Both durable writes precede publication. A partially committed pair
+          // fences this process; restart re-derives through the stricter floor.
+          journal.accept(proof.agreed, accepted);
+          publishCoverage?.();
+        } catch (e) { closed = true; latest = null; throw e; }
         agreed = accepted; latest = accepted;
         return { status: 'verified', anchor: structuredClone(accepted) };
       });
     },
     async readAnchor({ signal } = {}) {
-      return exclusive(signal, async proofSignal => {
-        if (!latest) throw Error('no locally derived anchor; bootstrap/catch-up is required');
-        const value = latest, seconds = Math.floor(now() / 1000);
-        if (seconds - value.base.timestamp > maxAnchorAgeSec || value.base.timestamp > seconds + 2) throw Error('derived Base anchor is stale');
-        await consistentL1(value.l1, proofSignal); proofSignal.throwIfAborted(); alive();
-        if (Math.floor(now() / 1000) - value.base.timestamp > maxAnchorAgeSec) throw Error('derived Base anchor aged out while reading');
-        return structuredClone(value);
+      return exclusive(signal, currentAnchor);
+    },
+    async readDerivedLogs(query = {}) {
+      return exclusive(query.signal, async proofSignal => {
+        if (!coverageStore) throw Error('derived logs require the explicit v3 reader');
+        const signal = AbortSignal.any([proofSignal, AbortSignal.timeout(30000)]);
+        const anchor = await currentAnchor(signal);
+        const result = await coverageStore.read(query, anchor, { signal });
+        await currentAnchor(signal); // same exclusive snapshot, including freshness after disk IO
+        return result;
       });
     },
     status() { return { busy, closed, hasDerivedAnchor: !!latest,
@@ -110,7 +138,8 @@ export async function createDerivedProvider({ l1, journal, executable, runtime =
       // Freshness here is diagnostic; readAnchor additionally checks live L1 ownership/canonicality.
       withinBaseAgeBound: !!latest && Math.floor(now() / 1000) - latest.base.timestamp <= maxAnchorAgeSec,
       verifiedThrough: agreed?.base.number ?? null,
-      hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: journal.read().floor?.base.number ?? null }; },
+      hasPendingWitness: !!pending && pending.expiresAt > now(), savedFloor: savedFloor()?.base.number ?? null,
+      resultVersion, coverage: coverageStore?.status() ?? null }; },
     async close() { closed = true; pending = null; latest = null; active?.abort(Error('derived provider closed')); await activeDone; },
   });
 }
@@ -122,7 +151,10 @@ export async function startDerivedReader(config, options = {}) {
   const { stateDir, initializeState = false, native, l1: l1Config, a1Config = BOOTSTRAP_POLICY, baseUrl } = config;
   if (!path.isAbsolute(stateDir) || Object.entries(BOOTSTRAP_POLICY).some(([key, value]) => a1Config[key] !== value))
     throw Error('derived reader needs private state and the reviewed ASR bootstrap policy');
-  const builds = options.acceptedDerivationBuilds || DERIVATION_BUILDS;
+  const resultVersion = native?.resultVersion ?? 2;
+  if (![2, 3].includes(resultVersion) || resultVersion === 3 && (config.intermediateBlockInterval ?? 1) !== 1)
+    throw Error('invalid native result version or coverage interval');
+  const builds = options.acceptedDerivationBuilds || (resultVersion === 3 ? DERIVATION_V3_BUILDS : DERIVATION_BUILDS);
   if (!builds[native?.sha256]) throw Error('no qualified native derivation build configured');
   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   const privateDirectory = directory => {
@@ -134,10 +166,13 @@ export async function startDerivedReader(config, options = {}) {
   const checkpoint = readCheckpoint(l1Config.checkpointFile, { accepted: options.l1Options?.acceptedCheckpoints, now: options.now || Date.now });
   const binding = createHash('sha256').update(JSON.stringify({ chain: 8453, native: native.sha256,
     nativeRuntime: native.runtime?.build ?? null, l1Runtime: l1Config.runtime?.build ?? null,
-    l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1 })).digest('hex');
+    l1: l1Config.binary.sha256, checkpoint: checkpoint.digest, a1: a1Config, interval: config.intermediateBlockInterval ?? 1,
+    ...(resultVersion === 3 ? { resultVersion, historyMaximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES } : {}) })).digest('hex');
   const journal = await openDerivedJournal(stateDir, { binding, initialize: initializeState });
-  let l1, provider, runDir;
+  let l1, provider, runDir, coverageStore;
   try {
+    if (resultVersion === 3) coverageStore = await openCoverageStore(path.join(stateDir, 'coverage'), {
+      binding, initialize: initializeState, maximumBytes: config.historyMaximumBytes ?? MAX_HISTORY_BYTES });
     const runs = path.join(stateDir, 'runs'); fs.mkdirSync(runs, { recursive: true, mode: 0o700 });
     privateDirectory(runs);
     // Reap only task-owned saved child identities under this journal's lock.
@@ -169,13 +204,13 @@ export async function startDerivedReader(config, options = {}) {
       runDir: l1Dir, signal: options.signal, now: options.now || Date.now });
     const base = boundedRpc(baseUrl);
     const execution = boundedRpc(l1Config.executionUrl);
-    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base,
+    provider = await createDerivedProvider({ l1, journal, executable, runtime, workDir: nativeDir, base, resultVersion, coverageStore,
       bootstrap: params => authenticateBootstrap({ l1, execution, base, a1Config, ...params, now: options.now || Date.now }),
       maxBlocks: config.maxBlocks, intermediateBlockInterval: config.intermediateBlockInterval, maxAnchorAgeSec: config.maxAnchorAgeSec,
       nativeTimeoutMs: config.nativeTimeoutMs, maxWitnessBytes: config.maxWitnessBytes, maxMemoryMiB: config.maxMemoryMiB, now: options.now || Date.now });
-    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); } });
+    return Object.freeze({ ...provider, async close() { await provider.close(); await l1.close(); coverageStore?.close(); journal.close(); fs.rmSync(runDir, { recursive: true, force: true }); } });
   } catch (e) {
-    await provider?.close(); await l1?.close(); journal.close();
+    await provider?.close(); await l1?.close(); coverageStore?.close(); journal.close();
     if (runDir) fs.rmSync(runDir, { recursive: true, force: true });
     throw e;
   }

@@ -9,12 +9,16 @@ import { nativeCommand } from './libraries.mjs';
 export const DERIVATION_BUILDS = Object.freeze({
   f1a6bb0e82be37fddf9e2485c50f78b4cd5eb02d43e903152230c91fd22dcfd9: 'combined-r1, base/base 5476069f, rustup 1.96.0; source/native tests passed',
 });
+export const DERIVATION_V3_BUILDS = Object.freeze({
+  '49f4d7e3e70e48f7374b0e12b3d300978062cce19cbd75552065f918173a76fa':
+    'lease coverage r2 c990e671, 14 native tests passed, frozen lock; positive mainnet witness/image qualification pending',
+});
 export async function invokeDerivation({ executable, runtime = null, trusted, witness, workDir, signal,
   timeoutMs = 180000, maxWitnessBytes = 64 << 20, maxMemoryMiB = 1536, outputBytes = 65536 }) {
   if (!Buffer.isBuffer(witness) || witness.length === 0 || witness.length > maxWitnessBytes) throw Error('native witness size refused');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 3600000 || !Number.isInteger(maxMemoryMiB) || maxMemoryMiB < 128 || maxMemoryMiB > 4096)
     throw Error('invalid native execution bounds');
-  if (!Number.isInteger(outputBytes) || outputBytes < 1024 || outputBytes > (1 << 20)) throw Error('invalid native output bound');
+  if (!Number.isInteger(outputBytes) || outputBytes < 1024 || outputBytes > (16 << 20)) throw Error('invalid native output bound');
   signal?.throwIfAborted();
   const directory = fs.mkdtempSync(path.join(workDir, 'proof-')); fs.chmodSync(directory, 0o700);
   const input = path.join(directory, 'trusted.json'), data = path.join(directory, 'witness');
