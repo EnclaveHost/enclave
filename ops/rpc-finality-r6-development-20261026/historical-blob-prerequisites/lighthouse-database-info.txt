@@ -1,0 +1,7 @@
+2026-10-26T05:47:05Z
+config.prune_blobs True blob_prune_margin_epochs 0 epochs_per_blob_prune 256 prune_payloads True
+schema_version 32
+split {"slot": "15514048", "state_root": "0xb313275f72a390c19abf2acd3f92c26679dc05bd7b2c4557f64a91a515b4e687", "block_root": "0xca07f2810ff542a14e1ea7ca4ad33afad8edec6bab699ff805667a548dcde933"}
+anchor {"anchor_slot": "15508320", "oldest_block_slot": "15341664", "oldest_block_parent": "0x7d9215b5460ab838d565572fb5fe9a3ce3938fa7164e40ad98e34b22425425c7", "state_upper_limit": "18446744073709551615", "state_lower_limit": "0"}
+data_info {"oldest_data_slot": "15382624"}
+Id=enclave-l1-cl.service ActiveState=active ActiveEnterTimestamp=Sun 2026-10-25 17:54:51 UTC 

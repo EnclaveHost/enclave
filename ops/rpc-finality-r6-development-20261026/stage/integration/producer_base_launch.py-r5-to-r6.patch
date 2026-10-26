@@ -1,0 +1,294 @@
+--- a/producer/base_launch.py
++++ b/producer/base_launch.py
+@@ -31,7 +31,7 @@
+ A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4/a2a4.py')      # root installs the reviewed stage there (HOLD: not installed)
+ # Re-anchor recovery (base-reanchor-recovery-stage; PREPARED): configs with `reanchor` run the recovery harness copy (a superset
+ # that leaves the first-bootstrap path unchanged); first-bootstrap configs keep the reviewed harness above.
+-RECOVERY_A2A4_SHA256 = 'a074d732a4c45a0c54135c4e556cdd845d5c77307a8e48f57d579aef494003c7'   # base-finality-proof-stage/r5/harness/a2a4.py (r7 + shared-ledger path)
++RECOVERY_A2A4_SHA256 = '710c34830157a8307d20f6b9481c4f5c8aeb6fb59f1db3dccb3e2cec5b024560'   # base-finality-proof-stage/r6/harness/a2a4.py
+ RECOVERY_A2A4_SOURCE = pathlib.Path('/opt/enclave-rpc/a2a4-recovery/a2a4.py')   # HOLD: not installed
+ HARNESS_BINARY_SHA256 = '9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f'  # selection.BASE_BINARY_SHA256 (A2-A4 runs this)
+ BASE_RELEASE_SHA256 = '4a7c013a510f88166779281ad0108790f25efa07f22f6457d54add709488372f'   # m7-m10-release-completed-0055
+@@ -45,9 +45,40 @@
+ # N' > N with its output root, and our node's header N' authenticated against that root (the harness's authenticate()), with
+ # N' a descendant of the anchor. Until such a validator is reviewed, `record-bootstrapped` refuses. Source constant, not config.
+ FINALITY_PROOF_REVIEWED = False
++# r6 activation (base-finality-proof-stage/r6): a review flag is True only through its source constant OR the root-owned activation
++# artifact that names THIS module's exact bytes for that flag (written only by install_verified.py `activate`, after qualification).
++# The artifact is the deliberate, reviewable activation step: no source edit, so every byte pin stays valid. Absent -> False.
++ACTIVATION_FILE = pathlib.Path('/etc/enclave-rpc/finality-activation.json')
++
++
++def reviewed(name):
++    if globals().get(name) is True:
++        return True
++    try:
++        fd = os.open(ACTIVATION_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    except OSError:
++        return False
++    with os.fdopen(fd, 'rb') as f:
++        st = os.fstat(f.fileno())
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
++            return False
++        try:
++            doc = json.loads(f.read(1 << 16))
++        except ValueError:
++            return False
++    try:
++        me = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
++    except (OSError, NameError):
++        return False
++    return isinstance(doc, dict) and doc.get('format') == 'enclave-finality-activation/v1' and (doc.get('flags') or {}).get(name) == me
++
++
+ # r4 (base-finality-proof-stage/r4): the post-anchor finality tool, executed from exactly its pinned bytes (HOLD: not installed).
+-FINALITY_STATE_SHA256 = '546036c1ad8f6b72f46985101d2968d6cfd88ea44efc804de7f4bf0aa1fd1b08'   # base-finality-proof-stage/r5/src/finality_state.py
++FINALITY_STATE_SHA256 = 'ed31bf92d686ab328d683ea99dab3876d9c96301d3ef4605a99cb1f3a8f8d75c'   # base-finality-proof-stage/r6/src/finality_state.py
+ FINALITY_STATE_SOURCE = pathlib.Path('/opt/enclave-rpc/finality/src/finality_state.py')
++SELECTION_SHA256 = 'e6c312f4007f6d747197a6569eaeb36c8c949a0819be49738ce6a0723b999532'   # selection.py beside BOTH harnesses (identical)
++WRAPPER_SHA256 = '4fc3b970e4ec062eeb66ef90c5bd1b14149a9bdcff135e7720708e7c544df8ae'   # base-finality-proof-stage/r6/wrapper/chain_service.py
++WRAPPER_SOURCE = pathlib.Path('/opt/enclave-rpc/chain_service.py')
+ 
+ 
+ class Refused(Exception):
+@@ -63,11 +94,31 @@
+ 
+ def load_a2a4(path=A2A4_SOURCE, pin=A2A4_SOURCE_SHA256):
+     """The reviewed harness module, exactly the pinned bytes (its own selection.py beside it)."""
+-    p = pathlib.Path(path)
+-    if sha(p.read_bytes()) != pin:
+-        refuse('a2a4_source', f'{p} is not the reviewed A2-A4 harness {pin[:12]}...')
+-    sys.path.insert(0, str(p.parent))
+-    spec = importlib.util.spec_from_file_location('a2a4_reviewed', p); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
++    p = pathlib.Path(path); b, sb = _read_bytes(p), _read_bytes(p.parent / 'selection.py')
++    if sha(b) != pin or sha(sb) != SELECTION_SHA256:
++        refuse('a2a4_source', f'{p} (or its selection.py) is not the reviewed A2-A4 harness {pin[:12]}...')
++    _exec_bytes('selection', sb, p.parent / 'selection.py')         # r6: executed from the verified bytes (no path import, no .pyc)
++    return _exec_bytes('a2a4_reviewed', b, p)
++
++
++def _read_bytes(p):
++    try:
++        fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    except OSError as e:
++        refuse('source', f'{p} unreadable ({type(e).__name__})')
++    try:
++        chunks = []
++        while (c := os.read(fd, 1 << 20)):
++            chunks.append(c)
++    finally:
++        os.close(fd)
++    return b''.join(chunks)
++
++
++def _exec_bytes(name, b, path):
++    import types
++    m = types.ModuleType(name); m.__file__ = str(path); sys.modules[name] = m
++    exec(compile(b, str(path), 'exec'), m.__dict__)
+     return m
+ 
+ 
+@@ -346,11 +397,22 @@
+     return {'event': event, 'seq': len(after), 'entrySha256': after[-1][0]}
+ 
+ 
++def bound_config(launch, cfg_path, A):
++    """r6: arm, rearm and restart permits prove the DB ONLY with the exact harness config the launch record bound (configSha256) and
++    the harness's pinned base binary: never a caller-supplied config or tool."""
++    if sha(_read_bytes(pathlib.Path(cfg_path))) != (launch.get('bindings') or {}).get('configSha256'):
++        refuse('config', 'the harness config is not the one the launch record bound (configSha256)')
++    c = A.load_config(str(cfg_path))
++    if c.get('baseBinarySha256') != HARNESS_BINARY_SHA256:
++        refuse('binary_pin', 'the config names another base binary than the harness pin')
++    return c
++
++
+ def stopped_db_unchanged_at_n(launch, cfg_path, *, A):
+     """The REAL harness, never bypassed: the DB file identity the launch record bound (the bytecode scan's), then the harness's
+     own gate_static (units stopped, pins, download receipt, layout), every stage checkpoint == N, no header above N, header N
+     authenticating to the anchor hash, then the identity again. Any difference refuses: the anchor is never replayed."""
+-    c = A.load_config(str(cfg_path)); w = pathlib.Path(c['workdir'])
++    c = bound_config(launch, cfg_path, A); w = pathlib.Path(c['workdir'])
+     n, h = launch['anchor'].split(':')
+     b = launch.get('bindings') or {}
+     if int(n) != c['N'] or b.get('datadir') != c['datadir']:
+@@ -408,7 +470,7 @@
+ 
+ def record_finality(*a, **k):
+     """The only other watermark writer (kind finality-proof): a reviewed acceptance of finality past the anchor. HOLD."""
+-    if not FINALITY_PROOF_REVIEWED:
++    if not reviewed('FINALITY_PROOF_REVIEWED'):
+         refuse('hold_finality', 'HOLD: no reviewed finality-proof acceptance writes the watermark (FINALITY_PROOF_REVIEWED is False)')
+     return _record_finality(*a, **k)
+ 
+@@ -449,7 +511,7 @@
+             if type(n) is not int or n != s.get('freshN') or n <= n0 or not re.fullmatch(r'0x[0-9a-f]{64}', str(h)) \
+                     or not re.fullmatch(r'[0-9a-f]{64}', str(s['entrySha256'])):
+                 refuse('not_qualified', 'the qualified point is not a well-formed block above the launch anchor')
+-            return n, h, s['entrySha256']
++            return n, h, s['entrySha256'], q[-1]['seq']
+         if last['event'] == 'bootstrapped':
+             try:
+                 q = F.entries(finality_dir, lsha, top)
+@@ -457,7 +519,7 @@
+                 refuse('finality', str(e))
+             if q and q[-1].get('sha') == last['evidence'].get('finalityEntrySha256'):
+                 return {'watermarkEntrySha256': last['evidence']['watermarkEntrySha256'], 'number': last['evidence']['number'], 'appended': False}
+-        n, h, ref = current()
++        n, h, ref, fseq = current()
+         if not os.path.lexists(store):
+             if not first:
+                 refuse('watermark', 'a re-anchor launch needs its existing watermark store')
+@@ -485,16 +547,16 @@
+                 refuse('watermark_conflict', f'the watermark holds another block at {n}: contradiction, nothing recorded')
+             if es and n <= es[-1][1]['number']:
+                 refuse('watermark_below', f'the qualified point {n} is not above the accepted watermark {es[-1][1]["number"]}')
+-            if current() != (n, h, ref):
++            if current() != (n, h, ref, fseq):
+                 refuse('not_qualified', 'the qualification changed before the watermark append')
+             try:
+                 es = W.watermark_append(store, owner, es, n, h, 'finality-proof', ref, now.isoformat(), top)
+             except AssertionError as e:
+                 refuse('watermark', str(e))
+         wsha = adopted or es[-1][0]
+-        if current() != (n, h, ref):
++        if current() != (n, h, ref, fseq):
+             refuse('not_qualified', 'the qualification changed before the journal append (re-run record-finality to adopt)')
+-        j = _append(d, lsha, entries, 'bootstrapped', {'watermarkEntrySha256': wsha, 'finalityEntrySha256': ref, 'number': n, 'blockHash': h},
++        j = _append(d, lsha, entries, 'bootstrapped', {'watermarkEntrySha256': wsha, 'finalityEntrySha256': ref, 'finalitySeq': fseq, 'number': n, 'blockHash': h},
+                     owner, top, now, W)
+         return {'watermarkEntrySha256': wsha, 'number': n, 'journal': j, 'appended': adopted is None, 'adopted': adopted is not None}
+     finally:
+@@ -523,7 +585,7 @@
+         if not own:
+             refuse('watermark', 'no recorded finality floor for this launch')
+         fsha, fe = own[-1]; fn, fh = fe['number'], fe['blockHash']
+-        c = A.load_config(str(cfg_path)); b = launch.get('bindings') or {}
++        c = bound_config(launch, cfg_path, A); b = launch.get('bindings') or {}
+         if b.get('datadir') != c['datadir']:
+             refuse('db', 'the config is for another datadir than the launch record')
+         want = (b.get('dbIdentity') or {}).get('mdbx') or {}
+@@ -554,6 +616,41 @@
+         os.close(fd)
+ 
+ 
++def permit_restart_auto(d, cfg_path, *, A, W, owner=0, top='/', now=None, watermark=None):
++    """r6, for the unattended enclave-base-restart-permit.service (Before= the base unit): bootstrapped|restarted -> the SAME checked
++    permit_restart (no human step); restart-permitted or a pending anchored start -> nothing to do; anything else (consumed without
++    finality, finality-terminal, rolled-back) refuses: the base unit then stays down, never serving an unproven DB."""
++    lsha, _launch_rec = _launch(pathlib.Path(d), owner, top)
++    fd = _locked(pathlib.Path(d), owner, top, W)
++    try:
++        state = _journal(pathlib.Path(d), lsha, owner, top, W)[-1][1]['event']
++    finally:
++        os.close(fd)
++    if state in ('restart-permitted', 'armed', 'rearmed'):
++        return {'event': None, 'state': state, 'note': 'nothing to permit'}
++    if state not in ('bootstrapped', 'restarted'):
++        refuse('not_restartable', f'journal state {state!r}: no unattended restart (root rollback / re-anchor)')
++    return permit_restart(d, cfg_path, A=A, W=W, owner=owner, top=top, now=now, watermark=watermark)
++
++
++def quarantine(d, cfg_path, *, A, owner=0, top='/', W):
++    """r6: isolate the datadir of a TERMINALLY rolled-back launch (e.g. permit-restart refused below_floor): an atomic rename to
++    <datadir>.quarantine-<launchSha256[:16]>, root-only 0700. Nothing serves it again; the persistent floor is not touched; a new
++    launch needs a DB at or above the floor (a newer snapshot, then the full A2-A4 re-anchor at a fresh A1 anchor >= the floor)."""
++    d = pathlib.Path(d); lsha, launch = _launch(d, owner, top)
++    fd = _locked(d, owner, top, W)
++    try:
++        if _journal(d, lsha, owner, top, W)[-1][1]['event'] != 'rolled-back':
++            refuse('transition', 'only the datadir of a rolled-back launch is quarantined')
++        c = bound_config(launch, cfg_path, A); src = pathlib.Path(c['datadir']); dst = src.with_name(f'{src.name}.quarantine-{lsha[:16]}')
++        if src != pathlib.Path((launch.get('bindings') or {}).get('datadir', '')) or os.path.lexists(dst) or not src.is_dir() or src.is_symlink():
++            refuse('quarantine', f'{src} is not the launch datadir, or {dst} exists')
++        os.rename(src, dst); os.chmod(dst, 0o700); _fsync_dir(dst.parent)
++        return {'quarantined': str(dst), 'launchSha256': lsha}
++    finally:
++        os.close(fd)
++
++
+ def arm(d, cfg_path, *, A, W, owner=0, top='/', now=None, archive=None, watermark=None):
+     """Genesis: the private root lock file, then the journal with its first entry `armed`. Exactly once per launch directory
+     (an arm interrupted before its first entry landed may be repeated: no entry means nothing was ever armed)."""
+@@ -566,6 +663,14 @@
+         refuse('lineage', str(e))
+     if launch.get('predecessor') is not None and not isinstance(launch.get('watermark'), dict):
+         refuse('watermark', 'a re-anchor launch must bind the authenticated-finality watermark')
++    if launch.get('predecessor') is None and launch.get('watermark') is None:
++        try:                                                      # r6: the floor is GLOBAL, also for a newly created first launch
++            floor = W.watermark_entries(pathlib.Path(watermark or W.BOOTSTRAP_WATERMARK), owner, top)
++        except AssertionError as e:
++            refuse('watermark', str(e))
++        if floor:
++            refuse('watermark_exists', f'an accepted finality floor ({floor[-1][1]["number"]}) exists: a first-bootstrap launch is never '
++                   'armed; produce a re-anchor launch at or above it')
+     if not os.path.lexists(d / 'journal.lock'):
+         os.close(os.open(d / 'journal.lock', os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600))
+         _fsync_dir(d)
+@@ -606,7 +711,7 @@
+ 
+ 
+ def record_bootstrapped(d, proof, *, owner=0, top='/', now=None):
+-    if not FINALITY_PROOF_REVIEWED:
++    if not reviewed('FINALITY_PROOF_REVIEWED'):
+         refuse('hold_finality', 'HOLD: no reviewed proof that finality passed N (an own-node head or label is not finality); '
+                'needs a fresh A1-authenticated receipt N\' > N plus header N\' authenticated against it')
+     raise AssertionError('unreachable while FINALITY_PROOF_REVIEWED is False')
+@@ -650,22 +755,25 @@
+ 
+ 
+ def _installed_wrapper():
+-    sys.path.insert(0, '/opt/enclave-rpc')
+-    import chain_service as W                                         # the INSTALLED r2 wrapper (its own module-level config)
++    b = _read_bytes(WRAPPER_SOURCE)                                   # r6: the INSTALLED wrapper, exactly its pinned bytes
++    if sha(b) != WRAPPER_SHA256:
++        refuse('wrapper', f'{WRAPPER_SOURCE} is not the reviewed r6 wrapper {WRAPPER_SHA256[:12]}...')
++    W = _exec_bytes('chain_service', b, WRAPPER_SOURCE)
+     if not hasattr(W, 'launch_handshake'):
+         refuse('wrapper', 'the installed chain_service.py is not the r2 handshake wrapper')
+     return W
+ 
+ 
+ def _r5_wrapper(W):
+-    if not all(hasattr(W, k) for k in ('launch_finality', 'A1_ADMISSION_LEDGER')) or 'restart-permitted' not in W.JOURNAL_NEXT:
+-        refuse('wrapper', 'the installed chain_service.py is not the finality r5 wrapper')
++    if not all(hasattr(W, k) for k in ('launch_finality', 'A1_ADMISSION_LEDGER')) or 'finality-terminal' not in W.JOURNAL_NEXT:
++        refuse('wrapper', 'the installed chain_service.py is not the finality r6 wrapper')
+ 
+ 
+ def main(argv):
+     if os.geteuid() != 0:
+         print('REFUSED: root only'); return 2
+-    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'record-finality', 'permit-restart', 'rollback', 'retire'}
++    cmds = {'produce', 'arm', 'rearm', 'record-bootstrapped', 'record-finality', 'permit-restart', 'permit-restart-auto', 'quarantine',
++            'rollback', 'retire'}
+     if len(argv) < 3 or argv[1] not in cmds:
+         print(__doc__); return 2
+     try:
+@@ -685,17 +793,20 @@
+             W = _installed_wrapper(); r = retire(argv[2], W.BOOTSTRAP_ARCHIVE, W=W)
+         elif argv[1] == 'record-bootstrapped':
+             r = record_bootstrapped(argv[2], None)
+-        elif argv[1] == 'record-finality':                               # record-finality <launch-dir> <chain.json> <finality-dir> <rpc-url>
+-            if len(argv) != 6:
++        elif argv[1] == 'record-finality':                               # record-finality <launch-dir> <chain.json> <rpc-url>
++            if len(argv) != 5:
+                 print(__doc__); return 2
+             W = _installed_wrapper(); _r5_wrapper(W)
+-            r = record_finality(argv[2], argv[3], argv[4], argv[5], W=W, F=load_finality(), watermark=W.BOOTSTRAP_WATERMARK)
+-        elif argv[1] == 'permit-restart':                                # permit-restart <launch-dir> <a2a4-config>
++            r = record_finality(argv[2], argv[3], pathlib.Path(argv[2]) / 'finality', argv[4], W=W, F=load_finality(), watermark=W.BOOTSTRAP_WATERMARK)
++        elif argv[1] in ('permit-restart', 'permit-restart-auto', 'quarantine'):   # <cmd> <launch-dir> <a2a4-config>
+             if len(argv) != 4:
+                 print(__doc__); return 2
+-            ra = 'reanchor' in json.loads(pathlib.Path(argv[3]).read_bytes())
++            ra = 'reanchor' in json.loads(_read_bytes(pathlib.Path(argv[3])))
+             A = load_a2a4(RECOVERY_A2A4_SOURCE, RECOVERY_A2A4_SHA256) if ra else load_a2a4(); W = _installed_wrapper(); _r5_wrapper(W)
+-            r = permit_restart(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK)
++            if argv[1] == 'quarantine':
++                r = quarantine(argv[2], argv[3], A=A, W=W)
++            else:
++                r = (permit_restart_auto if argv[1] == 'permit-restart-auto' else permit_restart)(argv[2], argv[3], A=A, W=W, watermark=W.BOOTSTRAP_WATERMARK)
+         else:                                                            # rollback <launch-dir> <reason>
+             r = rollback(argv[2], argv[3], W=_installed_wrapper())
+     except (Refused, OSError, KeyError, IndexError) as e:

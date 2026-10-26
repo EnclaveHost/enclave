@@ -1,0 +1,81 @@
+--- a/install/install_verified.py
++++ b/install/install_verified.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""install_verified.py (base-finality-proof-stage/r5; PREPARED; NOT run by Claude): ROOT-ONLY, guarded install of EXACTLY the qualified
++"""install_verified.py (base-finality-proof-stage/r6; PREPARED; NOT run by Claude): ROOT-ONLY, guarded install of EXACTLY the qualified
+ bytes named in MANIFEST.json. Default: a dry run (the plan is printed; nothing is written). --commit installs. Refuses unless:
+   - this stage's files equal its SHA256SUMS and MANIFEST.json is the one SHA256SUMS lists;
+   - root's qualification run of THIS stage passed: --qualification <out> has '## finality-r5 rc=0' and '## r5 SHA256SUMS <sha>' with
+@@ -37,7 +37,7 @@
+ 
+ def qualified(out, rc, sums_sha):
+     o = pathlib.Path(out).read_text(errors='replace').splitlines()
+-    if pathlib.Path(rc).read_text().strip() != '0' or '## finality-r5 rc=0' not in o or f'## r5 SHA256SUMS {sums_sha}' not in o:
++    if pathlib.Path(rc).read_text().strip() != '0' or '## finality-r6 rc=0' not in o or f'## r6 SHA256SUMS {sums_sha}' not in o:
+         refuse('no passing root qualification of THIS stage (rc 0, "## finality-r5 rc=0", this SHA256SUMS sha)')
+ 
+ 
+@@ -109,10 +109,52 @@
+     return 'installed'
+ 
+ 
++ACTIVATION_FILE = pathlib.Path('/etc/enclave-rpc/finality-activation.json')
++FLAG_MODULE = {'A1_CAPTURE_REVIEWED': '/opt/enclave-rpc/a2a4-recovery/a2a4.py', 'FINALITY_PROTOTYPE_REVIEWED': '/opt/enclave-rpc/finality/src/finality_state.py',
++               'FINALITY_PROOF_REVIEWED': '/opt/enclave-rpc/base-launch/base_launch.py', 'LAUNCH_PRODUCER_REVIEWED': '/opt/enclave-rpc/chain_service.py'}
++
++
++def activate(argv):
++    """r6: the DELIBERATE activation step (root, after qualification and a byte-exact install): writes the root-owned activation
++    artifact naming, per flag, the sha of the INSTALLED module that reads it (each module's reviewed() accepts only its own bytes).
++    Requires --confirm <sha256 of the qualification output> and --commit; refuses unless every manifest file is installed exactly.
++    Source flags stay False; nothing is edited, so every byte pin stays valid. Undo: remove the artifact."""
++    import argparse
++    ap = argparse.ArgumentParser(prog='install_verified.py activate'); ap.add_argument('--qualification', required=True); ap.add_argument('--rc', required=True)
++    ap.add_argument('--confirm', required=True); ap.add_argument('--flags', required=True); ap.add_argument('--commit', action='store_true')
++    a = ap.parse_args(argv)
++    if os.geteuid() != 0:
++        print('REFUSED: root only'); return 2
++    try:
++        sums_sha = stage_sums(); qualified(a.qualification, a.rc, sums_sha); q_sha = sha(pathlib.Path(a.qualification).read_bytes())
++        if a.confirm != q_sha:
++            refuse('--confirm is not the sha256 of the qualification output: activation must name the evidence reviewed')
++        m = json.loads((HERE / 'MANIFEST.json').read_bytes())
++        for e in m['files']:
++            if e.get('unit'):
++                continue
++            d = pathlib.Path(e['dest'])
++            if not d.is_file() or d.is_symlink() or sha(d.read_bytes()) != e['sha256'] or os.lstat(d).st_uid != 0:
++                refuse(f'{d} is not installed as the qualified bytes: install first')
++        flags = [f for f in a.flags.split(',') if f]
++        if not flags or any(f not in FLAG_MODULE for f in flags):
++            refuse(f'--flags must name some of {sorted(FLAG_MODULE)}')
++        doc = {'format': 'enclave-finality-activation/v1', 'flags': {f: sha(pathlib.Path(FLAG_MODULE[f]).read_bytes()) for f in flags},
++               'stageSha256Sums': sums_sha, 'qualificationSha256': q_sha, 'activatedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()}
++        res = put(json.dumps(doc, indent=1, sort_keys=True).encode() + b'\n', ACTIVATION_FILE, 0o644, a.commit, True,
++                  datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
++    except (Refused, OSError, KeyError, ValueError) as e:
++        print(json.dumps({'ok': False, 'refused': str(e)})); return 1
++    print(json.dumps({'ok': True, 'commit': a.commit, 'activation': str(ACTIVATION_FILE), 'result': res, 'flags': doc['flags']}, indent=1))
++    return 0
++
++
+ def main(argv):
++    if argv[:1] == ['activate']:
++        return activate(argv[1:])
+     import argparse
+     ap = argparse.ArgumentParser(); ap.add_argument('--qualification', required=True); ap.add_argument('--rc', required=True)
+-    ap.add_argument('--commit', action='store_true'); ap.add_argument('--replace', action='store_true'); ap.add_argument('--include-wrapper', action='store_true')
++    ap.add_argument('--commit', action='store_true'); ap.add_argument('--replace', action='store_true'); ap.add_argument('--include-wrapper', action='store_true'); ap.add_argument('--include-units', action='store_true')
+     a = ap.parse_args(argv)
+     if os.geteuid() != 0:
+         print('REFUSED: root only'); return 2
+@@ -125,6 +167,8 @@
+         for e in m['files']:
+             if e.get('wrapper') and not a.include_wrapper:
+                 plan.append({'dest': e['dest'], 'result': 'skipped (wrapper: needs --include-wrapper)'}); continue
++            if e.get('unit') and not a.include_units:
++                plan.append({'dest': e['dest'], 'result': 'skipped (systemd unit: needs --include-units; then daemon-reload by root)'}); continue
+             if e.get('wrapper') and wrapper_running(e['dest']):
+                 refuse(f'{e["dest"]} is in use by a running process: stop the units first (root)')
+             src = (STAGE / e['src']) if not e['src'].startswith('/') else pathlib.Path(e['src'])

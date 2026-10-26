@@ -1,0 +1,127 @@
+--- a/wrapper/chain_service.py
++++ b/wrapper/chain_service.py
+@@ -479,6 +479,34 @@
+ # not reviewed. Until a reviewed change sets this, an anchored start is refused BEFORE anything is consumed. It is a source
+ # constant, never a config switch.
+ LAUNCH_PRODUCER_REVIEWED = False
++# r6 activation (base-finality-proof-stage/r6): a review flag is True only through its source constant OR the root-owned activation
++# artifact that names THIS module's exact bytes for that flag (written only by install_verified.py `activate`, after qualification).
++# The artifact is the deliberate, reviewable activation step: no source edit, so every byte pin stays valid. Absent -> False.
++ACTIVATION_FILE = pathlib.Path('/etc/enclave-rpc/finality-activation.json')
++
++
++def reviewed(name):
++    if globals().get(name) is True:
++        return True
++    try:
++        fd = os.open(ACTIVATION_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    except OSError:
++        return False
++    with os.fdopen(fd, 'rb') as f:
++        st = os.fstat(f.fileno())
++        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
++            return False
++        try:
++            doc = json.loads(f.read(1 << 16))
++        except ValueError:
++            return False
++    try:
++        me = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()
++    except (OSError, NameError):
++        return False
++    return isinstance(doc, dict) and doc.get('format') == 'enclave-finality-activation/v1' and (doc.get('flags') or {}).get(name) == me
++
++
+ BASE_SERVICE_USER = 'rpcbase'              # == enclave-base-holder.service User=/Group= (stage_node_units.py)
+ HANDSHAKE_ENV = 'ENCLAVE_BASE_LAUNCH_HANDSHAKE'   # '1' only from the reviewed release-mode unit drop-in (root start)
+ 
+@@ -496,11 +524,16 @@
+ #                 DB file's exact dev/ino/size/mtime recorded) -> ONE ordinary start WITHOUT the anchor (never replayed): this
+ #                 wrapper consumes it as `restarted` only if the DB file is byte-identity-unchanged since the permit
+ #   restarted    -> running; finality is stale until a new proof (readiness gate post-anchor-finality); a crash needs a new permit
++#                 (r6: issued unattended by enclave-base-restart-permit.service: the same harness checks, no human step)
++#   finality-terminal (r6: the finality journal of this launch reached `contradicted` or `revoked`; finality_state appends this
++#                 naming that entry, so an empty/other/truncated finality directory can never revive it) -> only rolled-back
+ # A launch that never reached `bootstrapped` keeps r7's rule: after `consumed` only `rearm` (DB unchanged at N) or rollback.
+ JOURNAL_NEXT = {None: {'armed'}, 'armed': {'consumed', 'rolled-back'}, 'rearmed': {'consumed', 'rolled-back'},
+-                'consumed': {'rearmed', 'rolled-back', 'bootstrapped'}, 'bootstrapped': {'bootstrapped', 'restart-permitted', 'rolled-back'},
+-                'restart-permitted': {'restarted', 'rolled-back'}, 'restarted': {'bootstrapped', 'restart-permitted', 'rolled-back'},
+-                'rolled-back': set()}
++                'consumed': {'rearmed', 'rolled-back', 'bootstrapped', 'finality-terminal'},
++                'bootstrapped': {'bootstrapped', 'restart-permitted', 'rolled-back', 'finality-terminal'},
++                'restart-permitted': {'restarted', 'rolled-back', 'finality-terminal'},
++                'restarted': {'bootstrapped', 'restart-permitted', 'rolled-back', 'finality-terminal'},
++                'finality-terminal': {'rolled-back'}, 'rolled-back': set()}
+ PENDING = {'armed', 'rearmed'}
+ JOURNAL_ENTRY = re.compile(r'[0-9]{6}\.json')
+ JOURNAL_PARTIAL = re.compile(r'\.partial-[0-9]+')
+@@ -699,6 +732,10 @@
+     """A first-bootstrap launch (no predecessor, no watermark binding) is unchanged. A re-anchor launch starts only while the
+     latest accepted watermark entry is this launch's anchor (root `arm` recorded it; nothing was accepted after it)."""
+     if launch.get('predecessor') is None and launch.get('watermark') is None:
++        # r6: the floor is GLOBAL. A first-bootstrap launch starts only while no accepted finality floor exists at all (a deleted or
++        # un-retired earlier launch never lets a new first bootstrap start below its recorded finality): otherwise re-anchor.
++        assert not watermark_entries(store, owner, top), \
++            'watermark: an accepted authenticated-finality floor exists: a first-bootstrap launch never starts; re-anchor at or above it'
+         return None
+     assert isinstance(launch.get('watermark'), dict), 'watermark: a re-anchor launch must bind the authenticated-finality watermark'
+     es = watermark_entries(store, owner, top)
+@@ -774,7 +811,7 @@
+     assert len(after) == doc['seq'] and after[-1][1] == doc, 'journal append did not land'
+     return after
+ 
+-def launch_handshake(lock_fd, cfg, release_sha, directory=None, owner=None, top=None):
++def launch_handshake(lock_fd, cfg, release_sha, directory=None, owner=None, top=None, datadir=None):
+     """Release mode, with the launch lock HELD since before the first gate and every existing gate passed:
+     -> ['--bootstrap.anchor', 'N:0x..'] after DURABLY consuming the pending journal state; the caller execs in this same
+     process with no further decision. Nothing here infers a start or a completion from a PID, a unit state or a log."""
+@@ -784,6 +821,12 @@
+     launch_lineage(launch, None, owner, top)                 # predecessor chain + archive coverage, before anything is consumed
+     entries = journal_entries(directory / 'journal', owner, l_sha, top)
+     state = entries[-1][1]['event']
++    bound = (launch.get('bindings') or {}).get('datadir')
++    # r6: the datadir the node will SERVE (the mount's) is the one the launch record binds, never a look-alike path
++    assert isinstance(bound, str) and (datadir is None or os.path.realpath(datadir) == os.path.realpath(bound)), \
++        'the node would serve another datadir than the launch record binds: refusing'
++    if state == 'finality-terminal':
++        raise AssertionError('finality of this launch is contradicted or revoked (terminal): only rollback; nothing started')
+     if state in ('bootstrapped', 'restarted'):
+         raise AssertionError('bootstrapped launch: an ordinary restart needs root `permit-restart` first (the STOPPED DB proven at or '
+                              'above its recorded finality floor); nothing started')
+@@ -799,18 +842,25 @@
+         now_id = {'dev': st.st_dev, 'ino': st.st_ino, 'size': st.st_size, 'mtimeNs': st.st_mtime_ns}
+         assert (st.st_dev, st.st_ino) == (want.get('dev'), want.get('ino')) and now_id == permit.get('mdbx'), \
+             'the DB file changed since the restart permit (or is not the launch DB): refusing; root re-runs permit-restart'
+-        assert LAUNCH_PRODUCER_REVIEWED, 'HOLD: the launch-record producer is not reviewed (nothing started)'
++        assert reviewed('LAUNCH_PRODUCER_REVIEWED'), 'HOLD: the launch-record producer is not reviewed (nothing started)'
+         journal_append(directory / 'journal', owner, l_sha, entries, 'restarted', {'permitEntrySha256': entries[-1][0], 'pid': os.getpid()},
+                        datetime.datetime.fromtimestamp(_now(), datetime.timezone.utc).isoformat(), top)
+         return []
+     launch_watermark(launch, l_sha, None, owner, top)        # r2: the accepted watermark is this launch's anchor
++    if state in PENDING:
++        # r6: the anchored start opens EXACTLY the DB file the launch record bound and arm/rearm proved unchanged at N (dev, ino,
++        # size, mtime): a datadir the service user rewrote in place since then (cp/dd over the inode, unwind) refuses
++        want = ((launch.get('bindings') or {}).get('dbIdentity') or {}).get('mdbx') or {}
++        st = os.stat(pathlib.Path(bound, 'db', 'mdbx.dat'))
++        assert {'dev': st.st_dev, 'ino': st.st_ino, 'size': st.st_size, 'mtimeNs': st.st_mtime_ns} == want, \
++            'the DB file changed since the launch record bound it (rewritten in place?): refusing; root rearm proves it again'
+     assert state != 'consumed', (f'bootstrap anchor already consumed (journal seq {len(entries)}): refusing; the anchor is '
+                                  'never replayed - only root `rearm` with the stopped DB proven unchanged at N re-opens it')
+     assert state != 'rolled-back', 'bootstrap launch rolled back (terminal): a new launch record and journal are required'
+     assert state in PENDING, f'bootstrap journal state {state!r}: refusing (root must resolve it explicitly)'
+     assert _now() <= _instant(launch['notAfter'], 'launch notAfter'), \
+         'launch record expired (now > notAfter): nothing consumed; a fresh A1 recheck, release and launch record are required'
+-    assert LAUNCH_PRODUCER_REVIEWED, 'HOLD: the launch-record producer is not reviewed (nothing consumed)'
++    assert reviewed('LAUNCH_PRODUCER_REVIEWED'), 'HOLD: the launch-record producer is not reviewed (nothing consumed)'
+     try:
+         with open('/proc/sys/kernel/random/boot_id') as f:
+             boot = f.read().strip()
+@@ -943,7 +993,7 @@
+         if lock is not None:
+             account = service_identity()
+             # M10: the journal is durably consumed BEFORE the exec below; this process then execs with no other decision
+-            a += launch_handshake(lock, CONFIG, BASE_RELEASE_SHA256)
++            a += launch_handshake(lock, CONFIG, BASE_RELEASE_SHA256, datadir=datadir)
+             drop_privileges(account)
+     else:
+         raise ValueError('unknown side')

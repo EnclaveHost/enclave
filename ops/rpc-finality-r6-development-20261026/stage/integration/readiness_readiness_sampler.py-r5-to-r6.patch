@@ -1,0 +1,62 @@
+--- a/readiness/readiness_sampler.py
++++ b/readiness/readiness_sampler.py
+@@ -44,6 +44,7 @@
+ always false: this tool never authorizes or performs activation.
+ """
+ import argparse, stat
++import datetime
+ import hashlib
+ import http.client
+ import json
+@@ -322,10 +323,31 @@
+         raise Unavailable('finality-stale-after-restart', 'the proven node process is not running: a post-restart proof is required')
+     if start != p.get('startTime'):
+         raise Unavailable('finality-stale-after-restart', 'the node restarted since the proof: a post-restart proof is required')
++    try:                                                  # r6: a FINITE freshness window on root's publication
++        age = time.time() - datetime.datetime.fromisoformat(str(s.get('publishedAt')).replace('Z', '+00:00')).timestamp()
++    except ValueError:
++        raise Negative('finality-status-malformed', 'publishedAt is not an ISO time')
++    if not 0 <= age <= a.max_finality_status_age:
++        raise Unavailable('finality-status-stale', f'published {int(age)} s ago (max {a.max_finality_status_age}): the status timer is not running')
++    if not isinstance(s.get('freshN'), int) or not re.fullmatch(r'0x[0-9a-f]{64}', str(s.get('freshBlockHash'))):
++        raise Negative('finality-status-malformed', 'freshN/freshBlockHash')
+     return {'freshN': s.get('freshN'), 'freshBlockHash': s.get('freshBlockHash'), 'entrySha256': s.get('entrySha256'), 'pid': p['pid'],
+             'publishedAt': s.get('publishedAt')}
+ 
+ 
++def served_chain_check(info, rpc):
++    """r6: the Base EL the consumers use serves the proven block: freshN -> exactly freshBlockHash (else another chain)."""
++    try:
++        blk = rpc('base', 'eth_getBlockByNumber', [hex(info['freshN']), False])
++    except RpcRefusal as e:
++        raise Unavailable('finality-block-not-served', str(e)[:120])
++    if not isinstance(blk, dict):
++        raise Unavailable('finality-block-not-served', f'the Base EL does not serve block {info["freshN"]}')
++    if str(blk.get('hash', '')).lower() != str(info['freshBlockHash']).lower():
++        raise Negative('finality-served-chain-mismatch', f'the served block {info["freshN"]} is not the proven block: another chain')
++    return True
++
++
+ def validate_coverage_files(a):
+     """Static validation. Returns the binding the live check must confirm, or raises Unavailable/Negative."""
+     if a.coverage_receipt is None:
+@@ -878,7 +900,10 @@
+     except Unavailable as e:
+         s.gates['historical-coverage'].append({'sample': None, 'status': 'unavailable', 'code': e.code, 'detail': e.detail})
+     try:
+-        s.gates['post-anchor-finality'].append({'sample': None, 'status': 'pass', 'info': validate_finality_status(a)})
++        info = validate_finality_status(a)
++        # r6: the SERVED chain holds the proven block: the Base EL at the sampler's port answers freshN with exactly freshBlockHash
++        served_chain_check(info, lambda name, method, params: s.rpc(name, method, params, fresh=True))
++        s.gates['post-anchor-finality'].append({'sample': None, 'status': 'pass', 'info': info})
+     except Negative as e:
+         s.gates['post-anchor-finality'].append({'sample': None, 'status': 'fail', 'code': e.code, 'detail': e.detail})
+     except Unavailable as e:
+@@ -961,6 +986,7 @@
+     ap.add_argument('--coverage-receipt')
+     ap.add_argument('--finality-status', help='root-published finality_state status-publish file (gate post-anchor-finality)')
+     ap.add_argument('--finality-status-uid', type=int, default=0)
++    ap.add_argument('--max-finality-status-age', type=int, default=900)
+     ap.add_argument('--proc-root', default='/proc')
+     ap.add_argument('--coverage-verdict')
+     ap.add_argument('--coverage-origin')

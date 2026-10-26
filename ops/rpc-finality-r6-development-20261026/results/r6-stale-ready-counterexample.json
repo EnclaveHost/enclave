@@ -1,0 +1,7 @@
+{
+  "counterexampleReproduced": true,
+  "consumerAdmission": true,
+  "reason": "READY",
+  "provenPidExists": false,
+  "scope": "Real require_ready.ready helper accepts fresh cached READY report with dead proof process. This demonstrates missing live process revalidation; systemd behavior was not executed."
+}
