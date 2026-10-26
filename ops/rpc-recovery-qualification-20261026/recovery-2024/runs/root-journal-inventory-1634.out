@@ -1,0 +1,5 @@
+[queue] START available=24559MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{"written": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/base-journal-copy-1626/inventory-r1.json", "bytes": 3666108}
+[memory-guard] exit=0 peakTreeRssMiB=60 minHostAvailableMiB=24498
+[memory-guard] at peak: python3:60
+[queue] EXIT 0

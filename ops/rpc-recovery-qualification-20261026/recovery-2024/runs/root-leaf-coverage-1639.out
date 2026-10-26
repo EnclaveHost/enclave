@@ -1,0 +1,19 @@
+[queue] START available=24636MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+{
+  "authentication": "unchecked candidates only",
+  "expectedBlocks": 277872640,
+  "endBlock": 276959557,
+  "missingLeaves": [],
+  "gaps": [
+    [
+      276959557,
+      277872640
+    ]
+  ],
+  "overlaps": [],
+  "recoveryProven": false
+}
+extents 9001 pickedLeaves 27
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

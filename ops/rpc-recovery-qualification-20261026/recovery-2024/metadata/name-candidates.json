@@ -1,0 +1,49 @@
+{
+  "totalNameMatches": 4,
+  "matches": [
+    {
+      "journalBlock": 88134,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 4024,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    },
+    {
+      "journalBlock": 109966,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 16,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    },
+    {
+      "journalBlock": 117979,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 16,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    },
+    {
+      "journalBlock": 118419,
+      "nameOffset": 68,
+      "authenticated": false,
+      "inodeCandidate": 1950053,
+      "recordLength": 16,
+      "nameLength": 8,
+      "fileType": 1,
+      "plausibleDirectoryEntry": true
+    }
+  ],
+  "truncated": false,
+  "authenticated": false,
+  "recoveryProven": false,
+  "sha256": "d95d81fcaf1fdecb305f5645bc5bf2d6093d0a7fc40affbfc769894798cbc073"
+}

@@ -1,0 +1,11 @@
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+Total journal size:       1024M
+Total journal blocks:     262144
+Max transaction length:   262144
+Fast commit length:       0
+Journal sequence:         0x00004507
+Journal start:            0
+Journal checksum type:    crc32c
+Journal checksum:         0x8a0d7489
+
+Journal starts at block 0, transaction 17671
