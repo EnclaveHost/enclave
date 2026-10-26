@@ -50,8 +50,10 @@ const CHAIN_AUTHORITY = (() => {
               return refusingChainAuthority(e.message, { chain: base }); }
 })();
 const rpcTransport = () => CHAIN_AUTHORITY ? CHAIN_AUTHORITY.transport : fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
+// a diagnostic, so stderr: stdout belongs to the importing program's own output (host-onchain.mjs status / ownership-status
+// print exactly one JSON document there, and before the authority existed nothing else was printed on import)
 if (CHAIN_AUTHORITY) { const d = CHAIN_AUTHORITY.describe();
-  console.log(`[chain] authority: ${d.authority === "refusing" ? "REFUSING (" + d.why + ")" : `local verifier ${d.verifier} (unsafe tier, no L1 finality); `
+  console.error(`[chain] authority: ${d.authority === "refusing" ? "REFUSING (" + d.why + ")" : `local verifier ${d.verifier} (unsafe tier, no L1 finality); `
     + (d.backend ? `submissions and pool/fee hints via the own backend ${d.backend.label} (bound to the verifier's chain before each send)` : "no own transaction backend: nothing is submitted")
     + "; logs prove inclusion only; no provider RPC is used"}`); }
 /** The node's explicit chain authority (null = the legacy RPC list). Its .client is ONE authority (VERIFIER_CLIENT). */
