@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: existing session contracts work without a relay and retain admin-directed version changes
+    # Subtest: both existing and fixed-binding factories resolve at a single quorum block
+    ok 1 - both existing and fixed-binding factories resolve at a single quorum block
+      ---
+      duration_ms: 114.798983
+      type: 'test'
+      ...
+    # Subtest: new session opens on the existing factory without a relay
+    ok 2 - new session opens on the existing factory without a relay
+      ---
+      duration_ms: 1506.843448
+      type: 'test'
+      ...
+    # Subtest: an existing grant deploys and funds through another gas payer
+    ok 3 - an existing grant deploys and funds through another gas payer
+      ---
+      duration_ms: 3168.580669
+      type: 'test'
+      ...
+    # Subtest: RPC loss refuses before sending a session transaction
+    ok 4 - RPC loss refuses before sending a session transaction
+      ---
+      duration_ms: 312.826517
+      type: 'test'
+      ...
+    # Subtest: admin catalog change requires reviewed bindings; the same grant survives that review
+    ok 5 - admin catalog change requires reviewed bindings; the same grant survives that review
+      ---
+      duration_ms: 2156.839199
+      type: 'test'
+      ...
+    # Subtest: wrong token or cleared binding cannot pass validation
+    ok 6 - wrong token or cleared binding cannot pass validation
+      ---
+      duration_ms: 75.758614
+      type: 'test'
+      ...
+    1..6
+ok 1 - existing session contracts work without a relay and retain admin-directed version changes
+  ---
+  duration_ms: 8542.409732
+  type: 'test'
+  ...
+1..1
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8810.537257
