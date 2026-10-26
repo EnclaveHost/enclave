@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: ledger get/deploymentsSchema and book addr fragments equal the compiled ABI
+ok 1 - ledger get/deploymentsSchema and book addr fragments equal the compiled ABI
+  ---
+  duration_ms: 3.521877
+  type: 'test'
+  ...
+# Subtest: the queried topic0s are the ABI's Claimed/Renewed/Released, in the reader's order
+ok 2 - the queried topic0s are the ABI's Claimed/Renewed/Released, in the reader's order
+  ---
+  duration_ms: 5.14195
+  type: 'test'
+  ...
+# Subtest: actual KVM store: two contiguous runtime-verified segments -> the lease16 fact (claim in the first, renewal in the second)
+ok 3 - actual KVM store: two contiguous runtime-verified segments -> the lease16 fact (claim in the first, renewal in the second)
+  ---
+  duration_ms: 84.292634
+  type: 'test'
+  ...
+# Subtest: actual KVM store: the claim before the store's first runtime-verified block (pre-bootstrap) stays claim_not_covered
+ok 4 - actual KVM store: the claim before the store's first runtime-verified block (pre-bootstrap) stays claim_not_covered
+  ---
+  duration_ms: 17.680681
+  type: 'test'
+  ...
+# Subtest: actual KVM store: a chunk altered on disk (a dropped renewal) is refused by the store's hash link, and the store then fails closed
+ok 5 - actual KVM store: a chunk altered on disk (a dropped renewal) is refused by the store's hash link, and the store then fails closed
+  ---
+  duration_ms: 19.361275
+  type: 'test'
+  ...
+# Subtest: actual KVM store: a query for any anchor but the store's current one is refused (no stale or foreign anchor)
+ok 6 - actual KVM store: a query for any anchor but the store's current one is refused (no stale or foreign anchor)
+  ---
+  duration_ms: 13.308798
+  type: 'test'
+  ...
+# Subtest: actual KVM store: a gap between segments is refused at staging; nothing beyond the gap ever becomes readable
+ok 7 - actual KVM store: a gap between segments is refused at staging; nothing beyond the gap ever becomes readable
+  ---
+  duration_ms: 15.902459
+  type: 'test'
+  ...
+# Subtest: a complete-coverage answer yields exactly the legacy lease16 fact of the last claim, bound to the snapshot's anchor
+ok 8 - a complete-coverage answer yields exactly the legacy lease16 fact of the last claim, bound to the snapshot's anchor
+  ---
+  duration_ms: 6.614894
+  type: 'test'
+  ...
+# Subtest: the coverage query starts at max(ledger floor, reader's availableFrom); the default floor is the live 16d ledger's first block
+ok 9 - the coverage query starts at max(ledger floor, reader's availableFrom); the default floor is the live 16d ledger's first block
+  ---
+  duration_ms: 1.093056
+  type: 'test'
+  ...
+# Subtest: same-runner re-claim after expiry: the LATER claim is the fact (complete logs make the older generation unusable)
+ok 10 - same-runner re-claim after expiry: the LATER claim is the fact (complete logs make the older generation unusable)
+  ---
+  duration_ms: 0.614438
+  type: 'test'
+  ...
+# Subtest: replay refusals: released after the claim, renewals not replaying, another runner/operator, released row
+ok 11 - replay refusals: released after the claim, renewals not replaying, another runner/operator, released row
+  ---
+  duration_ms: 2.226101
+  type: 'test'
+  ...
+# Subtest: a claim older than the derived coverage (pre-bootstrap) stays REFUSED: no fact, not retried, nothing signed
+ok 12 - a claim older than the derived coverage (pre-bootstrap) stays REFUSED: no fact, not retried, nothing signed
+  ---
+  duration_ms: 0.436118
+  type: 'test'
+  ...
+# Subtest: anchor binding: logs of another anchor, another filter or another range are refused
+ok 13 - anchor binding: logs of another anchor, another filter or another range are refused
+  ---
+  duration_ms: 2.924938
+  type: 'test'
+  ...
+# Subtest: validated only after the confirmed-ledger filter: foreign-address / other-deployment logs are ignored, this lease's malformed ones refuse
+ok 14 - validated only after the confirmed-ledger filter: foreign-address / other-deployment logs are ignored, this lease's malformed ones refuse
+  ---
+  duration_ms: 1.454175
+  type: 'test'
+  ...
+# Subtest: admin AddressBook migration is followed AT the derived anchor; a pinned DEPLOYMENTS_ADDRESS wins; a book moved after it refuses
+ok 15 - admin AddressBook migration is followed AT the derived anchor; a pinned DEPLOYMENTS_ADDRESS wins; a book moved after it refuses
+  ---
+  duration_ms: 0.964907
+  type: 'test'
+  ...
+# Subtest: r2 freshness = the original lease authority's: 120 s ceiling, age == 120 accepted, 121 refused, > 5 s future refused
+ok 16 - r2 freshness = the original lease authority's: 120 s ceiling, age == 120 accepted, 121 refused, > 5 s future refused
+  ---
+  duration_ms: 1.140166
+  type: 'test'
+  ...
+# Subtest: r2: the 120 s ceiling can be lowered, never raised (constructor, reader config, env)
+ok 17 - r2: the 120 s ceiling can be lowered, never raised (constructor, reader config, env)
+  ---
+  duration_ms: 2.130742
+  type: 'test'
+  ...
+# Subtest: freshness: an expired lease and an unsupported schema refuse
+ok 18 - freshness: an expired lease and an unsupported schema refuse
+  ---
+  duration_ms: 0.818527
+  type: 'test'
+  ...
+# Subtest: the unsafe local verifier is DENY-ONLY: later claim/release, runner change or its failure refuse; it never makes a fact
+ok 19 - the unsafe local verifier is DENY-ONLY: later claim/release, runner change or its failure refuse; it never makes a fact
+  ---
+  duration_ms: 1.363234
+  type: 'test'
+  ...
+# Subtest: no implicit public fallback: the adapter never fetches, and cancellation refuses
+ok 20 - no implicit public fallback: the adapter never fetches, and cancellation refuses
+  ---
+  duration_ms: 0.654058
+  type: 'test'
+  ...
+# Subtest: concurrent releases are serialized through the one-at-a-time reader (no 'busy' refusals), each with its own result
+ok 21 - concurrent releases are serialized through the one-at-a-time reader (no 'busy' refusals), each with its own result
+  ---
+  duration_ms: 18.07812
+  type: 'test'
+  ...
+# Subtest: checkDerivedLogs filters by the confirmed ledger before validating (exported contract)
+ok 22 - checkDerivedLogs filters by the confirmed ledger before validating (exported contract)
+  ---
+  duration_ms: 0.444908
+  type: 'test'
+  ...
+# Subtest: production selector: unset keeps the existing selection; anything else is explicit, in-process and fail-closed
+ok 23 - production selector: unset keeps the existing selection; anything else is explicit, in-process and fail-closed
+  ---
+  duration_ms: 1.367005
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 841.664167
