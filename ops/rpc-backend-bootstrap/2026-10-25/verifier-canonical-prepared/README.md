@@ -52,7 +52,7 @@
 - **The test fix:** `canonical_block_gate.rs:125` now names the lifetime `'a` on `c` only. The crate is edition 2021, so
   the returned future captures only `'a`. No body or assertion changed. A scan of the other test targets found no
   other `-> impl` or `'_` helper.
-- **Phase A uses `cargo test … --no-run --keep-going`.** One run reports every target's compile errors, and any error
+- **Phase A uses `cargo build … --test <name> … --keep-going`.** One run reports every target's compile errors, and any error
   still exits 20.
 - **Optional cache reuse, root-reviewed (`CANONICAL_CACHE_FROM=<ended run dir>`; unset means a fresh copy of the
   reviewed cache, as before):**
@@ -230,3 +230,5 @@ missing, panic versus non-panic, compiler error). No product code has run.
 - **`requireCanonical` absent or false.** A read already bound to A returns A's own state when a reorg races it (no
   canonicality claim); later requests for a dropped A are refused.
 - **Not yet:** no reth `--dev` forced-reorg E2E and no measured release.
+
+Root correction (23:59 UTC): the first cache-reuse run `root-canonical-native-reuse-2358` passed the cache/closure checks but exited 20 before compilation because Cargo 1.96 does not support `cargo test --keep-going`. The installed Cargo help confirms that `cargo build --test <name> --keep-going` supports the intended compile-only phase. Phase A now uses that command for the same five targets; B/C/D and all actual test verdict requirements are unchanged. The failure is retained under `runs/`; no test result came from it.
