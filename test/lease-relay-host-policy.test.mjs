@@ -174,6 +174,9 @@ test("host.endpoint is the EXACT registered endpoint (the runner's rule): a path
 // ---- 2. the real gate and carriers, cold, with the fleet down ---------------------------------------------------------
 const skip = haveTools() || false;                                    // node:test skips on any non-false value, null included
 const DO = ["134.199.235.187", "134.209.248.172", "165.245.191.129", "146.190.246.39"];
+// the four FORMER fleet fronts, configured explicitly so the test still proves every such front is refused at the
+// transport; the shipped production default (network/platform-host-policy-config.mjs) names no mirror at all
+const FLEET_MIRRORS = DO.map((ip) => `https://${ip}/platform-policy`);
 const Z32 = "0x" + "00".repeat(32);
 const KEY4 = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";   // anvil #4
 const admin = privateKeyToAccount(KEYS.deployer);                                       // the book's owner: the admin
@@ -191,7 +194,7 @@ const netFetch = (url, opts) => {
 };
 const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + ".json"), "utf8")); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
 let rig, book, bookAbi, ownership, registryAddr, docs = [], hosts = {};
-const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...PRODUCTION_MIRRORS], activation: "required" });
+const POLICY = () => ({ book: book.toLowerCase(), hostOwnership: ownership.toLowerCase(), mirrors: [...FLEET_MIRRORS], activation: "required" });
 async function sign(deny) {
   const prev = docs.length ? docs[docs.length - 1].digest : Z32;
   const p = { format: POLICY_FORMAT, chainId: 8453, book: book.toLowerCase(), registry: registryAddr.toLowerCase(), hostOwnership: ownership.toLowerCase(),
@@ -247,10 +250,8 @@ test("REAL gate: a relay host cold-starts from an imported signed policy with ev
   const s = a.running.status();
   assert.equal(s.refusal, null); assert.equal(s.platformHostPolicy.serving, true, JSON.stringify(s.platformHostPolicy));
   assert.equal(s.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(s.platformHostPolicy.runtime.anchor, "anchored");
-  if (PRODUCTION_MIRRORS.length) assert.ok(denied.some((u) => u.startsWith(PRODUCTION_MIRRORS[0])), "the gate tried the fleet mirrors, and they were refused");
-  // the production configuration names NO fleet mirror (network/platform-host-policy-config.mjs, since 6f2c7da46): then the
-  // imported carrier alone admitted the relay, and nothing at all went to a fleet address (no hidden mirror fallback)
-  else assert.deepEqual(denied, [], "no fleet mirror is configured: nothing reached a fleet address");
+  assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), "the gate tried the fleet mirrors, and they were refused");
+  assert.deepEqual([...PRODUCTION_MIRRORS], [], "the shipped production default names no mirror");
 
   const c = await startRelayHost("c", { carriers: null });           // the production default alone: fleet mirrors only
   await sleep(5000);

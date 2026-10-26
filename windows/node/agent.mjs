@@ -47,7 +47,7 @@ import { Payouts, DEFAULT_MIN_PAYOUT6 } from './payout.mjs';
 import { sponsoredRegister } from './sponsor.mjs';
 import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 import { tunnelHandover } from './tunnel-handover.mjs';
-import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient, operatorAccount, operatorAddress, enclaveIdOf } from './chain.mjs';
+import { CONTRACT_PINS, addressBook, addresses as chainAddresses, publicClient, stateSnapshot, chainAuthority, operatorAccount, operatorAddress, enclaveIdOf } from './chain.mjs';
 import { createSessionApiAuth, apiBases, envList, DEFAULT_API_HOSTS, DEFAULT_FACTORIES } from './session-api-auth.mjs';
 import { measureGflops } from './compute-measure.mjs';
 import { resolveIdentity } from './host-identity.mjs';
@@ -89,6 +89,7 @@ log(`identity: ${ID.mode} mode, ${PUBLIC_URL}, ${RELAY_URL === 'none' ? 'no flee
   + `${ID.relayBase ? `, relay services ${ID.relayBase}` : ', no relay services'}, artifacts from ${ID.gateway}`);
 for (const w of ID.warnings) log(`identity: WARNING ${w}`);
 for (const u of ID.unavailable) log(`identity: unavailable without an Enclave relay: ${u}`);
+{ const a = chainAuthority(); log(`chain: ${a.authority === 'local-verifier' ? `local verifier ${a.verifier} (unsafe tier, proof-backed state reads; transactions: ${a.transactions})` : 'provider fallback (BASE_RPCS)'}`); }
 // WALLET SESSIONS as the owner's credential (session-api-auth.mjs, shared with supervisor.js): a restart and a private
 // deployment's requests accept `Authorization: EnclaveSession v1 ...` beside this box's own SIWE session, verified on
 // Base - the vault's factory, the session's key, liveness and scope, and the record rule - never on the relay's word.
@@ -98,7 +99,8 @@ for (const u of ID.unavailable) log(`identity: unavailable without an Enclave re
 // no Enclave front door and no tunnel name unless its operator lists them (SESSION_API_HOSTS, an explicit RELAY_URL).
 const sessionApi = createSessionApiAuth({
   authorityPins: CONTRACT_PINS,
-  pc: publicClient(), book: addressBook, ledger: () => chainAddresses.deployments || null,
+  // the node's state client; under ENCLAVE_CHAIN_AUTHORITY=verifier its proof-backed reads, one verified block per request
+  pc: publicClient(), snapshot: stateSnapshot(), book: addressBook, ledger: () => chainAddresses.deployments || null,
   factories: envList(process.env.SESSIONS_FACTORIES).length ? envList(process.env.SESSIONS_FACTORIES) : DEFAULT_FACTORIES,
   bases: () => apiBases({ hosts: ID.sessionApiHosts.length ? ID.sessionApiHosts : ID.mode === 'relay' ? DEFAULT_API_HOSTS : [],
     tunnelNames: RELAY_URL === 'none' && ID.mode !== 'relay' ? [] : [NAME, ...envList(process.env.SESSION_API_TUNNEL_NAMES)], publicUrls: [PUBLIC_URL] }),
@@ -151,6 +153,7 @@ async function refreshPartitionGpu() {
   const h = await isolationHealth();
   host.managerSupports = h?.supports || null;
   host.managerInference = h?.inference || null;
+  host.noteManagerMemory(h);
   card = h?.supports?.gpu === true && h?.inference?.ready && Date.now()-h.inference.checkedAt < 45000
     ? h.inference.card : null;
 }
@@ -810,7 +813,7 @@ function localHttp(port) {
       await app.stop(); host.apps.delete(String(b.id).toLowerCase());
       return json(200, { id: b.id, stopped: true });
     }
-    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability() });
+    if (APPS && p === '/v1/host/state') return json(200, { deployments: host.deployments(), availability: host.availability(), leaseReadiness: host.leaseReadiness() });
     const r = await handle({ path: req.url, method: req.method, headers: req.headers, body: body.toString('base64') });
     res.writeHead(r.status, r.headers); res.end(r.body);
   });
@@ -847,7 +850,7 @@ async function startHostingControls() {
 (async () => {
   startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));
   if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
-  else { await refreshPartitionGpu(); setInterval(() => refreshPartitionGpu().catch(() => { card=null; host.managerInference=null; host.managerSupports=null; }),15000).unref();
+  else { await refreshPartitionGpu(); setInterval(() => refreshPartitionGpu().catch(() => { card=null; host.managerInference=null; host.managerSupports=null; host.noteManagerMemory(null); }),15000).unref();
 
     nodeKey = loadOrCreateNodeKey(DIR);
     // a NEW box's first registration, paid by the host paymaster once the relay has verified this TPM (sponsor.mjs);
@@ -858,7 +861,8 @@ async function startHostingControls() {
       const chainMod = await import('./chain.mjs');
       return sponsoredRegister({ relayBase: ID.relayHttp,
                                  name: NAME, transportKey: nodeKey.privateKey, operator: chainMod.operatorAccount(),
-                                 client: chainMod.publicClient(), registry: chainMod.addresses.registry, args,
+                                 // a sponsored user operation: nonce, latest block and submission are transaction work
+                                 client: chainMod.transactionClient(), registry: chainMod.addresses.registry, args,
                                  log: (m) => log('[sponsor]', m) });
     };
     log(`isolation-only node: the VBS enclave engine is retired; transport key ${createHash('sha256').update(nodeKey.spki).digest('hex').slice(0, 16)}… `
@@ -1059,9 +1063,14 @@ async function startHostingControls() {
           enroll ||= createNetworkEnroll({ agentDir: NET.agentDir, binDir: NET.binDir,
             runner: host.enclaveId, relayBase,
             config: { agentDir: NET.agentDir, binDir: NET.binDir, nodeBinary: process.execPath,
+                      // the wallet hold channel the node writes (host.mjs walletChannelStart): the network agent enforces it
+                      // only while this node actually runs one; otherwise the block is dropped (and the agent restarted once)
+                      walletAdmission: host.walletChannel ? { file: host.walletAdmission.file } : null,
+                      // the operator's host-services opt-in (node-config.local.cmd), the only one a box with no app yet can make
+                      hostServicesFile: process.env.ENCLAVE_HOST_SERVICES_FILE || null,
                       operatorKeyFile: path.join(DIR, 'operator.key'), runner: host.enclaveId, endpoint: PUBLIC_URL, relayBase,
                       policyFile: NET.policy, tpmBinary: process.env.TPMATTEST_EXE,
-                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(),
+                      tpmSha256: await fileSha256(process.env.TPMATTEST_EXE), addressBook: chainMod.addressBook(), chainRpc: chainMod.rpcUrls(), chainAuthority: chainMod.chainAuthority(),
                       manager: host.cfg.isolationManager, dataAddr: host.cfg.isolationDataAddr,
                       // the Enclave network (docs/design/enclave-network.md) with its trusted qualification checkers; TUNA is
                       // retired, so there is no other transport (no checkers: enrollment refuses, and says so in the log)
@@ -1076,6 +1085,8 @@ async function startHostingControls() {
             rows: () => chainMod.allDeployments(), version: (appRef) => chainMod.resolveAppRef(appRef),
             vms: async () => { const r = await fetch(`${host.cfg.isolationManager}/vms`, { signal: AbortSignal.timeout(15000) });
                                if (!r.ok) throw new Error(`the manager answered /vms ${r.status}`); const j = await r.json(); return Array.isArray(j) ? j : j.vms || []; },
+            // an app-less config (host services only) is not written while this node's platform host policy refuses this host
+            hostServiceRefusal: () => host.platformPolicy?.serviceRefusal?.() || null,
             log: (m) => log('[network]', m) });
           const r = await enroll.pass(); lastEnrollError = ''; enrollWaiting = Number(r?.waiting) || 0;
         } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
@@ -1150,6 +1161,8 @@ async function startHostingControls() {
     zone = appZone({
       isolationSplicer,
       resolve: (id) => host.appZoneTarget(id),
+      // re-asked after the resolve, at the moment of splicing: a wallet hold between the two is not served
+      admitted: (id) => host.appZoneAdmitted(id),
       // A gate-served app (wasi:http, enclave:app) has no socket: its own hostname is served by
       // terminating TLS here and carrying the request through the gate, the same frame the /x/
       // path uses.
@@ -1160,6 +1173,8 @@ async function startHostingControls() {
       maxBodyBytes: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576),
       log: (m) => log(`[app-zone] ${m}`),
     });
+    // a wallet hold cuts what the app zone already splices or serves for that deployment (host.mjs #walletHold)
+    host.servingWithdrawn = (id) => zone.closeDeployment(id);
     try {
       const { loadOperator } = await import('./chain.mjs');
       const acct = loadOperator(path.join(DIR, 'operator.key'));

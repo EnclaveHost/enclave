@@ -1,13 +1,21 @@
 // enclave-wg-provider: runs an Enclave-network provider on a Linux server with a public IPv4 address.
 //   node wg-provider.mjs /etc/enclave-network/provider.json
 //   node wg-provider.mjs --check-config <provider.json>     (validate the bootstrap and exit; install.sh runs it)
+//   node wg-provider.mjs --ruleset <provider.json>          (print the nftables table this configuration applies, and exit:
+//                                                            `nft -c -f` it BEFORE a restart - a kernel without the DNS
+//                                                            expressions would refuse it at start)
 // config: {operatorKeyFile, publicAddress, uplink, roles, pricePerGiB6, region, kind, hostId, ports:{exit,guard,control},
 //          bootstrap: "explicit" | "legacy" (default), authorityPins, directories:[...],
 //          rpc:[two or more https], addressBook, relay, checkers:[...], zone, probeZone, stateDir,
+//          chainAuthority, attestedVerifier, txBackend,   (attested-authority.mjs: the quorum, or the attested verifier
+//                                            [+ a paid provider's own Base node for its sends])
 //          budget:{monthlyBytes, stopAt},   (budget: outbound bytes this month; at stopAt the provider stops accepting)
-//          proofKeyFile}                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
+//          proofKeyFile,                    (a paid provider, pricePerGiB6 > 0: a community provider, i.e. a registry host
 //                                            [kind community, hostId], co-signs receipts with that host's proof key)
+//          hostServices}                    (optional: registered hosts' own public service names and DNS 53, as raw
+//                                            packets; wg-provider/host-services-config.mjs)
 import fs from 'node:fs/promises';
+import fs_sync from 'node:fs';
 import path from 'node:path';
 import {privateKeyToAccount} from 'viem/accounts';
 import {createPublicClient,http} from 'viem';
@@ -15,7 +23,7 @@ import {base} from 'viem/chains';
 import {DirectoryClient} from '../directory-client.mjs';
 import {LeaseReader,chainAuthorityOptions} from '../lease-reader.mjs';
 import {WgProvider} from './provider.mjs';
-import {Kernel} from './kernel.mjs';
+import {Kernel,ruleset} from './kernel.mjs';
 import {createRouter} from './router.mjs';
 import {createControl} from './control.mjs';
 import {providerIdFor,signProviderRecord,verifyProviderRecord} from '../provider-directory.mjs';
@@ -24,21 +32,39 @@ import {PeerMeter,createReceiptCosigner} from './paid.mjs';
 import {connectivityAddress,submitAttestations,ensureHost} from '../onchain-qualification.mjs';
 import {createWalletClient} from 'viem';
 import {resolveProviderBootstrap} from '../service-index.mjs';
-import {providerChainAuthority} from './attested-authority.mjs';
+import {providerHostServices,hostServicesPolicyEnv,providerDnsPlan} from './host-services-config.mjs';
+import {providerChainAuthority,providerHostPolicyRuntime} from './attested-authority.mjs';
+import {createAttestedSubmitter} from './attested-submission.mjs';
+import {probeDns} from './dns-probe.mjs';
+import {resolveHostPolicyConfig} from '../platform-host-policy-config.mjs';
+import {createHostPolicyRuntime,fileStore} from '../host-policy-runtime.mjs';
 
 const log=m=>console.log(new Date().toISOString(),m);
-const checkOnly=process.argv[2]==='--check-config';
-const cfg=JSON.parse(await fs.readFile((checkOnly?process.argv[3]:process.argv[2])||'/etc/enclave-network/provider.json','utf8'));
+function commandOnPath(name){for(const d of String(process.env.PATH||'').split(':').filter(Boolean)){const f=path.join(d,name);try{fs_sync.accessSync(f,fs_sync.constants.X_OK);return f;}catch{}}return null;}
+const checkOnly=process.argv[2]==='--check-config',rulesetOnly=process.argv[2]==='--ruleset';
+const cfg=JSON.parse(await fs.readFile((checkOnly||rulesetOnly?process.argv[3]:process.argv[2])||'/etc/enclave-network/provider.json','utf8'));
 // WHO THIS PROVIDER TRUSTS AND ASKS (network/service-index.mjs resolveProviderBootstrap). "explicit": the operator's own
 // pins, RPCs, directories, checkers and zones; no address book, no relay fallback, no enclave.host default. "legacy" (an
 // installed provider's config, unchanged): Enclave's defaults exactly as before.
 const boot=resolveProviderBootstrap(cfg);
-// THE chain authority, one explicit choice (attested-authority.mjs): the RPC quorum, the local verifier, or an attested
-// remote verifier - never two of them, never a fallback
+const hostServices=providerHostServices(cfg.hostServices,{zone:boot.zone,probeZone:boot.probeZone,roles:cfg.roles||[]});
+// DNS 53 forwarding needs conntrack-tools: on a target change kernel.mjs deletes the UDP flows still DNATed to the old host
+// (without it they stay there up to the kernel's udp stream timeout, 120 s - measured on ca-east). Only with hostServices.dns.
+const conntrack=hostServices?.dns?commandOnPath('conntrack'):null;
+// FAIL CLOSED: without conntrack-tools this provider forwards no DNS at all (no DNS rules, no pinned hosts) - an unflushable
+// failover could keep steady resolvers on a removed host indefinitely. Its transport roles are unaffected.
+const dnsPlan=providerDnsPlan(hostServices,conntrack),dnsOn=dnsPlan.on;
+if(rulesetOnly){process.stdout.write(ruleset({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',dns:hostServices?.dns?.limits||null}));process.exit(0);}
+// THE chain authority, one explicit choice (attested-authority.mjs): the RPC quorum, the local verifier, or an attested remote verifier for
+// EVERY chain read (registry, leases, owner signatures AND the host-services admission policy) - never mixed, no fallback
 const chainAuth=providerChainAuthority(cfg,{log});
 if(checkOnly){
- console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
-  pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes}));process.exit(0);
+ console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,...(chainAuth.txBackend?{txBackend:chainAuth.txBackend.label}:{}),mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+  pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes,
+  hostServices:hostServices&&{zone:hostServices.zone,platformHostPolicy:typeof hostServices.platformHostPolicy==='string'?hostServices.platformHostPolicy:'explicit',maxHosts:hostServices.maxHosts,dnsHosts:hostServices.dns?.hosts.length||0,
+   ...(hostServices.dns?{conntrack:conntrack||null}:{})}}));
+ if(hostServices?.dns&&!conntrack){console.error('hostServices.dns needs conntrack (conntrack-tools): a DNS failover must move open UDP flows to the new host. Install it (install.sh does) or remove hostServices.dns');process.exit(1);}
+ process.exit(0);
 }
 const account=privateKeyToAccount((await fs.readFile(cfg.operatorKeyFile,'utf8')).trim());
 log(`bootstrap: ${boot.mode}; directories ${boot.directories.join(',')}; ${boot.authorityPins?'pinned contracts':'address book '+boot.addressBook}`);
@@ -53,11 +79,12 @@ log(`chain authority: ${chainAuth.describe}`);
 const paid=(cfg.pricePerGiB6||0)>0;
 if(paid&&(cfg.kind!=='community'||!/^0x[0-9a-f]{64}$/.test(cfg.hostId||'')||!cfg.proofKeyFile))throw new Error('a paid provider is a community provider (kind community, hostId) with its host\'s proofKeyFile');
 const leases=new LeaseReader({...(chainAuth.mode==='attested-verifier'?{}:{rpc:cfg.rpc}),addressBook:boot.addressBook,authorityPins:boot.authorityPins,includeHostPayout:true,...(paid?{includeConnectivity:'auto'}:{}),...chainAuth.leaseReaderOptions});
-// raw RPC clients exist only under the RPC authorities (a paid provider's on-chain writes); the attested authority has none
+// raw RPC clients exist only under the RPC authorities (a paid provider's on-chain writes); the attested authority has none (its
+// paid sends go through attested-submission.mjs)
 const clients=chainAuth.rpc.map(url=>createPublicClient({chain:base,transport:http(url,{timeout:10000})}));
 // Owner signatures use the same fresh chain quorum and explicit factory binding.
 const verifyOwner=(owner,message,signature)=>verifyOwnerSignature({reader:leases,owner,message,signature,addressBook:boot.addressBook,sessionVaultFactory:leases.authorityPins?.sessionVaultFactory});
-const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,log});
+const kernel=new Kernel({publicAddress:cfg.publicAddress,uplink:cfg.uplink||'eth0',ports,dns:dnsPlan.limits,log});
 const keys=await kernel.ensure();
 const policyFile=path.join(stateDir,'policy-nonces.json');
 let nonces={};try{nonces=JSON.parse(await fs.readFile(policyFile,'utf8'));}catch{}
@@ -79,7 +106,23 @@ const targets=async()=>{
  return targetCache.list;
 };
 const config={providerId,hostId:cfg.hostId||null,roles:cfg.roles,pricePerGiB6:cfg.pricePerGiB6||0,publicAddress:cfg.publicAddress,exitKey:keys['wg-exit'],guardKey:keys['wg-guard'],
- ports,zone:boot.zone,probeZone:boot.probeZone,checkers:cfg.checkers||[]};
+ ports,zone:boot.zone,probeZone:boot.probeZone,checkers:cfg.checkers||[],
+ ...(hostServices?{hostServices:{zone:hostServices.zone,platformHostPolicy:hostServices.platformHostPolicy==='off'?'off':'on',maxHosts:hostServices.maxHosts,
+  ...(dnsPlan.pins?{dns:dnsPlan.pins}:{})}}:{})};
+// Host services obey the platform host policy exactly as every other enforcement point: the admin's bans and allowlist,
+// at agreed blocks, only an explicit admit grants (host-policy-adapters.mjs hostAdmissions). "off" is explicit and loud.
+let hostAdmission=null;
+if(hostServices){
+ if(dnsPlan.reason)log('DNS 53 NOT FORWARDED: '+dnsPlan.reason+' (install conntrack, then restart)');
+ const env=hostServicesPolicyEnv(hostServices);
+ if(!env)log('host services: platform host policy is EXPLICITLY OFF (development only; not a production transport profile)');
+ // (attested-authority.mjs providerHostPolicyRuntime: the same runtime, over THIS provider's one chain authority)
+ // the accepted policy persists under stateDir (as host-service-gate does): a restart while the policy mirrors are
+ // unreachable keeps judging hosts against the last ANCHORED, signed policy - every decision is still made at a fresh
+ // agreed block, an unanchored or rotated authority still refuses, and only an explicit admit grants (final review N4)
+ else hostAdmission=providerHostPolicyRuntime(hostServices,chainAuth,{stateDir,log}).admissions;
+ log(`host services: zone ${hostServices.zone}, at most ${hostServices.maxHosts} hosts; DNS 53 ${hostServices.dns?'to one of '+hostServices.dns.hosts.length+' pinned host(s)':'not forwarded'}`);
+}
 // a host's own (control) peers: an active registry entry whose operator signed, read with the same two-RPC agreement
 const registryAddress=()=>leases.bookAddress('registry');
 let registry;const hosts=async id=>{registry||=await registryAddress();const [h]=await leases.registryEntries(registry,[id]);return h||null;};
@@ -90,7 +133,9 @@ let saving=Promise.resolve(),seq=0;
 const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'utf8'));}catch{return null;}},
  save:v=>(saving=saving.catch(()=>{}).then(async()=>{const tmp=`${peerFile}.${process.pid}.${++seq}.tmp`;await fs.writeFile(tmp,JSON.stringify(v),{mode:0o600});await fs.rename(tmp,peerFile);}))};
 const lastLease=new Map();
-const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,store,
+// a pinned DNS host receives 53 only while its route-dns answers an SOA question for the zone through its tunnel
+const dnsProbe=dnsOn?address=>probeDns({address,zone:hostServices.zone}):null;
+const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,hostAdmission,dnsProbe,store,
  leases:async(id,{renewal=false}={})=>{
   try{const l=(await leases.readSnapshot([id]))[0]||null;if(l)lastLease.set(id,{l,at:Date.now()});return l;}
   catch(e){
@@ -111,8 +156,14 @@ if(paid){
  setInterval(()=>void provider.meterSample().catch(e=>log('meter: '+e.message)),15000).unref?.();
  // On chain, this host offers network service at its record's price, and the checkers' current attestations of it are
  // submitted while it serves (each lasts at most 5 minutes); the operator key pays the gas.
- const wallet=createWalletClient({account,chain:base,transport:http(cfg.rpc[0],{timeout:15000})}),[client]=clients;
+ // Under the attested authority: every read, the simulation, the nonce and the receipt from the attested verifier; the
+ // operator's own Base node only submits (bound to the verifier's head), with the pending nonce and fee hints. A signed send
+ // is kept durably and re-broadcast as the same bytes until the verifier resolves it (attested-submission.mjs).
+ const submitter=chainAuth.mode==='attested-verifier'?createAttestedSubmitter({verifier:chainAuth.verifier,backend:chainAuth.txBackend,account,stateFile:path.resolve(stateDir,'onchain-send.json'),log}):null;
+ if(submitter)log(`on chain: sends ${JSON.stringify(submitter.describe())}`);
+ const {wallet,client}=submitter||{wallet:createWalletClient({account,chain:base,transport:http(cfg.rpc[0],{timeout:15000})}),client:clients[0]};
  const onchain=async()=>{
+  if(submitter)await submitter.settle();
   const connectivity=leases.authorityPins?.connectivity??await connectivityAddress(client,boot.addressBook);if(!connectivity||/^0x0{40}$/i.test(connectivity))return;
   if(await ensureHost({wallet,client,connectivity,hostId:cfg.hostId,pricePerGiB6:cfg.pricePerGiB6}))log(`on chain: offering network service at ${cfg.pricePerGiB6} per GiB`);
   const d=await directories.providers({hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}});const mine=d?.providers?.find(e=>e.record?.record?.providerId===providerId);

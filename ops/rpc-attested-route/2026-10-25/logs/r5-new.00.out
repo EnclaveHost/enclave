@@ -1,0 +1,17 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/attested-route-composition.test.mjs
+✔ the provider authority is ONE explicit choice: the quorum is unchanged; mixed, paid, root-naming and policy-RPC configs refuse (22.85358ms)
+✔ host-services ADMISSION through the attested verifier, every public provider down: admit, ban, unban, owner rotation, rollback; outage never falls back (1237.08458ms)
+[parity] [["admit",[true,true]],["ban",[false,false]],["unban",[true,true]],["previous-owner-doc",[false,false]],["current-owner-ban",[false,false]],["current-owner-unban",[true,true]],["rollback-anchor",[false,false]],["re-anchor",[true,true]]]
+✔ PARITY: the legacy QUORUM runtime and the attested runtime give the same decision at every step of one policy history (1553.694022ms)
+✔ registry/app/OWNER reads: the provider's reader (built as main.mjs builds it) verifies ERC-1271 and SessionVault owners through the attested verifier (12331.487437ms)
+✔ collateral PRE-SEED: the provider's file collateral attests fully; an EXPIRED pre-seeded CRL refuses (fail closed) (32.962507ms)
+✔ the PACKAGED provider: source entry and an esbuild bundle of wg-provider/main.mjs report the attested authority, refuse a mixed config, keep the quorum (1109.95457ms)
+✔ packaging: separately bundled reader and client share ONE brand; a plain object is never "attested" (127.414356ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20041.037383

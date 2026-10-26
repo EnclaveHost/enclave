@@ -18,6 +18,11 @@
 //   node stage-tool.mjs capture-app-static --zone app.enclave.host --label <label> ... --server <authoritative IPv4> ...
 //        PUBLIC-ONLY: each label's A record from every authoritative server (no recursion, AA required); kept only when all
 //        agree on one public address and the label passes the route-dns role's validation; disagreements are reported
+//   node stage-tool.mjs host-services --endpoint <registry endpoint> --zone <app zone> --exit <providerId>=<IPv4> ... [--dns] [--tls-http P --tls R=P ...]
+//        THIS host's public service names (network/host-service-names.mjs, from the endpoint's registry id) and, from ONE
+//        list of WireGuard exits: the route-dns appStatic labels (each name -> every exit's address), the privacy agent's
+//        enclaveNetwork.hostServices block (the same exits) and the http(s) endpoints to advertise later. Nothing is
+//        changed anywhere: gen-config takes it as spec.hostServices (its appStatic), the agent block is the operator's.
 //        stage-1 health: a FRESH decision of the unchanged gate for this host (admission/ban/anchor), each role's own
 //        health, served artifacts against the manifest, real DNS answers, and the policy mirror's anchored document
 // Exit: 0 ok, 1 usage/config error, 2 unhealthy, 3 refused (torn anchor, unverifiable document, port in use, digest mismatch).
@@ -28,12 +33,17 @@ import dgram from 'node:dgram';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { keccak256 } from 'viem';
+import { registryIdOfEndpoint } from '../host-service-gate.mjs';
 import { PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP, PRODUCTION_MIRRORS, PRODUCTION_RPCS, PRODUCTION_HOST_POLICY } from '../platform-host-policy-config.mjs';
 import { quorumSnapshot } from '../host-policy-runtime.mjs';
 import { readPolicyFacts, decodeAnchor } from '../platform-host-policy.mjs';
 import { httpCarriers, freshVerifier, candidateDigest } from '../policy-carriers.mjs';
 import { hostIdOfEndpoint, createHostServiceGate } from '../host-service-gate.mjs';
 import { planHostServices, policyEnv, policyCarrierFetch } from './runner.mjs';
+import { hostServiceNames, hostRpcName, HOST_RPC_ROLE, validServiceZone } from '../host-service-names.mjs';
+import { validateHostServicesTransport, tlsReady } from '../host-service-transport.mjs';
+import { keccak256 as keccakBytes, toBytes } from 'viem';
+import { ROLES } from './roles.mjs';
 
 const fail = (code, m) => Object.assign(new Error(m), { exit: code });
 const sha = (b) => createHash('sha256').update(b).digest('hex');
@@ -43,7 +53,7 @@ function args(argv, multi = []) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith('--')) { o._.push(a); continue; }
-    const k = a.slice(2), boolean = ['dry-run', 'json'].includes(k);
+    const k = a.slice(2), boolean = ['dry-run', 'json', 'dns', 'probe-tls'].includes(k);
     const v = boolean ? true : argv[++i];
     if (!boolean && v === undefined) throw fail(1, `--${k} needs a value`);
     if (multi.includes(k)) (o[k] ||= []).push(v); else o[k] = v;
@@ -54,13 +64,14 @@ const snapOf = (rpcs) => quorumSnapshot({ rpcs: rpcs?.length ? rpcs : [...PRODUC
 const anchorOf = (facts) => { try { return decodeAnchor(facts.anchorHi, facts.anchorLo); } catch (e) { return { state: 'torn', reason: e.message }; } };
 
 // ---------------------------------------------------------------- capture-public
-export async function capturePublic({ endpoint, rpcs = null, book = PRODUCTION_BOOK, hostOwnership = PRODUCTION_HOST_OWNERSHIP, indexPin = null }) {
-  const hostId = hostIdOfEndpoint(endpoint);
-  const facts = await snapOf(rpcs)(async (at) => ({ ...(await readPolicyFacts(at, { book, hostOwnership, registryIds: [hostId] })), block: at.block ?? null,
+export async function capturePublic({ endpoint, rpcs = null, book = PRODUCTION_BOOK, hostOwnership = PRODUCTION_HOST_OWNERSHIP, indexPin = null, snapshot = null }) {
+  // the registry id of the endpoint EXACTLY as given (as registered); a trailing slash is kept, never normalized away
+  const hostId = registryIdOfEndpoint(endpoint);
+  const facts = await (snapshot || snapOf(rpcs))(async (at) => ({ ...(await readPolicyFacts(at, { book, hostOwnership, registryIds: [hostId] })), block: at.block ?? null,
     indexCode: indexPin ? await at.code(indexPin.address) : null }));
   const host = facts.hosts[hostId];
   return { at: new Date().toISOString(), readOnly: true, block: String(facts.block), book, hostOwnership, bookOwner: facts.owner, bookOwnerIsContract: facts.ownerIsContract,
-    anchor: anchorOf(facts), registry: facts.registry, endpoint: String(endpoint).replace(/\/+$/, ''), hostId,
+    anchor: anchorOf(facts), registry: facts.registry, endpoint: String(endpoint), hostId,
     registryEntry: host ? { endpoint: host.endpoint, operator: host.operator, active: host.active } : null, acceptedOwner: host?.owner ?? null,
     ...(indexPin ? { serviceIndex: { ...indexPin, agreedCodeHash: facts.indexCode && facts.indexCode !== '0x' ? keccak256(facts.indexCode) : null,
       matchesPin: !!facts.indexCode && facts.indexCode !== '0x' && keccak256(facts.indexCode) === indexPin.codeHash.toLowerCase() } } : {}),
@@ -147,6 +158,39 @@ export function parseListeners(text) {
 }
 const conflicts = (rows, proto, bind, port) => rows.filter((r) => r.proto === proto && r.port === port &&
   ['0.0.0.0', '*', '::', bind].includes(r.address));
+/**
+ * A host's public service names and how they resolve, all from ONE exit list (work/host-service-transport-20261021):
+ *   - names: hostServiceNames(registry id of `endpoint`, zone) - only this host's, nobody chooses them - plus its public
+ *     RPC origin rpc-<b32>.<zone> when `ports` names the public-rpc role (its exits must have opted in: hostServices.rpc);
+ *   - appStatic: { '<label>': [every exit's IPv4] } for the hosted route-dns (the zone must be the app zone it serves): a
+ *     client gets every provider that carries this host's grant, and tries the next when one is down;
+ *   - agent: enclaveNetwork.hostServices for the privacy agent - a service circuit to EXACTLY those exits;
+ *   - endpoints: what `runner.mjs advertise` may publish: http://, and https:// ONLY for a role in `ready` (a VERIFIED G3
+ *     handshake, tlsReady / --probe-tls) - a configured TLS port alone never advertises https.
+ * hostId: the registry id (the runner) = keccak256 of the endpoint bytes EXACTLY as registered (EnclaveRegistry idOf;
+ * windows/node chain.mjs enclaveIdOf). Never normalized: a registered endpoint with a trailing slash is valid and keeps
+ * its own id. A given hostId that is not that hash is refused. G1 and G3 must name the same host by this one id.
+ * ports default to the hs2 stage-1 ports; dns (route-dns 53) is included only with `dns: true`.
+ */
+export function hostServicePublication({ endpoint, zone, exits, hostId: givenId = null, ports = { 'directory-replica': 18188, 'bootstrap-replica': 18189, 'policy-mirror': 18190 },
+  dns = null, tls = null, ready = {} }) {
+  validServiceZone(zone);
+  if (!/^https:\/\/[^\s/?#@]+(\/[^\s?#]*)?$/.test(String(endpoint || ''))) throw fail(1, 'host services: the host\'s registry endpoint (https) is required');
+  if (!Array.isArray(exits) || !exits.length || exits.length > 8) throw fail(1, 'host services: 1 to 8 exits {providerId, address}');
+  const addresses = exits.map((x) => x?.address), ids = exits.map((x) => x?.providerId);
+  if (new Set(addresses).size !== addresses.length || new Set(ids).size !== ids.length) throw fail(1, 'host services: each exit once (distinct ids and addresses)');
+  const hostId = keccakBytes(toBytes(String(endpoint))).toLowerCase();
+  if (givenId !== null && String(givenId).toLowerCase() !== hostId) throw fail(1, 'host services: hostId is not keccak256 of this endpoint (the registry id)');
+  const names = { ...hostServiceNames(hostId, zone), ...(ports[HOST_RPC_ROLE] ? { [HOST_RPC_ROLE]: hostRpcName(hostId, zone) } : {}) };
+  const agent = validateHostServicesTransport({ zone, exits: ids, ports, ...(tls ? { tls } : {}), ...(dns ? { dns } : {}) });
+  const appStatic = Object.fromEntries(Object.keys(ports).map((role) => [names[role].slice(0, -(zone.length + 1)), [...addresses]]));
+  // the route-dns role's own validation (public IPv4s, non-deployment labels): the same check its config will get
+  ROLES['route-dns'].validate({ dnsPort: 53, bind: '127.0.0.1', apiPort: 8154, zone, ipZone: 'ip.' + zone.split('.').slice(1).join('.'), nsName: 'ns-check.' + zone,
+    nsNames: ['ns-check.' + zone], routeMapUrl: 'http://127.0.0.1:1/v1/network/routes', appStatic });
+  const endpoints = Object.fromEntries(Object.keys(ports).map((role) => [role, [`${agent.tls?.tlsPorts[role] && ready[role] === true ? 'https' : 'http'}://${names[role]}/`]]));
+  return { hostId, zone, names, appStatic, agent: { hostServices: { zone, exits: ids, ports, ...(tls ? { tls } : {}), ...(dns ? { dns } : {}) } }, endpoints };
+}
+
 export function genConfig(spec, listenersText) {
   const rows = parseListeners(listenersText);
   if (!rows.length) throw fail(1, 'the listener capture has no tcp/udp listeners: capture `ss -Hltnu` on the host first');
@@ -173,8 +217,17 @@ export function genConfig(spec, listenersText) {
       { role: 'route-dns', package: spec.pins['route-dns'], heapMiB: 160,
         config: { dnsPort: p.dns, bind: b, apiPort: p.dnsApi, apiBind: '127.0.0.1', zone: spec.dns.zone, ipZone: spec.dns.ipZone, nsName: spec.dns.nsName,
           nsNames: spec.dns.nsNames, routeMapUrl: `http://127.0.0.1:${p.directory}/v1/network/routes`,
-          // only mappings captured from public authoritative answers (capture-app-static.sh); never inferred
-          ...(spec.dns.appStatic && Object.keys(spec.dns.appStatic).length ? { appStatic: spec.dns.appStatic } : {}) } },
+          // only mappings captured from public authoritative answers (capture-app-static.sh), never inferred; plus THIS
+          // host's own service labels from spec.hostServices (hostServicePublication: its exits' addresses)
+          ...(() => { const own = spec.hostServices ? hostServicePublication({ endpoint: spec.endpoint, zone: spec.dns.zone, ...spec.hostServices }).appStatic : {};
+            for (const l of Object.keys(own)) if (spec.dns.appStatic?.[l] !== undefined) throw fail(3, `refused: appStatic label ${l} is both captured and this host's service name`);
+            const all = { ...(spec.dns.appStatic || {}), ...own };
+            return Object.keys(all).length ? { appStatic: all } : {}; })(),
+          // this host answers DNS for the exits (spec.hostServices.dns): every relayed query arrives from loopback, so give the
+          // transport ONE bounded aggregate >= what the exits may forward in total (each provider's global DNS rate, default
+          // 2000/s, times the exits; burst twice that). Each provider still limits every real source.
+          ...(spec.hostServices?.dns ? (() => { const rate = (spec.hostServices.dnsGlobalPps ?? 2000) * spec.hostServices.exits.length;
+            return { transportRateLimitPerSec: rate, transportRateLimitCap: 2 * rate }; })() : {}) } },
       { role: 'policy-mirror', package: spec.pins['policy-mirror'], heapMiB: 128,
         config: { port: p.policy, bind: b, stateDir: J(S, 'policy-mirror-state'), rpc: polRpc, minAgree: PRODUCTION_HOST_POLICY.minAgree,
           book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP, peers: [...PRODUCTION_MIRRORS], importDir: J(D, 'policy-import'), syncSec: 60 } },
@@ -210,7 +263,7 @@ function dnsQuery(port, address, name, qtype, { recursion = false, timeoutMs = 3
 }
 const local = (bind) => (bind === '0.0.0.0' ? '127.0.0.1' : bind === '::' ? '::1' : bind);
 async function getJson(url) { const r = await fetch(url, { signal: AbortSignal.timeout(8000) }); return { status: r.status, body: r.headers.get('content-type')?.includes('json') ? await r.json() : null }; }
-export async function health({ config, artifacts = 'sample', fetch: f = globalThis.fetch, rpcs = null }) {
+export async function health({ config, artifacts = 'sample', fetch: f = globalThis.fetch, rpcs = null, policyRuntime = null }) {
   const raw = JSON.parse(fs.readFileSync(config, 'utf8'));
   const { cfg, services } = planHostServices(raw);            // pins and configuration exactly as the runner checks them
   const checks = [], add = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail }); return ok; };
@@ -220,7 +273,9 @@ export async function health({ config, artifacts = 'sample', fetch: f = globalTh
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hostsvc-health-'));
   try {
     const env = { ...policyEnv(cfg), ...(rpcs ? { ENCLAVE_PLATFORM_HOST_POLICY_RPCS: rpcs.join(',') } : {}) };
-    const gate = createHostServiceGate({ env, chainId: 8453, endpoint: cfg.host.endpoint, stateDir: tmp, log: () => {}, fetch: await policyCarrierFetch(cfg, { fetch: f }) });
+    // the same host id as the runner's gate: the registry id of the endpoint exactly as registered (policyRuntime: tests only)
+    const gate = createHostServiceGate({ env, chainId: 8453, hostId: registryIdOfEndpoint(cfg.host.endpoint), stateDir: tmp, log: () => {},
+      ...(policyRuntime ? { runtime: policyRuntime } : { fetch: await policyCarrierFetch(cfg, { fetch: f }) }) });
     const s = await gate.check();
     const st = gate.status();
     add('gate: platform host policy admits this host now', s.serving === true, { hostId: st.hostId, status: s.status, reason: s.reason, banned: !!s.banned, anchor: st.runtime?.anchor, accepted: st.runtime?.accepted, activation: st.runtime?.activation });
@@ -253,8 +308,8 @@ export async function health({ config, artifacts = 'sample', fetch: f = globalTh
     // every configured static platform label answers exactly its configured address
     const statics = Object.entries(dn.appStatic || {}), wrong = [];
     for (const [label, address] of statics) {
-      const a = await dnsQuery(dn.dnsPort, local(dn.bind), `${label}.${dn.zone}`, 1);
-      if (!a || a.rcode !== 0 || !a.authoritative || a.addresses.length !== 1 || a.address !== address) wrong.push({ label, want: address, got: a });
+      const a = await dnsQuery(dn.dnsPort, local(dn.bind), `${label}.${dn.zone}`, 1), want = Array.isArray(address) ? address : [address];
+      if (!a || a.rcode !== 0 || !a.authoritative || a.addresses.length !== want.length || [...a.addresses].sort().join() !== [...want].sort().join()) wrong.push({ label, want: address, got: a });
     }
     if (statics.length) add(`route-dns answers ${statics.length} static platform label(s) with their configured addresses`, !wrong.length, { wrong });
   }
@@ -304,7 +359,7 @@ export async function captureAppStatic({ zone, labels, servers, port = 53, query
 // "am I main?" check, which must not fire inside the tool).
 export function main(argv) {
   const [cmd, ...rest] = argv;
-  const o = (() => { try { return args(rest, ['rpc', 'carrier', 'from-dir', 'from-origin', 'label', 'server']); } catch (e) { console.error(e.message); process.exit(1); } })();
+  const o = (() => { try { return args(rest, ['rpc', 'carrier', 'from-dir', 'from-origin', 'label', 'server', 'exit', 'tls']); } catch (e) { console.error(e.message); process.exit(1); } })();
   const print = (v) => console.log(JSON.stringify(v, (k, x) => (typeof x === 'bigint' ? x.toString() : x), 2));
   (async () => {
     if (cmd === 'capture-public') {
@@ -335,7 +390,16 @@ export function main(argv) {
       if (!o.zone || !o.label?.length || !o.server?.length) throw fail(1, 'capture-app-static needs --zone, --label ... and --server <authoritative IPv4> ...');
       const r = await captureAppStatic({ zone: o.zone, labels: o.label, servers: o.server });
       print(r); if (r.refused.length) process.exitCode = 3;
-    } else throw fail(1, 'usage: stage-tool.mjs capture-public|policy-import|fill-artifacts|gen-config|health|capture-app-static ... (see the header)');
+    } else if (cmd === 'host-services') {
+      if (!o.endpoint || !o.zone || !o.exit?.length) throw fail(1, 'host-services needs --endpoint, --zone and --exit <providerId>=<IPv4> ...');
+      const exits = o.exit.map((x) => { const [providerId, address] = String(x).split('='); return { providerId, address }; });
+      const tls = o['tls-http'] ? { httpPort: Number(o['tls-http']), tlsPorts: Object.fromEntries((o.tls || []).map((x) => { const [r, p] = String(x).split('='); return [r, Number(p)]; })) } : null;
+      // --probe-tls: https only for roles whose loopback G3 listener completes a VERIFIED handshake for the derived name now
+      const base = hostServicePublication({ endpoint: o.endpoint, zone: o.zone, exits, tls, hostId: o['host-id'] || null, ...(o.dns ? { dns: { tcp: 18153, udp: 18153 } } : {}) });
+      const ready = {};
+      if (o['probe-tls'] && tls) for (const [role, port] of Object.entries(tls.tlsPorts)) ready[role] = await tlsReady({ port, servername: base.names[role] });
+      print(hostServicePublication({ endpoint: o.endpoint, zone: o.zone, exits, tls, hostId: o['host-id'] || null, ready, ...(o.dns ? { dns: { tcp: 18153, udp: 18153 } } : {}) }));
+    } else throw fail(1, 'usage: stage-tool.mjs capture-public|policy-import|fill-artifacts|gen-config|health|capture-app-static|host-services ... (see the header)');
   })().catch((e) => { console.error(e.message); process.exit(e.exit || 1); });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));

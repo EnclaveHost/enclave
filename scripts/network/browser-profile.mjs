@@ -21,6 +21,8 @@
 // reads each host's own record and verifies every record itself, so no mirror is required or trusted.
 // --address-book selects administrator-directed following and with it the ORIGINAL session factory (legacySessionVaultFactory);
 // with --verify-chain the binding (factory -> implementation -> book, USDC, core entries) is checked at the verified block.
+// With --verify-chain each --rpc that is an Enclave host's public RPC (network/public-rpc.mjs) is asked which host it is: two
+// origins of ONE host are refused (one vote, not two RPCs); an RPC that states no identity is reported as unknown.
 // --ledger-history-from <block> (with both; the book's deployment block) records every ledger the book named for
 // "deployments" up to the verified block, from its AddressSet events with all RPCs agreeing, as the profile's ledgerHistory.
 import fs from 'node:fs/promises';
@@ -32,6 +34,7 @@ import {parseProfile,contractPinsFromProfile,MAX_PROFILE_BYTES,rpcClients,verify
 import {validateContractPins} from '../../network/contract-pins.mjs';
 import {validateProfile as validateBrowserProfile,parseUniqueJSON,PROFILE_FORMAT,PROFILE_MAX_BYTES} from '../../site/js/core/independent.js';
 import {ANCHOR_KEYS,decodeAnchor} from '../../network/platform-host-policy.mjs';
+import {rpcHostIdentities,assertDistinctRpcHosts} from '../../network/public-rpc-hosts.mjs';
 // the Enclave platform's book and production host-ownership extension (network/platform-host-policy-config.mjs; pinned by
 // test/site-host-policy.test.mjs, like site/js/core/host-policy.js)
 export const PLATFORM_BOOK='0xab214342d5a490150a4a977063a2f88e21f80907',PLATFORM_HOST_OWNERSHIP='0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7';
@@ -190,6 +193,9 @@ async function main(){
     storage,directories:values.directory||[],capacityDirectories:values['capacity-directory']||[],hostPolicyMirrors:values['host-policy-mirror']||null,hostOwnership:values['host-ownership']??null,name:values.name||'',addressBook:values['address-book']??null};
   let r=convert(args);
   if(values['verify-chain']){
+    // an Enclave host's public RPC names its host: two origins of one host are one vote (network/public-rpc-hosts.mjs)
+    for(const x of assertDistinctRpcHosts(await rpcHostIdentities(values.rpc||[])))
+      console.error('rpc '+x.url+': '+(x.hostId?'Enclave host '+x.hostId+' (its own node)':'identity not stated (not an Enclave host RPC)'));
     const clients=rpcClients(values.rpc);
     const v=await verifyProfileOnChain({profile:r.profile,clients});
     console.error('authority profile matches the chain at block '+v.blockNumber+' ('+v.blockHash+')');

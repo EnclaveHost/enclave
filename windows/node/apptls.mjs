@@ -20,6 +20,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { originRequest } from "./origin-request.mjs";
 
 /** The label the platform gives a deployment's origin: the first 8 hex of its id (domains.js). */
 export const labelFor = (id) => {
@@ -112,7 +113,7 @@ export function makeCsr(name) {
  * words, because they name the thing to fix on this box (an unregistered endpoint, a lease that is
  * not ours, a clock outside ±600s).
  */
-export async function requestCert({ name, csrPem, spkiHash, endpoint, sign, base = "https://api.enclave.host" }) {
+export async function requestCert({ name, csrPem, spkiHash, endpoint, sign, base = "https://api.enclave.host", signal, lookup }) {
   // "" is a host with no certificate service (independent mode without RELAY_BASE): say so, sign nothing, ask nobody.
   if (!String(base || "").trim()) return { ok: false, error: "no_certificate_service", why: "no certificate service is configured on this host" };
   const ts = Math.floor(Date.now() / 1000);
@@ -122,12 +123,15 @@ export async function requestCert({ name, csrPem, spkiHash, endpoint, sign, base
   // the request.
   const message = `enclave-certs-issue:${name}:${ep}:${spkiHash}:${ts}`;
   const opSig = await sign(message);
-  const r = await fetch(`${base.replace(/\/+$/, "")}/v1/certs/issue`, {
+  // Signed ONCE, and the same bytes go to whichever of the origin's addresses connects (origin-request.mjs): the relay
+  // spends each opSig once (409 sig_replayed) and keys its orders by (name, key), so a request is never re-sent once it
+  // may have arrived - and one front that drops the handshake no longer strands a certificate the relay already holds.
+  const r = await originRequest(`${base.replace(/\/+$/, "")}/v1/certs/issue`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ name, csr: csrPem, endpoint: ep, ts, opSig }),
-    signal: AbortSignal.timeout(60_000),
+    timeoutMs: 60_000, signal, ...(lookup ? { lookup } : {}),
   });
-  const text = await r.text();
+  const text = r.text;
   let body = {}; try { body = JSON.parse(text || "{}"); } catch {}
   if (r.status === 200 && body.certPem) return { ok: true, certPem: body.certPem, notAfter: body.notAfter, ca: body.ca, cached: !!body.cached };
   if (r.status === 202) return { ok: false, retryAfterSec: Number(body.retryAfterSec) || 60, why: "the relay is still getting it" };

@@ -1,0 +1,18 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/verified-chain.test.mjs
+✔ a verified snapshot: one confirmed block, fresh, pinned by hash, re-checked, monotonic (3.300935ms)
+✔ stale, future, wrong chain, reorganization, proof failure and an unreachable verifier refuse with quorum-class codes (0.945953ms)
+✔ ONE deadline bounds the whole operation including a hung callback; a retained client refuses afterwards (301.527609ms)
+✔ inside a snapshot only proof-backed methods at the pinned block exist; resumed history must still be fresh and canonical (1.32723ms)
+✔ the explicit authority choice: quorum by default, verifier only when said, local only (0.748524ms)
+✔ service index under the verifier: same listing logic, no provider client, pin never weakened, refusals are QuorumErrors (10.275862ms)
+✔ platform host policy config: explicit verifier authority from env or JSON; ambiguous or remote refused (0.678165ms)
+✔ the policy snapshot follows the configured authority, with quorumSnapshot's interface and result shape (1.266201ms)
+✔ host services and the policy-mirror role accept the explicit verifier authority and refuse ambiguous ones (1.697257ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 454.82317

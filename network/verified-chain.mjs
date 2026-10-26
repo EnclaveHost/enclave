@@ -13,7 +13,7 @@
 // refusal or deadline) its pinned client stops working, so a retained client cannot keep reading.
 // (LeaseReader carries its own copy of this logic at 921d60c2b; worker B owns the whole-operation deadline fix there.
 //  The two are to be unified by root when B's fix composes.)
-import { encodeFunctionData, decodeFunctionResult } from 'viem';
+import { encodeFunctionData, decodeFunctionResult, createPublicClient, custom } from 'viem';
 import { isAttestedVerifier } from './attested-verifier-brand.mjs';
 import { rpcEndpoint } from './rpc-identity.mjs';
 
@@ -57,8 +57,10 @@ export function verifiedHeader(block, b) {
 }
 
 export const PINNED_METHODS = Object.freeze(['getChainId', 'getBlockNumber', 'getBlock', 'readContract', 'getCode', 'getBytecode', 'getStorageAt', 'getBalance']);
-/** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name. */
-export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
+/** The only client a read callback sees: every answer at block `b` (by hash), proof-backed; anything else refuses by name.
+ *  allowCall: also a raw `call` ({account, to, data, value}) - the same proof-backed eth_call at `b`, for simulating a
+ *  transaction's preconditions (off unless a snapshot function is created with allowCall). */
+export function pinnedClient({ b, hash, request, chainId, alive = () => {}, allowCall = false }) {
   const at = (blockNumber, blockTag) => {
     if (blockTag !== undefined) throw new Error(`verified reads are pinned to block ${b} (no block tags)`);
     if (blockNumber !== undefined && BigInt(blockNumber) !== b) throw new Error(`verified reads are pinned to block ${b}`);
@@ -83,6 +85,11 @@ export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
     getCode: code, getBytecode: code,
     getStorageAt: async ({ address, slot, blockNumber, blockTag }) => request('eth_getStorageAt', [address, slot, at(blockNumber, blockTag)]),
     getBalance: async ({ address, blockNumber, blockTag }) => BigInt(await request('eth_getBalance', [address, at(blockNumber, blockTag)])),
+    ...(allowCall ? { call: async ({ account, to, data, value, blockNumber, blockTag }) => {
+      const from = typeof account === 'string' ? account : account?.address;
+      const tx = { to, ...(data ? { data } : {}), ...(from ? { from } : {}), ...(value ? { value: '0x' + BigInt(value).toString(16) } : {}) };
+      return { data: await request('eth_call', [tx, at(blockNumber, blockTag)]) };
+    } } : {}),
   };
   return new Proxy(Object.freeze({}), { get(_t, key) {
     if (Object.hasOwn(methods, key)) return async (...args) => { alive(); return methods[key](...args); };
@@ -102,7 +109,7 @@ export function pinnedClient({ b, hash, request, chainId, alive = () => {} }) {
  *   * the header is read again after the callback (same hash and timestamp, else reorganized);
  *   * one `deadlineMs` bounds the whole operation including the callback; afterwards the pinned client refuses.
  */
-export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlockAgeMs = 90_000, futureSkewMs = 5_000, deadlineMs = 30_000, now = Date.now } = {}) {
+export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlockAgeMs = 90_000, futureSkewMs = 5_000, deadlineMs = 30_000, now = Date.now, allowCall = false } = {}) {
   const v = verifierEndpoint(verifier);
   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error('chain id required');
   const int = (x, lo, hi) => Number.isSafeInteger(x) && x >= lo && x <= hi;
@@ -145,7 +152,7 @@ export function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, m
       if (floor && b === floor.number && h.hash !== floor.hash) throw fail('chain_rollback', 'the accepted block was replaced');
       if (h.timestamp > now() + futureSkewMs) throw fail('chain_future', 'the verified block is in the future');
       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} is older than ${maxBlockAgeMs} ms`);
-      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive }), b, h);
+      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive, allowCall }), b, h);
       const again = verifiedHeader(await request('eth_getBlockByNumber', [hexBlock(b), false]), b);
       if (again.hash !== h.hash || again.timestamp !== h.timestamp) throw fail('chain_reorg', 'chain reorganized during the read');
       if (!fresh(h.timestamp)) throw fail('chain_stale', `verified block ${b} became older than ${maxBlockAgeMs} ms during the read`);
@@ -176,4 +183,36 @@ export function chainVerifierOf({ chainAuthority, chainVerifier } = {}, what = '
   if (!chainVerifier) throw new Error(`${what}: chainAuthority verifier needs chainVerifier (the local verifier URL)`);
   verifierEndpoint(chainVerifier);                     // local only, refused now rather than at first use
   return chainVerifier;
+}
+
+// ---- the same authority as a viem client, for readers that run their OWN agreement/freshness rules ------------------------
+// custody v2's createQuorumReader (custody/v2/quorum.mjs) and the credit-vault reader take viem-shaped clients and apply
+// their own confirmations, freshness, header re-check and rollback checkpoint. This client is that reader's ONE input under
+// the explicit verifier: every request goes to the local (loopback) verifier, state methods only at an explicit block HASH
+// (no tags, so nothing reads unpinned state), headers only by number; anything else refuses by name. It never contacts a
+// provider and has nothing to fall back to.
+const PINNED_STATE_RPC = new Set(['eth_call', 'eth_getCode', 'eth_getStorageAt', 'eth_getBalance', 'eth_getTransactionCount']);
+const QTY = /^0x(0|[1-9a-f][0-9a-f]*)$/i;
+/** -> request(method, params, timeoutMs) over the verifier, validating every request as above. */
+export function verifierRequest(verifier) {
+  const v = verifierEndpoint(verifier);
+  return async (method, params = [], timeoutMs = 15_000) => {
+    if (method === 'eth_chainId' || method === 'eth_blockNumber') return v.request(method, [], timeoutMs);
+    if (method === 'eth_getBlockByNumber') {
+      if (!QTY.test(String(params[0])) || params[1] !== false) throw fail('chain_unsupported', 'verified headers are read by block number, without transactions');
+      return v.request(method, [params[0], false], timeoutMs);
+    }
+    if (PINNED_STATE_RPC.has(method)) {
+      const at = params[params.length - 1];
+      if (!at || typeof at !== 'object' || !HASH.test(String(at.blockHash || ''))) throw fail('chain_unsupported', `${method}: verified state is read only at an explicit block hash`);
+      return v.request(method, [...params.slice(0, -1), { blockHash: lc(at.blockHash) }], timeoutMs);
+    }
+    throw fail('chain_unsupported', `${method} is not served by the local verifier authority (proof-backed state at a block hash, and headers, only)`);
+  };
+}
+/** A viem public client over verifierRequest (custom transport, no retries): for custody v2 / credit-vault readers. */
+export function verifierClient(verifier, { chainId = 8453, timeoutMs = 15_000 } = {}) {
+  const request = verifierRequest(verifier);
+  return createPublicClient({ chain: { id: chainId, name: 'verified', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [] } } },
+    transport: custom({ request: ({ method, params }) => request(method, params || [], timeoutMs) }, { retryCount: 0 }) });
 }

@@ -23,10 +23,10 @@
 //
 // What it still does, in full: register (EnclaveRegistry.register), claim / renew /
 // release (EnclaveDeployments), and resolve a deployment's catalog version to the artifact CID.
-import { createPublicClient, createWalletClient, http, fallback, keccak256, toBytes, getAddress, formatEther, stringToHex, pad } from "viem";
+import { createPublicClient, createWalletClient, http, fallback, custom, keccak256, toBytes, getAddress, formatEther, stringToHex, pad } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
-import {loadContractPins} from './host-admission.bundle.mjs';
+import {loadContractPins, chainVerifierFromEnv, transactionRpcsFromEnv, verifiedStateReader, verifiedSnapshot, verifiedStateClient} from './host-admission.bundle.mjs';
 export const CONTRACT_PINS=loadContractPins();
 import fs from "node:fs";
 import path from "node:path";
@@ -38,8 +38,24 @@ import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender, openRele
 const RPCS = (process.env.BASE_RPCS || "https://base-rpc.publicnode.com,https://base.gateway.tenderly.co,https://base-public.nodies.app,https://base.drpc.org,https://mainnet.base.org")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const BOOK = (process.env.ADDRESS_BOOK_ADDRESS || "0xab214342d5A490150A4A977063A2f88E21F80907").trim();
-/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). */
-export const rpcUrls = () => [...RPCS];
+// THE CHAIN AUTHORITY, explicit and validated when this module loads (an ambiguous or remote verifier stops the node here):
+//  * default (legacy): every read and transaction through `RPCS` (a viem fallback: the first provider that answers);
+//  * ENCLAVE_CHAIN_AUTHORITY=verifier + ENCLAVE_CHAIN_VERIFIER=<loopback URL>: STATE reads come from the local proof-backed
+//    verifier (network/verified-read-client.mjs; multi-read decisions at ONE verified block), and transaction/history work
+//    (nonce, simulation, estimates, fees, broadcast, receipts, logs, transaction input) goes ONLY to ENCLAVE_CHAIN_TX_RPCS
+//    if set, else refuses by name. `RPCS` (and its public defaults) is never used in this mode.
+const VERIFIER = chainVerifierFromEnv(process.env);
+const TX_RPCS = VERIFIER ? transactionRpcsFromEnv(process.env) : null;
+const stateReader = VERIFIER ? verifiedStateReader({ verifier: VERIFIER.verifier }) : null;
+// a paged enumeration (allDeployments) gets a longer whole-operation budget: every page is a proof-backed call
+const enumReader = VERIFIER ? verifiedStateReader({ verifier: VERIFIER.verifier, deadlineMs: 120000 }) : null;
+/** -> how this node reads the chain (status, the agent's config); never "independent" on its own. */
+export const chainAuthority = () => VERIFIER
+  ? { authority: "local-verifier", verifier: VERIFIER.verifier, tier: "unsafe", transactions: TX_RPCS.length ? "explicit transport" : "unavailable (no ENCLAVE_CHAIN_TX_RPCS)" }
+  : { authority: "provider-fallback", transactions: "provider-fallback" };
+/** The Base RPCs this node reads (the privacy agent's config names the same ones: tuna-enroll.mjs). None under the
+ *  verifier: no provider is a read source then (the agent's config carries the verifier instead). */
+export const rpcUrls = () => (VERIFIER ? [] : [...RPCS]);
 /** The EnclaveAddressBook this node resolves contracts from (session-api-auth.mjs reads sessionVaultFactory there). */
 export const addressBook = () => BOOK;
 
@@ -134,9 +150,35 @@ let pub = null, acct = null, wal = null;
 // (scripts/deploy-address-book.mjs: stringToHex(key, { size: 32 })).
 const keyOf = (name) => pad(stringToHex(name), { dir: "right", size: 32 });
 
+/** The node's STATE client: the legacy provider fallback, or under the verifier a client whose state reads are each one
+ *  proof-backed verified snapshot and whose every other method refuses by name (no provider behind it). */
 export function publicClient() {
-  if (!pub) pub = createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
+  if (!pub) pub = VERIFIER ? verifiedStateClient(stateReader)
+    : createPublicClient({ chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
   return pub;
+}
+/** fn(client, blockNumber) at ONE verified block (coherent multi-read decisions), or null in legacy mode. */
+export const stateSnapshot = () => (VERIFIER ? verifiedSnapshot(stateReader) : null);
+const NO_TX = "under ENCLAVE_CHAIN_AUTHORITY=verifier this node has no transaction/history transport (set ENCLAVE_CHAIN_TX_RPCS); the public RPC defaults are never used instead";
+/** The transport for TRANSACTION and HISTORY work: legacy RPCS, or under the verifier ENCLAVE_CHAIN_TX_RPCS only (else a
+ *  transport that refuses every request). Never a state authority. */
+export function transactionTransport() {
+  if (!VERIFIER) return fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
+  if (!TX_RPCS.length) return custom({ request: async ({ method }) => { throw Object.assign(new Error(`${method}: ${NO_TX}`), { code: "chain_unsupported" }); } });
+  return fallback(TX_RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 })));
+}
+let txPub = null;
+/** The client for nonce, simulation, estimates, fees, receipts, logs, transaction input and latest/historic blocks: the
+ *  legacy client itself, or under the verifier one on transactionTransport() (untrusted for state; refuses without one). */
+export function transactionClient() {
+  if (!VERIFIER) return publicClient();
+  // no explicit transport: every method refuses BY NAME here (a viem client over a refusing transport would surface only
+  // "An unknown RPC error occurred"), and nothing is sent anywhere
+  if (!TX_RPCS.length) return (txPub ||= new Proxy(Object.freeze({}), { get(_t, key) {
+    if (typeof key === "symbol" || key === "then" || key === "toJSON") return undefined;
+    return async () => { throw Object.assign(new Error(`${String(key)}: ${NO_TX}`), { code: "chain_unsupported" }); };
+  } }));
+  return (txPub ||= createPublicClient({ chain: base, transport: transactionTransport() }));
 }
 /** The operator key: generated on THIS box, never leaves it, and controls nothing but this row. */
 export function loadOperator(keyFile) {
@@ -146,7 +188,7 @@ export function loadOperator(keyFile) {
   if (!hex) return null;
   if (!/^0x[0-9a-fA-F]{64}$/.test(hex)) throw new Error("operator key must be 0x + 64 hex chars");
   acct = privateKeyToAccount(hex);
-  wal = createWalletClient({ account: acct, chain: base, transport: fallback(RPCS.map((u) => http(u, { retryCount: 2, retryDelay: 600 }))) });
+  wal = createWalletClient({ account: acct, chain: base, transport: transactionTransport() });
   return acct;
 }
 export function newOperatorKey(keyFile) {
@@ -185,6 +227,14 @@ export const readDeployment = (id) => publicClient().readContract({ address: add
  *  log scans, because public RPCs cap those. A consumer node is outside the relay's serving set, so
  *  no claim hint ever reaches it and this scan is the ONLY way it finds its owner's work. */
 export async function allDeployments({ pageSize = 100 } = {}) {
+  // under the verifier: the count and EVERY page at ONE verified block (a coherent enumeration, one whole-operation budget)
+  if (VERIFIER) return verifiedSnapshot(enumReader)(async (c) => {
+    const n = Number(await c.readContract({ address: addresses.deployments, abi: DEP_ABI, functionName: "count" }));
+    const rows = [];
+    for (let start = 0; start < n; start += pageSize)
+      rows.push(...await c.readContract({ address: addresses.deployments, abi: DEP_ABI, functionName: "getPage", args: [BigInt(start), BigInt(Math.min(pageSize, n - start))] }));
+    return rows;
+  });
   const n = Number(await publicClient().readContract({ address: addresses.deployments, abi: DEP_ABI, functionName: "count" }));
   const out = [];
   for (let start = 0; start < n; start += pageSize) {
@@ -206,23 +256,25 @@ let chainTx = Promise.resolve();
 // for risc-box means a cold boot from scratch. So: never go below the last nonce WE sent.
 let nextNonce = null;
 async function nonceFor() {
-  const seen = await publicClient().getTransactionCount({ address: acct.address, blockTag: "pending" });
+  const seen = await transactionClient().getTransactionCount({ address: acct.address, blockTag: "pending" });
   if (nextNonce === null || seen > nextNonce) nextNonce = seen;
   return nextNonce;
 }
 // Answers a public RPC gives for reasons of its own rather than the transaction's. Worth one retry
 // with a fresh nonce read; a real revert comes back from simulateContract and is never retried.
 const TRANSIENT = /nonce.*(lower|too low)|replacement transaction underpriced|already known|missing or invalid parameters/i;
-async function send(address, abi, functionName, args) {
+async function send(address, abi, functionName, args, { gate = null } = {}) {
   const job = async () => {
     if (!wal) throw new Error("no operator key on this box");
+    const stale = gate?.();   // the caller's local permission, re-checked when this queue reaches it (host.mjs renewals)
+    if (stale) throw Object.assign(new Error(`${functionName} not sent: ${stale}`), { superseded: true });
     for (let attempt = 0; ; attempt++) {
       try {
-        await publicClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
+        await transactionClient().simulateContract({ address, abi, functionName, args, account: acct });   // fail with the revert reason, not a receipt
         const nonce = await nonceFor();
         const hash = await wal.writeContract({ address, abi, functionName, args, nonce });
         nextNonce = nonce + 1;                         // sent: that nonce is spent whatever the receipt says
-        const rcpt = await publicClient().waitForTransactionReceipt({ hash });
+        const rcpt = await transactionClient().waitForTransactionReceipt({ hash });
         if (rcpt.status !== "success") throw new Error(`${functionName} reverted (${hash})`);
         return hash;
       } catch (e) {
@@ -237,8 +289,8 @@ async function send(address, abi, functionName, args) {
 }
 /** What a transaction would cost, without sending it: the dry run for an unfunded key. */
 export async function estimate(address, abi, functionName, args) {
-  const gas = await publicClient().estimateContractGas({ address, abi, functionName, args, account: acct });
-  const fees = await publicClient().estimateFeesPerGas();
+  const gas = await transactionClient().estimateContractGas({ address, abi, functionName, args, account: acct });
+  const fees = await transactionClient().estimateFeesPerGas();
   const wei = gas * (fees.maxFeePerGas ?? fees.gasPrice ?? 0n);
   return { gas, wei, eth: formatEther(wei) };
 }
@@ -280,11 +332,13 @@ export function setLeaseJournal(file) { leaseJournal = openReleaseJournal(file, 
 /** Why `id` must not be claimed, re-adopted or renewed here: a sponsored release of it may still land (or the journal
  *  failed to load). null = clear. */
 export const releaseHold = (id) => (leaseJournal ? leaseJournal.hold(id) : null);
-function leaseSend(fn, args) {
-  if (!leaseGasActive()) return send(addresses.deployments, DEP_ABI, fn, args);
+function leaseSend(fn, args, { gate = null } = {}) {
+  if (!leaseGasActive()) return send(addresses.deployments, DEP_ABI, fn, args, { gate });
   const id = String(args[0]).toLowerCase();
   const job = async () => {
     const refuse = (why, extra = {}) => Object.assign(new Error(`app-funded ${fn} not sent: ${why}; this host's ETH is never used instead`), { leaseGas: true, ...extra });
+    const stale = gate?.();   // the caller's local permission, re-checked when the operator's queue reaches this send
+    if (stale) throw refuse(stale, { superseded: true });
     if (fn === "release" && !leaseJournal) throw refuse("no durable release journal on this box");
     const held = leaseJournal && (leaseJournal.corrupt() || fn !== "release") ? leaseJournal.hold(id) : null;
     if (held) throw refuse(held, { code: "ReleasePending", pending: true });
@@ -338,7 +392,8 @@ export async function renewLeadMs(id, fallbackMs) {
   return sender ? sender.renewLeadMs(id, fallbackMs) : fallbackMs;
 }
 export const claimDeployment = (id, enclaveId) => leaseSend("claim", [id, enclaveId]);
-export const renewDeployment = (id) => leaseSend("renew", [id]);
+/** opts.gate: () => null, or why the caller no longer permits it; asked when the operator's queue reaches this send. */
+export const renewDeployment = (id, opts) => leaseSend("renew", [id], opts);
 /** Any operator transaction through the same serialized sender (audit-jobs.mjs: offerJobRate). */
 export const sendOperatorTx = (address, abi, functionName, args) => send(address, abi, functionName, args);
 export const releaseDeployment = (id) => leaseSend("release", [id]);
@@ -354,18 +409,19 @@ export const withdrawEarnings = (to) => send(addresses.deployments, EARN_ABI, "w
 // last, and the calldata of the transaction that made one: payout.mjs checks it carries the code this machine issued.
 const PAYOUT_SET_EVENT = { type: "event", name: "PayoutWalletSet", inputs: [
   { name: "id", type: "bytes32", indexed: true }, { name: "payoutWallet", type: "address", indexed: true }] };
-export const blockNumber = () => publicClient().getBlockNumber();
+// event history and transaction input are not state the verifier proves: the transaction/history transport (legacy: RPCS)
+export const blockNumber = () => transactionClient().getBlockNumber();
 export async function payoutDeclarations(id, fromBlock, { step = 500n } = {}) {
-  const latest = await publicClient().getBlockNumber();
+  const latest = await transactionClient().getBlockNumber();
   const out = [];
   for (let from = BigInt(fromBlock); from <= latest; from += step) {     // public RPCs refuse wide log ranges
     const to = from + step - 1n > latest ? latest : from + step - 1n;
-    const logs = await publicClient().getLogs({ address: addresses.registry, event: PAYOUT_SET_EVENT, args: { id }, fromBlock: from, toBlock: to });
+    const logs = await transactionClient().getLogs({ address: addresses.registry, event: PAYOUT_SET_EVENT, args: { id }, fromBlock: from, toBlock: to });
     for (const l of logs) out.push({ wallet: l.args.payoutWallet, txHash: l.transactionHash, blockNumber: l.blockNumber });
   }
   return out;
 }
-export const txInput = async (hash) => (await publicClient().getTransaction({ hash })).input;
+export const txInput = async (hash) => (await transactionClient().getTransaction({ hash })).input;
 export const claimCost = (id, enclaveId) => estimate(addresses.deployments, DEP_ABI, "claim", [id, enclaveId]);
 
 /** catalog://<appId>/<versionIndex> -> the version record (artifact CID, sizing, config, approval). */
@@ -374,6 +430,16 @@ export async function resolveAppRef(appRef) {
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(appRef || "").trim());
   if (!m) throw new Error(`appRef is not catalog://<appId>/<versionIndex>: ${appRef}`);
   if (!catalogAddress) throw new Error("the address book publishes no appCatalog");
+  // under the verifier: the version, the catalog's schema and its config CID at ONE verified block
+  if (VERIFIER) return stateSnapshot()(async (c) => {
+    const v = await c.readContract({ address: catalogAddress, abi: CATALOG_ABI, functionName: "getVersion", args: [m[1], BigInt(m[2])] });
+    let rev;
+    try { rev = Number(await c.readContract({ address: catalogAddress, abi: CATALOG_ABI, functionName: "catalogSchema" })); }
+    catch (e) { if (!/revert|returned no data/i.test(e.shortMessage || e.message || "")) throw e; rev = 0; }
+    let configCid = "";
+    if (rev >= 7) { try { configCid = String(await c.readContract({ address: catalogAddress, abi: CATALOG_ABI, functionName: "versionConfigCid", args: [m[1], BigInt(m[2])] }) || ""); } catch { configCid = ""; } }
+    return { appId: m[1], index: Number(m[2]), ...v, configCid };
+  });
   const v = await publicClient().readContract({ address: catalogAddress, abi: CATALOG_ABI, functionName: "getVersion", args: [m[1], BigInt(m[2])] });
   // ...and, on a rev-7 catalog, where the real config lives. Absent or empty means the inline
   // field IS the config, exactly as on every earlier rev.
@@ -707,10 +773,16 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
         ? `it takes ${Math.round(want * 100)}% of this box${derived}, and the owner offers ${Math.round(capacity.cpuCap.offered * 100)}%`
           + ` of this box's CPU to hosting with ${Math.round(capacity.cpuCap.used * 100)}% of that in use`
         : `it takes ${Math.round(want * 100)}% of this box${derived} and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
+    // the isolated backend's partition manager could not account its RAM (host.mjs #managerRam): unknown admits nothing
+    if (capacity.ramUnknown) return `this box cannot say how much app RAM is free: ${capacity.ramUnknown}`;
     if (version && capacity.ramMbFree != null) {
       const floor = nodeFloorOf(version);
       if (floor.memMb > capacity.ramMbFree)
         return `the version needs ${floor.memMb} MB of node RAM${floor.fromFallback ? " on cores (the publisher's cpuFallback)" : ""} and this box has ${capacity.ramMbFree} MB left`;
+      // ...and a partition reserves its dialed CPU share of the manager's pool, never less than that floor (memory-share.mjs)
+      const part = capacity.ramMbPerShare > 0 ? Math.floor(capacity.ramMbPerShare * dial + 1e-7) : 0;
+      if (part > floor.memMb && part > capacity.ramMbFree)
+        return `its partition reserves ${part} MB of app RAM (${Math.round(dial * 100)}% of this box's ${capacity.ramMbPerShare} MB pool) and this box has ${capacity.ramMbFree} MB left`;
       // compute is not refused here: `want` is already the share the version needs on this box (effectiveCpuShare)
     }
   }
@@ -761,20 +833,29 @@ export const proofAddress = () => (proofAcct ? proofAcct.address : null);
 export const setProofKey = (id, addr) => send(addresses.registry, SET_PROOF_KEY_ABI, "setProofKey", [id, addr]);
 export const unprovenSec = (id) => publicClient().readContract({ address: addresses.proofOfTime, abi: PROOF_ABI, functionName: "unprovenSec", args: [id] });
 
+/** fn({ anchorBlock, anchorHash, client }) for a checkpoint: legacy, the parent of the latest block and the provider
+ *  client; under the verifier, the VERIFIED block itself (its hash proof-checked, a few blocks behind the head, well inside
+ *  the contract's blockhash window) with the plan's ledger reads at that same block. */
+async function withCheckpointAnchor(fn) {
+  if (VERIFIER) return stateSnapshot()(async (c, b) => fn({ anchorBlock: Number(b), anchorHash: (await c.getBlock()).hash, client: c }));
+  const head = await publicClient().getBlock({ blockTag: "latest" });
+  const anchorBlock = Number(head.number) - 1;                       // the parent is always in range
+  const parent = await publicClient().getBlock({ blockNumber: BigInt(anchorBlock) });
+  return fn({ anchorBlock, anchorHash: parent.hash, client: publicClient() });
+}
 /** One checkpoint: "deployment <id> was serving on this box up to <upto>", anchored to a block. */
 export async function checkpoint({ id, enclaveId, upto }) {
   if (!proofAcct) throw new Error("no proof key on this box");
   if (!addresses.proofOfTime) throw new Error("the address book publishes no proofOfTime");
-  const head = await publicClient().getBlock({ blockTag: "latest" });
-  const anchorBlock = Number(head.number) - 1;                       // the parent is always in range
-  const parent = await publicClient().getBlock({ blockNumber: BigInt(anchorBlock) });
-  const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash: parent.hash };
-  const sig = await proofAcct.signTypedData({
-    domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
-    types: PROOF_TYPES, primaryType: "ProofOfTime", message });
-  const [plan] = await planCheckpoints({client: publicClient(), ledger: addresses.deployments,
-    proof: addresses.proofOfTime, batch: [{...message,sig}],
-    onWarning: message => console.warn(`[proof] ${message}`)});
+  const plan = await withCheckpointAnchor(async ({ anchorBlock, anchorHash, client }) => {
+    const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash };
+    const sig = await proofAcct.signTypedData({
+      domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
+      types: PROOF_TYPES, primaryType: "ProofOfTime", message });
+    return (await planCheckpoints({client, ledger: addresses.deployments,
+      proof: addresses.proofOfTime, batch: [{...message,sig}],
+      onWarning: message => console.warn(`[proof] ${message}`)}))[0];
+  });
   return send(plan.address, PROOF_ABI, plan.functionName, plan.args);
 }
 
@@ -787,19 +868,18 @@ export async function checkpointBatch(items) {
   if (!items.length) return [];
   if (!proofAcct) throw new Error("no proof key on this box");
   if (!addresses.proofOfTime) throw new Error("the address book publishes no proofOfTime");
-  const head = await publicClient().getBlock({ blockTag: "latest" });
-  const anchorBlock = Number(head.number) - 1;
-  const parent = await publicClient().getBlock({ blockNumber: BigInt(anchorBlock) });
-  const batch = [];
-  for (const { id, enclaveId, upto } of items) {
-    const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash: parent.hash };
-    const sig = await proofAcct.signTypedData({
-      domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
-      types: PROOF_TYPES, primaryType: "ProofOfTime", message });
-    batch.push({ ...message, sig });
-  }
-  const plans = await planCheckpoints({ client: publicClient(), ledger: addresses.deployments, proof: addresses.proofOfTime, batch,
-    onWarning: (m) => console.warn(`[proof] ${m}`) });
+  const plans = await withCheckpointAnchor(async ({ anchorBlock, anchorHash, client }) => {
+    const batch = [];
+    for (const { id, enclaveId, upto } of items) {
+      const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash };
+      const sig = await proofAcct.signTypedData({
+        domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
+        types: PROOF_TYPES, primaryType: "ProofOfTime", message });
+      batch.push({ ...message, sig });
+    }
+    return planCheckpoints({ client, ledger: addresses.deployments, proof: addresses.proofOfTime, batch,
+      onWarning: (m) => console.warn(`[proof] ${m}`) });
+  });
   const out = [];
   for (const plan of plans) {
     try { out.push({ ids: plan.ids, hash: await send(plan.address, PROOF_ABI, plan.functionName, plan.args) }); }

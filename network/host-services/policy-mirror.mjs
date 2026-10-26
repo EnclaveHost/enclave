@@ -49,10 +49,12 @@ export function startPolicyMirror(cfg, { snapshot = null, fetch = globalThis.fet
   let syncing = null;
   async function sync() {
     try {
-      const stored = [...store.entries()].map(([, v]) => ({ document: v.document, signature: v.signature }));
-      const first = await verify(stored);
+      // judge only what this sync captured: a document published (or re-published, so re-verified at a fresher block)
+      // while the verification below is awaited is not part of it, and its own verification stands
+      const captured = [...store.entries()];
+      const first = await verify(captured.map(([, v]) => ({ document: v.document, signature: v.signature })));
       const ok = new Set(first.verified.map((v) => v.digest));
-      for (const d of [...store.keys()]) if (!ok.has(d)) { drop(d); log(`[policy-mirror] dropped ${d.slice(0, 18)}…: not signed by the address book's current owner at block ${first.block}`); }
+      for (const [d, v] of captured) if (!ok.has(d) && store.get(d) === v) { drop(d); log(`[policy-mirror] dropped ${d.slice(0, 18)}…: not signed by the address book's current owner at block ${first.block}`); }
       let anchored = first.anchor.state === 'anchored' ? first.anchor.digest : null;
       if (anchored && !store.has(anchored)) {
         for (const c of carriers) {

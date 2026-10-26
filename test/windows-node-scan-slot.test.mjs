@@ -43,6 +43,9 @@ async function nucbox(cfg = {}) {
   h.registered = { cpuPricePerSec6: "12" };
   h.chainReady = true;
   h.logs = logs;
+  // a manager stating no RAM pool rule, as the agent reads it before any scan (agent.mjs refreshPartitionGpu): these tests
+  // are about the scan's slot, not RAM, and an unread manager admits nothing (test/windows-hv-memory-accounting.test.mjs)
+  h.noteManagerMemory({ backend: "hyperv-partition-per-app" });
   await h.refreshOwners();
   return h;
 }

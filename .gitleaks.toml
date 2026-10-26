@@ -423,3 +423,69 @@ paths = [
 ]
 regexTarget = "line"
 regexes = ['''^\s*"relay/vbs-credential\.mjs": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",?\s*$''']
+
+# RPC candidate publication: exact reviewed public code/manifest false positives.
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^scripts/network/verify\-profile\.mjs$''']
+regexTarget = "line"
+regexes = ['''secretVaultV2:'EnclaveSecretVaultV2'''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/authority\-profile\.test\.mjs$''']
+regexTarget = "line"
+regexes = ['''secretVaultV2:'EnclaveSecretVaultV2'''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/helpers/original\-vault\-rig\.mjs$''']
+regexTarget = "line"
+regexes = ['''^\ \ \ \ \ \ \ \ \ \ \ vault:\ pick\(v,\ "EnclaveSecretVaultV2\.sol",\ "EnclaveSecretVaultV2"\),\ registry:\ pick\(o,\ "EnclaveRegistry\.sol",\ "EnclaveRegistry"\),$''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/lease\-gas/forge/test/LeaseExecutor\.t\.sol$''']
+regexTarget = "line"
+regexes = ['''^///\ \(factory\ 0x1F5c\.\.\.\ build,\ sha256\ a447add6\.\.\.\)\.\ Operators\ are\ fresh\ keys\ holding\ no\ ETH,\ EIP\-7702\-delegated\ to\ the$''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^test/service\-index\.test\.mjs$''']
+regexTarget = "line"
+regexes = ['''\-\-key',\ 'recordKey=0xabc'''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^metal/guest/lease\-gas\-conduit\.bundle\.mjs\.manifest\.json$''']
+regexTarget = "line"
+regexes = ['''^\ \ \ \ "node_modules/viem/_esm/actions/test/setCoinbase\.js":\ "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",$''']
+
+[[allowlists]]
+description = "Exact public source constant or recomputed dependency digest; no credential"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ['''^windows/node/lease\-gas\-runtime\.bundle\.mjs\.manifest\.json$''']
+regexTarget = "line"
+regexes = ['''^\ \ \ \ "node_modules/viem/_esm/actions/test/setCoinbase\.js":\ "c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb",$''']
+
+[[allowlists]]
+description = "Verified public viem setCoinbase.js SHA256 in the two attested verifier input manifests"
+condition = "AND"
+targetRules = ["coinbase-access-token"]
+paths = ["^network/attested-guest-verify\\.bundle\\.mjs\\.manifest\\.json$", "^test/fixtures/attested-guest-image\\.bundle\\.mjs\\.manifest\\.json$"]
+regexTarget = "line"
+regexes = ["^\\s*\"node_modules/viem/_esm/actions/test/setCoinbase\\.js\": \"c2da4e535cb5fadbba67af724607de88ceb4a6d619fe96cdc4c883f64ba118fb\",?\\s*$"]

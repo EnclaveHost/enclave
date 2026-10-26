@@ -54,7 +54,9 @@ TOP=$(git rev-parse --show-toplevel)
 ln -s "$(realpath "$TOP/node_modules")" "$W/node_modules"
 (cd "$W/network" && npm ci --ignore-scripts --no-audit --no-fund --silent && node build.mjs "$W/dist" >/dev/null)
 mkdir -p "$T/network"
-for f in privacy-agent.mjs windows-circuit-worker.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
+# host-service-ingress.mjs: a host's own service circuits' worker (network/host-service-transport.mjs; network-enroll names
+# it only for a box whose operator set hostServices) - test/host-service-transport.test.mjs checks this list against enroll
+for f in privacy-agent.mjs windows-circuit-worker.mjs host-service-ingress.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
   cp "$W/dist/$f" "$T/network/$f"
 done
 rm -rf "$W"

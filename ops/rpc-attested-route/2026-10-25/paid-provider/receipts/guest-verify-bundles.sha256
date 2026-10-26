@@ -1,0 +1,4 @@
+00b88784578f53930b68f296fb9cfec0347a62c3f23380e0049190bf903b5ac0  network/attested-guest-verify.bundle.mjs
+bc261eca0a7a6fb499c6dc5585e68bbd757e57211e2370e1c6d3401688acb6b8  network/attested-guest-verify.bundle.mjs.manifest.json
+d954ecf8228691f33f171edffe03c1d4c0837745c300ff5c1378d558e2fef46f  test/fixtures/attested-guest-image.bundle.mjs
+0a8020c5accb9c06cc5cab46a0b83036ebf9ddcd0ef3346eb965b515cefce0d3  test/fixtures/attested-guest-image.bundle.mjs.manifest.json

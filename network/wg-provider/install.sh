@@ -72,7 +72,7 @@ ETC=$ETC VAR=$VAR LEGACY=$LEGACY PUBLIC=$PUBLIC UPLINK=$UPLINK ROLES=$ROLES REGI
 RPCS="$(IFS=,; echo "${RPCS[*]-}")" DIRS="$(IFS=,; echo "${DIRS[*]-}")" "$NODE" -e '
   const fs = require("fs"), e = process.env, list = (s) => (s ? s.split(",") : []);
   let old = {}; try { old = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch {}
-  const kept = Object.fromEntries(["kind","hostId","pricePerGiB6","proofKeyFile","localRoutes","noSniRoute","budget","ports"].filter((k) => k in old).map((k) => [k, old[k]]));
+  const kept = Object.fromEntries(["kind","hostId","pricePerGiB6","proofKeyFile","localRoutes","noSniRoute","budget","ports","hostServices"].filter((k) => k in old).map((k) => [k, old[k]]));
   const base = { operatorKeyFile: e.ETC + "/operator.key", publicAddress: e.PUBLIC, uplink: e.UPLINK, roles: list(e.ROLES), pricePerGiB6: 0,
     region: e.REGION, kind: "enclave", hostId: null, ports: { exit: 51820, guard: 51821, control: 51822 }, checkers: list(e.CHECKER.toLowerCase()),
     stateDir: e.VAR, budget: { monthlyBytes: 1000000000000, stopAt: 850000000000 } };
@@ -83,10 +83,16 @@ RPCS="$(IFS=,; echo "${RPCS[*]-}")" DIRS="$(IFS=,; echo "${DIRS[*]-}")" "$NODE" 
     : { bootstrap: "explicit", rpc: list(e.RPCS), directories: list(e.DIRS), authorityPins: JSON.parse(fs.readFileSync(e.PINS, "utf8")),
         zone: e.ZONE, probeZone: e.PROBE_ZONE, ...(e.RELAY ? { relay: e.RELAY } : {}) };
   fs.writeFileSync(process.argv[1] + ".new", JSON.stringify({ ...base, ...kept, ...boot }, null, 1) + "\n", { mode: 0o600 });' "$CFG"
+# DNS 53 forwarding (hostServices.dns, kept from the operator's config) needs conntrack-tools: a DNS failover deletes the UDP
+# flows still DNATed to the old host. Only then; a provider without it installs nothing more.
+DNS53=$("$NODE" -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).hostServices?.dns?"1":"0")}catch{process.stdout.write("0")}' "$CFG.new")
+[ $CONFIG_ONLY = 1 ] || [ "$DNS53" = 0 ] || command -v conntrack >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q conntrack >/dev/null
 install -d -m 0755 "$OPT/$REL"
 install -m 0644 "$HERE/wg-provider.mjs" "$OPT/$REL/wg-provider.mjs"
 # the release about to run checks the configuration before anything is switched
 "$NODE" "$OPT/$REL/wg-provider.mjs" --check-config "$CFG.new" || { echo "provider.json rejected; nothing changed" >&2; rm -f "$CFG.new"; exit 1; }
+# with DNS 53: this kernel must accept the exact table the release applies (dnat, limit, ct count) BEFORE anything switches
+if [ "$DNS53" = 1 ]; then "$NODE" "$OPT/$REL/wg-provider.mjs" --ruleset "$CFG.new" | nft -c -f - || { echo "this kernel refuses the DNS 53 ruleset; nothing changed" >&2; rm -f "$CFG.new"; exit 1; }; fi
 chmod 0600 "$CFG.new" && mv "$CFG.new" "$CFG"
 if [ $CONFIG_ONLY = 1 ]; then echo "configured $CFG (--config-only: no packages, firewall or service changed)"; exit 0; fi
 # forwarding, and the ports the provider serves (ufw stays in charge of everything else)
@@ -94,6 +100,8 @@ printf 'net.ipv4.ip_forward=1\n' > /etc/sysctl.d/90-enclave-network.conf && sysc
 for r in 51820/udp 51821/udp 51822/tcp 443/tcp 80/tcp; do ufw allow "$r" >/dev/null; done
 ufw route allow in on wg-exit out on "$UPLINK" >/dev/null
 ufw route allow in on wg-guard out on "$UPLINK" >/dev/null
+# DNS 53 DNATed to a host's tunnel crosses ufw's FORWARD chain too (our table's accept does not skip another table's chain)
+if [ "$DNS53" = 1 ]; then for p in udp tcp; do ufw route allow in on "$UPLINK" out on wg-exit to any port 53 proto $p >/dev/null; done; fi
 cat > /etc/systemd/system/enclave-network-provider.service <<EOF
 [Unit]
 Description=Enclave network provider (WireGuard guard/ingress/egress)

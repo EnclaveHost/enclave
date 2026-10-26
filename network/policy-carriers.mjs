@@ -30,18 +30,11 @@ import { MAX_POLICY_RESPONSE } from './host-policy-mirrors.mjs';
 import { createPublicClient, http } from 'viem';
 import { rpcEndpoint, rpcLabel } from './rpc-identity.mjs';
 
-export const CARRIER_MIRROR = 'https://policy-carriers.invalid/platform-policy';
-export const MAX_CARRIERS = 16;
+// the reserved origin and the carrier base rule live in the dependency-free host-policy-gate-config.mjs (the Windows node
+// validates an operator's carriers before it writes them); re-exported here unchanged
+import { CARRIER_MIRROR, MAX_CARRIERS, CARRIER_BASE as BASE, validateCarrierBases } from './host-policy-gate-config.mjs';
+export { CARRIER_MIRROR, MAX_CARRIERS, validateCarrierBases };
 const H32 = /^0x[0-9a-f]{64}$/;
-const BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
-
-/** -> the normalized carrier base URLs (http(s), no credentials, query or fragment). */
-export function validateCarrierBases(list, what = 'policy carriers') {
-  if (!Array.isArray(list) || list.length > MAX_CARRIERS) throw Error(`${what}: at most ${MAX_CARRIERS} base URLs`);
-  const out = list.map((u) => String(u).replace(/\/+$/, ''));
-  if (out.some((u) => !BASE.test(u)) || new Set(out).size !== out.length) throw Error(`${what}: distinct http(s) base URLs without credentials, query or fragment`);
-  return out;
-}
 /**
  * RPC URLs -> the {label, client} peers service-index.mjs readServiceIndex takes (entries pass through). https only (http
  * on loopback); one vote per provider or loopback port.

@@ -16,8 +16,9 @@ const lc = (s) => String(s || "").toLowerCase();
 export const PRODUCTION_BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907";
 export const PRODUCTION_HOST_OWNERSHIP = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
 // Public HTTPS transports verified on 2026-10-20; clients still verify the administrator signature and chain anchor.
-// Publish a reviewed signed document to these routes BEFORE anchoring it. Extra operator-chosen mirrors are supported.
-// These four regional endpoints share an infrastructure operator; they do not establish independent operation.
+// NO default mirror: the four former fleet routes shared one infrastructure operator, and the installed Windows admission
+// bundle (6bef372d) already names none. An anchored document reaches a gate through an operator-chosen mirror or a policy
+// CARRIER (an imported directory, a policy-mirror store, a peer, the service index); see network/policy-carriers.mjs.
 export const PRODUCTION_MIRRORS = Object.freeze([]);
 // The policy's own read quorum (distinct public Base RPCs; majority 3 of 4), independent of a component's single RPC.
 export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);

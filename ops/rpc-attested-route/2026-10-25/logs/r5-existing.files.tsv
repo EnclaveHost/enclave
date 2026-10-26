@@ -1,0 +1,26 @@
+file	rc	tests	pass	fail	cancelled	skipped	notrun_native	todo	sec	note
+test/connectivity-chain.test.mjs	0	3	3	0	0	0	0	0	0.3	
+test/host-admission-retry.test.mjs	0	9	9	0	0	0	0	0	29.3	
+test/host-service-verifier-roles.test.mjs	0	4	1	0	0	3	0	0	0.4	
+test/host-services-carriers.test.mjs	1	9	3	6	0	0	0	0	21.9	
+test/hosted-policy-cold-start.test.mjs	0	5	0	0	0	5	0	0	0.2	
+test/lease-designated-relays.test.mjs	0	5	5	0	0	0	0	0	75.0	
+test/lease-pinned-relay.test.mjs	0	4	4	0	0	0	0	0	72.5	
+test/lease-reader-terminal-snapshot.test.mjs	0	2	2	0	0	0	0	0	0.5	
+test/lease-reader-verifier-deadline.test.mjs	0	11	11	0	0	0	0	0	2.0	
+test/lease-reader-verifier.test.mjs	1	9	8	1	0	0	0	0	0.6	
+test/lease-reader.test.mjs	0	31	31	0	0	0	0	0	0.9	
+test/lease-relay-host-policy.test.mjs	0	9	6	0	0	3	0	0	2.1	
+test/management-plane.test.mjs	0	39	39	0	0	0	0	0	14.7	
+test/native-policy.test.mjs	0	14	14	0	0	0	0	0	8.1	
+test/network-authority-pins.test.mjs	0	4	4	0	0	0	0	0	0.4	
+test/platform-host-policy.test.mjs	0	11	11	0	0	0	0	0	0.5	
+test/policy-mirror-sync-race.test.mjs	0	2	2	0	0	0	0	0	0.6	
+test/provider-bootstrap.test.mjs	0	5	5	0	0	0	0	0	0.5	
+test/public-rpc-https.test.mjs	0	5	0	0	0	5	0	0	0.3	
+test/rpc-identity-common.test.mjs	0	4	4	0	0	0	0	0	0.3	
+test/service-index.test.mjs	0	15	15	0	0	0	0	0	15.5	
+test/verified-chain-lifecycle.test.mjs	0	3	3	0	0	0	0	0	0.4	
+test/verified-chain-optin-boundary.test.mjs	0	5	5	0	0	0	0	0	0.2	
+test/verified-chain.test.mjs	0	9	9	0	0	0	0	0	0.5	
+test/windows-host-identity.test.mjs	0	10	10	0	0	0	0	0	1.7	

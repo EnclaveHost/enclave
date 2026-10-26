@@ -316,7 +316,9 @@ async function main(argv) {
   for (const k of ["endpoint", "operator", "pins"]) if (!o[k]) throw new Error(`--${k} is required`);
   const { validateContractPins } = await import("./host-admission.bundle.mjs");
   const pins = validateContractPins(JSON.parse(fs.readFileSync(o.pins, "utf8").replace(/^﻿/, "")));
-  const reader = quorumReader({ clients: await rpcClients(o.rpc.length ? o.rpc : [...DEFAULT_RPCS]) });
+  // the shared factory (chain-reader.mjs): this quorum by default, or the explicit local verifier (then no RPC is contacted)
+  const { chainReader } = await import("./chain-reader.mjs");
+  const reader = await chainReader({ rpcs: o.rpc.length ? o.rpc : [...DEFAULT_RPCS] });
   const r = await checkEndpointOnChain({ endpoint: httpsUrl(o.endpoint, "endpoint"), operator: o.operator, registry: pins.registry, reader });
   process.stdout.write(JSON.stringify(r) + "\n");
   return r.status === "taken" ? 2 : 0;

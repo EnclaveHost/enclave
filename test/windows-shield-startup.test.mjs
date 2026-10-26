@@ -145,6 +145,9 @@ async function independentHost(over = {}) {
     cpuPricePerSec6: 12, ramGb: 64, log: () => {}, engineRetired: true, isolationManager: mgr.base, isolationRuntimeId: REC.runtimeId,
     relayBase: "", customDomains: true, ownerStartup: authority(), ...over }), OPERATOR);
   h.chainReady = true; h.registered = { endpoint: ENDPOINT, cpuPricePerSec6: 12n, gpuPricePerSec6: 0n };
+  // the REAL manager's RAM view, as the agent reads it before any scan (agent.mjs refreshPartitionGpu; windows-memory-
+  // accounting 9f19b7c6): an unread manager admits nothing, and these tests are about the startup package, not RAM
+  h.noteManagerMemory(await (await realFetch(`${mgr.base}/health`)).json());
   return { h, mgr };
 }
 
@@ -305,6 +308,7 @@ test("a new commitment restarts, and a partition running an older package's AppI
   // a node restart: a fresh Host finds the OLD partition by name and must not adopt it
   const { h: h2 } = { h: servedOwner(new Host({ ...h.cfg, dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-startup2-")), ownerStartup: authority() }), OPERATOR) };
   h2.chainReady = true; h2.registered = h.registered;
+  h2.noteManagerMemory(await (await realFetch(`${mgr.base}/health`)).json());   // the restarted agent reads it again first
   await h2.ensureApp(DEP, await chain.readDeployment(DEP));
   const rec = h2.records.get(DEP);
   assert.equal(rec.status, "running", rec.reason);

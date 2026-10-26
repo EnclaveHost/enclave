@@ -1,0 +1,14 @@
+$ node --test --test-timeout=300000 --test-concurrency=1 --test-reporter=spec test/provider-bootstrap.test.mjs
+✔ bootstrap is explicit for guarded hosts and never silently enables direct traffic (6.802138ms)
+✔ real guarded bootstrap cannot escape a refusing SOCKS service through direct fetch (12.399066ms)
+✔ strict discovery uses only the selected private bootstrap during startup or circuit loss (3.241255ms)
+✔ fresh directory-only host admits a signed registered provider before control startup, then follows live registry changes (31.872448ms)
+✔ missing discovery origins and malformed explicit relays are refused (0.405767ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 452.387591

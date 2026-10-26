@@ -45,9 +45,8 @@ const compileIndexInChild = () => JSON.parse(execFileSync(process.execPath, ['--
 const OUT = path.join(REPO, 'contracts/foundry/out');
 const skip = haveTools() || (!fs.existsSync(path.join(PKG, 'policy-mirror.package.json')) ? 'needs the built packages (scripts/build-host-service-packages.mjs)' : false);
 const DO = { name: 'digitalocean', addresses: ['134.199.235.187', '134.209.248.172', '165.245.191.129', '146.190.246.39'] };
-// the production-shaped mirror list this test refuses: the four former fleet fronts. The shipped production default
-// (network/platform-host-policy-config.mjs, host-admission bundle 40e8ba71) names NO mirror at all; configuring the former
-// fleet set here keeps the test's point - every such front refused at the transport - explicit rather than vacuous.
+// the four FORMER fleet fronts, configured explicitly so the test still proves every such front is refused at the
+// transport; the shipped production default (network/platform-host-policy-config.mjs) names no mirror at all
 const FLEET_MIRRORS = DO.addresses.map((ip) => `https://${ip}/platform-policy`);
 const pin = (role) => 'sha256:' + createHash('sha256').update(fs.readFileSync(path.join(PKG, `${role}.package.json`))).digest('hex');
 const art = (file, name) => { const j = JSON.parse(fs.readFileSync(path.join(OUT, file, name + '.json'), 'utf8')); return { abi: j.abi, bytecode: j.bytecode.object, linkReferences: j.bytecode.linkReferences || {} }; };
@@ -131,6 +130,8 @@ before(async () => {
 after(async () => {
   for (const h of Object.values(hosts)) await h.running?.stop().catch(() => {});
   await rig?.stop();
+  // evidence only: forwards cut off by the rig's own teardown (answered 502); a failure outside teardown is rethrown by the rig
+  if (rig?.rpcFailures?.length) console.log(`[rig] RPC origin forwards cut off by teardown: ${JSON.stringify(rig.rpcFailures)}`);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -143,6 +144,7 @@ test('fresh hosts with empty caches start under an ACTIVATED anchor with every f
   assert.equal(sa.refusal, null); assert.equal(sa.platformHostPolicy.serving, true, JSON.stringify(sa.platformHostPolicy));
   assert.equal(sa.platformHostPolicy.runtime.accepted.digest, docs[0].digest); assert.equal(sa.platformHostPolicy.runtime.anchor, 'anchored');
   assert.ok(denied.some((u) => u.startsWith(FLEET_MIRRORS[0])), 'the gate did try the fleet mirrors, and they were refused');
+  assert.deepEqual([...PRODUCTION_MIRRORS], [], 'the shipped production default names no mirror');
   const served = await wait(() => netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/${docs[0].digest}.json`).then((r) => r.ok && r.json()), 20000, 'host A policy mirror serves the anchored document');
   assert.equal(served.signature, docs[0].signature);
   assert.equal((await netFetch(`http://${HOST_ADDR.a}:${hosts.a.ports.pm}/platform-policy/latest.json`)).status, 404, 'no unanchored latest');

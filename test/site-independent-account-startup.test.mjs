@@ -1,6 +1,6 @@
 // The Startup tab on a record a passkey account (a Safe) holds itself, in a real headless Chromium against the local rig
 // (test/helpers/independent-browser-rig.mjs: anvil with the repository's schema-16 ledger, three HTTPS storage adapters that
-// verify the upload signature, registry hosts) with the PINNED Safe passkey code copied from Base (test/helpers/
+// verify the upload signature, registry hosts) with the PINNED Safe passkey code etched from the recorded Base snapshot (test/helpers/
 // safe-passkey-code.mjs). The account is made through the account panel (one passkey with its own signer, deployed by the
 // connected wallet as gas payer), selected as the dashboard identity, and creates - BY ITSELF, one passkey approval - a record
 // waiting for owner-committed startup settings. The Startup tab then publishes the package: the ACCOUNT signs every storage
@@ -10,7 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { startRig, haveTools, walletScript } from "./helpers/independent-browser-rig.mjs";
+import { startRig, haveTools, walletScript, KEYS } from "./helpers/independent-browser-rig.mjs";
 import { copySafePasskeyCode } from "./helpers/safe-passkey-code.mjs";
 import { verifyPackage, packageCID } from "../sdk/bootstrap/package.mjs";
 
@@ -77,11 +77,47 @@ test("Startup tab on a record the Safe holds: the account signs its uploads (ERC
   await page.locator(".acct-use").click();
   await waitAcct(/the dashboard now acts as your passkey account/);
   // the account creates a record awaiting its own startup settings - by itself (no account session: one passkey approval)
-  const n0 = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
-  await page.evaluate(async () => (await import("/js/pages/deploy.js")).deployOnChain({ reference: "catalog://0x" + "11".repeat(32) + "/0", gpuMilli: 0, cpuMilli: 100,
-    ports: "", isPublic: true, fundUsd: 0, prepareOnly: true }));
-  const n1 = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
-  assert.equal(n1, n0 + 1n, "one record: " + (await page.locator("c-deployments").textContent()).slice(-500));
+  // deployOnChain as the dashboard calls it, with its own outcome: return value or error, every toast and run-log line
+  const create = (reference) => page.evaluate(async (reference) => {
+    const toasts = [], lines = [];
+    const t = (e) => toasts.push(String(e.detail?.message)), l = (e) => { if (e.detail?.type === "line") lines.push(e.detail.txt); };
+    document.addEventListener("enclave:toast", t); document.addEventListener("enclave:runlog", l);
+    let ret, error = null;
+    try { ret = await (await import("/js/pages/deploy.js")).deployOnChain({ reference, gpuMilli: 0, cpuMilli: 100, ports: "", isPublic: true, fundUsd: 0, prepareOnly: true }); }
+    catch (e) { error = String(e?.message || e); }
+    document.removeEventListener("enclave:toast", t); document.removeEventListener("enclave:runlog", l);
+    return { ret: ret === undefined ? "undefined" : JSON.stringify(ret), error, toasts, lines };
+  }, reference);
+  const count = () => rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
+  const refused = async (reference, re, what) => {
+    const before = await count(), o = await create(reference);
+    assert.equal(await count(), before, what + ": nothing is created; outcome " + JSON.stringify(o));
+    assert.match(o.toasts.join(" | "), re, what + ": " + JSON.stringify(o));
+  };
+  // A REAL catalog version: the browser refuses a deploy unless the app and version are currently listed and approved
+  // (catalog moderation, read at deploy time). A third-party publisher's release starts PENDING; the catalog owner - the
+  // platform administrator, the rig's deployer - rules on it; the publisher may delist its own app.
+  const publisher = rig.wc(KEYS.operator2), slug = "safe-startup-app", CAT = { address: rig.addresses.catalog, abi: rig.abi.catalog };
+  const sim = await rig.pc.simulateContract({ ...CAT, account: publisher.account, functionName: "publishVersion",
+    args: [slug, "Safe startup app", "the account-startup fixture app", "1.0.0", "bafkreisafestartupfixtureapp0000000000000000000000000000000", [0, 0, 256, 100], "", "", 0n] });
+  const [appId, index] = sim.result;
+  await rig.write(publisher, CAT.address, CAT.abi, "publishVersion", sim.request.args);
+  const reference = "catalog://" + appId.toLowerCase() + "/" + index;
+  const admin = rig.wc(KEYS.deployer);
+  await refused("catalog://0x" + "11".repeat(32) + "/0", /could not verify current catalog moderation|delisted/, "an app the catalog does not have");
+  await refused(reference, /requires catalog approval; pending versions may only be deployed PRIVATE/, "a pending version for a public record");
+  await rig.write(admin, CAT.address, CAT.abi, "setApproval", [appId, index, 1]);
+  await rig.write(publisher, CAT.address, CAT.abi, "setActive", [slug, false]);
+  await refused(reference, /delisted/, "a delisted app");
+  await rig.write(publisher, CAT.address, CAT.abi, "setActive", [slug, true]);
+  await rig.write(admin, CAT.address, CAT.abi, "setApproval", [appId, index, 2]);
+  await refused(reference, /rejected by the catalog owner/, "a version the administrator rejected");
+  await rig.write(admin, CAT.address, CAT.abi, "setApproval", [appId, index, 1]);
+  // listed and approved: the account creates the record itself, waiting for its own startup settings
+  const n0 = await count();
+  const outcome = await create(reference);
+  const n1 = await count();
+  assert.equal(n1, n0 + 1n, "one record; deployOnChain outcome: " + JSON.stringify(outcome, null, 1));
   const rec = (await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "getPage", args: [n0, 1n] }))[0];
   const id = rec.id.toLowerCase();
   assert.equal(rec.owner.toLowerCase(), safe, "the Safe holds it itself");

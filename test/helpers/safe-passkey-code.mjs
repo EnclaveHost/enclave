@@ -1,20 +1,28 @@
-// Copy the PINNED Safe v1.4.1 / passkey signer v0.2.1 / 4337 module / MultiSend code byte for byte from Base (a read-only
-// upstream read) onto a local test chain, checking each code hash against its pin; plus the passkey signer singleton the
-// factory names. A plain anvil verifies P-256 at 0x100 natively, so the passkey signers work there unchanged.
+// Etch the PINNED Safe v1.4.1 / passkey signer v0.2.1 / 4337 module / MultiSend code onto a local test chain from the
+// recorded snapshot test/fixtures/base-code/safe-passkey-code-base.json (scripts/test-fixtures/snapshot-safe-passkey-code.mjs;
+// PROVENANCE.txt). No network: the test never reads Base. Each pinned contract's stored code must hash to the pin the page
+// itself names (and to the snapshot's own record); the passkey signer singleton must be the address embedded in the pinned
+// factory's code. A plain anvil verifies P-256 at 0x100 natively, so the passkey signers work there unchanged.
 //   const rows = await copySafePasskeyCode(pins, rigRpc)     pins: [{name, address, codeHash}] (account-providers.js)
-import { keccak256, toBytes } from "viem";
+import fs from "node:fs";
+import { keccak256 } from "viem";
 
-export async function copySafePasskeyCode(pins, setCodeRpc, { upstream = process.env.BASE_FORK_RPC || "https://mainnet.base.org" } = {}){
-  const read = async (method, params) => { const r = await (await fetch(upstream, { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json(); if (r.error) throw new Error("Base read: " + r.error.message); return r.result; };
-  const factory = pins.find((c) => c.name === "webauthnSignerFactory").address;
-  const singleton = "0x" + (await read("eth_call", [{ to: factory, data: keccak256(toBytes("SINGLETON()")).slice(0, 10) }, "latest"])).slice(26);
+export const SAFE_PASSKEY_FIXTURE = new URL("../fixtures/base-code/safe-passkey-code-base.json", import.meta.url);
+
+export async function copySafePasskeyCode(pins, setCodeRpc, { fixture = SAFE_PASSKEY_FIXTURE } = {}){
+  const snap = JSON.parse(fs.readFileSync(fixture, "utf8"));
+  if (snap.chainId !== 8453) throw new Error("the Safe passkey fixture is not a Base snapshot");
   const rows = [];
-  for (const c of [...pins, { name: "signerSingleton", address: singleton, codeHash: null }]){
-    const code = await read("eth_getCode", [c.address, "latest"]);
-    if (!code || code === "0x") throw new Error(c.name + " has no code on Base");
-    rows.push({ name: c.name, ok: !c.codeHash || keccak256(code) === c.codeHash });
-    await setCodeRpc("anvil_setCode", [c.address, code]);
+  for (const p of pins){
+    const e = snap.contracts[p.name];
+    if (!e) throw new Error(p.name + " is not in the Safe passkey fixture");
+    if (e.address.toLowerCase() !== p.address.toLowerCase()) throw new Error(p.name + ": the fixture records another address");
+    const h = keccak256(e.code);
+    rows.push({ name: p.name, ok: h === e.keccak256 && (!p.codeHash || h === p.codeHash) });
+    await setCodeRpc("anvil_setCode", [p.address, e.code]);
   }
+  const s = snap.signerSingleton, factory = snap.contracts.webauthnSignerFactory;
+  rows.push({ name: "signerSingleton", ok: keccak256(s.code) === s.keccak256 && factory.code.toLowerCase().includes(s.address.slice(2).toLowerCase()) });
+  await setCodeRpc("anvil_setCode", [s.address, s.code]);
   return rows;
 }

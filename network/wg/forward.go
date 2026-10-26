@@ -13,6 +13,8 @@ type Forwards struct {
 	mu     sync.Mutex
 	conns  map[net.Conn]struct{}
 	ls     []net.Listener
+	pcs    []net.PacketConn // UDP ingress sockets (udpforward.go)
+	relays []*udpRelay      // their flow tables
 	closed bool
 	Count  func(in, out int64) // in = toward the app, out = from the app
 }
@@ -49,6 +51,10 @@ func (f *Forwards) Close() {
 	for _, l := range f.ls {
 		l.Close()
 	}
+	for _, pc := range f.pcs {
+		pc.Close()
+	}
+	f.pcs, f.relays = nil, nil
 	for c := range f.conns {
 		c.Close()
 	}

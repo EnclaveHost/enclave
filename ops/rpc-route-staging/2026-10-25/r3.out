@@ -1,0 +1,45 @@
+[queue] START available=21424MiB required=18048MiB cap=1408MiB floor=16384MiB concurrentSmall=0MiB
+[r3] control helper = HEAD blob aff0109b5c6c02cffda85713eebc29158524ee4c
+[suite] r3-control-unfixed: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=1 tests=2 pass=0 fail=2 cancelled=0 skip=0 notrun-native=0 201.6s test/cli-independent-rig-teardown.test.mjs
+        ✖ a forward in flight when rig.stop() kills the chain is recorded as teardown, never an unhandled rejection (1258.613515ms)
+        ✖ a forward that fails while the rig is running stays loud: recorded and rethrown as an unhandled rejection (200096.599894ms)
+        ✖ a forward in flight when rig.stop() kills the chain is recorded as teardown, never an unhandled rejection (1258.613515ms)
+        ✖ a forward that fails while the rig is running stays loud: recorded and rethrown as an unhandled rejection (200096.599894ms)
+[suite] r3-control-unfixed: files=1 tests=2 pass=0 fail=2 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=1 -> FAIL
+[suite] failing file: test/cli-independent-rig-teardown.test.mjs
+[r3] control failed on the unfixed helper, as expected:
+✖ a forward in flight when rig.stop() kills the chain is recorded as teardown, never an unhandled rejection (1258.613515ms)
+✖ a forward that fails while the rig is running stays loud: recorded and rethrown as an unhandled rejection (200096.599894ms)
+✖ a forward in flight when rig.stop() kills the chain is recorded as teardown, never an unhandled rejection (1258.613515ms)
+  TypeError: fetch failed
+✖ a forward that fails while the rig is running stays loud: recorded and rethrown as an unhandled rejection (200096.599894ms)
+[suite] r3-teardown: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=2 pass=2 fail=0 cancelled=0 skip=0 notrun-native=0 3.1s test/cli-independent-rig-teardown.test.mjs
+[suite] r3-teardown: files=1 tests=2 pass=2 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r3-hpcs-1: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 14.0s test/hosted-policy-cold-start.test.mjs
+[suite] r3-hpcs-1: files=1 tests=5 pass=5 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r3-hpcs-2: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 13.9s test/hosted-policy-cold-start.test.mjs
+[suite] r3-hpcs-2: files=1 tests=5 pass=5 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r3-hpcs-3: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 13.9s test/hosted-policy-cold-start.test.mjs
+[suite] r3-hpcs-3: files=1 tests=5 pass=5 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r3-lifecycle: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=13 pass=13 fail=0 cancelled=0 skip=0 notrun-native=0 4.3s test/host-service-lifecycle.test.mjs
+[file] rc=0 tests=4 pass=4 fail=0 cancelled=0 skip=0 notrun-native=0 9.9s test/host-service-verifier-roles.test.mjs
+[file] rc=0 tests=14 pass=14 fail=0 cancelled=0 skip=0 notrun-native=0 0.5s test/host-service-transport.test.mjs
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 13.8s test/hosted-policy-cold-start.test.mjs
+[file] rc=0 tests=12 pass=12 fail=0 cancelled=0 skip=0 notrun-native=0 53.9s test/host-services-cold-start.test.mjs
+[file] rc=0 tests=9 pass=9 fail=0 cancelled=0 skip=0 notrun-native=0 77.3s test/host-services-carriers.test.mjs
+[file] rc=0 tests=2 pass=2 fail=0 cancelled=0 skip=0 notrun-native=0 3.1s test/cli-independent-rig-teardown.test.mjs
+[suite] r3-lifecycle: files=7 tests=59 pass=59 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[suite] r3-rig-users: tree /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/route-source head aff1dafdf6f2ed8fe9a425574f7c4fe4bd1c6fa4 dirty=6; ssh/scp/sftp -> denial stubs (rc 97)
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 4.1s test/public-rpc-https.test.mjs
+[file] rc=0 tests=5 pass=5 fail=0 cancelled=0 skip=0 notrun-native=0 15.2s test/hosted-service-placement.test.mjs
+[suite] r3-rig-users: files=2 tests=10 pass=10 fail=0 cancelled=0 skipped=0 (allowed 0) notrun-native=0 failing-files=0 -> PASS
+[r3] rc=0
+[memory-guard] exit=0 peakTreeRssMiB=653 minHostAvailableMiB=20327
+[memory-guard] at peak: node:136 node:96 node:85 node:79 node:70 node:70 node:58 anvil:37
+[queue] EXIT 0

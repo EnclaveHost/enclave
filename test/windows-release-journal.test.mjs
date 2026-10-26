@@ -163,6 +163,11 @@ test("4. the journal cannot be written: nothing is signed and no relay sees a re
   await c.claimDeployment(id, op.enclaveId);
   fs.chmodSync(ro, 0o500);
   try {
+    // the negative is only real if the directory really refuses writes: a process with CAP_DAC_OVERRIDE (e.g. uid 0 of a
+    // user namespace with its full capability set) ignores the mode, and this case must then FAIL, not pass vacuously.
+    // The suite runner drops the capability bounding set for this file (run-suite.py --drop-caps).
+    assert.throws(() => fs.writeFileSync(path.join(ro, "probe"), "x"), (e) => e.code === "EACCES",
+      "the fixture's read-only directory is writable here (CAP_DAC_OVERRIDE?): the permission negative cannot be tested");
     await assert.rejects(c.releaseDeployment(id), (e) => /app-funded release not sent/.test(e.message) && e.pending !== true);
     assert.equal(f.posts(3), 0, "no release POST to any relay");
     assert.equal((await W.row(id)).runnerOperator, op.address);

@@ -1,0 +1,2 @@
+file	rc	tests	pass	fail	cancelled	skipped	notrun_native	todo	sec	note
+test/host-services-carriers.test.mjs	1	9	3	6	0	0	0	0	21.9	

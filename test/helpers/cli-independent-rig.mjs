@@ -62,8 +62,13 @@ export function compileRegistrySchema4() {
 
 export async function startRig() {
   const stops = [];
+  // rpcFailures: every forward of the three RPC origins that could not reach the chain, { i, stopping, error }. stop()
+  // closes the origins and then kills anvil, so a forward already in flight then fails by construction (stopping: true).
+  let stopping = false;
+  const rpcFailures = [];
   // Each cleanup is registered the moment its resource exists, and each is bounded: a stuck close never holds the run.
   const stop = async () => {
+    stopping = true;
     while (stops.length) {
       const f = stops.pop();
       try { await Promise.race([Promise.resolve().then(f), new Promise((ok) => setTimeout(ok, 3000).unref())]); } catch {}
@@ -159,7 +164,7 @@ export async function startRig() {
     const rpcs = [];
     for (const i of [0, 1, 2]) {
       const port = await freePort();
-      const srv = http.createServer(async (req, res) => {
+      const srv = http.createServer(async (req, res) => { try {
         const mode = rpcModes[i] || "ok";
         if (mode === "down") { res.writeHead(503); return res.end(); }
         const raw = await body(req);
@@ -181,7 +186,14 @@ export async function startRig() {
           text = JSON.stringify(Array.isArray(JSON.parse(text)) ? answers : answers[0]);
         }
         res.writeHead(200, { "content-type": "application/json" }); res.end(text);
-      });
+      } catch (e) {
+        // The chain could not be reached. During stop() this is the teardown race above: recorded, answered 502, not
+        // rethrown (it used to surface as an unhandled "fetch failed" rejection attributed to the caller's before hook).
+        // At any other time it is a real failure: recorded and rethrown, so it stays the loud unhandled rejection it was.
+        rpcFailures.push({ i, stopping, error: String(e?.cause?.code || e?.message || e) });
+        if (!res.headersSent && !res.destroyed) { res.writeHead(502); res.end(); }
+        if (!stopping) throw e;
+      } });
       stops.push(closeServer(srv));
       await new Promise((ok) => srv.listen(port, "127.0.0.1", ok));
       rpcs.push(`http://127.0.0.1:${port}`);
@@ -205,7 +217,7 @@ export async function startRig() {
     const pins = { version: 1, chainId: 8453, contracts: { registry: registry.toLowerCase(), deployments: ledger.toLowerCase(), appCatalog: catalog.toLowerCase(),
       proofOfTime: ledger.toLowerCase(), enclavePay: "0x" + "00".repeat(20), verificationFees: "0x" + "00".repeat(20),
       sessionVaultFactory: factory.toLowerCase(), secretVaultV2: "0x" + "00".repeat(20) } };
-    return { stop, stops, closeServer, rpc, pc, wc, write, deploy, mine, setMining, rpcCall, A, rpcs, rpcModes, rpcLog, apiHits, apiOrigin: `http://127.0.0.1:${apiPort}`, apiPort,
+    return { stop, stops, closeServer, rpc, pc, wc, write, deploy, mine, setMining, rpcCall, A, rpcs, rpcModes, rpcLog, rpcFailures, apiHits, apiOrigin: `http://127.0.0.1:${apiPort}`, apiPort,
       addresses: { usdc, registry, registry5, ledger, catalog, router, factory, bw, feed }, owner, operator, other, endpoint, runner, appId, appRef, create, createdId, pins,
       component, componentCid, shieldAppId };
   } catch (e) { await stop(); throw e; }

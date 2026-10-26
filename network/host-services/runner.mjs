@@ -43,16 +43,20 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP } from '../platform-host-policy-config.mjs';
 import { ROLES, CONFIG_FORMAT, PACKAGE_FORMAT, SECRETISH } from './roles.mjs';
+import { bindServiceTls } from './service-tls.mjs';
+import { registryIdOfEndpoint } from '../host-service-gate.mjs';
 import { CARRIER_MIRROR, validateCarrierBases } from '../policy-carriers.mjs';
 import { rpcEndpoint } from '../rpc-identity.mjs';
 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const plain = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 const fail = (m) => { throw new Error(`host services: ${m}`); };
+// a role named in configuration: an OWN entry of ROLES only (an inherited name such as constructor or toString is unknown)
+const roleOf = (name) => (typeof name === 'string' && Object.hasOwn(ROLES, name) ? ROLES[name] : null);
 
 /** The reviewed package for `role`: its manifest must hash to `pin` (sha256:<hex>), its bundle to the manifest. */
 export function loadPackage(packagesDir, role, pin) {
-  if (!ROLES[role]) fail(`unknown role ${JSON.stringify(role)}`);
+  if (!roleOf(role)) fail(`unknown role ${JSON.stringify(role)}`);
   if (!/^sha256:[0-9a-f]{64}$/.test(String(pin))) fail(`${role}: package must pin the reviewed manifest digest (sha256:<64 hex>)`);
   const manifestFile = path.join(packagesDir, `${role}.package.json`);
   const raw = fs.readFileSync(manifestFile);
@@ -88,6 +92,8 @@ export function validateHostServicesConfig(cfg) {
   // chainAuthority 'verifier' + chainVerifier (loopback): the platform policy, its carriers and the index carriers read
   // the local proof-backed verifier instead of the RPC quorum (no fallback)
   try { chainVerifierOf({ chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier }, 'host services'); } catch (e) { fail(e.message); }
+  // ONE explicit authority for the policy: with the local verifier chosen, an RPC list would never be read - refused, not ignored
+  if (cfg.chainAuthority === 'verifier' && cfg.platformHostPolicyRpcs !== undefined) fail('platformHostPolicyRpcs is not used with chainAuthority verifier (one explicit authority): remove it');
   if (cfg.platformHostPolicyRpcs !== undefined) {
     if (!Array.isArray(cfg.platformHostPolicyRpcs) || cfg.platformHostPolicyRpcs.length < 1 || cfg.platformHostPolicyRpcs.length > 8) fail('platformHostPolicyRpcs: 1 to 8 RPC URLs');
     const ids = cfg.platformHostPolicyRpcs.map((u, i) => { try { return rpcEndpoint(u).identity; } catch (e) { return fail(`platformHostPolicyRpcs[${i}]: https (http only on loopback), without credentials`); } });
@@ -113,26 +119,45 @@ export function validateHostServicesConfig(cfg) {
     if (!plain(s)) fail(`services[${i}] must be an object`);
     if (s.memoryMiB !== undefined) fail(`services[${i}].memoryMiB is now heapMiB: it caps the V8 heap (--max-old-space-size), not the process's memory; set the process limit in the host's service manager`);
     for (const k of Object.keys(s)) if (!['role', 'package', 'heapMiB', 'config'].includes(k)) fail(`services[${i}] has an unknown field ${JSON.stringify(k)}`);
-    const role = ROLES[s.role];
+    const role = roleOf(s.role);
     if (!role) fail(`services[${i}]: unknown role ${JSON.stringify(s.role)}`);
     if (seen.has(s.role)) fail(`services[${i}]: ${s.role} twice`); seen.add(s.role);
     const heapMiB = s.heapMiB ?? 256;
     if (!Number.isInteger(heapMiB) || heapMiB < 64 || heapMiB > 2048) fail(`services[${i}].heapMiB: 64 to 2048 (V8 old-space heap cap)`);
     return { role: s.role, package: s.package, heapMiB, config: role.validate(s.config) };
   });
+  // the local verifier is never a provider VOTE: no RPC this host lists (the policy's, any role's) may be the endpoint of a
+  // verifier it configures - one verifier under several identities is one unverified-by-quorum source, not a quorum
+  const verifierIds = new Set([cfg.chainAuthority === 'verifier' ? cfg.chainVerifier : null, ...services.map((s) => s.config.chainVerifier)]
+    .filter(Boolean).map((v) => rpcEndpoint(v).identity));
+  for (const [what, list] of [['platformHostPolicyRpcs', cfg.platformHostPolicyRpcs || []], ...services.map((s) => [`${s.role}.rpc`, s.config.rpc || []])])
+    for (const u of list) if (verifierIds.has(rpcEndpoint(u).identity)) fail(`${what}: ${rpcEndpoint(u).label} is this host's local verifier, which is never a provider vote`);
   // a policy mirror carries THIS platform's documents: its book and ownership extension must be the gate's
   const pm = services.find((s) => s.role === 'policy-mirror');
   if (pm && cfg.platformHostPolicy !== 'off') {
     const p = cfg.platformHostPolicy === 'production' ? { book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP } : cfg.platformHostPolicy;
     if (String(p.book).toLowerCase() !== pm.config.book || String(p.hostOwnership).toLowerCase() !== pm.config.hostOwnership) fail('policy-mirror: book and hostOwnership must be the platformHostPolicy\'s');
   }
+  // the public RPC answers in THIS host's name (X-Enclave-Rpc-Host, /health): its hostId is the registry id the gate checks,
+  // keccak256 of host.endpoint EXACTLY as registered (B7: the same bytes as the gate's hostId; nothing is normalized)
+  const rpc = services.find((s) => s.role === 'public-rpc');
+  if (rpc && cfg.host.endpoint && registryIdOfEndpoint(cfg.host.endpoint) !== rpc.config.hostId)
+    fail('public-rpc: hostId must be this host\'s registry id (keccak256 of host.endpoint exactly as registered)');
+  if (rpc && !cfg.host.endpoint) fail('public-rpc: host.endpoint is required (the role answers in this host\'s registry name)');
+  // service-tls fronts the roles above: bound to this host's endpoint, their ports, its state directory and THIS gate's
+  // platform host policy (refused with "off")
+  const st = services.find((s) => s.role === 'service-tls');
+  if (st) st.config = bindServiceTls(st.config, { ...cfg, services });
   const pe = cfg.host.publicEndpoints ?? {};
   if (!plain(pe)) fail('host.publicEndpoints must map roles to endpoints');
   for (const [r, list] of Object.entries(pe)) {
     if (!seen.has(r)) fail(`host.publicEndpoints names ${r}, which this host does not run`);
+    if (r === 'service-tls') fail('host.publicEndpoints: service-tls is not advertised on its own (it serves the fronted roles\' https:// names)');
+    if (ROLES[r].kind === null) fail(`host.publicEndpoints.${r}: ${r} has no service-index kind and is not advertised (a browser network profile names its URL)`);
     if (!Array.isArray(list) || list.length < 1 || list.length > 4) fail(`host.publicEndpoints.${r}: 1 to 4 endpoints`);
   }
-  return { ...cfg, services, host: { endpoint: cfg.host.endpoint ? String(cfg.host.endpoint).replace(/\/+$/, '') : null, publicEndpoints: pe } };
+  // the endpoint EXACTLY as registered (its bytes are the registry id; a trailing slash is part of them, never stripped)
+  return { ...cfg, services, host: { endpoint: cfg.host.endpoint ? String(cfg.host.endpoint) : null, publicEndpoints: pe } };
 }
 
 /** Whether the gate is shown carriers (configured ones, or this host's own policy-mirror store). */
@@ -152,14 +177,18 @@ export function policyEnv(cfg) {
  * service-index policy mirrors), each candidate signed by the book's current owner at a fresh agreed block of the policy's
  * own RPC quorum; everything else goes to `fetch`.
  */
-export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {} } = {}) {
+// snapshot (optional): the agreed-block chain authority the caller's gate uses (host-policy-carrier-gate.mjs); the carriers'
+// fresh verification then uses the SAME one, never a raw RPC quorum of its own
+export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = () => {}, snapshot = null } = {}) {
   if (!usesCarriers(cfg)) return fetch;
   const { resolveHostPolicyConfig } = await import('../platform-host-policy-config.mjs');
   const { hostPolicySnapshot } = await import('../host-policy-runtime.mjs');
   const pcm = await import('../policy-carriers.mjs');
   const resolved = resolveHostPolicyConfig({ env: policyEnv(cfg), chainId: 8453 });
+  // the authority: an injected snapshot (the caller's gate's own) wins; else the configured one - the local verifier when
+  // chainAuthority is 'verifier' (no RPC used), or the policy's RPC quorum (never relaxed)
   const { book, hostOwnership, rpcs, minAgree, chainAuthority, chainVerifier } = resolved.config;
-  if (chainAuthority !== 'verifier' && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
+  if (!snapshot && chainAuthority !== 'verifier' && (!rpcs || !rpcs.length)) fail('platform host policy carriers need the policy\'s RPC quorum (platformHostPolicyRpcs or the platform\'s rpcs)');
   const pc = cfg.platformHostPolicyCarriers || {};
   const mirror = cfg.services.find((s) => s.role === 'policy-mirror');
   const carriers = [
@@ -168,7 +197,7 @@ export async function policyCarrierFetch(cfg, { fetch = globalThis.fetch, log = 
     ...pcm.httpCarriers(pc.peers || [], { fetch }),
     ...(pc.serviceIndex ? [pcm.indexCarriers({ pin: cfg.serviceIndex, peers: rpcs, fetch, log, chainAuthority, chainVerifier })] : []),
   ];
-  const verify = pcm.freshVerifier({ snapshot: hostPolicySnapshot({ rpcs, minAgree, chainAuthority, chainVerifier }), book, hostOwnership });
+  const verify = pcm.freshVerifier({ snapshot: snapshot || hostPolicySnapshot({ rpcs, minAgree, chainAuthority, chainVerifier }), book, hostOwnership });
   return pcm.carrierFetch({ carriers, verify, fetch, log });
 }
 
@@ -188,12 +217,15 @@ export function planHostServices(rawCfg) {
  * policy gate for this host, network/host-service-gate.mjs). -> { status(), stop() }.
  */
 export async function runHostServices(rawCfg, { gate = null, spawn = spawnChild, fetch = globalThis.fetch, log = (m) => console.log(new Date().toISOString(), m), intervalMs = 5000,
-  backoffMs = 1000, maxBackoffMs = 60000, gateIntervalMs = null } = {}) {
+  backoffMs = 1000, maxBackoffMs = 60000, gateIntervalMs = null, policyRuntime = null } = {}) {
   const { cfg, services } = planHostServices(rawCfg);
   if (!gate) {
     const { createHostServiceGate } = await import('../host-service-gate.mjs');
-    gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, endpoint: cfg.host.endpoint, stateDir: path.join(cfg.stateRoot, 'host-policy'), log,
-      fetch: await policyCarrierFetch(cfg, { fetch, log }), ...(gateIntervalMs ? { intervalMs: gateIntervalMs } : {}) });
+    // THIS host = its registry id: keccak256 of the endpoint bytes exactly as registered (not the slash-stripped legacy id).
+    // policyRuntime: tests only - the chain-reading policy runtime under the unchanged gate (network/host-service-gate.mjs)
+    gate = createHostServiceGate({ env: policyEnv(cfg), chainId: 8453, hostId: cfg.host.endpoint ? registryIdOfEndpoint(cfg.host.endpoint) : null,
+      stateDir: path.join(cfg.stateRoot, 'host-policy'), log, ...(policyRuntime ? { runtime: policyRuntime } : { fetch: await policyCarrierFetch(cfg, { fetch, log }) }),
+      ...(gateIntervalMs ? { intervalMs: gateIntervalMs } : {}) });
   }
   if (cfg.platformHostPolicy === 'off') log('[host-services] platform host policy is EXPLICITLY OFF for these roles: not a production configuration');
   const units = services.map((s) => ({ ...s, child: null, restarts: 0, wait: backoffMs, lastExit: null, timer: null, stopped: false }));

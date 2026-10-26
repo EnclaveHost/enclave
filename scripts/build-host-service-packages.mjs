@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import { ROLES, PACKAGE_FORMAT } from '../network/host-services/roles.mjs';
+import { lockedInputs } from './locked-inputs.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'network/host-services/packages');
@@ -21,7 +22,22 @@ const check = args.includes('--check');
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const CHAIN_READER = new Set(['custody/v2/quorum.mjs']);
 await fs.mkdir(out, { recursive: true });
-const summary = [];
+const summary = [], lockfiles = {};
+// relay/network-runtime.bundle.mjs (gitignored, built by relay/build-network.mjs) is an INPUT of the roles that bundle the
+// relay's DNS: rebuilt here into a scratch directory and compared byte for byte, its own npm inputs locked the same way
+const RUNTIME_BUNDLE = 'relay/network-runtime.bundle.mjs';
+let runtimeChecked = null;
+const currentRuntimeBundle = () => (runtimeChecked ||= (async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'runtime-bundle-check-'));
+  try {
+    const file = path.join(dir, 'network-runtime.bundle.mjs');
+    execFileSync(process.execPath, [path.join(root, 'relay/build-network.mjs'), file], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'] });
+    const have = await fs.readFile(path.join(root, RUNTIME_BUNDLE)).catch(() => null);
+    if (!have || !have.equals(await fs.readFile(file))) throw new Error(`${RUNTIME_BUNDLE} is ${have ? 'stale' : 'missing'}: run node relay/build-network.mjs first`);
+    const locked = lockedInputs(root, JSON.parse(await fs.readFile(file + '.manifest.json', 'utf8')).inputs);
+    for (const [f, d] of Object.entries(locked.lockfiles)) lockfiles[f] = d;
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+})());
 for (const [role, r] of Object.entries(ROLES)) {
   const result = await build({ absWorkingDir: root, entryPoints: [r.bundleEntry || r.entry], outfile: path.join(out, `${role}.mjs`), write: false, metafile: true,
     bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'none',
@@ -39,6 +55,11 @@ for (const [role, r] of Object.entries(ROLES)) {
   finally { await fs.rm(probe, { force: true }); }
   const mainChecks = (bytes.toString('utf8').match(/process\.argv\[1\]\s*&&[^\n]{0,200}import\.meta\.url/g) || []).length;
   if (!r.bundleEntry && mainChecks > 1) throw new Error(`${role}: ${mainChecks} bundled "main module" checks; a bundled library's CLI would run inside the role (bundle it behind network/host-services/argv-guard.mjs)`);
+  // pinned dependencies: every npm input exactly as the committed lockfiles pin it, and every GENERATED input (the gitignored
+  // relay/network-runtime.bundle.mjs) exactly what this tree builds - otherwise the package is not reproducible from the commit
+  const locked = lockedInputs(root, Object.keys(result.metafile.inputs));
+  for (const [f, d] of Object.entries(locked.lockfiles)) lockfiles[f] = d;
+  if (Object.keys(result.metafile.inputs).some((f) => f.split(path.sep).join('/') === RUNTIME_BUNDLE)) await currentRuntimeBundle();
   const inputs = {};
   for (const rel of Object.keys(result.metafile.inputs).sort()) {
     const normalized = rel.includes('node_modules/') ? 'node_modules/' + rel.split('node_modules/').pop() : rel;
@@ -64,4 +85,5 @@ for (const [role, r] of Object.entries(ROLES)) {
   }
   summary.push(`${role}: bundle ${bytes.length} bytes sha256:${sha(bytes).slice(0, 16)}…, manifest sha256:${sha(Buffer.from(manifest))}, ${Object.keys(inputs).length} inputs`);
 }
+summary.push('npm inputs locked by: ' + Object.entries(lockfiles).sort().map(([f, d]) => `${f} sha256:${d}`).join(', '));
 console.log(summary.join('\n') + (check ? '\n(verified current)' : ''));

@@ -36,6 +36,8 @@
 // Values never reach a log line or an error message here, only NAMES and byte counts: a log on this
 // box is readable by whoever holds the machine, and an error string ends up on /v1/deployments.
 
+import { originRequest } from "./origin-request.mjs";
+
 // The relay's own bounds, spelled here so a refusal can name the suspect. FETCH_SKEW_SEC is why a
 // box with a wrong clock is refused rather than served, and this is the only refusal an operator
 // fixes by looking at their own machine instead of the chain.
@@ -77,7 +79,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *   "not-on-ledger" the relay's ledger view has no such deployment, or no fetch route (404)
  * and throws on every other outcome.
  */
-export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enclave.host", log = () => {} }) {
+export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enclave.host", log = () => {}, lookup }) {
   // Checked against the relay's own parser first, because a request it would 422 is a request we
   // should not have signed: a signature is a small commitment, but it is the box's identity, and
   // signing tuples built from junk is how a key ends up over a message nobody audited.
@@ -123,12 +125,12 @@ export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enc
     try {
       // No `sig` field at all: this box holds no fleet key and sending an empty one would only
       // make the relay's refusal log read as a failed HMAC instead of what it is.
-      const r = await fetch(`${api}/v1/secrets/fetch`, {
+      const r = await originRequest(`${api}/v1/secrets/fetch`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: idL, endpoint: ep, ts, opSig }),
-        signal: AbortSignal.timeout(TIMEOUT_MS) });
+        timeoutMs: TIMEOUT_MS, ...(lookup ? { lookup } : {}) });
       status = r.status;
-      text = await r.text();
+      text = r.text;
     } catch (e) { last = e.message || String(e); continue; }   // the wire: worth another go
 
     if (status === 200) {
@@ -219,8 +221,10 @@ export function mergeEnv(base, secrets) {
  * lease holder's fetch it works BEFORE a claim, and for a lease holder the relay does not hold eligible - the fetch
  * refuses both (409 not_lease_holder; 403 host_ineligible since U7), which left d1's live test 1 held as "not known".
  * Anything but a 200 that names this id with a boolean is a throw (unknown): never "no". A 5xx or the wire is retried once.
+ * Each go may use any of the relay origin's resolved addresses (origin-request.mjs); when none of them answers it is
+ * still a throw, never "no".
  */
-export async function secretsExist({ id, base = "https://api.enclave.host" } = {}) {
+export async function secretsExist({ id, base = "https://api.enclave.host", lookup } = {}) {
   const idL = String(id || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(idL)) throw new Error(`secrets: "${id}" is not a bytes32 deployment id`);
   const api = String(base || "").trim().replace(/\/+$/, "");
@@ -230,9 +234,9 @@ export async function secretsExist({ id, base = "https://api.enclave.host" } = {
     if (attempt) await sleep(1000);
     let status = 0, text = "";
     try {
-      const r = await fetch(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: idL }), signal: AbortSignal.timeout(TIMEOUT_MS) });
-      status = r.status; text = await r.text();
+      const r = await originRequest(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: idL }), timeoutMs: TIMEOUT_MS, ...(lookup ? { lookup } : {}) });
+      status = r.status; text = r.text;
     } catch (e) { last = e.message || String(e); continue; }
     if (status === 200) {
       let b; try { b = JSON.parse(text); } catch { throw new Error("secrets: the relay's exists answer is not JSON"); }

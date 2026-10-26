@@ -1,0 +1,2 @@
+file	rc	tests	pass	fail	cancelled	skipped	notrun_native	todo	sec	note
+test/lease-relay-host-policy.test.mjs	0	9	6	0	0	3	0	0	2.1	

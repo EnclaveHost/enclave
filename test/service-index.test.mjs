@@ -442,11 +442,11 @@ test('the independent checker qualifies a community provider on the deployed sch
   const deploy = async (who, { abi, bytecode }, args = []) => {
     const r = await Cn.pub.waitForTransactionReceipt({ hash: await Cn.wallet(who).deployContract({ abi, bytecode, args }) }); await Cn.mine(); return r.contractAddress; };
   const A = Cn;
-  // the registry exactly as deployed on Base (b17db9a3, schema 4: register(), no registerRelay or capability bits)
-  const registryRead = spawnSync('git', ['show', 'b17db9a3:contracts/EnclaveRegistry.sol'], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(registryRead.status, 0, `cannot read the historical registry fixture: ${registryRead.stderr}`);
-  assert.ok(registryRead.stdout?.trim(), 'the historical registry fixture is empty');
-  const registrySource = registryRead.stdout;
+  // the registry exactly as deployed on Base (schema 4: register(), no registerRelay or capability bits): the in-tree
+  // fixture the rig also uses (test/fixtures/registry-schema4), byte-equal to this history's ca137530 - the authorized
+  // brand rewrite of the pre-rewrite commit b17db9a3, which differs from it only in three comments and is not in this history
+  const registrySource = fs.readFileSync(path.join(ROOT, 'test/fixtures/registry-schema4/EnclaveRegistry.sol'), 'utf8');
+  assert.ok(registrySource.trim(), 'the historical registry fixture is empty');
   const R = compileOne('EnclaveRegistry', registrySource), registry = await deploy('governor', R);
   assert.equal(await A.pub.readContract({ address: registry, abi: parseAbi(['function registrySchema() view returns (uint256)']), functionName: 'registrySchema' }), 4n);
   const C = compileOne('MockConnectivity', `// SPDX-License-Identifier: MIT

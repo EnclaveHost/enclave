@@ -9,7 +9,9 @@
 // the server. A host serves them; clients verify them (network/cold-bootstrap.mjs, directory-client.mjs, discovery.mjs).
 //
 // Every role here:
-//   - holds NO secret (no key, token, fleet secret, upload or control credential) and its config refuses any;
+//   - holds NO secret (no key, token, fleet secret, upload or control credential) and its config refuses any (one
+//     exception: service-tls GENERATES its ACME account key and TLS key on the host, in a private directory it checks
+//     before starting; its configuration still holds none);
 //   - keeps the original authority resolution: the admin-controlled EnclaveAddressBook (and optional authority pins), the
 //     operator's RPC quorum, the operator's pinned checkers; nothing defaults to an enclave.host origin;
 //   - starts COLD: no discovery, storage adapter, artifact download, lease relay or app it helps recover is needed to start
@@ -23,6 +25,8 @@ import { publicIPv4 } from '../service-index.mjs';
 import { validateCarrierBases } from '../policy-carriers.mjs';
 import { chainVerifierOf } from '../verified-chain.mjs';
 import { CREDIT_VAULT_SUBMITTER_ROLE } from './credit-vault-submitter.mjs';
+import { validatePublicRpcConfig, SERVED_METHODS, VERIFIABLE_METHODS } from '../public-rpc-config.mjs';
+import { SERVICE_TLS_ROLE } from './service-tls.mjs';
 
 export const PACKAGE_FORMAT = 'enclave-host-service-package/v1';
 export const CONFIG_FORMAT = 'enclave-host-services/v1';
@@ -61,7 +65,9 @@ const origins = (role, list, what, { min = 0, max = 8 } = {}) => {
 // map. Every other single label there is a deployment's: an on-chain id (8-64 hex, optionally 0x / dep- / dep_) or a
 // legacy dep_<[a-z0-9]+> id (relay/api-relay.js depFromHost), so a static label must not be readable as either - it MUST
 // contain a hyphen and must not start with dep-, dep_, 0x or xn--. Malformed, deployment-shaped or non-public entries are
-// REFUSED (the relay would silently drop them). -> { label: ipv4 } sorted by label.
+// REFUSED (the relay would silently drop them). -> { label: ipv4 | [ipv4, ...] } sorted by label. A list (1-8 distinct public
+// addresses, joined with "+" for the relay) is a host's own service name reached through several WireGuard providers
+// (network/host-services/stage-tool.mjs hostServicePublication); a single string is unchanged.
 function appStatic(m) {
   if (!m || typeof m !== 'object' || Array.isArray(m)) fail('route-dns', 'appStatic must map labels to IPv4 addresses');
   const entries = Object.entries(m);
@@ -69,7 +75,9 @@ function appStatic(m) {
   for (const [l, a] of entries) {
     if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(l)) fail('route-dns', `appStatic label ${JSON.stringify(l)} is not a lowercase DNS label`);
     if (!l.includes('-') || /^(dep[-_]|0x|xn--)/.test(l)) fail('route-dns', `appStatic label ${JSON.stringify(l)} could name a deployment (a static label needs a hyphen and no dep-/0x/xn-- prefix)`);
-    if (typeof a !== 'string' || !publicIPv4(a)) fail('route-dns', `appStatic.${l}: a public IPv4 address`);
+    const list = Array.isArray(a) ? a : [a];
+    if (!list.length || list.length > 8 || list.some((x) => typeof x !== 'string' || !publicIPv4(x)) || new Set(list).size !== list.length)
+      fail('route-dns', `appStatic.${l}: a public IPv4 address, or a list of 1 to 8 distinct ones`);
   }
   return Object.fromEntries(entries.sort(([x], [y]) => (x < y ? -1 : 1)));
 }
@@ -93,7 +101,9 @@ export const ROLES = Object.freeze({
       only('directory-replica', c, ['port', 'bind', 'stateDir', 'rpc', 'addressBook', 'authorityPins', 'checkers', 'peers', 'chainAuthority', 'chainVerifier'],
         ['port', 'bind', 'stateDir', ...(verifier ? [] : ['rpc']), 'addressBook', 'checkers']);
       port('directory-replica', c.port, 'port'); bind('directory-replica', c.bind); absDir('directory-replica', c.stateDir, 'stateDir');
-      if (c.rpc !== undefined || !verifier) rpcs('directory-replica', c.rpc);
+      // one explicit authority: with the local verifier chosen, an RPC quorum would never be read - refused, not ignored
+      if (verifier && (c.rpc !== undefined)) fail('directory-replica', 'rpc is not used with chainAuthority verifier (one explicit authority): remove it');
+      if (!verifier) rpcs('directory-replica', c.rpc);
       if (!NONZERO(c.addressBook)) fail('directory-replica', 'addressBook must be the admin-controlled EnclaveAddressBook address');
       if (c.authorityPins !== undefined) { try { validateNetworkAuthorities(c.authorityPins); } catch (e) { fail('directory-replica', `authorityPins: ${e.message}`); } }
       if (!Array.isArray(c.checkers) || c.checkers.length < 1 || c.checkers.length > 16 || !c.checkers.every(NONZERO)) fail('directory-replica', 'checkers: 1 to 16 checker addresses the operator trusts');
@@ -129,7 +139,7 @@ export const ROLES = Object.freeze({
     cold: ['a route source: this host\'s own directory replica (loopback) or another directory origin the operator names'],
     notCold: ['the fleet relay', 'api.enclave.host', 'storage adapters', 'lease relays', 'any app'],
     validate(c) {
-      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap', 'appStatic'],
+      only('route-dns', c, ['dnsPort', 'bind', 'apiPort', 'apiBind', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl', 'rateLimitPerSec', 'rateLimitCap', 'transportRateLimitPerSec', 'transportRateLimitCap', 'appStatic'],
         ['dnsPort', 'bind', 'apiPort', 'zone', 'ipZone', 'nsName', 'nsNames', 'routeMapUrl']);
       port('route-dns', c.dnsPort, 'dnsPort'); bind('route-dns', c.bind); port('route-dns', c.apiPort, 'apiPort');
       if (c.apiBind !== undefined) bind('route-dns', c.apiBind);
@@ -140,7 +150,10 @@ export const ROLES = Object.freeze({
       if (!c.nsNames.includes(c.nsName)) fail('route-dns', 'nsName (this replica) must be one of nsNames');
       let u; try { u = new URL(c.routeMapUrl); } catch { fail('route-dns', 'routeMapUrl is not a URL'); }
       if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.search || u.hash || u.pathname !== '/v1/network/routes') fail('route-dns', 'routeMapUrl must be a directory\'s /v1/network/routes (no credentials or query)');
-      for (const k of ['rateLimitPerSec', 'rateLimitCap']) if (c[k] !== undefined && (!Number.isInteger(c[k]) || c[k] < 1 || c[k] > 1e6)) fail('route-dns', `${k}: 1 to 1000000`);
+      for (const k of ['rateLimitPerSec', 'rateLimitCap', 'transportRateLimitPerSec', 'transportRateLimitCap']) if (c[k] !== undefined && (!Number.isInteger(c[k]) || c[k] < 1 || c[k] > 1e6)) fail('route-dns', `${k}: 1 to 1000000`);
+      // the loopback transport's ONE aggregate bucket (relay/dns-relay.js DNS_RL_TRANSPORT_*): both or neither, cap >= rate
+      if ((c.transportRateLimitPerSec === undefined) !== (c.transportRateLimitCap === undefined) || (c.transportRateLimitCap !== undefined && c.transportRateLimitCap < c.transportRateLimitPerSec))
+        fail('route-dns', 'transportRateLimitPerSec and transportRateLimitCap: both or neither, cap >= rate');
       return { ...c, ...(c.appStatic !== undefined ? { appStatic: appStatic(c.appStatic) } : {}) };
     },
     // dns-relay reads its configuration from the environment: exactly these names, every one explicit (NO_FALLBACK there
@@ -150,7 +163,8 @@ export const ROLES = Object.freeze({
       return { configFile: null, env: { DNS_READ_ONLY: '1', APP_ZONE: c.zone, IP_ZONE: c.ipZone, NS_NAME: c.nsName, NS_NAMES: c.nsNames.join(','), ROUTE_MAP_URL: c.routeMapUrl,
         DNS_PORT: String(c.dnsPort), DNS_BIND: c.bind, DNS_API_PORT: String(c.apiPort), DNS_API_BIND: c.apiBind || '127.0.0.1',
         ...(c.rateLimitPerSec ? { DNS_RL_PER_SEC: String(c.rateLimitPerSec) } : {}), ...(c.rateLimitCap ? { DNS_RL_CAP: String(c.rateLimitCap) } : {}),
-        ...(c.appStatic && Object.keys(c.appStatic).length ? { APP_STATIC: Object.entries(c.appStatic).map(([l, a]) => `${l}=${a}`).join(',') } : {}) } };
+        ...(c.transportRateLimitPerSec ? { DNS_RL_TRANSPORT_PER_SEC: String(c.transportRateLimitPerSec), DNS_RL_TRANSPORT_CAP: String(c.transportRateLimitCap) } : {}),
+        ...(c.appStatic && Object.keys(c.appStatic).length ? { APP_STATIC: Object.entries(c.appStatic).map(([l, a]) => `${l}=${Array.isArray(a) ? a.join('+') : a}`).join(',') } : {}) } };
     },
   }),
   'policy-mirror': Object.freeze({
@@ -167,7 +181,9 @@ export const ROLES = Object.freeze({
       only('policy-mirror', c, ['port', 'bind', 'stateDir', 'rpc', 'minAgree', 'book', 'hostOwnership', 'peers', 'importDir', 'syncSec', 'maxDocuments', 'chainAuthority', 'chainVerifier'],
         ['port', 'bind', 'stateDir', ...(verifier ? [] : ['rpc']), 'book', 'hostOwnership']);
       port('policy-mirror', c.port, 'port'); bind('policy-mirror', c.bind); absDir('policy-mirror', c.stateDir, 'stateDir');
-      if (c.rpc !== undefined || !verifier) rpcs('policy-mirror', c.rpc);
+      // one explicit authority: with the local verifier chosen, an RPC quorum would never be read - refused, not ignored
+      if (verifier && (c.rpc !== undefined || c.minAgree !== undefined)) fail('policy-mirror', 'rpc/minAgree is not used with chainAuthority verifier (one explicit authority): remove it');
+      if (!verifier) rpcs('policy-mirror', c.rpc);
       if (c.minAgree !== undefined && (!Number.isInteger(c.minAgree) || c.minAgree <= (c.rpc || []).length / 2 || c.minAgree > (c.rpc || []).length)) fail('policy-mirror', 'minAgree must be a majority of rpc');
       for (const k of ['book', 'hostOwnership']) if (!NONZERO(c[k])) fail('policy-mirror', `${k} must be the platform host policy's ${k === 'book' ? 'admin-controlled EnclaveAddressBook' : 'EnclaveHostOwnership extension'}`);
       let peers; try { peers = validateCarrierBases(c.peers ?? [], 'peers'); } catch (e) { fail('policy-mirror', e.message); }
@@ -184,5 +200,23 @@ export const ROLES = Object.freeze({
   // passkey-signed credit-vault requests (and, only with a reviewed record, the proposed parallel lease-gas reserve's): no key in
   // the role, gas signed by the operator's loopback external signer (network/host-services/credit-vault-submitter.mjs)
   'credit-vault-submitter': CREDIT_VAULT_SUBMITTER_ROLE,
+  // the browser dashboard's JSON-RPC origin (network/public-rpc.mjs), answered by the operator's OWN Base node on this
+  // machine. kind null: NOT indexed - no EnclaveServiceIndex kind names an RPC endpoint (kinds 1-8 are directory, checker,
+  // storage, dns, replica, policy, relay, credit-vault-submitter), and none is invented here; a browser reaches it only
+  // through a network profile that lists its URL (rpc-<base32(registry id)>.<zone>, host-service-names.mjs)
+  'public-rpc': Object.freeze({
+    entry: 'network/public-rpc.mjs', kind: null, runtime: 'node>=22 (host role; not a wasm component)',
+    serves: `POST / JSON-RPC 2.0 for browser network profiles (${SERVED_METHODS.join(', ')}; eth_sendRawTransaction only with an operator-stated propagation route), GET /health; reads from the operator's own node, the verifier's methods (${VERIFIABLE_METHODS.join(', ')}) from the local verifier when configured, never a third-party RPC`,
+    state: { durable: false, what: 'none', rebuild: 'n/a' },
+    secrets: 'none (no key, wallet or signing method; the node and verifier are loopback endpoints)',
+    cold: ['the operator\'s own synced Base node on this machine (loopback)', 'optionally this host\'s local verifier (loopback) for the methods it proves'],
+    notCold: ['any public RPC provider', 'api.enclave.host', 'discovery', 'directories', 'storage adapters', 'lease relays', 'any app'],
+    validate(c) { try { return validatePublicRpcConfig(c); } catch (e) { return fail('public-rpc', e.message.replace(/^public-rpc: /, '')); } },
+    launch(c) { return { configFile: c, env: {} }; },
+  }),
+  // HTTPS for this host's derived service names: a host-local Let's Encrypt http-01 client and loopback TLS terminator in
+  // front of the three fixed roles above and, only when the operator lists it in tlsPorts, this host's own public-rpc
+  // (rpc-<b32>.<zone>) (network/host-services/service-tls.mjs; the runner binds it to the host config)
+  'service-tls': SERVICE_TLS_ROLE,
 });
 export const ROLE_NAMES = Object.freeze(Object.keys(ROLES));

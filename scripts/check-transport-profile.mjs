@@ -8,10 +8,14 @@
 //   relay        - the Enclave relay's custom-domain map (and, in a legacy bootstrap, the directory fallback);
 //   bootstrap "legacy" - Enclave's mutable defaults instead of the operator's explicit authorities.
 // A paid/settlement role (pricePerGiB6 > 0: receipts, on-chain attestations) is reported as a separate role, not transport.
+// hostServices (wg-provider/host-services-config.mjs) IS transport: raw SNI/Host routing of registered hosts' own derived
+// service names to their tunnels, and DNS 53 as packets (DNAT) to one pinned host. It must keep the platform host policy:
+// platformHostPolicy "off" (the development option) refuses here, so admin bans can never be silently bypassed.
 //   node scripts/check-transport-profile.mjs <provider.json>     exit 0 = transport-only, 1 = not (reasons printed)
 // It reads the configuration's FIELD NAMES and values only; it never opens a key file the configuration names.
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { providerHostServices } from '../network/wg-provider/host-services-config.mjs';
 
 export function checkTransportProfile(cfg) {
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) throw new Error('provider configuration must be an object');
@@ -25,6 +29,13 @@ export function checkTransportProfile(cfg) {
   if (cfg.relay) violations.push('relay: the custom-domain map comes from the Enclave relay; route records and owner names belong in directories');
   const mode = cfg.bootstrap ?? 'legacy';
   if (mode !== 'explicit') violations.push('bootstrap is legacy (Enclave defaults: relay directory fallback, mutable address book); use "explicit" with the operator\'s own authorities');
+  if (cfg.hostServices !== undefined) {
+    let h = null;
+    try { h = providerHostServices(cfg.hostServices, { zone: cfg.zone, probeZone: cfg.probeZone, roles }); } catch (e) { violations.push(e.message); }
+    if (h && h.platformHostPolicy === 'off') violations.push('hostServices.platformHostPolicy is "off": the admin\'s host bans and allowlist would not apply to host-service ingress (development only)');
+    if (h) transport.push(`host-service names of registered hosts (${h.zone}; derived from each host's registry id, raw SNI/Host to its tunnel, at most ${h.maxHosts} hosts)`,
+      ...(h.dns ? [`DNS 53 (UDP/TCP) as packets to one of ${h.dns.hosts.length} pinned host(s) (DNAT; ${h.dns.limits.perSourcePps}/s per source, ${h.dns.limits.globalPps}/s total, ${h.dns.limits.tcpPerSource} TCP per source; conntrack-tools flushes moved UDP flows on failover)`] : []));
+  }
   if ((cfg.pricePerGiB6 || 0) > 0 || cfg.proofKeyFile) separateRoles.push('paid provider: receipt co-signing and on-chain checker attestations (settlement for a community provider on a registry host), not transport');
   return { ok: violations.length === 0, transport, violations, separateRoles };
 }

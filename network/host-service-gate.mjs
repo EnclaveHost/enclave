@@ -11,6 +11,11 @@ import { createHostPolicyRuntime, resolveHostPolicyConfig, fileStore } from "./h
 export { resolveHostPolicyConfig } from "./host-policy-runtime.mjs";
 
 export const hostIdOfEndpoint = (endpoint) => keccak256(toBytes(String(endpoint || "").replace(/\/+$/, ""))).toLowerCase();
+// The REGISTRY id of an endpoint exactly as registered: EnclaveRegistry idOf = keccak256(bytes(endpoint)), no normalization
+// (a host registered as "https://x/" has the id of those bytes). hostIdOfEndpoint above strips trailing slashes and stays
+// as it is for its existing callers (storage-indexer-host canonicalization); host-services callers that name THIS host
+// to the platform host policy pass registryIdOfEndpoint(endpoint) as the gate's hostId.
+export const registryIdOfEndpoint = (endpoint) => keccak256(toBytes(String(endpoint))).toLowerCase();
 
 /**
  * createHostServiceGate({ env, chainId, book, endpoint|hostId, stateDir?, intervalMs?, graceMs?, runtime?, log?, now? })

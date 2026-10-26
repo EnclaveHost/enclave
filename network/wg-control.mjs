@@ -17,7 +17,9 @@ export class WgControlTransport {
  }
  // loopback SOCKS entries of the live control circuits (guardedFetch / LeaseReader `proxy`)
  proxies=async()=>{const live=this.circuits.filter(c=>!c.closed&&c.healthy).map(c=>c.egress);if(!live.length)throw new Error('Enclave-network control transport unavailable');return live;};
- async start(){await this.reconcile();this.timer=setInterval(()=>void this.reconcile().catch(e=>this.log('control circuits: '+e.message)),15000);this.timer.unref?.();return this;}
+ // a first round that cannot read any directory is logged, never thrown: the 15 s timer retries, and the privacy agent
+ // starts its apps regardless (final review N3)
+ async start(){await this.reconcile().catch(e=>this.log('control circuits: '+e.message));this.timer=setInterval(()=>void this.reconcile().catch(e=>this.log('control circuits: '+e.message)),15000);this.timer.unref?.();return this;}
  async reconcile(){
   if(this.busy||this.closed)return;this.busy=true;
   try{

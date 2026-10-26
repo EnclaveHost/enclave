@@ -118,7 +118,11 @@ after(async () => {
 test('packages: only the reviewed bytes run, only public configuration reaches a role, and no role reaches custody, storage or lease relays', { skip }, () => {
   for (const role of Object.keys(ROLES)) {
     const p = loadPackage(PKG, role, pin(role));
-    assert.equal(p.manifest.role, role); assert.equal(p.manifest.secrets.startsWith('none'), true);
+    assert.equal(p.manifest.role, role);
+    // service-tls is the one role with key material: GENERATED on the host into its preflighted key directory, none in
+    // its configuration (network/host-services/service-tls.mjs, work/host-service-tls-20261021)
+    if (role === 'service-tls') assert.match(p.manifest.secrets, /^generated on the host .*none in its configuration$/);
+    else assert.equal(p.manifest.secrets.startsWith('none'), true);
     // the policy mirror's fresh-block checks use the RPC quorum reader (custody/v2/quorum.mjs: no key, no custody state)
     for (const f of Object.keys(p.manifest.inputs)) if (f !== 'custody/v2/quorum.mjs') assert.doesNotMatch(f, /(^|\/)(custody|lease-relay-service|lease-gas-runtime|sdk\/storage)\//, `${role} reaches ${f}`);
   }

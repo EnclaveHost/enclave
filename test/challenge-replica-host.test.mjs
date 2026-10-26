@@ -144,7 +144,11 @@ test('a replica that cannot be spawned is retried with backoff, then refused as 
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
-test('the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)', {timeout: 120_000}, async () => {
+test('the REAL platform host policy gate: a fresh host without an authenticated admit starts nothing (production policy, no network)', {timeout: 120_000}, async (t) => {
+  // The injected fetch below covers policy mirrors; viem's RPC transport uses global fetch.
+  // Deny that transport too so this offline test cannot read the live production chain.
+  let blockedRpcReads = 0;
+  t.mock.method(globalThis, 'fetch', async () => { blockedRpcReads++; throw new Error('offline RPC fixture'); });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-gate-'));
   try {
     const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
@@ -157,6 +161,7 @@ test('the REAL platform host policy gate: a fresh host without an authenticated 
     await assert.rejects(startChallengeReplica(cfg, {spawn: () => { spawns++; throw new Error('must not spawn'); }, fetch: async () => { throw new Error('offline'); }}),
       /not started: platform host policy/);
     assert.equal(spawns, 0, 'nothing ran before an authenticated admit');
+    assert.ok(blockedRpcReads > 0, 'the real RPC transport was exercised and denied');
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
@@ -178,7 +183,11 @@ test('host policy carriers (first host without the fleet): the integrated carrie
   assert.throws(() => challengeReplicaConfig({...base(), hostPolicy: {policy: 'off', carriers: {importDir: '/x'}}}), /takes no endpoint, stateDir, mirrors, rpcs or carriers/);
 });
 
-test('the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)', {timeout: 120_000}, async () => {
+test('the REAL gate with carriers, fresh offline host: still nothing starts, and the carrier origin is answered locally (never fetched)', {timeout: 120_000}, async (t) => {
+  // The injected fetch below covers policy mirrors; viem's RPC transport uses global fetch.
+  // Deny that transport too so this offline test cannot read the live production chain.
+  let blockedRpcReads = 0;
+  t.mock.method(globalThis, 'fetch', async () => { blockedRpcReads++; throw new Error('offline RPC fixture'); });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'challenge-carriers-'));
   try {
     const dns = Buffer.from('export {};\n'), bundle = Buffer.from('export const x = 1;\n');
@@ -193,6 +202,7 @@ test('the REAL gate with carriers, fresh offline host: still nothing starts, and
       fetch: async (u) => { asked.push(String(u?.url ?? u)); throw new Error('offline'); }}), /not started: platform host policy/);
     assert.equal(spawns, 0);
     assert.ok(!asked.some((u) => u.includes('policy-carriers.invalid')), 'the reserved carrier origin reached the network: ' + asked.join(' '));
+    assert.ok(blockedRpcReads > 0, 'the real RPC transport was exercised and denied');
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
@@ -202,8 +212,14 @@ test('the network host judges challengeReplica before anything binds', async () 
     const cfg = {relay: 'http://127.0.0.1:9', checkers: ['0x' + '22'.repeat(20)], apps: 'all', wgBinary: '/bin/true', nodeBinary: process.execPath, workerModule: '/bin/true'};
     await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: {...base(), certsApi: 'https://api.enclave.host'}}, directory: dir, authorize: () => true,
       fetch: async () => new Response('{}', {status: 404})}), /challengeReplica: legacy central input/);
-    await assert.rejects(createNetworkHost({config: {...cfg, challengeReplica: {...base(), release: {...base().release, dir: path.join(dir, 'missing')}}}, directory: dir,
-      authorize: () => true, fetch: async () => new Response('{}', {status: 404})}), /release: dns.mjs must be a regular file/);
+    // a START failure (here: the release directory is gone, as after a full reinstall of Program Files) is logged and never
+    // takes the host's network down (work/g4-config-independent-review-20261021 C3)
+    const logs = [];
+    const h2 = await createNetworkHost({config: {...cfg, challengeReplica: {...base(), release: {...base().release, dir: path.join(dir, 'missing')}}}, directory: dir,
+      authorize: () => true, fetch: async () => new Response('{}', {status: 404}), log: (m) => logs.push(m)});
+    for (let i = 0; i < 100 && !logs.some((l) => l.includes('challenge replica not started')); i++) await new Promise((r) => setTimeout(r, 20));
+    assert.ok(logs.some((l) => /challenge replica not started .*release: dns\.mjs must be a regular file/.test(l)), logs.join('\n'));
+    assert.equal(h2.challengeReplica, null, 'nothing started'); await h2.close();
     const host = await createNetworkHost({config: cfg, directory: dir, authorize: () => true, fetch: async () => new Response('{}', {status: 404})});
     assert.equal(host.challengeReplica, null, 'absent: nothing started'); await host.close();
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }

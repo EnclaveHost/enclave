@@ -144,6 +144,15 @@ async function gateway(name, host, browserTls, pins, readerClients, { dashboards
   return g;
 }
 
+// The gateway's reader authorizes at a CONFIRMED block (confirmations 1: the agreed head minus one), so a claim is this
+// host's current lease to it only once a later block exists. The rig's 1 s miner made that a race: an operation sent
+// before the next block was correctly refused 409 not_current_runner AND remembered for the gateway's 15 s negative TTL,
+// failing every operation after it. Mine the confirming block here; the gateway's authorization is unchanged.
+async function claimConfirmed(id){
+  const rc = await rig.write(rig.wc(KEYS.operator), rig.addresses.ledger, rig.abi.ledger, "claim", [id, runner]);
+  while ((await rig.pc.getBlockNumber()) < rc.blockNumber + 1n) await rig.pc.request({ method: "evm_mine", params: [] });
+}
+
 async function publish(over = {}, account = operatorAccount){
   const record = { ...managementRecord({ operator: operatorAccount.address, runner, deployments: rig.addresses.ledger.toLowerCase(), address: "8.8.4.4", port: 8443,
     cert: rig.pkiNative.cert, now: Date.now(), browser: { origin: gateways.main.origin, dashboards: [DASH] } }), sequence: ++sequence, ...over };
@@ -273,7 +282,7 @@ test("setup: a session-held deployment claimed by host A, and A's operator-signe
   const n = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "count" });
   const all = await rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "getPage", args: [0n, n] });
   depId = all.find((d) => d.owner.toLowerCase() === vault).id.toLowerCase();
-  await rig.write(rig.wc(KEYS.operator), rig.addresses.ledger, rig.abi.ledger, "claim", [depId, runner]);
+  await claimConfirmed(depId);
   await publish();
 });
 
@@ -455,8 +464,9 @@ test("a stale owner: once the deployment has left this wallet and its vault, the
 });
 
 /* ---- a passkey account (a Safe) as the dashboard identity ----
-   The pinned Safe v1.4.1 / passkey signer v0.2.1 / 4337 module code is copied byte for byte from Base (a read-only upstream
-   read; each code hash checked against its pin) onto this local chain, whose anvil verifies P-256 at 0x100 natively. */
+   The pinned Safe v1.4.1 / passkey signer v0.2.1 / 4337 module code is etched byte for byte from the recorded Base snapshot
+   (test/fixtures/base-code/safe-passkey-code-base.json; each code hash checked against the page's own pin, no network read)
+   onto this local chain, whose anvil verifies P-256 at 0x100 natively. */
 const rigRpc = async (method, params) => { const r = await (await fetch(rig.rpc, { method: "POST", headers: { "content-type": "application/json" },
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json(); if (r.error) throw new Error(r.error.message); return r.result; };
 async function installSafePasskeyCode(){
@@ -523,7 +533,7 @@ test("a passkey account (Safe) as the identity: Manage signs with the account's 
   await rig.write(giver, rig.addresses.usdc, rig.abi.usdc, "approve", [rig.addresses.ledger, 2_000_000n]);
   for (const id of [held, toSafe]){
     await rig.write(giver, rig.addresses.ledger, rig.abi.ledger, "fund", [id, 500_000n]);
-    await rig.write(rig.wc(KEYS.operator), rig.addresses.ledger, rig.abi.ledger, "claim", [id, runner]);
+    await claimConfirmed(id);
   }
   const owned = (id) => rig.pc.readContract({ address: rig.addresses.ledger, abi: rig.abi.ledger, functionName: "get", args: [id] }).then((d) => d.owner.toLowerCase());
   assert.equal(await owned(held), acctVault);

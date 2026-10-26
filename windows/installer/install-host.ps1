@@ -323,9 +323,28 @@ if ($tpm.ManufacturerIdTxt -notmatch 'AMD') {
   Fail "checks" "This PC's TPM ($($tpm.ManufacturerIdTxt)) cannot be verified yet: Enclave hosting currently supports AMD processors' firmware TPM." }
 $ramGb = [math]::Floor($cs.TotalPhysicalMemory / 1GB)
 if ($ramGb -lt 16) { Fail "checks" "This PC has $ramGb GB of RAM; hosting needs at least 16 GB." }
+# THE APPS' RAM POOL (NODE_APP_RAM_GB, GiB): half the machine unless the owner set it in node-config.local.cmd (never written
+# by an update). The node reads that file itself, the LAST set winning as cmd runs it; the Shield manager does not, so the
+# same figure is carried into node-config.cmd and shield-config.cmd below. It is never silently changed: a value that is
+# not a whole number of GiB from 4 to this PC's physical GiB stops setup here, before anything is stopped, rather than
+# leave the node and the manager sizing different pools. A pool is an admission budget, not free physical RAM.
+$appRamGb = [math]::Max(4, [math]::Floor($ramGb / 2)); $ramNote = ""
+$localRam = Join-Path $PD "node-config.local.cmd"
+if (Test-Path $localRam) {
+  $m = Select-String -Path $localRam -Pattern '^\s*set\s+("?)NODE_APP_RAM_GB=(.*?)\1\s*$' | Select-Object -Last 1
+  if ($m) {
+    $ownerRam = $m.Matches[0].Groups[2].Value.Trim()
+    if ($ownerRam -notmatch '^\d{1,6}$' -or [int]$ownerRam -lt 4 -or [int]$ownerRam -gt $ramGb) {
+      Fail "checks" "NODE_APP_RAM_GB=$ownerRam in $localRam is not a whole number of GiB from 4 to this PC's $ramGb GiB: correct or remove it, then run setup again." }
+    $appRamGb = [int]$ownerRam
+    # said, never refused: the owner's pool may leave less than the 16 GiB setup used to keep outside it
+    if ($ramGb - $appRamGb -lt 16) { $ramNote = "; the owner's NODE_APP_RAM_GB=$appRamGb leaves $($ramGb - $appRamGb) GiB outside the apps' pool for " +
+      "Windows, its other VMs and each partition's own overhead (less than 16 GiB): the pool is an admission budget, not free RAM" }
+  }
+}
 $freeGb = [math]::Floor((Get-PSDrive ($env:SystemDrive.TrimEnd(':'))).Free / 1GB)
 if ($freeGb -lt 20) { Fail "checks" "Only $freeGb GB free on $env:SystemDrive; hosting needs at least 20 GB." }
-Emit "checks" "ok" "Windows $($cv.DisplayVersion) build $build, $($cpu.Name.Trim()), $ramGb GB RAM, Secure Boot on, AMD TPM"
+Emit "checks" $(if ($ramNote) { "warn" } else { "ok" }) "Windows $($cv.DisplayVersion) build $build, $($cpu.Name.Trim()), $ramGb GB RAM, Secure Boot on, AMD TPM$ramNote"
 
 # ---------------------------------------------------------------------------------------------------------------------
 # 2. Hyper-V (a restart may be needed; EnclaveSetup resumes after it)
@@ -598,16 +617,7 @@ elseif ($NameCheck -eq "chain") {
   Emit "name" "ok" "$($want.publicUrl) is $(if ($st -eq 'ours') { "already this host's (operator $operator)" } else { 'free' }) on the pinned registry"
 }
 
-$appRamGb = [math]::Max(4, [math]::Floor($ramGb / 2))
-# an owner who gives apps more (or less) than half sets NODE_APP_RAM_GB in node-config.local.cmd (never written by an
-# update). The node reads that file itself; the Shield manager does not, so the figure is carried into shield-config.cmd
-# here, or the manager refuses partitions the node admitted. It stays at least 16 GB short of the machine.
-$localRam = Join-Path $PD "node-config.local.cmd"
-if (Test-Path $localRam) {
-  # quoted (set "NODE_APP_RAM_GB=48") or not: the same setting the node reads
-  $m = Select-String -Path $localRam -Pattern '^\s*set\s+"?NODE_APP_RAM_GB=(\d+)"?\s*$' | Select-Object -Last 1
-  if ($m) { $appRamGb = [math]::Max(4, [math]::Min($ramGb - 16, [int]$m.Matches[0].Groups[1].Value)) }
-}
+# $appRamGb: the apps' pool, settled and validated with the machine checks above
 # one slot per 4 GB of the apps' half, up to 16: the count is only a ceiling (capacity() also holds every app to the RAM
 # left), and 8 refused a 2 GB app on a 112 GB box running seven small ones and one 12 GB one (2026-10-14)
 $slots = [math]::Max(1, [math]::Min(16, [math]::Floor($appRamGb / 4)))

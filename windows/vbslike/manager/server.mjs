@@ -322,10 +322,36 @@ export class Manager {
     if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) return 1000;
     return [...this.domains.values()].reduce((n,r) => n+(r.gpuMilli || 0),0);
   }
+  /** App-pool MiB each held record reserves: the purchased share, or its policy floor when it has none (a witness). */
+  static appReservedMiB(r) { return r.memory?.appMiB ?? r.policy?.memMiB ?? 0; }
+  /**
+   * THE APP POOL AS THIS MANAGER HOLDS IT: the one figure spawn admits against and /health states, so the node advertises
+   * what is actually left rather than recomputing it. Every record still in `domains` holds its reservation (starting,
+   * running, failed but not yet removed, mid-stop, a stop that failed); only a confirmed remove frees it. A reservation is
+   * the appMiB fixed at its spawn, never recomputed from a changed pool. A recovered or unattributed VM's allocation is
+   * UNKNOWN (not in its Notes), so the free figure is null until it is reconciled, exactly when spawn refuses (503).
+   * App-pool MiB only: each partition's VM overhead is stated beside it, and host physical RAM is not measured here.
+   */
+  memoryView() {
+    if (this.ramPoolMiB === null) return null;
+    const recs = [...this.domains.values()];
+    const unknown = recs.filter((r) => r.recovered || r.unattributed).map((r) => r.id);
+    const held = recs.filter((r) => !r.recovered && !r.unattributed);
+    const reservedMiB = held.reduce((n, r) => n + Manager.appReservedMiB(r), 0);
+    const vmMiB = held.reduce((n, r) => n + (Number.isSafeInteger(r.memory?.vmMiB) ? r.memory.vmMiB : 0), 0);
+    return { rule: "cpu-share", poolMiB: this.ramPoolMiB, reservedMiB, known: unknown.length === 0,
+             freeMiB: unknown.length ? null : Math.max(0, this.ramPoolMiB - reservedMiB),
+             ...(unknown.length ? { unknown, why: "a recovered or unattributed VM holds an allocation this manager cannot read" } : {}),
+             reservations: held.map((r) => ({ id: r.id, name: r.name ?? null, status: r.status, appMiB: Manager.appReservedMiB(r),
+                                              vmMiB: Number.isSafeInteger(r.memory?.vmMiB) ? r.memory.vmMiB : null })),
+             // partition VM size beyond the app pool (wmi-launcher: align2(max(2048, app + 640))), started VMs only
+             vmOverheadMiB: held.reduce((n, r) => n + (Number.isSafeInteger(r.memory?.vmMiB) ? r.memory.vmMiB - Manager.appReservedMiB(r) : 0), 0),
+             vmMiB, physical: "not measured by this manager" };
+  }
   health() {
     return {
       managerEpoch: this.epoch,
-      ...(this.ramPoolMiB !== null ? { memory: { rule: "cpu-share", poolMiB: this.ramPoolMiB } } : {}),
+      ...(this.ramPoolMiB !== null ? { memory: this.memoryView() } : {}),
       inventory: this.inventory,
       // the VM namespace this manager owns (wmi-launcher.mjs markerFor): what a second instance's tooling checks first
       ...(this.backend?.prefix ? { vmScope: { prefix: this.backend.prefix, marker: this.backend.marker ?? null } } : {}),
@@ -527,8 +553,7 @@ export class Manager {
       if ([...this.domains.values()].some(r => r.recovered || r.unattributed)) {
         const e = new Error("RAM allocation is unknown until recovered partitions are reconciled"); e.status = 503; throw e;
       }
-      const held = [...this.domains.values()].reduce((n, r) => n + (r.memory?.appMiB ?? r.policy?.memMiB ?? 0), 0);
-      if (held + memory.appMiB > this.ramPoolMiB) {
+      if (this.memoryView().reservedMiB + memory.appMiB > this.ramPoolMiB) {
         const e = new Error("the RAM pool cannot fit the full purchased allowance"); e.status = 507; throw e;
       }
     }
