@@ -1,0 +1,41 @@
+diff --git a/test/derived-reader/two-anchor-r2.test.mjs b/test/derived-reader/two-anchor-r2.test.mjs
+--- a/test/derived-reader/two-anchor-r2.test.mjs
++++ b/test/derived-reader/two-anchor-r2.test.mjs
+@@ -144,17 +144,33 @@
+   assert.ok(MAX_EVIDENCE_JOURNAL_BYTES < 262144, 'the clearing rotation (KVM enrollDerivedState) must still be able to read the journal');
+   const dir = tmpdir(t), write = (name, states) => { const file = path.join(dir, name);
+     fs.writeFileSync(file, JSON.stringify({ version: 1, deployments: [], authorityAnchors: {}, provisional: { fence: null, states } })); return file; };
+-  const full = Array.from({ length: MAX_PROVISIONAL_STATES }, (_, i) => ({ state: S(1000 + i), facts: [issued(S(1000 + i))] }));
+-  const j = openLifecycleJournal(write('states.json', full));
++  // r3: saved sections in the PERSISTED shape the journal itself writes ({at, fact, finalized}: recordProvisionalFact stores a fact
++  // without its `state`, which is the group key). r2 wrote the API entry shape (with `state`), which the journal correctly refuses
++  // at open, so none of the bound assertions below reached a capacity check (root 1545, not ok 5).
++  const stored = (state, i = 0) => { const { state: _s, ...fact } = issued(state, i); return fact; };
++  const full = Array.from({ length: MAX_PROVISIONAL_STATES }, (_, i) => ({ state: S(1000 + i), facts: [stored(S(1000 + i))] }));
++  const fullFile = write('states.json', full), before = fs.readFileSync(fullFile, 'utf8');
++  const j = openLifecycleJournal(fullFile);
++  assert.equal(j.readProvisional().states.length, MAX_PROVISIONAL_STATES, 'a journal at exactly the state bound is valid and opens');
+   await assert.rejects(j.recordProvisionalFact(issued(S(5000))), /evidence is full/);
++  assert.equal(fs.readFileSync(fullFile, 'utf8'), before, 'the capacity refusal happens before any write');
++  assert.equal(j.readProvisional().states.length, MAX_PROVISIONAL_STATES, 'and leaves the open journal usable and unchanged');
+   assert.equal(await j.recordProvisionalFact(issued(S(1000))), 'duplicate', 'a known fact from a known S needs no capacity');
+   assert.equal(await j.recordProvisionalFact(issued(S(1000), 7)), 'recorded', 'another fact under a known S fits while total facts allow');
+-  const many = [{ state: S(2000), facts: Array.from({ length: MAX_PROVISIONAL_FACTS }, (_, i) => issued(S(2000), i)) }];
++  assert.equal(openLifecycleJournal(fullFile).readProvisional().states[0].facts.length, 2, 'the recorded fact is durable');
++  const many = [{ state: S(2000), facts: Array.from({ length: MAX_PROVISIONAL_FACTS }, (_, i) => stored(S(2000), i)) }];
+   const m = openLifecycleJournal(write('facts.json', many));
++  assert.equal(m.readProvisional().states[0].facts.length, MAX_PROVISIONAL_FACTS, 'a journal at exactly the fact bound is valid and opens');
+   await assert.rejects(m.recordProvisionalFact(issued(S(2000), MAX_PROVISIONAL_FACTS)), /evidence is full/);
++  await assert.rejects(m.recordProvisionalFact(issued(S(2001))), /evidence is full/, 'a new S cannot add a fact past the total either');
+   assert.ok(fs.statSync(path.join(dir, 'facts.json')).size < MAX_EVIDENCE_JOURNAL_BYTES, 'the fact bound is reached before the byte bound');
+-  const over = openLifecycleJournal(write('over.json', [...full, { state: S(9999), facts: [issued(S(9999))] }]));
++  // one state over the bound, every fact well-formed: refused at open for the BOUND alone; the closed journal records nothing
++  const over = openLifecycleJournal(write('over.json', [...full, { state: S(9999), facts: [stored(S(9999))] }]));
+   assert.throws(() => over.readProvisional(), /invalid provisional evidence/);
++  await assert.rejects(over.recordProvisionalFact(issued(S(1000))), /invalid provisional evidence/);
++  // a persisted fact in any other shape (here r2's API entry shape, with `state`) is corrupt: refused, never accepted or reset
++  const shape = openLifecycleJournal(write('shape.json', [{ state: S(3000), facts: [issued(S(3000))] }]));
++  assert.throws(() => shape.readProvisional(), /invalid provisional evidence/);
+ });
+ 
+ test('A2 clear: ONLY an admin-signed rotation that binds the exact fenced prior bytes clears the marker (KVM plan + role gate); a stale package refuses', async t => {
