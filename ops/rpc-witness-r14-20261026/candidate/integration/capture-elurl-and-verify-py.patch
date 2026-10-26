@@ -1,0 +1,29 @@
+--- a/capture/a1_capture.py
++++ b/capture/a1_capture.py
+@@ -367,12 +367,15 @@
+ def derive_a1_config(mode, example_bytes, portal_bytes, helios_url, el_url, pins, original=None):
+     """the reviewed runners' derivation (run.py / run-recheck.py), from the COPIES; recheck-capture takes `original` from
+     original_of(); the verifier recomputes it"""
++    # r10: BOTH modes take the EL endpoint from the explicit, reviewed Sources (never a template's workstation port); loopback only
++    if not re.fullmatch(r'http://127\.0\.0\.1:[0-9]{1,5}', str(el_url)):
++        refuse('el_url', f'the A1 EL endpoint must be the reviewed loopback http://127.0.0.1:<port>, not {el_url!r}')
+     proven = json.loads(portal_bytes)
+     if proven.get('readSucceeded') is not True or str(proven.get('asr', '')).lower() != pins.asr:
+         refuse('portal_result', 'portal-result.json is not a succeeded verified getter read naming the pinned ASR')
+     if mode == 'initial':
+         cfg = json.loads(example_bytes); cfg.pop('_notes', None)
+-        cfg['heliosUrl'] = helios_url; cfg['asr'] = proven['asr']; cfg['maxFinalizedAgeSec'] = 1800
++        cfg['heliosUrl'] = helios_url; cfg['elUrl'] = el_url; cfg['asr'] = proven['asr']; cfg['maxFinalizedAgeSec'] = 1800
+         cfg['asrCandidates'] = list(cfg.get('asrCandidates', [])) + [{'address': proven['asr'], 'provenance': 'root Helios-verified portal getter at ' + str((proven.get('block') or {}).get('hash'))}]
+     else:
+         orig = {**RECHECK_ORIGINAL, 'initialEvidenceSha256': pins.initial} if mode == 'recheck' else original
+@@ -653,7 +656,8 @@
+             refuse('deps_pin', f'{name} did not run as the pinned content')
+     if any(k.startswith('code/deps/node_modules/') and not any(k.startswith(f'code/deps/node_modules/{n}/') for n in pins.deps) for k in files):
+         refuse('deps_pin', 'an unpinned package was present in the executed dependency root')
+-    runtime_accepted(rec, files, pins)
++    runtime_accepted(rec, files, pins)                                  # mandatory: node (+ libnode) and interpreter accepted
++    py = rec.get('python') or {}                                      # r10: the VALIDATED record's interpreter (argv + summary below)
+     if res.get('a1Exit') != 0 or res.get('processStopped') is not True or res.get('copiesBeforeExec') is not True or res.get('copiesAfterRun') is not True or 'error' in res:
+         refuse('run', f'not a clean run: exit {res.get("a1Exit")}, stopped {res.get("processStopped")}, error {res.get("error")}')
+     hs = res.get('heliosStatus') or {}

@@ -1,0 +1,10 @@
+# base-forward-sync-stage (SOURCE ONLY): after the sync unit stopped at its target: the harness proves the STOPPED DB at/above the
+# retained floor with the floor block (verify), then records the hand-off. The ONLY next step is the existing A2-A4 re-anchor.
+[Unit]
+Description=Verify the forward-synced Base DB against the retained floor and hand off to the A2-A4 re-anchor
+After=enclave-base-forward-sync.service
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/recovery/forward_sync.py verify /etc/enclave-rpc/base-forward-sync.json
+ExecStart=/usr/bin/python3 -I -B /opt/enclave-rpc/recovery/forward_sync.py handoff /etc/enclave-rpc/base-forward-sync.json
