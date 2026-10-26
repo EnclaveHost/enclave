@@ -1,0 +1,11 @@
+--- a/tests/test_r3_launcher.py
++++ b/tests/test_r3_launcher.py
+@@ -51,6 +51,8 @@
+         for q in [self.d / 'opt', self.d / 'opt/enclave-rpc', self.d / 'opt/enclave-rpc/releases', self.rel.parent]: q.chmod(0o755)
+         (self.d / 'etc').mkdir(mode=0o755); self.out = self.d / 'etc/base-bootstrap'
+         self.srv = self.d / 'srv'; self.srv.mkdir(mode=0o755); os.symlink('../datadir', self.srv / 'data')   # finality r6 port
++        # finality r7 port: the fake binary is bound by overriding the code pin for THIS test only (production code keeps the conjunction)
++        pp = patch.object(P, 'HARNESS_BINARY_SHA256', self.cfg['baseBinarySha256']); pp.start(); self.addCleanup(pp.stop)
+         self.cov = {'evidence': {'receiptSha256': 'aa' * 32, 'verdictSha256': 'bb' * 32, 'originSha256': 'cc' * 32, 'snapshotManifestSha256': A.MANIFEST_SHA}}
+ 
+     def tearDown(self):
