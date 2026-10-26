@@ -1,0 +1,7 @@
+[queue] START available=24541MiB required=20736MiB cap=4096MiB floor=16384MiB concurrentSmall=0MiB
+OK: match {"fstype": "ext4", "majmin": "253:1", "source": "/dev/mapper/cryptvm", "uuid": "aaae081c-f829-4484-a50f-a9bbb87d31f9"}
+{"format": "bsro-disk-guard/r5", "args": {"base": "/vm/enclave-volumes/rpc-recovery-validation-build", "mount_majmin": "253:1", "mount_source": "/dev/mapper/cryptvm", "mount_fstype": "ext4", "min_start_gib": 64.0, "floor_gib": 40.0, "max_scratch_gib": 20.0, "interval": 15.0, "timeout": 7500.0}, "cmd": ["bash", "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r7/jobs/build-inner.sh"], "samples": [], "mount": ["253:1", "/vm", "ext4", "/dev/mapper/cryptvm"], "freeAtStart": 63069601792, "refused": "Refused: free 58.7 GiB < min start 64.0 GiB"}
+## bsro-r7-build rc=3 (child rc; 3 refused; 70 /vm < 40 GiB; 71 scratch > 20 GiB; 72 timeout; 73 cancelled; 9 precondition)
+[memory-guard] exit=3 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 3

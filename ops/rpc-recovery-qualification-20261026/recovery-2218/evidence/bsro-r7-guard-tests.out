@@ -1,0 +1,44 @@
+[queue] START available=24368MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB
+tail: option used in invalid context -- 2
+{
+ "format": "bsro-guard-test-receipt/r7",
+ "pass": true,
+ "stageSums": "7d4ccc8f873c435f6e1fd5577e8f6d40e833479605c79701fe742dfcb00e0056",
+ "suites": {
+  "test_disk_guard": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 10,
+   "pass": true,
+   "ran": [
+    "10"
+   ],
+   "rc": 0
+  },
+  "test_mount_identity": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 6,
+   "pass": true,
+   "ran": [
+    "6"
+   ],
+   "rc": 0
+  }
+ }
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r7/runs/guard-tests-20261026T221618Z-2410849
+## bsro-r7-guard-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=56 minHostAvailableMiB=24303
+[memory-guard] at peak: python3:18 python3:16 python3:12 bash:4 sleep:2 sleep:2 timeout:2
+[queue] EXIT 0
