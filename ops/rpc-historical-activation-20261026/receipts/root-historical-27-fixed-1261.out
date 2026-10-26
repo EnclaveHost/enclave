@@ -1,0 +1,92 @@
+[queue] START available=18216MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+test_activation_rechecks_evidence_against_current_time (__main__.FreshnessRegression.test_activation_rechecks_evidence_against_current_time) ... ok
+test_future_aggregate_evaluation_is_rejected (__main__.FreshnessRegression.test_future_aggregate_evaluation_is_rejected) ... ok
+test_hint_scale_range_is_split_not_capped_up (test_segments.RealScalePlanTest.test_hint_scale_range_is_split_not_capped_up) ... ok
+test_a_refused_segment_keeps_the_gate_per_block_refusal (test_segments.SegTest.test_a_refused_segment_keeps_the_gate_per_block_refusal) ... ok
+test_anchored_overlay_accepts_only_fully_re_verified_evidence (test_segments.SegTest.test_anchored_overlay_accepts_only_fully_re_verified_evidence) ... ok
+test_cl_discontinuity_across_a_boundary_is_refused (test_segments.SegTest.test_cl_discontinuity_across_a_boundary_is_refused) ... ok
+test_el_discontinuity_across_a_boundary_is_refused (test_segments.SegTest.test_el_discontinuity_across_a_boundary_is_refused) ... ok
+test_missed_slot_exactly_at_a_segment_boundary_is_linked_and_counted (test_segments.SegTest.test_missed_slot_exactly_at_a_segment_boundary_is_linked_and_counted) ... ok
+test_non_canonical_origin_hash_is_refused_by_every_segment (test_segments.SegTest.test_non_canonical_origin_hash_is_refused_by_every_segment) ... ok
+test_old_activation_code_rejects_every_new_document (test_segments.SegTest.test_old_activation_code_rejects_every_new_document) ... ok
+test_partial_duplicate_stale_tampered_and_foreign_segments_are_refused (test_segments.SegTest.test_partial_duplicate_stale_tampered_and_foreign_segments_are_refused) ... ok
+test_plan_gap_overlap_and_cap_are_refused_everywhere (test_segments.SegTest.test_plan_gap_overlap_and_cap_are_refused_everywhere) ... ok
+test_same_prev_randao_different_parent_beacon_root_is_refused (test_segments.SegTest.test_same_prev_randao_different_parent_beacon_root_is_refused) ... ok
+test_swapped_valid_canonical_origin_is_refused (test_segments.SegTest.test_swapped_valid_canonical_origin_is_refused) ... ok
+test_two_segments_cover_the_exact_anchored_range_via_cli (test_segments.SegTest.test_two_segments_cover_the_exact_anchored_range_via_cli) ... usage: test_stale_activation.py [-h] {plan,run-segment,aggregate} ...
+test_stale_activation.py: error: --out exists; refusing to overwrite evidence
+ok
+test_untrusted_batcher_never_reaches_the_gate_or_changes_coverage (test_segments.SegTest.test_untrusted_batcher_never_reaches_the_gate_or_changes_coverage) ... ok
+test_wrong_header_number_hash_pbr_and_tampered_documents_are_refused (test_segments.SegTest.test_wrong_header_number_hash_pbr_and_tampered_documents_are_refused) ... ok
+test_wrong_header_parent_beacon_root_or_mix_is_refused (test_segments.SegTest.test_wrong_header_parent_beacon_root_or_mix_is_refused) ... ok
+test_cli_writes_once_and_refuses_overwrite (test_anchored_origin.AnchoredOriginTest.test_cli_writes_once_and_refuses_overwrite) ... usage: test_stale_activation.py [-h] --base-bin BASE_BIN
+                                --base-sha256 BASE_SHA256 --datadir DATADIR
+                                --scratch SCRATCH --receipt RECEIPT
+                                --node NODE --out OUT [--timeout TIMEOUT]
+test_stale_activation.py: error: --out exists; refusing to overwrite evidence
+ok
+test_db_header_or_hash_tamper_is_refused (test_anchored_origin.AnchoredOriginTest.test_db_header_or_hash_tamper_is_refused) ... ok
+test_db_must_hold_n_and_be_the_pinned_tooling (test_anchored_origin.AnchoredOriginTest.test_db_must_hold_n_and_be_the_pinned_tooling) ... ok
+test_exact_n_is_read_and_bound_not_the_safe_head (test_anchored_origin.AnchoredOriginTest.test_exact_n_is_read_and_bound_not_the_safe_head) ... ok
+test_header_that_does_not_reproduce_the_receipt_root_is_refused (test_anchored_origin.AnchoredOriginTest.test_header_that_does_not_reproduce_the_receipt_root_is_refused) ... ok
+test_pinned_modules_are_enforced (test_anchored_origin.AnchoredOriginTest.test_pinned_modules_are_enforced) ... ok
+test_real_pinned_receipt_is_used_and_a_synthetic_header_cannot_bind_to_it (test_anchored_origin.AnchoredOriginTest.test_real_pinned_receipt_is_used_and_a_synthetic_header_cannot_bind_to_it) ... ok
+test_receipt_bytes_must_be_the_pinned_ones (test_anchored_origin.AnchoredOriginTest.test_receipt_bytes_must_be_the_pinned_ones) ... ok
+test_writable_datadir_refused_with_the_real_mount_probe (test_anchored_origin.AnchoredOriginTest.test_writable_datadir_refused_with_the_real_mount_probe) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 75.858s
+
+OK
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpvt6ow1vt/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpvt6ow1vt/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpfu8hnoqm/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpfu8hnoqm/04-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "missing-data", "detail": "1 slots/blocks lack EL, receipt, beacon or blob data"}, "out": "/tmp/tmpgqcm7u0f/03-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "data-mismatch", "detail": "1 blocks failed commitment/receipt matching"}, "out": "/tmp/tmpgqcm7u0f/04-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpqija84ko/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpqija84ko/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpiux85v0o/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpiux85v0o/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpok2ks5ij/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpok2ks5ij/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp17_y2nfd/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp17_y2nfd/04-seg1/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/tmp74x3eqca/03-seg0/gate-report.json"}
+{"verdict": "REFUSED", "refusal": {"code": "origin-not-canonical", "detail": "safe L1 origin 1004 is not canonical on this L1"}, "out": "/tmp/tmp74x3eqca/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpwag76ovg/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpwag76ovg/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp2f7axy6s/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp2f7axy6s/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp2f7axy6s/05-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp2f7axy6s/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp2f7axy6s/09-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpqaq6q85s/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpqaq6q85s/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpjwewxaxg/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpjwewxaxg/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpyl727nlr/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpyl727nlr/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpzj2yyr1e/03-cli-seg1/gate-report.json"}
+{"index": 1, "from": 1005, "to": 1008, "gateVerdict": "COVERED", "gateRefusal": null, "out": "/tmp/tmpzj2yyr1e/03-cli-seg1"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmpzj2yyr1e/04-cli-seg0/gate-report.json"}
+{"index": 0, "from": 1000, "to": 1004, "gateVerdict": "COVERED", "gateRefusal": null, "out": "/tmp/tmpzj2yyr1e/04-cli-seg0"}
+{"verdict": "COVERED_ALL_SEGMENTS", "refusal": null, "out": "/tmp/tmpzj2yyr1e/05-agg.json"}
+{"verdict": "REFUSED", "refusal": {"code": "partial-coverage", "detail": "segments [0] of 2 not supplied"}, "out": "/tmp/tmpzj2yyr1e/06-agg2.json"}
+{"verdict": "REFUSED", "refusal": {"code": "receipt-not-pinned", "detail": "receipt: /tmp/tmp52ahu1cp/a1-evidence.json is not the pinned b9a90847bb3f"}, "out": "/tmp/tmpzj2yyr1e/07-agg3.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_6aq1hrn/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_6aq1hrn/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_6aq1hrn/07-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_6aq1hrn/08-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_6aq1hrn/09-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_6aq1hrn/10-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp4z5wu558/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp4z5wu558/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_2i2rfqz/03-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_2i2rfqz/04-seg1/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_2i2rfqz/07-seg0/gate-report.json"}
+{"verdict": "COVERED", "refusal": null, "out": "/tmp/tmp_2i2rfqz/08-seg1/gate-report.json"}
+{"refused": "receipt: /tmp/tmpypub0q6f/a1-evidence.json is not the pinned b9a90847bb3f"}
+[memory-guard] exit=0 peakTreeRssMiB=121 minHostAvailableMiB=16975
+[memory-guard] at peak: node:69 python3:48 bash:4
+[queue] EXIT 0

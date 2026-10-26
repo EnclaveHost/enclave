@@ -1,0 +1,15 @@
+{
+ "counts": {
+  "errors": 0,
+  "expectedFailures": 0,
+  "failures": 0,
+  "skipped": 0,
+  "testsRun": 25,
+  "unexpectedSuccesses": 0
+ },
+ "expectedTests": 25,
+ "failureDetails": [],
+ "format": "historical-origin-segments-test-receipt/v1",
+ "notPassed": [],
+ "pass": true
+}
