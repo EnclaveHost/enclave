@@ -12163,12 +12163,12 @@ async function isImageUri(uri) {
     });
   }
 }
-function getGateway(custom, defaultGateway) {
-  if (!custom)
+function getGateway(custom2, defaultGateway) {
+  if (!custom2)
     return defaultGateway;
-  if (custom.endsWith("/"))
-    return custom.slice(0, -1);
-  return custom;
+  if (custom2.endsWith("/"))
+    return custom2.slice(0, -1);
+  return custom2;
 }
 function resolveAvatarUri({ uri, gatewayUrls }) {
   const isEncoded = base64Regex.test(uri);
@@ -17810,6 +17810,208 @@ var init_rpc_identity = __esm({
   }
 });
 
+// network/attested-verifier-brand.mjs
+var KEY, BRAND, isAttestedVerifier;
+var init_attested_verifier_brand = __esm({
+  "network/attested-verifier-brand.mjs"() {
+    KEY = /* @__PURE__ */ Symbol.for("enclave.attested-verifier.brand/v1");
+    BRAND = globalThis[KEY] instanceof WeakSet ? globalThis[KEY] : globalThis[KEY] = /* @__PURE__ */ new WeakSet();
+    isAttestedVerifier = (o) => !!o && typeof o === "object" && BRAND.has(o);
+  }
+});
+
+// network/verified-chain.mjs
+function verifierEndpoint(v) {
+  if (v && typeof v === "object" && typeof v.request === "function")
+    return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: isAttestedVerifier(v) ? "attested verifier" : "verifier", attested: isAttestedVerifier(v) };
+  const url = typeof v === "string" ? v : v?.url;
+  let e;
+  try {
+    e = rpcEndpoint(url);
+  } catch (err2) {
+    throw new Error("verifier endpoint: " + err2.message);
+  }
+  if (!e.loopback) throw new Error("the verifier must be a local endpoint (loopback); a remote server is not a verifier");
+  let id = 0;
+  return { label: "verifier " + e.label, request: async (method, params, ms, signal) => {
+    const timeout = AbortSignal.timeout(Math.max(1, ms));
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+      redirect: "error",
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout
+    });
+    if (!r.ok) throw Object.assign(new Error(`verifier HTTP ${r.status}`), { status: r.status });
+    const j = await r.json();
+    if (j?.error) throw Object.assign(new Error("verifier: " + String(j.error.message || "error").slice(0, 300)), { rpcCode: j.error.code });
+    return j?.result;
+  } };
+}
+function verifiedHeader(block, b) {
+  if (!block || typeof block !== "object") throw fail2("chain_unconfirmed", "the verifier has no block " + b);
+  let number;
+  try {
+    number = BigInt(block.number);
+  } catch {
+    throw fail2("chain_unconfirmed", "malformed verified block number");
+  }
+  if (number !== b) throw fail2("chain_unconfirmed", "verified block number differs from the one requested");
+  if (!HASH.test(block.hash || "") || !HASH.test(block.stateRoot || "")) throw fail2("chain_unconfirmed", "malformed verified block hash or state root");
+  let ts;
+  try {
+    ts = Number(BigInt(block.timestamp)) * 1e3;
+  } catch {
+    throw fail2("chain_unconfirmed", "malformed verified block timestamp");
+  }
+  if (!Number.isSafeInteger(ts) || ts < 0) throw fail2("chain_unconfirmed", "malformed verified block timestamp");
+  return { number: b, hash: lc(block.hash), stateRoot: lc(block.stateRoot), timestamp: ts };
+}
+function pinnedClient({ b, hash: hash3, request, chainId, alive = () => {
+}, allowCall = false }) {
+  const at = (blockNumber, blockTag) => {
+    if (blockTag !== void 0) throw new Error(`verified reads are pinned to block ${b} (no block tags)`);
+    if (blockNumber !== void 0 && BigInt(blockNumber) !== b) throw new Error(`verified reads are pinned to block ${b}`);
+    return { blockHash: hash3 };
+  };
+  const code = async ({ address, blockNumber, blockTag }) => {
+    const c = await request("eth_getCode", [address, at(blockNumber, blockTag)]);
+    return c && c !== "0x" ? c : void 0;
+  };
+  const methods = {
+    getChainId: async () => chainId,
+    getBlockNumber: async () => b,
+    getBlock: async ({ blockNumber, blockTag, blockHash } = {}) => {
+      if (blockHash !== void 0 && lc(blockHash) !== hash3) throw new Error(`verified reads are pinned to block ${b}`);
+      at(blockNumber, blockTag);
+      const h = verifiedHeader(await request("eth_getBlockByNumber", [hexBlock(b), false]), b);
+      if (h.hash !== hash3) throw fail2("chain_unconfirmed", "chain reorganized during the read");
+      return { number: b, hash: h.hash, stateRoot: h.stateRoot, timestamp: BigInt(h.timestamp / 1e3) };
+    },
+    readContract: async ({ address, abi: abi2, functionName, args, blockNumber, blockTag, account }) => {
+      const data = encodeFunctionData({ abi: abi2, functionName, args });
+      const from14 = typeof account === "string" ? account : account?.address;
+      return decodeFunctionResult({ abi: abi2, functionName, data: await request("eth_call", [{ to: address, data, ...from14 ? { from: from14 } : {} }, at(blockNumber, blockTag)]) });
+    },
+    getCode: code,
+    getBytecode: code,
+    getStorageAt: async ({ address, slot, blockNumber, blockTag }) => request("eth_getStorageAt", [address, slot, at(blockNumber, blockTag)]),
+    getBalance: async ({ address, blockNumber, blockTag }) => BigInt(await request("eth_getBalance", [address, at(blockNumber, blockTag)])),
+    ...allowCall ? { call: async ({ account, to, data, value, blockNumber, blockTag }) => {
+      const from14 = typeof account === "string" ? account : account?.address;
+      const tx = { to, ...data ? { data } : {}, ...from14 ? { from: from14 } : {}, ...value ? { value: "0x" + BigInt(value).toString(16) } : {} };
+      return { data: await request("eth_call", [tx, at(blockNumber, blockTag)]) };
+    } } : {}
+  };
+  return new Proxy(Object.freeze({}), { get(_t, key) {
+    if (Object.hasOwn(methods, key)) return async (...args) => {
+      alive();
+      return methods[key](...args);
+    };
+    if (typeof key === "symbol" || key === "then" || key === "toJSON") return void 0;
+    return () => {
+      throw new Error(`client.${String(key)} is not available under the verifier authority (proof-backed reads only: ${PINNED_METHODS.join(", ")})`);
+    };
+  } });
+}
+function createVerifiedSnapshot({ verifier, chainId, confirmations = 2, maxBlockAgeMs = 9e4, futureSkewMs = 5e3, deadlineMs = 3e4, now = Date.now, allowCall = false } = {}) {
+  const v = verifierEndpoint(verifier);
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new Error("chain id required");
+  const int = (x, lo, hi) => Number.isSafeInteger(x) && x >= lo && x <= hi;
+  if (!int(confirmations, 0, 64) || !int(maxBlockAgeMs, 1e3, 6e5) || !int(futureSkewMs, 0, 6e4) || !int(deadlineMs, 100, 3e5) || typeof now !== "function")
+    throw new Error("invalid verified snapshot policy");
+  let floor = null;
+  return async function snapshot(read, { atBlock = null } = {}) {
+    if (typeof read !== "function") throw new Error("snapshot(read) needs a read function");
+    if (atBlock && !HASH.test(String(atBlock.hash))) throw new Error("resume block hash required");
+    let closed = false, timer;
+    const controller = new AbortController();
+    const endAt = performance.now() + deadlineMs;
+    const alive = () => {
+      if (closed) throw fail2("chain_closed", "this verified snapshot has already ended");
+      const left = Math.floor(endAt - performance.now());
+      if (left <= 0) throw fail2("chain_timeout", "the verified read deadline has passed");
+      return left;
+    };
+    const request = async (method, params) => {
+      const value = await v.request(method, params, alive(), controller.signal);
+      alive();
+      return value;
+    };
+    const fresh = (ts) => ts + maxBlockAgeMs > now();
+    const work = (async () => {
+      const id = Number(BigInt(await request("eth_chainId", [])));
+      if (id !== chainId) throw fail2("chain_wrong_network", `the verifier follows chain ${id}, not ${chainId}`);
+      let b;
+      if (atBlock) b = BigInt(atBlock.number);
+      else {
+        const head = BigInt(await request("eth_blockNumber", []));
+        if (floor && head < floor.number) throw fail2("chain_rollback", `the verifier head ${head} is behind block ${floor.number} already accepted`);
+        b = head - BigInt(confirmations);
+        if (b < 0n) throw fail2("chain_unconfirmed", "no confirmed block yet");
+        if (floor && b < floor.number) b = floor.number;
+      }
+      const h = verifiedHeader(await request("eth_getBlockByNumber", [hexBlock(b), false]), b);
+      if (atBlock && h.hash !== lc(atBlock.hash)) throw fail2("chain_reorg", "the resume block is no longer canonical");
+      if (floor && b === floor.number && h.hash !== floor.hash) throw fail2("chain_rollback", "the accepted block was replaced");
+      if (h.timestamp > now() + futureSkewMs) throw fail2("chain_future", "the verified block is in the future");
+      if (!fresh(h.timestamp)) throw fail2("chain_stale", `verified block ${b} is older than ${maxBlockAgeMs} ms`);
+      const value = await read(pinnedClient({ b, hash: h.hash, request, chainId, alive, allowCall }), b, h);
+      const again = verifiedHeader(await request("eth_getBlockByNumber", [hexBlock(b), false]), b);
+      if (again.hash !== h.hash || again.timestamp !== h.timestamp) throw fail2("chain_reorg", "chain reorganized during the read");
+      if (!fresh(h.timestamp)) throw fail2("chain_stale", `verified block ${b} became older than ${maxBlockAgeMs} ms during the read`);
+      if (floor && b < floor.number) throw fail2("chain_rollback", `block ${b} is older than block ${floor.number} accepted meanwhile`);
+      alive();
+      if (!floor || b > floor.number) floor = { number: b, hash: h.hash };
+      return {
+        blockNumber: b,
+        blockHash: h.hash,
+        stateRoot: h.stateRoot,
+        timestamp: h.timestamp,
+        value,
+        evidence: { authority: v.attested ? "attested-verifier" : "local-verifier", localProof: !v.attested, tier: "unsafe", finality: "none", blockNumber: String(b), blockHash: h.hash, stateRoot: h.stateRoot, verifier: v.label }
+      };
+    })();
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(fail2("chain_timeout", `no verified snapshot within ${deadlineMs} ms`)), deadlineMs);
+    });
+    try {
+      return await Promise.race([work, deadline]);
+    } catch (e) {
+      throw e?.code ? e : fail2("chain_unconfirmed", "no verified chain state: " + String(e?.message || e).slice(0, 300), e);
+    } finally {
+      closed = true;
+      clearTimeout(timer);
+      controller.abort(fail2("chain_closed", "this verified snapshot has already ended"));
+      work.catch(() => {
+      });
+    }
+  };
+}
+function chainVerifierOf({ chainAuthority, chainVerifier } = {}, what = "chain authority") {
+  if (chainAuthority === void 0 || chainAuthority === null || chainAuthority === "" || chainAuthority === "quorum") {
+    if (chainVerifier !== void 0 && chainVerifier !== null && chainVerifier !== "") throw new Error(`${what}: a verifier is set but the chain authority is not verifier`);
+    return null;
+  }
+  if (chainAuthority !== "verifier") throw new Error(`${what}: chainAuthority must be quorum or verifier`);
+  if (!chainVerifier) throw new Error(`${what}: chainAuthority verifier needs chainVerifier (the local verifier URL)`);
+  verifierEndpoint(chainVerifier);
+  return chainVerifier;
+}
+var lc, HASH, fail2, hexBlock, PINNED_METHODS;
+var init_verified_chain = __esm({
+  "network/verified-chain.mjs"() {
+    init_esm();
+    init_attested_verifier_brand();
+    init_rpc_identity();
+    lc = (s) => String(s).toLowerCase();
+    HASH = /^0x[0-9a-fA-F]{64}$/;
+    fail2 = (code, message, cause) => Object.assign(new Error(message), { code, status: 503, ...cause ? { cause } : {} });
+    hexBlock = (b) => "0x" + b.toString(16);
+    PINNED_METHODS = Object.freeze(["getChainId", "getBlockNumber", "getBlock", "readContract", "getCode", "getBytecode", "getStorageAt", "getBalance"]);
+  }
+});
+
 // network/host-services/policy-mirror.mjs
 import http2 from "node:http";
 import fs2 from "node:fs";
@@ -17825,6 +18027,7 @@ init_rpc_identity();
 var fail = (code, message) => Object.assign(new Error(message), { code, status: 503 });
 var fingerprint = (value) => JSON.stringify(value, (_, v) => typeof v === "bigint" ? `n${v}` : v instanceof Uint8Array ? `x${bytesToHex(v)}` : v);
 var hashPattern = /^0x[0-9a-fA-F]{64}$/;
+var VERIFIER_MARK = /* @__PURE__ */ Symbol.for("enclave.chain-authority.local-verifier");
 var MAX_RPCS = 16;
 var POLICY = { confirmations: [0, 1e3], timeoutMs: [1, 3e5], maxAgeSec: [0, 7 * 86400], maxFutureSec: [0, 3600] };
 function rpcIdentity(url) {
@@ -17856,6 +18059,8 @@ function createQuorumReader({
     if (!c || typeof c !== "object" || needs.some((m) => typeof c[m] !== "function")) throw Error(`chain: RPC client ${i + 1} is malformed (needs ${needs.join(", ")})`);
   });
   if (new Set(clients).size !== clients.length) throw Error("chain: distinct RPC clients required");
+  if (clients.some((c) => !!c[VERIFIER_MARK]))
+    throw Object.assign(Error("chain: v2 custody reads cannot use the local verifier yet (it does not enforce requireCanonical on block-hash reads)"), { code: "chain_verifier_unsupported" });
   const origins = clients.flatMap((c) => {
     if (c.transport === void 0 || c.transport === null || c.transport.url === void 0) return [];
     if (typeof c.transport.url !== "string") throw Error("chain: invalid RPC URL");
@@ -17950,6 +18155,9 @@ function createQuorumReader({
   };
 }
 
+// network/host-policy-runtime.mjs
+init_verified_chain();
+
 // network/platform-host-policy.mjs
 init_esm();
 var POLICY_FORMAT = "enclave-platform-host-policy/v1";
@@ -17967,7 +18175,7 @@ var KINDS = {
 var ADDR = /^0x[0-9a-f]{40}$/;
 var H32 = /^0x[0-9a-f]{64}$/;
 var ZERO = "0x" + "00".repeat(20);
-var lc = (s) => String(s).toLowerCase();
+var lc2 = (s) => String(s).toLowerCase();
 var uint = (n) => Number.isSafeInteger(n) && n >= 0;
 var err = (code, message) => Object.assign(new Error(message), { code });
 var canonical = (v) => Array.isArray(v) ? "[" + v.map(canonical).join(",") + "]" : v && typeof v === "object" ? "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}" : JSON.stringify(v);
@@ -18010,7 +18218,7 @@ var policyTypedData = (p) => ({
 });
 var policyDigest = (p) => hashTypedData(policyTypedData(validatePolicy(p)));
 function decodeAnchor(hi, lo) {
-  const H = lc(hi), L = lc(lo);
+  const H = lc2(hi), L = lc2(lo);
   if (!ADDR.test(H) || !ADDR.test(L)) throw err("bad_anchor", "anchor: book values must be addresses");
   if (H === ZERO && L === ZERO) return { state: "unanchored" };
   if (H === ZERO || L === ZERO) throw err("torn_anchor", "anchor: exactly one half is set (torn or partial update); refusing");
@@ -18024,15 +18232,15 @@ async function verifySignedPolicy({ document, signature }, authority) {
   } catch (e) {
     throw err("bad_policy", e.message);
   }
-  if (lc(p.book) !== lc(authority.book)) throw err("wrong_book", "policy names another address book");
-  if (authority.registry && lc(p.registry) !== lc(authority.registry)) throw err("wrong_registry", "policy names another registry than the book does");
-  if (authority.hostOwnership && lc(p.hostOwnership) !== lc(authority.hostOwnership)) throw err("wrong_ownership", "policy names another host-ownership extension");
+  if (lc2(p.book) !== lc2(authority.book)) throw err("wrong_book", "policy names another address book");
+  if (authority.registry && lc2(p.registry) !== lc2(authority.registry)) throw err("wrong_registry", "policy names another registry than the book does");
+  if (authority.hostOwnership && lc2(p.hostOwnership) !== lc2(authority.hostOwnership)) throw err("wrong_ownership", "policy names another host-ownership extension");
   const digest = policyDigest(p);
   let ok = false;
   if (authority.ownerIsContract) ok = !!(authority.isValid1271 && await authority.isValid1271(digest, signature));
   else {
     try {
-      ok = lc(await recoverTypedDataAddress({ ...policyTypedData(p), signature })) === lc(authority.owner);
+      ok = lc2(await recoverTypedDataAddress({ ...policyTypedData(p), signature })) === lc2(authority.owner);
     } catch {
       ok = false;
     }
@@ -18068,17 +18276,17 @@ async function readPolicyFacts({ call: call2, code }, { book, hostOwnership, reg
   const hosts = {};
   for (const id of registryIds) {
     const [e, a] = await Promise.all([call2(registry, REG_ABI, "get", [id]), call2(hostOwnership, OWN_ABI, "authority", [id])]);
-    hosts[lc(id)] = { registryId: lc(id), operator: lc(e.operator), active: !!e.active, endpoint: e.endpoint, owner: lc(a[0]) };
+    hosts[lc2(id)] = { registryId: lc2(id), operator: lc2(e.operator), active: !!e.active, endpoint: e.endpoint, owner: lc2(a[0]) };
   }
   const valid1271 = {};
   if (ownerIsContract) for (const { digest, signature } of check1271) {
     try {
-      valid1271[digest + ":" + signature] = lc(await call2(owner, ERC1271, "isValidSignature", [digest, signature])) === "0x1626ba7e";
+      valid1271[digest + ":" + signature] = lc2(await call2(owner, ERC1271, "isValidSignature", [digest, signature])) === "0x1626ba7e";
     } catch {
       valid1271[digest + ":" + signature] = false;
     }
   }
-  return { owner: lc(owner), ownerIsContract, anchorHi: lc(hi), anchorLo: lc(lo), registry: lc(registry), hosts, valid1271 };
+  return { owner: lc2(owner), ownerIsContract, anchorHi: lc2(hi), anchorLo: lc2(lo), registry: lc2(registry), hosts, valid1271 };
 }
 var PLATFORM_POLICY_OFF = Object.freeze({ off: true, decideHost: () => ({ admit: true, status: "off", reason: "platform host policy enforcement is off" }) });
 
@@ -18116,20 +18324,40 @@ function quorumSnapshot({ rpcs, minAgree = null, clients = null, maxAgeSec = 120
     code: (a) => c.request({ method: "eth_getCode", params: [a, { blockHash: b.blockHash, requireCanonical: true }] })
   }));
 }
+function verifiedHostSnapshot({ verifier, chainId = 8453, maxAgeSec = 120, now = Date.now }) {
+  const snap = createVerifiedSnapshot({ verifier, chainId, confirmations: 0, maxBlockAgeMs: maxAgeSec * 1e3, futureSkewMs: 1e4, deadlineMs: 3e4, now });
+  return async (fn) => {
+    const s = await snap((c, b) => fn({
+      block: b,
+      call: (address, abi2, functionName, args = []) => c.readContract({ address, abi: abi2, functionName, args, blockNumber: b }),
+      code: (a) => c.getCode({ address: a, blockNumber: b }).then((x) => x || "0x")
+    }));
+    return s.value && typeof s.value === "object" && !Array.isArray(s.value) ? { ...s.value, blockNumber: s.blockNumber, blockHash: s.blockHash, blockTimestamp: Math.floor(s.timestamp / 1e3) } : s.value;
+  };
+}
+function hostPolicySnapshot({ rpcs = null, minAgree = null, clients = null, chainAuthority, chainVerifier, chainId = 8453 } = {}) {
+  const verifier = chainVerifierOf({ chainAuthority, chainVerifier }, "platform host policy");
+  return verifier ? verifiedHostSnapshot({ verifier, chainId }) : quorumSnapshot({ rpcs, minAgree, clients });
+}
 
 // network/policy-carriers.mjs
 import fs from "node:fs";
 import path from "node:path";
 init_rpc_identity();
+
+// network/host-policy-gate-config.mjs
+init_rpc_identity();
 var MAX_CARRIERS = 16;
-var H322 = /^0x[0-9a-f]{64}$/;
-var BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
+var CARRIER_BASE = /^https?:\/\/[A-Za-z0-9.-]{1,200}(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~-]{1,64}){0,8}$/;
 function validateCarrierBases(list, what = "policy carriers") {
   if (!Array.isArray(list) || list.length > MAX_CARRIERS) throw Error(`${what}: at most ${MAX_CARRIERS} base URLs`);
   const out = list.map((u) => String(u).replace(/\/+$/, ""));
-  if (out.some((u) => !BASE.test(u)) || new Set(out).size !== out.length) throw Error(`${what}: distinct http(s) base URLs without credentials, query or fragment`);
+  if (out.some((u) => !CARRIER_BASE.test(u)) || new Set(out).size !== out.length) throw Error(`${what}: distinct http(s) base URLs without credentials, query or fragment`);
   return out;
 }
+
+// network/policy-carriers.mjs
+var H322 = /^0x[0-9a-f]{64}$/;
 function candidateDigest(c) {
   try {
     return policyDigest(typeof c.document === "string" ? JSON.parse(c.document) : c.document);
@@ -18195,10 +18423,10 @@ function httpCarriers(bases, { fetch: fetch2 = globalThis.fetch, timeoutMs = 8e3
   });
 }
 function freshVerifier({ snapshot, book, hostOwnership }) {
-  const lc2 = (s) => String(s).toLowerCase();
+  const lc3 = (s) => String(s).toLowerCase();
   return async (cands = []) => {
     const pairs = cands.slice(0, 40).map((c) => ({ digest: candidateDigest(c), signature: c.signature })).filter((p) => p.digest);
-    const facts = await snapshot(async (at) => ({ ...await readPolicyFacts(at, { book: lc2(book), hostOwnership: lc2(hostOwnership), check1271: pairs }), block: at.block ?? null }));
+    const facts = await snapshot(async (at) => ({ ...await readPolicyFacts(at, { book: lc3(book), hostOwnership: lc3(hostOwnership), check1271: pairs }), block: at.block ?? null }));
     let anchor;
     try {
       anchor = decodeAnchor(facts.anchorHi, facts.anchorLo);
@@ -18206,9 +18434,9 @@ function freshVerifier({ snapshot, book, hostOwnership }) {
       anchor = { state: "torn", reason: e.message };
     }
     const authority = {
-      book: lc2(book),
+      book: lc3(book),
       registry: facts.registry,
-      hostOwnership: lc2(hostOwnership),
+      hostOwnership: lc3(hostOwnership),
       owner: facts.owner,
       ownerIsContract: facts.ownerIsContract,
       isValid1271: async (d, s) => facts.valid1271?.[d + ":" + s] === true
@@ -18235,7 +18463,7 @@ function freshVerifier({ snapshot, book, hostOwnership }) {
 function startPolicyMirror(cfg, { snapshot = null, fetch: fetch2 = globalThis.fetch, log = (m) => console.log((/* @__PURE__ */ new Date()).toISOString(), m) } = {}) {
   const docsDir = path2.join(cfg.stateDir, "documents");
   fs2.mkdirSync(docsDir, { recursive: true, mode: 493 });
-  const verify = freshVerifier({ snapshot: snapshot || quorumSnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null }), book: cfg.book, hostOwnership: cfg.hostOwnership });
+  const verify = freshVerifier({ snapshot: snapshot || hostPolicySnapshot({ rpcs: cfg.rpc, minAgree: cfg.minAgree ?? null, chainAuthority: cfg.chainAuthority, chainVerifier: cfg.chainVerifier }), book: cfg.book, hostOwnership: cfg.hostOwnership });
   const max = cfg.maxDocuments || 32, syncMs = (cfg.syncSec || 30) * 1e3;
   const store = /* @__PURE__ */ new Map();
   const carriers = [...cfg.importDir ? [fileCarrier(cfg.importDir)] : [], ...httpCarriers(cfg.peers || [], { fetch: fetch2 })];
@@ -18267,10 +18495,10 @@ function startPolicyMirror(cfg, { snapshot = null, fetch: fetch2 = globalThis.fe
   let syncing = null;
   async function sync() {
     try {
-      const stored = [...store.entries()].map(([, v]) => ({ document: v.document, signature: v.signature }));
-      const first = await verify(stored);
+      const captured = [...store.entries()];
+      const first = await verify(captured.map(([, v]) => ({ document: v.document, signature: v.signature })));
       const ok = new Set(first.verified.map((v) => v.digest));
-      for (const d of [...store.keys()]) if (!ok.has(d)) {
+      for (const [d, v] of captured) if (!ok.has(d) && store.get(d) === v) {
         drop(d);
         log(`[policy-mirror] dropped ${d.slice(0, 18)}\u2026: not signed by the address book's current owner at block ${first.block}`);
       }

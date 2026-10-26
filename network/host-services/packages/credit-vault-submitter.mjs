@@ -32793,6 +32793,63 @@ var init_quorum = __esm({
   }
 });
 
+// network/attested-verifier-brand.mjs
+var KEY, BRAND, isAttestedVerifier;
+var init_attested_verifier_brand = __esm({
+  "network/attested-verifier-brand.mjs"() {
+    KEY = /* @__PURE__ */ Symbol.for("enclave.attested-verifier.brand/v1");
+    BRAND = globalThis[KEY] instanceof WeakSet ? globalThis[KEY] : globalThis[KEY] = /* @__PURE__ */ new WeakSet();
+    isAttestedVerifier = (o) => !!o && typeof o === "object" && BRAND.has(o);
+  }
+});
+
+// network/verified-chain.mjs
+function verifierEndpoint(v) {
+  if (v && typeof v === "object" && typeof v.request === "function")
+    return { request: (m, p, ms, signal) => v.request(m, p, ms, signal), label: isAttestedVerifier(v) ? "attested verifier" : "verifier", attested: isAttestedVerifier(v) };
+  const url = typeof v === "string" ? v : v?.url;
+  let e;
+  try {
+    e = rpcEndpoint(url);
+  } catch (err) {
+    throw new Error("verifier endpoint: " + err.message);
+  }
+  if (!e.loopback) throw new Error("the verifier must be a local endpoint (loopback); a remote server is not a verifier");
+  let id = 0;
+  return { label: "verifier " + e.label, request: async (method, params, ms, signal) => {
+    const timeout = AbortSignal.timeout(Math.max(1, ms));
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+      redirect: "error",
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout
+    });
+    if (!r.ok) throw Object.assign(new Error(`verifier HTTP ${r.status}`), { status: r.status });
+    const j = await r.json();
+    if (j?.error) throw Object.assign(new Error("verifier: " + String(j.error.message || "error").slice(0, 300)), { rpcCode: j.error.code });
+    return j?.result;
+  } };
+}
+function chainVerifierOf({ chainAuthority, chainVerifier } = {}, what = "chain authority") {
+  if (chainAuthority === void 0 || chainAuthority === null || chainAuthority === "" || chainAuthority === "quorum") {
+    if (chainVerifier !== void 0 && chainVerifier !== null && chainVerifier !== "") throw new Error(`${what}: a verifier is set but the chain authority is not verifier`);
+    return null;
+  }
+  if (chainAuthority !== "verifier") throw new Error(`${what}: chainAuthority must be quorum or verifier`);
+  if (!chainVerifier) throw new Error(`${what}: chainAuthority verifier needs chainVerifier (the local verifier URL)`);
+  verifierEndpoint(chainVerifier);
+  return chainVerifier;
+}
+var PINNED_METHODS;
+var init_verified_chain = __esm({
+  "network/verified-chain.mjs"() {
+    init_attested_verifier_brand();
+    init_rpc_identity();
+    PINNED_METHODS = Object.freeze(["getChainId", "getBlockNumber", "getBlock", "readContract", "getCode", "getBytecode", "getStorageAt", "getBalance"]);
+  }
+});
+
 // node_modules/viem/_esm/op-stack/contracts.js
 var contracts;
 var init_contracts2 = __esm({
@@ -33377,6 +33434,7 @@ var init_network_authorities = __esm({
 var fields, deploymentABI, registryV1ABI;
 var init_lease_reader = __esm({
   "network/lease-reader.mjs"() {
+    init_attested_verifier_brand();
     init_route_record();
     init_connectivity_chain();
     init_guarded_fetch();
@@ -34501,6 +34559,7 @@ __export(independent_exports, {
   cheapestPrices: () => cheapestPrices,
   deploymentSnapshot: () => deploymentSnapshot,
   hasAction: () => hasAction,
+  independentReaderAuthority: () => independentReaderAuthority,
   leaseReaderClients: () => leaseReaderClients,
   ledgerRecords: () => ledgerRecords,
   liveHosts: () => liveHosts,
@@ -34540,7 +34599,7 @@ function intIn(v, lo, hi, dflt, what) {
   if (!Number.isSafeInteger(n) || n < lo || n > hi) throw new Error(`${what} must be an integer from ${lo} to ${hi}`);
   return n;
 }
-function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec }) {
+function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
   if (profileDigest2 && !profileFile) throw new Error("--profile-digest needs --profile");
   if (profileFile) {
@@ -34576,6 +34635,7 @@ function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, cont
   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
   const origins = validateRpcOrigins(rpcs);
   const q = intIn(quorum, 2, origins.length, 2, "--quorum");
+  const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
   return Object.freeze({
     pins,
     usdc: getAddress(token),
@@ -34584,7 +34644,8 @@ function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, cont
     rpcs: origins,
     quorum: q,
     confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"),
-    maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1e3
+    maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1e3,
+    chainVerifier: verifier
   });
 }
 async function assertReviewedCode(chain, profile, names) {
@@ -34839,9 +34900,13 @@ function quorumPublicClient(chain) {
 function leaseReaderClients(chain) {
   return chain.peers.map(({ client }) => client);
 }
+function independentReaderAuthority(trust, chain) {
+  return trust.chainVerifier ? { authority: "verifier", verifier: trust.chainVerifier } : { clients: leaseReaderClients(chain) };
+}
 var BASE_CHAIN_ID, ZERO3, isAddress2, nonZero, QuorumError2, short, isRevert, revertReason, agreementKey, QuorumChain, REGISTRY_SCHEMA4_SOURCE, ENCLAVE42, REGISTRY_SCHEMA4_ABI, REGISTRY_UNSUPPORTED, MAX_HOSTS, PAGE, hostRow, MAX_RECORDS, LEDGER_PAGE, SESSION_TUPLE, VAULT_ABI2, FACTORY_ABI, hasAction, OutcomeUnknownError, definiteRejection, receiptView;
 var init_independent = __esm({
   "cli/independent.mjs"() {
+    init_verified_chain();
     init_esm2();
     init_chains();
     init_authority_profile();
