@@ -1,0 +1,9 @@
+[queue] START available=18674MiB required=18176MiB cap=1536MiB floor=16384MiB concurrentSmall=0MiB
+## lease-v3-native test=0 build=0 tests-ok=14 (expected 14) Cargo.lock unchanged f122da76
+test tests::v3_result_keeps_every_v2_binding_and_ends_at_the_verified_head ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+ROOT actual build evidence: derivation-lease-coverage-stage/r2/logs/run-20261026T105909Z-1534393
+ROOT exact14, unchanged lock, built binary confirmed
+[memory-guard] exit=0 peakTreeRssMiB=659 minHostAvailableMiB=18194
+[memory-guard] at peak: rustc:416 cargo:220 python3:13 bash:4 bash:4 timeout:2
+[queue] EXIT 0

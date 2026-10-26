@@ -1,0 +1,15 @@
+test combined::tests::corrupt_keccak_preimage_is_refused_by_the_reused_check ... ok
+test combined::tests::empty_witness_refuses_but_proves_nothing_about_execution ... ok
+test combined::tests::executed_head_must_reproduce_the_verified_output_root_and_number ... ok
+test combined::tests::injected_local_keys_cannot_be_overwritten_with_other_values ... ok
+test combined::tests::json_witness_shape_is_strict ... ok
+test combined::tests::result_must_bind_every_trusted_input ... ok
+test combined::tests::truncated_or_garbage_witness_is_refused ... ok
+test combined::tests::trusted_input_is_strict ... ok
+test combined::tests::untrusted_witness_locals_are_stripped_and_other_unhashable_keys_refuse ... ok
+test tests::every_block_and_every_matching_log_from_any_address_with_block_log_index_and_executed_tx_hash ... ok
+test tests::gaps_forks_and_unbound_metadata_refuse ... ok
+test tests::interval_range_and_size_caps_refuse_never_truncate ... ok
+test tests::topics_are_the_lease16_abi_event_hashes ... ok
+test tests::v3_result_keeps_every_v2_binding_and_ends_at_the_verified_head ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
