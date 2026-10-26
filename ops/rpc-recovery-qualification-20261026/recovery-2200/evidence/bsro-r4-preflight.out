@@ -1,0 +1,16 @@
+[queue] START available=24531MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo 1.96.0 (30a34c682 2026-05-25)
+{
+ "pass": true,
+ "packages": 604,
+ "notInBaseLock": [],
+ "rethGitSources": [
+  "git+https://github.com/base/reth?tag=base-v2.5.2.8#7134be3b51cf9d9504f988bff3266a23085f0bd9"
+ ]
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r4/runs/preflight-bsro-r4-preflight-20261026T215323Z-2393181
+## bsro-r4-preflight rc=0
+[memory-guard] exit=0 peakTreeRssMiB=145 minHostAvailableMiB=24337
+[memory-guard] at peak: cargo:136 bash:4 bash:2 timeout:2
+[queue] EXIT 0
