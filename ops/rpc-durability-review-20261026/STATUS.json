@@ -6,5 +6,6 @@
   "capacity": "Boundary arithmetic audit found four extra history archives. State redownload additionally missing from old preflight; old sizing/26-marker is not full coverage evidence.",
   "administration": "Administrator controls preserved; no production contract transactions.",
   "journalR2": "15 unit cases passed including exact authenticated deterministic genesis-prefix reconciliation. Full58/native/privateIPC/rotate/recover/production remain unqualified.",
-  "retentionRootCause": "Pinned reth7134be3 finalize modifies snapshot MDBX. Next run cleans mismatching archive outputs before fetch. Actual23 missing includesState. Active replacement has about769GB spare after conservative allocation and reserves. No consumer cutover; do not rerun finalized data with original State manifest."
+  "retentionRootCause": "Pinned reth7134be3 finalize modifies snapshot MDBX. Next run cleans mismatching archive outputs before fetch. Actual23 missing includesState. Active replacement has about769GB spare after conservative allocation and reserves. No consumer cutover; do not rerun finalized data with original State manifest.",
+  "journalR3": "22 unit cases passed, including both-floor rotation, signed high-water recovery and crash-prefix reconciliation. Full65/native/privateIPC/production not qualified; matching role integration in progress."
 }
