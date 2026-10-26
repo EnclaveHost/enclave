@@ -1,0 +1,11 @@
+{
+  "_template": "RFC 7396 merge-patch TEMPLATE for /home/steven/Projects/enclave/metal/config.json (Metal0 control -> guest supervisor). NOT APPLICABLE AS-IS. Source: relay-consumer-source 81ba66853. Values in <UNRESOLVED: ...> are local decisions; none is a verified endpoint.",
+  "_effect": "chainVerifier -> guest env ENCLAVE_CHAIN_AUTHORITY=verifier (metal/guest/chain-verifier.mjs:160) -> supervisor CHAIN_AUTHORITY (supervisor.js:327-331) -> loadLeaseGasConfig({chainAuthority}) (supervisor.js:10211) -> lease reads ONLY via the verifier (network/lease-gas-runtime.mjs:59-60,96); configured leaseGas.rpcs are then never contacted (lease-gas-runtime.mjs:52-54).",
+  "_mixedQuorumGap": "leaseGas.rpcs CANNOT be removed by config: network/lease-gas-conduit.mjs:51 requires 2..MAX https rpcs of distinct providers and :93-95 a strict-majority quorum. Under the verifier they are present-but-unused. Removing them needs a reviewed CODE change (conduit accepting no rpcs when chainVerifier is bound) = candidate-code prerequisite P3.",
+  "_preserved": "registryKey, pairingKeyFile, leaseGas.relays / pinnedRelays / serviceIndex (relay funding paths), admin/owner/platformPolicy members and every other member: UNCHANGED (not in this patch).",
+  "chainVerifier": {
+    "format": "enclave-chain-verifier/v1",
+    "proofSources": ["<UNRESOLVED: reviewed own RPC role URL; must not be a third-party RPC>"],
+    "_otherFields": "<UNRESOLVED: copy the remaining required chainVerifier fields from the reviewed route-stage example host-controller.chainVerifier.relay-mode.json; not reproduced here>"
+  }
+}

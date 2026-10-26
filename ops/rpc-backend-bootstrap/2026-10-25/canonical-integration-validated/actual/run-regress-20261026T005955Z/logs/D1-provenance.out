@@ -1,0 +1,9 @@
+test_build_log_and_rebuilt_path_packages (__main__.Provenance.test_build_log_and_rebuilt_path_packages) ... ok
+test_every_recorded_input_is_unchanged (__main__.Provenance.test_every_recorded_input_is_unchanged) ... ok
+test_out_sums_and_artifact (__main__.Provenance.test_out_sums_and_artifact) ... ok
+test_provenance_binds_the_tested_source (__main__.Provenance.test_provenance_binds_the_tested_source) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.301s
+
+OK
