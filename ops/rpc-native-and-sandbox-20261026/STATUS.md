@@ -1,0 +1,9 @@
+# Actual sandbox qualification and native derivation progress
+
+The r5 sandbox passed 21 offline tests and the actual live guest canary. Exact production code was exercised for privilege dropping, locking and L1 readiness; startup permit ordering uses explicitly mocked permits. Actual metadata verifies protected paths are systemd mask nodes and rpcbase cannot open them. Real host start/end/periodic samples preserve the16GiB floor. The actual download-in-progress guard skipped startup, and production PIDs/configuration were unchanged. This is not a real Base node start, reboot test, SNP attestation or production rollout.
+
+The combined native harness compiled and passed9 tests against the pinned upstream source. Those tests cover input binding, local witness key stripping, hash corruption and executed header/output-root binding. They do not prove real chain derivation from a complete witness. The witness-fetch binary was still compiling when this record was prepared; whole build success is not claimed. Two separate native compiled-config/serde tests remain pending, as do real witness replay/negative cases, accepted-domain integration and lifecycle consumer cutover.
+
+The latest bridge passes14 JavaScript tests and includes required interval/range binding. Its format is stillv1; the accepted-domain provider owner must adapt to combinedv2 and authenticate the full Base tuple. The KVM chat owns actual reader/runtime composition. Existing platform administrator controls are preserved, no contract changes were made, and current applications remain in place.
+
+First snapshot archive download completed2026-10-26T09:55:41Z. Extraction is still in progress, followed by additional historical retention download, historical blob validation and safe/finalized synchronization. No completed RPC replacement or full decentralization is claimed.

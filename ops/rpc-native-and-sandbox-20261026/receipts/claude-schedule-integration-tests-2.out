@@ -1,0 +1,74 @@
+[queue] START available=18139MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+TAP version 13
+# Subtest: builds exactly r3 TRUSTED_KEYS, bound to the accepted schedule, anchor and caller inputs
+ok 1 - builds exactly r3 TRUSTED_KEYS, bound to the accepted schedule, anchor and caller inputs
+  ---
+  duration_ms: 6.69046
+  type: 'test'
+  ...
+# Subtest: rollupConfig: all 15 upstream serde keys come from the authenticated schedule; None is absent; aliases removed; host values never survive
+ok 2 - rollupConfig: all 15 upstream serde keys come from the authenticated schedule; None is absent; aliases removed; host values never survive
+  ---
+  duration_ms: 0.987584
+  type: 'test'
+  ...
+# Subtest: a caller anchor different from the authenticated block refuses
+ok 3 - a caller anchor different from the authenticated block refuses
+  ---
+  duration_ms: 0.874905
+  type: 'test'
+  ...
+# Subtest: a candidate claim for another block, or a schedule horizon other than the claim (native has no schedule key), refuses
+ok 4 - a candidate claim for another block, or a schedule horizon other than the claim (native has no schedule key), refuses
+  ---
+  duration_ms: 0.940424
+  type: 'test'
+  ...
+# Subtest: a forged (JSON-copied or hand-built) reader result refuses
+ok 5 - a forged (JSON-copied or hand-built) reader result refuses
+  ---
+  duration_ms: 0.705566
+  type: 'test'
+  ...
+# Subtest: an expected config hash other than the source pin candidate refuses
+ok 6 - an expected config hash other than the source pin candidate refuses
+  ---
+  duration_ms: 0.473757
+  type: 'test'
+  ...
+# Subtest: a template for another chain, without a chain id, or not an object refuses
+ok 7 - a template for another chain, without a chain id, or not an object refuses
+  ---
+  duration_ms: 0.685166
+  type: 'test'
+  ...
+# Subtest: native result: only a full binding is accepted; config hash, schedule, root, number, anchor mismatches and refusals refuse
+ok 8 - native result: only a full binding is accepted; config hash, schedule, root, number, anchor mismatches and refusals refuse
+  ---
+  duration_ms: 0.979505
+  type: 'test'
+  ...
+# Subtest: an omitted or wrong upgrade schedule cannot pass: a different schedule changes expectedScheduleId and the native binding refuses
+ok 9 - an omitted or wrong upgrade schedule cannot pass: a different schedule changes expectedScheduleId and the native binding refuses
+  ---
+  duration_ms: 1.085474
+  type: 'test'
+  ...
+# Subtest: the bridge refuses a reader that is not the frozen sha
+ok 10 - the bridge refuses a reader that is not the frozen sha
+  ---
+  duration_ms: 1.401672
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 70.184098
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
