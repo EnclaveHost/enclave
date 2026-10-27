@@ -1,0 +1,11 @@
+{
+  "source": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320/files/data/reth.toml",
+  "sha256": "7cfb533b934ded56cbd269b083594e26dc1294ac1083b9e8ffbe3ef5ee07a256",
+  "observedPruneConfig": "receipts/account_history/storage_history/bodies_history distance=140000; block_interval=5; minimum_pruning_distance=10064",
+  "stateHistoryFromBlockPresent": false,
+  "expectedFinishNotYetRead": 53048526,
+  "oldAuthenticatedAnchor": 52866960,
+  "expectedFinishMinusConfiguredDistance": 52908526,
+  "inference": "Configured rolling distance alone does not establish actual retained changeset floor. Old anchor lies below expected Finish minus distance; do not assume unwind feasibility. Inspect actual DB checkpoints/history after validation. Do not activate this old pruning configuration.",
+  "authority": "No canonical, recovery, reset, or RPC readiness acceptance"
+}
