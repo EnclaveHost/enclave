@@ -1,0 +1,5 @@
+[queue] START available=24048MiB required=20992MiB cap=256MiB floor=16384MiB concurrentLargeReserve=4096MiB
+{"pass": true, "checks": [{"mode": "copy", "recordSha256": "7f805de1ee5bb9637b2ef81dcea46fe91f8cdc35090b4d3decc211866f650fe1", "problem": null}, {"mode": "verify", "recordSha256": "a48bf30e55c7aa1df1eaa3b6746c0337eff7a8c1a2e3683d3f2a3ee5ba0c41b1", "problem": null}], "scope": "two actual canary record bindings only; no byte reads, no production view import"}
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0

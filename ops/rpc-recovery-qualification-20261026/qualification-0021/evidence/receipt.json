@@ -1,0 +1,45 @@
+{
+ "format": "multipart-validation-view-test-receipt/r6",
+ "pass": true,
+ "productionImportSha256": "4d48f74ea0360db6b264fcef97750a5c83e3ba5f8ef47260864b93e940b1b2dc",
+ "r3MultipartSha256": "3159890b5bddcb763f578fa87b833931d695f4181dd447395bb40c2dff1c4381",
+ "scope": "tiny fixtures only; real r3 fixture records; no production manifest or part, no MDBX file, no integrity claim",
+ "stageSums": "18bab7be1a604699ec7e97436b30efbfc6159eecb46a1cd06fc3297fcf091ed7",
+ "suites": {
+  "production_import": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 8,
+   "pass": true,
+   "ran": [
+    "8"
+   ],
+   "rc": 0,
+   "testsSha256": "8f23524a3e1d0d7d3607406a33fce648ae1376626022115248524ff888be93ac"
+  },
+  "view_descriptor": {
+   "badMarkers": [],
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expectedTests": 5,
+   "pass": true,
+   "ran": [
+    "5"
+   ],
+   "rc": 0,
+   "testsSha256": "80f7b7ec9128149380adf0602ee59f92823d3df4a4be96c91812cafe5809e846"
+  }
+ },
+ "viewDescriptorSha256": "23370c97956fb1a4dde30f4a657ca97e89ce452f1a982cfc29c36970113d39e0"
+}
