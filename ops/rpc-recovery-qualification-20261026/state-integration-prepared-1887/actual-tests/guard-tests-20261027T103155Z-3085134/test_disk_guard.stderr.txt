@@ -1,0 +1,15 @@
+test_floor_stops_whole_own_group_only (__main__.Guard.test_floor_stops_whole_own_group_only) ... ok
+test_preexisting_base_kept_and_only_a_new_run_dir_created (__main__.Guard.test_preexisting_base_kept_and_only_a_new_run_dir_created) ... ok
+test_propagates_child_rc (__main__.Guard.test_propagates_child_rc) ... ok
+test_refuses_low_start_free (__main__.Guard.test_refuses_low_start_free) ... ok
+test_refuses_symlink_or_file_base_and_bad_args (__main__.Guard.test_refuses_symlink_or_file_base_and_bad_args) ... ok
+test_refuses_wrong_mount_before_creating_anything (__main__.Guard.test_refuses_wrong_mount_before_creating_anything) ... ok
+test_runs_in_new_private_run_dir_and_keeps_it (__main__.Guard.test_runs_in_new_private_run_dir_and_keeps_it) ... ok
+test_scratch_cap_real_tiny_writer (__main__.Guard.test_scratch_cap_real_tiny_writer) ... ok
+test_sigterm_cancels_and_stops_group (__main__.Guard.test_sigterm_cancels_and_stops_group) ... ok
+test_timeout (__main__.Guard.test_timeout) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 5.699s
+
+OK
