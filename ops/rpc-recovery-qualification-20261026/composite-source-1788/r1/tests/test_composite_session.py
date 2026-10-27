@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""composite-mdbx-validation-stage/r1 tests (prepared by Claude 1782; NOT run by Claude). 7 tests, REAL tools end to end:
+a tiny REAL MDBX (the pinned mk_fixture, libmdbx v0.13.12) -> its mdbx.dat split into REAL recovery-multipart r3 records (the
+pinned r3 CLI: plan / copy / verify, fixture kind) -> a REAL r6 records view (fixture kind) -> composite_session.py as a subprocess
+(the pinned qemu-nbd --read-only, nbdfuse -r -o ro, the pinned r4 wrapper + mdbx_chk). Unprivileged, NOT under unshare (FUSE needs
+the host fusermount3). Environment (jobs/tests.sh): COMPOSITE_TEST_TMP, MDBX_BIN (mk_fixture)."""
+import hashlib, json, os, signal, subprocess, sys, tempfile, time, unittest, contextlib, io
+
+TMP = os.environ.get("COMPOSITE_TEST_TMP", "")
+if not (os.path.isabs(TMP) and os.path.isdir(TMP)):
+    raise SystemExit("COMPOSITE_TEST_TMP must name an existing absolute directory")
+tempfile.tempdir = TMP
+STAGE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, STAGE)
+import composite_session as C  # noqa: E402
+
+TOOL = os.path.join(STAGE, "composite_session.py")
+R3 = os.path.join(C.W, "recovery-multipart-stage/r3/multipart.py")
+MK = os.path.join(os.environ["MDBX_BIN"], "mk_fixture")
+BS, PART = 4096, 65536
+sys.path.insert(0, os.path.dirname(C.PINS["r6Importer"][0]))
+PI = C.load_pinned("r6Importer", "r6_production_import")
+R9 = C.load_pinned("r9OverlaySession", "r9_overlay_session")
+
+
+def r3cli(*args):
+    r = subprocess.run([sys.executable, "-I", "-B", R3, *args], capture_output=True, text=True, timeout=300, env={"PATH": "/usr/bin:/bin"})
+    assert r.returncode == 0, r.stderr
+    return r
+
+
+class Fx:
+    """a real MDBX -> real r3 records (two targets) -> a real r6 fixture view"""
+    def __init__(self, corrupt=False):
+        self.d = tempfile.mkdtemp(prefix="cx", dir=TMP)
+        j = lambda *x: os.path.join(self.d, *x)
+        os.mkdir(j("src-db"), 0o700)
+        subprocess.run([MK, j("src-db"), "3000"], check=True, capture_output=True, timeout=300)
+        with open(j("src-db", "mdbx.dat"), "rb") as f:
+            data = bytearray(f.read())
+        assert data and len(data) % BS == 0, len(data)
+        if corrupt:
+            data[:3 * BS] = bytes(3 * BS)                                # all three meta pages zeroed: not an openable MDBX
+        self.bytes, self.src = bytes(data), j("source.img")
+        with open(self.src, "wb") as f:
+            f.write(self.bytes)
+        L, n = len(self.bytes), -(-len(self.bytes) // PART)
+        with open(j("map.json"), "w") as f:
+            json.dump({"format": "ext4-recovery-checksum-r1/v1", "map": {"extentList": [[0, L // BS, 900, False]], "extents": 1}}, f)
+        with open(j("journal.bin"), "wb") as f:
+            f.write(b"j" * 65536)
+        with open(j("original.qcow2"), "wb") as f:
+            f.write(b"q" * 12345)
+        with open(j("plan.json"), "w") as f:
+            json.dump({"format": "recovery-overlay-plan/v1", "mode": "fixture", "inputs": {"captureSha256": "00" * 32},
+                       "target": {"size": L, "path": "/data/db/mdbx.dat"}, "map": {"extents": 1},
+                       "patches": [{"kind": "inode", "fsBlock": 7, "byteOffset": 1024, "length": 256, "sha256": "ab" * 32, "source": "000.bin"}]}, f)
+        ta, tb = j("target-a"), j("target-b")
+        os.mkdir(ta, 0o700); os.mkdir(tb, 0o700)
+        k = max(1, n // 2)
+        assign = ["--assign", f"a:0-{k - 1}"] + (["--assign", f"b:{k}-{n - 1}"] if n > k else [])
+        self.manifest = j("manifest.json")
+        r = r3cli("plan", "--original", j("original.qcow2"), "--map", j("map.json"), "--overlay-plan", j("plan.json"), "--journal",
+                  j("journal.bin"), "--out", self.manifest, "--target", f"a={ta}", "--target", f"b={tb}", *assign, "--logical-size", str(L),
+                  "--part-size", str(PART), "--chunk-bytes", "8192", "--checkpoint-bytes", "16384")
+        self.msha = json.loads(r.stdout)["manifestSha256"]
+        m = ["--manifest", self.manifest, "--manifest-sha256", self.msha, "--source-file", self.src]
+        r3cli("copy", *m); r3cli("verify", *m)
+        self.parts = [os.path.join(ta if i < k else tb, f"part-{i:04d}.bin") for i in range(n)]
+        self.view = j("view")
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            rc = PI.main(["import", "--manifest", self.manifest, "--manifest-sha256", self.msha, "--out-dir", self.view, "--expect-kind", "fixture"])
+        assert rc == 0
+        self.n = 0
+
+    def run_dir(self):
+        self.n += 1
+        d = os.path.join(self.d, f"run{self.n}"); os.mkdir(d, 0o700)
+        return d
+
+    def idents(self):
+        return [(os.lstat(p).st_ino, os.lstat(p).st_mode, os.lstat(p).st_ctime_ns, os.lstat(p).st_mtime_ns) for p in self.parts]
+
+
+def receipt(run):
+    with open(os.path.join(run, "receipt.json")) as f:
+        return json.load(f)
+
+
+class Composite(unittest.TestCase):
+    def session(self, fx, run, *extra, kind=("--expect-kind", "fixture"), timeout=900):
+        return subprocess.run([sys.executable, "-I", "-B", TOOL, "--view-dir", fx.view, "--run-dir", run, *kind, *extra],
+                              capture_output=True, text=True, timeout=timeout, env={"PATH": "/usr/bin:/bin"})
+
+    def clean_after(self, run, r):
+        """the always-required end state: receipt present, cleanup complete, our mount gone, nothing names the work dir"""
+        self.assertTrue(r["cleanupComplete"], r)
+        db = os.path.join(run, "work", "db")
+        self.assertFalse(R9.mounted(db))
+        self.assertEqual(r.get("leftoverProcesses", []), [])
+        self.assertFalse(r.get("mountLeft", False))
+
+    def test_1_real_mdbx_chk_on_the_composite_view_is_clean_and_retained(self):
+        fx = Fx(); before = fx.idents(); run = fx.run_dir()
+        p = self.session(fx, run, "--validator-timeout", "600")
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (0, "CLEAN"), p.stdout + p.stderr)
+        self.clean_after(run, r)
+        for k in ("preUseRecheck", "socketOurs", "qemu-nbdBound", "heldBeforeMount", "nbdfuseForeground", "nbdfuseBound", "mountReadOnly",
+                  "onlyMdbxDat", "logicalSize", "writeRefused", "heldBeforeExec", "postUseRecheck"):
+            self.assertTrue(r["checks"][k]["ok"], k)
+        with open(os.path.join(run, "mdbx-report.json")) as f:
+            rep = json.load(f)
+        self.assertEqual((rep["rc"], rep["structurallyClean"], rep["preflight"]["mdbxDatBytes"]), (0, True, len(fx.bytes)))
+        with open(os.path.join(run, "mdbx-report.json"), "rb") as f:
+            self.assertEqual(r["reportSha256"], hashlib.sha256(f.read()).hexdigest())
+        self.assertTrue(os.path.exists(os.path.join(run, "validator.out")))
+        self.assertEqual(r["view"]["kind"], "fixture"); self.assertEqual(fx.idents(), before)          # no part touched
+
+    def test_2_production_is_the_default_kind_and_fixture_exec_is_fixture_only(self):
+        fx = Fx(); run = fx.run_dir()
+        p = self.session(fx, run, kind=())
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (3, "REFUSED")); self.assertFalse(os.path.exists(os.path.join(run, "work")))
+        run = fx.run_dir()
+        p = self.session(fx, run, "--fixture-exec", "/usr/bin/true", kind=("--expect-kind", "production"))
+        self.assertEqual((p.returncode, receipt(run)["outcome"]), (3, "REFUSED"))
+
+    def test_3_a_changed_part_refuses_before_use_and_voids_a_result_during_use(self):
+        fx = Fx(); run = fx.run_dir()
+        os.utime(fx.parts[0], ns=(1, 1))
+        p = self.session(fx, run)
+        self.assertEqual((p.returncode, receipt(run)["outcome"]), (3, "REFUSED")); self.assertFalse(os.path.exists(os.path.join(run, "work")))
+        fx = Fx(); run = fx.run_dir()
+        code = f"import os; os.utime({fx.parts[-1]!r}, ns=(2, 2))"            # the validator 'passes' but the view changed under it
+        p = self.session(fx, run, "--exec-timeout", "60", "--fixture-exec", "/usr/bin/python3", "-I", "-c", code)
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (8, "VOID"), r)
+        self.assertFalse(r["checks"]["postUseRecheck"]["ok"]); self.clean_after(run, r)
+
+    def test_4_validator_failures_are_reported_never_clean(self):
+        fx = Fx(corrupt=True); run = fx.run_dir()
+        p = self.session(fx, run, "--validator-timeout", "600")
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (2, "PROBLEMS"), r)
+        self.assertIn(r["validatorReport"]["rc"], (1, 2, 3)); self.assertFalse(r["validatorReport"]["structurallyClean"])
+        self.clean_after(run, r)
+        fx = Fx(); run = fx.run_dir()
+        p = self.session(fx, run, "--exec-timeout", "60", "--fixture-exec", "/usr/bin/false")
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (6, "EXEC-FAILED")); self.clean_after(run, r)
+
+    def test_5_sigterm_while_the_validator_and_an_escaped_holder_hold_the_view(self):
+        fx = Fx(); run = fx.run_dir(); mark = os.path.join(run, "holding")
+        code = ("import os, subprocess, time\n"
+                "db = os.environ['RECOVERY_TARGET_DB']\n"
+                "f = open(os.path.join(db, 'mdbx.dat'), 'rb')\n"
+                "subprocess.Popen(['/usr/bin/setsid', '/usr/bin/sleep', '300'], stdin=f)\n"     # escapes our group, holds the file
+                f"open({mark!r}, 'w').close()\n"
+                "time.sleep(300)\n")
+        s = subprocess.Popen([sys.executable, "-I", "-B", TOOL, "--view-dir", fx.view, "--run-dir", run, "--expect-kind", "fixture",
+                              "--exec-timeout", "600", "--fixture-exec", "/usr/bin/python3", "-I", "-c", code],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={"PATH": "/usr/bin:/bin"})
+        try:
+            end = time.monotonic() + 120
+            while not os.path.exists(mark):
+                self.assertIsNone(s.poll(), "the session ended before the holder was in place"); self.assertLess(time.monotonic(), end)
+                time.sleep(0.2)
+            s.send_signal(signal.SIGTERM)                                   # our own child only
+            s.communicate(timeout=300)
+        finally:
+            if s.poll() is None:
+                s.kill(); s.communicate(timeout=60)
+        r = receipt(run)
+        self.assertEqual((s.returncode, r["outcome"]), (5, "CANCELLED"), r)
+        self.clean_after(run, r); self.assertTrue(r["adoptedKilled"])        # the escaped holder ended before the unmount
+
+    def test_6_timeout_or_leftover_descendants_are_inconclusive(self):
+        fx = Fx(); run = fx.run_dir()
+        p = self.session(fx, run, "--exec-timeout", "3", "--fixture-exec", "/usr/bin/sleep", "300")
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (7, "INCONCLUSIVE")); self.assertTrue(r["exec"]["timedOut"]); self.clean_after(run, r)
+        run = fx.run_dir()
+        p = self.session(fx, run, "--exec-timeout", "60", "--fixture-exec", "/usr/bin/sh", "-c", "/usr/bin/sleep 300 & exit 0")
+        r = receipt(run)
+        self.assertEqual((p.returncode, r["outcome"]), (7, "INCONCLUSIVE"), r); self.clean_after(run, r)
+
+    def test_7_classification_never_turns_a_timeout_or_a_missing_report_into_clean_or_corrupt(self):
+        ok = {"rc": 0, "timedOut": False, "groupLeftovers": [], "escapedKilled": 0, "groupEmpty": True, "orphansGone": True}
+        rep = {"rc": 0, "structurallyClean": True, "timedOut": False, "outputTruncated": False, "stdoutHeldAfterExit": False,
+               "escapedHolder": False, "unchangedIdentity": True, "result": "ok"}
+        cases = [
+            (ok, rep, True, "CLEAN"), (ok, rep, False, "VOID"),
+            (ok, {**rep, "timedOut": True, "rc": -9, "structurallyClean": False}, True, "INCONCLUSIVE"),
+            ({**ok, "rc": 2}, {**rep, "rc": 2, "structurallyClean": False, "result": "major-problems"}, True, "PROBLEMS"),
+            ({**ok, "rc": 2}, {**rep, "rc": 3, "structurallyClean": False}, True, "PROBLEMS"),
+            ({**ok, "rc": 2}, {**rep, "rc": 4, "structurallyClean": False}, True, "INCONCLUSIVE"),
+            ({**ok, "rc": 2}, {**rep, "rc": 5, "structurallyClean": False}, True, "INCONCLUSIVE"),
+            (ok, {**rep, "outputTruncated": True}, True, "INCONCLUSIVE"), (ok, {**rep, "unchangedIdentity": False}, True, "INCONCLUSIVE"),
+            ({**ok, "rc": 1}, None, True, "INCONCLUSIVE"), ({**ok, "timedOut": True}, rep, True, "INCONCLUSIVE"),
+            ({**ok, "escapedKilled": 1}, rep, True, "INCONCLUSIVE"), ({**ok, "rc": 143}, rep, True, "INCONCLUSIVE"),
+        ]
+        for e, report, post, want in cases:
+            self.assertEqual(C.classify(e, report, post, False)[0], want, (e, report, post))
+        self.assertEqual(C.classify(ok, None, True, True)[0], "EXEC-OK")
+        self.assertEqual(C.classify({**ok, "rc": 1}, None, True, True)[0], "EXEC-FAILED")
+
+
+if __name__ == "__main__":
+    unittest.main()
