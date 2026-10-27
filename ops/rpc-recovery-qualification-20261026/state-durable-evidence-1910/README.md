@@ -1,0 +1,5 @@
+# State extraction integration with durable evidence
+
+Actual r4 tests:26PASS. The narrowly scoped test stub is corrected, and all five extractor qualification artifacts now come from the identical SHA-verified bytes already committed in extractor-guard-1904. The original temporary output directory is preserved as metadata and still checked against the original queue log. Altered bytes, wrong origins, mismatched receipt paths and failed extraction jobs remain rejected.
+
+Source integration now has concrete consumers for build, compiled-fixture captures, structural validation, and extraction inner/outer receipts. Production inputs and actual extractor E2E evidence remain unset: no database validation or production rollout has run. Actual all265 preservation, coordinated mount cleanup, build/fixture qualification, extraction E2E, structural and state checks, canonical authentication, synchronization, proof serving and consumer cutover remain necessary. A partial state-consistency result never authorizes media reset or RPC readiness. USB writes and the RPC VM remain paused.

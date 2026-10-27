@@ -1,0 +1,18 @@
+{
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expected": 26,
+ "format": "state-production-test-receipt/r4",
+ "pass": true,
+ "ran": [
+  "26"
+ ],
+ "rc": 0,
+ "scope": "runner logic on SYNTHETIC inputs only: no view, mount, helper run or production data; not a production run, not a state result",
+ "stageSums": "5b543e00e4684b5a5c5a915cdd672bf38ff3d1ea6712fa99f9514d6a1fa0499b"
+}
