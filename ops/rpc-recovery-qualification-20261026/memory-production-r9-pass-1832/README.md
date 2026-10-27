@@ -1,0 +1,5 @@
+# Actual fifteen-test pass; independent review pending
+
+All15 unit and negative tests passed in2.232seconds with no warnings or skipped tests. Peak RSS60MiB, minimum host23347MiB, existing256MiB small lane with full4096MiB concurrent-large reservation and16GiB host floor. New cases exercise pidfd-bound stop and mismatch refusal, actual shell exit-status handling, real process-versus-text admission, injected telemetry failures, and the inherited r6 main's orderly cancellation and owned-child cleanup.
+
+The cancellation test stubs view preparation and exposure and uses an owned sleep process instead of MDBX. No FUSE mount, scope mutation, recovered database read, production view or production checker activation occurred. The production memory scale, real FUSE loss and actual MDBX cancellation remain unqualified at scale. Independent source review is pending; root is checking whether failed post-run collection commands can be mistaken for empty successful results. Do not activate this stage until review findings are resolved and all265 parts are independently verified.
