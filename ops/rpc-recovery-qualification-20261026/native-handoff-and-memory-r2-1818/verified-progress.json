@@ -1,0 +1,16 @@
+{
+  "atEpoch": 1793069795.5028179,
+  "event": "post-check passed",
+  "hi": 56,
+  "job": "batch",
+  "lo": 49,
+  "mode": "verify",
+  "newSession": "20261027T024527Z-2662361",
+  "runId": "20261027T003313Z-2526065",
+  "status": {
+    "copyComplete": false,
+    "partsCommitted": 57,
+    "partsVerifiedRecorded": 57,
+    "verificationCompleteRecorded": false
+  }
+}
