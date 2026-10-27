@@ -1,0 +1,477 @@
+{
+ "adoptedKilled": [],
+ "checks": {
+  "heldBeforeExec": {
+   "detail": "check-held refused",
+   "ok": true
+  },
+  "heldBeforeMount": {
+   "detail": "check-held refused",
+   "ok": true
+  },
+  "logicalSize": {
+   "detail": 1138166333440,
+   "ok": true
+  },
+  "mountReadOnly": {
+   "detail": "the FUSE mount is not ST_RDONLY",
+   "ok": true
+  },
+  "nbdfuseBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "nbdfuseForeground": {
+   "detail": "it daemonized",
+   "ok": true
+  },
+  "onlyMdbxDat": {
+   "detail": [
+    "mdbx.dat"
+   ],
+   "ok": true
+  },
+  "preUseRecheck": {
+   "ok": true
+  },
+  "qemu-nbdBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "socketOurs": {
+   "detail": "not our socket",
+   "ok": true
+  },
+  "writeRefused": {
+   "detail": "an O_WRONLY open of the exposed mdbx.dat succeeded",
+   "ok": true
+  }
+ },
+ "children": {
+  "exec": {
+   "argv": [
+    "/usr/bin/python3",
+    "-I",
+    "-B",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+    "--chk",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+    "--chk-sha256",
+    "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981",
+    "--db-dir",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T192416Z-3593670/session/work/db",
+    "--timeout",
+    "86400",
+    "--out",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T192416Z-3593670/session/mdbx-report.json"
+   ],
+   "pid": 3593738,
+   "returncode": 143
+  },
+  "nbdfuse": {
+   "argv": [
+    "/usr/bin/nbdfuse",
+    "-r",
+    "-C",
+    "1",
+    "-o",
+    "ro",
+    "-P",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T192416Z-3593670/session/work/nbdfuse.pid",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T192416Z-3593670/session/work/db/mdbx.dat",
+    "--unix",
+    "/proc/self/cwd/nbd.sock"
+   ],
+   "exe": [
+    64768,
+    14986678
+   ],
+   "pid": 3593731,
+   "returncode": 0,
+   "startTime": 143417099
+  },
+  "qemu-nbd": {
+   "argv": [
+    "/usr/bin/qemu-nbd",
+    "--read-only",
+    "--shared=1",
+    "--socket=/proc/self/cwd/nbd.sock",
+    "--image-opts",
+    "driver=vmdk,read-only=on,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909/view.vmdk,extents.0.driver=file,extents.1.driver=file,extents.2.driver=file,extents.3.driver=file,extents.4.driver=file,extents.5.driver=file,extents.6.driver=file,extents.7.driver=file,extents.8.driver=file,extents.9.driver=file,extents.10.driver=file,extents.11.driver=file,extents.12.driver=file,extents.13.driver=file,extents.14.driver=file,extents.15.driver=file,extents.16.driver=file,extents.17.driver=file,extents.18.driver=file,extents.19.driver=file,extents.20.driver=file,extents.21.driver=file,extents.22.driver=file,extents.23.driver=file,extents.24.driver=file,extents.25.driver=file,extents.26.driver=file,extents.27.driver=file,extents.28.driver=file,extents.29.driver=file,extents.30.driver=file,extents.31.driver=file,extents.32.driver=file,extents.33.driver=file,extents.34.driver=file,extents.35.driver=file,extents.36.driver=file,extents.37.driver=file,extents.38.driver=file,extents.39.driver=file,extents.40.driver=file,extents.41.driver=file,extents.42.driver=file,extents.43.driver=file,extents.44.driver=file,extents.45.driver=file,extents.46.driver=file,extents.47.driver=file,extents.48.driver=file,extents.49.driver=file,extents.50.driver=file,extents.51.driver=file,extents.52.driver=file,extents.53.driver=file,extents.54.driver=file,extents.55.driver=file,extents.56.driver=file,extents.57.driver=file,extents.58.driver=file,extents.59.driver=file,extents.60.driver=file,extents.61.driver=file,extents.62.driver=file,extents.63.driver=file,extents.64.driver=file,extents.65.driver=file,extents.66.driver=file,extents.67.driver=file,extents.68.driver=file,extents.69.driver=file,extents.70.driver=file,extents.71.driver=file,extents.72.driver=file,extents.73.driver=file,extents.74.driver=file,extents.75.driver=file,extents.76.driver=file,extents.77.driver=file,extents.78.driver=file,extents.79.driver=file,extents.80.driver=file,extents.81.driver=file,extents.82.driver=file,extents.83.driver=file,extents.84.driver=file,extents.85.driver=file,extents.86.driver=file,extents.87.driver=file,extents.88.driver=file,extents.89.driver=file,extents.90.driver=file,extents.91.driver=file,extents.92.driver=file,extents.93.driver=file,extents.94.driver=file,extents.95.driver=file,extents.96.driver=file,extents.97.driver=file,extents.98.driver=file,extents.99.driver=file,extents.100.driver=file,extents.101.driver=file,extents.102.driver=file,extents.103.driver=file,extents.104.driver=file,extents.105.driver=file,extents.106.driver=file,extents.107.driver=file,extents.108.driver=file,extents.109.driver=file,extents.110.driver=file,extents.111.driver=file,extents.112.driver=file,extents.113.driver=file,extents.114.driver=file,extents.115.driver=file,extents.116.driver=file,extents.117.driver=file,extents.118.driver=file,extents.119.driver=file,extents.120.driver=file,extents.121.driver=file,extents.122.driver=file,extents.123.driver=file,extents.124.driver=file,extents.125.driver=file,extents.126.driver=file,extents.127.driver=file,extents.128.driver=file,extents.129.driver=file,extents.130.driver=file,extents.131.driver=file,extents.132.driver=file,extents.133.driver=file,extents.134.driver=file,extents.135.driver=file,extents.136.driver=file,extents.137.driver=file,extents.138.driver=file,extents.139.driver=file,extents.140.driver=file,extents.141.driver=file,extents.142.driver=file,extents.143.driver=file,extents.144.driver=file,extents.145.driver=file,extents.146.driver=file,extents.147.driver=file,extents.148.driver=file,extents.149.driver=file,extents.150.driver=file,extents.151.driver=file,extents.152.driver=file,extents.153.driver=file,extents.154.driver=file,extents.155.driver=file,extents.156.driver=file,extents.157.driver=file,extents.158.driver=file,extents.159.driver=file,extents.160.driver=file,extents.161.driver=file,extents.162.driver=file,extents.163.driver=file,extents.164.driver=file,extents.165.driver=file,extents.166.driver=file,extents.167.driver=file,extents.168.driver=file,extents.169.driver=file,extents.170.driver=file,extents.171.driver=file,extents.172.driver=file,extents.173.driver=file,extents.174.driver=file,extents.175.driver=file,extents.176.driver=file,extents.177.driver=file,extents.178.driver=file,extents.179.driver=file,extents.180.driver=file,extents.181.driver=file,extents.182.driver=file,extents.183.driver=file,extents.184.driver=file,extents.185.driver=file,extents.186.driver=file,extents.187.driver=file,extents.188.driver=file,extents.189.driver=file,extents.190.driver=file,extents.191.driver=file,extents.192.driver=file,extents.193.driver=file,extents.194.driver=file,extents.195.driver=file,extents.196.driver=file,extents.197.driver=file,extents.198.driver=file,extents.199.driver=file,extents.200.driver=file,extents.201.driver=file,extents.202.driver=file,extents.203.driver=file,extents.204.driver=file,extents.205.driver=file,extents.206.driver=file,extents.207.driver=file,extents.208.driver=file,extents.209.driver=file,extents.210.driver=file,extents.211.driver=file,extents.212.driver=file,extents.213.driver=file,extents.214.driver=file,extents.215.driver=file,extents.216.driver=file,extents.217.driver=file,extents.218.driver=file,extents.219.driver=file,extents.220.driver=file,extents.221.driver=file,extents.222.driver=file,extents.223.driver=file,extents.224.driver=file,extents.225.driver=file,extents.226.driver=file,extents.227.driver=file,extents.228.driver=file,extents.229.driver=file,extents.230.driver=file,extents.231.driver=file,extents.232.driver=file,extents.233.driver=file,extents.234.driver=file,extents.235.driver=file,extents.236.driver=file,extents.237.driver=file,extents.238.driver=file,extents.239.driver=file,extents.240.driver=file,extents.241.driver=file,extents.242.driver=file,extents.243.driver=file,extents.244.driver=file,extents.245.driver=file,extents.246.driver=file,extents.247.driver=file,extents.248.driver=file,extents.249.driver=file,extents.250.driver=file,extents.251.driver=file,extents.252.driver=file,extents.253.driver=file,extents.254.driver=file,extents.255.driver=file,extents.256.driver=file,extents.257.driver=file,extents.258.driver=file,extents.259.driver=file,extents.260.driver=file,extents.261.driver=file,extents.262.driver=file,extents.263.driver=file,extents.264.driver=file"
+   ],
+   "exe": [
+    64768,
+    14981978
+   ],
+   "pid": 3593728,
+   "returncode": 0,
+   "startTime": 143417068
+  }
+ },
+ "childrenAlive": [],
+ "cleanupComplete": true,
+ "cleanupErrors": [],
+ "format": "composite-mdbx-validation-receipt/r2",
+ "interrupted": "signal 15",
+ "kind": "production",
+ "leftoverProcesses": [],
+ "memory": {
+  "childLogCapBytes": 16777216,
+  "eventsBefore": {
+   "high": 0,
+   "low": 0,
+   "max": 0,
+   "oom": 0,
+   "oom_group_kill": 0,
+   "oom_kill": 0,
+   "sock_throttled": 0
+  },
+  "lane": {
+   "memoryHighMiB": 3712,
+   "memoryMaxMiB": 4096
+  },
+  "limits": [
+   "MemoryHigh 3712 MiB is a reclaim/throttle threshold, NOT a ceiling",
+   "MemoryHigh applies to the WHOLE queue scope (node guard, job bash, runtime, qemu-nbd, nbdfuse, wrapper, mdbx_chk): all can be throttled, which can delay the outer guard and slow the servers",
+   "the memory.max (4096 MiB) OOM victim is NOT guaranteed",
+   "the 0.5 s soft stop races the outer 250 ms tree-VmRSS guard and other host allocations",
+   "production page tables (~used bytes / 512) and mdbx_chk's pagemap (~2 bytes/page) are ESTIMATES; the r4 mechanism PASS was an 8 GiB synthetic mapping",
+   "CLEAN is STRUCTURAL ONLY (mdbx_chk); not chain / state / trie / canonical-root / RPC validation"
+  ],
+  "peaks": {
+   "cgAnon": 619491328,
+   "cgCurrent": 3892695040,
+   "cgFileMapped": 1065750528,
+   "cgPagetables": 2068586496,
+   "chkRssAnonKiB": 541068,
+   "chkRssFileKiB": 520428,
+   "chkVmPTEKiB": 2018332,
+   "chkVmRSSKiB": 1061124,
+   "minMemAvailableMiB": 91820.8984375,
+   "treeVmRssMiB": 1627.37109375
+  },
+  "samples": [
+   {
+    "cg": {
+     "current": 58052608,
+     "events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 41488384,
+      "file": 10338304,
+      "file_mapped": 1265664,
+      "inactive_file": 10321920,
+      "kernel": 2981888,
+      "pagetables": 1282048,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 1208360
+     }
+    },
+    "memAvailableMiB": 95500,
+    "procs": {
+     "python3:3593738": {
+      "RssAnonKiB": 5220,
+      "RssFileKiB": 6804,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 68,
+      "VmRSSKiB": 12024
+     }
+    },
+    "t": 1434171.3,
+    "treeVmRssMiB": 71.2
+   },
+   {
+    "cg": {
+     "current": 3892064256,
+     "events": {
+      "high": 34198,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 611119104,
+      "file": 1324302336,
+      "file_mapped": 74842112,
+      "inactive_file": 1323941888,
+      "kernel": 1954025472,
+      "pagetables": 1745940480,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 207548792
+     }
+    },
+    "memAvailableMiB": 93023,
+    "procs": {
+     "mdbx_chk:3593747": {
+      "RssAnonKiB": 540640,
+      "RssFileKiB": 74176,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 1703612,
+      "VmRSSKiB": 614816
+     },
+     "python3:3593738": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12084,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 92,
+      "VmRSSKiB": 21776
+     }
+    },
+    "t": 1434291.5,
+    "treeVmRssMiB": 681.8
+   },
+   {
+    "cg": {
+     "current": 3892178944,
+     "events": {
+      "high": 74001,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 618942464,
+      "file": 1126797312,
+      "file_mapped": 243699712,
+      "inactive_file": 1126293504,
+      "kernel": 2143322112,
+      "pagetables": 1949806592,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 192992224
+     }
+    },
+    "memAvailableMiB": 93012,
+    "procs": {
+     "mdbx_chk:3593747": {
+      "RssAnonKiB": 540688,
+      "RssFileKiB": 240712,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 1902344,
+      "VmRSSKiB": 781400
+     },
+     "python3:3593738": {
+      "RssAnonKiB": 9688,
+      "RssFileKiB": 12084,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 92,
+      "VmRSSKiB": 21772
+     }
+    },
+    "t": 1434411.7,
+    "treeVmRssMiB": 843.6
+   },
+   {
+    "cg": {
+     "current": 3891851264,
+     "events": {
+      "high": 113296,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619106304,
+      "file": 1079025664,
+      "file_mapped": 530165760,
+      "inactive_file": 1078652928,
+      "kernel": 2191683584,
+      "pagetables": 1992876032,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 198283920
+     }
+    },
+    "memAvailableMiB": 93165,
+    "procs": {
+     "mdbx_chk:3593747": {
+      "RssAnonKiB": 540696,
+      "RssFileKiB": 520428,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 1944400,
+      "VmRSSKiB": 1061124
+     },
+     "python3:3593738": {
+      "RssAnonKiB": 9688,
+      "RssFileKiB": 12084,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 92,
+      "VmRSSKiB": 21772
+     }
+    },
+    "t": 1434532.0,
+    "treeVmRssMiB": 1116.8
+   },
+   {
+    "cg": {
+     "current": 3892076544,
+     "events": {
+      "high": 158754,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 619491328,
+      "file": 1084219392,
+      "file_mapped": 190599168,
+      "inactive_file": 1083936768,
+      "kernel": 2186166272,
+      "pagetables": 2068586496,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 117056328
+     }
+    },
+    "memAvailableMiB": 92815,
+    "procs": {
+     "mdbx_chk:3593747": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 187568,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2018332,
+      "VmRSSKiB": 728636
+     },
+     "python3:3593738": {
+      "RssAnonKiB": 9688,
+      "RssFileKiB": 12084,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 92,
+      "VmRSSKiB": 21772
+     }
+    },
+    "t": 1434652.2,
+    "treeVmRssMiB": 792.6
+   }
+  ],
+  "samplesDropped": 0,
+  "softStop": null,
+  "softStopAt": {
+   "memAvailableMiB": 16896,
+   "pollSeconds": 0.5,
+   "treeVmRssMiB": 3840
+  },
+  "telemetryErrors": []
+ },
+ "mountLeft": false,
+ "notClaimed": [
+  "chain verification",
+  "reth table semantics",
+  "state / trie / canonical-root validation",
+  "static_files segments",
+  "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+  "RPC readiness",
+  "SNP readiness",
+  "recovery acceptance"
+ ],
+ "outcome": "CANCELLED",
+ "pins": {
+  "fusermount3": {
+   "path": "/usr/bin/fusermount3",
+   "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  },
+  "mdbxCheckPy": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+   "sha256": "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131"
+  },
+  "mdbxChk": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+   "sha256": "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981"
+  },
+  "nbdfuse": {
+   "path": "/usr/bin/nbdfuse",
+   "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  "qemuNbd": {
+   "path": "/usr/bin/qemu-nbd",
+   "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  "r6Importer": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/production_import.py",
+   "sha256": "4d48f74ea0360db6b264fcef97750a5c83e3ba5f8ef47260864b93e940b1b2dc"
+  },
+  "r6ViewDescriptor": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/view_descriptor.py",
+   "sha256": "23370c97956fb1a4dde30f4a657ca97e89ce452f1a982cfc29c36970113d39e0"
+  },
+  "r9OverlaySession": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/overlay_session.py",
+   "sha256": "65d45ab79da8e134772374ec7298cd3a53fc54d68ecb3b3fd407eec4874a8153"
+  }
+ },
+ "rc": 5,
+ "reasons": [
+  "signal 15"
+ ],
+ "refused": null,
+ "steps": [
+  [
+   1793129056.906,
+   "view"
+  ],
+  [
+   1793129056.971,
+   "qemu-nbd"
+  ],
+  [
+   1793129057.277,
+   "nbdfuse"
+  ],
+  [
+   1793129057.585,
+   "validator"
+  ],
+  [
+   1793129538.927,
+   "cleanup"
+  ]
+ ],
+ "unmount": {
+  "normal": 0
+ },
+ "view": {
+  "descriptorSha256": "8bc41249f8c5ea72c47c4e3ad9196e4a4d7f1ae34052b6c08de59c6c700b3d07",
+  "dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909",
+  "kind": "production",
+  "logicalSize": 1138166333440,
+  "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+  "parts": 265,
+  "receiptSha256": "9cfd6d41562bcfacf08c86d8449add92ef25539e3df89a0356ff9f346e50f4db"
+ }
+}

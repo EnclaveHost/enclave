@@ -1,0 +1,45 @@
+[queue] START available=95574MiB required=20736MiB cap=4096MiB floor=16384MiB concurrentSmall=0MiB
+{
+ "checks": {
+  "clean": false,
+  "cleanupComplete": true,
+  "noMountLeft": true,
+  "noProcessLeft": true,
+  "peersUnchanged": true,
+  "rc0": false,
+  "snapshotsOk": true
+ },
+ "collectRc": 0,
+ "format": "composite-production-memory-job-receipt/r10",
+ "meaning": "CLEAN = mdbx_chk structural check only; not chain/state/trie/canonical-root/RPC validation, not a production acceptance",
+ "memoryDirty": null,
+ "memoryPeaks": {
+  "cgAnon": 619491328,
+  "cgCurrent": 3892695040,
+  "cgFileMapped": 1065750528,
+  "cgPagetables": 2068586496,
+  "chkRssAnonKiB": 541068,
+  "chkRssFileKiB": 520428,
+  "chkVmPTEKiB": 2018332,
+  "chkVmRSSKiB": 1061124,
+  "minMemAvailableMiB": 91820.8984375,
+  "treeVmRssMiB": 1627.37109375
+ },
+ "mountsLeft": "",
+ "outcome": "CANCELLED",
+ "processesLeft": "",
+ "rc": 5,
+ "reasons": [
+  "signal 15"
+ ],
+ "runtimeKilled": false,
+ "softStop": null,
+ "structurallyCleanRun": false,
+ "wrapperTerm": false
+}
+## final evidence failed: runtime rc 5, job receipt rc 1, evidence rc 1 -> job exit 5
+## gate/runtime /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T192416Z-3593670 ; job /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/job-20261027T192416Z-3593670
+## cmv-r10-prod runtime rc=5 final rc=5 (see /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/job-20261027T192416Z-3593670/status-before.txt, /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/job-20261027T192416Z-3593670/status-after.txt)
+[memory-guard] exit=5 peakTreeRssMiB=1634 minHostAvailableMiB=91732
+[memory-guard] at peak: mdbx_chk:1552 python3:30 python3:21 qemu-nbd:16 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 5
