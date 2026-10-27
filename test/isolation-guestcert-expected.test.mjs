@@ -47,7 +47,8 @@ assert.equal(sha(new X509Certificate(LEAF).publicKey.export({ type: "spki", form
 const doc = (over = {}) => ({ format: "sev-snp-guest-domain-v1", abi: ABI2, runtime: RUNTIME, ...over });
 // one run of the gate with every network step faked; returns what happened
 async function run({ route = { id: "gd0a0b0c0d", appId: APP, measurement: MEAS, runtimeId: RID, key: KEY }, expected = async () => expectedOk(),
-                     noExpected = false, reusable = null, attestation = doc(), verdict = "attested", expectAppId = APP, requirePrediction, customName = false } = {}) {
+                     noExpected = false, reusable = null, attestation = doc(), verdict = "attested", expectAppId = APP, requirePrediction, customName = false, attestationResponses = [] } = {}) {
+  const responses = [...attestationResponses];
   const calls = { expected: 0, judge: [], issue: 0, exchanges: [], urls: [] };
   const deps = {
     routeFor: async () => route,
@@ -55,7 +56,7 @@ async function run({ route = { id: "gd0a0b0c0d", appId: APP, measurement: MEAS, 
     exchange: async (_a, _r, _n, method, p, body) => {
       calls.urls.push(p);
       calls.exchanges.push(`${method} ${p.split("?")[0]}`);
-      if (p.startsWith("/.well-known/enclave-attestation")) return { status: 200, body: Buffer.from(JSON.stringify(attestation)), spki: Buffer.alloc(0) };
+      if (p.startsWith("/.well-known/enclave-attestation")) return responses.shift() || { status: 200, body: Buffer.from(JSON.stringify(attestation)), spki: Buffer.alloc(0) };
       if (p === "/.well-known/enclave-csr" + (customName ? "?name=" + encodeURIComponent(NAME) : "")) return { status: 200, body: Buffer.from(CSR) };
       if (p === "/.well-known/enclave-cert" + (customName ? "?name=" + encodeURIComponent(NAME) : "")) return { status: 200, body: Buffer.from("{}") };
       throw new Error("unexpected " + p);
@@ -203,4 +204,33 @@ test("custom certificate selection explicitly names the requested domain", async
   assert.equal(r.err, undefined, r.err?.message);
   assert.equal(r.calls.issue,1);
   assert.ok(r.calls.urls.includes("/.well-known/enclave-csr?name="+encodeURIComponent(NAME)));
+});
+
+const busyReport = (body = "report: guest VBS report: guest TPM attestation busy; retry\n") => ({ status: 500, body: Buffer.from(body) });
+test("certificate attestation retries only explicit TPM contention with the original nonce", async () => {
+  const r = await run({ attestationResponses: [busyReport(), busyReport("report: too many concurrent report requests from this domain\n")] });
+  assert.equal(r.err, undefined);
+  assert.equal(r.calls.issue, 1);
+  assert.equal(r.calls.judge.length, 1);
+  assert.equal(r.calls.urls.filter(p => p.startsWith("/.well-known/enclave-attestation")).length, 3);
+  assert.equal(new Set(r.calls.urls.slice(0, 3)).size, 1);
+});
+test("certificate TPM retries are bounded and never issue on persistent contention", async () => {
+  const r = await run({ attestationResponses: Array.from({ length: 4 }, () => busyReport()) });
+  assert.match(r.err.message, /HTTP 500/);
+  assert.equal(r.calls.exchanges.length, 4);
+  assert.equal(r.calls.judge.length, 0);
+  assert.equal(r.calls.issue, 0);
+});
+test("other report errors are not retried and a later invalid report still fails closed", async () => {
+  for (const body of ["report: writable executable memory detected\n", "unknown error", "report: guest VBS report: guest TPM attestation busy; retry extra"]) {
+    const r = await run({ attestationResponses: [busyReport(body)] });
+    assert.match(r.err.message, /HTTP 500/);
+    assert.equal(r.calls.exchanges.length, 1);
+    assert.equal(r.calls.issue, 0);
+  }
+  const r = await run({ attestationResponses: [busyReport()], verdict: "rejected" });
+  assert.match(r.err.message, /did not verify/);
+  assert.equal(r.calls.judge.length, 1);
+  assert.equal(r.calls.issue, 0);
 });
