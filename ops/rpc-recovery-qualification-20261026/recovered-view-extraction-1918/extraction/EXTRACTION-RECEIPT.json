@@ -1,0 +1,143 @@
+{
+ "acceptance": "NOT a recovery, canonical-state, structural or reset acceptance",
+ "backupReceiptSha256": "928d09babefb4083ae9be8fcb5c2dc7edbff083183060e570fc78c839d16a1ca",
+ "canonicalAuthority": false,
+ "capacity": {
+  "filesBytes": 362900885,
+  "floorBytes": 42949672960,
+  "freeBytes": 84901085184,
+  "neededBytes": 44453424533,
+  "reserveBytes": 0
+ },
+ "files": [
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33184,
+   "mtimeNs": 1793026310098139981,
+   "nlink": 1,
+   "path": "data/reth.toml",
+   "reads": 2,
+   "sha256": "7cfb533b934ded56cbd269b083594e26dc1294ac1083b9e8ffbe3ef5ee07a256",
+   "size": 2590,
+   "uid": 994
+  },
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33188,
+   "mtimeNs": 1000000000,
+   "nlink": 1,
+   "path": "data/static_files/static_file_headers_52500000_52999999",
+   "reads": 2,
+   "sha256": "a50b7a37496cae527f460635259b7d6cd4d6c9efe8dc343490df1ae4d2156e50",
+   "size": 318751407,
+   "uid": 994
+  },
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33188,
+   "mtimeNs": 1000000000,
+   "nlink": 1,
+   "path": "data/static_files/static_file_headers_52500000_52999999.conf",
+   "reads": 2,
+   "sha256": "fa1fa21e667484e16970733cfeffea9c70ac83ec45adf8f87a168634fa74d7be",
+   "size": 75,
+   "uid": 994
+  },
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33188,
+   "mtimeNs": 1000000000,
+   "nlink": 1,
+   "path": "data/static_files/static_file_headers_52500000_52999999.off",
+   "reads": 2,
+   "sha256": "02ceb930f34dc57e3e3e7e35966dcc4be866570ee0df6272e472e39c58af53b7",
+   "size": 12000009,
+   "uid": 994
+  },
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33188,
+   "mtimeNs": 1000000000,
+   "nlink": 1,
+   "path": "data/static_files/static_file_headers_53000000_53499999",
+   "reads": 2,
+   "sha256": "aea3a6334d373c721ef1eb9d3adc032812617754ba9a9bef07dcb27938874652",
+   "size": 30982072,
+   "uid": 994
+  },
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33188,
+   "mtimeNs": 1000000000,
+   "nlink": 1,
+   "path": "data/static_files/static_file_headers_53000000_53499999.conf",
+   "reads": 2,
+   "sha256": "f84fe41406d7df2072eb6a61ec5ce0880905ae9ff5aa3c1db30e898b86d2659a",
+   "size": 75,
+   "uid": 994
+  },
+  {
+   "copyReread": true,
+   "gid": 985,
+   "mode": 33188,
+   "mtimeNs": 1000000000,
+   "nlink": 1,
+   "path": "data/static_files/static_file_headers_53000000_53499999.off",
+   "reads": 2,
+   "sha256": "515fd24a31206ccf32ea88f51b250a3bcfe009fa1e8db4d4fc530147f1562b91",
+   "size": 1164657,
+   "uid": 994
+  }
+ ],
+ "format": "compact-header-extraction-receipt/v1",
+ "outcome": "CLEAN",
+ "qemuInfo": {
+  "actual-size": 120867336192,
+  "cluster-size": 65536,
+  "format": "qcow2",
+  "virtual-size": 4000000000000
+ },
+ "rc": 0,
+ "resetAuthority": false,
+ "runDir": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320",
+ "session": {
+  "rc": 0,
+  "reasons": []
+ },
+ "sourcePost": {
+  "ctimeNs": 1793097367170099837,
+  "dev": 64768,
+  "ino": 4856848,
+  "mode": 292,
+  "mtimeNs": 1793046916167070631,
+  "readOnlyMount": false,
+  "size": 120867323904
+ },
+ "sourcePre": {
+  "ctimeNs": 1793097367170099837,
+  "dev": 64768,
+  "ino": 4856848,
+  "mode": 292,
+  "mtimeNs": 1793046916167070631,
+  "readOnlyMount": false,
+  "size": 120867323904
+ },
+ "totalBytes": 362900885,
+ "view": {
+  "fstype": "fuse.ext4",
+  "mntId": 496,
+  "opts": [
+   "ro",
+   "nosuid",
+   "nodev",
+   "relatime"
+  ],
+  "source": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320/session/work/view/nbd"
+ }
+}

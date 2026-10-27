@@ -1,0 +1,13 @@
+{
+ "allowlistSha256": "d6e376ab92a110cf9daff66997910c80da4264579281a7a8f9eabe22c2934c0e",
+ "backupPath": "/home/steven/Documents/Codex/2026-10-26/my/work/tr004/preserved-images/base-origin.compact.qcow2",
+ "backupSha256Provenance": "a3b00e5f0b4af372bdd479bd5bdaad48ce3a95438aa1879790d637641c95df9e",
+ "canonicalAuthority": false,
+ "destParent": "/vm/enclave-volumes/tr004-base-recovery-20261026",
+ "format": "compact-header-extraction-request/v1",
+ "purpose": "compact-header-extraction",
+ "reconciliationSha256": "8db4b41bd25b7b1153299154ef277bdd790ca4ff908d2ff2d2f8d7b6339580bb",
+ "recoveryAccepted": false,
+ "resetAuthority": false,
+ "stageSums": "ee657a9d1c0c120e058f49e77a3cdb67a8394d927ffa7a7807e514716fc9ca84"
+}

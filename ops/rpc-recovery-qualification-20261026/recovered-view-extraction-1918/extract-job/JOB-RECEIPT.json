@@ -1,0 +1,18 @@
+{
+ "canonicalAuthority": false,
+ "createdUtc": "2026-10-27T13:33:19Z",
+ "extractRc": 0,
+ "extractionReceiptPath": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320/EXTRACTION-RECEIPT.json",
+ "extractionReceiptSha256": "18494bbdffcf468441398051559f54cbeeee3d38a3905cbfc390d3e75960e416",
+ "finalRc": 0,
+ "format": "compact-header-extraction-job-receipt/v1",
+ "jobDir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/compact-header-extraction-stage/r3/runs/extract-20261027T133307Z-3243269",
+ "peersAfterSha256": "c5843289ed99b12130e5fb32ad05836b3da87ff0d61bfb6c8f2ba135ffb274d0",
+ "peersBeforeSha256": "c5843289ed99b12130e5fb32ad05836b3da87ff0d61bfb6c8f2ba135ffb274d0",
+ "peersEqual": true,
+ "resetAuthority": false,
+ "runDir": "/vm/enclave-volumes/tr004-base-recovery-20261026/compact-header-extraction-20261027T133308Z-3243320",
+ "stageCheckAfterOk": true,
+ "stageSumsAfter": "ee657a9d1c0c120e058f49e77a3cdb67a8394d927ffa7a7807e514716fc9ca84",
+ "stageSumsBefore": "ee657a9d1c0c120e058f49e77a3cdb67a8394d927ffa7a7807e514716fc9ca84"
+}
