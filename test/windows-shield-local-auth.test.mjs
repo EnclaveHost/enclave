@@ -153,6 +153,7 @@ test("package through the bridge: the guest reads the frame, a direct loopback r
 // ---- 4. one protocol: manager, fixture bridge, real Rust bridge -----------------------------------------------------------
 test("the real Rust bridge, the fixture and the manager speak the same credential protocol; legacy invocations are unchanged", () => {
   const rs = fs.readFileSync(path.join(ROOT, "windows/vbslike/host/src/bin/shielded-bridge.rs"), "utf8");
+  const relay = fs.readFileSync(path.join(ROOT, "windows/vbslike/host/src/bridge_relay.rs"), "utf8");
   assert.ok(rs.includes(`const AUTH_FLAG: &str = "${BRIDGE_AUTH_FLAG}";`));
   assert.ok(rs.includes(`const AUTH_PREFIX: &[u8] = b"${BRIDGE_AUTH_PREFIX}";`));
   assert.match(rs, /const AUTH_LINE_BYTES: usize = 23 \+ 64 \+ 1;/);
@@ -160,9 +161,10 @@ test("the real Rust bridge, the fixture and the manager speak the same credentia
   // the credential is read from stdin BEFORE the hv_sock bind, written BEFORE the relay, and never formatted into output
   const read = rs.indexOf("valid_auth_line(&line)"), bind = rs.indexOf("hvsock::Listener::bind(&vm, port)");
   assert.ok(read > 0 && bind > read, "credential read before bind");
-  assert.ok(rs.indexOf("worker.write_all(line)") < rs.indexOf("let mut gr = guest.try_clone()"), "credential written before any guest byte is relayed");
+  assert.ok(relay.indexOf("worker.write_all(line)") > 0 && relay.indexOf("worker.write_all(line)") < relay.indexOf("let mut gr = guest.try_clone()"), "credential written before any guest byte is relayed");
   // no output macro is handed the credential (the `line` buffer, or the `auth` value) as an argument
   assert.doesNotMatch(rs, /(println|eprintln|format|write|writeln)!\([^;]*[,(]\s*&?\*?(line|auth|l)(\.as_slice\(\))?\s*[,)]/, "the credential is never formatted into output");
+  assert.doesNotMatch(relay, /(println|eprintln|format|write|writeln)!\([^;]*[,(]\s*&?\*?(line|auth|l)(\.as_slice\(\))?\s*[,)]/, "relay never formats credential into output");
   assert.match(rs, /a\.len\(\) != 5 && !auth_flag/, "5-argument (egress, GPU) invocations unchanged");
   assert.match(rs, /auth_flag && seconds != 0/, "the flag only with supervised lifetime 0");
   // the fixture refuses a bad first line without echoing it, and a good line is relayed first
