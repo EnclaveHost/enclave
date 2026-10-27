@@ -1,0 +1,19 @@
+test_batch_plan_covers_1_to_264_in_at_most_8 (__main__.Batches.test_batch_plan_covers_1_to_264_in_at_most_8) ... ok
+test_batch_refuses_a_changed_runner_or_a_foreign_run_lock (__main__.Batches.test_batch_refuses_a_changed_runner_or_a_foreign_run_lock) ... ok
+test_driver_forward_retries_until_the_registered_batch_exists (__main__.Batches.test_driver_forward_retries_until_the_registered_batch_exists) ... ok
+test_fresh_copy_admission_accepts_a_verified_prefix_and_refuses_partial_foreign_stale (__main__.Batches.test_fresh_copy_admission_accepts_a_verified_prefix_and_refuses_partial_foreign_stale) ... ok
+test_one_view_at_a_time (__main__.Batches.test_one_view_at_a_time) ... ok
+test_post_copy_needs_one_new_confirmed_session_for_the_whole_range (__main__.Batches.test_post_copy_needs_one_new_confirmed_session_for_the_whole_range) ... ok
+test_post_verify_needs_a_new_session_distinct_from_the_copy_session (__main__.Batches.test_post_verify_needs_a_new_session_distinct_from_the_copy_session) ... ok
+test_previous_parts_need_a_confirmed_fresh_pass_not_a_saved_hash (__main__.Batches.test_previous_parts_need_a_confirmed_fresh_pass_not_a_saved_hash) ... ok
+test_reservation_is_the_exact_remaining_logical_bytes_plus_floor_plus_root_extra (__main__.Batches.test_reservation_is_the_exact_remaining_logical_bytes_plus_floor_plus_root_extra) ... ok
+test_signal_target_is_only_our_own_pidfd_pinned_orchestrate (__main__.Batches.test_signal_target_is_only_our_own_pidfd_pinned_orchestrate) ... ok
+test_stop_intent_is_ordered_against_the_final_launch_check (__main__.Batches.test_stop_intent_is_ordered_against_the_final_launch_check) ... ok
+test_stop_while_queued_never_starts_admission_or_a_wrapper (__main__.Batches.test_stop_while_queued_never_starts_admission_or_a_wrapper) ... ok
+test_verify_admission_needs_the_batch_committed_confirmed_and_unverified (__main__.Batches.test_verify_admission_needs_the_batch_committed_confirmed_and_unverified) ... ok
+test_wrong_target_or_unknown_index_part_names_are_foreign (__main__.Batches.test_wrong_target_or_unknown_index_part_names_are_foreign) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 4.989s
+
+OK

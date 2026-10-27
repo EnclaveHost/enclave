@@ -1,0 +1,41 @@
+test_batch_plan_covers_1_to_264_in_at_most_8 (__main__.Batches.test_batch_plan_covers_1_to_264_in_at_most_8) ... ok
+test_batch_refuses_a_changed_runner_or_a_foreign_run_lock (__main__.Batches.test_batch_refuses_a_changed_runner_or_a_foreign_run_lock) ... ok
+test_driver_forward_retries_until_the_registered_batch_exists (__main__.Batches.test_driver_forward_retries_until_the_registered_batch_exists) ... ok
+test_fresh_copy_admission_accepts_a_verified_prefix_and_refuses_partial_foreign_stale (__main__.Batches.test_fresh_copy_admission_accepts_a_verified_prefix_and_refuses_partial_foreign_stale) ... ## REFUSED: part 2 already has files ['part-0002.bin.partial'] (a fresh run never adopts partial/stale/foreign state)
+## REFUSED: part 5 already has files ['part-0005.json'] (a fresh run never adopts partial/stale/foreign state)
+## REFUSED: target vm: files that are not ours: ['notes.txt']
+## REFUSED: previous part 0 is not committed + verified in confirmed sessions: stale: the part file's identity differs from its record
+ok
+test_one_view_at_a_time (__main__.Batches.test_one_view_at_a_time) ... ok
+test_post_copy_needs_one_new_confirmed_session_for_the_whole_range (__main__.Batches.test_post_copy_needs_one_new_confirmed_session_for_the_whole_range) ... ## FAILED: part 1 is not bound to a NEW confirmed session
+## FAILED: the batch is bound to 2 new sessions (exactly one expected): ['20261027T000300Z-3', '20261027T000400Z-4']
+## FAILED: part 3 outside the batch has files ['part-0003.bin', 'part-0003.json']
+ok
+test_post_verify_needs_a_new_session_distinct_from_the_copy_session (__main__.Batches.test_post_verify_needs_a_new_session_distinct_from_the_copy_session) ... ## FAILED: part 1 has no PASS in exactly one NEW confirmed verify session (['20261027T000300Z-3'])
+## FAILED: part 1 has no PASS in exactly one NEW confirmed verify session (['20261027T000200Z-2'])
+ok
+test_previous_parts_need_a_confirmed_fresh_pass_not_a_saved_hash (__main__.Batches.test_previous_parts_need_a_confirmed_fresh_pass_not_a_saved_hash) ... ## REFUSED: previous part 0 is not committed + verified in confirmed sessions: None
+## REFUSED: previous part 0 is not committed + verified in confirmed sessions: None
+## REFUSED: previous part 0 is not committed + verified in confirmed sessions: invalid or FAIL verify record part-0000.verify-20261027T000002Z-1.json
+ok
+test_reservation_is_the_exact_remaining_logical_bytes_plus_floor_plus_root_extra (__main__.Batches.test_reservation_is_the_exact_remaining_logical_bytes_plus_floor_plus_root_extra) ... ## REFUSED: target root: free 8589951975 < needed 8589951976 (remaining 16384 + floor + external)
+## REFUSED: target vm: free 25575 < needed 25576 (remaining 24576 + floor + external)
+ok
+test_signal_target_is_only_our_own_pidfd_pinned_orchestrate (__main__.Batches.test_signal_target_is_only_our_own_pidfd_pinned_orchestrate) ... ok
+test_stop_intent_is_ordered_against_the_final_launch_check (__main__.Batches.test_stop_intent_is_ordered_against_the_final_launch_check) ... ok
+test_stop_while_queued_never_starts_admission_or_a_wrapper (__main__.Batches.test_stop_while_queued_never_starts_admission_or_a_wrapper) ... ok
+test_verify_admission_needs_the_batch_committed_confirmed_and_unverified (__main__.Batches.test_verify_admission_needs_the_batch_committed_confirmed_and_unverified) ... ## REFUSED: part 1 is not exactly committed (confirmed) and unverified: ['part-0001.bin', 'part-0001.json', 'part-0001.verify-20261027T000002Z-1.json'] None
+## REFUSED: part 2 is not exactly committed (confirmed) and unverified: ['part-0002.bin', 'part-0002.json'] commit binding not confirmed and no confirmed fresh PASS
+## REFUSED: part 2 is not exactly committed (confirmed) and unverified: [] no files
+ok
+test_wrong_target_or_unknown_index_part_names_are_foreign (__main__.Batches.test_wrong_target_or_unknown_index_part_names_are_foreign) ... ## REFUSED: target vm: files that are not ours: ['part-0001.json']
+## REFUSED: target root: files that are not ours: ['part-0099.bin']
+## REFUSED: target root: files that are not ours: ['part-0004.bin.partial']
+## REFUSED: target root: files that are not ours: ['part-0001.verify-garbage.json']
+## FAILED: foreign files appeared in target vm: ['part-0002.verify-20261027T000000Z-9.json']
+ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 5.038s
+
+OK
