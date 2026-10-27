@@ -1,0 +1,9 @@
+# Root source findings before production build
+
+The actual r8 guard tests (10+6+11) and private namespace tests (4) passed. These do not prove complete process cleanup or successful production verification.
+
+1. `jobs/bsro_gate.py:authenticate` reads `guard-receipt.json` but checks only format and runDir. It records `reason`/`childRc` without rejecting a failure or `groupLeftAlive:true`. The unchanged disk guard can return childRc0 while its final groupLeftAlive is true (for example a child cannot be killed). Such a build must not become verified. Require the exact successful terminal fields (reason null, childRc exact int0, groupLeftAlive exact false) and negative fixtures. Retain old disk guard bytes.
+2. `run_capture` performs child-exit/deadline checks only when a nonblocking read has no data. Its `if b: ... continue` means a continuous output holder can prevent the promised post-exit grace/KILL/abandonment deadlines. Tick lifecycle checks independently of output throughput, keeping the leader unreaped while signalling its group. Add a bounded continuous-output descendant regression and verify no surviving owned writer.
+3. On Popen failure after output creation, the capture file descriptor is outside the try/finally and leaks. On capture write/read/fsync errors, the finally block performs p.wait without first initiating orderly owned cleanup; this can wait for the full build even though its evidence sink failed. Handle spawn and capture errors with deterministic fd cleanup and owned termination/reaping. Preserve inner guard opportunity to terminate its separate build process group; do not blindly kill the queue or unrelated processes.
+
+These are source findings, not observed production incidents. A separate independent review is pending. Do not activate r8 yet; all265 preservation gate and actual build deferral remain in force.
