@@ -1,0 +1,6 @@
+[queue] START available=24109MiB required=20736MiB cap=4096MiB floor=16384MiB concurrentSmall=0MiB
+
+[memory-guard] STOPPING own job: host MemAvailable 15697 MiB < floor 16384 MiB
+[memory-guard] exit=SIGTERM peakTreeRssMiB=1543 minHostAvailableMiB=15697 STOPPED: host MemAvailable 15697 MiB < floor 16384 MiB
+[memory-guard] at peak: mdbx_chk:1461 python3:30 python3:21 qemu-nbd:16 nbdfuse:8 bash:4 timeout:2
+[queue] EXIT 99

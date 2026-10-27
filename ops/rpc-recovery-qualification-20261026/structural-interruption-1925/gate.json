@@ -1,0 +1,107 @@
+{
+ "checks": {
+  "lane": {
+   "memAvailableMiB": 24066,
+   "memoryMaxMiB": 4096
+  },
+  "qualifications": {
+   "r4": {
+    "files": 7,
+    "stage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-memory-fixture-stage/r4",
+    "sums": "25245e21772377bcbacd9e27d8eb9d330e1340a3b2b1de9f98177b3603a17789"
+   },
+   "r4Receipts": {
+    "r4Job": "c24bc095716c9b8cfb44e60d28d0420a3c82579c86821df0fb9af3cb61521b3c",
+    "r4Run": "f7b11bb1ac9ef5cc5621d6ba0f17e8775bc5619b5f82678495aaef81fe2e500a",
+    "r4Tests": "559ed6d5b80ef83631a01193650eef316d5d00f3abc677eb2eaf910939c8048a",
+    "r7GateTests": "24d3a9893421b3e1e59730976a6a3fa43f3b08118f0f1947c7754d1363829299"
+   },
+   "r6Qualification": {
+    "receipt": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r6/runs/tests-20261027T020755Z-2617132/receipt.json",
+    "sha256": "c94c4689538744543bad185889e99f69ab6d5b8c0e0aaf79767dc15b1ad74f72"
+   },
+   "r6Stage": {
+    "files": 9,
+    "stage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r6",
+    "sums": "06705b02eab351a718234f22c9a53acdbefe3977122682f8f3f7ac25d5b9914a"
+   },
+   "r7": {
+    "files": 5,
+    "stage": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r7",
+    "sums": "ec006ff6e7b0095c03c108a4d82d8ca1bdbf7515d6858a3b1886fb51c7198396"
+   }
+  },
+  "reservation": {
+   "root": {
+    "floor": 42949672960,
+    "free": 52555280384,
+    "margin": 797569024,
+    "native": 8589934592,
+    "need": 51757711360,
+    "outputBudget": 218103808,
+    "remaining": 0
+   },
+   "vm": {
+    "floor": 42949672960,
+    "free": 84537901056,
+    "margin": 41588228096,
+    "need": 42949672960,
+    "remaining": 0
+   }
+  },
+  "rlimitFsize": 33554432,
+  "view": {
+   "logicalSize": 1138166333440,
+   "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+   "parts": 265
+  }
+ },
+ "format": "composite-production-memory-gate/r10",
+ "limits": [
+  "MemoryHigh 3712 MiB is a reclaim/throttle threshold, NOT a ceiling",
+  "MemoryHigh applies to the WHOLE queue scope (node guard, job bash, runtime, qemu-nbd, nbdfuse, wrapper, mdbx_chk): all can be throttled, which can delay the outer guard and slow the servers",
+  "the memory.max (4096 MiB) OOM victim is NOT guaranteed",
+  "the 0.5 s soft stop races the outer 250 ms tree-VmRSS guard and other host allocations",
+  "production page tables (~used bytes / 512) and mdbx_chk's pagemap (~2 bytes/page) are ESTIMATES; the r4 mechanism PASS was an 8 GiB synthetic mapping",
+  "CLEAN is STRUCTURAL ONLY (mdbx_chk); not chain / state / trie / canonical-root / RPC validation"
+ ],
+ "maxHours": 8,
+ "meaning": "gate only; a later CLEAN is STRUCTURAL (mdbx_chk) only",
+ "scope": {
+  "after": {
+   "ownHigh": "3892314112",
+   "ownMax": "4294967296",
+   "parentHigh": "max"
+  },
+  "appliesTo": "the WHOLE scope (see limits)",
+  "before": {
+   "ownHigh": "max",
+   "ownMax": "4294967296",
+   "parentHigh": "max"
+  },
+  "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/run-p3243908-i40997743.scope",
+  "unit": "run-p3243908-i40997743.scope"
+ },
+ "session": {
+  "argv": [
+   "/usr/bin/python3",
+   "-I",
+   "-B",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/memory_gate.py",
+   "runtime",
+   "--tree-root-pid",
+   "3243915",
+   "--",
+   "--view-dir",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909",
+   "--run-dir",
+   "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T133347Z-3243915/session",
+   "--expect-kind",
+   "production",
+   "--validator-timeout",
+   "28800"
+  ],
+  "runDir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T133347Z-3243915/session"
+ },
+ "viewDir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909"
+}
