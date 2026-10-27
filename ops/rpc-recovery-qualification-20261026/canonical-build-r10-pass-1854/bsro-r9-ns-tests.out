@@ -1,0 +1,56 @@
+[queue] NOT STARTED: test allocation held
+[q.sh] try 1 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 2 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 3 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 4 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 5 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 6 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 7 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 8 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 9 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 10 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 11 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 12 not started; sleep 30
+[queue] NOT STARTED: test allocation held
+[q.sh] try 13 not started; sleep 30
+[queue] START available=24725MiB required=17152MiB cap=512MiB floor=16384MiB concurrentSmall=0MiB
+
+OK
+{
+ "format": "bsro-ns-test-receipt/r9",
+ "pass": true,
+ "stageSums": "f7470ced1fecc19f9fd62620b96e94693eb3825b84a632120a2d164f2a6159e5",
+ "suites": {
+  "test_ns": {
+   "checks": {
+    "lastLineOK": true,
+    "noBadMarkers": true,
+    "ranExactly": true,
+    "rc0": true,
+    "stdoutEmpty": true
+   },
+   "expected": 5,
+   "pass": true,
+   "ran": [
+    "5"
+   ],
+   "rc": 0
+  }
+ }
+}
+## outputs /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/base-state-readonly-stage/r9/runs/ns-tests-20261027T072409Z-2910017
+## bsro-r9-ns-tests rc=0
+[memory-guard] exit=0 peakTreeRssMiB=0 minHostAvailableMiB=n/a
+[memory-guard] at peak: 
+[queue] EXIT 0
