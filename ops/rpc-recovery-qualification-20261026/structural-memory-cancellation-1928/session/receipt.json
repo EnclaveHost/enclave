@@ -1,0 +1,6822 @@
+{
+ "adoptedKilled": [],
+ "checks": {
+  "heldBeforeExec": {
+   "detail": "check-held refused",
+   "ok": true
+  },
+  "heldBeforeMount": {
+   "detail": "check-held refused",
+   "ok": true
+  },
+  "logicalSize": {
+   "detail": 1138166333440,
+   "ok": true
+  },
+  "mountReadOnly": {
+   "detail": "the FUSE mount is not ST_RDONLY",
+   "ok": true
+  },
+  "nbdfuseBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "nbdfuseForeground": {
+   "detail": "it daemonized",
+   "ok": true
+  },
+  "onlyMdbxDat": {
+   "detail": [
+    "mdbx.dat"
+   ],
+   "ok": true
+  },
+  "preUseRecheck": {
+   "ok": true
+  },
+  "qemu-nbdBound": {
+   "detail": "cmdline / exe differ from what we spawned",
+   "ok": true
+  },
+  "socketOurs": {
+   "detail": "not our socket",
+   "ok": true
+  },
+  "writeRefused": {
+   "detail": "an O_WRONLY open of the exposed mdbx.dat succeeded",
+   "ok": true
+  }
+ },
+ "children": {
+  "exec": {
+   "argv": [
+    "/usr/bin/python3",
+    "-I",
+    "-B",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+    "--chk",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+    "--chk-sha256",
+    "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981",
+    "--db-dir",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T144321Z-3292184/session/work/db",
+    "--timeout",
+    "86400",
+    "--out",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T144321Z-3292184/session/mdbx-report.json"
+   ],
+   "pid": 3292261,
+   "returncode": 143
+  },
+  "nbdfuse": {
+   "argv": [
+    "/usr/bin/nbdfuse",
+    "-r",
+    "-C",
+    "1",
+    "-o",
+    "ro",
+    "-P",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T144321Z-3292184/session/work/nbdfuse.pid",
+    "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/composite-mdbx-validation-stage/r10/runs/prod-20261027T144321Z-3292184/session/work/db/mdbx.dat",
+    "--unix",
+    "/proc/self/cwd/nbd.sock"
+   ],
+   "exe": [
+    64768,
+    14986678
+   ],
+   "pid": 3292250,
+   "returncode": 0,
+   "startTime": 141731580
+  },
+  "qemu-nbd": {
+   "argv": [
+    "/usr/bin/qemu-nbd",
+    "--read-only",
+    "--shared=1",
+    "--socket=/proc/self/cwd/nbd.sock",
+    "--image-opts",
+    "driver=vmdk,read-only=on,file.driver=file,file.filename=/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909/view.vmdk,extents.0.driver=file,extents.1.driver=file,extents.2.driver=file,extents.3.driver=file,extents.4.driver=file,extents.5.driver=file,extents.6.driver=file,extents.7.driver=file,extents.8.driver=file,extents.9.driver=file,extents.10.driver=file,extents.11.driver=file,extents.12.driver=file,extents.13.driver=file,extents.14.driver=file,extents.15.driver=file,extents.16.driver=file,extents.17.driver=file,extents.18.driver=file,extents.19.driver=file,extents.20.driver=file,extents.21.driver=file,extents.22.driver=file,extents.23.driver=file,extents.24.driver=file,extents.25.driver=file,extents.26.driver=file,extents.27.driver=file,extents.28.driver=file,extents.29.driver=file,extents.30.driver=file,extents.31.driver=file,extents.32.driver=file,extents.33.driver=file,extents.34.driver=file,extents.35.driver=file,extents.36.driver=file,extents.37.driver=file,extents.38.driver=file,extents.39.driver=file,extents.40.driver=file,extents.41.driver=file,extents.42.driver=file,extents.43.driver=file,extents.44.driver=file,extents.45.driver=file,extents.46.driver=file,extents.47.driver=file,extents.48.driver=file,extents.49.driver=file,extents.50.driver=file,extents.51.driver=file,extents.52.driver=file,extents.53.driver=file,extents.54.driver=file,extents.55.driver=file,extents.56.driver=file,extents.57.driver=file,extents.58.driver=file,extents.59.driver=file,extents.60.driver=file,extents.61.driver=file,extents.62.driver=file,extents.63.driver=file,extents.64.driver=file,extents.65.driver=file,extents.66.driver=file,extents.67.driver=file,extents.68.driver=file,extents.69.driver=file,extents.70.driver=file,extents.71.driver=file,extents.72.driver=file,extents.73.driver=file,extents.74.driver=file,extents.75.driver=file,extents.76.driver=file,extents.77.driver=file,extents.78.driver=file,extents.79.driver=file,extents.80.driver=file,extents.81.driver=file,extents.82.driver=file,extents.83.driver=file,extents.84.driver=file,extents.85.driver=file,extents.86.driver=file,extents.87.driver=file,extents.88.driver=file,extents.89.driver=file,extents.90.driver=file,extents.91.driver=file,extents.92.driver=file,extents.93.driver=file,extents.94.driver=file,extents.95.driver=file,extents.96.driver=file,extents.97.driver=file,extents.98.driver=file,extents.99.driver=file,extents.100.driver=file,extents.101.driver=file,extents.102.driver=file,extents.103.driver=file,extents.104.driver=file,extents.105.driver=file,extents.106.driver=file,extents.107.driver=file,extents.108.driver=file,extents.109.driver=file,extents.110.driver=file,extents.111.driver=file,extents.112.driver=file,extents.113.driver=file,extents.114.driver=file,extents.115.driver=file,extents.116.driver=file,extents.117.driver=file,extents.118.driver=file,extents.119.driver=file,extents.120.driver=file,extents.121.driver=file,extents.122.driver=file,extents.123.driver=file,extents.124.driver=file,extents.125.driver=file,extents.126.driver=file,extents.127.driver=file,extents.128.driver=file,extents.129.driver=file,extents.130.driver=file,extents.131.driver=file,extents.132.driver=file,extents.133.driver=file,extents.134.driver=file,extents.135.driver=file,extents.136.driver=file,extents.137.driver=file,extents.138.driver=file,extents.139.driver=file,extents.140.driver=file,extents.141.driver=file,extents.142.driver=file,extents.143.driver=file,extents.144.driver=file,extents.145.driver=file,extents.146.driver=file,extents.147.driver=file,extents.148.driver=file,extents.149.driver=file,extents.150.driver=file,extents.151.driver=file,extents.152.driver=file,extents.153.driver=file,extents.154.driver=file,extents.155.driver=file,extents.156.driver=file,extents.157.driver=file,extents.158.driver=file,extents.159.driver=file,extents.160.driver=file,extents.161.driver=file,extents.162.driver=file,extents.163.driver=file,extents.164.driver=file,extents.165.driver=file,extents.166.driver=file,extents.167.driver=file,extents.168.driver=file,extents.169.driver=file,extents.170.driver=file,extents.171.driver=file,extents.172.driver=file,extents.173.driver=file,extents.174.driver=file,extents.175.driver=file,extents.176.driver=file,extents.177.driver=file,extents.178.driver=file,extents.179.driver=file,extents.180.driver=file,extents.181.driver=file,extents.182.driver=file,extents.183.driver=file,extents.184.driver=file,extents.185.driver=file,extents.186.driver=file,extents.187.driver=file,extents.188.driver=file,extents.189.driver=file,extents.190.driver=file,extents.191.driver=file,extents.192.driver=file,extents.193.driver=file,extents.194.driver=file,extents.195.driver=file,extents.196.driver=file,extents.197.driver=file,extents.198.driver=file,extents.199.driver=file,extents.200.driver=file,extents.201.driver=file,extents.202.driver=file,extents.203.driver=file,extents.204.driver=file,extents.205.driver=file,extents.206.driver=file,extents.207.driver=file,extents.208.driver=file,extents.209.driver=file,extents.210.driver=file,extents.211.driver=file,extents.212.driver=file,extents.213.driver=file,extents.214.driver=file,extents.215.driver=file,extents.216.driver=file,extents.217.driver=file,extents.218.driver=file,extents.219.driver=file,extents.220.driver=file,extents.221.driver=file,extents.222.driver=file,extents.223.driver=file,extents.224.driver=file,extents.225.driver=file,extents.226.driver=file,extents.227.driver=file,extents.228.driver=file,extents.229.driver=file,extents.230.driver=file,extents.231.driver=file,extents.232.driver=file,extents.233.driver=file,extents.234.driver=file,extents.235.driver=file,extents.236.driver=file,extents.237.driver=file,extents.238.driver=file,extents.239.driver=file,extents.240.driver=file,extents.241.driver=file,extents.242.driver=file,extents.243.driver=file,extents.244.driver=file,extents.245.driver=file,extents.246.driver=file,extents.247.driver=file,extents.248.driver=file,extents.249.driver=file,extents.250.driver=file,extents.251.driver=file,extents.252.driver=file,extents.253.driver=file,extents.254.driver=file,extents.255.driver=file,extents.256.driver=file,extents.257.driver=file,extents.258.driver=file,extents.259.driver=file,extents.260.driver=file,extents.261.driver=file,extents.262.driver=file,extents.263.driver=file,extents.264.driver=file"
+   ],
+   "exe": [
+    64768,
+    14981978
+   ],
+   "pid": 3292247,
+   "returncode": 0,
+   "startTime": 141731549
+  }
+ },
+ "childrenAlive": [],
+ "cleanupComplete": true,
+ "cleanupErrors": [],
+ "format": "composite-mdbx-validation-receipt/r2",
+ "interrupted": "soft stop: MemAvailable 16758 MiB < 16896 MiB (16 GiB floor + 512)",
+ "kind": "production",
+ "leftoverProcesses": [],
+ "memory": {
+  "childLogCapBytes": 16777216,
+  "eventsBefore": {
+   "high": 0,
+   "low": 0,
+   "max": 0,
+   "oom": 0,
+   "oom_group_kill": 0,
+   "oom_kill": 0,
+   "sock_throttled": 0
+  },
+  "lane": {
+   "memoryHighMiB": 3712,
+   "memoryMaxMiB": 4096
+  },
+  "limits": [
+   "MemoryHigh 3712 MiB is a reclaim/throttle threshold, NOT a ceiling",
+   "MemoryHigh applies to the WHOLE queue scope (node guard, job bash, runtime, qemu-nbd, nbdfuse, wrapper, mdbx_chk): all can be throttled, which can delay the outer guard and slow the servers",
+   "the memory.max (4096 MiB) OOM victim is NOT guaranteed",
+   "the 0.5 s soft stop races the outer 250 ms tree-VmRSS guard and other host allocations",
+   "production page tables (~used bytes / 512) and mdbx_chk's pagemap (~2 bytes/page) are ESTIMATES; the r4 mechanism PASS was an 8 GiB synthetic mapping",
+   "CLEAN is STRUCTURAL ONLY (mdbx_chk); not chain / state / trie / canonical-root / RPC validation"
+  ],
+  "peaks": {
+   "cgAnon": 635469824,
+   "cgCurrent": 3892781056,
+   "cgFileMapped": 1075748864,
+   "cgPagetables": 2222551040,
+   "chkRssAnonKiB": 541068,
+   "chkRssFileKiB": 636192,
+   "chkVmPTEKiB": 2168028,
+   "chkVmRSSKiB": 1177188,
+   "minMemAvailableMiB": 16757.55859375,
+   "treeVmRssMiB": 1638.12890625
+  },
+  "samples": [
+   {
+    "cg": {
+     "current": 52006912,
+     "events": {
+      "high": 0,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 41537536,
+      "file": 3772416,
+      "file_mapped": 118784,
+      "inactive_file": 3768320,
+      "kernel": 2859008,
+      "pagetables": 1286144,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 1084384
+     }
+    },
+    "memAvailableMiB": 96017,
+    "procs": {
+     "python3:3292261": {
+      "RssAnonKiB": 5464,
+      "RssFileKiB": 6864,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 76,
+      "VmRSSKiB": 12328
+     }
+    },
+    "t": 1417316.1,
+    "treeVmRssMiB": 71.1
+   },
+   {
+    "cg": {
+     "current": 3892137984,
+     "events": {
+      "high": 34218,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 611729408,
+      "file": 1313402880,
+      "file_mapped": 649596928,
+      "inactive_file": 1312731136,
+      "kernel": 1964625920,
+      "pagetables": 1745154048,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 218959792
+     }
+    },
+    "memAvailableMiB": 93378,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 540996,
+      "RssFileKiB": 636192,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 1702840,
+      "VmRSSKiB": 1177188
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1417436.3,
+    "treeVmRssMiB": 1231.3
+   },
+   {
+    "cg": {
+     "current": 3891978240,
+     "events": {
+      "high": 74375,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 618799104,
+      "file": 1127645184,
+      "file_mapped": 542175232,
+      "inactive_file": 1127124992,
+      "kernel": 2142814208,
+      "pagetables": 1950498816,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 191785712
+     }
+    },
+    "memAvailableMiB": 93165,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541044,
+      "RssFileKiB": 530932,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 1902968,
+      "VmRSSKiB": 1071976
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1417556.5,
+    "treeVmRssMiB": 1128.6
+   },
+   {
+    "cg": {
+     "current": 3892236288,
+     "events": {
+      "high": 114625,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 8192,
+      "anon": 618860544,
+      "file": 1090138112,
+      "file_mapped": 544653312,
+      "inactive_file": 1089892352,
+      "kernel": 2180759552,
+      "pagetables": 1993728000,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 186506312
+     }
+    },
+    "memAvailableMiB": 93310,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541052,
+      "RssFileKiB": 533960,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 1945180,
+      "VmRSSKiB": 1075012
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1417676.7,
+    "treeVmRssMiB": 1131.4
+   },
+   {
+    "cg": {
+     "current": 3892088832,
+     "events": {
+      "high": 161803,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 618885120,
+      "file": 1106292736,
+      "file_mapped": 70950912,
+      "inactive_file": 1105903616,
+      "kernel": 2164293632,
+      "pagetables": 2071072768,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 92693600
+     }
+    },
+    "memAvailableMiB": 93011,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 71976,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2020716,
+      "VmRSSKiB": 613040
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1417796.9,
+    "treeVmRssMiB": 680.0
+   },
+   {
+    "cg": {
+     "current": 3891994624,
+     "events": {
+      "high": 198205,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619003904,
+      "file": 1091391488,
+      "file_mapped": 40923136,
+      "inactive_file": 1090859008,
+      "kernel": 2180005888,
+      "pagetables": 2100817920,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 78657432
+     }
+    },
+    "memAvailableMiB": 92934,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 42696,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2049764,
+      "VmRSSKiB": 583760
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1417917.2,
+    "treeVmRssMiB": 651.4
+   },
+   {
+    "cg": {
+     "current": 3892023296,
+     "events": {
+      "high": 221131,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619053056,
+      "file": 1062957056,
+      "file_mapped": 117399552,
+      "inactive_file": 1062420480,
+      "kernel": 2207125504,
+      "pagetables": 2126966784,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 79619256
+     }
+    },
+    "memAvailableMiB": 93053,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 116224,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2075292,
+      "VmRSSKiB": 657288
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418037.4,
+    "treeVmRssMiB": 723.8
+   },
+   {
+    "cg": {
+     "current": 3891990528,
+     "events": {
+      "high": 240494,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619290624,
+      "file": 1029914624,
+      "file_mapped": 488620032,
+      "inactive_file": 1029484544,
+      "kernel": 2240487424,
+      "pagetables": 2152783872,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 87184504
+     }
+    },
+    "memAvailableMiB": 92571,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 479760,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2100512,
+      "VmRSSKiB": 1020824
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418157.7,
+    "treeVmRssMiB": 1078.3
+   },
+   {
+    "cg": {
+     "current": 3891888128,
+     "events": {
+      "high": 260057,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619290624,
+      "file": 1017249792,
+      "file_mapped": 151515136,
+      "inactive_file": 1016872960,
+      "kernel": 2252247040,
+      "pagetables": 2177056768,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 74668440
+     }
+    },
+    "memAvailableMiB": 92961,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 150584,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2124208,
+      "VmRSSKiB": 691648
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418278.0,
+    "treeVmRssMiB": 756.8
+   },
+   {
+    "cg": {
+     "current": 3892166656,
+     "events": {
+      "high": 279835,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619352064,
+      "file": 1005973504,
+      "file_mapped": 29900800,
+      "inactive_file": 1005649920,
+      "kernel": 2264178688,
+      "pagetables": 2198736896,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 64935144
+     }
+    },
+    "memAvailableMiB": 93060,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 30696,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2145380,
+      "VmRSSKiB": 571760
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418398.3,
+    "treeVmRssMiB": 640.2
+   },
+   {
+    "cg": {
+     "current": 3892117504,
+     "events": {
+      "high": 300307,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619511808,
+      "file": 978731008,
+      "file_mapped": 369381376,
+      "inactive_file": 978436096,
+      "kernel": 2290642944,
+      "pagetables": 2214707200,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 75404664
+     }
+    },
+    "memAvailableMiB": 92811,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541064,
+      "RssFileKiB": 362744,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2160976,
+      "VmRSSKiB": 903808
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418518.4,
+    "treeVmRssMiB": 964.5
+   },
+   {
+    "cg": {
+     "current": 3891912704,
+     "events": {
+      "high": 320729,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619515904,
+      "file": 908603392,
+      "file_mapped": 258121728,
+      "inactive_file": 908087296,
+      "kernel": 2361675776,
+      "pagetables": 2215854080,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 145296264
+     }
+    },
+    "memAvailableMiB": 93034,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 253772,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2162096,
+      "VmRSSKiB": 794840
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418638.6,
+    "treeVmRssMiB": 857.6
+   },
+   {
+    "cg": {
+     "current": 3891949568,
+     "events": {
+      "high": 341460,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619515904,
+      "file": 926801920,
+      "file_mapped": 5353472,
+      "inactive_file": 926535680,
+      "kernel": 2343596032,
+      "pagetables": 2216755200,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 126318416
+     }
+    },
+    "memAvailableMiB": 92925,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 7248,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2162976,
+      "VmRSSKiB": 548316
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418758.9,
+    "treeVmRssMiB": 617.1
+   },
+   {
+    "cg": {
+     "current": 3892035584,
+     "events": {
+      "high": 362464,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619515904,
+      "file": 900247552,
+      "file_mapped": 331878400,
+      "inactive_file": 899784704,
+      "kernel": 2370035712,
+      "pagetables": 2217472000,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 152045224
+     }
+    },
+    "memAvailableMiB": 92850,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 326792,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2163676,
+      "VmRSSKiB": 867860
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418879.3,
+    "treeVmRssMiB": 928.8
+   },
+   {
+    "cg": {
+     "current": 3892080640,
+     "events": {
+      "high": 383515,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619515904,
+      "file": 901566464,
+      "file_mapped": 259674112,
+      "inactive_file": 901201920,
+      "kernel": 2368794624,
+      "pagetables": 2218082304,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 150195424
+     }
+    },
+    "memAvailableMiB": 92760,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 254676,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2164272,
+      "VmRSSKiB": 795744
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1418999.4,
+    "treeVmRssMiB": 859.4
+   },
+   {
+    "cg": {
+     "current": 3892006912,
+     "events": {
+      "high": 404440,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619515904,
+      "file": 915865600,
+      "file_mapped": 63582208,
+      "inactive_file": 915283968,
+      "kernel": 2354249728,
+      "pagetables": 2218491904,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 135236944
+     }
+    },
+    "memAvailableMiB": 92980,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 64532,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2164672,
+      "VmRSSKiB": 605600
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1419119.6,
+    "treeVmRssMiB": 672.8
+   },
+   {
+    "cg": {
+     "current": 3891896320,
+     "events": {
+      "high": 425624,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 619515904,
+      "file": 894259200,
+      "file_mapped": 407470080,
+      "inactive_file": 893726720,
+      "kernel": 2375639040,
+      "pagetables": 2218844160,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 156269728
+     }
+    },
+    "memAvailableMiB": 92951,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 400444,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2165016,
+      "VmRSSKiB": 941512
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1419239.9,
+    "treeVmRssMiB": 1000.8
+   },
+   {
+    "cg": {
+     "current": 3892166656,
+     "events": {
+      "high": 446609,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621449216,
+      "file": 903028736,
+      "file_mapped": 165650432,
+      "inactive_file": 902414336,
+      "kernel": 2365386752,
+      "pagetables": 2219147264,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 145700928
+     }
+    },
+    "memAvailableMiB": 92859,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 163492,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2165312,
+      "VmRSSKiB": 704560
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9692,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21760
+     }
+    },
+    "t": 1419360.2,
+    "treeVmRssMiB": 771.7
+   },
+   {
+    "cg": {
+     "current": 3892051968,
+     "events": {
+      "high": 467493,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 901681152,
+      "file_mapped": 188137472,
+      "inactive_file": 901169152,
+      "kernel": 2366107648,
+      "pagetables": 2219438080,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 146149432
+     }
+    },
+    "memAvailableMiB": 92654,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 186304,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2165596,
+      "VmRSSKiB": 727372
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1419480.4,
+    "treeVmRssMiB": 793.8
+   },
+   {
+    "cg": {
+     "current": 3891937280,
+     "events": {
+      "high": 488487,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 891854848,
+      "file_mapped": 359993344,
+      "inactive_file": 891469824,
+      "kernel": 2375565312,
+      "pagetables": 2219593728,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 155463528
+     }
+    },
+    "memAvailableMiB": 92260,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 353136,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2165748,
+      "VmRSSKiB": 894204
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1419600.7,
+    "treeVmRssMiB": 957.2
+   },
+   {
+    "cg": {
+     "current": 3891838976,
+     "events": {
+      "high": 509463,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 916738048,
+      "file_mapped": 6373376,
+      "inactive_file": 916123648,
+      "kernel": 2351067136,
+      "pagetables": 2219798528,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 130741272
+     }
+    },
+    "memAvailableMiB": 92567,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 7808,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2165948,
+      "VmRSSKiB": 548876
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1419720.9,
+    "treeVmRssMiB": 619.5
+   },
+   {
+    "cg": {
+     "current": 3892068352,
+     "events": {
+      "high": 531080,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 898764800,
+      "file_mapped": 217554944,
+      "inactive_file": 898412544,
+      "kernel": 2368425984,
+      "pagetables": 2219954176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 147949424
+     }
+    },
+    "memAvailableMiB": 92321,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 215164,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166100,
+      "VmRSSKiB": 756232
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1419841.2,
+    "treeVmRssMiB": 821.9
+   },
+   {
+    "cg": {
+     "current": 3891638272,
+     "events": {
+      "high": 552165,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 892678144,
+      "file_mapped": 330735616,
+      "inactive_file": 892317696,
+      "kernel": 2375176192,
+      "pagetables": 2220093440,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 154578480
+     }
+    },
+    "memAvailableMiB": 92713,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 324652,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166236,
+      "VmRSSKiB": 865720
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1419961.4,
+    "treeVmRssMiB": 929.4
+   },
+   {
+    "cg": {
+     "current": 3892396032,
+     "events": {
+      "high": 573452,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 910462976,
+      "file_mapped": 70639616,
+      "inactive_file": 909975552,
+      "kernel": 2357383168,
+      "pagetables": 2220204032,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 136655856
+     }
+    },
+    "memAvailableMiB": 92818,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 71560,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166344,
+      "VmRSSKiB": 612628
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420081.7,
+    "treeVmRssMiB": 681.7
+   },
+   {
+    "cg": {
+     "current": 3892105216,
+     "events": {
+      "high": 594407,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 890322944,
+      "file_mapped": 411856896,
+      "inactive_file": 889950208,
+      "kernel": 2378067968,
+      "pagetables": 2220335104,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 157225112
+     }
+    },
+    "memAvailableMiB": 92586,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 404696,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166472,
+      "VmRSSKiB": 945764
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420201.9,
+    "treeVmRssMiB": 1007.1
+   },
+   {
+    "cg": {
+     "current": 3891859456,
+     "events": {
+      "high": 615158,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621686784,
+      "file": 913080320,
+      "file_mapped": 264482816,
+      "inactive_file": 912740352,
+      "kernel": 2353983488,
+      "pagetables": 2220404736,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 133046536
+     }
+    },
+    "memAvailableMiB": 92452,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 259808,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166540,
+      "VmRSSKiB": 800876
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420322.1,
+    "treeVmRssMiB": 865.6
+   },
+   {
+    "cg": {
+     "current": 3892039680,
+     "events": {
+      "high": 636164,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621686784,
+      "file": 928268288,
+      "file_mapped": 26943488,
+      "inactive_file": 927891456,
+      "kernel": 2340077568,
+      "pagetables": 2220462080,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 119105840
+     }
+    },
+    "memAvailableMiB": 92643,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 28792,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166596,
+      "VmRSSKiB": 569860
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420442.4,
+    "treeVmRssMiB": 640.0
+   },
+   {
+    "cg": {
+     "current": 3892113408,
+     "events": {
+      "high": 657502,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 925327360,
+      "file_mapped": 358187008,
+      "inactive_file": 925036544,
+      "kernel": 2342608896,
+      "pagetables": 2220523520,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 121576560
+     }
+    },
+    "memAvailableMiB": 92573,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 352240,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166656,
+      "VmRSSKiB": 893308
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420562.5,
+    "treeVmRssMiB": 955.9
+   },
+   {
+    "cg": {
+     "current": 3892236288,
+     "events": {
+      "high": 678671,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621686784,
+      "file": 915828736,
+      "file_mapped": 244662272,
+      "inactive_file": 915206144,
+      "kernel": 2352254976,
+      "pagetables": 2220564480,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 131161400
+     }
+    },
+    "memAvailableMiB": 92708,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 240404,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166696,
+      "VmRSSKiB": 781472
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420682.8,
+    "treeVmRssMiB": 847.1
+   },
+   {
+    "cg": {
+     "current": 3891785728,
+     "events": {
+      "high": 698692,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 915038208,
+      "file_mapped": 274173952,
+      "inactive_file": 914710528,
+      "kernel": 2352869376,
+      "pagetables": 2220597248,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 131752872
+     }
+    },
+    "memAvailableMiB": 92727,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 269316,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166728,
+      "VmRSSKiB": 810384
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420803.0,
+    "treeVmRssMiB": 875.3
+   },
+   {
+    "cg": {
+     "current": 3892207616,
+     "events": {
+      "high": 719589,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621686784,
+      "file": 916254720,
+      "file_mapped": 47476736,
+      "inactive_file": 915841024,
+      "kernel": 2351755264,
+      "pagetables": 2220634112,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 130593440
+     }
+    },
+    "memAvailableMiB": 92804,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 47616,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166764,
+      "VmRSSKiB": 588684
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1420923.2,
+    "treeVmRssMiB": 658.8
+   },
+   {
+    "cg": {
+     "current": 3892105216,
+     "events": {
+      "high": 740982,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 898240512,
+      "file_mapped": 222203904,
+      "inactive_file": 897642496,
+      "kernel": 2369462272,
+      "pagetables": 2220662784,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 148289328
+     }
+    },
+    "memAvailableMiB": 92734,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 219448,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166792,
+      "VmRSSKiB": 760516
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421043.4,
+    "treeVmRssMiB": 826.2
+   },
+   {
+    "cg": {
+     "current": 3892281344,
+     "events": {
+      "high": 761044,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 911101952,
+      "file_mapped": 307539968,
+      "inactive_file": 910872576,
+      "kernel": 2355879936,
+      "pagetables": 2220687360,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 134653104
+     }
+    },
+    "memAvailableMiB": 92088,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 302688,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166816,
+      "VmRSSKiB": 843756
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421163.7,
+    "treeVmRssMiB": 907.6
+   },
+   {
+    "cg": {
+     "current": 3891834880,
+     "events": {
+      "high": 781902,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621686784,
+      "file": 915554304,
+      "file_mapped": 264605696,
+      "inactive_file": 915226624,
+      "kernel": 2352041984,
+      "pagetables": 2220716032,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 130816144
+     }
+    },
+    "memAvailableMiB": 92329,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 260544,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166844,
+      "VmRSSKiB": 801612
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421284.0,
+    "treeVmRssMiB": 866.3
+   },
+   {
+    "cg": {
+     "current": 3892248576,
+     "events": {
+      "high": 803470,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 925945856,
+      "file_mapped": 91144192,
+      "inactive_file": 925126656,
+      "kernel": 2341392384,
+      "pagetables": 2220789760,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 120059744
+     }
+    },
+    "memAvailableMiB": 92461,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 91712,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166916,
+      "VmRSSKiB": 632780
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421404.4,
+    "treeVmRssMiB": 701.4
+   },
+   {
+    "cg": {
+     "current": 3892207616,
+     "events": {
+      "high": 824195,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621686784,
+      "file": 893325312,
+      "file_mapped": 294207488,
+      "inactive_file": 893083648,
+      "kernel": 2374844416,
+      "pagetables": 2220838912,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 153484528
+     }
+    },
+    "memAvailableMiB": 92284,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 289956,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2166964,
+      "VmRSSKiB": 831024
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421524.6,
+    "treeVmRssMiB": 895.0
+   },
+   {
+    "cg": {
+     "current": 3892084736,
+     "events": {
+      "high": 845382,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621686784,
+      "file": 895684608,
+      "file_mapped": 231669760,
+      "inactive_file": 895307776,
+      "kernel": 2372337664,
+      "pagetables": 2220896256,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 150926016
+     }
+    },
+    "memAvailableMiB": 92206,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 227048,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167020,
+      "VmRSSKiB": 768116
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421645.0,
+    "treeVmRssMiB": 834.0
+   },
+   {
+    "cg": {
+     "current": 3892101120,
+     "events": {
+      "high": 865740,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 912101376,
+      "file_mapped": 20316160,
+      "inactive_file": 911978496,
+      "kernel": 2355511296,
+      "pagetables": 2220945408,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 134044976
+     }
+    },
+    "memAvailableMiB": 91811,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 20948,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167068,
+      "VmRSSKiB": 562016
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421765.3,
+    "treeVmRssMiB": 633.1
+   },
+   {
+    "cg": {
+     "current": 3891826688,
+     "events": {
+      "high": 886461,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 922927104,
+      "file_mapped": 190763008,
+      "inactive_file": 922656768,
+      "kernel": 2345222144,
+      "pagetables": 2220990464,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 123712728
+     }
+    },
+    "memAvailableMiB": 92393,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 188912,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167112,
+      "VmRSSKiB": 729980
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1421885.5,
+    "treeVmRssMiB": 796.3
+   },
+   {
+    "cg": {
+     "current": 3891761152,
+     "events": {
+      "high": 907709,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 915214336,
+      "file_mapped": 369442816,
+      "inactive_file": 914882560,
+      "kernel": 2353135616,
+      "pagetables": 2221006848,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 131618744
+     }
+    },
+    "memAvailableMiB": 92310,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 362584,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167128,
+      "VmRSSKiB": 903652
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422005.7,
+    "treeVmRssMiB": 966.3
+   },
+   {
+    "cg": {
+     "current": 3892031488,
+     "events": {
+      "high": 928935,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 917262336,
+      "file_mapped": 85585920,
+      "inactive_file": 917008384,
+      "kernel": 2350850048,
+      "pagetables": 2221015040,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 129320560
+     }
+    },
+    "memAvailableMiB": 92377,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 85212,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167136,
+      "VmRSSKiB": 626280
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422125.8,
+    "treeVmRssMiB": 695.5
+   },
+   {
+    "cg": {
+     "current": 3892211712,
+     "events": {
+      "high": 949425,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 930623488,
+      "file_mapped": 4055040,
+      "inactive_file": 930062336,
+      "kernel": 2336751616,
+      "pagetables": 2221019136,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 115209808
+     }
+    },
+    "memAvailableMiB": 92198,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 4796,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167140,
+      "VmRSSKiB": 545864
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422246.0,
+    "treeVmRssMiB": 617.0
+   },
+   {
+    "cg": {
+     "current": 3892133888,
+     "events": {
+      "high": 970150,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 924831744,
+      "file_mapped": 129191936,
+      "inactive_file": 924213248,
+      "kernel": 2342760448,
+      "pagetables": 2221039616,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 121196000
+     }
+    },
+    "memAvailableMiB": 92335,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 128756,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167160,
+      "VmRSSKiB": 669824
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422366.3,
+    "treeVmRssMiB": 737.6
+   },
+   {
+    "cg": {
+     "current": 3891892224,
+     "events": {
+      "high": 990207,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 920051712,
+      "file_mapped": 151814144,
+      "inactive_file": 919511040,
+      "kernel": 2347671552,
+      "pagetables": 2221080576,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 126073744
+     }
+    },
+    "memAvailableMiB": 92239,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 150872,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167200,
+      "VmRSSKiB": 691940
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422486.5,
+    "treeVmRssMiB": 759.2
+   },
+   {
+    "cg": {
+     "current": 3891834880,
+     "events": {
+      "high": 1010534,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 919818240,
+      "file_mapped": 229879808,
+      "inactive_file": 919105536,
+      "kernel": 2347819008,
+      "pagetables": 2221088768,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 126201464
+     }
+    },
+    "memAvailableMiB": 91966,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 227056,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167208,
+      "VmRSSKiB": 768124
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422606.7,
+    "treeVmRssMiB": 833.6
+   },
+   {
+    "cg": {
+     "current": 3892142080,
+     "events": {
+      "high": 1030149,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 911220736,
+      "file_mapped": 96595968,
+      "inactive_file": 911015936,
+      "kernel": 2356297728,
+      "pagetables": 2221109248,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 134660472
+     }
+    },
+    "memAvailableMiB": 91655,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 97040,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167228,
+      "VmRSSKiB": 638108
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422727.0,
+    "treeVmRssMiB": 706.6
+   },
+   {
+    "cg": {
+     "current": 3892162560,
+     "events": {
+      "high": 1050366,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 931663872,
+      "file_mapped": 132685824,
+      "inactive_file": 931315712,
+      "kernel": 2336452608,
+      "pagetables": 2221125632,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 114807832
+     }
+    },
+    "memAvailableMiB": 92091,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 132232,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167244,
+      "VmRSSKiB": 673300
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422847.4,
+    "treeVmRssMiB": 740.9
+   },
+   {
+    "cg": {
+     "current": 3892105216,
+     "events": {
+      "high": 1070058,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 918220800,
+      "file_mapped": 147423232,
+      "inactive_file": 917704704,
+      "kernel": 2348867584,
+      "pagetables": 2221137920,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 127212768
+     }
+    },
+    "memAvailableMiB": 92146,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 146700,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167256,
+      "VmRSSKiB": 687768
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1422967.8,
+    "treeVmRssMiB": 755.0
+   },
+   {
+    "cg": {
+     "current": 3892416512,
+     "events": {
+      "high": 1090316,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 916262912,
+      "file_mapped": 220463104,
+      "inactive_file": 915705856,
+      "kernel": 2351751168,
+      "pagetables": 2221162496,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 130071208
+     }
+    },
+    "memAvailableMiB": 92091,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 217904,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167280,
+      "VmRSSKiB": 758972
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423088.1,
+    "treeVmRssMiB": 824.7
+   },
+   {
+    "cg": {
+     "current": 3892039680,
+     "events": {
+      "high": 1110353,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621727744,
+      "file": 925634560,
+      "file_mapped": 173322240,
+      "inactive_file": 925351936,
+      "kernel": 2342494208,
+      "pagetables": 2221178880,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 120801080
+     }
+    },
+    "memAvailableMiB": 92101,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 171908,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167296,
+      "VmRSSKiB": 712976
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423208.5,
+    "treeVmRssMiB": 779.7
+   },
+   {
+    "cg": {
+     "current": 3891523584,
+     "events": {
+      "high": 1129400,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621727744,
+      "file": 931049472,
+      "file_mapped": 37781504,
+      "inactive_file": 930521088,
+      "kernel": 2335854592,
+      "pagetables": 2221207552,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 114103112
+     }
+    },
+    "memAvailableMiB": 91345,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 39560,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167324,
+      "VmRSSKiB": 580628
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423328.9,
+    "treeVmRssMiB": 650.4
+   },
+   {
+    "cg": {
+     "current": 3891965952,
+     "events": {
+      "high": 1148373,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621780992,
+      "file": 914604032,
+      "file_mapped": 193851392,
+      "inactive_file": 914292736,
+      "kernel": 2352758784,
+      "pagetables": 2221215744,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 131009104
+     }
+    },
+    "memAvailableMiB": 91736,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 190976,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167332,
+      "VmRSSKiB": 732044
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423449.2,
+    "treeVmRssMiB": 798.3
+   },
+   {
+    "cg": {
+     "current": 3892105216,
+     "events": {
+      "high": 1166678,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621862912,
+      "file": 886661120,
+      "file_mapped": 389632000,
+      "inactive_file": 886493184,
+      "kernel": 2378989568,
+      "pagetables": 2221260800,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 157198336
+     }
+    },
+    "memAvailableMiB": 91394,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 383396,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167376,
+      "VmRSSKiB": 924464
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423569.3,
+    "treeVmRssMiB": 986.1
+   },
+   {
+    "cg": {
+     "current": 3892084736,
+     "events": {
+      "high": 1182648,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621862912,
+      "file": 893440000,
+      "file_mapped": 335859712,
+      "inactive_file": 893034496,
+      "kernel": 2374676480,
+      "pagetables": 2221277184,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 152889384
+     }
+    },
+    "memAvailableMiB": 91024,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 330680,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167392,
+      "VmRSSKiB": 871748
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423689.7,
+    "treeVmRssMiB": 934.7
+   },
+   {
+    "cg": {
+     "current": 3892367360,
+     "events": {
+      "high": 1201398,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621862912,
+      "file": 904822784,
+      "file_mapped": 386629632,
+      "inactive_file": 904187904,
+      "kernel": 2361745408,
+      "pagetables": 2221289472,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 139922312
+     }
+    },
+    "memAvailableMiB": 91457,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 380264,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167404,
+      "VmRSSKiB": 921332
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423810.0,
+    "treeVmRssMiB": 983.1
+   },
+   {
+    "cg": {
+     "current": 3891843072,
+     "events": {
+      "high": 1218120,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621862912,
+      "file": 897302528,
+      "file_mapped": 50995200,
+      "inactive_file": 897011712,
+      "kernel": 2368806912,
+      "pagetables": 2221289472,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 146986544
+     }
+    },
+    "memAvailableMiB": 89780,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 51636,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167404,
+      "VmRSSKiB": 592704
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 12068,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 21992
+     }
+    },
+    "t": 1423930.5,
+    "treeVmRssMiB": 662.1
+   },
+   {
+    "cg": {
+     "current": 3891978240,
+     "events": {
+      "high": 1232772,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621862912,
+      "file": 863670272,
+      "file_mapped": 422928384,
+      "inactive_file": 863395840,
+      "kernel": 2404200448,
+      "pagetables": 2221301760,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 182375080
+     }
+    },
+    "memAvailableMiB": 89586,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 415776,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167416,
+      "VmRSSKiB": 956844
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 10424,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 20348
+     }
+    },
+    "t": 1424050.8,
+    "treeVmRssMiB": 1009.0
+   },
+   {
+    "cg": {
+     "current": 3891908608,
+     "events": {
+      "high": 1250320,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621862912,
+      "file": 873914368,
+      "file_mapped": 247771136,
+      "inactive_file": 873730048,
+      "kernel": 2394009600,
+      "pagetables": 2221322240,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 172173176
+     }
+    },
+    "memAvailableMiB": 92387,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 244564,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167436,
+      "VmRSSKiB": 785632
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9400,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19324
+     }
+    },
+    "t": 1424171.2,
+    "treeVmRssMiB": 838.2
+   },
+   {
+    "cg": {
+     "current": 3891933184,
+     "events": {
+      "high": 1267480,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621867008,
+      "file": 887169024,
+      "file_mapped": 67547136,
+      "inactive_file": 886603776,
+      "kernel": 2379071488,
+      "pagetables": 2221330432,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 157215856
+     }
+    },
+    "memAvailableMiB": 92230,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 67672,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167444,
+      "VmRSSKiB": 608740
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1424291.4,
+    "treeVmRssMiB": 665.0
+   },
+   {
+    "cg": {
+     "current": 3891838976,
+     "events": {
+      "high": 1285974,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621867008,
+      "file": 888745984,
+      "file_mapped": 268283904,
+      "inactive_file": 888463360,
+      "kernel": 2377707520,
+      "pagetables": 2221342720,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 155840640
+     }
+    },
+    "memAvailableMiB": 91930,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 264196,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167456,
+      "VmRSSKiB": 805264
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1424411.6,
+    "treeVmRssMiB": 856.7
+   },
+   {
+    "cg": {
+     "current": 3892166656,
+     "events": {
+      "high": 1306197,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621867008,
+      "file": 877436928,
+      "file_mapped": 54870016,
+      "inactive_file": 876912640,
+      "kernel": 2390233088,
+      "pagetables": 2221350912,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 168342576
+     }
+    },
+    "memAvailableMiB": 92090,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 55348,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167464,
+      "VmRSSKiB": 596416
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1424531.8,
+    "treeVmRssMiB": 652.6
+   },
+   {
+    "cg": {
+     "current": 3892412416,
+     "events": {
+      "high": 1325249,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621867008,
+      "file": 897318912,
+      "file_mapped": 76505088,
+      "inactive_file": 896872448,
+      "kernel": 2369486848,
+      "pagetables": 2221350912,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 147602128
+     }
+    },
+    "memAvailableMiB": 92023,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 75904,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167464,
+      "VmRSSKiB": 616972
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1424651.9,
+    "treeVmRssMiB": 673.2
+   },
+   {
+    "cg": {
+     "current": 3892064256,
+     "events": {
+      "high": 1345768,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 621867008,
+      "file": 900440064,
+      "file_mapped": 38141952,
+      "inactive_file": 900165632,
+      "kernel": 2367397888,
+      "pagetables": 2221350912,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 145528048
+     }
+    },
+    "memAvailableMiB": 92104,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 39688,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167464,
+      "VmRSSKiB": 580756
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1424772.1,
+    "treeVmRssMiB": 637.4
+   },
+   {
+    "cg": {
+     "current": 3892088832,
+     "events": {
+      "high": 1366648,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 621867008,
+      "file": 887635968,
+      "file_mapped": 406691840,
+      "inactive_file": 887123968,
+      "kernel": 2380492800,
+      "pagetables": 2221379584,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 158580184
+     }
+    },
+    "memAvailableMiB": 92788,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 399656,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167492,
+      "VmRSSKiB": 940724
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1424892.4,
+    "treeVmRssMiB": 989.0
+   },
+   {
+    "cg": {
+     "current": 3892219904,
+     "events": {
+      "high": 1386478,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 634769408,
+      "file": 859885568,
+      "file_mapped": 423587840,
+      "inactive_file": 859676672,
+      "kernel": 2394628096,
+      "pagetables": 2221998080,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 172109568
+     }
+    },
+    "memAvailableMiB": 91981,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 416140,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167492,
+      "VmRSSKiB": 957208
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425012.7,
+    "treeVmRssMiB": 1005.1
+   },
+   {
+    "cg": {
+     "current": 3892277248,
+     "events": {
+      "high": 1406083,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 634925056,
+      "file": 913801216,
+      "file_mapped": 376946688,
+      "inactive_file": 913367040,
+      "kernel": 2340896768,
+      "pagetables": 2222002176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 118368192
+     }
+    },
+    "memAvailableMiB": 91896,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 370632,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167496,
+      "VmRSSKiB": 911700
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425133.1,
+    "treeVmRssMiB": 960.6
+   },
+   {
+    "cg": {
+     "current": 3891982336,
+     "events": {
+      "high": 1425926,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635101184,
+      "file": 885772288,
+      "file_mapped": 237129728,
+      "inactive_file": 885223424,
+      "kernel": 2368638976,
+      "pagetables": 2222002176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 146120456
+     }
+    },
+    "memAvailableMiB": 91857,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 234180,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167496,
+      "VmRSSKiB": 775248
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425253.3,
+    "treeVmRssMiB": 827.4
+   },
+   {
+    "cg": {
+     "current": 3892244480,
+     "events": {
+      "high": 1447048,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635101184,
+      "file": 878522368,
+      "file_mapped": 224149504,
+      "inactive_file": 878112768,
+      "kernel": 2375938048,
+      "pagetables": 2222010368,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 153420832
+     }
+    },
+    "memAvailableMiB": 91797,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 220412,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167504,
+      "VmRSSKiB": 761480
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425373.5,
+    "treeVmRssMiB": 814.4
+   },
+   {
+    "cg": {
+     "current": 3892109312,
+     "events": {
+      "high": 1468160,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635101184,
+      "file": 881864704,
+      "file_mapped": 190418944,
+      "inactive_file": 881336320,
+      "kernel": 2372976640,
+      "pagetables": 2222022656,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 150437032
+     }
+    },
+    "memAvailableMiB": 91753,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 188460,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167516,
+      "VmRSSKiB": 729528
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425493.7,
+    "treeVmRssMiB": 782.7
+   },
+   {
+    "cg": {
+     "current": 3891904512,
+     "events": {
+      "high": 1489586,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635166720,
+      "file": 854622208,
+      "file_mapped": 175480832,
+      "inactive_file": 854171648,
+      "kernel": 2399690752,
+      "pagetables": 2222047232,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 177119032
+     }
+    },
+    "memAvailableMiB": 90979,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 172580,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167540,
+      "VmRSSKiB": 713648
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425613.9,
+    "treeVmRssMiB": 768.1
+   },
+   {
+    "cg": {
+     "current": 3891998720,
+     "events": {
+      "high": 1510851,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635305984,
+      "file": 872316928,
+      "file_mapped": 389828608,
+      "inactive_file": 871763968,
+      "kernel": 2380701696,
+      "pagetables": 2222063616,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 158116544
+     }
+    },
+    "memAvailableMiB": 90901,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 382252,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167556,
+      "VmRSSKiB": 923320
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425734.2,
+    "treeVmRssMiB": 972.4
+   },
+   {
+    "cg": {
+     "current": 3891933184,
+     "events": {
+      "high": 1531322,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635396096,
+      "file": 875286528,
+      "file_mapped": 125939712,
+      "inactive_file": 874774528,
+      "kernel": 2379010048,
+      "pagetables": 2222075904,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 156426560
+     }
+    },
+    "memAvailableMiB": 91483,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 124496,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167568,
+      "VmRSSKiB": 665564
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425854.4,
+    "treeVmRssMiB": 720.7
+   },
+   {
+    "cg": {
+     "current": 3892113408,
+     "events": {
+      "high": 1552464,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635396096,
+      "file": 868855808,
+      "file_mapped": 258580480,
+      "inactive_file": 868642816,
+      "kernel": 2385469440,
+      "pagetables": 2222084096,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 162867616
+     }
+    },
+    "memAvailableMiB": 91468,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 254968,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167576,
+      "VmRSSKiB": 796036
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1425974.9,
+    "treeVmRssMiB": 847.7
+   },
+   {
+    "cg": {
+     "current": 3892178944,
+     "events": {
+      "high": 1573573,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 864538624,
+      "file_mapped": 77918208,
+      "inactive_file": 864071680,
+      "kernel": 2390114304,
+      "pagetables": 2222096384,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 167500184
+     }
+    },
+    "memAvailableMiB": 92636,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 77240,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167588,
+      "VmRSSKiB": 618308
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426094.9,
+    "treeVmRssMiB": 674.6
+   },
+   {
+    "cg": {
+     "current": 3892154368,
+     "events": {
+      "high": 1594518,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 854937600,
+      "file_mapped": 374026240,
+      "inactive_file": 854441984,
+      "kernel": 2399379456,
+      "pagetables": 2222116864,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 176734632
+     }
+    },
+    "memAvailableMiB": 92683,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 367840,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167608,
+      "VmRSSKiB": 908908
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426215.0,
+    "treeVmRssMiB": 957.9
+   },
+   {
+    "cg": {
+     "current": 3891949568,
+     "events": {
+      "high": 1615571,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 869634048,
+      "file_mapped": 8409088,
+      "inactive_file": 869453824,
+      "kernel": 2384224256,
+      "pagetables": 2222120960,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 161580080
+     }
+    },
+    "memAvailableMiB": 92677,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 10200,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167612,
+      "VmRSSKiB": 551268
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426335.3,
+    "treeVmRssMiB": 609.1
+   },
+   {
+    "cg": {
+     "current": 3891933184,
+     "events": {
+      "high": 1636696,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 854536192,
+      "file_mapped": 339443712,
+      "inactive_file": 853999616,
+      "kernel": 2399301632,
+      "pagetables": 2222129152,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 176647984
+     }
+    },
+    "memAvailableMiB": 92438,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 333108,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167620,
+      "VmRSSKiB": 874176
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426455.5,
+    "treeVmRssMiB": 924.4
+   },
+   {
+    "cg": {
+     "current": 3892039680,
+     "events": {
+      "high": 1657844,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 861134848,
+      "file_mapped": 137166848,
+      "inactive_file": 860749824,
+      "kernel": 2392596480,
+      "pagetables": 2222145536,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 169929360
+     }
+    },
+    "memAvailableMiB": 92745,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 136524,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167636,
+      "VmRSSKiB": 677592
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426575.7,
+    "treeVmRssMiB": 732.0
+   },
+   {
+    "cg": {
+     "current": 3891875840,
+     "events": {
+      "high": 1678938,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 857194496,
+      "file_mapped": 224387072,
+      "inactive_file": 856788992,
+      "kernel": 2397102080,
+      "pagetables": 2222170112,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 174415024
+     }
+    },
+    "memAvailableMiB": 92694,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 220680,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167660,
+      "VmRSSKiB": 761748
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426695.8,
+    "treeVmRssMiB": 814.6
+   },
+   {
+    "cg": {
+     "current": 3891650560,
+     "events": {
+      "high": 1700035,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 855101440,
+      "file_mapped": 269692928,
+      "inactive_file": 854704128,
+      "kernel": 2397995008,
+      "pagetables": 2222182400,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 175287912
+     }
+    },
+    "memAvailableMiB": 92623,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 265936,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167672,
+      "VmRSSKiB": 807004
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426815.9,
+    "treeVmRssMiB": 858.4
+   },
+   {
+    "cg": {
+     "current": 3891699712,
+     "events": {
+      "high": 1720574,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 857821184,
+      "file_mapped": 191221760,
+      "inactive_file": 857280512,
+      "kernel": 2396389376,
+      "pagetables": 2222194688,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 173673680
+     }
+    },
+    "memAvailableMiB": 92621,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 188060,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167684,
+      "VmRSSKiB": 729128
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1426936.0,
+    "treeVmRssMiB": 782.7
+   },
+   {
+    "cg": {
+     "current": 3891752960,
+     "events": {
+      "high": 1741812,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 854028288,
+      "file_mapped": 363626496,
+      "inactive_file": 853745664,
+      "kernel": 2399879168,
+      "pagetables": 2222194688,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 177163800
+     }
+    },
+    "memAvailableMiB": 92645,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 357776,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167684,
+      "VmRSSKiB": 898844
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427056.2,
+    "treeVmRssMiB": 948.0
+   },
+   {
+    "cg": {
+     "current": 3892301824,
+     "events": {
+      "high": 1763137,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 866471936,
+      "file_mapped": 66678784,
+      "inactive_file": 865976320,
+      "kernel": 2387972096,
+      "pagetables": 2222206976,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 165247152
+     }
+    },
+    "memAvailableMiB": 92635,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 67788,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167696,
+      "VmRSSKiB": 608856
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427176.4,
+    "treeVmRssMiB": 664.8
+   },
+   {
+    "cg": {
+     "current": 3892174848,
+     "events": {
+      "high": 1784585,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 858087424,
+      "file_mapped": 214016000,
+      "inactive_file": 857698304,
+      "kernel": 2396880896,
+      "pagetables": 2222206976,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 174151400
+     }
+    },
+    "memAvailableMiB": 92687,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 209764,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167696,
+      "VmRSSKiB": 750832
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427296.5,
+    "treeVmRssMiB": 804.4
+   },
+   {
+    "cg": {
+     "current": 3891802112,
+     "events": {
+      "high": 1805978,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 855453696,
+      "file_mapped": 323145728,
+      "inactive_file": 854978560,
+      "kernel": 2399006720,
+      "pagetables": 2222219264,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 176267784
+     }
+    },
+    "memAvailableMiB": 92454,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 318216,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167708,
+      "VmRSSKiB": 859284
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427416.7,
+    "treeVmRssMiB": 909.4
+   },
+   {
+    "cg": {
+     "current": 3892015104,
+     "events": {
+      "high": 1827087,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 864608256,
+      "file_mapped": 69210112,
+      "inactive_file": 863997952,
+      "kernel": 2389651456,
+      "pagetables": 2222227456,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 166906096
+     }
+    },
+    "memAvailableMiB": 92164,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 68924,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167716,
+      "VmRSSKiB": 609992
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427537.0,
+    "treeVmRssMiB": 666.8
+   },
+   {
+    "cg": {
+     "current": 3891916800,
+     "events": {
+      "high": 1848488,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 853835776,
+      "file_mapped": 287375360,
+      "inactive_file": 853422080,
+      "kernel": 2399105024,
+      "pagetables": 2222235648,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 176348480
+     }
+    },
+    "memAvailableMiB": 92018,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 281972,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167724,
+      "VmRSSKiB": 823040
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427657.3,
+    "treeVmRssMiB": 874.4
+   },
+   {
+    "cg": {
+     "current": 3891888128,
+     "events": {
+      "high": 1869679,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 874070016,
+      "file_mapped": 179363840,
+      "inactive_file": 873713664,
+      "kernel": 2380042240,
+      "pagetables": 2222252032,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 157276568
+     }
+    },
+    "memAvailableMiB": 92988,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 177744,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167740,
+      "VmRSSKiB": 718812
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427777.5,
+    "treeVmRssMiB": 772.2
+   },
+   {
+    "cg": {
+     "current": 3892211712,
+     "events": {
+      "high": 1890447,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 865681408,
+      "file_mapped": 360665088,
+      "inactive_file": 865325056,
+      "kernel": 2388393984,
+      "pagetables": 2222252032,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 165631584
+     }
+    },
+    "memAvailableMiB": 92909,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 353380,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167740,
+      "VmRSSKiB": 894448
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1427897.7,
+    "treeVmRssMiB": 944.2
+   },
+   {
+    "cg": {
+     "current": 3892101120,
+     "events": {
+      "high": 1911062,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 877469696,
+      "file_mapped": 4390912,
+      "inactive_file": 877117440,
+      "kernel": 2377080832,
+      "pagetables": 2222252032,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 154316800
+     }
+    },
+    "memAvailableMiB": 92795,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 6972,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167740,
+      "VmRSSKiB": 548040
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428017.9,
+    "treeVmRssMiB": 605.4
+   },
+   {
+    "cg": {
+     "current": 3891896320,
+     "events": {
+      "high": 1931350,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 884293632,
+      "file_mapped": 203902976,
+      "inactive_file": 883679232,
+      "kernel": 2369667072,
+      "pagetables": 2222256128,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 146884248
+     }
+    },
+    "memAvailableMiB": 92583,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 201680,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167744,
+      "VmRSSKiB": 742748
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428138.1,
+    "treeVmRssMiB": 795.7
+   },
+   {
+    "cg": {
+     "current": 3892019200,
+     "events": {
+      "high": 1952443,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 915705856,
+      "file_mapped": 242089984,
+      "inactive_file": 915542016,
+      "kernel": 2336489472,
+      "pagetables": 2222256128,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 113700632
+     }
+    },
+    "memAvailableMiB": 92613,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 237768,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167744,
+      "VmRSSKiB": 778836
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428258.3,
+    "treeVmRssMiB": 831.3
+   },
+   {
+    "cg": {
+     "current": 3891892224,
+     "events": {
+      "high": 1974970,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 879247360,
+      "file_mapped": 418074624,
+      "inactive_file": 878821376,
+      "kernel": 2374385664,
+      "pagetables": 2222260224,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 151613960
+     }
+    },
+    "memAvailableMiB": 92569,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 410840,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167748,
+      "VmRSSKiB": 951908
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428378.4,
+    "treeVmRssMiB": 999.9
+   },
+   {
+    "cg": {
+     "current": 3892228096,
+     "events": {
+      "high": 1995308,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 873025536,
+      "file_mapped": 229322752,
+      "inactive_file": 872497152,
+      "kernel": 2382041088,
+      "pagetables": 2222260224,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 159270376
+     }
+    },
+    "memAvailableMiB": 92312,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 225104,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167748,
+      "VmRSSKiB": 766172
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428498.6,
+    "treeVmRssMiB": 819.0
+   },
+   {
+    "cg": {
+     "current": 3892011008,
+     "events": {
+      "high": 2015859,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 887697408,
+      "file_mapped": 74588160,
+      "inactive_file": 887177216,
+      "kernel": 2367188992,
+      "pagetables": 2222264320,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 144393800
+     }
+    },
+    "memAvailableMiB": 92671,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 75400,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167752,
+      "VmRSSKiB": 616468
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428618.7,
+    "treeVmRssMiB": 672.3
+   },
+   {
+    "cg": {
+     "current": 3891793920,
+     "events": {
+      "high": 2036861,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 867065856,
+      "file_mapped": 340508672,
+      "inactive_file": 866676736,
+      "kernel": 2386722816,
+      "pagetables": 2222264320,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 163949672
+     }
+    },
+    "memAvailableMiB": 91917,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 334256,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167752,
+      "VmRSSKiB": 875324
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428738.9,
+    "treeVmRssMiB": 925.6
+   },
+   {
+    "cg": {
+     "current": 3891978240,
+     "events": {
+      "high": 2057430,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 869031936,
+      "file_mapped": 68689920,
+      "inactive_file": 868839424,
+      "kernel": 2384961536,
+      "pagetables": 2222276608,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 162174880
+     }
+    },
+    "memAvailableMiB": 92554,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 68808,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167764,
+      "VmRSSKiB": 609876
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428859.2,
+    "treeVmRssMiB": 666.4
+   },
+   {
+    "cg": {
+     "current": 3892301824,
+     "events": {
+      "high": 2078134,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 859611136,
+      "file_mapped": 242065408,
+      "inactive_file": 858906624,
+      "kernel": 2394853376,
+      "pagetables": 2222280704,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 172053728
+     }
+    },
+    "memAvailableMiB": 92901,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 238948,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167768,
+      "VmRSSKiB": 780016
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1428979.5,
+    "treeVmRssMiB": 832.0
+   },
+   {
+    "cg": {
+     "current": 3891892224,
+     "events": {
+      "high": 2100395,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 858193920,
+      "file_mapped": 118808576,
+      "inactive_file": 857829376,
+      "kernel": 2395623424,
+      "pagetables": 2222284800,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 172827960
+     }
+    },
+    "memAvailableMiB": 92864,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 118028,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167772,
+      "VmRSSKiB": 659096
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429099.8,
+    "treeVmRssMiB": 714.2
+   },
+   {
+    "cg": {
+     "current": 3892031488,
+     "events": {
+      "high": 2121296,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 852504576,
+      "file_mapped": 370749440,
+      "inactive_file": 851922944,
+      "kernel": 2402066432,
+      "pagetables": 2222288896,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 179256768
+     }
+    },
+    "memAvailableMiB": 92461,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 363344,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167776,
+      "VmRSSKiB": 904412
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429220.1,
+    "treeVmRssMiB": 954.4
+   },
+   {
+    "cg": {
+     "current": 3891990528,
+     "events": {
+      "high": 2142928,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 876236800,
+      "file_mapped": 212918272,
+      "inactive_file": 875687936,
+      "kernel": 2377146368,
+      "pagetables": 2222305280,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 154307464
+     }
+    },
+    "memAvailableMiB": 92544,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 210464,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167792,
+      "VmRSSKiB": 751532
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429340.4,
+    "treeVmRssMiB": 804.3
+   },
+   {
+    "cg": {
+     "current": 3892215808,
+     "events": {
+      "high": 2164301,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 864899072,
+      "file_mapped": 233984000,
+      "inactive_file": 864370688,
+      "kernel": 2389532672,
+      "pagetables": 2222329856,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 166689792
+     }
+    },
+    "memAvailableMiB": 92295,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 230256,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167816,
+      "VmRSSKiB": 771324
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429460.8,
+    "treeVmRssMiB": 823.5
+   },
+   {
+    "cg": {
+     "current": 3892256768,
+     "events": {
+      "high": 2186392,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 853643264,
+      "file_mapped": 423616512,
+      "inactive_file": 853094400,
+      "kernel": 2401177600,
+      "pagetables": 2222346240,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 178310208
+     }
+    },
+    "memAvailableMiB": 92574,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 414932,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167832,
+      "VmRSSKiB": 956000
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429580.8,
+    "treeVmRssMiB": 1004.3
+   },
+   {
+    "cg": {
+     "current": 3892031488,
+     "events": {
+      "high": 2208863,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 878493696,
+      "file_mapped": 409690112,
+      "inactive_file": 878350336,
+      "kernel": 2375147520,
+      "pagetables": 2222346240,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 152290336
+     }
+    },
+    "memAvailableMiB": 92691,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 402660,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167832,
+      "VmRSSKiB": 943728
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429701.2,
+    "treeVmRssMiB": 991.9
+   },
+   {
+    "cg": {
+     "current": 3892088832,
+     "events": {
+      "high": 2232170,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 879689728,
+      "file_mapped": 431341568,
+      "inactive_file": 879210496,
+      "kernel": 2374443008,
+      "pagetables": 2222346240,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 151584032
+     }
+    },
+    "memAvailableMiB": 92566,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 422504,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167832,
+      "VmRSSKiB": 963572
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429821.5,
+    "treeVmRssMiB": 1012.2
+   },
+   {
+    "cg": {
+     "current": 3892158464,
+     "events": {
+      "high": 2255762,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 881139712,
+      "file_mapped": 254738432,
+      "inactive_file": 880574464,
+      "kernel": 2372726784,
+      "pagetables": 2222346240,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 149851688
+     }
+    },
+    "memAvailableMiB": 92648,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 250500,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167832,
+      "VmRSSKiB": 791568
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1429941.9,
+    "treeVmRssMiB": 843.3
+   },
+   {
+    "cg": {
+     "current": 3891982336,
+     "events": {
+      "high": 2278947,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 61440,
+      "anon": 635404288,
+      "file": 898514944,
+      "file_mapped": 239284224,
+      "inactive_file": 898027520,
+      "kernel": 2355527680,
+      "pagetables": 2222350336,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 132659920
+     }
+    },
+    "memAvailableMiB": 92756,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 235192,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167836,
+      "VmRSSKiB": 776260
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430062.2,
+    "treeVmRssMiB": 828.4
+   },
+   {
+    "cg": {
+     "current": 3891875840,
+     "events": {
+      "high": 2300378,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635404288,
+      "file": 854585344,
+      "file_mapped": 197627904,
+      "inactive_file": 854167552,
+      "kernel": 2399121408,
+      "pagetables": 2222350336,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 176260848
+     }
+    },
+    "memAvailableMiB": 92634,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 195448,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167836,
+      "VmRSSKiB": 736516
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430182.4,
+    "treeVmRssMiB": 789.6
+   },
+   {
+    "cg": {
+     "current": 3891884032,
+     "events": {
+      "high": 2322554,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 880951296,
+      "file_mapped": 4366336,
+      "inactive_file": 880488448,
+      "kernel": 2372550656,
+      "pagetables": 2222366720,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 149649760
+     }
+    },
+    "memAvailableMiB": 92551,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 5892,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167852,
+      "VmRSSKiB": 546960
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430302.7,
+    "treeVmRssMiB": 604.9
+   },
+   {
+    "cg": {
+     "current": 3891875840,
+     "events": {
+      "high": 2344728,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635404288,
+      "file": 868691968,
+      "file_mapped": 142368768,
+      "inactive_file": 868188160,
+      "kernel": 2385055744,
+      "pagetables": 2222383104,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 162166880
+     }
+    },
+    "memAvailableMiB": 92481,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 140716,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167868,
+      "VmRSSKiB": 681784
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430422.9,
+    "treeVmRssMiB": 736.5
+   },
+   {
+    "cg": {
+     "current": 3891535872,
+     "events": {
+      "high": 2366272,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 848642048,
+      "file_mapped": 411561984,
+      "inactive_file": 848265216,
+      "kernel": 2404913152,
+      "pagetables": 2222395392,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 182003976
+     }
+    },
+    "memAvailableMiB": 89741,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 404600,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167880,
+      "VmRSSKiB": 945668
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430543.0,
+    "treeVmRssMiB": 993.8
+   },
+   {
+    "cg": {
+     "current": 3891892224,
+     "events": {
+      "high": 2387641,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 872378368,
+      "file_mapped": 154292224,
+      "inactive_file": 871682048,
+      "kernel": 2381475840,
+      "pagetables": 2222407680,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 158557752
+     }
+    },
+    "memAvailableMiB": 92402,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 153184,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167892,
+      "VmRSSKiB": 694252
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430663.3,
+    "treeVmRssMiB": 748.3
+   },
+   {
+    "cg": {
+     "current": 3892150272,
+     "events": {
+      "high": 2410047,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635469824,
+      "file": 862474240,
+      "file_mapped": 39682048,
+      "inactive_file": 861925376,
+      "kernel": 2390921216,
+      "pagetables": 2222411776,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 167983200
+     }
+    },
+    "memAvailableMiB": 92671,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 39740,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167896,
+      "VmRSSKiB": 580808
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430783.6,
+    "treeVmRssMiB": 638.3
+   },
+   {
+    "cg": {
+     "current": 3891937280,
+     "events": {
+      "high": 2431756,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 4096,
+      "anon": 635469824,
+      "file": 876318720,
+      "file_mapped": 378650624,
+      "inactive_file": 875823104,
+      "kernel": 2377543680,
+      "pagetables": 2222424064,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 154615208
+     }
+    },
+    "memAvailableMiB": 88502,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 371724,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167908,
+      "VmRSSKiB": 912792
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1430904.0,
+    "treeVmRssMiB": 962.2
+   },
+   {
+    "cg": {
+     "current": 3891822592,
+     "events": {
+      "high": 2452323,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 872849408,
+      "file_mapped": 99012608,
+      "inactive_file": 872468480,
+      "kernel": 2381742080,
+      "pagetables": 2222424064,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 158800344
+     }
+    },
+    "memAvailableMiB": 91465,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 97512,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167908,
+      "VmRSSKiB": 638580
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431024.5,
+    "treeVmRssMiB": 694.8
+   },
+   {
+    "cg": {
+     "current": 3892199424,
+     "events": {
+      "high": 2473595,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 873992192,
+      "file_mapped": 348524544,
+      "inactive_file": 873590784,
+      "kernel": 2380312576,
+      "pagetables": 2222428160,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 157368048
+     }
+    },
+    "memAvailableMiB": 90108,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 341572,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167912,
+      "VmRSSKiB": 882640
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431144.7,
+    "treeVmRssMiB": 932.7
+   },
+   {
+    "cg": {
+     "current": 3892064256,
+     "events": {
+      "high": 2495412,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 854556672,
+      "file_mapped": 232030208,
+      "inactive_file": 854192128,
+      "kernel": 2399297536,
+      "pagetables": 2222436352,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 176352032
+     }
+    },
+    "memAvailableMiB": 89618,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 229116,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167920,
+      "VmRSSKiB": 770184
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431265.1,
+    "treeVmRssMiB": 822.5
+   },
+   {
+    "cg": {
+     "current": 3891728384,
+     "events": {
+      "high": 2516699,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 874856448,
+      "file_mapped": 159973376,
+      "inactive_file": 874733568,
+      "kernel": 2378420224,
+      "pagetables": 2222440448,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 155444376
+     }
+    },
+    "memAvailableMiB": 88818,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 157792,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167924,
+      "VmRSSKiB": 698860
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431385.4,
+    "treeVmRssMiB": 753.4
+   },
+   {
+    "cg": {
+     "current": 3891900416,
+     "events": {
+      "high": 2538217,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 857976832,
+      "file_mapped": 377667584,
+      "inactive_file": 857591808,
+      "kernel": 2395299840,
+      "pagetables": 2222444544,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 172342960
+     }
+    },
+    "memAvailableMiB": 92749,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 371364,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167928,
+      "VmRSSKiB": 912432
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431505.6,
+    "treeVmRssMiB": 961.3
+   },
+   {
+    "cg": {
+     "current": 3891933184,
+     "events": {
+      "high": 2561625,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 878362624,
+      "file_mapped": 48431104,
+      "inactive_file": 877715456,
+      "kernel": 2375741440,
+      "pagetables": 2222444544,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 152771936
+     }
+    },
+    "memAvailableMiB": 92493,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 49936,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167928,
+      "VmRSSKiB": 591004
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431625.7,
+    "treeVmRssMiB": 647.4
+   },
+   {
+    "cg": {
+     "current": 3892150272,
+     "events": {
+      "high": 2583642,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866684928,
+      "file_mapped": 115585024,
+      "inactive_file": 866050048,
+      "kernel": 2386960384,
+      "pagetables": 2222452736,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 163977280
+     }
+    },
+    "memAvailableMiB": 92614,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 114160,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167936,
+      "VmRSSKiB": 655228
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431745.9,
+    "treeVmRssMiB": 711.0
+   },
+   {
+    "cg": {
+     "current": 3892035584,
+     "events": {
+      "high": 2605376,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 861458432,
+      "file_mapped": 334163968,
+      "inactive_file": 860868608,
+      "kernel": 2392522752,
+      "pagetables": 2222465024,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 169534296
+     }
+    },
+    "memAvailableMiB": 92429,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 328140,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167948,
+      "VmRSSKiB": 869208
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431866.1,
+    "treeVmRssMiB": 919.5
+   },
+   {
+    "cg": {
+     "current": 3892084736,
+     "events": {
+      "high": 2627396,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 862105600,
+      "file_mapped": 330108928,
+      "inactive_file": 861593600,
+      "kernel": 2392334336,
+      "pagetables": 2222473216,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 169349928
+     }
+    },
+    "memAvailableMiB": 92746,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 325028,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167956,
+      "VmRSSKiB": 866096
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1431986.3,
+    "treeVmRssMiB": 916.1
+   },
+   {
+    "cg": {
+     "current": 3891822592,
+     "events": {
+      "high": 2649235,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866222080,
+      "file_mapped": 142929920,
+      "inactive_file": 865640448,
+      "kernel": 2387054592,
+      "pagetables": 2222473216,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 164048960
+     }
+    },
+    "memAvailableMiB": 92754,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 142216,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167956,
+      "VmRSSKiB": 683284
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432106.5,
+    "treeVmRssMiB": 737.6
+   },
+   {
+    "cg": {
+     "current": 3892019200,
+     "events": {
+      "high": 2671406,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 874364928,
+      "file_mapped": 2035712,
+      "inactive_file": 874172416,
+      "kernel": 2380181504,
+      "pagetables": 2222481408,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 157180632
+     }
+    },
+    "memAvailableMiB": 92987,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 3308,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167964,
+      "VmRSSKiB": 544376
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432226.6,
+    "treeVmRssMiB": 602.6
+   },
+   {
+    "cg": {
+     "current": 3891834880,
+     "events": {
+      "high": 2693645,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866996224,
+      "file_mapped": 124334080,
+      "inactive_file": 866611200,
+      "kernel": 2386776064,
+      "pagetables": 2222481408,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 163774960
+     }
+    },
+    "memAvailableMiB": 92791,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 123644,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167964,
+      "VmRSSKiB": 664712
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432346.7,
+    "treeVmRssMiB": 719.8
+   },
+   {
+    "cg": {
+     "current": 3892264960,
+     "events": {
+      "high": 2715808,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 863866880,
+      "file_mapped": 246140928,
+      "inactive_file": 863395840,
+      "kernel": 2390331392,
+      "pagetables": 2222481408,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 167333664
+     }
+    },
+    "memAvailableMiB": 92892,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 241320,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167964,
+      "VmRSSKiB": 782388
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432466.8,
+    "treeVmRssMiB": 835.2
+   },
+   {
+    "cg": {
+     "current": 3891953664,
+     "events": {
+      "high": 2738102,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 862216192,
+      "file_mapped": 359387136,
+      "inactive_file": 861745152,
+      "kernel": 2391863296,
+      "pagetables": 2222501888,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 168830784
+     }
+    },
+    "memAvailableMiB": 92271,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 352840,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167984,
+      "VmRSSKiB": 893908
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432586.8,
+    "treeVmRssMiB": 943.7
+   },
+   {
+    "cg": {
+     "current": 3892084736,
+     "events": {
+      "high": 2760299,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 862498816,
+      "file_mapped": 346804224,
+      "inactive_file": 862068736,
+      "kernel": 2391744512,
+      "pagetables": 2222514176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 168720376
+     }
+    },
+    "memAvailableMiB": 92982,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 341304,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167996,
+      "VmRSSKiB": 882372
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432707.0,
+    "treeVmRssMiB": 932.0
+   },
+   {
+    "cg": {
+     "current": 3891851264,
+     "events": {
+      "high": 2782743,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 863907840,
+      "file_mapped": 255098880,
+      "inactive_file": 863522816,
+      "kernel": 2389659648,
+      "pagetables": 2222514176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 166628240
+     }
+    },
+    "memAvailableMiB": 92672,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 251892,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167996,
+      "VmRSSKiB": 792960
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432827.2,
+    "treeVmRssMiB": 844.6
+   },
+   {
+    "cg": {
+     "current": 3892080640,
+     "events": {
+      "high": 2805229,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 865304576,
+      "file_mapped": 222216192,
+      "inactive_file": 864792576,
+      "kernel": 2389106688,
+      "pagetables": 2222514176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 166074856
+     }
+    },
+    "memAvailableMiB": 92908,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 219848,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167996,
+      "VmRSSKiB": 760916
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1432947.4,
+    "treeVmRssMiB": 813.3
+   },
+   {
+    "cg": {
+     "current": 3892006912,
+     "events": {
+      "high": 2827826,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866627584,
+      "file_mapped": 167956480,
+      "inactive_file": 866189312,
+      "kernel": 2387288064,
+      "pagetables": 2222514176,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 164244080
+     }
+    },
+    "memAvailableMiB": 92880,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 166604,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2167996,
+      "VmRSSKiB": 707672
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433067.5,
+    "treeVmRssMiB": 761.4
+   },
+   {
+    "cg": {
+     "current": 3891982336,
+     "events": {
+      "high": 2850699,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866443264,
+      "file_mapped": 194891776,
+      "inactive_file": 865841152,
+      "kernel": 2387398656,
+      "pagetables": 2222522368,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 164378376
+     }
+    },
+    "memAvailableMiB": 92887,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 192900,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168004,
+      "VmRSSKiB": 733968
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433187.8,
+    "treeVmRssMiB": 787.1
+   },
+   {
+    "cg": {
+     "current": 3891933184,
+     "events": {
+      "high": 2873640,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866631680,
+      "file_mapped": 226840576,
+      "inactive_file": 866156544,
+      "kernel": 2387644416,
+      "pagetables": 2222526464,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 164623312
+     }
+    },
+    "memAvailableMiB": 92466,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 223980,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168008,
+      "VmRSSKiB": 765048
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433308.1,
+    "treeVmRssMiB": 817.4
+   },
+   {
+    "cg": {
+     "current": 3892146176,
+     "events": {
+      "high": 2896649,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 866115584,
+      "file_mapped": 287985664,
+      "inactive_file": 865853440,
+      "kernel": 2387943424,
+      "pagetables": 2222534656,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 164902032
+     }
+    },
+    "memAvailableMiB": 92700,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 283780,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168016,
+      "VmRSSKiB": 824848
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433428.4,
+    "treeVmRssMiB": 875.8
+   },
+   {
+    "cg": {
+     "current": 3892133888,
+     "events": {
+      "high": 2919880,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 867356672,
+      "file_mapped": 310951936,
+      "inactive_file": 867106816,
+      "kernel": 2385788928,
+      "pagetables": 2222538752,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 162735112
+     }
+    },
+    "memAvailableMiB": 92413,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 306200,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168020,
+      "VmRSSKiB": 847268
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433548.6,
+    "treeVmRssMiB": 897.7
+   },
+   {
+    "cg": {
+     "current": 3892121600,
+     "events": {
+      "high": 2943439,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 867782656,
+      "file_mapped": 400134144,
+      "inactive_file": 867348480,
+      "kernel": 2386219008,
+      "pagetables": 2222538752,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 163164056
+     }
+    },
+    "memAvailableMiB": 92764,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 392324,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168020,
+      "VmRSSKiB": 933392
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433669.0,
+    "treeVmRssMiB": 982.3
+   },
+   {
+    "cg": {
+     "current": 3892137984,
+     "events": {
+      "high": 2967092,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 869421056,
+      "file_mapped": 259747840,
+      "inactive_file": 868999168,
+      "kernel": 2385014784,
+      "pagetables": 2222538752,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 161955560
+     }
+    },
+    "memAvailableMiB": 92885,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 254912,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168020,
+      "VmRSSKiB": 795980
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433789.3,
+    "treeVmRssMiB": 848.1
+   },
+   {
+    "cg": {
+     "current": 3891499008,
+     "events": {
+      "high": 2990735,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 872574976,
+      "file_mapped": 183386112,
+      "inactive_file": 872255488,
+      "kernel": 2381938688,
+      "pagetables": 2222546944,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 158871120
+     }
+    },
+    "memAvailableMiB": 93034,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 181092,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168028,
+      "VmRSSKiB": 722160
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1433909.7,
+    "treeVmRssMiB": 775.8
+   },
+   {
+    "cg": {
+     "current": 3892146176,
+     "events": {
+      "high": 3014646,
+      "low": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_group_kill": 0,
+      "oom_kill": 0,
+      "sock_throttled": 0
+     },
+     "high": "3892314112",
+     "max": "4294967296",
+     "stat": {
+      "active_file": 0,
+      "anon": 635469824,
+      "file": 875479040,
+      "file_mapped": 89202688,
+      "inactive_file": 875036672,
+      "kernel": 2379227136,
+      "pagetables": 2222546944,
+      "sec_pagetables": 0,
+      "shmem": 0,
+      "slab": 156162504
+     }
+    },
+    "memAvailableMiB": 38990,
+    "procs": {
+     "mdbx_chk:3292266": {
+      "RssAnonKiB": 541068,
+      "RssFileKiB": 88108,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 2168028,
+      "VmRSSKiB": 629176
+     },
+     "python3:3292261": {
+      "RssAnonKiB": 9924,
+      "RssFileKiB": 9112,
+      "RssShmemKiB": 0,
+      "VmPTEKiB": 96,
+      "VmRSSKiB": 19036
+     }
+    },
+    "t": 1434029.9,
+    "treeVmRssMiB": 685.5
+   }
+  ],
+  "samplesDropped": 0,
+  "softStop": "soft stop: MemAvailable 16758 MiB < 16896 MiB (16 GiB floor + 512)",
+  "softStopAt": {
+   "memAvailableMiB": 16896,
+   "pollSeconds": 0.5,
+   "treeVmRssMiB": 3840
+  },
+  "telemetryErrors": []
+ },
+ "mountLeft": false,
+ "notClaimed": [
+  "chain verification",
+  "reth table semantics",
+  "state / trie / canonical-root validation",
+  "static_files segments",
+  "value bytes inside structurally valid pages (MDBX has no per-page checksums)",
+  "RPC readiness",
+  "SNP readiness",
+  "recovery acceptance"
+ ],
+ "outcome": "CANCELLED",
+ "pins": {
+  "fusermount3": {
+   "path": "/usr/bin/fusermount3",
+   "sha256": "c3d04bdf77c7152eba94ce670338e7089730b8dbfede57762b7b92c893a00f4f"
+  },
+  "mdbxCheckPy": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/src/mdbx_check.py",
+   "sha256": "f0d27e40c29271b94d2b48b9d4ab70a84de1f946709db4e9361cdfba00bac131"
+  },
+  "mdbxChk": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/mdbx-recovery-validator-stage/r4/runs/run-20261026T210943Z-2354169/bin/mdbx_chk",
+   "sha256": "c228b462c3c71c87b0fd2e9cfa6b3e6bccb2d793dd545bc6a18bef7113187981"
+  },
+  "nbdfuse": {
+   "path": "/usr/bin/nbdfuse",
+   "sha256": "51c1a1fd18785d4fe2240c1710eb4f78590b9d333fcde4cda421871d6f010a01"
+  },
+  "qemuNbd": {
+   "path": "/usr/bin/qemu-nbd",
+   "sha256": "b0f16ff7225e78469733132fce225b1d0af98f0b681a5092d85618936ff61934"
+  },
+  "r6Importer": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/production_import.py",
+   "sha256": "4d48f74ea0360db6b264fcef97750a5c83e3ba5f8ef47260864b93e940b1b2dc"
+  },
+  "r6ViewDescriptor": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/view_descriptor.py",
+   "sha256": "23370c97956fb1a4dde30f4a657ca97e89ce452f1a982cfc29c36970113d39e0"
+  },
+  "r9OverlaySession": {
+   "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/recovery-overlay-stage/r9/overlay_session.py",
+   "sha256": "65d45ab79da8e134772374ec7298cd3a53fc54d68ecb3b3fd407eec4874a8153"
+  }
+ },
+ "rc": 5,
+ "reasons": [
+  "soft stop: MemAvailable 16758 MiB < 16896 MiB (16 GiB floor + 512)"
+ ],
+ "refused": null,
+ "steps": [
+  [
+   1793112201.714,
+   "view"
+  ],
+  [
+   1793112201.778,
+   "qemu-nbd"
+  ],
+  [
+   1793112202.088,
+   "nbdfuse"
+  ],
+  [
+   1793112202.395,
+   "validator"
+  ],
+  [
+   1793128929.998,
+   "cleanup"
+  ]
+ ],
+ "unmount": {
+  "normal": 0
+ },
+ "view": {
+  "descriptorSha256": "8bc41249f8c5ea72c47c4e3ad9196e4a4d7f1ae34052b6c08de59c6c700b3d07",
+  "dir": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/multipart-validation-view-stage/r6/runs/view-20261027T133210Z-3241909",
+  "kind": "production",
+  "logicalSize": 1138166333440,
+  "manifestSha256": "f94807f71c93b1ef639c224dfefb3b6c0f3e7b9289def91fc52b0e79864821a9",
+  "parts": 265,
+  "receiptSha256": "9cfd6d41562bcfacf08c86d8449add92ef25539e3df89a0356ff9f346e50f4db"
+ }
+}
