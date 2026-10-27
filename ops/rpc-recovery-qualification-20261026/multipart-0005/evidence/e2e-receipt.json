@@ -1,0 +1,24 @@
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "noMountsLeft": true,
+  "peersUnchanged": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 7,
+ "format": "recovery-multipart-test-receipt/r3",
+ "multipartSha256": "3159890b5bddcb763f578fa87b833931d695f4181dd447395bb40c2dff1c4381",
+ "orchestrateSha256": "a974b9e340f77d2dc048ab998c36f4c453b3f82d9a7279d48445619ed60837c1",
+ "pass": true,
+ "ran": [
+  "7"
+ ],
+ "rc": 0,
+ "stageSums": "fcd8e0973597eebb7a003becca05f8695e770dd797a974f2bf7ce1beb041fe20",
+ "suite": "e2e",
+ "testsSha256": "db9da880b4ab043afcfcdd46308bbdf09810be719fec1095516efd6d3f5be270"
+}

@@ -1,0 +1,12 @@
+test_e1_copy_then_verify_in_a_separate_session_equals_the_r9_model (__main__.E2E.test_e1_copy_then_verify_in_a_separate_session_equals_the_r9_model) ... ok
+test_e2_wrong_plan_parent_request_or_mode_refused_before_any_session (__main__.E2E.test_e2_wrong_plan_parent_request_or_mode_refused_before_any_session) ... ok
+test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up (__main__.E2E.test_e3_an_impostor_peer_is_refused_and_the_session_cleans_up) ... ok
+test_e4_cancel_while_waiting_for_the_server_cleans_socket_and_session (__main__.E2E.test_e4_cancel_while_waiting_for_the_server_cleans_socket_and_session) ... ok
+test_e5_budget_stop_then_resume_in_a_new_session (__main__.E2E.test_e5_budget_stop_then_resume_in_a_new_session) ... ok
+test_e6_server_killed_mid_copy_unconfirms_the_session_until_a_fresh_verify (__main__.E2E.test_e6_server_killed_mid_copy_unconfirms_the_session_until_a_fresh_verify) ... ok
+test_e7_soft_deadline_stops_before_the_hard_exec_deadline_and_the_session_confirms (__main__.E2E.test_e7_soft_deadline_stops_before_the_hard_exec_deadline_and_the_session_confirms) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 36.242s
+
+OK

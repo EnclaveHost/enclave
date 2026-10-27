@@ -1,0 +1,22 @@
+{
+ "badMarkers": [],
+ "checks": {
+  "lastLineOK": true,
+  "noBadMarkers": true,
+  "ranExactly": true,
+  "rc0": true,
+  "stdoutEmpty": true
+ },
+ "expectedTests": 5,
+ "format": "multipart-validation-view-test-receipt/r1",
+ "pass": true,
+ "ran": [
+  "5"
+ ],
+ "rc": 0,
+ "scope": "tiny fixture parts only; no MDBX file, no production parts, no integrity claim",
+ "stageSums": "d71a3dce335dd0f44eb8a4b5355f700d2caa7332a575c796e2ca0d865a9e0a45",
+ "suite": "fixture",
+ "testsSha256": "80f7b7ec9128149380adf0602ee59f92823d3df4a4be96c91812cafe5809e846",
+ "viewDescriptorSha256": "23370c97956fb1a4dde30f4a657ca97e89ce452f1a982cfc29c36970113d39e0"
+}

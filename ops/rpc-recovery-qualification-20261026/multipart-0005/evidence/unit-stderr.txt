@@ -1,0 +1,36 @@
+test_concurrency_one_per_target (__main__.Admission.test_concurrency_one_per_target) ... ok
+test_production_pins_layout_and_fixture_paths_refused (__main__.Admission.test_production_pins_layout_and_fixture_paths_refused) ... ok
+test_wrong_filesystem_capacity_and_memory_floors_refused_on_copy_and_verify (__main__.Admission.test_wrong_filesystem_capacity_and_memory_floors_refused_on_copy_and_verify) ... ok
+test_changed_original_map_plan_patches_journal_or_manifest_refused (__main__.Bindings.test_changed_original_map_plan_patches_journal_or_manifest_refused) ... ok
+test_manifest_coverage_gaps_overlaps_duplicates_and_holes (__main__.Bindings.test_manifest_coverage_gaps_overlaps_duplicates_and_holes) ... ok
+test_findmnt_uuid_parser_fail_closed (__main__.Devices.test_findmnt_uuid_parser_fail_closed) ... ok
+test_usb_detection_on_a_synthetic_sysfs (__main__.Devices.test_usb_detection_on_a_synthetic_sysfs) ... ok
+test_serve_session_mode_refuses_source_wrong_target_and_writable_mounts (__main__.Integration.test_serve_session_mode_refuses_source_wrong_target_and_writable_mounts) ... ok
+test_server_under_the_sessions_fsize_cap_feeds_parts_larger_than_the_cap (__main__.Integration.test_server_under_the_sessions_fsize_cap_feeds_parts_larger_than_the_cap) ... ok
+test_corrupt_destination_detected_and_kept (__main__.Integrity.test_corrupt_destination_detected_and_kept) ... ok
+test_nonzero_source_inside_a_map_hole_refused (__main__.Integrity.test_nonzero_source_inside_a_map_hole_refused) ... ok
+test_truncated_part_refused_and_kept (__main__.Integrity.test_truncated_part_refused_and_kept) ... ok
+test_verification_rereads_the_source_and_never_accepts_copy_hashes_alone (__main__.Integrity.test_verification_rereads_the_source_and_never_accepts_copy_hashes_alone) ... ok
+test_write_failure_then_resume (__main__.Integrity.test_write_failure_then_resume) ... ok
+test_part_replaced_by_symlink_and_foreign_files_untouched (__main__.Paths.test_part_replaced_by_symlink_and_foreign_files_untouched) ... ok
+test_symlinked_target_or_ancestor_refused (__main__.Paths.test_symlinked_target_or_ancestor_refused) ... ok
+test_copy_two_targets_then_independent_verify_reassembles_the_source (__main__.Positive.test_copy_two_targets_then_independent_verify_reassembles_the_source) ... ok
+test_sigterm_mid_part_stops_cleanly_and_resumes (__main__.Positive.test_sigterm_mid_part_stops_cleanly_and_resumes) ... ok
+test_finalization_never_raises_and_never_reports_a_false_confirmation (__main__.R3.test_finalization_never_raises_and_never_reports_a_false_confirmation) ... ok
+test_malformed_extra_or_missing_receipts_are_unconfirmed_not_raised (__main__.R3.test_malformed_extra_or_missing_receipts_are_unconfirmed_not_raised) ... ok
+test_max_bytes_is_honoured_exactly_and_zero_stops_before_reading (__main__.R3.test_max_bytes_is_honoured_exactly_and_zero_stops_before_reading) ... ok
+test_resumed_prefix_is_reread_from_the_current_source_before_continuing (__main__.R3.test_resumed_prefix_is_reread_from_the_current_source_before_continuing) ... ok
+test_soft_deadline_stops_at_a_part_or_checkpoint_boundary (__main__.R3.test_soft_deadline_stops_at_a_part_or_checkpoint_boundary) ... ok
+test_cancel_while_waiting_for_the_source_removes_our_socket (__main__.Records.test_cancel_while_waiting_for_the_source_removes_our_socket) ... ok
+test_crash_windows_link_before_unlink_and_record (__main__.Records.test_crash_windows_link_before_unlink_and_record) ... ok
+test_external_hardlink_refused_everywhere_and_kept (__main__.Records.test_external_hardlink_refused_everywhere_and_kept) ... ok
+test_malformed_or_forged_verify_records_never_count (__main__.Records.test_malformed_or_forged_verify_records_never_count) ... ok
+test_rehash_prepass_runs_before_the_source_is_opened (__main__.Records.test_rehash_prepass_runs_before_the_source_is_opened) ... ok
+test_replaced_or_touched_part_after_pass_is_stale_not_verified (__main__.Records.test_replaced_or_touched_part_after_pass_is_stale_not_verified) ... ok
+test_preservation_request_is_purpose_bound_and_exact (__main__.Request.test_preservation_request_is_purpose_bound_and_exact) ... ok
+test_checkpoints_at_hole_boundaries_resume (__main__.Sparse.test_checkpoints_at_hole_boundaries_resume) ... ok
+
+----------------------------------------------------------------------
+Ran 31 tests in 18.612s
+
+OK
