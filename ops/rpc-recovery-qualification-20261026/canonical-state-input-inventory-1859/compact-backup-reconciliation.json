@@ -1,0 +1,89 @@
+{
+  "scope": "saved metadata only; no new image reads or mounts",
+  "inventoryEntries": 376,
+  "inventoriesEqual": true,
+  "inventorySha256": {
+    "base-file-inventory.json": "1ac11cc11ba2634c4fb321514bfb7b64778f6c81e156486ec55b72a46cad9f38",
+    "base-backup-file-inventory.json": "df104422cfe1ee05ba89d0ec4606becbfc23761c94c3890cad803b57f1486b17"
+  },
+  "rocksdbEntries": 0,
+  "selectedFiles": [
+    {
+      "path": "data/reth.toml",
+      "mode": 33184,
+      "uid": 994,
+      "gid": 985,
+      "size": 2590,
+      "blocks": 8,
+      "mtime_ns": 1793026310098139981,
+      "nlink": 1,
+      "target": null
+    },
+    {
+      "path": "data/static_files/static_file_headers_52500000_52999999",
+      "mode": 33188,
+      "uid": 994,
+      "gid": 985,
+      "size": 318751407,
+      "blocks": 622576,
+      "mtime_ns": 1000000000,
+      "nlink": 1,
+      "target": null
+    },
+    {
+      "path": "data/static_files/static_file_headers_52500000_52999999.conf",
+      "mode": 33188,
+      "uid": 994,
+      "gid": 985,
+      "size": 75,
+      "blocks": 8,
+      "mtime_ns": 1000000000,
+      "nlink": 1,
+      "target": null
+    },
+    {
+      "path": "data/static_files/static_file_headers_52500000_52999999.off",
+      "mode": 33188,
+      "uid": 994,
+      "gid": 985,
+      "size": 12000009,
+      "blocks": 23440,
+      "mtime_ns": 1000000000,
+      "nlink": 1,
+      "target": null
+    },
+    {
+      "path": "data/static_files/static_file_headers_53000000_53499999",
+      "mode": 33188,
+      "uid": 994,
+      "gid": 985,
+      "size": 30982072,
+      "blocks": 60512,
+      "mtime_ns": 1000000000,
+      "nlink": 1,
+      "target": null
+    },
+    {
+      "path": "data/static_files/static_file_headers_53000000_53499999.conf",
+      "mode": 33188,
+      "uid": 994,
+      "gid": 985,
+      "size": 75,
+      "blocks": 8,
+      "mtime_ns": 1000000000,
+      "nlink": 1,
+      "target": null
+    },
+    {
+      "path": "data/static_files/static_file_headers_53000000_53499999.off",
+      "mode": 33188,
+      "uid": 994,
+      "gid": 985,
+      "size": 1164657,
+      "blocks": 2280,
+      "mtime_ns": 1000000000,
+      "nlink": 1,
+      "target": null
+    }
+  ]
+}
