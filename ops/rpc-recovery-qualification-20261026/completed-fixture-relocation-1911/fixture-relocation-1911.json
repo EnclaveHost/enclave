@@ -1,0 +1,21 @@
+{
+  "startedEpoch": 1793104616.9654753,
+  "rootFreeBefore": 51639336960,
+  "relocations": [
+    {
+      "original": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-windows-proof-20261026T045553Z/repo",
+      "destination": "/vm/enclave-volumes/rpc-completed-fixtures-20261027-1911/root-windows-proof-20261026T045553Z/repo",
+      "verification": "rsync -aHnci --delete: no differences",
+      "originalPath": "symlink to verified preserved copy"
+    },
+    {
+      "original": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/logs/root-windows-proof-r2-20261026T050834Z/repo",
+      "destination": "/vm/enclave-volumes/rpc-completed-fixtures-20261027-1911/root-windows-proof-r2-20261026T050834Z/repo",
+      "verification": "rsync -aHnci --delete: no differences",
+      "originalPath": "symlink to verified preserved copy"
+    }
+  ],
+  "completedEpoch": 1793104632.5948045,
+  "rootFreeAfter": 52558209024,
+  "vmFreeAfter": 149927628800
+}
