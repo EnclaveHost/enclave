@@ -1,0 +1,14 @@
+...........F.............
+======================================================================
+FAIL: test_04_extractor_last_e2e_block_explicit_no_dead_end (__main__.FailClosed.test_04_extractor_last_e2e_block_explicit_no_dead_end)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/state-production-validation-stage/r3/tests/test_state.py", line 144, in test_04_extractor_last_e2e_block_explicit_no_dead_end
+    self.assertIn("BLOCKED extractorE2E", str(cm.exception))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'BLOCKED extractorE2E' not found in 'extractorSums: README.md changed'
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.143s
+
+FAILED (failures=1)
